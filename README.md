@@ -23,9 +23,9 @@ git clone https://github.com/votre-username/LogviewR.git
 
 2. Configurez les permissions :
 ```bash
-chmod 755 /chemin/vers/LogviewR
-chmod 664 /chemin/vers/LogviewR/config/*.php
-chmod +x /chemin/vers/LogviewR/parse_log.sh
+chmod 750 /chemin/vers/LogviewR 
+chmod 640 /chemin/vers/LogviewR/config/*.php
+chmod 750 /chemin/vers/LogviewR/parse_log.sh
 ```
 
 3. Configurez votre serveur web (exemple Apache) :
