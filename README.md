@@ -25,6 +25,7 @@ git clone https://github.com/votre-username/LogviewR.git
 ```bash
 chmod 755 /chemin/vers/LogviewR
 chmod 664 /chemin/vers/LogviewR/config/*.php
+chmod +x /chemin/vers/LogviewR/parse_log.sh
 ```
 
 3. Configurez votre serveur web (exemple Apache) :
@@ -56,30 +57,6 @@ chmod 664 /chemin/vers/LogviewR/config/*.php
   - Fallback (Access/Error)
 - Syslog
 
-### Exemple de configuration (config/log_patterns.php)
-
-```php
-return [
-    'filters' => [
-        'exclude' => [
-            'ips' => [
-                '/^192\.168\.1\.(10|50)$/',
-                '/^127\.0\.0\.1$/'
-            ],
-            'requests' => [
-                '/favicon\.ico/',
-                '/\.(jpg|png|gif|css|js)$/',
-                '/robots\.txt/'
-            ],
-            'user_agents' => [
-                '/bot|crawler|spider/',
-                '/monitoring/'
-            ]
-        ]
-    ]
-];
-```
-
 ### Exemples de logs supportés
 
 #### Apache Access Log
@@ -97,12 +74,17 @@ example.com:80 192.168.1.100 - user1 [01/Jan/2025:12:00:00 +0100] "GET /index.ph
 Jan 1 12:00:00 server1 process[123]: Message de log
 ```
 
-## Interface d'administration 👨‍💼
+## Interface d'administration 👨‍��
 
-- URL : `http://votre-serveur/LogviewR/admin`
-- Identifiants par défaut :
-  - Utilisateur : `admin`
-  - Mot de passe : `password` (à changer lors de la première connexion)
+Interface sécurisée accessible à `http://votre-serveur/LogviewR/admin` permettant de :
+- Gérer les utilisateurs et les permissions
+- Configurer les sources de logs
+- Définir les filtres et les exclusions
+- Consulter les statistiques d'utilisation
+
+Identifiants par défaut :
+- Utilisateur : `admin`
+- Mot de passe : `password` (à changer immédiatement)
 
 ## Sécurité 🔒
 
