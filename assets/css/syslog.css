@@ -1,0 +1,84 @@
+/* ==========================================================================
+   Syslog Badge Base Styles
+   ========================================================================== */
+.syslog-badge {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.9em;
+    font-weight: 500;
+    margin: 0 2px;
+    text-align: center;
+    min-width: 60px;
+}
+
+/* ==========================================================================
+   Syslog Badge Types
+   ========================================================================== */
+/* Date Badge */
+.syslog-badge.date {
+    background-color: var(--badge-date-bg);
+    color: var(--badge-date-color);
+    font-family: monospace;
+    min-width: 120px;
+}
+
+/* Hostname Badge */
+.syslog-badge.hostname {
+    background-color: var(--badge-host-bg);
+    color: var(--badge-host-color);
+}
+
+/* Process Badge */
+.syslog-badge.process {
+    background-color: var(--badge-process-bg);
+    color: var(--badge-process-color);
+}
+
+/* ==========================================================================
+   Level Badges
+   ========================================================================== */
+.syslog-badge.level {
+    min-width: 45px;
+    text-align: center;
+}
+
+.syslog-badge.level.error {
+    background-color: var(--badge-error-bg);
+    color: var(--badge-error-color);
+}
+
+.syslog-badge.level.warning {
+    background-color: var(--badge-warning-bg);
+    color: var(--badge-warning-color);
+}
+
+.syslog-badge.level.info {
+    background-color: var(--badge-info-bg);
+    color: var(--badge-info-color);
+}
+
+/* ==========================================================================
+   Column Styles
+   ========================================================================== */
+.syslog-table .column-date {
+    width: 120px;
+    text-align: center;
+}
+
+.syslog-table .column-hostname {
+    width: 120px;
+    text-align: center;
+}
+
+.syslog-table .column-process {
+    width: 150px;
+    text-align: center;
+}
+
+.syslog-table .column-message {
+    min-width: 300px;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+

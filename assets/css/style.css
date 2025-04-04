@@ -1,0 +1,80 @@
+/* Style pour le temps d'exécution */
+.execution-time {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background-color: rgba(0, 0, 0, 0.8);
+    color: #fff;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-family: monospace;
+    z-index: 1000;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* Mode sombre */
+[data-theme="dark"] .execution-time {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: #fff;
+}
+
+/* Section Admin IPs exclues */
+.admin-section {
+    background: #2a2a2a;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+
+.admin-section h2 {
+    color: #58a6ff;
+    margin-bottom: 20px;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 10px;
+    color: #c9d1d9;
+}
+
+.form-control {
+    width: 100%;
+    padding: 10px;
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    color: #c9d1d9;
+    font-family: monospace;
+}
+
+.form-text {
+    display: block;
+    margin-top: 5px;
+    color: #8b949e;
+    font-size: 0.9em;
+}
+
+.alert {
+    padding: 15px;
+    margin-bottom: 20px;
+    border-radius: 6px;
+}
+
+.alert.success {
+    background: #238636;
+    color: #ffffff;
+}
+
+.admin-links {
+    margin-top: 20px;
+}
+
+/* Checkbox style */
+input[type="checkbox"] {
+    margin-right: 10px;
+} 

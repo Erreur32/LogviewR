@@ -1,0 +1,600 @@
+/* ==========================================================================
+   Table Base Styles
+   ==========================================================================
+   Ces styles définissent la structure de base du tableau.
+   IMPORTANT: 
+   - background et color utilisent des variables CSS pour supporter le mode sombre
+   - border-collapse: collapse est nécessaire pour éviter les doubles bordures
+   - Les variables --table-bg et --table-text-color doivent être définies dans variables.css
+     pour les deux modes (clair et sombre)
+   ========================================================================== */
+.logviewer-table {
+    width: 100%;
+    min-width: 100%;
+    border-collapse: collapse;
+    margin: 0;
+    background-color: var(--table-bg) !important;
+    color: var(--table-text-color) !important;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', 'Monaco', monospace !important;
+    font-size: 13px !important;
+    line-height: 1.4 !important;
+    letter-spacing: 0.2px !important;
+    border-spacing: 0 !important;
+    border-collapse: collapse !important;
+    table-layout: fixed !important;
+}
+
+
+
+/* ==========================================================================
+   Table Headers
+   ==========================================================================
+   Les en-têtes du tableau nécessitent une attention particulière :
+   - white-space: nowrap empêche le retour à la ligne dans les en-têtes
+   - background-color distinct pour les différencier du corps
+   - border-bottom pour séparer visuellement l'en-tête du corps
+   - Les variables doivent être définies pour le mode sombre
+   ========================================================================== */
+.logviewer-table thead th {
+    padding: 8px;
+    font-weight: 600;
+    text-align: left;
+    white-space: nowrap;
+    background-color: var(--table-header-bg);
+    color: var(--table-header-text-color);
+    border-bottom: 2px solid var(--table-border-color);
+    position: relative; /* Nécessaire pour le positionnement des icônes de tri */
+}
+
+/* ==========================================================================
+   Table Body
+   ==========================================================================
+   Le corps du tableau inclut :
+   - Des transitions pour le hover
+   - Des couleurs alternées pour les lignes
+   - Des bordures légères entre les lignes
+   - Support du mode sombre via les variables CSS
+   ========================================================================== */
+.logviewer-table tbody td {
+   /* padding: 8px;
+    vertical-align: top;
+    border-bottom: 1px solid var(--table-border-color);
+    */
+    padding: 2px 4px !important;
+    vertical-align: middle !important;
+    border-bottom: 1px solid var(--table-border-color);
+    line-height: 1.4 !important;
+    font-size: 13px !important;
+    letter-spacing: 0.2px !important;
+}
+
+/* Animation de transition pour le hover */
+.logviewer-table tbody tr {
+    transition: background-color 0.2s ease;
+}
+
+/* Styles de survol - important pour l'interaction utilisateur */
+.logviewer-table tbody tr:hover {
+    background-color: var(--table-row-hover-bg);
+}
+
+/* Lignes alternées pour une meilleure lisibilité */
+.logviewer-table tbody tr:nth-child(odd) {
+    background-color: var(--table-row-alt-bg);
+}
+
+
+
+/* ==========================================================================
+   Column Styles
+   ==========================================================================
+   Définition précise des largeurs de colonnes :
+   - width: définit la largeur idéale
+   - min-width: empêche la colonne de devenir trop étroite
+   - max-width: limite la largeur pour les grands écrans
+   - text-align: alignement optimal selon le type de contenu
+   
+   IMPORTANT: Ces largeurs sont cruciales pour :
+   1. Éviter le redimensionnement indésirable
+   2. Maintenir une mise en page cohérente
+   3. Optimiser l'affichage des badges
+   ========================================================================== */
+.logviewer-table {
+    & .column-date { 
+        width: 120px; 
+        min-width: 120px; 
+        max-width: 120px; 
+        text-align: center;
+    }
+    & .column-host { 
+        width: 110px; 
+        min-width: 110px; 
+        max-width: 110px; 
+        text-align: center;
+    }
+    & .column-ip { 
+        width: 110px; 
+        min-width: 110px; 
+        max-width: 110px; 
+        text-align: center;
+    }
+    & .column-user { 
+        width: 90px; 
+        min-width: 90px; 
+        max-width: 90px; 
+        text-align: center;
+    }
+    & .column-request { 
+        width: 280px; 
+        min-width: 280px;
+        max-width: none;
+        text-align: left;
+    }
+    & .column-status { 
+        width: 70px !important; 
+        min-width: 70px !important; 
+        max-width: 70px !important; 
+        text-align: center;
+        white-space: nowrap !important;
+    }
+    & .column-size { 
+        width: 80px !important; 
+        min-width: 80px !important; 
+        max-width: 80px !important; 
+        text-align: right;
+        white-space: nowrap !important;
+    }
+    & .column-referer { 
+        width: 180px; 
+        min-width: 180px;
+        max-width: none;
+        text-align: left;
+    }
+    & .column-useragent { 
+        width: 180px; 
+        min-width: 180px;
+        max-width: none;
+        text-align: left;
+        font-size: 12px !important;
+        line-height: 1.2 !important;
+    }
+}
+
+/* ==========================================================================
+   DataTables Wrapper
+   ========================================================================== */
+.dataTables_wrapper {
+    position: relative;
+    width: 100%;
+    margin: 0 !important;
+    border-radius: 4px;
+    background-color: #262829;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    padding: 0 !important;
+    overflow: hidden !important;
+    max-width: 100% !important;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Container pour le tableau avec scroll horizontal */
+.dataTables_scroll {
+    overflow: hidden !important;
+    margin-bottom: 0 !important;
+    padding: 0px !important;
+    flex: 1;
+    min-height: 0;
+    width: 100% !important;
+}
+
+/* Ajuster les conteneurs de scroll */
+.dataTables_scrollBody,
+.dataTables_scrollHead {
+    width: 100% !important;
+    overflow-x: auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    min-width: fit-content !important;
+    scrollbar-width: thin !important;
+}
+
+.dataTables_scrollBody {
+    height: 100% !important;
+    overflow-y: auto !important;
+    overflow-x: auto !important;
+}
+
+/* Style pour le footer du tableau */
+.dataTables_wrapper .dataTables_info,
+.dataTables_wrapper .dataTables_paginate,
+.dataTables_wrapper .dataTables_length {
+    position: relative !important;
+    padding: 8px !important;
+    background-color: #262829 !important;
+    margin: 0 !important;
+    width: auto !important;
+    z-index: 1 !important;
+}
+
+/* Style pour le texte d'information */
+.dataTables_wrapper .dataTables_info {
+    font-size: 12px !important;
+    padding: 12px 8px !important;
+    color: var(--table-header-text-color) !important;
+    margin-top: 4px !important;
+    display: flex !important;
+    align-items: center !important;
+}
+
+/* Assurer que le footer reste dans le flux */
+.dataTables_wrapper .dataTables_paginate {
+    text-align: right !important;
+    float: right !important;
+    padding-right: 8px !important;
+}
+
+.dataTables_wrapper .dataTables_length {
+    float: left !important;
+    padding-left: 8px !important;
+}
+
+/* Nettoyer le float */
+.dataTables_wrapper::after {
+    content: "" !important;
+    display: table !important;
+    clear: both !important;
+}
+
+/* ==========================================================================
+   Cell Content Styles
+   ========================================================================== */
+/* Ajuster la taille des cellules */
+.logviewer-table td {
+    max-width: none !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    padding: 4px 8px !important;
+}
+
+/* Wrapper pour les badges dans les cellules */
+.badge-wrapper {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    width: 100% !important;
+}
+
+/* ==========================================================================
+   Pagination Styles
+   ========================================================================== */
+.dataTables_paginate {
+    padding: 1rem;
+    text-align: right;
+}
+
+.dataTables_paginate .paginate_button {
+    padding: 0.375rem 0.75rem;
+    margin: 0 2px;
+    border-radius: 4px;
+    cursor: pointer;
+    background: var(--datatable-pagination-bg);
+    
+    color: var(--datatable-pagination-text);
+    border: 1px solid var(--datatable-border-color);
+}
+
+.dataTables_paginate .paginate_button.current {
+  /*  background: var(--datatable-pagination-active); */
+    background: var(--primary-color) !important;
+    color: var(--datatable-pagination-active-text);
+    border-color: var(--datatable-pagination-active);
+}
+
+.dataTables_paginate .paginate_button:hover {
+    background: var(--datatable-pagination-hover);
+    color: var(--datatable-pagination-text);
+}
+
+/* ==========================================================================
+   DataTables Overrides
+   ========================================================================== */
+.dataTables_wrapper,
+.dataTables_scroll,
+.dataTables_scrollHead,
+.dataTables_scrollBody {
+    border: none;
+    margin: 0;
+    padding: 0;
+}
+
+/* ==========================================================================
+   Hide DataTables Elements
+   ========================================================================== */
+.dataTables_filter,
+.dataTables_length {
+    display: none;
+}
+
+/* ==========================================================================
+   Responsive Fixes
+   ========================================================================== */
+@-moz-document url-prefix() {
+    .dataTables_scrollHead {
+        overflow: visible;
+    }
+}
+
+@media not all and (min-resolution:.001dpcm) {
+    .dataTables_scrollHead {
+        overflow: visible;
+    }
+}
+
+/* ==========================================================================
+   Table Footer Styles
+   ========================================================================== */
+.dataTables_wrapper .dataTables_paginate,
+.dataTables_wrapper .dataTables_length,
+.dataTables_wrapper .dataTables_info {
+    background-color: var(--table-header-bg) !important;
+    color: var(--table-header-text-color) !important;
+    padding: 8px !important;
+}
+
+.dataTables_wrapper {
+    background-color: var(--table-bg) !important;
+    padding: 0 !important;
+}
+
+/* Style pour les boutons de pagination */
+.dataTables_wrapper .dataTables_paginate .paginate_button {
+    padding: 2px 8px !important;
+    font-size: 12px !important;
+    min-width: 24px !important;
+    height: 24px !important;
+    line-height: 20px !important;
+    background-color: var(--table-header-bg) !important;
+    color: var(--table-header-text-color) !important;
+    border: 1px solid var(--table-border-color) !important;
+}
+
+.dataTables_wrapper .dataTables_paginate .paginate_button.current {
+  /*  background-color: var(--table-bg) !important;
+    color: var(--table-text-color) !important;*/
+    background-color: var(--primary-color) !important;
+    border-color: var(--table-border-color) !important;
+}
+
+/* Réduire la taille des cases de sélection dans le footer */
+.dataTables_wrapper .dataTables_length select {
+    padding: 2px 4px !important;
+    font-size: 12px !important;
+    height: 24px !important;
+    min-width: 60px !important;
+}
+
+.dataTables_wrapper {
+    width: 100% !important;
+    background: var(--table-bg) !important;
+    border-radius: 4px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+.dataTables_scroll {
+    width: 100% !important;
+    border: none !important;
+    border-radius: 4px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+.dataTables_scrollBody {
+    max-height: none !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+/* ==========================================================================
+   Date Badge Styles
+   ========================================================================== */
+.date-badge {
+    display: inline-block !important;
+    padding: 2px 6px !important;
+    border-radius: 4px !important;
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    color: #ffffff !important;
+    white-space: nowrap !important;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Dégradé complet pour les heures (0-23) */
+.date-badge[data-hour="0"] { background-color: #242f79 !important; }
+.date-badge[data-hour="1"] { background-color: #27428b !important; }
+.date-badge[data-hour="2"] { background-color: #0f3460 !important; }
+.date-badge[data-hour="3"] { background-color: #3b4870 !important; }
+.date-badge[data-hour="4"] { background-color: #1f4068 !important; }
+.date-badge[data-hour="5"] { background-color: #1e3d59 !important; }
+.date-badge[data-hour="6"] { background-color: #1b4b5a !important; }
+.date-badge[data-hour="7"] { background-color: #1a5f7a !important; }
+.date-badge[data-hour="8"] { background-color: #178b8b !important; }
+.date-badge[data-hour="9"] { background-color: #1aa6b7 !important; }
+.date-badge[data-hour="10"] { background-color: #1cc5c5 !important; }
+.date-badge[data-hour="11"] { background-color: #1dd3b0 !important; }
+.date-badge[data-hour="12"] { background-color: #1ee2b6 !important; }
+.date-badge[data-hour="13"] { background-color: #1fdd8f !important; }
+.date-badge[data-hour="14"] { background-color: #1edb8e !important; }
+.date-badge[data-hour="15"] { background-color: #1edb8e !important; }
+.date-badge[data-hour="16"] { background-color: #1dd3b0 !important; }
+.date-badge[data-hour="17"] { background-color: #1cc5c5 !important; }
+.date-badge[data-hour="18"] { background-color: #1aa6b7 !important; }
+.date-badge[data-hour="19"] { background-color: #178b8b !important; }
+.date-badge[data-hour="20"] { background-color: #1a5f7a !important; }
+.date-badge[data-hour="21"] { background-color: #1b4b5a !important; }
+.date-badge[data-hour="22"] { background-color: #1e3d59 !important; }
+.date-badge[data-hour="23"] { background-color: #1f4068 !important; }
+
+/* Animation de transition */
+.date-badge {
+    transition: background-color 0.3s ease !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Hover effect */
+.date-badge:hover {
+    filter: brightness(1.1) !important;
+}
+
+/* ==========================================================================
+   Badge Styles
+   ========================================================================== */
+/* Base styles for all badges */
+.logviewer-table .log-badge {
+    display: inline-block !important;
+    padding: 2px 6px !important;
+    border-radius: 4px !important;
+    font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    color: #ffffff !important;
+    white-space: nowrap !important;
+    text-shadow: 
+        -0.5px -0.5px 0 rgba(0, 0, 0, 0.5),
+         0.5px -0.5px 0 rgba(0, 0, 0, 0.5),
+        -0.5px 0.5px 0 rgba(0, 0, 0, 0.5),
+         0.5px 0.5px 0 rgba(0, 0, 0, 0.5),
+         0 1px 2px rgba(0, 0, 0, 0.2) !important;
+    letter-spacing: 0.3px !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2) !important;
+    transition: all 0.2s ease !important;
+}
+
+/* IP Badge Styles - Thème bleu/violet */
+.logviewer-table .log-badge.ip {
+    background-color: #3498db !important;
+    text-shadow: 
+        -0.5px -0.5px 0 rgba(0, 0, 0, 0.5),
+         0.5px -0.5px 0 rgba(0, 0, 0, 0.5),
+        -0.5px 0.5px 0 rgba(0, 0, 0, 0.5),
+         0.5px 0.5px 0 rgba(0, 0, 0, 0.5),
+         0 1px 2px rgba(0, 0, 0, 0.2) !important;
+}
+
+.logviewer-table .log-badge.ip[data-ip-hash="0"] { background-color: #2c3e50 !important; }
+.logviewer-table .log-badge.ip[data-ip-hash="1"] { background-color: #34495e !important; }
+.logviewer-table .log-badge.ip[data-ip-hash="2"] { background-color: #8e44ad !important; }
+.logviewer-table .log-badge.ip[data-ip-hash="3"] { background-color: #9b59b6 !important; }
+.logviewer-table .log-badge.ip[data-ip-hash="4"] { background-color: #2980b9 !important; }
+.logviewer-table .log-badge.ip[data-ip-hash="5"] { background-color: #3498db !important; }
+.logviewer-table .log-badge.ip[data-ip-hash="6"] { background-color: #1abc9c !important; }
+.logviewer-table .log-badge.ip[data-ip-hash="7"] { background-color: #16a085 !important; }
+.logviewer-table .log-badge.ip[data-ip-hash="8"] { background-color: #27ae60 !important; }
+.logviewer-table .log-badge.ip[data-ip-hash="9"] { background-color: #2ecc71 !important; }
+.logviewer-table .log-badge.ip[data-ip-hash="a"] { background-color: #f1c40f !important; }
+.logviewer-table .log-badge.ip[data-ip-hash="b"] { background-color: #f39c12 !important; }
+.logviewer-table .log-badge.ip[data-ip-hash="c"] { background-color: #e67e22 !important; }
+.logviewer-table .log-badge.ip[data-ip-hash="d"] { background-color: #d35400 !important; }
+.logviewer-table .log-badge.ip[data-ip-hash="e"] { background-color: #e74c3c !important; }
+.logviewer-table .log-badge.ip[data-ip-hash="f"] { background-color: #c0392b !important; }
+
+/* Host Badge Styles - Thème bleu/vert */
+.logviewer-table .log-badge.host {
+    background-color: #3498db !important;
+}
+
+.logviewer-table .log-badge.host[data-host-hash="0"] { background-color: #2c3e50 !important; }
+.logviewer-table .log-badge.host[data-host-hash="1"] { background-color: #34495e !important; }
+.logviewer-table .log-badge.host[data-host-hash="2"] { background-color: #2980b9 !important; }
+.logviewer-table .log-badge.host[data-host-hash="3"] { background-color: #3498db !important; }
+.logviewer-table .log-badge.host[data-host-hash="4"] { background-color: #1abc9c !important; }
+.logviewer-table .log-badge.host[data-host-hash="5"] { background-color: #16a085 !important; }
+.logviewer-table .log-badge.host[data-host-hash="6"] { background-color: #27ae60 !important; }
+.logviewer-table .log-badge.host[data-host-hash="7"] { background-color: #2ecc71 !important; }
+.logviewer-table .log-badge.host[data-host-hash="8"] { background-color: #1abc9c !important; }
+.logviewer-table .log-badge.host[data-host-hash="9"] { background-color: #16a085 !important; }
+.logviewer-table .log-badge.host[data-host-hash="a"] { background-color: #27ae60 !important; }
+.logviewer-table .log-badge.host[data-host-hash="b"] { background-color: #2ecc71 !important; }
+.logviewer-table .log-badge.host[data-host-hash="c"] { background-color: #1abc9c !important; }
+.logviewer-table .log-badge.host[data-host-hash="d"] { background-color: #16a085 !important; }
+.logviewer-table .log-badge.host[data-host-hash="e"] { background-color: #27ae60 !important; }
+.logviewer-table .log-badge.host[data-host-hash="f"] { background-color: #2ecc71 !important; }
+
+/* User Badge Styles */
+.logviewer-table .log-badge.user {
+    background-color: #9b59b6 !important;
+}
+
+.logviewer-table .log-badge.user[data-user-hash="0"] { background-color: #2c3e50 !important; }
+.logviewer-table .log-badge.user[data-user-hash="1"] { background-color: #34495e !important; }
+.logviewer-table .log-badge.user[data-user-hash="2"] { background-color: #8e44ad !important; }
+.logviewer-table .log-badge.user[data-user-hash="3"] { background-color: #9b59b6 !important; }
+.logviewer-table .log-badge.user[data-user-hash="4"] { background-color: #2980b9 !important; }
+.logviewer-table .log-badge.user[data-user-hash="5"] { background-color: #3498db !important; }
+.logviewer-table .log-badge.user[data-user-hash="6"] { background-color: #1abc9c !important; }
+.logviewer-table .log-badge.user[data-user-hash="7"] { background-color: #16a085 !important; }
+.logviewer-table .log-badge.user[data-user-hash="8"] { background-color: #27ae60 !important; }
+.logviewer-table .log-badge.user[data-user-hash="9"] { background-color: #2ecc71 !important; }
+.logviewer-table .log-badge.user[data-user-hash="a"] { background-color: #f1c40f !important; }
+.logviewer-table .log-badge.user[data-user-hash="b"] { background-color: #f39c12 !important; }
+.logviewer-table .log-badge.user[data-user-hash="c"] { background-color: #e67e22 !important; }
+.logviewer-table .log-badge.user[data-user-hash="d"] { background-color: #d35400 !important; }
+.logviewer-table .log-badge.user[data-user-hash="e"] { background-color: #e74c3c !important; }
+.logviewer-table .log-badge.user[data-user-hash="f"] { background-color: #c0392b !important; }
+
+/* Empty Badge Styles */
+.logviewer-table .log-badge.ip-empty,
+.logviewer-table .log-badge.host-empty,
+.logviewer-table .log-badge.user-empty {
+    background-color: #7f8c8d !important;
+    opacity: 0.8 !important;
+    text-shadow: 
+        -1px -1px 0 #000,
+        1px -1px 0 #000,
+        -1px 1px 0 #000,
+        1px 1px 0 #000,
+        0 1px 1px rgba(0, 0, 0, 0.4) !important;
+}
+
+/* Hover effect for all badges */
+.logviewer-table .log-badge:hover {
+    transform: translateY(-1px) !important;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3) !important;
+    filter: brightness(1.1) !important;
+}
+
+/* Apache Method Badge Styles */
+.logviewer-table .apache-badge.method {
+    text-shadow: 
+        -0.5px -0.5px 0 rgba(0, 0, 0, 0.5),
+        0.5px -0.5px 0 rgba(0, 0, 0, 0.5),
+        -0.5px 0.5px 0 rgba(0, 0, 0, 0.5),
+        0.5px 0.5px 0 rgba(0, 0, 0, 0.5),
+        0 1px 2px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Status Badge Styles */
+.logviewer-table .status-badge,
+.logviewer-table .log-badge.status {
+    text-shadow: 
+        -0.5px -0.5px 0 rgba(0, 0, 0, 0.5),
+        0.5px -0.5px 0 rgba(0, 0, 0, 0.5),
+        -0.5px 0.5px 0 rgba(0, 0, 0, 0.5),
+        0.5px 0.5px 0 rgba(0, 0, 0, 0.5),
+        0 1px 2px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Status Success Badge */
+.logviewer-table .status-badge.status-success,
+.logviewer-table .log-badge.status-success {
+    text-shadow: 
+        -0.5px -0.5px 0 rgba(0, 0, 0, 0.4),
+        0.5px -0.5px 0 rgba(0, 0, 0, 0.4),
+        -0.5px 0.5px 0 rgba(0, 0, 0, 0.4),
+        0.5px 0.5px 0 rgba(0, 0, 0, 0.4),
+        0 1px 2px rgba(0, 0, 0, 0.15) !important;
+}

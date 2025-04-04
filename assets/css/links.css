@@ -1,0 +1,40 @@
+/* ==========================================================================
+   Base Link Styles
+   ========================================================================== */
+a {
+    color: var(--primary-color);
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+a:hover {
+    color: var(--secondary-color);
+    text-decoration: underline;
+}
+
+/* ==========================================================================
+   Component-Specific Link Styles
+   ========================================================================== */
+/* Footer Links */
+.footer-made-by a {
+    color: var(--primary-color);
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 0.3s ease;
+}
+
+.footer-made-by a:hover {
+    color: var(--secondary-color);
+}
+
+/* Header Links */
+.header-container h2 a {
+    color: var(--primary-color);
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+.header-container h2 a:hover {
+    color: var(--secondary-color);
+}
+

@@ -1,0 +1,69 @@
+# Protection de base
+Options -Indexes
+ServerSignature Off
+
+# Forcer HTTPS
+RewriteEngine On
+RewriteCond %{HTTPS} off
+RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# Protection contre les injections XSS et autres attaques
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-XSS-Protection "1; mode=block"
+    Header set X-Frame-Options "DENY"
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+    Header set Content-Security-Policy "default-src 'self'"
+    Header set Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+</IfModule>
+
+# Protection des fichiers sensibles
+<FilesMatch "^\.">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+<FilesMatch "\.(sh|bash|cmd|bat|exe|dll|so|dylib|ini|log|inc|bak|sql|config|php|json|lock|env|yml|yaml|xml|txt|md|git|svn|htaccess|htpasswd|db|sqlite|db-journal|db-shm|db-wal)$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# Autoriser uniquement l'exécution via PHP
+<Files "parse_log.sh">
+    Order allow,deny
+    Allow from all
+    SetHandler application/x-httpd-php
+    php_value auto_prepend_file "security_check.php"
+</Files>
+
+# Protection contre les attaques par force brute
+<IfModule mod_evasive20.c>
+    DOSHashTableSize 3097
+    DOSPageCount 2
+    DOSSiteCount 50
+    DOSPageInterval 1
+    DOSSiteInterval 1
+    DOSBlockingPeriod 10
+    DOSLogDir "/var/log/mod_evasive"
+    DOSEmailNotify "admin@example.com"
+    DOSWhitelist 127.0.0.1
+</IfModule>
+
+# Protection contre les injections
+<IfModule mod_rewrite.c>
+    RewriteCond %{REQUEST_METHOD} !POST
+    RewriteRule ^ - [F,L]
+    
+    RewriteCond %{HTTP_COOKIE} !PHPSESSID [NC]
+    RewriteRule ^ - [F,L]
+    
+    RewriteCond %{HTTP_REFERER} !^https?://%{HTTP_HOST} [NC]
+    RewriteRule ^ - [F,L]
+</IfModule>
+
+# Limitation de la taille des requêtes
+php_value post_max_size 1M
+php_value max_execution_time 30
+php_value max_input_time 30
+php_value memory_limit 64M
+php_value max_input_vars 100 

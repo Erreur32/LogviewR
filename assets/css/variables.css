@@ -1,0 +1,343 @@
+/* ==========================================================================
+   Base Theme Variables
+   ========================================================================== */
+:root {
+    /* Colors */
+    --bg-color: #ffffff;
+    --text-color: #333333;
+    --primary-color: #007bff;
+    --secondary-color: #6c757d;
+    --border-color: #dee2e6;
+    --hover-color: #f8f9fa;
+
+    /* Status Colors */
+    --error-color: #dc3545;
+    --warning-color: #ffc107;
+    --info-color: #17a2b8;
+    --success-color: #28a745;
+
+    /* Table Colors */
+    --table-bg: #ffffff;
+    --table-hover: #f5f5f5;
+    --table-header-bg: #f8f9fa;
+    --table-row-alt-bg: #f8f9fa;
+    --table-row-hover-bg: #e9ecef;
+    --table-border-color: #dee2e6;
+    --table-text-color: #212529;
+    --table-header-text-color: #495057;
+    --table-sorting-bg: transparent;
+    --table-sorting-dark-bg: transparent;
+
+    /* Select Colors */
+    --select-bg: #ffffff;
+    --select-text: #333333;
+    --select-border: #dee2e6;
+    --option-hover: #f8f9fa;
+    --option-selected: #e9ecef;
+
+    /* Timestamp Colors */
+    --timestamp-color: #3498db;
+    --timestamp-bg: rgba(52, 152, 219, 0.1);
+
+    /* Badge Base Colors */
+    --badge-bg: #e9ecef;
+    --badge-text: #495057;
+    --badge-border: #dee2e6;
+    --badge-hover-bg: #dee2e6;
+    --badge-hover-text: #212529;
+    --badge-hover-border: #ced4da;
+
+    /* Badge User Colors */
+    --badge-user-default: #9b59b6;
+    --badge-user-root: #c0392b;
+    --badge-user-admin: #e74c3c;
+    --badge-user-www: #8e44ad;
+    --badge-user-anonymous: #95a5a6;
+    --badge-user-erreur32: #16a085;
+
+    /* Badge Method Colors */
+    --badge-method-get: #00BCD4;
+    --badge-method-post: #4CAF50;
+    --badge-method-put: #FF9800;
+    --badge-method-delete: #F44336;
+    --badge-method-head: #9C27B0;
+    --badge-method-options: #607D8B;
+
+    /* Badge Status Colors */
+    --badge-status-success: #2ecc71;
+    --badge-status-warning: #f39c12;
+    --badge-status-error: #e74c3c;
+    --badge-status-redirect: #3498db;
+    --badge-status-info: #34495e;
+
+    /* Badge Level Colors */
+    --badge-level-error: #ff4d4d;
+    --badge-level-warning: #ffdb4d;
+    --badge-level-info: #4ddbff;
+    --badge-level-notice: #4dff4d;
+    --badge-level-error-bg: #dc3545;
+    --badge-level-error-text: #ffffff;
+    --badge-level-warning-bg: #ffc107;
+    --badge-level-warning-text: #000000;
+    --badge-level-info-bg: #17a2b8;
+    --badge-level-info-text: #ffffff;
+    --badge-level-notice-bg: #28a745;
+    --badge-level-notice-text: #ffffff;
+
+    /* Dynamic Color Palette */
+    --color-0: #16a085;  /* Dark Turquoise */
+    --color-1: #3498db;  /* Blue */
+    --color-2: #2ecc71;  /* Green */
+    --color-3: #e74c3c;  /* Red */
+    --color-4: #f1c40f;  /* Yellow */
+    --color-5: #9b59b6;  /* Purple */
+    --color-6: #e67e22;  /* Orange */
+    --color-7: #1abc9c;  /* Turquoise */
+    --color-8: #34495e;  /* Navy */
+    --color-9: #95a5a6;  /* Gray */
+
+    /* Syslog Badge Colors */
+    --badge-date-bg: #007bff;
+    --badge-date-color: #ffffff;
+    --badge-host-bg: #6c757d;
+    --badge-host-color: #ffffff;
+    --badge-process-bg: #28a745;
+    --badge-process-color: #ffffff;
+
+    /* DataTables Colors */
+    --datatable-header-bg: #f8f9fa;
+    --datatable-header-text: #495057;
+    --datatable-row-hover: #e9ecef;
+    --datatable-border-color: #dee2e6;
+    --datatable-pagination-bg: #f8f9fa;
+    --datatable-pagination-text: #495057;
+    --datatable-pagination-hover: #e9ecef;
+    --datatable-pagination-active: #007bff;
+    --datatable-pagination-active-text: #ffffff;
+    --datatable-search-bg: #ffffff;
+    --datatable-search-text: #495057;
+    --datatable-search-border: #dee2e6;
+    --datatable-length-bg: #ffffff;
+    --datatable-length-text: #495057;
+    --datatable-length-border: #dee2e6;
+    --datatable-info-text: #6c757d;
+
+    /* Light Theme Info Badge Colors */
+    --success-color-light: rgba(40, 167, 69, 0.1);
+    --warning-color-light: rgba(255, 193, 7, 0.1);
+    --error-color-light: rgba(220, 53, 69, 0.1);
+    --info-color-light: rgba(23, 162, 184, 0.1);
+    --primary-color-light: rgba(0, 123, 255, 0.1);
+    --secondary-color-light: rgba(108, 117, 125, 0.1);
+
+    --notification-bg: var(--background-color);
+    --badge-bg: rgba(var(--accent-rgb), 0.1);
+
+    --frame-bg: #262829;
+}
+
+/* ==========================================================================
+   Dark Theme Variables
+   ==========================================================================
+   IMPORTANT: Ces variables sont cruciales pour le mode sombre
+   - Les couleurs de fond doivent être suffisamment sombres
+   - Le texte doit avoir un contraste suffisant (WCAG 2.1)
+   - Les bordures doivent être visibles mais pas trop intrusives
+   ========================================================================== */
+[data-theme="dark"] {
+    /* Colors */
+    --bg-color: #121212;
+    --text-color: #ffffff;
+    --primary-color: #64B5F6;
+    --secondary-color: #B0BEC5;
+    --border-color: #2c2c2c;
+    --hover-color: #1e1e1e;
+
+    /* Status Colors */
+    --error-color: #ff4d4d;
+    --warning-color: #ffdb4d;
+    --info-color: #4ddbff;
+    --success-color: #4dff4d;
+
+    /* Table Colors - Ajustés pour un meilleur contraste */
+    --table-bg: #1a1a1a;
+    --table-hover: #2c2c2c;
+    --table-header-bg: #111314de;
+    --table-row-alt-bg: #242424;
+    --table-row-hover-bg: #333333;
+    --table-border-color: #2c2c2c;
+    --table-text-color: #ffffff;
+    --table-header-text-color: #ffffff;
+    --table-sorting-bg: transparent;
+    --table-sorting-dark-bg: transparent;
+
+    /* Select Colors */
+    --select-bg: #2d2d2d;
+    --select-text: #e0e0e0;
+    --select-border: #404040;
+    --option-hover: #353535;
+    --option-selected: #404040;
+
+    /* Timestamp Colors */
+    --timestamp-color: #5dade2;
+    --timestamp-bg: rgba(93, 173, 226, 0.15);
+
+    /* Badge Colors - Ajustés pour plus de visibilité */
+    --badge-bg: #2c2c2c;
+    --badge-text: #ffffff;
+    --badge-border: #3c3c3c;
+    --badge-hover-bg: #3c3c3c;
+    --badge-hover-text: #ffffff;
+    --badge-hover-border: #4c4c4c;
+
+    /* Syslog Badge Colors */
+    --badge-date-bg-dark: #0056b3;
+    --badge-date-color-dark: #ffffff;
+    --badge-host-bg-dark: #495057;
+    --badge-host-color-dark: #ffffff;
+    --badge-process-bg-dark: #218838;
+    --badge-process-color-dark: #ffffff;
+
+    /* DataTables Colors - Optimisés pour le mode sombre */
+    --datatable-header-bg: #000000;
+    --datatable-header-text: #ffffff;
+    --datatable-row-hover: #333333;
+    --datatable-border-color: #2c2c2c;
+    --datatable-pagination-bg: #1a1a1a;
+    --datatable-pagination-text: #ffffff;
+    --datatable-pagination-hover: #2c2c2c;
+    --datatable-pagination-active: #64B5F6;
+    --datatable-pagination-active-text: #000000;
+    --datatable-search-bg: #1a1a1a;
+    --datatable-search-text: #ffffff;
+    --datatable-search-border: #2c2c2c;
+    --datatable-length-bg: #1a1a1a;
+    --datatable-length-text: #ffffff;
+    --datatable-length-border: #2c2c2c;
+    --datatable-info-text: #ffffff;
+
+    /* Dark Theme Info Badge Colors */
+    --success-color-light: rgba(77, 255, 77, 0.15);
+    --warning-color-light: rgba(255, 219, 77, 0.15);
+    --error-color-light: rgba(255, 77, 77, 0.15);
+    --info-color-light: rgba(77, 219, 255, 0.15);
+    --primary-color-light: rgba(92, 158, 255, 0.15);
+    --secondary-color-light: rgba(173, 181, 189, 0.15);
+
+    --notification-bg: var(--background-color);
+    --badge-bg: rgba(var(--accent-rgb), 0.1);
+
+    --frame-bg: #262829;
+}
+
+/* ==========================================================================
+   Dark Theme Specific Styles
+   ========================================================================== */
+[data-theme="dark"] select.log-select {
+    background-color: #000000 !important;
+    color: #ffffff !important;
+}
+
+[data-theme="dark"] select.log-select option {
+    background-color: #000000 !important;
+    color: #ffffff !important;
+}
+
+[data-theme="dark"] select.log-select optgroup {
+    background-color: #1a1a1a !important;
+    color: #00bfff !important;
+}
+
+[data-theme="dark"] .log-badge.ip,
+[data-theme="dark"] .log-badge.host {
+    border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+[data-theme="dark"] .log-badge.size .number {
+    color: var(--primary-color) !important;
+}
+
+[data-theme="dark"] .log-badge.size .unit {
+    color: var(--secondary-color) !important;
+}
+
+/* ==========================================================================
+   Theme-Specific Link Styles
+   ========================================================================== */
+/* Dark Theme */
+[data-theme="dark"] a {
+    color: var(--primary-color);
+}
+
+[data-theme="dark"] a:hover {
+    color: var(--secondary-color);
+}
+
+/* ==========================================================================
+   Dark Theme Adjustments for Syslog
+   ========================================================================== */
+[data-theme="dark"] .syslog-badge.date {
+    background-color: var(--badge-date-bg-dark);
+    color: var(--badge-date-color-dark);
+}
+
+[data-theme="dark"] .syslog-badge.hostname {
+    background-color: var(--badge-host-bg-dark);
+    color: var(--badge-host-color-dark);
+}
+
+[data-theme="dark"] .syslog-badge.process {
+    background-color: var(--badge-process-bg-dark);
+    color: var(--badge-process-color-dark);
+}
+
+/* ==========================================================================
+   Dark Theme Specific Overrides
+   ==========================================================================
+   Ces overrides sont nécessaires pour forcer certains styles en mode sombre
+   qui ne sont pas correctement hérités des variables
+   ========================================================================== */
+
+/* Forcer les styles en mode sombre  pour les ligne du tableau */
+html[data-theme="dark"] body .logviewer-table {
+    background-color: var(--table-bg) !important;
+    color: var(--table-text-color) !important;
+}
+
+html[data-theme="dark"] body .logviewer-table tbody tr {
+    background-color: var(--table-bg) !important;
+}
+
+html[data-theme="dark"] body .logviewer-table tbody tr:nth-child(odd) {
+    background-color: var(--table-row-alt-bg) !important;
+}
+
+html[data-theme="dark"] body .logviewer-table tbody tr:hover {
+    background-color: var(--table-row-hover-bg) !important;
+}
+
+/* Forcer les styles de l'en-tête en mode sombre */
+html[data-theme="dark"] body .logviewer-table thead th {
+    background-color: var(--table-header-bg) !important;
+    color: var(--table-header-text-color) !important;
+    border-bottom-color: var(--table-border-color) !important;
+}
+
+/* Forcer les styles des cellules en mode sombre */
+html[data-theme="dark"] body .logviewer-table tbody td {
+    background-color: transparent !important;
+    color: var(--table-text-color) !important;
+    border-color: var(--table-border-color) !important;
+}
+
+/* Forcer les styles du wrapper DataTables en mode sombre */
+html[data-theme="dark"] body .dataTables_wrapper {
+    background-color: var(--bg-color) !important;
+}
+
+/* ==========================================================================
+   Light Theme Variables
+   ========================================================================== */
+[data-theme="light"] {
+    --frame-bg: #f5f5f5;
+}

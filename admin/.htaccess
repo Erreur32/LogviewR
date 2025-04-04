@@ -1,0 +1,133 @@
+# Protection de base
+Options -Indexes
+ServerSignature Off
+
+# Forcer HTTPS
+RewriteEngine On
+RewriteCond %{HTTPS} off
+RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# Protection contre les injections XSS et autres attaques
+<IfModule mod_headers.c>
+    # Headers de sécurité modernes
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-XSS-Protection "1; mode=block"
+    Header set X-Frame-Options "DENY"
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+    Header set Permissions-Policy "geolocation=(), microphone=(), camera=(), clipboard-read=(), clipboard-write=(), payment=()"
+    Header set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: https:; font-src 'self' https://cdnjs.cloudflare.com; connect-src 'self';"
+    Header set Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+    Header set Cross-Origin-Embedder-Policy "require-corp"
+    Header set Cross-Origin-Opener-Policy "same-origin"
+    Header set Cross-Origin-Resource-Policy "same-origin"
+</IfModule>
+
+# Protection des fichiers sensibles
+<FilesMatch "^\.">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+<FilesMatch "\.(ini|log|sh|inc|bak|sql|config|php|json|lock|env|yml|yaml|xml|txt|md|git|svn|htaccess|htpasswd|db|sqlite|db-journal|db-shm|db-wal)$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# Autoriser l'accès aux fichiers PHP spécifiques
+<FilesMatch "^(index|login|logout)\.php$">
+    Order allow,deny
+    Allow from all
+</FilesMatch>
+
+# Protection contre les attaques par force brute
+<IfModule mod_evasive20.c>
+    DOSHashTableSize 3097
+    DOSPageCount 2
+    DOSSiteCount 50
+    DOSPageInterval 1
+    DOSSiteInterval 1
+    DOSBlockingPeriod 10
+    DOSLogDir "/var/log/mod_evasive"
+    DOSEmailNotify "admin@example.com"
+    DOSWhitelist 127.0.0.1
+</IfModule>
+
+# Protection contre les injections SQL et XSS
+<IfModule mod_rewrite.c>
+    # Protection contre les injections SQL
+    RewriteCond %{QUERY_STRING} (\<|%3C).*script.*(\>|%3E) [NC,OR]
+    RewriteCond %{QUERY_STRING} GLOBALS(=|\[|\%[0-9A-Z]{0,2}) [OR]
+    RewriteCond %{QUERY_STRING} _REQUEST(=|\[|\%[0-9A-Z]{0,2}) [OR]
+    RewriteCond %{QUERY_STRING} (NULL|OUTFILE|LOAD_FILE) [NC,OR]
+    RewriteCond %{QUERY_STRING} (\.|\%2E)(\.|\%2E)(\/|\%2F|\\|\%5C) [NC,OR]
+    RewriteCond %{QUERY_STRING} (;|<|>|'|"|\)|%0A|%0D|%22|%27|%3C|%3E|%00) [NC,OR]
+    RewriteCond %{QUERY_STRING} (union|select|insert|drop|delete|update|alter|create|rename|truncate|backup|restore) [NC]
+    RewriteRule ^(.*)$ index.php [F,L]
+
+    # Protection contre les injections XSS
+    RewriteCond %{REQUEST_URI} !^/assets/
+    RewriteCond %{REQUEST_URI} !^/css/
+    RewriteCond %{REQUEST_URI} !^/js/
+    RewriteCond %{REQUEST_URI} !^/images/
+    RewriteCond %{REQUEST_URI} !^/fonts/
+    RewriteCond %{REQUEST_URI} !^/favicon.ico$
+    RewriteCond %{REQUEST_URI} !^/robots.txt$
+    RewriteCond %{REQUEST_URI} !^/sitemap.xml$
+    RewriteCond %{REQUEST_URI} !^/index.php$
+    RewriteCond %{REQUEST_URI} !^/login.php$
+    RewriteCond %{REQUEST_URI} !^/logout.php$
+    RewriteRule ^(.*)$ index.php [F,L]
+</IfModule>
+
+# Protection contre les attaques par force brute sur les formulaires
+<IfModule mod_rewrite.c>
+    RewriteCond %{REQUEST_METHOD} POST
+    RewriteCond %{HTTP_COOKIE} form_attempts=([^;]+)
+    RewriteCond %1>5
+    RewriteRule ^ - [F,L]
+</IfModule>
+
+# Protection contre les attaques par dictionnaire
+<IfModule mod_rewrite.c>
+    RewriteCond %{REQUEST_METHOD} POST
+    RewriteCond %{HTTP_USER_AGENT} ^(curl|wget|python|perl|ruby|php|nikto|sqlmap|nmap|burpsuite|zap|hydra|medusa|john|hashcat)
+    RewriteRule ^ - [F,L]
+</IfModule>
+
+# Protection contre les attaques par force brute sur les mots de passe
+<IfModule mod_rewrite.c>
+    RewriteCond %{REQUEST_METHOD} POST
+    RewriteCond %{REQUEST_URI} /login\.php
+    RewriteCond %{HTTP_COOKIE} login_attempts=([^;]+)
+    RewriteCond %1>5
+    RewriteRule ^ - [F,L]
+</IfModule>
+
+# Protection contre les attaques par dictionnaire
+<IfModule mod_rewrite.c>
+    RewriteCond %{REQUEST_METHOD} POST
+    RewriteCond %{REQUEST_URI} /login\.php
+    RewriteCond %{HTTP_USER_AGENT} ^(curl|wget|python|perl|ruby|php)
+    RewriteRule ^ - [F,L]
+</IfModule>
+
+# Redirection des erreurs
+ErrorDocument 400 /error.php?code=400
+ErrorDocument 401 /error.php?code=401
+ErrorDocument 403 /error.php?code=403
+ErrorDocument 404 /error.php?code=404
+ErrorDocument 500 /error.php?code=500
+
+# Limitation de la taille des fichiers uploadés
+php_value upload_max_filesize 5M
+php_value post_max_size 5M
+php_value max_execution_time 300
+php_value max_input_time 300
+php_value memory_limit 128M
+php_value max_input_vars 1000
+php_value session.cookie_httponly 1
+php_value session.cookie_secure 1
+php_value session.use_only_cookies 1
+php_value session.cookie_samesite "Strict"
+php_value session.gc_maxlifetime 1800
+php_value session.cookie_lifetime 1800 

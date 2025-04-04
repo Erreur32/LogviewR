@@ -1,0 +1,605 @@
+/* ==========================================================================
+   Base Badge Styles
+   ========================================================================== */
+.badge,
+.apache-badge,
+.status-badge,
+.method-badge,
+.ip-badge,
+.host-badge,
+.size-badge,
+.log-badge {
+    display: inline-block !important;
+    padding: 2px 6px !important;
+    border-radius: 4px !important;
+    font-size: 0.95em !important;
+    font-weight: bold !important;
+    color: white !important;
+    margin: 0 2px !important;
+    text-align: center !important;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5) !important;
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+    font-family: 'Roboto Mono', monospace !important;
+}
+
+
+
+
+/* ==========================================================================
+   Method Badges
+   ========================================================================== */
+.method-badge,
+.request-container .method {
+    min-width: 35px !important;
+    background-color: var(--badge-method-default, #34495e) !important;
+}
+
+/* HTTP Method Colors */
+[data-method="GET"] { background-color: var(--badge-method-get, #00BCD4) !important; }
+[data-method="POST"] { background-color: var(--badge-method-post, #4CAF50) !important; }
+[data-method="PUT"] { background-color: var(--badge-method-put, #FF9800) !important; }
+[data-method="DELETE"] { background-color: var(--badge-method-delete, #F44336) !important; }
+[data-method="HEAD"] { background-color: var(--badge-method-head, #9C27B0) !important; }
+[data-method="OPTIONS"] { background-color: var(--badge-method-options, #607D8B) !important; }
+
+/* ==========================================================================
+   Status Badges - Unified Styles
+   ==========================================================================
+   Ces styles s'appliquent à tous les types de logs (Apache, Nginx, Syslog)
+   IMPORTANT: Utiliser les attributs data-* pour une meilleure compatibilité
+   ========================================================================== */
+.status-badge,
+.apache-badge.status,
+.log-badge.status {
+    min-width: 30px !important;
+    font-weight: bold !important;
+    text-align: center !important;
+}
+
+/* Status Colors - Using data attributes for better compatibility */
+[data-status^="1"],
+[data-code^="1"],
+.status-1xx {
+    background-color: var(--badge-status-info) !important;
+}
+
+[data-status^="2"],
+[data-code^="2"],
+.status-2xx,
+.status-success {
+    background-color: var(--badge-status-success) !important;
+}
+
+[data-status^="3"],
+[data-code^="3"],
+.status-3xx,
+.status-redirect {
+    background-color: var(--badge-status-redirect) !important;
+}
+
+[data-status^="4"],
+[data-code^="4"],
+.status-4xx,
+.status-client_error {
+    background-color: var(--badge-status-warning) !important;
+}
+
+[data-status^="5"],
+[data-code^="5"],
+.status-5xx,
+.status-server_error {
+    background-color: var(--badge-status-error) !important;
+}
+
+/* Common HTTP Status Codes */
+[data-status="200"],
+[data-code="200"] { background-color: var(--badge-status-success) !important; }
+
+[data-status="301"],
+[data-code="301"],
+[data-status="302"],
+[data-code="302"] { background-color: var(--badge-status-redirect) !important; }
+
+[data-status="404"],
+[data-code="404"] { background-color: var(--badge-status-warning) !important; }
+
+[data-status="500"],
+[data-code="500"] { background-color: var(--badge-status-error) !important; }
+
+/* Dark Theme Support */
+[data-theme="dark"] .status-badge,
+[data-theme="dark"] .apache-badge.status,
+[data-theme="dark"] .log-badge.status {
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+/* ==========================================================================
+   IP & Host Badges
+   ========================================================================== */
+.ip-badge,
+.host-badge {
+    min-width: 120px !important;
+}
+
+/* Empty IP/Host Style */
+.ip-badge.empty,
+.host-badge.empty {
+    background-color: transparent !important;
+    color: var(--text-color) !important;
+    opacity: 0.5 !important;
+    text-shadow: none !important;
+}
+
+/* IP/Host Hash Colors */
+[data-ip-hash="0"], [data-host-hash="0"] { background-color: var(--color-0, #7FB3D5) !important; }
+[data-ip-hash="1"], [data-host-hash="1"] { background-color: var(--color-1, #76D7C4) !important; }
+[data-ip-hash="2"], [data-host-hash="2"] { background-color: var(--color-2, #F1948A) !important; }
+[data-ip-hash="3"], [data-host-hash="3"] { background-color: var(--color-3, #F7DC6F) !important; }
+[data-ip-hash="4"], [data-host-hash="4"] { background-color: var(--color-4, #BB8FCE) !important; }
+[data-ip-hash="5"], [data-host-hash="5"] { background-color: var(--color-5, #867af0) !important; }
+[data-ip-hash="6"], [data-host-hash="6"] { background-color: var(--color-6, #73C6B6) !important; }
+[data-ip-hash="7"], [data-host-hash="7"] { background-color: var(--color-7, #E59866) !important; }
+[data-ip-hash="8"], [data-host-hash="8"] { background-color: var(--color-8, #85929E) !important; }
+[data-ip-hash="9"], [data-host-hash="9"] { background-color: var(--color-9, #82E0AA) !important; }
+
+/* ==========================================================================
+   Size Badges
+   ========================================================================== */
+.size-badge {
+    background-color: transparent !important;
+    text-shadow: none !important;
+    font-size: 12px !important;
+}
+
+.size-badge .number {
+    font-weight: bold !important;
+    color: var(--primary-color) !important;
+}
+
+.size-badge .unit {
+    opacity: 0.8 !important;
+    margin-left: 1px !important;
+    font-size: 11px !important;
+}
+
+/* ==========================================================================
+   User Badges
+   ========================================================================== */
+.user-badge {
+    min-width: 35px !important;
+    background-color: var(--badge-user-default, #7f8c8d) !important;
+}
+
+/* User Colors */
+[data-user="root"] { background-color: var(--badge-user-root, #c0392b) !important; }
+[data-user="admin"] { background-color: var(--badge-user-admin, #e74c3c) !important; }
+[data-user="www-data"] { background-color: var(--badge-user-www, #8e44ad) !important; }
+[data-user="anonymous"] { background-color: var(--badge-user-anonymous, #95a5a6) !important; }
+[data-user="erreur32"] { background-color: var(--badge-user-erreur32, #16a085) !important; }
+[data-user="-"] { opacity: 0.8 !important; }
+
+/* ==========================================================================
+   Request Container
+   ========================================================================== */
+.request-container {
+    display: flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    overflow: hidden !important;
+    width: 100% !important;
+}
+
+.request-container .path {
+    color: var(--text-color) !important;
+    opacity: 0.9 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    flex: 1 !important;
+    font-family: 'Consolas', monospace !important;
+}
+
+/* ==========================================================================
+   Dark Theme Adjustments
+   ========================================================================== */
+[data-theme="dark"] {
+    & .size-badge .number { color: var(--primary-color) !important; }
+    & .size-badge .unit { color: var(--secondary-color) !important; }
+    & .ip-badge.empty,
+    & .host-badge.empty { color: var(--text-muted) !important; }
+}
+
+/* ==========================================================================
+   Hide Redundant Badges
+   ========================================================================== */
+.badge.ip,
+.apache-badge.ip,
+.badge.host,
+.apache-badge.host,
+td:nth-child(3) .badge:not(.ip-badge) {
+    display: none !important;
+}
+
+/* ==========================================================================
+   Selected Row Badge Styles
+   ========================================================================== */
+.logviewer-table tbody td.sorting_1 .log-badge {
+    background-color: inherit !important;
+}
+
+.logviewer-table tbody td.sorting_1 .log-badge[data-ip-hash],
+.logviewer-table tbody td.sorting_1 .log-badge[data-host-hash],
+.logviewer-table tbody td.sorting_1 .log-badge[data-user-hash] {
+    background-color: var(--color-0) !important;
+}
+
+/* ==========================================================================
+   Apache Specific Badges
+   ========================================================================== */
+.apache-badge.method {
+    min-width: 35px !important;
+    background-color: var(--badge-method-default, #34495e) !important;
+}
+
+.apache-badge.method.get { background-color: #00BCD4 !important; }
+.apache-badge.method.post { background-color: #4CAF50 !important; }
+.apache-badge.method.put { background-color: #FF9800 !important; }
+.apache-badge.method.delete { background-color: #F44336 !important; }
+.apache-badge.method.head { background-color: #9C27B0 !important; }
+.apache-badge.method.options { background-color: #607D8B !important; }
+
+.apache-badge.status {
+    min-width: 30px !important;
+}
+
+.apache-badge.status.success { background-color: #2ecc71 !important; }
+.apache-badge.status.warning { background-color: #f39c12 !important; }
+.apache-badge.status.error { background-color: #e74c3c !important; }
+.apache-badge.status.redirect { background-color: #3498db !important; }
+.apache-badge.status.info { background-color: #34495e !important; }
+
+.apache-badge.user {
+    min-width: 35px !important;
+    background-color: var(--badge-user-default, #7f8c8d) !important;
+}
+
+.apache-badge.user[data-user="admin"] { background-color: #e74c3c !important; }
+.apache-badge.user[data-user="root"] { background-color: #c0392b !important; }
+.apache-badge.user[data-user="www-data"] { background-color: #8e44ad !important; }
+.apache-badge.user[data-user="anonymous"] { background-color: #95a5a6 !important; }
+.apache-badge.user[data-user="erreur32"] { background-color: #16a085 !important; }
+.apache-badge.user[data-user="default"] { background-color: #9b59b6 !important; }
+
+/* Log Badge Styles */
+.log-badge {
+    display: inline-block !important;
+    padding: 3px 8px !important;
+    border-radius: 4px !important;
+    font-size: 13px !important;
+    font-weight: bold !important;
+    color: white !important;
+    margin: 0 2px !important;
+    text-align: center !important;
+    text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.5) !important;
+}
+
+/* Log Badge IP Colors */
+.log-badge.ip[data-ip-hash="0"] { background-color: var(--color-0) !important; }
+.log-badge.ip[data-ip-hash="1"] { background-color: var(--color-1) !important; }
+.log-badge.ip[data-ip-hash="2"] { background-color: var(--color-2) !important; }
+.log-badge.ip[data-ip-hash="3"] { background-color: var(--color-3) !important; }
+.log-badge.ip[data-ip-hash="4"] { background-color: var(--color-4) !important; }
+.log-badge.ip[data-ip-hash="5"] { background-color: var(--color-5) !important; }
+.log-badge.ip[data-ip-hash="6"] { background-color: var(--color-6) !important; }
+.log-badge.ip[data-ip-hash="7"] { background-color: var(--color-7) !important; }
+.log-badge.ip[data-ip-hash="8"] { background-color: var(--color-8) !important; }
+.log-badge.ip[data-ip-hash="9"] { background-color: var(--color-9) !important; }
+
+/* Log Badge User Colors */
+.log-badge.user[data-user="root"] { background-color: #c0392b !important; }
+.log-badge.user[data-user="admin"] { background-color: #e74c3c !important; }
+.log-badge.user[data-user="www-data"] { background-color: #8e44ad !important; }
+.log-badge.user[data-user="anonymous"] { background-color: #95a5a6 !important; }
+.log-badge.user[data-user="erreur32"] { background-color: #16a085 !important; }
+
+/* Stats Badges */
+.stats-badge.mtime {
+    background: var(--badge-bg);
+    border-radius: 4px;
+    padding: 4px 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.stats-badge.mtime .date{
+    background: var(--badge-bg-secondary);
+ 
+    font-family: monospace;
+}
+.stats-badge.mtime .time {
+    background: var(--color-8);
+ 
+    font-family: monospace;
+}
+
+
+
+
+/* ==========================================================================
+   Stats Badges
+   ========================================================================== */
+   .stats-container {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 10px !important;
+    margin-bottom: 20px !important;
+    padding: 8px !important;
+    border-radius: 6px !important;
+}
+
+   .stats-badge_ {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    padding: 6px 8px !important;
+    border-radius: 4px !important;
+    font-size: 0.9em !important;
+    font-family: 'Consolas', monospace !important;
+    position: relative !important;
+    cursor: help !important;
+}
+
+.stats-badge {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 5px !important;
+    padding: 2px 8px !important;
+    border-radius: 4px !important;
+    font-family: 'Consolas', monospace !important;
+    font-weight: bold !important;
+    height: 20px !important;
+    min-height: 20px !important;
+    line-height: 16px !important;
+    font-size: 0.85em !important;
+    background: #000000 !important;
+}
+
+.stats-badge .label {
+    color: white !important;
+    font-weight: 400 !important;
+    text-transform: lowercase !important;
+}
+
+.stats-badge .number,
+.stats-badge .unit,
+.stats-badge .date,
+.stats-badge .time {
+    line-height: 16px !important;
+    font-size: 0.85em !important;
+}
+
+/* Total Lines Badge */
+.stats-badge.total {
+    background: #000000 !important;
+    border: 1px solid var(--badge-method-get) !important;
+}
+
+.stats-badge.total .number {
+    color: var(--badge-method-get) !important;
+    font-weight: 600 !important;
+}
+
+/* Valid Lines Badge */
+.stats-badge.valid {
+    background: #000000 !important;
+    border: 1px solid #2ecc71 !important;
+}
+
+.stats-badge.valid .number {
+    color: #2ecc71 !important;
+    font-weight: 600 !important;
+}
+
+/* Filtered Lines Badge */
+.stats-badge.filtered {
+    background: #000000 !important;
+    border: 1px solid #FF4081 !important;
+}
+
+.stats-badge.filtered .number {
+    color: #FF4081 !important;
+    font-weight: 600 !important;
+}
+
+/* Ignored Lines Badge */
+.stats-badge.skipped {
+    background: #000000 !important;
+    border: 1px solid var(--badge-method-put) !important;
+}
+
+.stats-badge.skipped .number {
+    color: var(--badge-method-put) !important;
+    font-weight: 600 !important;
+}
+
+/* Unreadable Lines Badge */
+.stats-badge.unreadable {
+    background: #000000 !important;
+    border: 1px solid var(--badge-method-delete) !important;
+}
+
+.stats-badge.unreadable .number {
+    color: var(--badge-method-delete) !important;
+    font-weight: 600 !important;
+}
+
+/* File Size Badge */
+.stats-badge.filesize {
+    background: #000000 !important;
+    border: 1px solid var(--badge-method-post) !important;
+}
+
+.stats-badge.filesize .label {
+    color: white !important;
+    font-weight: 400 !important;
+}
+
+.stats-badge.filesize .number,
+.stats-badge.filesize .unit {
+    color: var(--badge-method-post) !important;
+    font-weight: 600 !important;
+}
+
+/* Date Badge */
+.stats-badge.mtime {
+    background: #000000 !important;
+    border: 1px solid var(--badge-method-put) !important;
+}
+
+.stats-badge.mtime .label {
+    color: white !important;
+    font-weight: 400 !important;
+}
+
+.stats-badge.mtime .date {
+    color: var(--badge-method-put) !important;
+    font-weight: 600 !important;
+    font-family: monospace !important;
+}
+
+.stats-badge.mtime .time {
+    color: #FFB300 !important;
+    font-weight: 600 !important;
+    font-family: monospace !important;
+    background: none !important;
+}
+
+/* Execution Time Badge */
+.stats-badge.execution-time {
+    background: #000000 !important;
+    border: 1px solid var(--badge-method-get) !important;
+}
+
+/* Temps de chargement de la page */
+.execution-time.page-time {
+    background: #000000 !important;
+    border: 1px solid #4CAF50 !important;
+    margin-bottom: 5px !important;
+}
+
+/* Temps d'exécution des scripts */
+.execution-time.script-time {
+    background: #000000 !important;
+    border: 1px solid var(--badge-method-get) !important;
+}
+
+.stats-badge.execution-time .label {
+    color: white !important;
+    font-weight: 400 !important;
+}
+
+.stats-badge.execution-time .number,
+.stats-badge.execution-time .unit {
+    color: var(--badge-method-get) !important;
+    font-weight: 600 !important;
+}
+
+/* Badge Content Styles */
+.stats-badge .number {
+    font-weight: 600 !important;
+    font-size: 1em !important;
+}
+
+.stats-badge .label {
+    opacity: 0.9 !important;
+    font-size: 0.9em !important;
+}
+
+.stats-badge .unit {
+    font-size: 0.8em !important;
+    opacity: 0.8 !important;
+}
+
+/* Suppression des styles de tooltip personnalisés */
+.stats-badge:hover::after,
+.stats-badge:hover::before {
+    display: none !important;
+}
+
+/* Style du tooltip natif */
+.stats-badge[title] {
+    position: relative !important;
+    cursor: help !important;
+}
+
+/* Amélioration du tooltip natif */
+.stats-badge[title]:hover {
+    filter: brightness(1.05) !important;
+    transform: translateY(-1px) !important;
+    transition: all 0.2s ease !important;
+}
+
+/* Gestion des sauts de ligne dans les tooltips */
+.stats-badge[title] {
+    white-space: pre-line !important;
+}
+
+/* Filepath Badge - Style spécial */
+.stats-badge.filepath {
+    padding: 4px 8px !important;
+    height: 24px !important;
+    min-height: 24px !important;
+    line-height: 20px !important;
+    font-size: 1em !important;
+    background: #000000 !important;
+    border: 1px solid #5f5c5c !important;
+}
+
+.stats-badge.filepath .path {
+    color: var(--text-color) !important;
+    opacity: 0.7 !important;
+}
+
+.stats-badge.filepath .filename {
+    color: var(--primary-color) !important;
+    font-weight: bold !important;
+}
+
+/* ==========================================================================
+   Execution Time Badges
+   ========================================================================== */
+.execution-times {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 5px !important;
+    padding: 5px !important;
+}
+
+.execution-time-badge {
+    display: inline-block !important;
+   /* padding: 4px 8px !important;*/
+    font-family: 'Consolas', monospace !important;
+    font-size: 12px !important;
+}
+
+/* Style pour le temps de chargement de la page */
+.execution-time-badge.page-load {
+    color: #4CAF50 !important;
+}
+
+/* Style pour le temps d'exécution des scripts */
+.execution-time-badge.script-load {
+    color: #2196F3 !important;
+}
+
+/* Dark theme adjustments */
+[data-theme="dark"] .execution-time-badge.page-load {
+    color: #81c784 !important;
+}
+
+[data-theme="dark"] .execution-time-badge.script-load {
+    color: #64b5f6 !important;
+}
