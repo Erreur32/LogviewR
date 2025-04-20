@@ -5,6 +5,7 @@ ini_set('display_errors', 1);
 // Charger la configuration
 $config_file = __DIR__ . '/config/config.php';
 $patterns_file = __DIR__ . '/config/log_patterns.php';
+require_once __DIR__ . '/includes/config.php';
 
 if (!file_exists($config_file)) {
     die('Erreur: Fichier de configuration manquant (config.php)');
@@ -816,6 +817,7 @@ if (empty($log_file)) {
           Made with <i class="fas fa-coffee"></i> by 
           <a href="https://github.com/Erreur32" target="_blank">Erreur32</a>
           | <a href="admin/login.php" class="admin-link"><i class="fas fa-cog"></i> Administration</a>
+          | <a href="https://github.com/Erreur32/LogviewR" target="_blank"><i class="fab fa-github"></i> v<?php echo LOGVIEWR_VERSION; ?></a>
         </span>
       </div>
       <div class="footer-right">

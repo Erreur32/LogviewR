@@ -5,6 +5,14 @@ Toutes les modifications notables de ce projet seront documentées dans ce fichi
 Le format est basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/),
 et ce projet adhère au [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2024-03-20 🎉
+### Ajouté
+- ✨ Nouveau système de mise à jour amélioré
+- 🔧 Optimisation des performances
+- 🎨 Amélioration de l'interface utilisateur
+- 🛡️ Renforcement de la sécurité
+- 📝 Documentation mise à jour
+
 ## [1.3.0] - 2024-04-02
 
 ### Ajouté ✨

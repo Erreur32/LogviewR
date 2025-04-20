@@ -11,7 +11,7 @@ $config = require_once __DIR__ . '/../config/config.php';
 date_default_timezone_set($config['timezone'] ?? 'Europe/Paris');
 
 // Define constants
-define('LOGVIEWR_VERSION', '1.0.0');
+define('LOGVIEWR_VERSION', '1.4.0');
 define('LOGVIEWR_ROOT', dirname(__DIR__));
 define('LOGVIEWR_ADMIN', LOGVIEWR_ROOT . '/admin');
 define('LOGVIEWR_INCLUDES', LOGVIEWR_ROOT . '/includes');
@@ -24,7 +24,16 @@ ini_set('display_errors', 1);
 ini_set('log_errors', 1);
 ini_set('error_log', LOGVIEWR_ROOT . '/logs/php_errors.log');
 
-// Session configuration
-ini_set('session.cookie_httponly', 1);
-ini_set('session.use_only_cookies', 1);
-ini_set('session.cookie_secure', isset($_SERVER['HTTPS'])); 
+// Session configuration - Must be set before session_start()
+if (session_status() === PHP_SESSION_NONE) {
+    ini_set('session.cookie_httponly', 1);
+    ini_set('session.use_only_cookies', 1);
+    ini_set('session.cookie_secure', isset($_SERVER['HTTPS']));
+}
+
+// Start session if not already started
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+// ... existing code ... 

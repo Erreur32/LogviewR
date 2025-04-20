@@ -1,6 +1,9 @@
 <?php
 session_start();
 
+// Charger la configuration globale
+require_once __DIR__ . '/../includes/config.php';
+
 // Check configuration files
 $config_file = __DIR__ . '/../config/config.php';
 $admin_config_file = __DIR__ . '/../config/admin.php';
@@ -64,48 +67,80 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         switch ($_POST['action']) {
             case 'update_config':
                 try {
-                    // Utiliser la configuration actuelle
-                    $new_config = $config;
-                    
-                    // Traitement des chemins
-                    if (isset($_POST['paths'])) {
-                        $new_config['paths'] = [
+                    // Charger le contenu actuel de version.php
+                    $version_file = __DIR__ . '/../version.php';
+                    $version_content = require $version_file;
+
+                    // Si c'est une mise à jour des paramètres de mise à jour
+                    if (isset($_POST['update_check'])) {
+                        // Convertir l'intervalle d'heures en secondes
+                        $interval_hours = (int)$_POST['update_check']['check_interval'];
+                        $interval_seconds = $interval_hours * 3600;
+
+                        // Mettre à jour uniquement les paramètres de mise à jour
+                        $version_content['update_check'] = [
+                            'enabled' => isset($_POST['update_check']['enabled']),
+                            'check_interval' => $interval_seconds,
+                            'cache_dir' => 'cache', // Toujours utiliser le chemin relatif
+                            'cache_file' => 'update_cache.json'
+                        ];
+
+                        // Sauvegarder dans version.php
+                        $success = file_put_contents($version_file, "<?php\nreturn " . var_export($version_content, true) . ";\n");
+                        
+                        if ($success === false) {
+                            throw new Exception('Erreur lors de la sauvegarde des paramètres de mise à jour');
+                        }
+
+                        $_SESSION['message'] = 'Configuration des mises à jour sauvegardée avec succès';
+                        header('Location: ' . $_SERVER['PHP_SELF'] . '?tab=updates');
+                        exit;
+                    }
+                    // Sinon, c'est une autre configuration à mettre à jour
+                    else {
+                        // Utiliser la configuration actuelle
+                        $new_config = $config;
+                        
+                        // Traitement des chemins
+                        if (isset($_POST['paths'])) {
+                            $new_config['paths'] = [
                             'apache_logs' => $_POST['paths']['apache_logs'] ?? '/var/log/apache2',
                             'nginx_logs' => $_POST['paths']['nginx_logs'] ?? '/var/log/nginx',
-                            'npm_logs' => $_POST['paths']['npm_logs'] ?? '/var/log/npm',
+                                'npm_logs' => $_POST['paths']['npm_logs'] ?? '/var/log/npm',
                             'syslog' => $_POST['paths']['syslog'] ?? '/var/log'
-                        ];
-                    }
-                    
-                    // Traitement des extensions exclues
-                    if (isset($_POST['app']['excluded_extensions'])) {
-                        $extensions = array_filter(array_map('trim', explode("\n", $_POST['app']['excluded_extensions'])));
-                        $new_config['app']['excluded_extensions'] = $extensions;
-                    }
-                    
-                    // Traitement du debug
-                    if (isset($_POST['debug'])) {
-                        $new_config['debug'] = array_replace_recursive($new_config['debug'] ?? [], $_POST['debug']);
-                    }
-                    
-                    // Traitement de nginx séparément
-                    if (isset($_POST['nginx'])) {
-                        $new_config['nginx'] = array_replace_recursive($new_config['nginx'] ?? [], $_POST['nginx']);
-                    }
-                    
-                    // Sauvegarder la configuration
-                    if (file_put_contents($config_file, "<?php\nreturn " . var_export($new_config, true) . ";\n")) {
-                        $config = $new_config; // Mettre à jour la configuration en mémoire
-                        
-                        // Si c'est un changement de debug, on redirige
-                        if (isset($_POST['debug_change'])) {
-                            header('Location: ' . $_SERVER['PHP_SELF'] . '?tab=debug&nocache=' . time());
-                            exit;
+                            ];
                         }
                         
-                        $_SESSION['message'] = 'Configuration mise à jour avec succès';
-                    } else {
-                        throw new Exception('Erreur lors de la sauvegarde de la configuration');
+                        // Traitement des extensions exclues
+                        if (isset($_POST['app']['excluded_extensions'])) {
+                            $extensions = array_filter(array_map('trim', explode("\n", $_POST['app']['excluded_extensions'])));
+                            $new_config['app']['excluded_extensions'] = $extensions;
+                        }
+                        
+                        // Traitement du debug
+                        if (isset($_POST['debug'])) {
+                            $new_config['debug'] = array_replace_recursive($new_config['debug'] ?? [], $_POST['debug']);
+                        }
+                        
+                        // Traitement de nginx séparément
+                        if (isset($_POST['nginx'])) {
+                            $new_config['nginx'] = array_replace_recursive($new_config['nginx'] ?? [], $_POST['nginx']);
+                        }
+                        
+                        // Sauvegarder la configuration
+                        if (file_put_contents($config_file, "<?php\nreturn " . var_export($new_config, true) . ";\n")) {
+                            $config = $new_config; // Mettre à jour la configuration en mémoire
+                            
+                            // Si c'est un changement de debug, on redirige
+                            if (isset($_POST['debug_change'])) {
+                                header('Location: ' . $_SERVER['PHP_SELF'] . '?tab=debug&nocache=' . time());
+                                exit;
+                            }
+                            
+                            $_SESSION['message'] = 'Configuration mise à jour avec succès';
+                        } else {
+                            throw new Exception('Erreur lors de la sauvegarde de la configuration');
+                        }
                     }
                 } catch (Exception $e) {
                     $error = $e->getMessage();
@@ -378,6 +413,40 @@ function countUnreadableFiles($directory) {
     return $count;
 }
 
+// ... existing code ...
+require_once __DIR__ . '/../includes/UpdateChecker.php';
+
+// Initialize update checker
+$updateChecker = new UpdateChecker();
+$versionInfo = $updateChecker->getVersionInfo();
+$updateInfo = $updateChecker->checkForUpdates();
+
+// ... existing code ...
+
+// Add update notification in the header
+if ($updateInfo) {
+    echo '<div class="alert alert-warning alert-dismissible fade show update-alert" role="alert">
+        <div class="update-alert-content">
+            <i class="fas fa-exclamation-triangle"></i>
+            <div class="update-alert-text">
+                <strong>Nouvelle version disponible !</strong>
+                <p>Version ' . $updateInfo['latest_version'] . ' est disponible (vous utilisez ' . $updateInfo['current_version'] . ')</p>
+                <div class="update-actions">
+                    <a href="' . $updateInfo['update_url'] . '" target="_blank" class="btn btn-warning btn-sm">
+                        <i class="fas fa-download"></i> Télécharger la mise à jour
+                    </a>
+                    <a href="?tab=updates" class="btn btn-info btn-sm">
+                        <i class="fas fa-info-circle"></i> Plus d\'informations
+                    </a>
+                </div>
+            </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>';
+}
+
+// ... existing code ...
+
 ?>
 <!DOCTYPE html>
 <html lang="fr" data-theme="<?php echo htmlspecialchars($config['theme'] ?? 'dark'); ?>">
@@ -400,7 +469,7 @@ function countUnreadableFiles($directory) {
     <div class="admin-container">
         <div class="admin-header">
             <h1>
-                <i class="fas fa-cog"></i> LogviewR   administration
+                <i class="fas fa-cog"></i> LogviewR   administration <?php echo LOGVIEWR_VERSION; ?>
                 <?php if (isset($config['debug']['enabled']) && $config['debug']['enabled']): ?>
                     <span class="debug-badge" title="Mode Debug Activé">
                         <i class="fas fa-bug"></i> DEBUG
@@ -449,6 +518,9 @@ function countUnreadableFiles($directory) {
             <a href="?tab=password" class="admin-tab <?php echo (isset($_GET['tab']) && $_GET['tab'] === 'password') ? 'active' : ''; ?>" data-tab="password">
                 <i class="fas fa-key"></i> Mot de passe
             </a>
+            <a href="?tab=updates" class="admin-tab <?php echo (isset($_GET['tab']) && $_GET['tab'] === 'updates') ? 'active' : ''; ?>" data-tab="updates">
+                <i class="fas fa-sync-alt"></i> Mises à jour
+            </a>
         </div>
 
         <!-- Onglet Options Générales -->
@@ -480,7 +552,7 @@ function countUnreadableFiles($directory) {
                         <div class="settings-column">
                             <div class="option-group">
                                 <label for="refresh_interval">Intervalle de rafraîchissement (secondes)</label>
-                                <input type="number" id="refresh_interval" name="app[refresh_interval]"
+                                <input type="number" id="refresh_interval" name="app[refresh_interval]" 
                                     value="<?php echo ($config['app']['refresh_interval'] ?? 6000) / 1000; ?>" 
                                     min="1" step="1" class="form-control">
                                 <small class="form-text">
@@ -662,9 +734,9 @@ function countUnreadableFiles($directory) {
                                     <span class="slider"></span>
                                 </label>
                                 <div class="debug-label">
-                                    <label>Activer le mode debug</label>
-                                </div>
+                                <label>Activer le mode debug</label>
                             </div>
+                        </div>
                             
                             <div class="option-group debug-toggle">
                                 <label class="switch">
@@ -856,7 +928,7 @@ function countUnreadableFiles($directory) {
                         <div class="input-with-example">
                             <input type="text" id="apache_path" name="paths[apache_logs]" 
                                    value="<?php echo htmlspecialchars($config['paths']['apache_logs'] ?? ''); ?>" 
-                                   class="form-control path-input" placeholder="/var/log/apache2">
+                                       class="form-control path-input" placeholder="/var/log/apache2">
                             <div class="file-count">
                                 <i class="fas fa-file-alt"></i>
                                 <?php
@@ -865,7 +937,7 @@ function countUnreadableFiles($directory) {
                                 $unreadable_files = countUnreadableFiles($apache_path);
                                 echo "<span class='readable-count'>Fichiers lisibles: $readable_files</span>";
                                 if ($unreadable_files > 0) {
-                                    echo "<span class='unreadable-count'>Fichiers non lisibles: $unreadable_files</span>";
+                                echo "<span class='unreadable-count'>Fichiers non lisibles: $unreadable_files</span>";
                                 }
                                 ?>
                             </div>
@@ -892,7 +964,7 @@ function countUnreadableFiles($directory) {
                         <div class="input-with-example">
                             <input type="text" id="nginx_path" name="paths[<?php echo (isset($config['nginx']['use_npm']) && $config['nginx']['use_npm']) ? 'npm_logs' : 'nginx_logs'; ?>]" 
                                    value="<?php echo htmlspecialchars((isset($config['nginx']['use_npm']) && $config['nginx']['use_npm']) ? ($config['paths']['npm_logs'] ?? '') : ($config['paths']['nginx_logs'] ?? '')); ?>" 
-                                   class="form-control path-input" placeholder="/var/log/nginx">
+                                       class="form-control path-input" placeholder="/var/log/nginx">
                             <div class="file-count">
                                 <i class="fas fa-file-alt"></i>
                                 <?php
@@ -907,7 +979,7 @@ function countUnreadableFiles($directory) {
                                 }
                                 ?>
                             </div>
-                        </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -933,8 +1005,8 @@ function countUnreadableFiles($directory) {
                                     echo "<span class='unreadable-count'>Fichiers non lisibles: $unreadable_files</span>";
                                 }
                                 ?>
-                            </div>
-                        </div>
+                                </div>
+                                </div>
                         </div>
                     </div>
                 </div>
@@ -972,8 +1044,8 @@ function countUnreadableFiles($directory) {
                                             • /^192\.168\.1\.(10|50)$/ - Exclura les IPs 192.168.1.10 et 192.168.1.50
                                             • /^10\.0\.0\.(1|2|3)$/ - Exclura les IPs 10.0.0.1, 10.0.0.2 et 10.0.0.3
                                             • /^172\.16\.0\.\d{1,3}$/ - Exclura toutes les IPs du réseau 172.16.0.x">
-                            <i class="fas fa-question-circle"></i>
-                        </span>
+                                                                                <i class="fas fa-question-circle"></i>
+                                </span>
                             </label>
                             <div class="input-validation-container">
                                 <textarea name="filters[exclude][ips]" id="exclude_ips" class="pattern-input" rows="4"><?php 
@@ -995,8 +1067,8 @@ function countUnreadableFiles($directory) {
                                     <i class="fas fa-link"></i> Requêtes à Exclure
                                 </div>
                                 <span class="pattern-help" data-help="Exclure des requêtes spécifiques des logs. Format: /pattern/ - Exemple: /favicon\.ico/ exclura toutes les requêtes pour favicon.ico, /\.(jpg|png|gif)$/ exclura les requêtes d'images">
-                            <i class="fas fa-question-circle"></i>
-                        </span>
+                                    <i class="fas fa-question-circle"></i>
+                                </span>
                             </label>
                             <div class="input-validation-container">
                                 <textarea name="filters[exclude][requests]" id="exclude_requests" class="pattern-input" rows="4"><?php 
@@ -1018,8 +1090,8 @@ function countUnreadableFiles($directory) {
                                     <i class="fas fa-robot"></i> User-Agents à Exclure
                                 </div>
                                 <span class="pattern-help" data-help="Exclure des User-Agents spécifiques des logs. Format: /pattern/ - Exemple: /bot/ exclura tous les bots, /crawler/ exclura les crawlers, /^Mozilla/ exclura les navigateurs standards">
-                            <i class="fas fa-question-circle"></i>
-                        </span>
+                                    <i class="fas fa-question-circle"></i>
+                                </span>
                             </label>
                             <div class="input-validation-container">
                                 <textarea name="filters[exclude][user_agents]" id="exclude_user_agents" class="pattern-input" rows="4"><?php 
@@ -1041,8 +1113,8 @@ function countUnreadableFiles($directory) {
                                     <i class="fas fa-user-slash"></i> Utilisateurs à Exclure
                                 </div>
                                 <span class="pattern-help" data-help="Exclure des utilisateurs spécifiques des logs. Format: /pattern/ - Exemple: /^anonymous$/ exclura l'utilisateur 'anonymous', /^-$/ exclura les utilisateurs non authentifiés, /^admin$/ exclura l'administrateur">
-                            <i class="fas fa-question-circle"></i>
-                        </span>
+                                    <i class="fas fa-question-circle"></i>
+                                </span>
                             </label>
                             <div class="input-validation-container">
                                 <textarea name="filters[exclude][users]" id="exclude_users" class="pattern-input" rows="4"><?php 
@@ -1062,8 +1134,8 @@ function countUnreadableFiles($directory) {
                             <label>
                                 <i class="fas fa-search"></i> Contenu Général à Exclure
                                 <span class="pattern-help" data-help="Format: /pattern/ - Exclut les lignes contenant ce pattern, quelle que soit la colonne">
-                            <i class="fas fa-question-circle"></i>
-                        </span>
+                                    <i class="fas fa-question-circle"></i>
+                                </span>
                             </label>
                             <div class="input-validation-container">
                                 <textarea name="filters[exclude][content]" id="exclude_content" class="pattern-input" rows="4"><?php 
@@ -1097,8 +1169,8 @@ function countUnreadableFiles($directory) {
                 <form method="post" action="" id="patterns-form" data-form="main">
                     <input type="hidden" name="action" value="update_patterns">
                     <input type="hidden" name="active_tab" value="patterns">
-
-                    <?php
+                    
+                        <?php 
                     // Configuration des icônes et descriptions pour chaque type de pattern
                     $pattern_config = [
                         'apache' => ['icon' => 'fa-server', 'title' => 'Apache'],
@@ -1127,23 +1199,23 @@ function countUnreadableFiles($directory) {
                             </h3>
 
                             <?php if (is_array($type_data)): ?>
-                                <?php
+                                    <?php 
                                 // Si c'est un pattern unique
                                 if (isset($type_data['pattern'])):
                                 ?>
                                     <div class="pattern-subgroup">
-                                        <label>
+                                            <label>
                                             <i class="fas fa-file-code"></i>
                                             Pattern <?php echo $config['title']; ?>
                                             <span class="pattern-help" data-help="Format pour les logs <?php echo $config['title']; ?>">
-                                                <i class="fas fa-question-circle"></i>
-                                            </span>
-                                        </label>
-                                        <input type="text" 
+                                                    <i class="fas fa-question-circle"></i>
+                                                </span>
+                                            </label>
+                                            <input type="text" 
                                                name="patterns[<?php echo $type; ?>][pattern]"
-                                               class="pattern-input"
+                                                   class="pattern-input"
                                                value="<?php echo htmlspecialchars($type_data['pattern']); ?>">
-                                    </div>
+                                            </div>
                                 <?php
                                 // Si c'est un groupe de patterns (comme apache access/error)
                                 else:
@@ -1162,15 +1234,15 @@ function countUnreadableFiles($directory) {
                                                name="patterns[<?php echo $type; ?>][<?php echo $subtype; ?>][pattern]"
                                                class="pattern-input"
                                                value="<?php echo htmlspecialchars($subtype_data['pattern']); ?>">
-                                    </div>
+                                        </div>
                             <?php
                                     endforeach;
                                 endif;
                                 ?>
-                            <?php endif; ?>
-                        </div>
-                    <?php endforeach; ?>
-
+                                <?php endif; ?>
+                            </div>
+                        <?php endforeach; ?>
+                    
                     <div class="form-actions">
                         <button type="submit" class="btn btn-primary">
                             <i class="fas fa-save"></i> Enregistrer les Patterns
@@ -1305,6 +1377,122 @@ function countUnreadableFiles($directory) {
                     <i class="fas fa-save"></i> Mettre à jour le mot de passe
                 </button>
             </form>
+        </div>
+
+        <!-- Onglet Mises à jour -->
+        <div class="admin-card" id="updates-tab" style="display: none;">
+            <h2><i class="fas fa-sync-alt"></i> Configuration des Mises à jour</h2>
+            <form method="POST" action="" id="updates-form" data-form="main">
+                <input type="hidden" name="action" value="update_config">
+                <input type="hidden" name="active_tab" value="updates">
+                
+                <div class="form-group">
+                    <div class="option-group">
+                        <label class="switch">
+                            <input type="checkbox" name="update_check[enabled]" id="update_check_enabled" 
+                                   <?php echo ($versionInfo['update_check']['enabled'] ?? true) ? 'checked' : ''; ?>>
+                            <span class="slider"></span>
+                        </label>
+                        <label>Activer la vérification des mises à jour</label>
+                        <small class="form-text">
+                            Si activé, le système vérifiera automatiquement les nouvelles versions disponibles
+                        </small>
+                    </div>
+
+                    <div class="option-group">
+                        <label for="update_check_interval">Intervalle de vérification (heures)</label>
+                        <input type="number" id="update_check_interval" name="update_check[check_interval]" 
+                               value="<?php echo ($versionInfo['update_check']['check_interval'] ?? 86400) / 3600; ?>" 
+                               min="1" max="168" class="form-control">
+                        <small class="form-text">
+                            Intervalle en heures entre chaque vérification de mise à jour (1-168 heures)
+                        </small>
+                    </div>
+
+                    <div class="option-group">
+                        <label for="update_cache_dir">Dossier de cache</label>
+                        <input type="text" id="update_cache_dir" name="update_check[cache_dir]" 
+                               value="<?php echo htmlspecialchars(dirname(__DIR__) . '/cache'); ?>" 
+                               class="form-control" readonly>
+                        <small class="form-text">
+                            Dossier où seront stockées les informations de mise à jour
+                        </small>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save"></i> Sauvegarder les paramètres
+                </button>
+            </form>
+
+            <div class="update-status">
+                <h3><i class="fas fa-info-circle"></i> État actuel</h3>
+                <div class="status-item">
+                    <span class="label">Version actuelle :</span>
+                    <span class="value"><?php echo htmlspecialchars(LOGVIEWR_VERSION); ?></span>
+                </div>
+                <div class="status-item">
+                    <span class="label">Date de sortie :</span>
+                    <span class="value"><?php echo htmlspecialchars($versionInfo['release_date'] ?? 'Inconnue'); ?></span>
+                </div>
+                <div class="status-item">
+                    <span class="label">Dernière vérification :</span>
+                    <span class="value"><?php 
+                        $lastCheck = $updateChecker->getLastCheck();
+                        echo $lastCheck ? date('d/m/Y H:i:s', $lastCheck) : 'Jamais';
+                    ?></span>
+                </div>
+                <div class="status-item">
+                    <span class="label">Prochaine vérification :</span>
+                    <span class="value"><?php 
+                        $lastCheck = $updateChecker->getLastCheck();
+                        $interval = $updateChecker->getCheckInterval();
+                        $nextCheck = $lastCheck ? $lastCheck + $interval : time() + $interval;
+                        echo date('d/m/Y H:i:s', $nextCheck);
+                    ?></span>
+                </div>
+            </div>
+
+            <?php if ($updateInfo): ?>
+            <div class="update-available">
+                <h3><i class="fas fa-exclamation-triangle"></i> Mise à jour disponible</h3>
+                <div class="update-details">
+                    <div class="version-comparison">
+                        <div class="version current">
+                            <span class="label">Version actuelle :</span>
+                            <span class="value"><?php echo $updateInfo['current_version']; ?></span>
+                        </div>
+                        <div class="version latest">
+                            <span class="label">Nouvelle version :</span>
+                            <span class="value"><?php echo $updateInfo['latest_version']; ?></span>
+                        </div>
+                    </div>
+                    
+                    <div class="update-actions">
+                        <a href="<?php echo $updateInfo['update_url']; ?>" target="_blank" class="btn btn-warning">
+                            <i class="fas fa-download"></i> Télécharger la mise à jour
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <?php endif; ?>
+
+            <div class="changelog">
+                <h3><i class="fas fa-list"></i> Historique des versions</h3>
+                <?php foreach ($versionInfo['changelog'] as $version => $info): ?>
+                <div class="changelog-entry">
+                    <div class="version-header">
+                        <span class="version">Version <?php echo $version; ?></span>
+                        <span class="date">(<?php echo $info['date']; ?>)</span>
+                    </div>
+                    <ul class="changes-list">
+                        <?php foreach ($info['changes'] as $change): ?>
+                        <li><?php echo $change; ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+                <?php endforeach; ?>
+            </div>
         </div>
     </div>
 
@@ -1618,7 +1806,7 @@ function countUnreadableFiles($directory) {
 
     <style>
 
-.btn-danger {
+    .btn-danger {
         background-color: #dc3545;
         border-color: #dc3545;
         color: white;
@@ -1683,7 +1871,7 @@ function countUnreadableFiles($directory) {
         border: 1px solid #f5c6cb;
         display: block;
     }
- 
+
     /* Styles pour la modale de confirmation */
     .modal-overlay {
         display: none;
@@ -1802,6 +1990,112 @@ function countUnreadableFiles($directory) {
         padding: 10px;
         border-radius: 4px;
         margin-top: 10px;
+    }
+    </style>
+
+    <style>
+    /* Styles pour l'onglet Mises à jour */
+    .update-status {
+        background: var(--bg-color);
+        border: 1px solid var(--border-color);
+        border-radius: 5px;
+        padding: 15px;
+        margin-bottom: 20px;
+    }
+
+    .status-item {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 10px;
+        padding-bottom: 5px;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .status-item:last-child {
+        border-bottom: none;
+        margin-bottom: 0;
+    }
+
+    .update-available {
+        background: #fff3cd;
+        border: 1px solid #ffeeba;
+        border-radius: 5px;
+        padding: 15px;
+        margin-bottom: 20px;
+    }
+
+    .version-comparison {
+        display: flex;
+        gap: 20px;
+        margin: 15px 0;
+    }
+
+    .version {
+        flex: 1;
+        text-align: center;
+        padding: 10px;
+        background: var(--bg-color);
+        border-radius: 5px;
+    }
+
+    .version .label {
+        display: block;
+        font-size: 0.9em;
+        color: var(--text-muted);
+    }
+
+    .version .value {
+        display: block;
+        font-size: 1.2em;
+        font-weight: bold;
+        margin-top: 5px;
+    }
+
+    .changelog {
+        background: var(--bg-color);
+        border: 1px solid var(--border-color);
+        border-radius: 5px;
+        padding: 15px;
+    }
+
+    .changelog-entry {
+        margin-bottom: 20px;
+        padding-bottom: 15px;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .changelog-entry:last-child {
+        border-bottom: none;
+        margin-bottom: 0;
+        padding-bottom: 0;
+    }
+
+    .version-header {
+        margin-bottom: 10px;
+    }
+
+    .version-header .version {
+        font-weight: bold;
+        color: var(--primary-color);
+    }
+
+    .version-header .date {
+        color: var(--text-muted);
+        font-size: 0.9em;
+        margin-left: 10px;
+    }
+
+    .changes-list {
+        margin: 0;
+        padding-left: 20px;
+    }
+
+    .changes-list li {
+        margin-bottom: 5px;
+    }
+
+    .changes-list li:last-child {
+        margin-bottom: 0;
     }
     </style>
 </body>

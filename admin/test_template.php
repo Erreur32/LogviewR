@@ -1,3 +1,14 @@
+<?php
+// Vérifier que ce fichier n'est pas appelé directement
+if (!defined('LOGVIEWR_ROOT')) {
+    define('LOGVIEWR_ROOT', dirname(__DIR__));
+}
+
+// Vérifier que les variables nécessaires sont définies
+if (!isset($allParsersLoaded) || !isset($allRegexValid) || !isset($allPathsAccessible) || !isset($allExtensionsLoaded)) {
+    die("❌ Erreur : Variables de test non définies");
+}
+?>
 <!DOCTYPE html>
 <html lang="fr">
 <head>

@@ -23,25 +23,25 @@ $default_patterns = [];
 
 // Chargement des configurations avec vérification
 if (file_exists('../config/log_patterns.php')) {
-    require_once '../config/log_patterns.php';
+    $log_patterns = require '../config/log_patterns.php';
 } else {
     die("❌ Erreur : Fichier log_patterns.php manquant");
 }
 
 if (file_exists('../config/config.php')) {
-    require_once '../config/config.php';
+    $config = require '../config/config.php';
 } else {
     die("❌ Erreur : Fichier config.php manquant");
 }
 
 if (file_exists('../config/default_config.php')) {
-    require_once '../config/default_config.php';
+    $default_config = require '../config/default_config.php';
 } else {
     die("❌ Erreur : Fichier default_config.php manquant");
 }
 
 if (file_exists('../config/default_patterns.php')) {
-    require_once '../config/default_patterns.php';
+    $default_patterns = require '../config/default_patterns.php';
 } else {
     die("❌ Erreur : Fichier default_patterns.php manquant");
 }
@@ -265,5 +265,5 @@ foreach ($requiredExtensions as $ext) {
 $configDifferences = compareConfigurations($config, $default_config);
 $patternDifferences = compareConfigurations($log_patterns, $default_patterns);
 
-// Inclusion du template d'affichage
-require_once 'test_template.php'; 
+// Charger le template de test
+require_once __DIR__ . '/test_template.php'; 

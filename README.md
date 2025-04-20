@@ -1,6 +1,6 @@
 # LogviewR 📊
 
-Un visualiseur de logs intelligent et moderne pour Apache, Nginx, NPM et Syslog.
+Un visualiseur de logs old school pour Apache, Nginx, NPM et Syslog.
 
 ## Fonctionnalités Principales ✨
 
@@ -36,18 +36,9 @@ Un visualiseur de logs intelligent et moderne pour Apache, Nginx, NPM et Syslog.
 git clone https://github.com/votre-utilisateur/LogviewR.git
 cd LogviewR
 ```
-
-2. Installer les dépendances :
-```bash
-composer install
-```
-
-3. Configurer l'application :
-- Copier `config/default_config.php` vers `config/config.php`
-- Copier `config/default_patterns.php` vers `config/log_patterns.php`
-- Modifier les configurations selon vos besoins
-
-4. Configurer le serveur web :
+ 
+ 
+2. Configurer le serveur web :
 ```apache
 <VirtualHost *:80>
     ServerName logviewr.local
