@@ -1,104 +1,154 @@
-# LogviewR 🔍
+# LogviewR 📊
 
-Un visualiseur de logs moderne et intuitif pour Apache, Nginx, Nginx Proxy Manager et Syslog.
+Un visualiseur de logs intelligent et moderne pour Apache, Nginx, NPM et Syslog.
 
-## Fonctionnalités ✨
+## Fonctionnalités Principales ✨
 
-- 📊 Interface moderne et responsive
-- 🔄 Actualisation en temps réel
-- 🎨 Thème sombre/clair avec transitions fluides
-- 🔍 Filtres avancés et temps réel
-- 📱 Compatible mobile
-- 🛡️ Sécurisé avec authentification
-- 🎯 Support multi-formats de logs
-- 🎨 Badges colorés pour les statuts HTTP et méthodes
-- 📦 Formatage intelligent des tailles de fichiers
+- **Support Multi-Format** 🎯
+  - Logs Apache (access, error, 404)
+  - Logs Nginx (access, error)
+  - Logs NPM (Proxy Host, Default Host, Dead Host, Fallback)
+  - Logs Syslog (auth, kern, daemon, etc.)
+
+- **Interface Moderne** 🎨
+  - Thème sombre/clair
+  - Design responsive
+  - Auto-rafraîchissement des logs
+  - Filtres dynamiques
+  - Affichage optimisé des données
+
+- **Parsing Intelligent** 🧠
+  - Détection automatique des types de logs
+  - Support des noms de domaine personnalisés
+  - Filtrage avancé
+  - Formatage intelligent des données
+
+- **Administration** 🔒
+  - Interface d'administration sécurisée
+  - Gestion des patterns de logs
+  - Configuration des sources
+  - Monitoring en temps réel
 
 ## Installation 🚀
 
-1. Clonez le dépôt :
+1. Cloner le dépôt :
 ```bash
-git clone https://github.com/votre-username/LogviewR.git
+git clone https://github.com/votre-utilisateur/LogviewR.git
+cd LogviewR
 ```
 
-2. Configurez les permissions :
+2. Installer les dépendances :
 ```bash
-chmod 750 /chemin/vers/LogviewR 
-chmod 640 /chemin/vers/LogviewR/config/*.php
-chmod 750 /chemin/vers/LogviewR/parse_log.sh
+composer install
 ```
 
-3. Configurez votre serveur web (exemple Apache) :
+3. Configurer l'application :
+- Copier `config/default_config.php` vers `config/config.php`
+- Copier `config/default_patterns.php` vers `config/log_patterns.php`
+- Modifier les configurations selon vos besoins
+
+4. Configurer le serveur web :
 ```apache
 <VirtualHost *:80>
-    ServerName logview.example.com
-    DocumentRoot /path/to/LogviewR
-    
-    <Directory /path/to/LogviewR>
-        Options -Indexes +FollowSymLinks
+    ServerName logviewr.local
+    DocumentRoot /chemin/vers/LogviewR
+    <Directory /chemin/vers/LogviewR>
         AllowOverride All
         Require all granted
     </Directory>
 </VirtualHost>
 ```
 
-## Configuration 🛠️
+## Configuration ⚙️
 
-### Fichiers de logs supportés
+### Fichiers de Configuration
+- `config/config.php` : Configuration générale
+- `config/log_patterns.php` : Patterns de logs
+- `config/admin.php` : Configuration admin
 
-- Apache Access Log
-- Apache Error Log
-- Nginx Access Log
-- Nginx Error Log
-- Nginx Proxy Manager Logs:
-  - Default Host (Access/Error)
-  - Dead Host (Access/Error)
-  - Proxy Host (Access/Error)
-  - Fallback (Access/Error)
-- Syslog
-
-### Exemples de logs supportés
-
-#### Apache Access Log
-```
-example.com:80 192.168.1.100 - user1 [01/Jan/2025:12:00:00 +0100] "GET /index.php HTTP/1.1" 200 1234 "http://example.com" "Mozilla/5.0"
-```
-
-#### Nginx Access Log
-```
-192.168.1.100 - - [01/Jan/2025:12:00:00 +0100] "GET /index.php HTTP/1.1" 200 1234 "http://example.com" "Mozilla/5.0"
-```
-
-#### Syslog
-```
-Jan 1 12:00:00 server1 process[123]: Message de log
+### Options Principales
+```php
+return [
+    'app' => [
+        'excluded_extensions' => ['gz', 'zip', 'tar'],
+        'max_execution_time' => 300,
+        'default_lines_per_page' => 25,
+        'refresh_interval' => 1000
+    ],
+    'paths' => [
+        'apache_logs' => '/var/log/apache2',
+        'nginx_logs' => '/var/log/nginx',
+        'npm_logs' => '/var/log/npm',
+        'syslog' => '/var/log'
+    ],
+    'nginx' => [
+        'use_npm' => false
+    ]
+];
 ```
 
-## Interface d'administration 👨‍��
+## Utilisation 📝
 
-Interface sécurisée accessible à `http://votre-serveur/LogviewR/admin` permettant de :
-- Gérer les utilisateurs et les permissions
-- Configurer les sources de logs
-- Définir les filtres et les exclusions
-- Consulter les statistiques d'utilisation
+1. **Accès à l'Interface**
+   - Ouvrir `http://votre-domaine/` dans votre navigateur
+   - Se connecter avec les identifiants admin
 
-Identifiants par défaut :
-- Utilisateur : `admin`
-- Mot de passe : `password` (à changer immédiatement)
+2. **Visualisation des Logs**
+   - Sélectionner le type de log (Apache/Nginx/NPM/Syslog)
+   - Choisir le fichier de log
+   - Utiliser les filtres pour affiner les résultats
 
-## Sécurité 🔒
+3. **Administration**
+   - Accéder à `http://votre-domaine/admin/`
+   - Configurer les patterns de logs
+   - Gérer les sources de logs
 
-- Authentification requise pour l'interface d'administration
-- Protection contre les injections SQL
-- Protection XSS
-- Rate limiting
-- Validation des entrées
-- Logs d'audit
+## Contribution 👥
 
-## Contribution 🤝
+Les contributions sont les bienvenues ! Voici comment contribuer :
 
-Les contributions sont les bienvenues ! Voir [CONTRIBUTING.md](CONTRIBUTING.md) pour plus de détails.
+1. Fork le projet
+2. Créer une branche (`git checkout -b feature/AmazingFeature`)
+3. Commit les changements (`git commit -m 'Add some AmazingFeature'`)
+4. Push vers la branche (`git push origin feature/AmazingFeature`)
+5. Ouvrir une Pull Request
 
 ## Licence 📄
 
-Ce projet est sous licence MIT. Voir [LICENSE](LICENSE) pour plus de détails. 
+Ce projet est sous licence MIT. Voir [LICENSE](LICENSE) pour plus de détails.
+
+## Support 🆘
+
+Pour toute question ou problème :
+- Ouvrir une issue sur GitHub
+- Consulter la [documentation](DEVELOPMENT.md)
+- Contacter l'équipe de développement
+
+## Versions 🔄
+
+### Version 1.3.0 (En cours)
+- Amélioration de la détection des types de logs
+- Optimisation du parsing des logs
+- Correction des problèmes de performance
+- Amélioration de la gestion des filtres
+- Support des logs avec noms de domaine personnalisés
+- Correction des bugs de l'interface
+
+### Version 1.2.0
+- Support complet des logs NPM
+- Amélioration de la détection des types de logs
+- Optimisation de l'interface utilisateur
+- Auto-rafraîchissement des logs
+- Support des noms de domaine personnalisés
+
+### Version 1.1.0
+- Thème sombre/clair
+- Interface responsive
+- Optimisation des performances
+- Correction des bugs
+
+### Version 1.0.0
+- Version initiale
+- Support des logs Apache, Nginx et Syslog
+- Interface utilisateur de base
+- Système d'authentification 
