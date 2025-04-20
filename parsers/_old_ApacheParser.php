@@ -6,11 +6,11 @@ class ApacheParser extends BaseParser {
     private $errorLogPattern = '/^\[(.*?)\]\s*\[php:(error|notice|warning|debug)\]\s*\[pid\s+(\d+):tid\s+(\d+)\]\s*\[client\s+(\S+)\]\s*(.*)$/';
     private $debug = false;
 
-    // Configuration des patterns d'exclusion
+    // Exclusion patterns configuration
     private $excludePatterns = [];
     private $patterns;
 
-    // Configuration des codes HTTP
+    // HTTP codes configuration
     private $httpCodes = [
         'success' => [200, 201, 204],
         'redirect' => [301, 302, 303, 307, 308],
@@ -20,7 +20,7 @@ class ApacheParser extends BaseParser {
 
     public function __construct($debug = false) {
         $this->debug = $debug;
-        // Charger les patterns depuis la configuration
+        // Load patterns from configuration
         $patterns_file = __DIR__ . '/../config/log_patterns.php';
         
         if (file_exists($patterns_file)) {
@@ -29,12 +29,12 @@ class ApacheParser extends BaseParser {
             // Initialiser les patterns d'exclusion depuis la configuration
             if (isset($this->patterns['filters']['exclude'])) {
                 $this->excludePatterns = $this->patterns['filters']['exclude'];
-                $this->debugLog("Filtres d'exclusion chargés", ['patterns' => $this->excludePatterns]);
+                $this->debugLog("Exclusion filters loaded", ['patterns' => $this->excludePatterns]);
             } else {
-                $this->debugLog("Aucun filtre d'exclusion trouvé dans la configuration");
+                $this->debugLog("No exclusion filters found in configuration");
             }
         } else {
-            $this->debugLog("Fichier de patterns non trouvé: $patterns_file");
+            $this->debugLog("Patterns file not found: $patterns_file");
             $this->patterns = [];
             $this->excludePatterns = [];
         }
@@ -45,9 +45,9 @@ class ApacheParser extends BaseParser {
                 'host' => ['name' => 'Host', 'class' => 'column-host'],
                 'ip' => ['name' => 'IP', 'class' => 'column-ip'],
                 'user' => ['name' => 'User', 'class' => 'column-user'],
-                'request' => ['name' => 'Requête', 'class' => 'column-request'],
+                'request' => ['name' => 'Request', 'class' => 'column-request'],
                 'status' => ['name' => 'Code', 'class' => 'column-status'],
-                'size' => ['name' => 'Taille', 'class' => 'column-size'],
+                'size' => ['name' => 'Size', 'class' => 'column-size'],
                 'referer' => ['name' => 'Referer', 'class' => 'column-referer'],
                 'user_agent' => ['name' => 'User-Agent', 'class' => 'column-useragent']
             ],
@@ -58,8 +58,9 @@ class ApacheParser extends BaseParser {
     }
 
     private function debugLog($message, $data = []) {
-        if (!$this->debug) return;
-        error_log(sprintf("[DEBUG] %s: %s", $message, json_encode($data)));
+        if ($this->debug) {
+            parent::debugLog($message, $data);
+        }
     }
 
     public function parse($line, $type = 'access') {
@@ -68,102 +69,102 @@ class ApacheParser extends BaseParser {
             return null;
         }
 
-        // Détecter automatiquement le type de log si non spécifié
+        // Automatically detect log type if not specified
         if ($type === 'access') {
-            // Si la ligne commence par [ et contient [php:error] ou [php:notice], c'est un log d'erreur
+            // If the line starts with [ and contains [php:error] or [php:notice], it's an error log
             if (preg_match('/^\[.*?\]\s*\[php:(error|notice|warning|debug)\]/', $line)) {
                 $type = 'error';
             }
         }
 
-        $this->debugLog("Type de log détecté", ['type' => $type, 'line' => $line]);
+        $this->debugLog("Log type detected", ['type' => $type, 'line' => $line]);
         return $type === 'access' ? $this->parseAccessLog($line) : $this->parseErrorLog($line);
     }
 
     private function parseAccessLog($line) {
-        $this->debugLog("Analyse de la ligne", ['line' => $line]);
+        $this->debugLog("Analyzing line", ['line' => $line]);
 
         if (!preg_match($this->accessLogPattern, $line, $matches)) {
-            $this->debugLog("Pattern ne correspond pas");
+            $this->debugLog("Pattern does not match");
             return null;
         }
 
-        // Extraire les composants pour les filtres
+        // Extract components for filters
         $host = $matches[1] ?? '-';
         $ip = $matches[3] ?? '-';
         $user = $matches[4] ?? '-';
         $request = $matches[7] ?? '-';
         $userAgent = $matches[11] ?? '-';
 
-        // Formater les badges avec des valeurs par défaut si nécessaire
+        // Format badges with default values if necessary
         $hostHash = $host !== '-' ? substr(md5($host), 0, 1) : '0';
         $ipHash = $ip !== '-' ? substr(md5($ip), 0, 1) : '0';
         $userHash = $user !== '-' ? substr(md5($user), 0, 1) : '0';
 
-        // Formater le host avec ou sans port
+        // Format host with or without port
         $port = isset($matches[2]) && $matches[2] ? ':' . $matches[2] : '';
         $hostDisplay = $host !== '-' ? rtrim($host . $port, ':') : '-';
 
-        // Préparer la requête formatée
+        // Prepare formatted request
         $requestParts = explode(' ', $request);
         $method = $requestParts[0] ?? '-';
         $path = $requestParts[1] ?? '-';
         $protocol = $requestParts[2] ?? '-';
 
-        // Appliquer les filtres d'exclusion avant le formatage HTML
+        // Apply exclusion filters before HTML formatting
         $filtered = false;
         $filterReason = '';
 
-        // Filtre IP
+        // IP filter
         if (isset($this->excludePatterns['ips'])) {
             foreach ($this->excludePatterns['ips'] as $pattern) {
                 $cleanIp = trim(preg_replace('/:\d+$/', '', $ip));
                 $cleanPattern = str_replace('\\\\', '\\', trim($pattern, '/'));
                 if (@preg_match('/' . $cleanPattern . '/', $cleanIp)) {
                     $filtered = true;
-                    $filterReason = 'IP exclue: ' . $cleanIp;
+                    $filterReason = 'IP excluded: ' . $cleanIp;
                     break;
                 }
             }
         }
 
-        // Filtre requêtes
+        // Request filter
         if (!$filtered && isset($this->excludePatterns['requests'])) {
             foreach ($this->excludePatterns['requests'] as $pattern) {
                 $cleanPattern = str_replace('\\\\', '\\', trim($pattern, '/'));
                 if (@preg_match('/' . $cleanPattern . '/', $path)) {
                     $filtered = true;
-                    $filterReason = 'Requête exclue: ' . $path;
+                    $filterReason = 'Request excluded: ' . $path;
                     break;
                 }
             }
         }
 
-        // Filtre user-agents
+        // User-agent filter
         if (!$filtered && isset($this->excludePatterns['user_agents'])) {
             foreach ($this->excludePatterns['user_agents'] as $pattern) {
                 $cleanPattern = str_replace('\\\\', '\\', trim($pattern, '/'));
                 if (@preg_match('/' . $cleanPattern . '/', $userAgent)) {
                     $filtered = true;
-                    $filterReason = 'User-Agent exclu: ' . $userAgent;
+                    $filterReason = 'User-Agent excluded: ' . $userAgent;
                     break;
                 }
             }
         }
 
-        // Filtre utilisateurs (seulement si l'utilisateur n'est pas '-')
+        // User filter (only if user is not '-')
         if (!$filtered && isset($this->excludePatterns['users']) && $user !== '-') {
             foreach ($this->excludePatterns['users'] as $pattern) {
                 $cleanPattern = str_replace('\\\\', '\\', trim($pattern, '/'));
                 if (@preg_match('/' . $cleanPattern . '/', $user)) {
                     $filtered = true;
-                    $filterReason = 'Utilisateur exclu: ' . $user;
+                    $filterReason = 'User excluded: ' . $user;
                     break;
                 }
             }
         }
 
-        // Préparer le résultat formaté
+        // Prepare formatted result
         $result = [
             'date' => $this->formatDate($matches[6]),
             'host' => sprintf(
@@ -223,7 +224,7 @@ class ApacheParser extends BaseParser {
     }
 
     private function parseErrorLog($line) {
-        // Pour les logs d'erreur, on retourne simplement le message brut
+        // For error logs, we simply return the raw message
         return [
             'message' => htmlspecialchars($line)
         ];

@@ -10,6 +10,14 @@ if (!isset($_SESSION['last_attempt'])) {
     $_SESSION['last_attempt'] = 0;
 }
 
+// Ajout de la réinitialisation des tentatives
+if (isset($_GET['reset_attempts']) && $_GET['reset_attempts'] == 1) {
+    $_SESSION['login_attempts'] = 0;
+    $_SESSION['last_attempt'] = 0;
+    header('Location: login.php');
+    exit;
+}
+
 // Vérifier que les fichiers de configuration existent
 $config_file = __DIR__ . '/../config/config.php';
 $admin_config_file = __DIR__ . '/../config/admin.php';
@@ -115,6 +123,14 @@ if (isset($_GET['timeout']) && $_GET['timeout'] == 1) {
                 <i class="fas fa-sign-in-alt"></i> Se connecter
             </button>
         </form>
+        
+        <?php if ($_SESSION['login_attempts'] >= ($admin_config['security']['max_login_attempts'] ?? 5)): ?>
+            <div class="reset-attempts">
+                <a href="login.php?reset_attempts=1" class="reset-link">
+                    <i class="fas fa-sync-alt"></i> Réinitialiser les tentatives de connexion
+                </a>
+            </div>
+        <?php endif; ?>
     </div>
 </body>
 </html> 

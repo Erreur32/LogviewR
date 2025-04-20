@@ -12,10 +12,10 @@ RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
     # Headers de sécurité modernes
     Header set X-Content-Type-Options "nosniff"
     Header set X-XSS-Protection "1; mode=block"
-    Header set X-Frame-Options "SAMEORIGIN"
+    Header set X-Frame-Options "DENY"
     Header set Referrer-Policy "strict-origin-when-cross-origin"
     Header set Permissions-Policy "geolocation=(), microphone=(), camera=(), clipboard-read=(), clipboard-write=(), payment=()"
-    Header set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: https:; font-src 'self' https://cdnjs.cloudflare.com; connect-src 'self';"
+    Header set Content-Security-Policy "default-src 'self'"
     Header set Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
     Header set Cross-Origin-Embedder-Policy "require-corp"
     Header set Cross-Origin-Opener-Policy "same-origin"
@@ -75,22 +75,11 @@ RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
     RewriteCond %{REQUEST_URI} !^/sitemap.xml$
     RewriteCond %{REQUEST_URI} !^/index.php$
     RewriteCond %{REQUEST_URI} !^/view.php$
+    RewriteCond %{REQUEST_URI} !^/view.php$
+    RewriteCond %{REQUEST_METHOD} !POST
+    RewriteCond %{HTTP_COOKIE} !PHPSESSID [NC]
+    RewriteCond %{HTTP_REFERER} !^https?://%{HTTP_HOST} [NC]
     RewriteRule ^(.*)$ index.php [F,L]
-</IfModule>
-
-# Protection contre les attaques par force brute sur les formulaires
-<IfModule mod_rewrite.c>
-    RewriteCond %{REQUEST_METHOD} POST
-    RewriteCond %{HTTP_COOKIE} form_attempts=([^;]+)
-    RewriteCond %1>10
-    RewriteRule ^ - [F,L]
-</IfModule>
-
-# Protection contre les attaques par dictionnaire
-<IfModule mod_rewrite.c>
-    RewriteCond %{REQUEST_METHOD} POST
-    RewriteCond %{HTTP_USER_AGENT} ^(curl|wget|python|perl|ruby|php|nikto|sqlmap|nmap|burpsuite|zap|hydra|medusa|john|hashcat)
-    RewriteRule ^ - [F,L]
 </IfModule>
 
 # Compression GZIP
@@ -137,12 +126,12 @@ ErrorDocument 404 /error.php?code=404
 ErrorDocument 500 /error.php?code=500
 
 # Limitation de la taille des fichiers uploadés
-php_value upload_max_filesize 10M
-php_value post_max_size 10M
-php_value max_execution_time 300
-php_value max_input_time 300
-php_value memory_limit 256M
-php_value max_input_vars 3000
+php_value upload_max_filesize 16M
+php_value post_max_size 16M
+php_value max_execution_time 120
+php_value max_input_time 120
+php_value memory_limit 128M
+php_value max_input_vars 5000
 php_value session.cookie_httponly 1
 php_value session.cookie_secure 1
 php_value session.use_only_cookies 1

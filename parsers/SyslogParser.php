@@ -2,11 +2,11 @@
 require_once __DIR__ . '/BaseParser.php';
 
 class SyslogParser extends BaseParser {
-    private $syslogPattern = '/^(\w{3}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2})\s+(\S+)\s+(\S+)(?:\[(\d+)\])?:\s+(.*)$/';
-    private $debug = false;
+    private $syslogPattern;
+    protected $debug = false;
     private $patterns;
 
-    // Configuration des niveaux de log
+    // Log levels configuration
     private $logLevels = [
         'emerg' => ['class' => 'error', 'priority' => 0],
         'alert' => ['class' => 'error', 'priority' => 1],
@@ -19,23 +19,29 @@ class SyslogParser extends BaseParser {
         'debug' => ['class' => 'debug', 'priority' => 7]
     ];
 
-    public function __construct($debug = false) {
-        $this->debug = $debug;
-        // Charger les patterns depuis la configuration
-        $this->patterns = require __DIR__ . '/../config/log_patterns.php';
+    public function __construct() {
+        parent::__construct();
         
-        $this->columns = [
-            'date' => ['name' => 'Date', 'class' => 'column-date'],
-            'host' => ['name' => 'Host', 'class' => 'column-host'],
-            'process' => ['name' => 'Process', 'class' => 'column-process'],
-            'pid' => ['name' => 'PID', 'class' => 'column-pid'],
-            'message' => ['name' => 'Message', 'class' => 'column-message']
-        ];
+        // Load configuration
+        $config = require __DIR__ . '/../config/config.php';
+        $this->debug = $config['debug']['enabled'] ?? false;
+        
+        // Load pattern from configuration
+        $patterns = require __DIR__ . '/../config/log_patterns.php';
+        $this->syslogPattern = $patterns['syslog']['pattern'];
+        $this->columns = $patterns['syslog']['columns'];
+        
+        if ($this->debug) {
+            $this->debugLog("=== SyslogParser initialized ===");
+            $this->debugLog("Pattern: " . $this->syslogPattern);
+            $this->debugLog("Columns: " . print_r($this->columns, true));
+        }
     }
 
-    private function debugLog($message, $data = []) {
-        if (!$this->debug) return;
-        error_log(sprintf("[DEBUG] %s: %s", $message, json_encode($data)));
+    protected function debugLog($message, $data = []) {
+        if ($this->debug) {
+            parent::debugLog($message, $data);
+        }
     }
 
     public function parse($line, $type = 'access') {
@@ -44,25 +50,25 @@ class SyslogParser extends BaseParser {
             return null;
         }
 
-        $this->debugLog("Analyse de la ligne", ['line' => $line]);
+        $this->debugLog("Analyzing line", ['line' => $line]);
 
         if (!preg_match($this->syslogPattern, $line, $matches)) {
-            $this->debugLog("Pattern ne correspond pas");
+            $this->debugLog("Pattern does not match");
             return null;
         }
 
-        // Extraire les composants
+        // Extract components
         $date = $matches[1];
         $host = $matches[2];
         $process = $matches[3];
         $pid = $matches[4] ?? null;
         $message = $matches[5];
 
-        // Détecter le niveau de log
+        // Detect log level
         $level = $this->detectLogLevel($message);
         $levelInfo = $this->logLevels[$level] ?? ['class' => 'info', 'priority' => 6];
 
-        // Formater les badges
+        // Format badges
         $hostHash = substr(md5($host), 0, 1);
         $processHash = substr(md5($process), 0, 1);
 
@@ -100,7 +106,7 @@ class SyslogParser extends BaseParser {
                 return $dateStr;
             }
 
-            // Si la date est dans le futur, c'est probablement de l'année dernière
+            // If date is in the future, it's probably from last year
             if ($timestamp > time()) {
                 $timestamp = strtotime("$dateStr " . ($year - 1));
             }
@@ -111,7 +117,7 @@ class SyslogParser extends BaseParser {
                 date('H:i:s', $timestamp)
             );
         } catch (Exception $e) {
-            $this->debugLog("Erreur de formatage de date", ['error' => $e->getMessage()]);
+            $this->debugLog("Date formatting error", ['error' => $e->getMessage()]);
             return $dateStr;
         }
     }
@@ -119,7 +125,7 @@ class SyslogParser extends BaseParser {
     private function detectLogLevel($message) {
         $message = strtolower($message);
         
-        // Mots-clés pour détecter le niveau
+        // Keywords to detect level
         $keywords = [
             'error' => ['error', 'failed', 'failure', 'fatal'],
             'warning' => ['warning', 'warn', 'could not', 'unable to'],

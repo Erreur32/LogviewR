@@ -69,7 +69,7 @@ if (!in_array($mime_type, ['text/plain', 'application/x-log'])) {
 
 // Vérification du nombre de lignes demandées
 $max_lines = isset($_POST['max_lines']) ? (int)$_POST['max_lines'] : 100;
-if ($max_lines < 1 || $max_lines > 1000) {
+if ($max_lines < 1 || $max_lines > 50000) { // Augmenté à 50000 lignes
     header('HTTP/1.1 400 Bad Request');
     die('Nombre de lignes invalide');
 }

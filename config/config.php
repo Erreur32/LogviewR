@@ -3,14 +3,17 @@ return array (
   'debug' => 
   array (
     'enabled' => false,
+    'log_format' => '[%timestamp%] [%level%] %message%',
+    'timestamp_format' => 'Y-m-d H:i:s.u T',
     'log_level' => 'ERROR',
+    'log_to_apache' => false,
   ),
   'app' => 
   array (
-    'max_execution_time' => 120,
-    'max_lines_per_request' => 1000,
-    'default_lines_per_page' => 25,
-    'refresh_interval' => 1200,
+    'max_execution_time' => 30,
+    'max_lines_per_request' => 20000,
+    'default_lines_per_page' => 100,
+    'refresh_interval' => 6000,
     'excluded_extensions' => 
     array (
       0 => 'gz',
@@ -25,18 +28,33 @@ return array (
   'paths' => 
   array (
     'apache_logs' => '/var/log/apache2',
+    'npm_logs' => '/var/log/npm',
     'nginx_logs' => '/var/log/nginx',
     'syslog' => '/var/log',
-  ),
-  'nginx' => 
-  array (
-    'use_npm' => true,
   ),
   'date_formats' => 
   array (
     'display' => 'd/m/Y H:i:s',
-    'file' => 'Y-m-d H:i:s',
   ),
-  'timezone' => 'Europe/Paris',
+  'themes' => 
+  array (
+    'light' => 
+    array (
+      'primary_color' => '#3498db',
+      'text_color' => '#333333',
+      'bg_color' => '#ffffff',
+    ),
+    'dark' => 
+    array (
+      'primary_color' => '#3498db',
+      'text_color' => '#ffffff',
+      'bg_color' => '#1a1a1a',
+    ),
+  ),
   'theme' => 'dark',
+  'nginx' => 
+  array (
+    'enabled' => false,
+    'use_npm' => true,
+  ),
 );

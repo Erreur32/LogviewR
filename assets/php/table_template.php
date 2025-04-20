@@ -43,7 +43,7 @@ Statistiques détaillées:
 - Lignes valides: ' . formatNumber($response['stats']['valid_lines'] ?? 0) . '
 - Lignes filtrées: ' . formatNumber($response['stats']['filtered_lines'] ?? 0) . '
 - Lignes ignorées: ' . formatNumber($response['stats']['skipped_lines'] ?? 0) . '
-- Lignes illisibles: ' . formatNumber($response['stats']['unreadable_lines'] ?? 0) . '">
+- Lignes ignorées par les filtres: ' . formatNumber($response['stats']['unreadable_lines'] ?? 0) . '">
         <span class="number">' . formatNumber($response['stats']['total_lines'] ?? 0) . '</span>
         <span class="label">lignes totales</span>
     </div>
@@ -117,10 +117,9 @@ Ces lignes ont été ignorées car elles sont vides ou ne correspondent pas au f
         <span class="number">' . formatNumber($response['stats']['skipped_lines'] ?? 0) . '</span>
         <span class="label">lignes ignorées</span>
     </div>
-    <div class="stats-badge unreadable" title="Lignes illisibles ou corrompues
-Ces lignes n\'ont pas pu être parsées à cause d\'un format incorrect ou de caractères invalides">
+    <div class="stats-badge unreadable" title="Lignes ignorées format incorrect ou invalide">
         <span class="number">' . formatNumber($response['stats']['unreadable_lines'] ?? 0) . '</span>
-        <span class="label">lignes illisibles</span>
+        <span class="label">lignes  illisibles</span>
     </div>
     <div class="stats-badge filesize" title="Taille du fichier sur le disque
 Format: ' . h($response['file_info']['size']['value'] ?? '0') . ' ' . h($response['file_info']['size']['unit'] ?? 'B') . '">

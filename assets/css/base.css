@@ -818,3 +818,143 @@ footer {
 .admin-link:hover i {
     transform: rotate(180deg);
 }
+
+#logForm .filter-toggle {
+    padding: 8px 16px;
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+#logForm .filter-toggle:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+}
+
+#logForm .filter-toggle i {
+    font-size: 0.9em;
+}
+
+/* Refresh Controls Styles */
+#logForm .refresh-controls {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    order: 3;
+}
+
+#logForm .refresh-button {
+    padding: 8px 16px;
+    background: var(--success-color);
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+#logForm .refresh-button:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+}
+
+#logForm .refresh-button i {
+    font-size: 0.9em;
+    transition: transform 0.3s ease;
+    color: var(--success-color);
+}
+
+/* Animation de rotation pour le bouton de rafraîchissement */
+#logForm .refresh-button.loading i {
+    animation: spin 1s linear infinite;
+    
+}
+
+#logForm .refresh-button.loading {
+    background: var(--warning-color);
+    background: var(--success-color);
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+/* Arrêter l'animation quand le bouton n'est plus en loading */
+#logForm .refresh-button:not(.loading) i {
+    animation: none;
+    transform: rotate(0deg);
+    
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+#logForm .auto-refresh {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-color);
+}
+
+#logForm .auto-refresh label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+}
+
+#logForm .auto-refresh input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
+#logForm .auto-refresh input[type="number"] {
+    width: 80px;
+    padding: 4px 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--bg-color);
+    color: var(--text-color);
+}
+
+#logForm .auto-refresh span {
+    color: var(--secondary-color);
+    font-size: 0.9em;
+}
+
+/* Style pour la barre de filtres */
+.dataTables_wrapper thead th {
+    background-color: var(--table-header-bg) !important;
+    color: var(--text-color) !important;
+    border-color: var(--border-color) !important;
+}
+
+
+.level-filter {
+    display: none; /* Caché par défaut */
+}
+
+/* Style pour réduire la largeur de la case à cocher */
+#autoRefreshToggle {
+    width: 8px;
+    height: 16px;
+    margin-right: 5px;
+}
+
+/* Style pour aligner le label avec la case à cocher */
+.auto-refresh label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}

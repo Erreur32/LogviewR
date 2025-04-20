@@ -2,15 +2,15 @@
 require_once __DIR__ . '/BaseParser.php';
 
 class NginxParser extends BaseParser {
-    private $accessLogPattern = '/^(\S+) - (\S+) \[([^\]]+)\] "([^"]*)" (\d{3}) (\d+) "([^"]*)" "([^"]*)"(?: (\d+\.\d+))?$/';
-    private $errorLogPattern = '/^(\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}) \[([^\]]+)\] (\d+)#(\d+): \*(\d+) (.*)$/';
-    private $debug = false;
+    private $accessLogPattern;
+    private $errorLogPattern;
+    protected $debug = false;
 
-    // Configuration des patterns d'exclusion
+    // Configuration of exclusion patterns
     private $excludePatterns = [];
     private $patterns;
 
-    // Configuration des codes HTTP
+    // HTTP codes configuration
     private $httpCodes = [
         'success' => [200, 201, 204],
         'redirect' => [301, 302, 303, 307, 308],
@@ -18,7 +18,7 @@ class NginxParser extends BaseParser {
         'server_error' => [500, 501, 502, 503, 504]
     ];
 
-    // Configuration des niveaux d'erreur
+    // Error levels configuration
     private $errorLevels = [
         'emerg' => ['class' => 'error', 'priority' => 0],
         'alert' => ['class' => 'error', 'priority' => 1],
@@ -30,49 +30,39 @@ class NginxParser extends BaseParser {
         'debug' => ['class' => 'debug', 'priority' => 7]
     ];
 
-    public function __construct($debug = false) {
-        $this->debug = $debug;
-        // Charger les patterns depuis la configuration
-        $patterns_file = __DIR__ . '/../config/log_patterns.php';
+    public function __construct() {
+        parent::__construct();
         
-        if (file_exists($patterns_file)) {
-            $this->patterns = require $patterns_file;
-            
-            // Initialiser les patterns d'exclusion depuis la configuration
-            if (isset($this->patterns['filters']['exclude'])) {
-                $this->excludePatterns = $this->patterns['filters']['exclude'];
-                $this->debugLog("Filtres d'exclusion chargés", ['patterns' => $this->excludePatterns]);
-            } else {
-                $this->debugLog("Aucun filtre d'exclusion trouvé dans la configuration");
-            }
-        } else {
-            $this->debugLog("Fichier de patterns non trouvé: $patterns_file");
-            $this->patterns = [];
-            $this->excludePatterns = [];
+        // Load configuration
+        $config = require __DIR__ . '/../config/config.php';
+        $this->debug = $config['debug']['enabled'] ?? false;
+        
+        // Load patterns from configuration
+        $patterns = require __DIR__ . '/../config/log_patterns.php';
+        $this->accessLogPattern = $patterns['nginx']['access']['pattern'];
+        $this->errorLogPattern = $patterns['nginx']['error']['pattern'];
+        $this->columns = $patterns['nginx']['access']['columns'];
+        
+        if ($this->debug) {
+            $this->debugLog("=== NginxParser initialized ===");
+            $this->debugLog("Access Pattern: " . $this->accessLogPattern);
+            $this->debugLog("Error Pattern: " . $this->errorLogPattern);
+            $this->debugLog("Columns: " . print_r($this->columns, true));
         }
         
-        $this->columns = [
-            'access' => [
-                'ip' => ['name' => 'IP', 'class' => 'column-ip'],
-                'date' => ['name' => 'Date', 'class' => 'column-date'],
-                'request' => ['name' => 'Requête', 'class' => 'column-request'],
-                'status' => ['name' => 'Code', 'class' => 'column-status'],
-                'size' => ['name' => 'Taille', 'class' => 'column-size'],
-                'referer' => ['name' => 'Referer', 'class' => 'column-referer'],
-                'user_agent' => ['name' => 'User-Agent', 'class' => 'column-useragent']
-            ],
-            'error' => [
-                'date' => ['name' => 'Date', 'class' => 'column-date'],
-                'level' => ['name' => 'Niveau', 'class' => 'column-level'],
-                'pid' => ['name' => 'PID', 'class' => 'column-pid'],
-                'message' => ['name' => 'Message', 'class' => 'column-message']
-            ]
-        ];
+        // Initialize exclusion patterns from configuration
+        if (isset($patterns['filters']['exclude'])) {
+            $this->excludePatterns = $patterns['filters']['exclude'];
+            $this->debugLog("Exclusion filters loaded", ['patterns' => $this->excludePatterns]);
+        } else {
+            $this->debugLog("No exclusion filters found in configuration");
+        }
     }
 
     private function debugLog($message, $data = []) {
-        if (!$this->debug) return;
-        error_log(sprintf("[DEBUG] %s: %s", $message, json_encode($data)));
+        if ($this->debug) {
+            parent::debugLog($message, $data);
+        }
     }
 
     public function parse($line, $type = 'access') {
@@ -81,7 +71,7 @@ class NginxParser extends BaseParser {
             return null;
         }
 
-        $this->debugLog("Analyse de la ligne", ['line' => $line, 'type' => $type]);
+        $this->debugLog("Analyzing line", ['line' => $line, 'type' => $type]);
 
         return $type === 'access' ? $this->parseAccessLog($line) : $this->parseErrorLog($line);
     }
@@ -91,63 +81,59 @@ class NginxParser extends BaseParser {
             return null;
         }
 
-        // Extraire les composants pour les filtres
+        // Extract components for filters
         $ip = $matches[1];
         $request = $matches[4];
         $userAgent = $matches[8] ?? '-';
 
-        $this->debugLog("Composants extraits", [
+        $this->debugLog("Extracted components", [
             'ip' => $ip,
             'request' => $request,
             'userAgent' => $userAgent
         ]);
 
-        // Appliquer les filtres d'exclusion
+        // Apply exclusion filters
         if (isset($this->excludePatterns['ips'])) {
-            $this->debugLog("Filtres IP disponibles", ['patterns' => $this->excludePatterns['ips']]);
+            $this->debugLog("Available IP filters", ['patterns' => $this->excludePatterns['ips']]);
             foreach ($this->excludePatterns['ips'] as $pattern) {
-                $this->debugLog("Test du pattern IP", ['pattern' => $pattern, 'ip' => $ip]);
-                // Nettoyer l'IP des éventuels ports
+                $this->debugLog("Testing IP pattern", ['pattern' => $pattern, 'ip' => $ip]);
+                // Clean IP from potential ports
                 $cleanIp = preg_replace('/:\d+$/', '', $ip);
                 if (preg_match($pattern, $cleanIp)) {
-                    $this->debugLog("IP exclue", ['pattern' => $pattern, 'ip' => $cleanIp]);
-                    return ['filtered' => true, 'reason' => 'IP exclue: ' . $cleanIp];
+                    $this->debugLog("IP excluded", ['pattern' => $pattern, 'ip' => $cleanIp]);
+                    return ['filtered' => true, 'reason' => 'IP excluded: ' . $cleanIp];
                 }
             }
         } else {
-            $this->debugLog("Aucun filtre IP trouvé");
+            $this->debugLog("No IP filters found");
         }
 
         if (isset($this->excludePatterns['requests'])) {
-            $this->debugLog("Filtres de requêtes disponibles", ['patterns' => $this->excludePatterns['requests']]);
+            $this->debugLog("Available request filters", ['patterns' => $this->excludePatterns['requests']]);
             foreach ($this->excludePatterns['requests'] as $pattern) {
                 if (preg_match($pattern, $request)) {
-                    $this->debugLog("Requête exclue", ['pattern' => $pattern, 'request' => $request]);
-                    return ['filtered' => true, 'reason' => 'Requête exclue: ' . $request];
+                    $this->debugLog("Request excluded", ['pattern' => $pattern, 'request' => $request]);
+                    return ['filtered' => true, 'reason' => 'Request excluded: ' . $request];
                 }
             }
         } else {
-            $this->debugLog("Aucun filtre de requêtes trouvé");
+            $this->debugLog("No request filters found");
         }
 
         if (isset($this->excludePatterns['user_agents'])) {
-            $this->debugLog("Filtres de user-agents disponibles", ['patterns' => $this->excludePatterns['user_agents']]);
+            $this->debugLog("Available user-agent filters", ['patterns' => $this->excludePatterns['user_agents']]);
             foreach ($this->excludePatterns['user_agents'] as $pattern) {
                 if (preg_match($pattern, $userAgent)) {
-                    $this->debugLog("User-Agent exclu", ['pattern' => $pattern, 'user_agent' => $userAgent]);
-                    return ['filtered' => true, 'reason' => 'User-Agent exclu: ' . $userAgent];
+                    $this->debugLog("User-Agent excluded", ['pattern' => $pattern, 'user_agent' => $userAgent]);
+                    return ['filtered' => true, 'reason' => 'User-Agent excluded: ' . $userAgent];
                 }
             }
         } else {
-            $this->debugLog("Aucun filtre de user-agents trouvé");
+            $this->debugLog("No user-agent filters found");
         }
 
         return [
-            'ip' => sprintf(
-                '<span class="log-badge ip" data-ip-hash="%s">%s</span>',
-                substr(md5($ip), 0, 1),
-                htmlspecialchars($ip)
-            ),
+            'ip' => parent::formatIpBadge($ip),
             'date' => $this->formatDate($matches[2]),
             'request' => $this->parseRequest($request),
             'status' => $this->formatStatusBadge($matches[5]),
@@ -266,5 +252,71 @@ class NginxParser extends BaseParser {
             '<span class="nginx-badge status unknown">%s</span>',
             $status
         );
+    }
+
+    public function getLogsByCategory($directory) {
+        $all_logs = [];
+        if (is_dir($directory)) {
+            $items = scandir($directory);
+            foreach ($items as $item) {
+                if ($item === '.' || $item === '..') continue;
+                
+                // Exclure les fichiers de position de logs
+                if (strpos($item, '_last_pos') !== false) continue;
+                
+                $path = $directory . '/' . $item;
+                if (is_file($path)) {
+                    $all_logs[] = $path;
+                }
+            }
+        }
+
+        $default_host_logs = [];
+        $dead_host_logs = [];
+        $proxy_host_logs = [];
+        $fallback_logs = [];
+        $other_logs = [];
+
+        foreach ($all_logs as $log) {
+            $basename = basename($log);
+            
+            // Ignorer les fichiers vides
+            if (filesize($log) === 0) continue;
+            
+            // Ignorer les extensions exclues
+            $extension = pathinfo($log, PATHINFO_EXTENSION);
+            if (in_array($extension, ['gz', 'zip', 'bz2', 'old', 'bak'])) continue;
+            
+            // Ignorer les fichiers de rotation numérotés sauf .1
+            if (preg_match('/\.log\.[2-9]$/', $basename)) continue;
+            
+            // Catégoriser les logs
+            if (strpos($basename, 'default-host') !== false) {
+                $default_host_logs[] = $log;
+            } elseif (strpos($basename, 'dead-host') !== false) {
+                $dead_host_logs[] = $log;
+            } elseif (strpos($basename, 'proxy-host') !== false) {
+                $proxy_host_logs[] = $log;
+            } elseif (strpos($basename, 'fallback') !== false) {
+                $fallback_logs[] = $log;
+            } else {
+                $other_logs[] = $log;
+            }
+        }
+
+        // Trier les logs dans chaque catégorie
+        sort($default_host_logs);
+        sort($dead_host_logs);
+        sort($proxy_host_logs);
+        sort($fallback_logs);
+        sort($other_logs);
+
+        return [
+            'default' => $default_host_logs,
+            'dead' => $dead_host_logs,
+            'proxy' => $proxy_host_logs,
+            'fallback' => $fallback_logs,
+            'other' => $other_logs
+        ];
     }
 } 

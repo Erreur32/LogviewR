@@ -53,8 +53,20 @@ if (!isset($config['debug']) || !is_array($config['debug'])) {
     $config['debug'] = [
         'enabled' => false,
         'log_file' => $temp_dir . '/debug.log',
-        'log_level' => 'ERROR'
+        'log_level' => 'ERROR',
+        'log_to_apache' => false
     ];
+}
+
+// Désactiver explicitement le debug si nécessaire
+if (isset($config['debug']['enabled']) && $config['debug']['enabled'] === false) {
+    error_reporting(0);
+    ini_set('display_errors', 0);
+    ini_set('log_errors', 0);
+} else {
+    // Configurer le logging uniquement si le debug est activé
+    ini_set('log_errors', 1);
+    ini_set('error_log', $config['debug']['log_file'] ?? $temp_dir . '/debug.log');
 }
 
 // Gestion du dossier de logs
@@ -72,10 +84,6 @@ if (!file_exists($log_dir)) {
         $config['debug']['log_file'] = $temp_dir . '/debug.log';
     }
 }
-
-// Configurer le logging
-ini_set('log_errors', 1);
-ini_set('error_log', $config['debug']['log_file']);
 
 // Vérifier les patterns Nginx
 if (!isset($patterns['nginx']) || !is_array($patterns['nginx'])) {
@@ -129,11 +137,15 @@ function listLogFiles($directory, $excluded_extensions) {
 $log_files = [
     'apache' => listLogFiles($config['paths']['apache_logs'], $config['app']['excluded_extensions']),
     'nginx' => listLogFiles(
-        $config['paths']['nginx_logs'], 
+        isset($config['nginx']['use_npm']) && $config['nginx']['use_npm'] ? 
+            $config['paths']['npm_logs'] : 
+            $config['paths']['nginx_logs'], 
         $config['app']['excluded_extensions']
     ),
     'syslog' => listLogFiles($config['paths']['syslog'], $config['app']['excluded_extensions'])
 ];
+
+require_once __DIR__ . '/includes/Logger.php';
 
 class LogManager {
     private $excluded_extensions;
@@ -172,16 +184,32 @@ class LogManager {
         
         // Vérifier si le répertoire existe
         if (!is_dir($dir)) {
-            self::log("Le répertoire n'existe pas: " . $dir, 'ERROR');
+            Logger::getInstance()->log("Le répertoire n'existe pas: " . $dir, 'ERROR');
+            return $logs;
+        }
+        
+        // Vérifier si le répertoire est lisible
+        if (!is_readable($dir)) {
+            Logger::getInstance()->log("Le répertoire n'est pas lisible: " . $dir, 'WARNING');
             return $logs;
         }
         
         // Fonction récursive pour trouver tous les fichiers
         $findFiles = function($directory) use (&$findFiles, &$logs) {
-            $files = scandir($directory);
+            // Vérifier si le répertoire est lisible avant de le scanner
+            if (!is_readable($directory)) {
+                Logger::getInstance()->log("Le répertoire n'est pas lisible: " . $directory, 'WARNING');
+                return;
+            }
+            
+            $files = @scandir($directory);
+            
+            if ($files === false) {
+                Logger::getInstance()->log("Impossible de scanner le répertoire: " . $directory, 'WARNING');
+                return;
+            }
             
             foreach ($files as $file) {
-                // Ignorer . et ..
                 if ($file === '.' || $file === '..') {
                     continue;
                 }
@@ -190,7 +218,12 @@ class LogManager {
                 
                 // Si c'est un répertoire, le parcourir récursivement
                 if (is_dir($path)) {
-                    $findFiles($path);
+                    // Vérifier si le sous-répertoire est lisible avant de le parcourir
+                    if (is_readable($path)) {
+                        $findFiles($path);
+                    } else {
+                        Logger::getInstance()->log("Le sous-répertoire n'est pas lisible: " . $path, 'WARNING');
+                    }
                     continue;
                 }
                 
@@ -263,7 +296,7 @@ class LogManager {
 
         foreach ($all_logs as $log) {
             $basename = basename($log);
-            if (preg_match('/^(access\.log|error\.log|404_only\.log|other_vhosts_access\.log)/', $basename)) {
+            if (preg_match('/^(access\.log|error\.log|404_only\.log|referer\.log|other_vhosts_access\.log)/', $basename)) {
                 $main_logs[] = $log;
             } elseif (strpos($basename, 'access') !== false || strpos($basename, 'error') !== false) {
                 $vhost_logs[] = $log;
@@ -285,12 +318,118 @@ class LogManager {
     }
 
     public function getNginxLogs() {
-        // Créer une instance du parseur NPM
-        require_once __DIR__ . '/parsers/NginxProxyManagerParser.php';
-        $npmParser = new NginxProxyManagerParser();
+        $logs = [
+            'default' => [],
+            'dead' => [],
+            'fallback' => [],
+            'letsencrypt' => [],
+            'proxy' => [],
+            'other' => []
+        ];
         
-        // Utiliser le parseur pour catégoriser les logs
-        return $npmParser->getLogsByCategory($this->config['paths']['nginx_logs']);
+        $path = isset($this->config['nginx']['use_npm']) && $this->config['nginx']['use_npm'] ? 
+            $this->config['paths']['npm_logs'] : 
+            $this->config['paths']['nginx_logs'];
+        
+        if (!is_dir($path)) {
+            Logger::getInstance()->log("Le répertoire n'existe pas: " . $path, 'WARNING');
+            return $logs;
+        }
+        
+        if (!is_readable($path)) {
+            Logger::getInstance()->log("Le répertoire n'est pas lisible: " . $path, 'WARNING');
+            return $logs;
+        }
+        
+        $files = scandir($path);
+        foreach ($files as $file) {
+            // Skip special files and _last_pos files
+            if ($file === '.' || $file === '..' || strpos($file, '_last_pos') !== false) continue;
+            
+            $full_path = $path . '/' . $file;
+            
+            // Check if it's a file
+            if (!is_file($full_path)) continue;
+            
+            // Check if file is empty
+            if (filesize($full_path) === 0) continue;
+            
+            // Check file extension (.log or .log.1)
+            if (!preg_match('/\.(log|log\.1)$/', $file)) continue;
+            
+            // Check excluded extensions
+            if (isExcludedFile($file, $this->excluded_extensions)) continue;
+            
+            $log_entry = [
+                'name' => $file,
+                'path' => $full_path,
+                'info' => $this->getFileInfo($full_path)
+            ];
+            
+            // Categorize NPM logs
+            if (strpos($file, 'letsencrypt') !== false) {
+                $logs['letsencrypt'][] = $log_entry;
+            } elseif (preg_match('/^default-host[_-](access|error)\.(log|log\.1)$/', $file) || preg_match('/^default-host-\d*[_-]/', $file)) {
+                $logs['default'][] = $log_entry;
+            } elseif (preg_match('/^dead-host-\d*[_-]/', $file)) {
+                $logs['dead'][] = $log_entry;
+            } elseif (preg_match('/^fallback[_-]/', $file)) {
+                $logs['fallback'][] = $log_entry;
+            } elseif (preg_match('/^proxy-host-\d*[_-]/', $file)) {
+                $logs['proxy'][] = $log_entry;
+            } else {
+                $logs['other'][] = $log_entry;
+            }
+        }
+        
+        // Sort logs in each category
+        foreach ($logs as &$category) {
+            usort($category, function($a, $b) {
+                // Priority order for default host logs
+                $defaultFiles = [
+                    'default-host_access.log' => 1,
+                    'default-host_error.log' => 2,
+                    'default-host_access.log.1' => 3,
+                    'default-host_error.log.1' => 4
+                ];
+
+                // Check if files are in our priority list
+                $priorityA = isset($defaultFiles[$a['name']]) ? $defaultFiles[$a['name']] : 999;
+                $priorityB = isset($defaultFiles[$b['name']]) ? $defaultFiles[$b['name']] : 999;
+
+                // If both files have different priorities, sort by priority
+                if ($priorityA !== $priorityB) {
+                    return $priorityA - $priorityB;
+                }
+                
+                // Extract numbers from filenames (if present)
+                preg_match('/\d+/', $a['name'], $matchesA);
+                preg_match('/\d+/', $b['name'], $matchesB);
+                
+                $numA = isset($matchesA[0]) ? intval($matchesA[0]) : 0;
+                $numB = isset($matchesB[0]) ? intval($matchesB[0]) : 0;
+                
+                // If both files have numbers, sort by number
+                if ($numA && $numB) {
+                    if ($numA !== $numB) {
+                        return $numA - $numB;
+                    }
+                }
+                
+                // Sort by name, with .log before .log.1
+                $nameA = preg_replace('/\.1$/', '', $a['name']);
+                $nameB = preg_replace('/\.1$/', '', $b['name']);
+                $baseCompare = strcmp($nameA, $nameB);
+                
+                if ($baseCompare === 0) {
+                    return strpos($b['name'], '.1') !== false ? -1 : 1;
+                }
+                
+                return $baseCompare;
+            });
+        }
+        
+        return $logs;
     }
 
     public function getSysLogs() {
@@ -299,6 +438,12 @@ class LogManager {
         $other_logs = [];
 
         foreach ($all_logs as $log) {
+            // Exclure les fichiers des dossiers journal et pcp
+            if (strpos($log, '/var/log/journal') !== false || 
+                strpos($log, '/var/log/pcp') !== false) {
+                continue;
+            }
+            
             $basename = basename($log);
             if (preg_match('/^(syslog|auth\.log|kern\.log|daemon\.log|debug|messages|cron\.log)$/', $basename)) {
                 $priority_logs[] = $log;
@@ -336,6 +481,21 @@ if (isset($_GET['action']) && $_GET['action'] === 'reload_logs' && isset($_SERVE
     exit;
 }
 
+// Vérifier si l'utilisateur est connecté au panneau d'administration
+$admin_logged_in = false;
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+if (isset($_SESSION['admin_logged_in']) && $_SESSION['admin_logged_in'] === true) {
+    $admin_logged_in = true;
+}
+
+// Vérifier si un fichier de log est spécifié
+$log_file = $_GET['log_file'] ?? '';
+if (empty($log_file)) {
+    $log_file = $config['paths']['default_log'] ?? '';
+}
+
 // Traitement des actions normales
 ?>
 <!DOCTYPE html>
@@ -355,8 +515,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'reload_logs' && isset($_SERVE
   <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.11.5/css/jquery.dataTables.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   
-  <!-- Notre CSS personnalisé 
-  <link rel="stylesheet" href=".old/style_old.css_">-->
+  <!-- Notre CSS personnalisé -->
 
 
   <link rel="stylesheet" href="assets/css/variables.css">
@@ -366,16 +525,12 @@ if (isset($_GET['action']) && $_GET['action'] === 'reload_logs' && isset($_SERVE
   <link rel="stylesheet" href="assets/css/links.css">
   <link rel="stylesheet" href="assets/css/syslog.css">
 
-  <link rel="stylesheet" href=".old/style_old.css_">
-
+  
   <!--  Notre JavaScript personnalisé -->
   <script src="assets/js/table.js" defer></script>
+  <script src="assets/js/filters.js" defer></script>
 
-  <style>
-    .level-filter {
-        display: none; /* Caché par défaut */
-    }
-  </style>
+
 </head>
 <body>
   <div class="container">
@@ -391,13 +546,18 @@ if (isset($_GET['action']) && $_GET['action'] === 'reload_logs' && isset($_SERVE
         <a href="https://v32.myoueb.fr/LogviewR/">LogviewR</a>
         <span id="selectedFileInfo"></span>
       </h2>
-      <?php if ($config['debug']['enabled']): ?>
       <div class="header-controls">
+        <?php if ($admin_logged_in): ?>
+        <a href="admin/index.php" class="admin-badge" title="Administrateur connecté: <?php echo htmlspecialchars($admin_config['admin']['username'] ?? 'admin'); ?>">
+          <i class="fas fa-user-shield"></i>
+        </a>
+        <?php endif; ?>
+        <?php if ($config['debug']['enabled']): ?>
         <span class="debug-badge" title="Mode Debug Activé">
           <i class="fas fa-bug"></i>
         </span>
+        <?php endif; ?>
       </div>
-      <?php endif; ?>
     </div>
 
     <div class="categories">
@@ -442,8 +602,12 @@ if (isset($_GET['action']) && $_GET['action'] === 'reload_logs' && isset($_SERVE
       <div class="category">
         <h3>
           <i class="fas fa-wind"></i> 
-          <?php echo (isset($config['nginx']['use_npm']) && $config['nginx']['use_npm']) ? 'NPM' : 'Nginx'; ?>
-          <span class="folder-name">/var/log/nginx</span>
+          <?php 
+            // Utiliser uniquement la valeur de config.php, pas celle des patterns
+            $use_npm = isset($config['nginx']['use_npm']) ? $config['nginx']['use_npm'] : false;
+            echo $use_npm ? 'NPM' : 'Nginx'; 
+          ?>
+          <span class="folder-name"><?php echo $use_npm ? '/var/log/npm' : '/var/log/nginx'; ?></span>
         </h3>
         <select class="log-select" data-type="nginx">
           <option value="">Sélectionner un fichier 👇</option>
@@ -453,7 +617,9 @@ if (isset($_GET['action']) && $_GET['action'] === 'reload_logs' && isset($_SERVE
             if (!empty($nginx_logs['default'])): ?>
                 <optgroup label="Default Host">
                     <?php foreach ($nginx_logs['default'] as $log): ?>
-                        <?php echo $logManager->renderLogOption($log); ?>
+                        <option value="<?php echo htmlspecialchars($log['path']); ?>">
+                            <?php echo htmlspecialchars($log['name']) . ' ' . $log['info']; ?>
+                        </option>
                     <?php endforeach; ?>
                 </optgroup>
             <?php endif;
@@ -461,7 +627,9 @@ if (isset($_GET['action']) && $_GET['action'] === 'reload_logs' && isset($_SERVE
             if (!empty($nginx_logs['dead'])): ?>
                 <optgroup label="Dead Host">
                     <?php foreach ($nginx_logs['dead'] as $log): ?>
-                        <?php echo $logManager->renderLogOption($log); ?>
+                        <option value="<?php echo htmlspecialchars($log['path']); ?>">
+                            <?php echo htmlspecialchars($log['name']) . ' ' . $log['info']; ?>
+                        </option>
                     <?php endforeach; ?>
                 </optgroup>
             <?php endif;
@@ -469,7 +637,29 @@ if (isset($_GET['action']) && $_GET['action'] === 'reload_logs' && isset($_SERVE
             if (!empty($nginx_logs['fallback'])): ?>
                 <optgroup label="Fallback">
                     <?php foreach ($nginx_logs['fallback'] as $log): ?>
-                        <?php echo $logManager->renderLogOption($log); ?>
+                        <option value="<?php echo htmlspecialchars($log['path']); ?>">
+                            <?php echo htmlspecialchars($log['name']) . ' ' . $log['info']; ?>
+                        </option>
+                    <?php endforeach; ?>
+                </optgroup>
+            <?php endif;
+
+            if (!empty($nginx_logs['letsencrypt'])): ?>
+                <optgroup label="Let's Encrypt">
+                    <?php foreach ($nginx_logs['letsencrypt'] as $log): ?>
+                        <option value="<?php echo htmlspecialchars($log['path']); ?>">
+                            <?php echo htmlspecialchars($log['name']) . ' ' . $log['info']; ?>
+                        </option>
+                    <?php endforeach; ?>
+                </optgroup>
+            <?php endif;
+            
+            if (!empty($nginx_logs['proxy'])): ?>
+                <optgroup label="Proxy">
+                    <?php foreach ($nginx_logs['proxy'] as $log): ?>
+                        <option value="<?php echo htmlspecialchars($log['path']); ?>">
+                            <?php echo htmlspecialchars($log['name']) . ' ' . $log['info']; ?>
+                        </option>
                     <?php endforeach; ?>
                 </optgroup>
             <?php endif;
@@ -477,15 +667,9 @@ if (isset($_GET['action']) && $_GET['action'] === 'reload_logs' && isset($_SERVE
             if (!empty($nginx_logs['other'])): ?>
                 <optgroup label="Autres Logs">
                     <?php foreach ($nginx_logs['other'] as $log): ?>
-                        <?php echo $logManager->renderLogOption($log); ?>
-                    <?php endforeach; ?>
-                </optgroup>
-            <?php endif;
-            
-            if (!empty($nginx_logs['proxy'])): ?>
-                <optgroup label="Proxy Host">
-                    <?php foreach ($nginx_logs['proxy'] as $log): ?>
-                        <?php echo $logManager->renderLogOption($log); ?>
+                        <option value="<?php echo htmlspecialchars($log['path']); ?>">
+                            <?php echo htmlspecialchars($log['name']) . ' ' . $log['info']; ?>
+                        </option>
                     <?php endforeach; ?>
                 </optgroup>
             <?php endif; ?>
@@ -589,12 +773,36 @@ if (isset($_GET['action']) && $_GET['action'] === 'reload_logs' && isset($_SERVE
         </select>
       </div>
 
+      <div class="refresh-controls">
+        <button id="refreshLogs" class="refresh-button" title="Rafraîchir les logs">
+          <i class="fas fa-sync-alt"></i> Rafraîchir
+        </button>
+        <div class="auto-refresh">
+          <label>
+            <input type="checkbox" id="autoRefreshToggle">
+            Auto-Refresh
+          </label>
+          <input type="number" id="refreshInterval" value="<?php echo ($config['app']['refresh_interval'] ?? 1000) / 1000; ?>" min="10" step="10">
+          <span>s</span>
+        </div>
+      </div>
+
+      <button id="filterToggle" class="filter-toggle active" title="Activer/Désactiver les filtres">
+        <i class="fas fa-filter"></i> Filtres ON
+      </button>
+
       <button id="resetFilters">Réinitialiser</button>
     </div>
 
     <div class="output-container">
       <div id="notifications"></div>
       <div id="output">
+        <div class="stats-badges">
+          <span class="stats-badge total">Total: <span class="count">0</span></span>
+          <span class="stats-badge valid">Valides: <span class="count">0</span></span>
+          <span class="stats-badge filtered">Ignorés: <span class="count">0</span></span>
+          <span class="stats-badge unreadable">Illisibles: <span class="count">0</span></span>
+        </div>
         <!-- Le message de bienvenue sera injecté ici par JavaScript -->
       </div>
     </div>
@@ -651,77 +859,97 @@ if (isset($_GET['action']) && $_GET['action'] === 'reload_logs' && isset($_SERVE
     });
 
     function loadLog(logFile) {
-      currentLogFile = logFile;
-      
-      if (!logFile || logFile === '') {
-        $('#selectedFileInfo').empty();
-        $('#output').empty();
-        $('#execution_time').empty();
-        showWelcomeMessage();
-        return;
-      }
+      return new Promise((resolve, reject) => {
+        currentLogFile = logFile;
+        
+        if (!logFile || logFile === '') {
+          $('#selectedFileInfo').empty();
+          $('#output').empty();
+          $('#execution_time').empty();
+          updateStatsBadges({}); // Réinitialiser les stats
+          showWelcomeMessage();
+          resolve();
+          return;
+        }
 
-      $('.welcome-message').remove();
+        $('.welcome-message').remove();
 
-      const selectedOption = $('.log-select option:selected[value!=""]');
-      if (selectedOption.length) {
-        const fullText = selectedOption.text();
-        const matches = fullText.match(/^(.+?) \((.+?) - (.+?)\)$/);
-        if (matches) {
-          const [, fileName, size, date] = matches;
+        const selectedOption = $('.log-select option:selected[value!=""]');
+        if (selectedOption.length) {
+          const fullText = selectedOption.text();
           const pathParts = selectedOption.val().split('/');
+          const fileName = pathParts[pathParts.length - 1];
           const folderName = pathParts[pathParts.length - 2];
+          
+          // Extraire la taille et la date du texte de l'option
+          const sizeMatch = fullText.match(/\((.*?) -/);
+          const dateMatch = fullText.match(/- (.*?)\)/);
+          
+          const size = sizeMatch ? sizeMatch[1].trim() : '';
+          const date = dateMatch ? dateMatch[1].trim() : '';
           
           $('#selectedFileInfo').html(`
             <span class="file-info-name">${folderName}/${fileName}</span>
-            <span class="file-info">${size}</span>
-            <span class="file-info-date">${date}</span>
+            ${size ? `<span class="file-info">${size}</span>` : ''}
+            ${date ? `<span class="file-info-date">${date}</span>` : ''}
           `);
+        } else {
+          $('#selectedFileInfo').empty();
         }
-      } else {
-        $('#selectedFileInfo').empty();
-      }
 
-      $('#output').html('<div class="loading-message">Chargement des logs...</div>');
+        $('#output').html('<div class="loading-message">Chargement des logs...</div>');
 
-      $.ajax({
-        url: 'script.php',
-        method: 'POST',
-        data: { logfile: logFile },
-        dataType: 'json',
-        success: function(response) {
-          console.log('Response received:', response); // Debug log
-          
-          if (response.error) {
-            $('#output').html('<div class="error-message">' + response.error + '</div>');
+        $.ajax({
+          url: 'script.php',
+          method: 'POST',
+          data: { 
+            logfile: logFile,
+            filters_enabled: window.getFiltersEnabled() ? '1' : '0'
+          },
+          dataType: 'json',
+          success: function(response) {
+            console.log('Response received:', response);
+            
+            if (response.error) {
+              $('#output').html('<div class="error-message">' + response.error + '</div>');
+              $('#execution_time').empty();
+              updateStatsBadges({});
+              reject(new Error(response.error));
+              return;
+            }
+
+            if (!response.lines || response.lines.length === 0) {
+              $('#output').html('<div class="info-message">Aucune ligne de log trouvée</div>');
+              $('#execution_time').empty();
+              updateStatsBadges({});
+              resolve();
+              return;
+            }
+
+            // Initialiser le tableau avec les données
+            initLogTable(response, logFile);
+
+            // Mettre à jour les statistiques
+            updateStatsBadges(response.stats);
+
+            // Afficher le temps d'exécution
+            if (response.execution_time) {
+              const seconds = (response.execution_time / 1000).toFixed(4);
+              $('#execution_time').html(`Chargement script: ${seconds} secondes`);
+            } else {
+              $('#execution_time').empty();
+            }
+            
+            resolve();
+          },
+          error: function(xhr, status, error) {
+            console.error('Ajax error:', status, error);
+            $('#output').html('<div class="error-message">Erreur lors du chargement des données</div>');
             $('#execution_time').empty();
-            return;
+            updateStatsBadges({});
+            reject(error);
           }
-
-          if (!response.lines || response.lines.length === 0) {
-            $('#output').html('<div class="info-message">Aucune ligne de log trouvée</div>');
-            $('#execution_time').empty();
-            return;
-          }
-
-          // Initialiser le tableau avec les données
-          initLogTable(response, logFile);
-
-          // Afficher le temps d'exécution
-          if (response.execution_time) {
-            const seconds = (response.execution_time / 1000).toFixed(4);
-            console.log('Setting execution time:', seconds); // Debug log
-            $('#execution_time').html(`Chargement script: ${seconds} secondes`);
-          } else {
-            console.log('No execution time in response'); // Debug log
-            $('#execution_time').empty();
-          }
-        },
-        error: function(xhr, status, error) {
-          console.error('Ajax error:', status, error); // Debug log
-          $('#output').html('<div class="error-message">Erreur lors du chargement des données</div>');
-          $('#execution_time').empty();
-        }
+        });
       });
     }
 
@@ -839,13 +1067,13 @@ if (isset($_GET['action']) && $_GET['action'] === 'reload_logs' && isset($_SERVE
         'display': 'inline-block'
       });
       
-      // Auto-suppression après 5 secondes et affichage du message de bienvenue
+      // Auto-suppression après 2 secondes et affichage du message de bienvenue
       setTimeout(() => {
         message.fadeOut(300, function() {
           $(this).remove();
           showWelcomeMessage();
         });
-      }, 5000);
+      }, 2000);
       
       // Gestionnaire d'événement pour le bouton de fermeture
       message.find('.close-message').on('click', function() {
@@ -859,7 +1087,6 @@ if (isset($_GET['action']) && $_GET['action'] === 'reload_logs' && isset($_SERVE
     // Restaurer les paramètres sauvegardés
     const savedTheme = localStorage.getItem('theme');
     const savedFilter = localStorage.getItem('persistentFilter');
-    const savedLogFile = localStorage.getItem('selectedLogFile');
     const savedLevel = localStorage.getItem('selectedLevel');
 
     // Initialiser le menu de longueur avec la valeur de configuration
@@ -874,18 +1101,22 @@ if (isset($_GET['action']) && $_GET['action'] === 'reload_logs' && isset($_SERVE
     if (savedLevel) {
       $('#levelFilter').val(savedLevel);
     }
-    if (savedLogFile) {
-      $('.log-select').val(savedLogFile);
-      const activeSelect = $('.log-select').filter(function() {
-        return $(this).val() === savedLogFile;
-      });
-      activeSelect.closest('.category').addClass('active');
-      loadLog(savedLogFile);
+
+    // Effacer le fichier sélectionné lors du rafraîchissement de page
+    if (window.performance.navigation.type === window.performance.navigation.TYPE_RELOAD) {
+      localStorage.removeItem('selectedLogFile');
+      showWelcomeMessage();
     } else {
-      const firstLog = $('.log-select:first').val();
-      if (firstLog) {
-        $('.category:first').addClass('active');
-        loadLog(firstLog);
+      const savedLogFile = localStorage.getItem('selectedLogFile');
+      if (savedLogFile) {
+        $('.log-select').val(savedLogFile);
+        const activeSelect = $('.log-select').filter(function() {
+          return $(this).val() === savedLogFile;
+        });
+        activeSelect.closest('.category').addClass('active');
+        loadLog(savedLogFile);
+      } else {
+        showWelcomeMessage();
       }
     }
 
@@ -908,6 +1139,72 @@ if (isset($_GET['action']) && $_GET['action'] === 'reload_logs' && isset($_SERVE
     updateDateTime();
     setInterval(updateDateTime, 1000);
 
+    // Gestion du rafraîchissement des logs
+    let autoRefreshInterval = null;
+    const refreshButton = document.getElementById('refreshLogs');
+    const autoRefreshToggle = document.getElementById('autoRefreshToggle');
+    const refreshIntervalInput = document.getElementById('refreshInterval');
+
+    // Fonction pour rafraîchir les logs
+    function refreshLogs() {
+      if (!currentLogFile) return;
+      
+      const button = refreshButton;
+      button.classList.add('loading');
+      button.disabled = true;
+      
+      loadLog(currentLogFile)
+        .catch(error => {
+          console.error('Erreur lors du rafraîchissement:', error);
+        })
+        .finally(() => {
+          button.classList.remove('loading');
+          button.disabled = false;
+        });
+    }
+
+    // Gestionnaire pour le bouton de rafraîchissement
+    refreshButton.addEventListener('click', refreshLogs);
+
+    // Gestionnaire pour l'auto-rafraîchissement
+    autoRefreshToggle.addEventListener('change', function() {
+      if (this.checked) {
+        const intervalSeconds = parseInt(refreshIntervalInput.value);
+        if (intervalSeconds >= 1) {
+          autoRefreshInterval = setInterval(refreshLogs, intervalSeconds * 1000);
+        }
+      } else {
+        if (autoRefreshInterval) {
+          clearInterval(autoRefreshInterval);
+          autoRefreshInterval = null;
+        }
+      }
+    });
+
+    // Gestionnaire pour la modification de l'intervalle
+    refreshIntervalInput.addEventListener('change', function() {
+      const valueSeconds = parseInt(this.value);
+      if (valueSeconds < 1) {
+        this.value = 1;
+      }
+      
+      if (autoRefreshToggle.checked) {
+        clearInterval(autoRefreshInterval);
+        autoRefreshInterval = setInterval(refreshLogs, valueSeconds * 1000);
+      }
+    });
+
+    // Nettoyer l'intervalle lors du changement de fichier
+    document.querySelectorAll('.log-select').forEach(select => {
+      select.addEventListener('change', function() {
+        if (autoRefreshInterval) {
+          clearInterval(autoRefreshInterval);
+          autoRefreshInterval = null;
+          autoRefreshToggle.checked = false;
+        }
+      });
+    });
+
     // Afficher le message de bienvenue au chargement initial
     $(document).ready(function() {
       if (!currentLogFile) {
@@ -921,6 +1218,21 @@ if (isset($_GET['action']) && $_GET['action'] === 'reload_logs' && isset($_SERVE
         });
       });
     });
+
+    // Écouter les changements d'état des filtres
+    document.addEventListener('filtersStateChanged', function(event) {
+        if (currentLogFile) {
+            loadLog(currentLogFile);
+        }
+    });
+
+    // Écouter l'événement de rechargement des logs
+    document.addEventListener('reloadLogs', function() {
+        if (currentLogFile) {
+            loadLog(currentLogFile);
+        }
+    });
   </script>
+ 
 </body>
 </html>

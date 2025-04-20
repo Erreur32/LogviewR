@@ -1,13 +1,11 @@
 /* ==========================================================================
    Table Base Styles
-   ==========================================================================
-   Ces styles définissent la structure de base du tableau.
-   IMPORTANT: 
-   - background et color utilisent des variables CSS pour supporter le mode sombre
-   - border-collapse: collapse est nécessaire pour éviter les doubles bordures
-   - Les variables --table-bg et --table-text-color doivent être définies dans variables.css
-     pour les deux modes (clair et sombre)
    ========================================================================== */
+/* Structure de base du tableau :
+   - Utilise des variables CSS pour le thème
+   - Optimisé pour la lisibilité et la compatibilité
+   - Support du mode sombre intégré */
+
 .logviewer-table {
     width: 100%;
     min-width: 100%;
@@ -24,17 +22,15 @@
     table-layout: fixed !important;
 }
 
-
-
 /* ==========================================================================
    Table Headers
-   ==========================================================================
-   Les en-têtes du tableau nécessitent une attention particulière :
-   - white-space: nowrap empêche le retour à la ligne dans les en-têtes
-   - background-color distinct pour les différencier du corps
-   - border-bottom pour séparer visuellement l'en-tête du corps
-   - Les variables doivent être définies pour le mode sombre
    ========================================================================== */
+/* Styles spécifiques aux en-têtes :
+   - Pas de retour à la ligne
+   - Fond distinct
+   - Bordure de séparation
+   - Support du positionnement des icônes */
+
 .logviewer-table thead th {
     padding: 8px;
     font-weight: 600;
@@ -43,7 +39,8 @@
     background-color: var(--table-header-bg);
     color: var(--table-header-text-color);
     border-bottom: 2px solid var(--table-border-color);
-    position: relative; /* Nécessaire pour le positionnement des icônes de tri */
+    position: relative;
+    transition: background-color 0.2s ease;
 }
 
 /* ==========================================================================
@@ -99,65 +96,71 @@
    2. Maintenir une mise en page cohérente
    3. Optimiser l'affichage des badges
    ========================================================================== */
-.logviewer-table {
-    & .column-date { 
-        width: 120px; 
-        min-width: 120px; 
-        max-width: 120px; 
-        text-align: center;
-    }
-    & .column-host { 
-        width: 110px; 
-        min-width: 110px; 
-        max-width: 110px; 
-        text-align: center;
-    }
-    & .column-ip { 
-        width: 110px; 
-        min-width: 110px; 
-        max-width: 110px; 
-        text-align: center;
-    }
-    & .column-user { 
-        width: 90px; 
-        min-width: 90px; 
-        max-width: 90px; 
-        text-align: center;
-    }
-    & .column-request { 
-        width: 280px; 
-        min-width: 280px;
-        max-width: none;
-        text-align: left;
-    }
-    & .column-status { 
-        width: 70px !important; 
-        min-width: 70px !important; 
-        max-width: 70px !important; 
-        text-align: center;
-        white-space: nowrap !important;
-    }
-    & .column-size { 
-        width: 80px !important; 
-        min-width: 80px !important; 
-        max-width: 80px !important; 
-        text-align: right;
-        white-space: nowrap !important;
-    }
-    & .column-referer { 
-        width: 180px; 
-        min-width: 180px;
-        max-width: none;
-        text-align: left;
-    }
-    & .column-useragent { 
-        width: 180px; 
-        min-width: 180px;
-        max-width: none;
-        text-align: left;
-        font-size: 12px !important;
-        line-height: 1.2 !important;
-    }
+.logviewer-table .column-date { 
+    width: 120px !important; 
+    min-width: 120px !important; 
+    max-width: 120px !important; 
+    text-align: center;
+}
+
+.logviewer-table .column-host { 
+    width: 110px !important; 
+    min-width: 110px !important; 
+    max-width: 110px !important; 
+    text-align: center;
+}
+
+.logviewer-table .column-ip { 
+    width: 110px !important; 
+    min-width: 110px !important; 
+    max-width: 110px !important; 
+    text-align: center;
+}
+
+.logviewer-table .column-user { 
+    width: 90px !important; 
+    min-width: 90px !important; 
+    max-width: 90px !important; 
+    text-align: center;
+}
+
+.logviewer-table .column-request { 
+    width: 280px !important; 
+    min-width: 280px !important;
+    max-width: none;
+    text-align: left;
+}
+
+.logviewer-table .column-status { 
+    width: 70px !important; 
+    min-width: 70px !important; 
+    max-width: 70px !important; 
+    text-align: center;
+    white-space: nowrap !important;
+}
+
+.logviewer-table .column-size { 
+    width: 80px !important; 
+    min-width: 80px !important; 
+    max-width: 80px !important; 
+    text-align: right;
+    white-space: nowrap !important;
+}
+
+.logviewer-table .column-referer { 
+    width: 180px !important; 
+    min-width: 180px !important;
+    max-width: none;
+    text-align: left;
+}
+
+.logviewer-table .column-useragent { 
+    width: 180px !important; 
+    min-width: 180px !important;
+    max-width: none;
+    text-align: left;
+    font-size: 12px !important;
+    line-height: 1.2 !important;
 }
 
 /* ==========================================================================
@@ -176,6 +179,11 @@
     height: 100%;
     display: flex;
     flex-direction: column;
+    transition: opacity 0.3s ease-in-out;
+}
+
+.dataTables_wrapper.loading {
+    opacity: 0.6;
 }
 
 /* Container pour le tableau avec scroll horizontal */
@@ -186,6 +194,7 @@
     flex: 1;
     min-height: 0;
     width: 100% !important;
+    transition: all 0.3s ease-in-out;
 }
 
 /* Ajuster les conteneurs de scroll */
@@ -411,6 +420,7 @@
     color: #ffffff !important;
     white-space: nowrap !important;
     text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2) !important;
+    text-shadow: -0.5px -0.5px 0 rgba(0, 0, 0, 0.5), 0.5px -0.5px 0 rgba(0, 0, 0, 0.5), -0.5px 0.5px 0 rgba(0, 0, 0, 0.5), 0.5px 0.5px 0 rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.2) !important;
 }
 
 /* Dégradé complet pour les heures (0-23) */
@@ -439,11 +449,11 @@
 .date-badge[data-hour="22"] { background-color: #1e3d59 !important; }
 .date-badge[data-hour="23"] { background-color: #1f4068 !important; }
 
-/* Animation de transition */
+/* Animation de transition 
 .date-badge {
     transition: background-color 0.3s ease !important;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2) !important;
-}
+}*/
 
 /* Hover effect */
 .date-badge:hover {
@@ -507,22 +517,22 @@
     background-color: #3498db !important;
 }
 
-.logviewer-table .log-badge.host[data-host-hash="0"] { background-color: #2c3e50 !important; }
-.logviewer-table .log-badge.host[data-host-hash="1"] { background-color: #34495e !important; }
-.logviewer-table .log-badge.host[data-host-hash="2"] { background-color: #2980b9 !important; }
-.logviewer-table .log-badge.host[data-host-hash="3"] { background-color: #3498db !important; }
-.logviewer-table .log-badge.host[data-host-hash="4"] { background-color: #1abc9c !important; }
-.logviewer-table .log-badge.host[data-host-hash="5"] { background-color: #16a085 !important; }
-.logviewer-table .log-badge.host[data-host-hash="6"] { background-color: #27ae60 !important; }
-.logviewer-table .log-badge.host[data-host-hash="7"] { background-color: #2ecc71 !important; }
-.logviewer-table .log-badge.host[data-host-hash="8"] { background-color: #1abc9c !important; }
-.logviewer-table .log-badge.host[data-host-hash="9"] { background-color: #16a085 !important; }
-.logviewer-table .log-badge.host[data-host-hash="a"] { background-color: #27ae60 !important; }
-.logviewer-table .log-badge.host[data-host-hash="b"] { background-color: #2ecc71 !important; }
-.logviewer-table .log-badge.host[data-host-hash="c"] { background-color: #1abc9c !important; }
-.logviewer-table .log-badge.host[data-host-hash="d"] { background-color: #16a085 !important; }
-.logviewer-table .log-badge.host[data-host-hash="e"] { background-color: #27ae60 !important; }
-.logviewer-table .log-badge.host[data-host-hash="f"] { background-color: #2ecc71 !important; }
+.logviewer-table .log-badge.host[data-host-hash="0"] { background-color: #1a237e !important; } /* Bleu foncé */
+.logviewer-table .log-badge.host[data-host-hash="1"] { background-color: #0d47a1 !important; } /* Bleu marine */
+.logviewer-table .log-badge.host[data-host-hash="2"] { background-color: #006064 !important; } /* Cyan foncé */
+.logviewer-table .log-badge.host[data-host-hash="3"] { background-color: #004d40 !important; } /* Vert foncé */
+.logviewer-table .log-badge.host[data-host-hash="4"] { background-color: #1b5e20 !important; } /* Vert */
+.logviewer-table .log-badge.host[data-host-hash="5"] { background-color: #33691e !important; } /* Vert olive */
+.logviewer-table .log-badge.host[data-host-hash="6"] { background-color: #827717 !important; } /* Jaune foncé */
+.logviewer-table .log-badge.host[data-host-hash="7"] { background-color: #f57f17 !important; } /* Orange */
+.logviewer-table .log-badge.host[data-host-hash="8"] { background-color: #d84315 !important; } /* Rouge orangé */
+.logviewer-table .log-badge.host[data-host-hash="9"] { background-color: #e126f9 !important; } /* Rouge */
+.logviewer-table .log-badge.host[data-host-hash="a"] { background-color: #4a148c !important; } /* Violet */
+.logviewer-table .log-badge.host[data-host-hash="b"] { background-color: #880e4f !important; } /* Rose foncé */
+.logviewer-table .log-badge.host[data-host-hash="c"] { background-color: #00695c !important; } /* Turquoise */
+.logviewer-table .log-badge.host[data-host-hash="d"] { background-color: #2e7d32 !important; } /* Vert émeraude */
+.logviewer-table .log-badge.host[data-host-hash="e"] { background-color: #ef6c00 !important; } /* Orange foncé */
+.logviewer-table .log-badge.host[data-host-hash="f"] { background-color: #c62828 !important; } /* Rouge bordeaux */
 
 /* User Badge Styles */
 .logviewer-table .log-badge.user {
@@ -598,3 +608,237 @@
         0.5px 0.5px 0 rgba(0, 0, 0, 0.4),
         0 1px 2px rgba(0, 0, 0, 0.15) !important;
 }
+
+/* ==========================================================================
+   NPM Badge Styles
+   ========================================================================== */
+.npm-badge {
+    display: inline-block !important;
+    padding: 2px 6px !important;
+    border-radius: 4px !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    color: white !important;
+    text-shadow: 
+        -0.5px -0.5px 0 rgba(0, 0, 0, 0.5),
+        0.5px -0.5px 0 rgba(0, 0, 0, 0.5),
+        -0.5px 0.5px 0 rgba(0, 0, 0, 0.5),
+        0.5px 0.5px 0 rgba(0, 0, 0, 0.5),
+        0 1px 2px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Method Badges */
+.npm-badge.method {
+    min-width: 35px !important;
+    background-color: var(--badge-method-default, #34495e) !important;
+}
+
+.npm-badge.method.get { background-color: #00BCD4 !important; }
+.npm-badge.method.post { background-color: #4CAF50 !important; }
+.npm-badge.method.put { background-color: #FF9800 !important; }
+.npm-badge.method.delete { background-color: #F44336 !important; }
+.npm-badge.method.head { background-color: #9C27B0 !important; }
+.npm-badge.method.options { background-color: #607D8B !important; }
+
+/* Protocol Badges */
+.npm-badge.protocol {
+    min-width: 40px !important;
+}
+
+.npm-badge.protocol.http { background-color: #2196F3 !important; }
+.npm-badge.protocol.https { background-color: #4CAF50 !important; }
+
+/* Gzip Badges */
+.npm-badge.gzip {
+    min-width: 20px !important;
+}
+
+.npm-badge.gzip { background-color: #9E9E9E !important; }
+.npm-badge.gzip.enabled { background-color: #4CAF50 !important; }
+
+/* Path Style */
+.path {
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 12px !important;
+    color: var(--text-color) !important;
+    word-break: break-all !important;
+}
+
+.refresh-button {
+    transition: all 0.3s ease-in-out;
+}
+
+.refresh-button i {
+    transition: transform 0.3s ease-in-out;
+}
+
+.refresh-button.loading {
+    opacity: 0.8;
+    background-color: var(--warning-color);
+}
+
+/* Animation plus douce pour le tableau */
+#logTable {
+    transition: all 0.3s ease-in-out;
+}
+
+#logTable.loading-data {
+    opacity: 0.7;
+    position: relative;
+}
+
+#logTable.loading-data::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(1px);
+    z-index: 1;
+}
+
+/* Style pour le conteneur de données */
+.dataTables_scroll {
+    transition: all 0.3s ease-in-out;
+}
+
+/* Animation pour les lignes du tableau */
+#logTable tbody tr {
+    transition: background-color 0.2s ease-in-out;
+}
+
+/* Style pour le message de chargement */
+.loading-message {
+    transition: opacity 0.3s ease-in-out;
+    background: var(--bg-color);
+    padding: 20px;
+    border-radius: 8px;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+.loading-message::before {
+    content: '';
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--primary-color);
+    border-radius: 50%;
+    border-top-color: transparent;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Amélioration de la visibilité pendant le chargement */
+.dataTables_processing {
+    background: var(--bg-color) !important;
+    color: var(--text-color) !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: 4px !important;
+    padding: 10px !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+}
+
+.raw-log-line {
+    font-family: monospace;
+    white-space: pre-wrap;
+    padding: 4px 8px;
+    background-color: var(--bg-color);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.column-raw-content {
+    font-family: monospace;
+    width: 100%;
+    max-width: none;
+}
+
+/* Style alterné pour les lignes raw */
+.raw-log-line:nth-child(odd) {
+    background-color: var(--table-row-odd);
+}
+
+.raw-log-line:nth-child(even) {
+    background-color: var(--table-row-even);
+}
+
+/* ==========================================================================
+   Badge Styles
+   ========================================================================== */
+.badge {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 11px !important;
+    font-weight: 600;
+    text-align: center;
+    white-space: nowrap;
+    vertical-align: middle;
+    line-height: 1.4;
+    margin: 0 2px;
+}
+
+.badge-success {
+    background-color: var(--success-bg);
+    color: var(--success-text);
+}
+
+.badge-warning {
+    background-color: var(--warning-bg);
+    color: var(--warning-text);
+}
+
+.badge-danger {
+    background-color: var(--danger-bg);
+    color: var(--danger-text);
+}
+
+.badge-info {
+    background-color: var(--info-bg);
+    color: var(--info-text);
+}
+
+/* Status Badge Styles */
+.status-badge {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 12px;
+    text-align: center;
+    color: white;
+    text-transform: uppercase;
+}
+
+.status-badge.success { background-color: #4CAF50; }
+.status-badge.warning { background-color: #FF9800; }
+.status-badge.error { background-color: #F44336; }
+.status-badge.info { background-color: #2196F3; }
+
+/* Method Badge Styles */
+.method-badge {
+    display: inline-block;
+    padding: 3px 6px;
+    border-radius: 3px;
+    font-weight: 500;
+    font-size: 11px;
+    color: white;
+    text-transform: uppercase;
+}
+
+.method-badge.get { background-color: #00BCD4; }
+.method-badge.post { background-color: #4CAF50; }
+.method-badge.put { background-color: #FF9800; }
+.method-badge.delete { background-color: #F44336; }
+.method-badge.head { background-color: #9C27B0; }
+.method-badge.options { background-color: #607D8B; }

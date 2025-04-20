@@ -1,0 +1,27 @@
+[20-Apr-2025 12:43:20 CEST] [DEBUG] Logger initialisé avec succès
+[20-Apr-2025 12:43:20 CEST] [DEBUG] Fuseau horaire: Europe/Paris
+[20-Apr-2025 12:43:20 CEST] [DEBUG] Fichier de log: /home/tools/Project/LogviewR/includes/../logs/debug.log
+[20-Apr-2025 12:43:20 CEST] [WARNING] Le sous-répertoire n'est pas lisible: /var/log/chrony
+[20-Apr-2025 12:43:20 CEST] [WARNING] Le sous-répertoire n'est pas lisible: /var/log/incus
+[20-Apr-2025 12:43:20 CEST] [WARNING] Le sous-répertoire n'est pas lisible: /var/log/letsencrypt
+[20-Apr-2025 12:43:20 CEST] [WARNING] Le sous-répertoire n'est pas lisible: /var/log/netdata
+[20-Apr-2025 12:43:20 CEST] [WARNING] Le sous-répertoire n'est pas lisible: /var/log/private
+[20-Apr-2025 12:43:20 CEST] [WARNING] Le sous-répertoire n'est pas lisible: /var/log/samba/cores
+[20-Apr-2025 12:57:14 CEST] [DEBUG] Logger initialisé avec succès
+[20-Apr-2025 12:57:14 CEST] [DEBUG] Fuseau horaire: Europe/Paris
+[20-Apr-2025 12:57:14 CEST] [DEBUG] Fichier de log: /home/tools/Project/LogviewR/includes/../logs/debug.log
+[20-Apr-2025 12:57:14 CEST] [WARNING] Le sous-répertoire n'est pas lisible: /var/log/chrony
+[20-Apr-2025 12:57:14 CEST] [WARNING] Le sous-répertoire n'est pas lisible: /var/log/incus
+[20-Apr-2025 12:57:14 CEST] [WARNING] Le sous-répertoire n'est pas lisible: /var/log/letsencrypt
+[20-Apr-2025 12:57:14 CEST] [WARNING] Le sous-répertoire n'est pas lisible: /var/log/netdata
+[20-Apr-2025 12:57:14 CEST] [WARNING] Le sous-répertoire n'est pas lisible: /var/log/private
+[20-Apr-2025 12:57:14 CEST] [WARNING] Le sous-répertoire n'est pas lisible: /var/log/samba/cores
+[20-Apr-2025 12:59:20 CEST] [DEBUG] Logger initialisé avec succès
+[20-Apr-2025 12:59:20 CEST] [DEBUG] Fuseau horaire: Europe/Paris
+[20-Apr-2025 12:59:20 CEST] [DEBUG] Fichier de log: /home/tools/Project/LogviewR/includes/../logs/debug.log
+[20-Apr-2025 12:59:20 CEST] [WARNING] Le sous-répertoire n'est pas lisible: /var/log/chrony
+[20-Apr-2025 12:59:20 CEST] [WARNING] Le sous-répertoire n'est pas lisible: /var/log/incus
+[20-Apr-2025 12:59:20 CEST] [WARNING] Le sous-répertoire n'est pas lisible: /var/log/letsencrypt
+[20-Apr-2025 12:59:20 CEST] [WARNING] Le sous-répertoire n'est pas lisible: /var/log/netdata
+[20-Apr-2025 12:59:20 CEST] [WARNING] Le sous-répertoire n'est pas lisible: /var/log/private
+[20-Apr-2025 12:59:20 CEST] [WARNING] Le sous-répertoire n'est pas lisible: /var/log/samba/cores

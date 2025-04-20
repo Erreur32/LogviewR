@@ -1,5 +1,4 @@
 <?php
-// Configuration des patterns pour chaque type de log
 return array (
   'filters' => 
   array (
@@ -10,16 +9,18 @@ return array (
         0 => '/^192\\.168\\.1\\.(10|50)$/',
         1 => '/^127\\.0\\.0\\.1$/',
         2 => '/^10\\.0\\.0\\.1$/',
-        3 => '/^192\\.168\\.1\\.150$/',
-        4 => '/^192\\.168\\.1\\.254$/',
-        5 => '/^192\\.168\\.1\\.252$/',
+        3 => '/^10\\.0\\.0\\.2$/',
+        4 => '/^192\\.168\\.1\\.150$/',
+        5 => '/^192\\.168\\.1\\.254$/',
+        6 => '/^212\\.203\\.103\\.210$/',
+        7 => '/^188\\.165\\.194\\.218$/',
       ),
       'requests' => 
       array (
-        0 => '/server-status(?:\\?auto)?/',
+        0 => '/server-status\\?auto/',
         1 => '/favicon\\.ico/',
-        2 => '/robots\\.txt/',
-        3 => '/help\\.txt/',
+        2 => '/\\.(jpg|png|gif|css|js)$/',
+        3 => '/robots\\.txt/',
       ),
       'user_agents' => 
       array (
@@ -37,281 +38,748 @@ return array (
         2 => '/^crawler$/',
         3 => '/^spider$/',
       ),
+      'referers' => 
+      array (
+        0 => '/^https?:\\/\\/localhost/',
+        1 => '/^https?:\\/\\/127\\.0\\.0\\.1/',
+        2 => '/^https?:\\/\\/192\\.168\\.1\\.150/',
+      ),
+      'content' => 
+      array (
+      ),
     ),
   ),
   'apache' => 
   array (
     'access' => 
     array (
-      'pattern' => '/^(\\S+:\\d+) (\\S+) (\\S+) (\\S+) \\[([^\\]]+)\\] "([^"]*)" (\\d{3}) (\\d+|\\-)(?:\\s+"([^"]*)")?(?:\\s+"([^"]*)")?/',
+      'pattern' => '/^([^:]+):(\\d+)\\s+(\\S+)\\s+(\\S+)\\s+(\\S+)\\s+\\[([^\\]]+)\\]\\s+"([^"]+)"\\s+(\\d{3})\\s+(\\d+|-)\\s+"([^"]*)"\\s+"([^"]*)"/',
       'columns' => 
       array (
-        0 => 'Host',
-        1 => 'IP',
-        2 => 'Identd',
-        3 => 'User',
-        4 => 'Date',
-        5 => 'Requête',
-        6 => 'Code',
-        7 => 'Taille',
-        8 => 'Referer',
-        9 => 'User-Agent',
+        'date' => 
+        array (
+          'name' => 'Date',
+          'class' => 'column-date',
+        ),
+        'host' => 
+        array (
+          'name' => 'Host:Port',
+          'class' => 'column-host',
+        ),
+        'ip' => 
+        array (
+          'name' => 'IP',
+          'class' => 'column-ip',
+        ),
+        'user' => 
+        array (
+          'name' => 'User',
+          'class' => 'column-user',
+        ),
+        'request' => 
+        array (
+          'name' => 'Request',
+          'class' => 'column-request',
+        ),
+        'status' => 
+        array (
+          'name' => 'Status',
+          'class' => 'column-status',
+        ),
+        'size' => 
+        array (
+          'name' => 'Size',
+          'class' => 'column-size',
+        ),
+        'referer' => 
+        array (
+          'name' => 'Referer',
+          'class' => 'column-referer',
+        ),
+        'user_agent' => 
+        array (
+          'name' => 'User-Agent',
+          'class' => 'column-user-agent',
+        ),
       ),
     ),
     'error' => 
     array (
-      'pattern' => '/^\\[(.*?)\\] \\[([^:]+):([^\\]]+)\\] (?:\\[pid (\\d+)(?::tid (\\d+))?\\])?(?: \\[client ([^\\]]+)\\])? (.*)$/',
+      'pattern' => '/^\\[(.*?)\\] \\[([^:]+):([^\\]]+)\\] \\[pid (\\d+):tid (\\d+)\\] (?:\\[client ([^\\]]+)\\])? (.*)$/',
       'columns' => 
       array (
-        0 => 'Date',
-        1 => 'Module',
-        2 => 'Level',
-        3 => 'PID',
-        4 => 'TID',
-        5 => 'Client',
-        6 => 'Message',
+        'timestamp' => 
+        array (
+          'name' => 'Date/Heure',
+          'class' => 'column-timestamp',
+        ),
+        'module' => 
+        array (
+          'name' => 'Module',
+          'class' => 'column-module',
+        ),
+        'level' => 
+        array (
+          'name' => 'Niveau',
+          'class' => 'column-level',
+        ),
+        'process' => 
+        array (
+          'name' => 'Process',
+          'class' => 'column-process',
+        ),
+        'client' => 
+        array (
+          'name' => 'Client',
+          'class' => 'column-client',
+        ),
+        'message' => 
+        array (
+          'name' => 'Message',
+          'class' => 'column-message',
+        ),
       ),
     ),
   ),
-  'nginx' => 
+  'apache-404' => 
   array (
-    'access' => 
+    'pattern' => '/^(\\S+?)(?::(\\d+))?\\s+([^,\\s]+)(?:,\\s+(\\S+))?\\s+-\\s+-\\s+\\[([^\\]]+)\\]\\s+"([^"]+)"\\s+404\\s+(\\d+|-)(?:\\s+"([^"]*)")?(?:\\s+"([^"]*)")?/',
+    'columns' => 
     array (
-      'pattern' => '/^(\S+) - (\S+) \[([^\]]+)\] "([^"]*)" (\d{3}) (\d+) "([^"]*)" "([^"]*)" "([^"]*)" "([^"]*)"$/',
-      'columns' => 
+      'host' => 
       array (
-        0 => 'IP',
-        1 => 'User',
-        2 => 'Date',
-        3 => 'Request',
-        4 => 'Status',
-        5 => 'Size',
-        6 => 'Referer',
-        7 => 'User-Agent',
-        8 => 'X-Forwarded-For',
-        9 => 'X-Real-IP',
+        'name' => 'Host',
+        'class' => 'column-host',
       ),
-    ),
-    'error' => 
-    array (
-      'pattern' => '/^(\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}) \[(\w+)\] (\d+)#\d+: (.*?)(?: while reading upstream client request body)?(?: while connecting to upstream)?(?: while sending to client)?$/',
-      'columns' => 
+      'ip' => 
       array (
-        0 => 'Date',
-        1 => 'Level',
-        2 => 'PID',
-        3 => 'Message',
+        'name' => 'IP',
+        'class' => 'column-ip',
+      ),
+      'real_ip' => 
+      array (
+        'name' => 'Real IP',
+        'class' => 'column-real-ip',
+      ),
+      'date' => 
+      array (
+        'name' => 'Date',
+        'class' => 'column-date',
+      ),
+      'request' => 
+      array (
+        'name' => 'Request',
+        'class' => 'column-request',
+      ),
+      'size' => 
+      array (
+        'name' => 'Size',
+        'class' => 'column-size',
+      ),
+      'referer' => 
+      array (
+        'name' => 'Referer',
+        'class' => 'column-referer',
+      ),
+      'user_agent' => 
+      array (
+        'name' => 'User-Agent',
+        'class' => 'column-user-agent',
       ),
     ),
   ),
-  'npm' => 
+  'apache-referer' => 
   array (
-    'access' => 
+    'pattern' => '/^([^\\s]+)\\s+([^\\s]+)\\s+\\[([^\\]]+)\\]\\s+"([^"]+)"\\s+->\\s+"([^"]+)"$/',
+    'columns' => 
     array (
-      'pattern' => '/^\[([^\]]+)\] (\d{3}) - (\w+) (https?) ([^ ]+) "([^"]*)" \[Client ([^\]]+)\] \[Length (\d+)\] \[Gzip ([^\]]+)\] "([^"]*)" "([^"]*)"$/',
-      'columns' => 
+      'host' => 
       array (
-        0 => 'Date',
-        1 => 'Status',
-        2 => 'Method',
-        3 => 'Protocol',
-        4 => 'URL',
-        5 => 'Host',
-        6 => 'Client',
-        7 => 'Length',
-        8 => 'Gzip',
-        9 => 'User-Agent',
-        10 => 'Referer',
+        'name' => 'Host',
+        'class' => 'column-host',
+      ),
+      'ip' => 
+      array (
+        'name' => 'IP',
+        'class' => 'column-ip',
+      ),
+      'date' => 
+      array (
+        'name' => 'Date',
+        'class' => 'column-date',
+      ),
+      'request' => 
+      array (
+        'name' => 'Request',
+        'class' => 'column-request',
+      ),
+      'referer' => 
+      array (
+        'name' => 'Referer',
+        'class' => 'column-referer',
       ),
     ),
-    'error' => 
-    array (
-      'pattern' => '/^(\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2}) \[(\w+)\] (\d+)#\d+: \*(\d+)(?:, client: ([^,]+), server: ([^,]+), request: "([^"]+)", host: "([^"]+)"(?:, upstream: "([^"]+)")?)?$/',
-      'columns' => 
-      array (
-        0 => 'Date',
-        1 => 'Level',
-        2 => 'PID',
-        3 => 'Connection',
-        4 => 'Client',
-        5 => 'Server',
-        6 => 'Request',
-        7 => 'Host',
-        8 => 'Upstream',
-      ),
-    ),
-    'proxy_host_access' => 
-    array (
-      'pattern' => '/^\[([^\]]+)\] (\d{3}) - (\w+) (https?) ([^ ]+) "([^"]*)" \[Client ([^\]]+)\] \[Length (\d+)\] \[Gzip ([^\]]+)\] "([^"]*)" "([^"]*)" \[Sent-to ([^\]]+)\]$/',
-      'columns' => 
-      array (
-        0 => 'Date',
-        1 => 'Status',
-        2 => 'Method',
-        3 => 'Protocol',
-        4 => 'URL',
-        5 => 'Host',
-        6 => 'Client',
-        7 => 'Length',
-        8 => 'Gzip',
-        9 => 'User-Agent',
-        10 => 'Referer',
-        11 => 'Sent-to',
-      ),
-    ),
-    'proxy_host_error' => 
-    array (
-      'pattern' => '/^(\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2}) \[(\w+)\] (\d+)#\d+: \*(\d+)(?:, client: ([^,]+), server: ([^,]+), request: "([^"]+)", host: "([^"]+)"(?:, upstream: "([^"]+)")?)?$/',
-      'columns' => 
-      array (
-        0 => 'Date',
-        1 => 'Level',
-        2 => 'PID',
-        3 => 'Connection',
-        4 => 'Client',
-        5 => 'Server',
-        6 => 'Request',
-        7 => 'Host',
-        8 => 'Upstream',
-      ),
-    ),
-    'letsencrypt_access' => 
-    array (
-      'pattern' => '/^\[([^\]]+)\] (\d{3}) - (\w+) (https?) ([^ ]+) "([^"]*)" \[Client ([^\]]+)\] \[Length (\d+)\] \[Gzip ([^\]]+)\] "([^"]*)" "([^"]*)"$/',
-      'columns' => 
-      array (
-        0 => 'Date',
-        1 => 'Status',
-        2 => 'Method',
-        3 => 'Protocol',
-        4 => 'URL',
-        5 => 'Host',
-        6 => 'Client',
-        7 => 'Length',
-        8 => 'Gzip',
-        9 => 'User-Agent',
-        10 => 'Referer',
-      ),
-    ),
-    'letsencrypt_error' => 
-    array (
-      'pattern' => '/^(\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2}) \[(\w+)\] (\d+)#\d+: \*(\d+)(?:, client: ([^,]+), server: ([^,]+), request: "([^"]+)", host: "([^"]+)"(?:, upstream: "([^"]+)")?)?$/',
-      'columns' => 
-      array (
-        0 => 'Date',
-        1 => 'Level',
-        2 => 'PID',
-        3 => 'Connection',
-        4 => 'Client',
-        5 => 'Server',
-        6 => 'Request',
-        7 => 'Host',
-        8 => 'Upstream',
-      ),
-    ),
-    'default_host_access' => 
-    array (
-      'pattern' => '/^(\S+) - - \[([^\]]+)\] "([A-Z]+) ([^\s]+) ([^"]+)" (\d{3}) (\d+|-) "([^"]*)" "([^"]*)"$/',
-      'columns' => 
-      array (
-        0 => 'ip',
-        1 => 'date',
-        2 => 'method',
-        3 => 'path',
-        4 => 'protocol',
-        5 => 'status',
-        6 => 'size',
-        7 => 'referer',
-        8 => 'user_agent'
-      )
-    ),
-    'default_host_error' => 
-    array (
-      'pattern' => '/^(\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2}) \[(\w+)\] (\d+)#\d+: \*(\d+)(?:, client: ([^,]+), server: ([^,]+), request: "([^"]+)", host: "([^"]+)"(?:, upstream: "([^"]+)")?)?$/',
-      'columns' => 
-      array (
-        0 => 'Date',
-        1 => 'Level',
-        2 => 'PID',
-        3 => 'Connection',
-        4 => 'Client',
-        5 => 'Server',
-        6 => 'Request',
-        7 => 'Host',
-        8 => 'Upstream'
-      )
-    ),
-    'dead_host_access' => 
-    array (
-      'pattern' => '/^\[([^\]]+)\] (\d{3}) - (\w+) (https?) ([^ ]+) "([^"]*)" \[Client ([^\]]+)\] \[Length (\d+)\] \[Gzip ([^\]]+)\] "([^"]*)" "([^"]*)"$/',
-      'columns' => 
-      array (
-        0 => 'date',
-        1 => 'status',
-        2 => 'method',
-        3 => 'protocol',
-        4 => 'host',
-        5 => 'request',
-        6 => 'client',
-        7 => 'length',
-        8 => 'gzip',
-        9 => 'user_agent',
-        10 => 'referer'
-      )
-    ),
-    'dead_host_error' => 
-    array (
-      'pattern' => '/^(\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2}) \[(\w+)\] (\d+)#\d+: \*(\d+)(?:, client: ([^,]+), server: ([^,]+), request: "([^"]+)", host: "([^"]+)"(?:, upstream: "([^"]+)")?)?$/',
-      'columns' => 
-      array (
-        0 => 'date',
-        1 => 'level',
-        2 => 'pid',
-        3 => 'connection',
-        4 => 'client',
-        5 => 'server',
-        6 => 'request',
-        7 => 'host',
-        8 => 'upstream'
-      )
-    ),
-    'fallback_access' => 
-    array (
-      'pattern' => '/^(\S+) (\S+) (\S+) \[([^\]]+)\] "([A-Z]+) ([^ ]*) ([^"]*)" (\d{3}) (\d+|-) "([^"]*)" "([^"]*)"$/',
-      'columns' => 
-      array (
-        0 => 'IP',
-        1 => 'Identd',
-        2 => 'User',
-        3 => 'Date',
-        4 => 'Method',
-        5 => 'Path',
-        6 => 'Protocol',
-        7 => 'Status',
-        8 => 'Size',
-        9 => 'Referer',
-        10 => 'User-Agent'
-      )
-    ),
-    'fallback_error' => 
-    array (
-      'pattern' => '/^(\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2}) \[(\w+)\] (\d+)#\d+: \*(\d+)(?:, client: ([^,]+), server: ([^,]+), request: "([^"]+)", host: "([^"]+)"(?:, upstream: "([^"]+)")?)?$/',
-      'columns' => 
-      array (
-        0 => 'Date',
-        1 => 'Level',
-        2 => 'PID',
-        3 => 'Connection',
-        4 => 'Client',
-        5 => 'Server',
-        6 => 'Request',
-        7 => 'Host',
-        8 => 'Upstream'
-      )
-    )
   ),
   'syslog' => 
   array (
     'pattern' => '/^(\\w{3}\\s+\\d{1,2}\\s+\\d{2}:\\d{2}:\\d{2})\\s+(\\S+)\\s+([^:]+):\\s+(.*)$/',
+    'alt_pattern' => '/^(\\w{3}\\s+\\d{1,2}\\s+\\d{2}:\\d{2}:\\d{2})\\s+(\\S+)\\s+(.*)$/',
+    'columns' => 
+    array (
+      'date' => 
+      array (
+        'name' => 'Date',
+        'class' => 'column-date',
+      ),
+      'host' => 
+      array (
+        'name' => 'Host',
+        'class' => 'column-host',
+      ),
+      'program' => 
+      array (
+        'name' => 'Programme',
+        'class' => 'column-program',
+      ),
+      'message' => 
+      array (
+        'name' => 'Message',
+        'class' => 'column-message',
+      ),
+    ),
+  ),
+  'npm-proxy-host-access' => 
+  array (
+    'pattern' => '/^\\[([^\\]]+)\\]\\s+-\\s+(\\d{3})\\s+(\\d{3})\\s+-\\s+([A-Z]+)\\s+(https?|tcp)\\s+([^\\s]+)\\s+"([^"]*)"\\s+\\[Client\\s+([^\\]]+)\\]\\s+\\[Length\\s+([^\\]]+)\\]\\s+\\[Gzip\\s+([^\\]]+)\\]\\s+\\[Sent-to\\s+([^\\]]+)\\]\\s+"([^"]*)"\\s+"([^"]*)"$/',
+    'parser' => 'NginxProxyManagerParser',
+    'columns' => 
+    array (
+      'date' => 
+      array (
+        'name' => 'Date',
+        'class' => 'column-date',
+      ),
+      'status_in' => 
+      array (
+        'name' => 'Status In',
+        'class' => 'column-status',
+      ),
+      'status_out' => 
+      array (
+        'name' => 'Status Out',
+        'class' => 'column-status',
+      ),
+      'method' => 
+      array (
+        'name' => 'Method',
+        'class' => 'column-method',
+      ),
+      'protocol' => 
+      array (
+        'name' => 'Protocol',
+        'class' => 'column-protocol',
+      ),
+      'host' => 
+      array (
+        'name' => 'Host',
+        'class' => 'column-host',
+      ),
+      'request' => 
+      array (
+        'name' => 'Request',
+        'class' => 'column-request',
+      ),
+      'client_ip' => 
+      array (
+        'name' => 'Client IP',
+        'class' => 'column-ip',
+      ),
+      'length' => 
+      array (
+        'name' => 'Length',
+        'class' => 'column-length',
+      ),
+      'gzip' => 
+      array (
+        'name' => 'Gzip',
+        'class' => 'column-gzip',
+      ),
+      'sent_to' => 
+      array (
+        'name' => 'Sent To',
+        'class' => 'column-sent-to',
+      ),
+      'user_agent' => 
+      array (
+        'name' => 'User Agent',
+        'class' => 'column-user-agent',
+      ),
+      'referer' => 
+      array (
+        'name' => 'Referer',
+        'class' => 'column-referer',
+      ),
+    ),
+  ),
+  'npm-proxy-host-error' => 
+  array (
+    'pattern' => '/^(\\d{4}\\/\\d{2}\\/\\d{2} \\d{2}:\\d{2}:\\d{2}) \\[([^\\]]+)\\] (\\d+)#(\\d+): \\*(\\d+) ([^,]+)(?:, client: ([^,]+))?(?:, server: ([^,]+))?(?:, request: "([^"]+)")?(?:, upstream: "([^"]+)")?(?:, host: "([^"]+)")?(?:, referrer: "([^"]+)")?$/',
+    'parser' => 'NPMProxyHostParser',
+    'columns' => 
+    array (
+      'date' => 
+      array (
+        'name' => 'Date',
+        'class' => 'column-date',
+      ),
+      'level' => 
+      array (
+        'name' => 'Level',
+        'class' => 'column-level',
+      ),
+      'pid' => 
+      array (
+        'name' => 'PID',
+        'class' => 'column-pid',
+      ),
+      'tid' => 
+      array (
+        'name' => 'TID',
+        'class' => 'column-tid',
+      ),
+      'connection' => 
+      array (
+        'name' => 'Connection',
+        'class' => 'column-connection',
+      ),
+      'message' => 
+      array (
+        'name' => 'Message',
+        'class' => 'column-message',
+      ),
+      'client' => 
+      array (
+        'name' => 'Client',
+        'class' => 'column-client',
+      ),
+      'server' => 
+      array (
+        'name' => 'Server',
+        'class' => 'column-server',
+      ),
+      'request' => 
+      array (
+        'name' => 'Request',
+        'class' => 'column-request',
+      ),
+      'upstream' => 
+      array (
+        'name' => 'Upstream',
+        'class' => 'column-upstream',
+      ),
+      'host' => 
+      array (
+        'name' => 'Host',
+        'class' => 'column-host',
+      ),
+      'referer' => 
+      array (
+        'name' => 'Referer',
+        'class' => 'column-referer',
+      ),
+    ),
+  ),
+  'npm-default-host-access' => 
+  array (
+    'pattern' => '/^(\\S+) - - \\[([^\\]]+)\\] "([^"]*)" (\\d{3}) (\\d+) "([^"]*)" "([^"]*)"$/',
+    'parser' => 'NPMDefaultHostParser',
+    'columns' => 
+    array (
+      'client_ip' => 
+      array (
+        'name' => 'Client IP',
+        'class' => 'column-client-ip',
+      ),
+      'date' => 
+      array (
+        'name' => 'Date',
+        'class' => 'column-date',
+      ),
+      'request' => 
+      array (
+        'name' => 'Request',
+        'class' => 'column-request',
+      ),
+      'status' => 
+      array (
+        'name' => 'Status',
+        'class' => 'column-status',
+      ),
+      'size' => 
+      array (
+        'name' => 'Size',
+        'class' => 'column-size',
+      ),
+      'referer' => 
+      array (
+        'name' => 'Referer',
+        'class' => 'column-referer',
+      ),
+      'user_agent' => 
+      array (
+        'name' => 'User-Agent',
+        'class' => 'column-user-agent',
+      ),
+    ),
+  ),
+  'npm-fallback-access' => 
+  array (
+    'pattern' => '/^\\[([^\\]]+)\\]\\s+(\\d{3})\\s+-\\s+([A-Z]+)\\s+(https?)\\s+([^\\s]+)\\s+"([^"]*)"\\s+\\[Client\\s+([^\\]]+)\\]\\s+\\[Length\\s+([^\\]]+)\\]\\s+\\[Gzip\\s+([^\\]]+)\\]\\s+"([^"]*)"\\s+"([^"]*)"$/',
+    'parser' => 'NginxProxyManagerParser',
+    'columns' => 
+    array (
+      'date' => 
+      array (
+        'name' => 'Date',
+        'class' => 'column-date',
+      ),
+      'status' => 
+      array (
+        'name' => 'Status',
+        'class' => 'column-status',
+      ),
+      'method' => 
+      array (
+        'name' => 'Method',
+        'class' => 'column-method',
+      ),
+      'protocol' => 
+      array (
+        'name' => 'Protocol',
+        'class' => 'column-protocol',
+      ),
+      'host' => 
+      array (
+        'name' => 'Host',
+        'class' => 'column-host',
+      ),
+      'request' => 
+      array (
+        'name' => 'Request',
+        'class' => 'column-request',
+      ),
+      'client_ip' => 
+      array (
+        'name' => 'Client IP',
+        'class' => 'column-ip',
+      ),
+      'length' => 
+      array (
+        'name' => 'Length',
+        'class' => 'column-length',
+      ),
+      'gzip' => 
+      array (
+        'name' => 'Gzip',
+        'class' => 'column-gzip',
+      ),
+      'user_agent' => 
+      array (
+        'name' => 'User Agent',
+        'class' => 'column-user-agent',
+      ),
+      'referer' => 
+      array (
+        'name' => 'Referer',
+        'class' => 'column-referer',
+      ),
+    ),
+  ),
+  'npm-fallback-error' => 
+  array (
+    'pattern' => '/^(\\d{4}\\/\\d{2}\\/\\d{2} \\d{2}:\\d{2}:\\d{2}) \\[([^\\]]+)\\] (\\d+)#(\\d+): \\*(\\d+) ([^,]+),\\s+client:\\s+([^,]+),\\s+server:\\s+([^,]+),\\s+request:\\s+"([^"]+)",\\s+upstream:\\s+"([^"]+)",\\s+host:\\s+"([^"]+)"$/',
+    'parser' => 'NginxProxyManagerParser',
+    'columns' => 
+    array (
+      'date' => 
+      array (
+        'name' => 'Date',
+        'class' => 'column-date',
+      ),
+      'level' => 
+      array (
+        'name' => 'Level',
+        'class' => 'column-level',
+      ),
+      'pid' => 
+      array (
+        'name' => 'PID',
+        'class' => 'column-pid',
+      ),
+      'tid' => 
+      array (
+        'name' => 'TID',
+        'class' => 'column-tid',
+      ),
+      'connection' => 
+      array (
+        'name' => 'Connection',
+        'class' => 'column-connection',
+      ),
+      'message' => 
+      array (
+        'name' => 'Message',
+        'class' => 'column-message',
+      ),
+      'client' => 
+      array (
+        'name' => 'Client',
+        'class' => 'column-client',
+      ),
+      'server' => 
+      array (
+        'name' => 'Server',
+        'class' => 'column-server',
+      ),
+      'request' => 
+      array (
+        'name' => 'Request',
+        'class' => 'column-request',
+      ),
+      'upstream' => 
+      array (
+        'name' => 'Upstream',
+        'class' => 'column-upstream',
+      ),
+      'host' => 
+      array (
+        'name' => 'Host',
+        'class' => 'column-host',
+      ),
+    ),
+  ),
+  'npm-dead-host-access' => 
+  array (
+    'pattern' => '/^\\[([^\\]]+)\\]\\s+(\\d{3})\\s+-\\s+([A-Z]+)\\s+(https?)\\s+([^\\s]+)\\s+"([^"]+)"\\s+\\[Client\\s+([^\\]]+)\\]\\s+\\[Length\\s+([^\\]]+)\\]\\s+\\[Gzip\\s+([^\\]]+)\\]\\s+"([^"]*)"\\s+"([^"]*)"$/',
+    'parser' => 'NPMDeadHostParser',
+    'columns' => 
+    array (
+      'date' => 
+      array (
+        'name' => 'Date',
+        'class' => 'column-date',
+      ),
+      'status' => 
+      array (
+        'name' => 'Status',
+        'class' => 'column-status',
+      ),
+      'method' => 
+      array (
+        'name' => 'Method',
+        'class' => 'column-method',
+      ),
+      'protocol' => 
+      array (
+        'name' => 'Protocol',
+        'class' => 'column-protocol',
+      ),
+      'host' => 
+      array (
+        'name' => 'Host',
+        'class' => 'column-host',
+      ),
+      'request' => 
+      array (
+        'name' => 'Request',
+        'class' => 'column-request',
+      ),
+      'client_ip' => 
+      array (
+        'name' => 'Client IP',
+        'class' => 'column-ip',
+      ),
+      'length' => 
+      array (
+        'name' => 'Length',
+        'class' => 'column-length',
+      ),
+      'gzip' => 
+      array (
+        'name' => 'Gzip',
+        'class' => 'column-gzip',
+      ),
+      'user_agent' => 
+      array (
+        'name' => 'User Agent',
+        'class' => 'column-user-agent',
+      ),
+      'referer' => 
+      array (
+        'name' => 'Referer',
+        'class' => 'column-referer',
+      ),
+    ),
+  ),
+  'npm-dead-host-error' => 
+  array (
+    'pattern' => '/^(\\d{4}\\/\\d{2}\\/\\d{2} \\d{2}:\\d{2}:\\d{2}) \\[([^\\]]+)\\] (\\d+)#(\\d+): \\*(\\d+) ([^,]+),\\s+client:\\s+([^,]+),\\s+server:\\s+([^,]+),\\s+request:\\s+"([^"]+)",\\s+upstream:\\s+"([^"]+)",\\s+host:\\s+"([^"]+)"(?:,\\s+referrer:\\s+"([^"]+)")?$/',
+    'parser' => 'NPMDeadHostParser',
+    'columns' => 
+    array (
+      'date' => 
+      array (
+        'name' => 'Date',
+        'class' => 'column-date',
+      ),
+      'level' => 
+      array (
+        'name' => 'Level',
+        'class' => 'column-level',
+      ),
+      'pid' => 
+      array (
+        'name' => 'PID',
+        'class' => 'column-pid',
+      ),
+      'tid' => 
+      array (
+        'name' => 'TID',
+        'class' => 'column-tid',
+      ),
+      'connection' => 
+      array (
+        'name' => 'Connection',
+        'class' => 'column-connection',
+      ),
+      'message' => 
+      array (
+        'name' => 'Message',
+        'class' => 'column-message',
+      ),
+      'client' => 
+      array (
+        'name' => 'Client',
+        'class' => 'column-client',
+      ),
+      'server' => 
+      array (
+        'name' => 'Server',
+        'class' => 'column-server',
+      ),
+      'request' => 
+      array (
+        'name' => 'Request',
+        'class' => 'column-request',
+      ),
+      'upstream' => 
+      array (
+        'name' => 'Upstream',
+        'class' => 'column-upstream',
+      ),
+      'host' => 
+      array (
+        'name' => 'Host',
+        'class' => 'column-host',
+      ),
+      'referer' => 
+      array (
+        'name' => 'Referer',
+        'class' => 'column-referer',
+      ),
+    ),
+  ),
+  'npm-default-host-error' => 
+  array (
+    'pattern' => '/^(\\d{4}\\/\\d{2}\\/\\d{2} \\d{2}:\\d{2}:\\d{2}) \\[([^\\]]+)\\] (?:\\d+#\\d+: \\*\\d+ )(.+?) failed \\(([^)]+)\\), client: ([^,]+), (?:server: [^,]+, )?request: "([^"]+)", host: "([^"]+)"/',
+    'parser' => 'NPMDefaultHostParser',
+    'columns' => 
+    array (
+      'date' => 
+      array (
+        'name' => 'Date',
+        'class' => 'column-date',
+      ),
+      'level' => 
+      array (
+        'name' => 'Level',
+        'class' => 'column-level',
+      ),
+      'message' => 
+      array (
+        'name' => 'Message',
+        'class' => 'column-message',
+      ),
+      'error' => 
+      array (
+        'name' => 'Error',
+        'class' => 'column-error',
+      ),
+      'client_ip' => 
+      array (
+        'name' => 'Client IP',
+        'class' => 'column-ip',
+      ),
+      'request' => 
+      array (
+        'name' => 'Request',
+        'class' => 'column-request',
+      ),
+      'host' => 
+      array (
+        'name' => 'Host',
+        'class' => 'column-host',
+      ),
+    ),
+  ),
+  'npm-letsencrypt-requests_access' => array(
+    'pattern' => '/^\\[([^\\]]+)\\]\\s+(\\d{3})\\s+-\\s+([A-Z]+)\\s+(https?)\\s+([^\\s]+)\\s+"([^"]*)"\\s+\\[Client\\s+([^\\]]+)\\]\\s+\\[Length\\s+([^\\]]+)\\]\\s+\\[Gzip\\s+([^\\]]+)\\]\\s+"([^"]*)"\\s+"([^"]*)"$/',
+    'parser' => 'NPMLetsEncryptParser',
+    'columns' => array(
+      'date' => array(
+        'name' => 'Date',
+        'class' => 'column-date'
+      ),
+      'status' => array(
+        'name' => 'Status',
+        'class' => 'column-status'
+      ),
+      'method' => array(
+        'name' => 'Method',
+        'class' => 'column-method'
+      ),
+      'protocol' => array(
+        'name' => 'Protocol',
+        'class' => 'column-protocol'
+      ),
+      'host' => array(
+        'name' => 'Host',
+        'class' => 'column-host'
+      ),
+      'request' => array(
+        'name' => 'Request',
+        'class' => 'column-request'
+      ),
+      'client_ip' => array(
+        'name' => 'Client IP',
+        'class' => 'column-ip'
+      ),
+      'length' => array(
+        'name' => 'Length',
+        'class' => 'column-length'
+      ),
+      'gzip' => array(
+        'name' => 'Gzip',
+        'class' => 'column-gzip'
+      ),
+      'user_agent' => array(
+        'name' => 'User Agent',
+        'class' => 'column-user-agent'
+      ),
+      'referer' => array(
+        'name' => 'Referer',
+        'class' => 'column-referer'
+      )
+    )
   ),
 );
