@@ -73,37 +73,14 @@ cd LogviewR
 
 ## Configuration ⚙️
 
-### Fichiers de Configuration
-- `config/config.php` : Configuration générale
-- `config/log_patterns.php` : Patterns de logs
-- `config/admin.php` : Configuration admin
+Panneau admin avec toutes les tions configurable!
 
-### Options Principales
-```php
-return [
-    'app' => [
-        'excluded_extensions' => ['gz', 'zip', 'tar'],
-        'max_execution_time' => 300,
-        'default_lines_per_page' => 25,
-        'refresh_interval' => 1000
-    ],
-    'paths' => [
-        'apache_logs' => '/var/log/apache2',
-        'nginx_logs' => '/var/log/nginx',
-        'npm_logs' => '/var/log/npm',
-        'syslog' => '/var/log'
-    ],
-    'nginx' => [
-        'use_npm' => false
-    ]
-];
-```
 
 ## Utilisation 📝
 
 1. **Accès à l'Interface**
    - Ouvrir `http://votre-domaine/` dans votre navigateur
-   - Se connecter avec les identifiants admin
+   - Se connecter avec les identifiants admin (pour la partie admin)
 
 2. **Visualisation des Logs**
    - Sélectionner le type de log (Apache/Nginx/NPM/Syslog)
