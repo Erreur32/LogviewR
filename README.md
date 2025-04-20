@@ -1,38 +1,43 @@
 # LogviewR 📊
 
 Un visualiseur de logs old school pour Apache, Nginx, NPM et Syslog.
+ 
 ## Fonctionnalités Principales ✨
 
 <details>
-  <summary>**- Support Multi-Format** 🎯</summary>
-  - **Logs Apache** (access, error, 404)
-  - **Logs Nginx** (access, error)
-  - **Logs NPM** (Proxy Host, Default Host, Dead Host, Fallback)
+  <summary>  Support Multi-Format  🎯</summary>
+  
+  - **Logs Apache** (access, error, 404)  
+  - **Logs Nginx** (access, error)  
+  - **Logs NPM** (Proxy Host, Default Host, Dead Host, Fallback)  
   - **Logs Syslog** (auth, kern, daemon, etc.)
 </details>
 
 <details>
-  <summary>**- Interface Moderne** 🎨</summary>
-  - **Thème sombre/clair**
-  - **Design responsive**
-  - **Auto-rafraîchissement des logs**
-  - **Filtres dynamiques**
+  <summary>  Interface Moderne  🎨</summary>
+  
+  - **Thème sombre/clair**  
+  - **Design responsive**  
+  - **Auto-rafraîchissement des logs**  
+  - **Filtres dynamiques**  
   - **Affichage optimisé des données**
 </details>
 
 <details>
-  <summary>**- Parsing Intelligent** 🧠</summary>
-  - **Détection automatique des types de logs**
-  - **Support des noms de domaine personnalisés**
-  - **Filtrage avancé**
+  <summary>  Parsing Intelligent  🧠</summary>
+  
+  - **Détection automatique des types de logs**  
+  - **Support des noms de domaine personnalisés**  
+  - **Filtrage avancé**  
   - **Formatage intelligent des données**
 </details>
 
 <details>
-  <summary>**- Administration** 🔒</summary>
-  - **Interface d'administration sécurisée**
-  - **Gestion des patterns de logs**
-  - **Configuration des sources**
+  <summary>  Administration  🔒</summary>
+  
+  - **Interface d'administration sécurisée**  
+  - **Gestion des patterns de logs**  
+  - **Configuration des sources**  
   - **Monitoring en temps réel**
 </details>
 
