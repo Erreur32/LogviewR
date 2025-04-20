@@ -1,0 +1,59 @@
+# Configuration locale
+/config/local.php
+/config/config.local.php
+.env
+.env.local
+.env.*.local
+
+# Cache et logs
+/cache/*
+/logs/*
+*.log
+update_cache.json
+
+# IDE et éditeurs
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Fichiers temporaires
+/tmp/*
+*.tmp
+*.temp
+*~
+
+# Dépendances
+/vendor/
+node_modules/
+package-lock.json
+yarn.lock
+
+# Build et compilation
+/dist/
+/build/
+*.min.js
+*.min.css
+
+# Sauvegardes
+*.bak
+*.backup
+
+# Fichiers système
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Fichiers de debug
+debug.log
+php_errors.log
+error_log
+
+# Fichiers de session
+sess_*
+
+# Fichiers de cache PHP
+*.cache.php
+*.cache 
