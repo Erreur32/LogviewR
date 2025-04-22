@@ -217,4 +217,37 @@ class UpdateChecker {
     private function getCacheFile() {
         return $this->cacheDir . '/' . $this->cacheFile;
     }
+
+    /**
+     * Force une vérification immédiate des mises à jour
+     * @return array|null Informations de mise à jour ou null si pas de mise à jour
+     */
+    public function forceCheck() {
+        if (!$this->enabled) {
+            return null;
+        }
+
+        try {
+            $latestVersion = $this->fetchLatestVersion();
+            $this->updateLastCheckTime();
+
+            $updateInfo = [
+                'available' => $this->isNewerVersion($latestVersion),
+                'current_version' => $this->currentVersion,
+                'latest_version' => $latestVersion,
+                'update_url' => $this->updateUrl,
+                'last_check' => time(),
+                'forced' => true
+            ];
+            
+            $this->cacheUpdateInfo($updateInfo);
+            return $updateInfo;
+        } catch (Exception $e) {
+            error_log("Vérification forcée échouée: " . $e->getMessage());
+            return [
+                'error' => true,
+                'message' => $e->getMessage()
+            ];
+        }
+    }
 } 

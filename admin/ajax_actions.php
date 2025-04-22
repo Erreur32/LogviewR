@@ -586,6 +586,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             break;
 
+        case 'force_update_check':
+            require_once __DIR__ . '/../includes/UpdateChecker.php';
+            $updateChecker = new UpdateChecker();
+            
+            $result = $updateChecker->forceCheck();
+            
+            if (isset($result['error'])) {
+                echo json_encode([
+                    'error' => true,
+                    'message' => $result['message']
+                ]);
+            } else {
+                echo json_encode($result);
+            }
+            exit;
+
         default:
             $response = [
                 'success' => false,

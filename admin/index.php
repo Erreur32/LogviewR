@@ -473,18 +473,22 @@ if ($updateInfo) {
     <style>
     .notification {
         position: fixed;
-        bottom: 20px;
-        right: 20px;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
         padding: 15px 25px;
-        border-radius: 6px;
+        border-radius: 8px;
         color: white;
         font-weight: 500;
         z-index: 9999;
-        animation: slideIn 0.3s ease-out;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        animation: slideDown 0.3s ease-out;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
         display: flex;
         align-items: center;
         gap: 10px;
+        min-width: 300px;
+        text-align: center;
+        justify-content: center;
     }
 
     .notification.success {
@@ -503,14 +507,30 @@ if ($updateInfo) {
         background-color: #2196F3;
     }
 
-    @keyframes slideIn {
-        from { transform: translateX(100%); opacity: 0; }
-        to { transform: translateX(0); opacity: 1; }
+    @keyframes slideDown {
+        from { 
+            transform: translate(-50%, -100%);
+            opacity: 0;
+        }
+        to { 
+            transform: translate(-50%, 0);
+            opacity: 1;
+        }
     }
 
-    @keyframes slideOut {
-        from { transform: translateX(0); opacity: 1; }
-        to { transform: translateX(100%); opacity: 0; }
+    @keyframes slideUp {
+        from { 
+            transform: translate(-50%, 0);
+            opacity: 1;
+        }
+        to { 
+            transform: translate(-50%, -100%);
+            opacity: 0;
+        }
+    }
+
+    .notification div {
+        width: 100%;
     }
     </style>
 </head>
@@ -1783,21 +1803,101 @@ if ($updateInfo) {
                 </div>
                 <div class="status-item">
                     <span class="label">Dernière vérification :</span>
-                    <span class="value"><?php 
+                    <span class="value" id="lastCheckTime"><?php 
                         $lastCheck = $updateChecker->getLastCheck();
                         echo $lastCheck ? date('d/m/Y H:i:s', $lastCheck) : 'Jamais';
                     ?></span>
                 </div>
                 <div class="status-item">
                     <span class="label">Prochaine vérification :</span>
-                    <span class="value"><?php 
+                    <span class="value" id="nextCheckTime"><?php 
                         $lastCheck = $updateChecker->getLastCheck();
                         $interval = $updateChecker->getCheckInterval();
                         $nextCheck = $lastCheck ? $lastCheck + $interval : time() + $interval;
                         echo date('d/m/Y H:i:s', $nextCheck);
                     ?></span>
                 </div>
+                <div class="update-actions mt-3">
+                    <button type="button" class="btn btn-primary" id="forceUpdateCheck">
+                        <i class="fas fa-sync-alt"></i> Forcer la vérification
+                    </button>
+                </div>
             </div>
+
+            <script>
+            // Fonction pour afficher les notifications
+            function showNotification(type, message, duration = 5000) {
+                // Supprimer les anciennes notifications
+                const oldNotifications = document.querySelectorAll('.notification');
+                oldNotifications.forEach(notification => notification.remove());
+
+                // Créer la nouvelle notification
+                const notification = document.createElement('div');
+                notification.className = `notification ${type}`;
+                notification.innerHTML = message;
+
+                // Ajouter au DOM
+                document.body.appendChild(notification);
+
+                // Supprimer après la durée spécifiée
+                setTimeout(() => {
+                    notification.style.animation = 'slideUp 0.3s ease-out';
+                    setTimeout(() => notification.remove(), 300);
+                }, duration);
+            }
+
+            document.getElementById('forceUpdateCheck').addEventListener('click', function() {
+                const button = this;
+                const originalText = button.innerHTML;
+                button.disabled = true;
+                button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Vérification en cours...';
+
+                // Appel AJAX pour forcer la vérification
+                fetch('ajax_actions.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: 'action=force_update_check'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        showNotification('error', `❌ ${data.message}`);
+                    } else {
+                        if (data.available) {
+                            showNotification('warning', `
+                                <div>
+                                    <strong>✨ Nouvelle version disponible !</strong><br>
+                                    Version ${data.latest_version} disponible<br>
+                                    (version actuelle: ${data.current_version})
+                                </div>
+                            `, 8000);
+                        } else {
+                            showNotification('success', `
+                                <div>
+                                    <strong>✅ Vous êtes à jour !</strong><br>
+                                    Version actuelle: ${data.current_version}
+                                </div>
+                            `);
+                        }
+                        
+                        // Mettre à jour les temps affichés
+                        document.getElementById('lastCheckTime').textContent = new Date().toLocaleString();
+                        const nextCheck = new Date(Date.now() + <?php echo $updateChecker->getCheckInterval() * 1000; ?>);
+                        document.getElementById('nextCheckTime').textContent = nextCheck.toLocaleString();
+                    }
+                })
+                .catch(error => {
+                    console.error('Erreur:', error);
+                    showNotification('error', '❌ Erreur lors de la vérification');
+                })
+                .finally(() => {
+                    button.disabled = false;
+                    button.innerHTML = originalText;
+                });
+            });
+            </script>
 
             <?php if ($updateInfo): ?>
             <div class="update-available">
