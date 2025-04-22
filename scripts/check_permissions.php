@@ -50,10 +50,24 @@ class PermissionChecker {
             'config' => ['path' => $this->base_path . '/config', 'required' => '770'],
             'admin' => ['path' => $this->base_path . '/admin', 'required' => '770'],
             'scripts' => ['path' => $this->base_path . '/scripts', 'required' => '770'],
-            'assets' => ['path' => $this->base_path . '/assets', 'required' => '775']
+            'assets' => ['path' => $this->base_path . '/assets', 'required' => '775'],
+            'config/backups' => ['path' => $this->base_path . '/config/backups', 'required' => '770', 'create_if_missing' => true]
         ];
 
         foreach ($core_dirs as $name => $info) {
+            // Vérifier si le dossier doit être créé s'il n'existe pas
+            if (!file_exists($info['path']) && isset($info['create_if_missing']) && $info['create_if_missing']) {
+                if (!$this->createDirectory($info['path'], octdec('0' . $info['required']))) {
+                    $results['all_ok'] = false;
+                    $results['details'][$name] = [
+                        'path' => $info['path'],
+                        'error' => 'Impossible de créer le dossier',
+                        'type' => 'directory'
+                    ];
+                    continue;
+                }
+            }
+
             $current_perms = $this->getFilePermissions($info['path']);
             $is_ok = $current_perms === $info['required'];
             
@@ -123,5 +137,21 @@ class PermissionChecker {
         }
         
         return $commands;
+    }
+
+    private function createDirectory($path, $permissions) {
+        try {
+            if (!file_exists($path)) {
+                if (!mkdir($path, $permissions, true)) {
+                    error_log("Erreur lors de la création du dossier: $path");
+                    return false;
+                }
+                chmod($path, $permissions); // S'assurer que les permissions sont correctes
+            }
+            return true;
+        } catch (Exception $e) {
+            error_log("Exception lors de la création du dossier $path: " . $e->getMessage());
+            return false;
+        }
     }
 } 

@@ -64,3 +64,7 @@ sess_*
 # Configuration files
 config/config.php
 config/log_patterns.php 
+# Exclusions personnalisées
+config/backups/
+tests/
+.Old/
