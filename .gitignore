@@ -1,16 +1,16 @@
 # Configuration locale
-/config/local.php
-/config/config.local.php
+config/local.php
+config/config.local.php
 .env
 .env.local
 .env.*.local
 
 # Cache et logs
-/cache/*
-!/cache/.gitkeep
+cache/*
+!cache/.gitkeep
 
-/logs/*
-!/logs/.gitkeep
+logs/*
+!logs/.gitkeep
 
 update_cache.json
 

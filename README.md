@@ -2,16 +2,7 @@
 
 LogviewR est un outil de visualisation et d'analyse de logs en temps réel, conçu pour être simple, rapide et efficace.
 
-## Fonctionnalités 🌟
-
-- Support multi-formats (Apache, Nginx, NPM, Syslog)
-- Interface responsive et moderne
-- Filtrage en temps réel
-- Thème clair/sombre
-- Administration sécurisée
-- Mise à jour automatique
-- Support multilingue
-
+ 
 ## Fonctionnalités Principales ✨
 
 <details>
@@ -65,24 +56,12 @@ LogviewR est un outil de visualisation et d'analyse de logs en temps réel, con�
    git clone https://github.com/Erreur32/LogviewR.git
    cd LogviewR
 
-   # Configurer les permissions
-   chmod -R 755 .
-   chmod -R 777 cache/
    ```
-
-3. **Configuration**
-   - Copier `config/config.example.php` vers `config/config.php`
-   - Modifier les paramètres selon vos besoins
-   - Configurer les chemins des logs dans `config/sources.php`
-
+ 
 ## Screen
 
-<details>
-  <summary>Voir l'image</summary>
+ ![Logviewer](https://github.com/Erreur32/LogviewR/blob/main/assets/logviewer.png)
  
-  ![Logviewer](https://github.com/Erreur32/LogviewR/blob/main/assets/logviewer.png)
-</details>
-
 ## Configuration ⚙️
 
 Panneau admin avec toutes les options configurable!
