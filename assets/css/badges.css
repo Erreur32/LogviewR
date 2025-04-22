@@ -604,57 +604,6 @@ td:nth-child(3) .badge:not(.ip-badge) {
     color: #64b5f6 !important;
 }
 
-/* Styles pour le bouton de filtres dans la barre de filtres */
-#logForm .filter-toggle {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 4px 10px;
-    border-radius: 4px;
-    border: 1px solid var(--primary-color);
-    background: var(--background-color);
-    color: var(--text-color);
-    cursor: pointer;
-    transition: all 0.3s ease;
-    margin: 0 10px;
-    height: 30px;
-}
-
-#logForm .filter-toggle.active {
-    background: var(--primary-color);
-    color: var(--background-color);
-}
-
-#logForm .filter-toggle:hover {
-    opacity: 0.9;
-    transform: translateY(-1px);
-}
-
-#logForm .filter-toggle i {
-    font-size: 0.9em;
-}
-
-/* Style pour la barre de filtres */
-#logForm {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px;
-    background: var(--background-color-alt);
-    border-radius: 4px;
-    margin-bottom: 15px;
-    flex-wrap: wrap;
-}
-
-#logForm > div {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-}
-
-#logForm label {
-    white-space: nowrap;
-}
 
 /* Stats badges container */
 .stats-badges {

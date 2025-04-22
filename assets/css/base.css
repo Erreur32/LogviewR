@@ -102,9 +102,9 @@ h2 {
 }
 
 .category.active {
-    box-shadow: 4px 5px 10px rgba(170, 167, 167, 0.584);
-  /*  transform: translateY(-5px);*/
-   /* border-color: var(--success-color);*/
+    background: var(--primary-color-light);
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(var(--primary-color-rgb), 0.1);
 }
 
 .category h3 {
@@ -132,6 +132,49 @@ h2 {
 .category:nth-child(2) { border-left: 4px solid #cc782e; } /* Nginx */
 .category:nth-child(3) { border-left: 4px solid #3498db; } /* Syslog */
 
+/* Style pour le dernier log sélectionné */
+.category:last-child.active {
+    background: var(--primary-color-light);
+    border-color: var(--primary-color);
+}
+
+.category:last-child.active h3 {
+    color: var(--primary-color);
+}
+
+.category:last-child.active h3 i {
+    color: var(--primary-color);
+}
+
+/* Animation pour le changement de sélection */
+.category {
+    transition: all 0.3s ease;
+}
+
+.category.active {
+    transform: translateY(-2px);
+}
+
+/* Style pour le nom du dossier dans le dernier log sélectionné */
+.category:last-child.active .folder-name {
+    color: var(--primary-color);
+    font-weight: bold;
+}
+
+/* Style pour le conteneur du dernier log sélectionné */
+.category:last-child.active {
+    position: relative;
+}
+
+/* Style pour le menu de sélection des logs Syslog */
+.category:last-child .log-select option {
+    color: var(--warning-color);
+}
+
+.category:last-child .log-select optgroup {
+    color: var(--warning-color);
+}
+
 /* ==========================================================================
    Form Styles
    ========================================================================== */
@@ -148,31 +191,10 @@ h2 {
     justify-content: space-between;
 }
 
-.level-filter {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    order: 1;
-}
+ 
 
-.filter-group {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: nowrap;
-    order: 2;
-}
+ 
 
-.length-menu {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    order: 3;
-}
-
-#resetFilters {
-    order: 4;
-}
 
 #persistentFilter {
     padding: 8px;
@@ -196,6 +218,9 @@ h2 {
 #resetFilters {
     padding: 8px 16px;
     background: var(--primary-color);
+    background: unset;
+    /*background: var(--primary-color);*/
+    border: 1px solid var(--primary-color) !important;
     color: white;
     border: none;
     border-radius: 4px;
@@ -578,26 +603,46 @@ select {
     border-radius: 4px !important;
     cursor: pointer !important;
     width: 100% !important;
+    transition: all 0.3s ease !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    appearance: none !important;
 }
 
 select option {
-    background-color: var(--select-bg) !important;
+    background: var(--select-bg) !important;
     color: var(--select-text) !important;
-    padding: 8px 12px !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    appearance: none !important;
 }
 
 select option:hover {
-    background-color: var(--option-hover) !important;
+    background: var(--primary-color-light) !important;
+    color: var(--primary-color) !important;
 }
 
 select option:checked {
-    background-color: var(--option-selected) !important;
+    background: #fff3cd !important;
+    color: #b79328 !important;
+    font-weight: bold !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    appearance: none !important;
 }
 
 select optgroup {
     background-color: var(--select-bg) !important;
     color: var(--select-text) !important;
     font-weight: bold !important;
+    padding: 5px 0 !important;
+}
+
+/* Style quand le menu est ouvert */
+select:focus {
+    border-color: var(--primary-color) !important;
+    box-shadow: 0 0 0 2px rgba(var(--primary-color-rgb), 0.1) !important;
+    outline: none !important;
 }
 
 /* ==========================================================================
@@ -819,27 +864,7 @@ footer {
     transform: rotate(180deg);
 }
 
-#logForm .filter-toggle {
-    padding: 8px 16px;
-    background: var(--primary-color);
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
 
-#logForm .filter-toggle:hover {
-    opacity: 0.9;
-    transform: translateY(-1px);
-}
-
-#logForm .filter-toggle i {
-    font-size: 0.9em;
-}
 
 /* Refresh Controls Styles */
 #logForm .refresh-controls {
@@ -851,8 +876,9 @@ footer {
 
 #logForm .refresh-button {
     padding: 8px 16px;
-    background: var(--success-color);
-    background: var(--primary-color);
+    background: unset;
+    /*background: var(--primary-color);*/
+    border: 1px solid var(--primary-color) !important;
     color: white;
     border: none;
     border-radius: 4px;
@@ -904,6 +930,7 @@ footer {
     align-items: center;
     gap: 8px;
     color: var(--text-color);
+    
 }
 
 #logForm .auto-refresh label {
@@ -913,43 +940,44 @@ footer {
     cursor: pointer;
 }
 
-#logForm .auto-refresh input[type="checkbox"] {
+#logForm .auto-refresh input[type="checkbox"],
+#autoRefreshToggle {
     width: 16px;
     height: 16px;
-    cursor: pointer;
-}
-
-#logForm .auto-refresh input[type="number"] {
-    width: 80px;
-    padding: 4px 8px;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    background: var(--bg-color);
-    color: var(--text-color);
-}
-
-#logForm .auto-refresh span {
-    color: var(--secondary-color);
-    font-size: 0.9em;
-}
-
-/* Style pour la barre de filtres */
-.dataTables_wrapper thead th {
-    background-color: var(--table-header-bg) !important;
-    color: var(--text-color) !important;
-    border-color: var(--border-color) !important;
-}
-
-
-.level-filter {
-    display: none; /* Caché par défaut */
-}
-
-/* Style pour réduire la largeur de la case à cocher */
-#autoRefreshToggle {
-    width: 8px;
-    height: 16px;
     margin-right: 5px;
+    background: var(--bg-color-dark);
+    border: 1px solid var(--border-color);
+    border-color: var(--select-border);
+    border-radius: 3px;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.3s ease;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+}
+
+#logForm .auto-refresh input[type="checkbox"]:checked,
+#autoRefreshToggle:checked {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+#logForm .auto-refresh input[type="checkbox"]:checked::before,
+#autoRefreshToggle:checked::before {
+    content: "✓";
+    position: absolute;
+    color: white;
+    font-size: 12px;
+    line-height: 16px;
+    text-align: center;
+    width: 100%;
+}
+
+#logForm .auto-refresh input[type="checkbox"]:hover,
+#autoRefreshToggle:hover {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(var(--primary-color-rgb), 0.1);
 }
 
 /* Style pour aligner le label avec la case à cocher */
@@ -957,4 +985,115 @@ footer {
     display: flex;
     align-items: center;
     gap: 5px;
+}
+
+ 
+
+/* Style pour la case à cocher d'auto-rafraîchissement */
+#autoRefreshToggle {
+    width: 16px;
+    height: 16px;
+    margin-right: 5px;
+    background: var(--bg-color-dark);
+    border: 1px solid var(--border-color);
+    border-radius: 3px;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+#autoRefreshToggle:checked {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+#autoRefreshToggle:checked::before {
+    content: "✓";
+    position: absolute;
+    color: white;
+    font-size: 12px;
+    line-height: 16px;
+    text-align: center;
+    width: 100%;
+}
+
+#autoRefreshToggle:hover {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(var(--primary-color-rgb), 0.1);
+}
+
+/* Style pour aligner le label avec la case à cocher */
+.auto-refresh label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+#logForm .auto-refresh input[type="number"] {
+    width: 45px;
+    padding: 4px 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--bg-color);
+    color: var(--text-color);
+    font-size: 0.9em;
+    transition: all 0.3s ease;
+    text-align: center;
+}
+
+#logForm .auto-refresh input[type="number"]:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(var(--primary-color-rgb), 0.1);
+}
+
+/* Style pour les flèches du champ numérique */
+#logForm .auto-refresh input[type="number"]::-webkit-inner-spin-button,
+#logForm .auto-refresh input[type="number"]::-webkit-outer-spin-button {
+    height: 20px;
+    opacity: 0.5;
+    cursor: pointer;
+}
+
+#logForm .auto-refresh input[type="number"]::-webkit-inner-spin-button:hover,
+#logForm .auto-refresh input[type="number"]::-webkit-outer-spin-button:hover {
+    opacity: 1;
+}
+
+
+#logForm .filter-toggle {
+    padding: 8px 16px;
+    background: unset  !important;
+    border: 1px solid var(--primary-color) !important;
+    color: white;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+#logForm .filter-toggle:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+}
+
+.active i {
+    color: #e624dc;
+    transition: transform 0.3s ease;
+    font-size: 0.9em;
+}
+
+
+  
+.welcome-message   {
+font-size: 24px;
+color: var(--primary-color);
+}
+
+
+
+.welcome-features i {
+color: var(--primary-color);
 }

@@ -1,78 +1,41 @@
 <?php
 /**
- * Default configuration file
- * Contains all default settings and patterns
- * Used as a base configuration that can be overridden by config.php and log_patterns.php
+ * Default configuration file for LogviewR
+ * DO NOT MODIFY THIS FILE! Create a config.php file instead.
  */
 
 return [
+    // Application settings
+    'app_name' => 'LogviewR',
+    'timezone' => 'Europe/Paris',
+    'locale' => 'fr_FR',
+    
+    // Debug settings
     'debug' => [
         'enabled' => false,
-        'log_format' => '[%timestamp%] [%level%] %message%',
-        'timestamp_format' => 'Y-m-d H:i:s.u T',
-        'log_level' => 'DEBUG',
-        'log_to_apache' => false
+        'log_file' => __DIR__ . '/../logs/debug.log',
+        'log_level' => 'INFO'  // DEBUG, INFO, WARNING, ERROR
     ],
-    'app' => [
-        'max_execution_time' => 30,
-        'max_lines_per_request' => 20000,
-        'default_lines_per_page' => 100,
-        'refresh_interval' => 6000,
-        'excluded_extensions' => ['gz', 'zip', 'tar', 'rar', '7z', 'bz2', 'xz']
+    
+    // Security settings
+    'security' => [
+        'allowed_ips' => ['127.0.0.1', '::1'],  // localhost IPv4 and IPv6
+        'session_lifetime' => 3600,  // 1 hour
+        'max_login_attempts' => 5
     ],
-    'paths' => [
-        'apache_logs' => '/var/log/apache2',
-        'nginx_logs' => '/var/log/nginx',
-        'syslog' => '/var/log'
+    
+    // Display settings
+    'display' => [
+        'lines_per_page' => 100,
+        'date_format' => 'Y-m-d H:i:s',
+        'refresh_interval' => 30,  // seconds
+        'theme' => 'light'  // light or dark
     ],
-    'date_formats' => [
-        'display' => 'd/m/Y H:i:s'
-    ],
-    'themes' => [
-        'light' => [
-            'primary_color' => '#3498db',
-            'text_color' => '#333333',
-            'bg_color' => '#ffffff'
-        ],
-        'dark' => [
-            'primary_color' => '#3498db',
-            'text_color' => '#ffffff',
-            'bg_color' => '#1a1a1a'
-        ]
-    ],
-    'theme' => 'dark',
-    'filters' => [
-        'exclude' => [
-            'ips' => [
-                '/^192\.168\.1\.(10|50)$/',
-                '/^127\.0\.0\.1$/',
-                '/^10\.0\.0\.[1-2]$/',
-                '/^192\.168\.1\.(150|254)$/',
-                '/^212\.203\.103\.210$/',
-                '/^188\.165\.194\.218$/'
-            ],
-            'requests' => [
-                '/server-status\?auto/',
-                '/favicon\.ico/',
-                '/\.(jpg|png|gif|css|js)$/',
-                '/robots\.txt/'
-            ],
-            'user_agents' => [
-                '/bot/',
-                '/crawler/',
-                '/spider/',
-                '/wget/',
-                '/curl/',
-                '/munin/'
-            ],
-            'users' => [
-                '/^Erreur32$/',
-                '/^(bot|crawler|spider)$/'
-            ],
-            'referers' => [
-                '/^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.1\.150)/'
-            ],
-            'content' => []
-        ]
+    
+    // Log file settings
+    'logs' => [
+        'directory' => __DIR__ . '/../logs',
+        'max_file_size' => 10485760,  // 10MB
+        'retention_days' => 30
     ]
 ]; 

@@ -511,27 +511,28 @@ if (empty($log_file)) {
   
   <!-- Puis le JavaScript de DataTables -->
   <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.js"></script>
+  <script src="https://cdn.datatables.net/colreorder/1.5.4/js/dataTables.colReorder.min.js"></script>
   
   <!-- CSS externes -->
   <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.11.5/css/jquery.dataTables.css">
+  <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/colreorder/1.5.4/css/colReorder.dataTables.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   
   <!-- Notre CSS personnalisé -->
-
-
   <link rel="stylesheet" href="assets/css/variables.css">
   <link rel="stylesheet" href="assets/css/base.css">
   <link rel="stylesheet" href="assets/css/table.css">
+
   <link rel="stylesheet" href="assets/css/badges.css">
   <link rel="stylesheet" href="assets/css/links.css">
   <link rel="stylesheet" href="assets/css/syslog.css">
 
-  
+ 
   <!--  Notre JavaScript personnalisé -->
+  <script src="assets/js/column_config.js" defer></script>
   <script src="assets/js/table.js" defer></script>
   <script src="assets/js/filters.js" defer></script>
-
-
+ 
 </head>
 <body>
   <div class="container">
@@ -746,31 +747,34 @@ if (empty($log_file)) {
       </div>
     </div>
 
+
+
     <div id="logForm">
-      <div class="level-filter">
-        <label>Niveau </label>
-        <select id="levelFilter">
-          <option value="">Tous</option>
-          <option value="error">Erreurs</option>
-          <option value="warning">Avertissements</option>
-          <option value="info">Information</option>
-          <option value="notice">Notices</option>
-        </select>
-      </div>
+
+      <button id="filterToggle" class="filter-toggle active" title="Activer/Désactiver les filtres" style="width: 134px;">
+          <i class="fas fa-filter"></i> Filtres ON
+      </button>
+
+
 
       <div class="filter-group">
         <label>Filtre recherche:</label>
         <input type="text" id="persistentFilter" placeholder="Filtrer les résultats...">
       </div>
 
+
+      <button id="resetFilters">Réinitialiser</button>
+
       <div class="length-menu">
         <label>Lignes:</label>
         <select id="lengthMenu">
-          <option value="10">10</option>
-          <option value="25" selected>25</option>
-          <option value="50">50</option>
-          <option value="100">100</option>
-          <option value="-1">Tout</option>
+          <option value="10" <?php echo ($config['app']['default_lines_per_page'] == 10) ? 'selected' : ''; ?>>10</option>
+          <option value="25" <?php echo ($config['app']['default_lines_per_page'] == 25) ? 'selected' : ''; ?>>25</option>
+          <option value="32" <?php echo ($config['app']['default_lines_per_page'] == 32) ? 'selected' : ''; ?>>32</option>
+          <option value="50" <?php echo ($config['app']['default_lines_per_page'] == 50) ? 'selected' : ''; ?>>50</option>
+          <option value="75" <?php echo ($config['app']['default_lines_per_page'] == 75) ? 'selected' : ''; ?>>75</option>
+          <option value="100" <?php echo ($config['app']['default_lines_per_page'] == 100) ? 'selected' : ''; ?>>100</option>
+          <option value="-1" <?php echo ($config['app']['default_lines_per_page'] == -1) ? 'selected' : ''; ?>>Tout</option>
         </select>
       </div>
 
@@ -783,16 +787,12 @@ if (empty($log_file)) {
             <input type="checkbox" id="autoRefreshToggle">
             Auto-Refresh
           </label>
-          <input type="number" id="refreshInterval" value="<?php echo ($config['app']['refresh_interval'] ?? 1000) / 1000; ?>" min="10" step="10">
-          <span>s</span>
-        </div>
+          <input type="number" id="refreshInterval" value="<?php echo $config['app']['refresh_interval'] ?? 20; ?>" min="5" step="1">
+        sec. </div>
       </div>
 
-      <button id="filterToggle" class="filter-toggle active" title="Activer/Désactiver les filtres">
-        <i class="fas fa-filter"></i> Filtres ON
-      </button>
 
-      <button id="resetFilters">Réinitialiser</button>
+
     </div>
 
     <div class="output-container">
@@ -816,8 +816,8 @@ if (empty($log_file)) {
         <span class="footer-made-by">
           Made with <i class="fas fa-coffee"></i> by 
           <a href="https://github.com/Erreur32" target="_blank">Erreur32</a>
-          | <a href="admin/login.php" class="admin-link"><i class="fas fa-cog"></i> Administration</a>
-          | <a href="https://github.com/Erreur32/LogviewR" target="_blank"><i class="fab fa-github"></i> v<?php echo LOGVIEWR_VERSION; ?></a>
+          | <a href="admin/login.php" class="admin-link" ><i class="fas fa-cog"></i> Admin</a>
+          | <i class="fab fa-github"></i><a href="https://github.com/Erreur32/LogviewR" target="_blank" style="color:green;"> v<?php echo LOGVIEWR_VERSION; ?></a>
         </span>
       </div>
       <div class="footer-right">
@@ -958,7 +958,7 @@ if (empty($log_file)) {
     // Fonction pour afficher le message de bienvenue
     function showWelcomeMessage() {
       const welcomeMessage = `
-        <div class="welcome-message"  style="border: 1px solid var(--primary-color);">
+        <div class="welcome-message">
           <div class="welcome-icon">
             <i class="fas fa-file-alt"></i>
           </div>
@@ -986,10 +986,6 @@ if (empty($log_file)) {
       $('.category').removeClass('active');
       $(this).closest('.category').addClass('active');
       localStorage.setItem('selectedLogFile', logFile);
-      
-      // Gérer la visibilité du filtre de niveau
-      const isSyslog = $(this).closest('.category').find('h3').text().includes('Syslog');
-      $('.level-filter').toggle(isSyslog);
       
       loadLog(logFile);
     });
@@ -1092,7 +1088,20 @@ if (empty($log_file)) {
     const savedLevel = localStorage.getItem('selectedLevel');
 
     // Initialiser le menu de longueur avec la valeur de configuration
-    $('#lengthMenu').val(defaultLinesPerPage);
+    $(document).ready(function() {
+      $('#lengthMenu').val(defaultLinesPerPage);
+      if ($('#lengthMenu').val() === null) {
+        // Si la valeur n'existe pas dans les options, sélectionner la plus proche
+        const values = $('#lengthMenu option').map(function() {
+          return parseInt($(this).val());
+        }).get().filter(v => v > 0);
+        
+        const closest = values.reduce(function(prev, curr) {
+          return (Math.abs(curr - defaultLinesPerPage) < Math.abs(prev - defaultLinesPerPage) ? curr : prev);
+        });
+        $('#lengthMenu').val(closest);
+      }
+    });
 
     if (savedTheme) {
       document.documentElement.setAttribute('data-theme', savedTheme);

@@ -2,153 +2,185 @@
 require_once __DIR__ . '/BaseParser.php';
 
 /**
- * Parser for Apache access logs
- * Format: %v:%p %a %l %u %t \"%r\" %>s %O \"%{Referer}i\" \"%{User-Agent}i\"
- * Example: example.com:80 192.168.1.1 - john [01/Feb/2020:12:00:00 +0100] "GET /index.html HTTP/1.1" 200 1234 "http://example.com" "Mozilla/5.0"
+ * Parser for Apache Access Logs
+ * Format: "%t %h %a %l %u %v \"%r\" %>s %O \"%{Referer}i\" \"%{User-Agent}i\""
  */
 class ApacheAccessParser extends BaseParser {
+    
     protected $pattern;
-    protected $debug = false;
-    private $patterns;
-    private $excludedIps = [];
-    private $excludedRequests = [];
-    private $excludedUserAgents = [];
-    private $excludedUsers = [];
-
-    // HTTP status code classifications
-    private $httpCodes = [
-        'success' => [200, 201, 204],
-        'redirect' => [301, 302, 303, 307, 308],
-        'client_error' => [400, 401, 403, 404, 405],
-        'server_error' => [500, 501, 502, 503, 504]
-    ];
 
     public function __construct() {
         parent::__construct();
         
-        // Load configuration
-        $config = require __DIR__ . '/../config/config.php';
-        $this->debug = $config['debug']['enabled'] ?? false;
-        
-        // Load pattern and columns from configuration
+        // Load pattern from configuration
         $patterns = require __DIR__ . '/../config/log_patterns.php';
-        $this->pattern = $patterns['apache']['access']['pattern'];
-        
-        // Initialize columns using the protected property from BaseParser
-        $this->columns = $patterns['apache']['access']['columns'];
-        
-        if ($this->debug) {
-            $this->debugLog("=== ApacheAccessParser initialized ===");
-            $this->debugLog("Pattern: " . $this->pattern);
-            $this->debugLog("Columns: " . print_r($this->columns, true));
-        }
+        $this->pattern = $patterns['apache']['access']['pattern'] ?? '/^\[([^\]]+)\] (\S+) (\S+) (\S+) (\S+) (\S+) "([^"]*)" (\d{3}) (\d+) "([^"]*)" "([^"]*)"$/';
     }
+    
+    protected $columns = [
+        'date' => [
+            'name' => 'Date',
+            'class' => 'column-date',
+            'width' => '160px',
+            'sortable' => true
+        ],
+        'host' => [
+            'name' => 'Client Host',
+            'class' => 'column-host',
+            'width' => '140px',
+            'sortable' => true
+        ],
+        'real_ip' => [
+            'name' => 'Real IP',
+            'class' => 'column-real-ip',
+            'width' => '120px',
+            'sortable' => true
+        ],
+        'ident' => [
+            'name' => 'Ident',
+            'class' => 'column-ident',
+            'width' => '80px',
+            'sortable' => true
+        ],
+        'user' => [
+            'name' => 'User',
+            'class' => 'column-user',
+            'width' => '100px',
+            'sortable' => true
+        ],
+        'vhost' => [
+            'name' => 'Virtual Host',
+            'class' => 'column-vhost',
+            'width' => '140px',
+            'sortable' => true
+        ],
+        'request' => [
+            'name' => 'Request',
+            'class' => 'column-request',
+            'width' => '200px',
+            'sortable' => true
+        ],
+        'status' => [
+            'name' => 'Status',
+            'class' => 'column-status',
+            'width' => '80px',
+            'sortable' => true
+        ],
+        'size' => [
+            'name' => 'Size',
+            'class' => 'column-size',
+            'width' => '80px',
+            'sortable' => true
+        ],
+        'referer' => [
+            'name' => 'Referer',
+            'class' => 'column-referer',
+            'width' => '180px',
+            'sortable' => true
+        ],
+        'user_agent' => [
+            'name' => 'User-Agent',
+            'class' => 'column-user-agent',
+            'width' => 'auto',
+            'sortable' => true
+        ]
+    ];
 
-    protected function debugLog($message, $data = []) {
-        if ($this->debug) {
-            parent::debugLog($message, $data);
+    /**
+     * Parse a single line of the access log
+     * @param string $line The line to parse
+     * @param string $type The type of log (default: 'access')
+     * @return array|null Parsed data or null if parsing fails
+     */
+    public function parse($line, $type = 'access') {
+        if (!preg_match($this->pattern, $line, $matches)) {
+            return null;
         }
+
+        // Extraire les composants
+        $timestamp = $matches[1];
+        $host = $matches[2];
+        $real_ip = $matches[3];
+        $ident = $matches[4];
+        $user = $matches[5];
+        $vhost = $matches[6];
+        $request = $matches[7];
+        $status = $matches[8];
+        $size = $matches[9];
+        $referer = $matches[10];
+        $user_agent = $matches[11];
+
+        // Parse request into method and path
+        list($method, $path) = $this->parseRequest($request);
+
+        // Formater la date
+        $date = $this->formatDate($timestamp);
+
+        // Construire le résultat avec les badges formatés
+        $result = [
+            'date' => $date,
+            'host' => $this->formatHostBadge($host),
+            'real_ip' => $this->formatIpBadge($real_ip),
+            'ident' => $ident === '-' ? '' : $ident,
+            'user' => $this->formatUserBadge($user),
+            'vhost' => $this->formatHostBadge($vhost),
+            'request' => $this->formatRequestBadge($method, $path),
+            'status' => $this->formatStatusBadge($status),
+            'size' => $this->formatSize($size),
+            'referer' => $this->formatRefererBadge($referer),
+            'user_agent' => $this->formatUserAgentBadge($user_agent)
+        ];
+
+        // Appliquer les filtres si activés
+        if ($this->filtersEnabled && $this->shouldFilter($result)) {
+            return ['filtered' => true, 'reason' => 'filter_match'];
+        }
+
+        return $result;
     }
 
     /**
      * Parse HTTP request string into method and path
-     * @param string $request The raw request string (e.g. "GET /index.html HTTP/1.1")
-     * @return array Array containing [method, path]
      */
-    private function parseRequest($request) {
-        if ($request === '-' || empty($request)) {
+    protected function parseRequest($request) {
+        if (empty($request) || $request === '-') {
             return ['-', '-'];
         }
         
-        // Split request into parts
         $parts = explode(' ', $request);
         if (count($parts) >= 2) {
-            return [$parts[0], $parts[1]];  // method, path
+            return [$parts[0], $parts[1]];
         }
         
-        return ['-', '-'];  // Default if parsing fails
+        return ['-', '-'];
     }
 
     /**
-     * Parse a single line of Apache access log
-     * Uses the pattern from log_patterns.php to extract data
-     * Lets BaseParser handle all badge formatting
+     * Enhanced referer badge with clickable links and truncation
+     * @param string $referer The referer URL
+     * @param int $length Maximum length before truncation
+     * @return string Formatted HTML badge with clickable link
      */
-    public function parse($line, $type = 'access') {
-        $line = trim($line);
-        if (empty($line)) {
-            return null;
+    protected function formatRefererBadge($referer, $length = 50) {
+        if ($referer === '-' || empty($referer)) {
+            return '<span class="log-badge referer referer-empty">-</span>';
         }
 
-        // Try to match the line with our pattern
-        if (!preg_match($this->pattern, $line, $matches)) {
-            if ($this->debug) {
-                error_log("=== Apache Access Parser Debug ===");
-                error_log("Raw line: " . $line);
-                error_log("Pattern used: " . $this->pattern);
-                error_log("Line does not match pattern");
-            }
-            return null;
+        // Ensure the referer is properly escaped for security
+        $escapedReferer = htmlspecialchars($referer, ENT_QUOTES);
+        
+        // Tronquer le texte affiché si nécessaire
+        $displayText = $escapedReferer;
+        if (mb_strlen($displayText) > $length) {
+            $displayText = mb_substr($displayText, 0, $length) . '...';
         }
-
-        if ($this->debug) {
-            error_log("Matches: " . print_r($matches, true));
-        }
-
-        // Extract data according to pattern groups
-        $data = [
-            'host' => $matches[1] . ':' . $matches[2],  // virtual host:port
-            'ip' => $matches[3],  // client IP address
-            'identity' => $matches[4],  // RFC 1413 identity
-            'user' => $matches[5],  // authenticated user
-            'date' => $matches[6],  // timestamp
-            'request' => $matches[7], // full request
-            'status' => $matches[8], // status code
-            'size' => $matches[9],   // size
-            'referer' => $matches[10], // referer
-            'user_agent' => $matches[11], // user agent
-            'raw' => $line
-        ];
-
-        // Debug log
-        if ($this->debug) {
-            error_log("=== Apache Access Parser Debug ===");
-            error_log("Raw line: " . $line);
-            error_log("IP from matches: " . ($matches[3] ?? 'NOT FOUND'));
-            error_log("User from matches: " . ($matches[5] ?? 'NOT FOUND'));
-            error_log("Pattern used: " . $this->pattern);
-            error_log("All matches: " . print_r($matches, true));
-        }
-
-        // Check if line should be filtered
-        if ($this->filtersEnabled && $this->shouldFilter($data)) {
-            if ($this->debug) {
-                error_log("Line filtered by rules");
-            }
-            return null;
-        }
-
-        // Parse request into method and path
-        list($method, $path) = $this->parseRequest($data['request']);
-
-        $result = [
-            'date' => parent::formatDate($data['date']),
-            'host' => parent::formatHostBadge($data['host']),
-            'ip' => parent::formatIpBadge($data['ip']),
-            'user' => parent::formatUserBadge($data['user']),
-            'request' => parent::formatRequestBadge($method, $path),
-            'status' => parent::formatStatusBadge($data['status']),
-            'size' => parent::formatSize($data['size']),
-            'referer' => parent::formatRefererBadge($data['referer']),
-            'user_agent' => parent::formatUserAgentBadge($data['user_agent']),
-            'raw' => $data['raw']
-        ];
-
-        if ($this->debug) {
-            error_log("Final result: " . print_r($result, true));
-        }
-
-        return $result;
+        
+        return sprintf(
+            '<span class="log-badge referer" title="%s"><a href="%s" target="_blank" rel="noopener noreferrer">%s</a></span>',
+            $escapedReferer, // Tooltip avec l'URL complète
+            $escapedReferer, // URL complète pour le lien
+            $displayText    // Texte tronqué pour l'affichage
+        );
     }
 
     /**

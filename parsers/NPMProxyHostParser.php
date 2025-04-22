@@ -18,14 +18,34 @@ class NPMProxyHostParser extends BaseNPMParser {
         parent::__construct();
         
         // Initialize columns for access logs by default
-        $this->columns = $this->patterns['npm-proxy-host-access']['columns'];
+        $this->columns = $this->patterns['npm']['proxy_host_access']['columns'] ?? [];
+    }
+
+    /**
+     * Set the type of log being parsed
+     * 
+     * @param string $type Type of log (access or error)
+     */
+    public function setType($type) {
+        $this->currentType = $type;
+        $patternKey = 'proxy_host_' . $type;
+        
+        if ($this->debug) {
+            $this->debugLog("Setting type", [
+                'type' => $type,
+                'pattern_key' => $patternKey
+            ]);
+        }
+
+        // Update columns based on type
+        $this->getColumns($type);
     }
 
     /**
      * Get the type prefix for this parser
      */
     public function getType() {
-        return 'npm-proxy-host-' . $this->currentType;
+        return 'proxy_host_' . $this->currentType;
     }
 
     /**
@@ -35,8 +55,29 @@ class NPMProxyHostParser extends BaseNPMParser {
      * @return array Columns configuration
      */
     public function getColumns($type = 'access') {
-        $this->currentType = $type; // Update current type
-        return $this->patterns['npm-proxy-host-' . $type]['columns'] ?? [];
+        $this->currentType = $type;
+        $patternKey = 'proxy_host_' . $type;
+        
+        if (isset($this->patterns['npm'][$patternKey]['columns'])) {
+            $this->columns = $this->patterns['npm'][$patternKey]['columns'];
+            if ($this->debug) {
+                $this->debugLog("Columns loaded for type", [
+                    'type' => $type,
+                    'pattern_key' => $patternKey,
+                    'columns' => $this->columns
+                ]);
+            }
+            return $this->columns;
+        }
+        
+        if ($this->debug) {
+            $this->debugLog("No columns found for type", [
+                'type' => $type,
+                'pattern_key' => $patternKey,
+                'available_patterns' => array_keys($this->patterns['npm'])
+            ]);
+        }
+        return [];
     }
 
     /**
@@ -48,10 +89,29 @@ class NPMProxyHostParser extends BaseNPMParser {
             return null;
         }
 
-        $this->debugLog("Parsing line", ['line' => $line]);
+        $this->currentType = $type;
+        $patternKey = 'proxy_host_' . $type;
+        
+        $this->debugLog("Parsing line", [
+            'line' => $line,
+            'type' => $type,
+            'pattern_key' => $patternKey
+        ]);
 
         // Get the appropriate pattern based on current type
-        $pattern = $this->patterns['npm-proxy-host-' . $this->currentType]['pattern'];
+        if (!isset($this->patterns['npm'][$patternKey]['pattern'])) {
+            $this->debugLog("Pattern not found", [
+                'type' => $type,
+                'pattern_key' => $patternKey,
+                'available_patterns' => array_keys($this->patterns['npm'])
+            ]);
+            return null;
+        }
+
+        // Update columns for current type BEFORE parsing
+        $this->getColumns($type);
+
+        $pattern = $this->patterns['npm'][$patternKey]['pattern'];
         
         // Try to match the line with our pattern
         if (!preg_match($pattern, $line, $matches)) {
@@ -62,9 +122,12 @@ class NPMProxyHostParser extends BaseNPMParser {
             return null;
         }
 
-        $this->debugLog("Matches found", ['matches' => $matches]);
+        $this->debugLog("Matches found", [
+            'matches' => $matches,
+            'columns' => $this->columns
+        ]);
 
-        return $this->currentType === 'access' 
+        return $type === 'access' 
             ? $this->parseAccessLog($matches)
             : $this->parseErrorLog($matches, $line);
     }
@@ -73,30 +136,60 @@ class NPMProxyHostParser extends BaseNPMParser {
      * Parse an access log line
      */
     protected function parseAccessLog($matches) {
-        // Séparer la requête en méthode et chemin
-        $request = $matches[7];
-        $requestParts = explode(' ', trim($request), 2);
-        $requestMethod = $requestParts[0] ?? '';
-        $requestPath = $requestParts[1] ?? '';
+        if (!is_array($matches) || count($matches) < 16) {
+            $this->debugLog("Invalid matches array for access log", [
+                'matches' => $matches,
+                'count' => count($matches)
+            ]);
+            return null;
+        }
 
-        // Extraire l'IP client du format [Client IP]
-        $clientIp = $matches[8] ?? '-';
-        $clientIp = trim($clientIp); // Nettoyer les espaces
+        // Format date
+        $date = $this->formatDate($matches[1] ?? '-');
+
+        // Format status codes
+        $statusIn = $this->formatStatusCode($matches[4] ?? '-');
+
+        // Format method and protocol
+        $method = $this->formatMethodBadge($matches[6] ?? '-');
+        $protocol = $this->formatProtocolBadge($matches[7] ?? '-');
+
+        // Format host and request
+        $host = $this->formatHostBadge($matches[8] ?? '-');
+        $request = $this->formatRequestBadge($matches[6] ?? '-', $matches[9] ?? '-');
+
+        // Format client IP (remove brackets from [Client X.X.X.X])
+        $clientIp = $matches[10] ?? '-';
+        $clientIp = preg_replace('/^\[Client\s+|\]$/', '', $clientIp);
+
+        // Format length and gzip
+        $length = $matches[11] ?? '-';
+        $gzip = $matches[12] ?? '-';
+
+        // Format sent-to
+        $sentTo = $matches[13] ?? '-';
+        $sentTo = preg_replace('/^\[Sent-to\s+|\]$/', '', $sentTo);
+
+        // Format user agent and referer
+        $userAgent = $matches[14] ?? '-';
+        $referer = $matches[15] ?? '-';
 
         return [
-            'date' => $this->formatDate($matches[1]),
-            'status_in' => $this->formatStatusCode($matches[2]),
-            'status_out' => $this->formatStatusCode($matches[3]),
-            'method' => $this->formatMethodBadge($matches[4]),
-            'protocol' => $this->formatProtocolBadge($matches[5]),
-            'host' => $this->formatHostBadge($matches[6]),
-            'request' => $this->formatRequestBadge($requestMethod, $requestPath),
-            'client_ip' => $this->formatIpBadge($clientIp), // Utilisation de l'IP nettoyée
-            'length' => $this->formatSize($matches[9]),
-            'gzip' => $this->formatGzipBadge($matches[10]),
-            'sent_to' => $this->formatIpBadge($matches[11]),
-            'user_agent' => $this->formatUserAgentBadge($matches[12]),
-            'referer' => $this->formatRefererBadge($matches[13])
+            'date' => $date,
+            'identity' => '-',
+            'user' => '-',
+            'status' => $statusIn,
+            'status_in' => '-',
+            'method' => $method,
+            'protocol' => $protocol,
+            'host' => $host,
+            'request' => $request,
+            'client_ip' => $this->formatIpBadge($clientIp),
+            'length' => $this->formatSize($length),
+            'gzip' => $this->formatGzipBadge($gzip),
+            'sent_to' => $this->formatIpBadge($sentTo),
+            'user_agent' => $this->formatUserAgentBadge($userAgent),
+            'referer' => $this->formatRefererBadge($referer)
         ];
     }
 
@@ -104,47 +197,67 @@ class NPMProxyHostParser extends BaseNPMParser {
      * Parse an error log line
      */
     protected function parseErrorLog($matches, $line) {
-        // Format each field with appropriate badges
-        $date = $this->formatDate($matches[1]);
-        $level = $this->formatErrorLevel($matches[2]);
-        $pid = $this->formatPid($matches[3] . '#' . $matches[4]);
-        $connection = isset($matches[5]) ? '*' . $matches[5] : '-';
-        $message = htmlspecialchars($matches[6] ?? '-');
-        
-        // Optional fields
-        $client = isset($matches[7]) && $matches[7] !== '' ? $this->formatIpBadge($matches[7]) : '-';
-        $server = isset($matches[8]) && $matches[8] !== '' ? $this->formatHostBadge($matches[8]) : '-';
-        $request = isset($matches[9]) && $matches[9] !== '' ? $this->formatRequestBadge($matches[9], '') : '-';
-        $upstream = isset($matches[10]) && $matches[10] !== '' ? $this->formatHostBadge($matches[10]) : '-';
-        $host = isset($matches[11]) && $matches[11] !== '' ? $this->formatHostBadge($matches[11]) : '-';
-        $referer = isset($matches[12]) && $matches[12] !== '' ? $this->formatRefererBadge($matches[12]) : '-';
+        if (!is_array($matches) || count($matches) < 10) {
+            $this->debugLog("Invalid matches array for error log", [
+                'matches' => $matches,
+                'line' => $line,
+                'count' => count($matches)
+            ]);
+            return null;
+        }
 
-        $this->debugLog("Parsed error log", [
-            'date' => $date,
-            'level' => $level,
-            'pid' => $pid,
-            'connection' => $connection,
-            'message' => $message,
-            'client' => $client,
-            'server' => $server,
-            'request' => $request,
-            'upstream' => $upstream,
-            'host' => $host,
-            'referer' => $referer
-        ]);
+        // Format date
+        $date = $this->formatDate($matches[1] ?? '-');
+
+        // Format error level
+        $level = $this->formatErrorLevel($matches[2] ?? '-');
+
+        // Format PID#TID
+        $pid = isset($matches[3]) ? sprintf(
+            '<span class="npm-badge process">PID:%s</span>',
+            htmlspecialchars($matches[3])
+        ) : '-';
+
+        $tid = isset($matches[4]) ? sprintf(
+            '<span class="npm-badge thread">TID:%s</span>',
+            htmlspecialchars($matches[4])
+        ) : '-';
+
+        // Format connection ID
+        $connection = isset($matches[5]) ? sprintf(
+            '<span class="npm-badge connection">#%s</span>',
+            htmlspecialchars($matches[5])
+        ) : '-';
+
+        // Format message
+        $message = htmlspecialchars($matches[6] ?? '-');
+
+        // Format client IP
+        $client = isset($matches[7]) ? $this->formatIpBadge($matches[7]) : '-';
+
+        // Format server
+        $server = isset($matches[8]) ? sprintf(
+            '<span class="npm-badge server">%s</span>',
+            htmlspecialchars($matches[8])
+        ) : '-';
+
+        // Format request
+        $request = isset($matches[9]) ? $this->formatRequestBadge('GET', $matches[9]) : '-';
+
+        // Format host
+        $host = isset($matches[10]) ? $this->formatHostBadge($matches[10]) : '-';
 
         return [
             'date' => $date,
             'level' => $level,
             'pid' => $pid,
+            'tid' => $tid,
             'connection' => $connection,
             'message' => $message,
             'client' => $client,
             'server' => $server,
             'request' => $request,
-            'upstream' => $upstream,
-            'host' => $host,
-            'referer' => $referer
+            'host' => $host
         ];
     }
 } 

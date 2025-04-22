@@ -7,14 +7,82 @@ abstract class BaseParser {
     protected $filteredCount = 0;
     protected $filteredBy = [];
     protected $debug = false;
+
+    /**
+     * Configuration de base pour les colonnes communes
+     */
+    protected $defaultColumnConfig = [
+        'date' => [
+            'name' => 'Date',
+            'class' => 'column-date',
+            'width' => '150px',
+            'align' => 'center',
+            'sortable' => true,
+            'searchable' => true,
+            'visible' => true,
+            'render_type' => 'date'
+        ],
+        'ip' => [
+            'name' => 'IP',
+            'class' => 'column-ip',
+            'width' => '120px',
+            'align' => 'center',
+            'sortable' => true,
+            'searchable' => true,
+            'visible' => true,
+            'render_type' => 'ip_badge'
+        ],
+        'level' => [
+            'name' => 'Level',
+            'class' => 'column-level',
+            'width' => '100px',
+            'align' => 'center',
+            'sortable' => true,
+            'searchable' => true,
+            'visible' => true,
+            'render_type' => 'level_badge'
+        ],
+        'message' => [
+            'name' => 'Message',
+            'class' => 'column-message',
+            'width' => 'auto',
+            'align' => 'left',
+            'sortable' => true,
+            'searchable' => true,
+            'visible' => true,
+            'render_type' => 'text',
+            'truncate' => 100
+        ],
+        'referer' => [
+            'name' => 'Referer',
+            'class' => 'column-referer',
+            'width' => '180px',
+            'align' => 'left',
+            'sortable' => true,
+            'searchable' => true,
+            'visible' => true,
+            'render_type' => 'referer_badge',
+            'truncate' => 50
+        ],
+        'user_agent' => [
+            'name' => 'User-Agent',
+            'class' => 'column-user-agent',
+            'width' => '200px',
+            'align' => 'left',
+            'sortable' => true,
+            'searchable' => true,
+            'visible' => true,
+            'render_type' => 'text',
+            'truncate' => 50
+        ]
+    ];
     
     public function __construct() {
         // Load configuration
         $this->config = require __DIR__ . '/../config/config.php';
         
         // Load filters from configuration
-        $patterns = require __DIR__ . '/../config/log_patterns.php';
-        $this->filters = $patterns['filters']['exclude'] ?? [];
+        $this->loadFilters($this->config);
         
         // Set timezone from config
         $timezone = $this->config['timezone'] ?? 'Europe/Paris';
@@ -48,13 +116,20 @@ abstract class BaseParser {
             return false;
         }
 
-        // Check IP filters
-        if (!empty($this->filters['ips']) && isset($components['ip'])) {
-            foreach ($this->filters['ips'] as $pattern) {
-                if (preg_match($pattern, $components['ip'])) {
-                    $this->filteredCount++;
-                    $this->filteredBy['ip'][] = $components['ip'];
-                    return true;
+        // Check IP filters on all IP-related fields
+        if (!empty($this->filters['ips'])) {
+            // List of all fields that might contain IP addresses
+            $ipFields = ['ip', 'client_ip', 'real_ip', 'x_forwarded_for', 'host'];
+            
+            foreach ($ipFields as $field) {
+                if (isset($components[$field])) {
+                    foreach ($this->filters['ips'] as $pattern) {
+                        if (preg_match($pattern, $components[$field])) {
+                            $this->filteredCount++;
+                            $this->filteredBy['ip'][] = $components[$field];
+                            return true;
+                        }
+                    }
                 }
             }
         }
@@ -326,25 +401,103 @@ abstract class BaseParser {
                 $logMessage .= " - " . json_encode($data);
             }
             
-            // Get the log file path from config
-            $config = require __DIR__ . '/../config/config.php';
-            $logFile = $config['debug']['log_file'];
-            
-            // Ensure the directory exists
-            $logDir = dirname($logFile);
-            if (!is_dir($logDir)) {
-                mkdir($logDir, 0755, true);
-            }
-            
-            // Write to the log file
-            $timestamp = date('Y-m-d H:i:s');
-            $logEntry = "[$timestamp] $logMessage" . PHP_EOL;
-            file_put_contents($logFile, $logEntry, FILE_APPEND);
-            
-            // Also write to Apache logs if enabled
-            if ($config['debug']['log_to_apache']) {
+            try {
+                // Get the log file path from config with fallback
+                $config = require __DIR__ . '/../config/config.php';
+                $logFile = $config['debug']['log_file'] ?? __DIR__ . '/../logs/debug.log';
+                
+                // Ensure the log file path is valid
+                if (empty($logFile)) {
+                    $logFile = __DIR__ . '/../logs/debug.log';
+                }
+                
+                // Ensure the directory exists
+                $logDir = dirname($logFile);
+                if (!is_dir($logDir)) {
+                    if (!mkdir($logDir, 0755, true)) {
+                        throw new Exception("Failed to create log directory: $logDir");
+                    }
+                }
+                
+                // Write to the log file
+                $timestamp = date('Y-m-d H:i:s');
+                $logEntry = "[$timestamp] $logMessage" . PHP_EOL;
+                if (file_put_contents($logFile, $logEntry, FILE_APPEND) === false) {
+                    throw new Exception("Failed to write to log file: $logFile");
+                }
+                
+                // Also write to Apache logs if enabled
+                if ($config['debug']['log_to_apache'] ?? false) {
+                    error_log($logMessage);
+                }
+            } catch (Exception $e) {
+                // Fallback to error_log if file logging fails
+                error_log("Logging error: " . $e->getMessage());
                 error_log($logMessage);
             }
+        }
+    }
+
+    /**
+     * Retourne la configuration complète des colonnes pour le JavaScript
+     */
+    public function getColumnsConfig() {
+        $config = [];
+        foreach ($this->columns as $key => $column) {
+            // Fusionner avec la configuration par défaut si elle existe
+            $defaultConfig = $this->defaultColumnConfig[$key] ?? [];
+            $config[$key] = array_merge($defaultConfig, $column);
+        }
+        return $config;
+    }
+
+    /**
+     * Load filters from configuration
+     * @param array $config The configuration array
+     * @return void
+     */
+    protected function loadFilters($config) {
+        // Initialize empty filters array if not set
+        if (!isset($config['filters']) || !isset($config['filters']['exclude'])) {
+            $this->filters = [
+                'exclude' => [
+                    'ips' => [],
+                    'requests' => [],
+                    'user_agents' => [],
+                    'users' => [],
+                    'content' => []
+                ]
+            ];
+            return;
+        }
+
+        // Load filters from config
+        $this->filters = $config['filters'];
+
+        // Ensure all filter arrays exist
+        $requiredFilters = ['ips', 'requests', 'user_agents', 'users', 'content'];
+        foreach ($requiredFilters as $filter) {
+            if (!isset($this->filters['exclude'][$filter])) {
+                $this->filters['exclude'][$filter] = [];
+            }
+        }
+
+        // Compile regex patterns for better performance
+        foreach ($this->filters['exclude'] as $type => $patterns) {
+            foreach ($patterns as $index => $pattern) {
+                try {
+                    // Test if pattern is valid regex
+                    if (@preg_match($pattern, '') === false) {
+                        error_log("Invalid regex pattern in $type filters: $pattern");
+                        unset($this->filters['exclude'][$type][$index]);
+                    }
+                } catch (Exception $e) {
+                    error_log("Error compiling regex pattern in $type filters: " . $e->getMessage());
+                    unset($this->filters['exclude'][$type][$index]);
+                }
+            }
+            // Re-index array after potential removals
+            $this->filters['exclude'][$type] = array_values($this->filters['exclude'][$type]);
         }
     }
 } 

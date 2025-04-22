@@ -6,9 +6,19 @@
 
 // Version information
 $versionInfo = [
-    'version' => '1.4.0', // 🎉 Nouvelle version majeure
-    'release_date' => '2024-03-20',
+    'version' => '1.4.1', // 🔧 Version de correction
+    'release_date' => '2024-04-22',
     'changelog' => [
+        '1.4.1' => [
+            'date' => '2024-04-22',
+            'changes' => [
+                '🐛 Correction du parsing des logs d\'erreur NPM Proxy Host',
+                '🔧 Amélioration de la gestion des types de logs NPM',
+                '✨ Meilleure détection des colonnes selon le type de log',
+                '📝 Mise à jour de la documentation',
+                '🎨 Réorganisation du code des parsers'
+            ]
+        ],
         '1.4.0' => [
             'date' => '2024-03-20',
             'changes' => [

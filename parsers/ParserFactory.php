@@ -225,8 +225,14 @@ class ParserFactory {
                 
                 // Set the type for NPM parsers
                 if (strpos($logType, 'npm-') === 0) {
-                    $type = substr($logType, strrpos($logType, '-') + 1);
-                    $parser->setType($type);
+                    $parts = explode('-', $logType);
+                    $type = end($parts); // Get the last part (access/error)
+                    if (method_exists($parser, 'setType')) {
+                        if (self::$debug) {
+                            error_log("[DEBUG] Setting parser type to: " . $type);
+                        }
+                        $parser->setType($type);
+                    }
                 }
                 
                 return $parser;

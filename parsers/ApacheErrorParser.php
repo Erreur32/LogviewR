@@ -18,9 +18,37 @@ class ApacheErrorParser extends BaseParser {
         
         // Use patterns from configuration
         $this->errorLogPattern = $patterns['apache']['error']['pattern'];
-        $this->debugLogPattern = '/^\[([^\]]+)\]\s+\[([^:]+):([^\]]+)\]\s+\[pid\s+(\d+):tid\s+(\d+)\]\s+\[client\s+([^\]]+)\]\s+(.*?)(?:\s*,\s*referer:\s*([^\]]+))?$/';
+        $this->debugLogPattern = '/^\[([^\]]+)\]\s+\[([^:]+):([^\]]+)\]\s+\[pid\s+(\d+):tid\s+(\d+)\]\s+\[client\s+([^:\]]+)(?::\d+)?\]\s+(.*?)(?:\s*,\s*referer:\s*([^\]]+))?$/';
         
-        $this->columns = $patterns['apache']['error']['columns'];
+        // Define columns with sorting and width properties
+        $this->columns = [
+            'timestamp' => [
+                'name' => 'Date',
+                'class' => 'column-date'        
+            ],
+            'module' => [
+                'name' => 'Module',
+                'class' => 'column-module'
+            ],
+            'level' => [
+                'name' => 'Level',
+                'class' => 'column-level'
+
+            ],
+            'process' => [
+                'name' => 'Process',
+                'class' => 'column-process'
+               
+            ],
+            'client' => [
+                'name' => 'Client',
+                'class' => 'column-client'
+            ],
+            'message' => [
+                'name' => 'Message',
+                'class' => 'column-message'
+            ]
+        ];
         
         if ($this->debug) {
             $this->debugLog("ApacheErrorParser initialized");
@@ -70,11 +98,18 @@ class ApacheErrorParser extends BaseParser {
         $level = trim($matches[3] ?? '-');
         $pid = $matches[4] ?? '-';
         $tid = $matches[5] ?? '-';
-        $client = $matches[6] ?? '-';
+        $client = $matches[6] ?? '-';  // IP sans le port maintenant
         $message = $matches[7] ?? '-';
-        $referer = isset($matches[8]) ? sprintf(' <span class="apache-error-badge referer">%s</span>', htmlspecialchars($matches[8])) : '';
+        $referer = isset($matches[8]) ? $matches[8] : '';
 
-        return $this->formatLogEntry($timestamp, $module, $level, $pid, $tid, $client, $message . $referer);
+        $result = $this->formatLogEntry($timestamp, $module, $level, $pid, $tid, $client, $message, $referer);
+
+        // Appliquer les filtres si activés
+        if ($this->filtersEnabled && $this->shouldFilter($result)) {
+            return ['filtered' => true, 'reason' => 'filter_match'];
+        }
+
+        return $result;
     }
 
     private function parseSystemLog($matches) {
@@ -83,62 +118,105 @@ class ApacheErrorParser extends BaseParser {
         $level = trim($matches[3] ?? '-');
         $pid = $matches[4] ?? '-';
         $tid = $matches[5] ?? '-';
-        $client = isset($matches[6]) ? $matches[6] : '-';
+        // Extraire l'IP sans le port si présent
+        $client = isset($matches[6]) ? preg_replace('/:\d+$/', '', $matches[6]) : '-';
         $message = isset($matches[7]) ? $matches[7] : '-';
 
-        return $this->formatLogEntry($timestamp, $module, $level, $pid, $tid, $client, $message);
+        $result = $this->formatLogEntry($timestamp, $module, $level, $pid, $tid, $client, $message, '');
+
+        // Appliquer les filtres si activés
+        if ($this->filtersEnabled && $this->shouldFilter($result)) {
+            return ['filtered' => true, 'reason' => 'filter_match'];
+        }
+
+        return $result;
     }
 
-    private function formatLogEntry($timestamp, $module, $level, $pid, $tid, $client, $message) {
-        // Format error level with badge
-        $errorLevelClass = $this->getErrorLevelClass($level);
+    private function formatLogEntry($timestamp, $module, $level, $pid, $tid, $client, $message, $referer) {
+        // Format the date for both display and sorting
+        $formattedDate = parent::formatDate($timestamp);
+        $dateForSort = strtotime(preg_replace('/\.\d+/', '', $timestamp));
+        $formattedTimestamp = sprintf(
+            '<span class="sortable-date" data-sort-value="%d">%s</span>',
+            $dateForSort,
+            $formattedDate
+        );
+
+        // Format error level with standardized badge and color classes
+        $level = trim(strtolower($level));
+        $levelClass = $this->getErrorLevelClass($level);
         $formattedLevel = sprintf(
-            '<span class="apache-error-badge level-%s">%s</span>',
-            $errorLevelClass,
-            htmlspecialchars(trim($level))
+            '<span class="log-badge level-%s" data-level="%s">%s</span>',
+            $levelClass,
+            htmlspecialchars($level),
+            ucfirst(htmlspecialchars($level))
         );
 
         // Format module with badge
         $formattedModule = sprintf(
-            '<span class="apache-error-badge module">%s</span>',
+            '<span class="log-badge module">%s</span>',
             htmlspecialchars($module)
         );
 
-        // Format process info with badge
+        // Format process info with badge - only show PID
         $formattedProcess = sprintf(
-            '<span class="apache-error-badge process"><span class="pid">PID:%s</span><span class="tid">TID:%s</span></span>',
-            htmlspecialchars($pid),
-            htmlspecialchars($tid)
+            '<span class="log-badge process">PID:%s</span>',
+            htmlspecialchars($pid)
         );
 
-        // Format client IP with badge (if present)
-        $formattedClient = $client !== '-' ? sprintf(
-            '<span class="apache-error-badge client">%s</span>',
-            htmlspecialchars($client)
-        ) : '-';
+        // Utiliser le formatage commun pour l'IP client
+        $formattedClient = $client !== '-' ? parent::formatIpBadge($client) : '-';
+
+        // Formater le message avec troncature et tooltip
+        $fullMessage = htmlspecialchars($message);
+        if (!empty($referer)) {
+            $fullMessage .= ' ' . parent::formatRefererBadge($referer);
+        }
+        $formattedMessage = $this->truncateMessage($fullMessage);
 
         return [
-            'timestamp' => parent::formatDate($timestamp),
+            'timestamp' => $formattedTimestamp,
             'module' => $formattedModule,
             'level' => $formattedLevel,
             'process' => $formattedProcess,
             'client' => $formattedClient,
-            'message' => htmlspecialchars($message)
+            'message' => $formattedMessage
         ];
     }
 
+    /**
+     * Truncate message and add tooltip for full content
+     * @param string $message The message to truncate
+     * @param int $length Maximum length before truncation
+     * @return string Truncated message with tooltip
+     */
+    private function truncateMessage($message, $length = 100) {
+        $plainMessage = strip_tags($message);
+        if (mb_strlen($plainMessage) <= $length) {
+            return $message;
+        }
+
+        $truncated = mb_substr($plainMessage, 0, $length);
+        return sprintf(
+            '<span class="truncated-message" title="%s">%s...</span>',
+            htmlspecialchars($plainMessage),
+            htmlspecialchars($truncated)
+        );
+    }
+
     private function getErrorLevelClass($level) {
-        $level = strtolower(trim($level));
         switch ($level) {
             case 'emerg':
             case 'alert':
             case 'crit':
             case 'error':
-                return 'danger';
+            case 'err':
+                return 'error';
             case 'warn':
             case 'warning':
                 return 'warning';
             case 'notice':
+                return 'notice';
             case 'info':
                 return 'info';
             case 'debug':
@@ -164,5 +242,62 @@ class ApacheErrorParser extends BaseParser {
         }
 
         return date('Y-m-d H:i:s', $timestamp);
+    }
+
+    /**
+     * Check if a log line should be filtered based on exclusion patterns
+     * @param array $data The parsed log data
+     * @return bool True if the line should be filtered
+     */
+    protected function shouldFilter($data) {
+        if (!$this->filtersEnabled) {
+            return false;
+        }
+
+        // Load filters from configuration
+        $patterns = require __DIR__ . '/../config/log_patterns.php';
+        $filters = $patterns['filters']['exclude'] ?? [];
+
+        // Check IP filters (client field contains IP)
+        if (!empty($filters['ips']) && isset($data['client'])) {
+            $clientIp = strip_tags($data['client']);
+            foreach ($filters['ips'] as $pattern) {
+                if (preg_match($pattern, $clientIp)) {
+                    return true;
+                }
+            }
+        }
+
+        // Check message content filters
+        if (!empty($filters['content']) && isset($data['message'])) {
+            $message = strip_tags($data['message']);
+            foreach ($filters['content'] as $pattern) {
+                if (preg_match($pattern, $message)) {
+                    return true;
+                }
+            }
+        }
+
+        // Check module filters
+        if (!empty($filters['modules']) && isset($data['module'])) {
+            $module = strip_tags($data['module']);
+            foreach ($filters['modules'] as $pattern) {
+                if (preg_match($pattern, $module)) {
+                    return true;
+                }
+            }
+        }
+
+        // Check level filters
+        if (!empty($filters['levels']) && isset($data['level'])) {
+            $level = strip_tags($data['level']);
+            foreach ($filters['levels'] as $pattern) {
+                if (preg_match($pattern, $level)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 } 

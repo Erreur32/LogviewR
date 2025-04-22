@@ -842,3 +842,15 @@
 .method-badge.delete { background-color: #F44336; }
 .method-badge.head { background-color: #9C27B0; }
 .method-badge.options { background-color: #607D8B; }
+
+table.dataTable thead .sorting {
+    background-image: unset;
+  }
+  /*
+table.dataTable thead .sorting_desc {
+    background-image: url("../images/sort_desc.png") !important;
+}
+table.dataTable thead .sorting_asc {
+    background-image: url("../images/sort_asc.png") !important;
+  }
+ */

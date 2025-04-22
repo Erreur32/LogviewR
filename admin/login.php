@@ -73,10 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Vérifier si on vient d'être déconnecté pour timeout
-if (isset($_GET['timeout']) && $_GET['timeout'] == 1) {
-    $error = 'Votre session a expiré. Veuillez vous reconnecter.';
-}
+
 ?>
 <!DOCTYPE html>
 <html lang="fr">

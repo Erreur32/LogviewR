@@ -61,7 +61,7 @@ class BaseNPMParser extends BaseParser {
     public function setType($type) {
         $this->currentType = $type;
         // Update columns based on type
-        $this->columns = $this->patterns['npm-' . $this->getType()]['columns'] ?? $this->columns;
+        $this->columns = $this->patterns[$this->getType()]['columns'] ?? $this->columns;
     }
 
     /**
@@ -71,10 +71,29 @@ class BaseNPMParser extends BaseParser {
      * @return string Formatted badge
      */
     protected function formatMethodBadge($method) {
+        if (empty($method) || $method === '-') {
+            return '<span class="method-badge empty">-</span>';
+        }
+
         $method = strtoupper($method);
+        $methodColors = [
+            'GET' => '#4CAF50',
+            'POST' => '#2196F3',
+            'PUT' => '#FF9800',
+            'DELETE' => '#F44336',
+            'HEAD' => '#9C27B0',
+            'OPTIONS' => '#607D8B',
+            'PATCH' => '#795548',
+            'CONNECT' => '#9E9E9E',
+            'TRACE' => '#795548'
+        ];
+
+        $color = $methodColors[$method] ?? '#9E9E9E';
+
         return sprintf(
-            '<span class="npm-badge method-%s">%s</span>',
-            strtolower($method),
+            '<span class="method-badge" style="background-color: %s" title="%s">%s</span>',
+            $color,
+            htmlspecialchars($method),
             htmlspecialchars($method)
         );
     }
@@ -86,9 +105,25 @@ class BaseNPMParser extends BaseParser {
      * @return string Formatted badge
      */
     protected function formatProtocolBadge($protocol) {
+        if (empty($protocol) || $protocol === '-') {
+            return '<span class="protocol-badge empty">-</span>';
+        }
+
+        $protocolColors = [
+            'HTTP/1.0' => '#FF9800',
+            'HTTP/1.1' => '#4CAF50',
+            'HTTP/2' => '#2196F3',
+            'HTTP/3' => '#9C27B0',
+            'HTTPS' => '#4CAF50',
+            'HTTP' => '#FF9800'
+        ];
+
+        $color = $protocolColors[$protocol] ?? '#9E9E9E';
+
         return sprintf(
-            '<span class="npm-badge protocol-%s">%s</span>',
-            strtolower($protocol),
+            '<span class="protocol-badge" style="background-color: %s" title="%s">%s</span>',
+            $color,
+            htmlspecialchars($protocol),
             htmlspecialchars($protocol)
         );
     }
@@ -130,8 +165,24 @@ class BaseNPMParser extends BaseParser {
      * @return string Formatted badge
      */
     protected function formatHostBadge($host) {
+        if (empty($host) || $host === '-') {
+            return '<span class="host-badge empty">-</span>';
+        }
+
+        // Générer une couleur unique basée sur le nom d'hôte
+        $color = substr(md5($host), 0, 6);
+        
+        // Détecter si c'est un localhost ou une IP
+        $isLocalhost = (strpos($host, 'localhost') !== false || $host === '127.0.0.1');
+        $isIP = filter_var($host, FILTER_VALIDATE_IP) !== false;
+        
+        $class = $isLocalhost ? ' localhost' : ($isIP ? ' ip' : '');
+
         return sprintf(
-            '<span class="npm-badge host">%s</span>',
+            '<span class="host-badge%s" style="background-color: #%s" title="%s">%s</span>',
+            $class,
+            $color,
+            htmlspecialchars($host),
             htmlspecialchars($host)
         );
     }
@@ -143,8 +194,37 @@ class BaseNPMParser extends BaseParser {
      * @return string Formatted badge
      */
     protected function formatIpBadge($ip) {
+        if (empty($ip) || $ip === '-') {
+            return '<span class="ip-badge empty">-</span>';
+        }
+
+        // Générer une couleur unique basée sur l'IP
+        $color = substr(md5($ip), 0, 6);
+        
+        // Déterminer si c'est un bot connu
+        $isBot = false;
+        $knownBots = [
+            '/^66\.249\./' => 'Google',
+            '/^157\.55\./' => 'Bing',
+            '/^40\.77\./' => 'Bing',
+            '/^17\.58\./' => 'Apple',
+            '/^131\.253\./' => 'Bing',
+            '/^199\.59\./' => 'Twitter',
+            '/^54\.174\./' => 'Amazon'
+        ];
+
+        foreach ($knownBots as $pattern => $botName) {
+            if (preg_match($pattern, $ip)) {
+                $isBot = true;
+                break;
+            }
+        }
+
         return sprintf(
-            '<span class="npm-badge ip">%s</span>',
+            '<span class="ip-badge%s" style="background-color: #%s" title="%s">%s</span>',
+            $isBot ? ' bot' : '',
+            $color,
+            htmlspecialchars($ip),
             htmlspecialchars($ip)
         );
     }

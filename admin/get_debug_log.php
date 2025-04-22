@@ -7,11 +7,11 @@ if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== tru
     die("Accès non autorisé");
 }
 
-// Load configuration
-require_once '../config/config.php';
+// Charger la configuration
+$config = require_once __DIR__ . '/../config/config.php';
 
 // Set headers for text response
-header('Content-Type: text/plain');
+header('Content-Type: text/html; charset=UTF-8');
 
 // Get requested log level (default to 'all')
 $level = isset($_GET['level']) ? $_GET['level'] : 'all';
@@ -24,7 +24,7 @@ if (!in_array($level, $validLevels)) {
 }
 
 // Get debug log file path from config
-$logFile = isset($config['debug_log_file']) ? $config['debug_log_file'] : dirname(__DIR__) . '/logs/debug.log';
+$logFile = $config['debug']['log_file'];
 
 // Check if file exists and is readable
 if (!file_exists($logFile)) {
@@ -45,15 +45,17 @@ $filteredLines = [];
 foreach ($lines as $line) {
     if (empty(trim($line))) continue;
     
-    // If level is 'all', include everything
-    if ($level === 'all') {
-        $filteredLines[] = $line;
-        continue;
-    }
+    // Extraire le niveau de log
+    preg_match('/\[(ERROR|WARNING|INFO|DEBUG)\]/', $line, $matches);
+    $lineLevel = isset($matches[1]) ? $matches[1] : '';
     
-    // Check if line contains the specified level
-    if (stripos($line, "[$level]") !== false) {
-        $filteredLines[] = $line;
+    // Si level est 'all' ou correspond au niveau de la ligne
+    if ($level === 'all' || strcasecmp($level, $lineLevel) === 0) {
+        // Formater la ligne avec la classe appropriée
+        $formattedLine = '<div class="log-line" data-level="' . htmlspecialchars($lineLevel) . '">';
+        $formattedLine .= htmlspecialchars($line);
+        $formattedLine .= '</div>';
+        $filteredLines[] = $formattedLine;
     }
 }
 

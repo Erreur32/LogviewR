@@ -5,6 +5,20 @@ Toutes les modifications notables de ce projet seront documentées dans ce fichi
 Le format est basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/),
 et ce projet adhère au [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.1] - 2024-04-22 🔧
+### Corrigé
+- 🐛 Correction du parsing des logs d'erreur NPM Proxy Host
+- 🔧 Amélioration de la gestion des types de logs NPM
+- ✨ Meilleure détection des colonnes selon le type de log
+- 📝 Mise à jour de la documentation
+- 🎨 Réorganisation du code des parsers
+
+### Détails techniques
+- Correction de la méthode `setType` dans `NPMProxyHostParser`
+- Amélioration de la détection des types dans `ParserFactory`
+- Réorganisation du code pour une meilleure maintenabilité
+- Mise à jour des patterns de logs pour une meilleure compatibilité
+
 ## [1.4.0] - 2024-03-20 🎉
 ### Ajouté
 - ✨ Nouveau système de mise à jour amélioré

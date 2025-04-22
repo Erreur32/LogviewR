@@ -28,13 +28,13 @@ class NPMDefaultHostParser extends BaseNPMParser {
         if ($this->debug) {
             $this->debugLog("Patterns loaded", [
                 'available_patterns' => array_keys($this->patterns),
-                'default_host_access' => isset($this->patterns['npm-default-host-access']) ? 'exists' : 'missing',
-                'default_host_error' => isset($this->patterns['npm-default-host-error']) ? 'exists' : 'missing'
+                'default_host_access' => isset($this->patterns['npm']['default_host_access']) ? 'exists' : 'missing',
+                'default_host_error' => isset($this->patterns['npm']['default_host_error']) ? 'exists' : 'missing'
             ]);
         }
         
         // Initialize columns for access logs by default
-        $this->columns = $this->patterns['npm-default-host-access']['columns'] ?? [];
+        $this->columns = $this->patterns['npm']['default_host_access']['columns'] ?? [];
         
         if ($this->debug) {
             $this->debugLog("Columns initialized", [
@@ -58,23 +58,24 @@ class NPMDefaultHostParser extends BaseNPMParser {
     public function setType($type) {
         $this->currentType = $type;
         // Update columns based on type
-        $patternKey = 'npm-default-host-' . $type;
-        if (isset($this->patterns[$patternKey])) {
-            $this->columns = $this->patterns[$patternKey]['columns'];
+        $patternKey = 'default_host_' . $type;
+        if (isset($this->patterns['npm'][$patternKey])) {
+            $this->columns = $this->patterns['npm'][$patternKey]['columns'];
+            if ($this->debug) {
+                $this->debugLog("Columns updated successfully", [
+                    'type' => $type,
+                    'pattern_key' => $patternKey,
+                    'columns' => $this->columns
+                ]);
+            }
         } else {
-            $this->debugLog("Pattern not found for type", [
-                'type' => $type,
-                'pattern_key' => $patternKey,
-                'available_patterns' => array_keys($this->patterns)
-            ]);
-        }
-        
-        if ($this->debug) {
-            $this->debugLog("Columns updated for type", [
-                'type' => $type,
-                'pattern_key' => $patternKey,
-                'columns' => $this->columns
-            ]);
+            if ($this->debug) {
+                $this->debugLog("Pattern not found for type", [
+                    'type' => $type,
+                    'pattern_key' => $patternKey,
+                    'available_patterns' => array_keys($this->patterns['npm'])
+                ]);
+            }
         }
     }
 
@@ -84,29 +85,32 @@ class NPMDefaultHostParser extends BaseNPMParser {
         }
     }
 
-    public function parse($line, $type = null) {
+    public function parse($line, $type = 'access') {
         $line = trim($line);
         if (empty($line)) {
             return null;
         }
 
-        // Use current type if no type specified
-        $type = $type ?? $this->currentType;
-        
-        if ($this->debug) {
-            $this->debugLog("Parsing line", [
-                'line' => $line,
-                'type' => $type,
-                'current_type' => $this->currentType
-            ]);
+        $this->currentType = $type;
+        $patternKey = 'default_host_' . $type;
+
+        // Get pattern from configuration
+        if (!isset($this->patterns['npm'][$patternKey]['pattern'])) {
+            if ($this->debug) {
+                $this->debugLog("Pattern not found", [
+                    'type' => $type,
+                    'pattern_key' => $patternKey,
+                    'available_patterns' => array_keys($this->patterns['npm'])
+                ]);
+            }
+            return null;
         }
 
-        $pattern = $this->patterns['npm-default-host-' . $type]['pattern'];
+        $pattern = $this->patterns['npm'][$patternKey]['pattern'];
         
-        // Try to match the line with our pattern
         if (!preg_match($pattern, $line, $matches)) {
             if ($this->debug) {
-                $this->debugLog("Line does not match pattern", [
+                $this->debugLog("Pattern match failed", [
                     'line' => $line,
                     'pattern' => $pattern
                 ]);
@@ -114,94 +118,132 @@ class NPMDefaultHostParser extends BaseNPMParser {
             return null;
         }
 
-        if ($this->debug) {
-            $this->debugLog("Matches found", ['matches' => $matches]);
-        }
-
-        return $type === 'access' 
-            ? $this->parseAccessLog($matches)
-            : $this->parseErrorLog($matches, $line);
+        return $type === 'access' ? $this->parseAccessLog($matches) : $this->parseErrorLog($matches, $line);
     }
 
     protected function parseAccessLog($matches) {
-        if ($this->debug) {
-            $this->debugLog("Parsing access log", [
-                'matches' => $matches,
-                'current_columns' => $this->columns
-            ]);
+        if (!is_array($matches) || count($matches) < 8) {
+            if ($this->debug) {
+                $this->debugLog("Invalid matches array", [
+                    'matches' => $matches
+                ]);
+            }
+            return null;
         }
 
-        // Format each field with appropriate badges
+        // Format client IP with badge
         $clientIp = $this->formatIpBadge($matches[1] ?? '-');
+
+        // Format date
         $date = $this->formatDate($matches[2] ?? '-');
-        
+
         // Parse request line (METHOD PATH PROTOCOL)
-        $requestLine = $matches[3] ?? '-';
-        $requestParts = explode(' ', $requestLine);
+        $request = $matches[3] ?? '-';
+        $requestParts = explode(' ', $request, 3);
         $method = $requestParts[0] ?? '-';
         $path = $requestParts[1] ?? '-';
         $protocol = $requestParts[2] ?? '-';
-        
-        $request = $this->formatRequestBadge($method, $path);
-        $status = $this->formatStatusCode($matches[4] ?? '-');
-        $size = $this->formatSize($matches[5] ?? '-');
+
+        // Format request with method badge
+        $formattedRequest = sprintf(
+            '<span class="npm-badge method-%s">%s</span> <span class="npm-badge path">%s</span>',
+            strtolower($method),
+            htmlspecialchars($method),
+            htmlspecialchars($path)
+        );
+
+        // Format status code with badge
+        $status = $this->formatStatusBadge($matches[4] ?? '-');
+
+        // Format size
+        $size = $this->formatSize($matches[5] ?? '0');
+
+        // Format referer with badge
         $referer = $this->formatRefererBadge($matches[6] ?? '-');
+
+        // Format user agent with badge
         $userAgent = $this->formatUserAgentBadge($matches[7] ?? '-');
 
-        $result = [
+        return [
             'client_ip' => $clientIp,
             'date' => $date,
-            'request' => $request,
+            'request' => $formattedRequest,
             'status' => $status,
             'size' => $size,
             'referer' => $referer,
             'user_agent' => $userAgent
         ];
-
-        if ($this->debug) {
-            $this->debugLog("Access log parsed", [
-                'result' => $result,
-                'expected_columns' => array_keys($this->columns)
-            ]);
-        }
-
-        return $result;
     }
 
     protected function parseErrorLog($matches, $line) {
-        if ($this->debug) {
-            $this->debugLog("Parsing error log", [
-                'matches' => $matches,
-                'line' => $line
-            ]);
+        if (!is_array($matches) || count($matches) < 11) {
+            if ($this->debug) {
+                $this->debugLog("Invalid matches array for error log", [
+                    'matches' => $matches,
+                    'line' => $line
+                ]);
+            }
+            return null;
         }
-        
-        // Format each field with appropriate badges
-        $date = $this->formatDate($matches[1] ?? '-');
-        $level = $this->formatErrorLevel($matches[2] ?? '-');
-        $message = htmlspecialchars($matches[3] ?? '-');
-        $error = $this->formatErrorBadge($matches[4] ?? '-');
-        $clientIp = $this->formatIpBadge($matches[5] ?? '-');
-        $request = $this->formatRequestBadge($matches[6] ?? '-', $matches[7] ?? '-');
-        $host = $this->formatHostBadge($matches[8] ?? '-');
 
-        $result = [
+        // Format date
+        $date = $this->formatDate($matches[1] ?? '-');
+
+        // Format error level
+        $level = $this->formatErrorLevel($matches[2] ?? '-');
+
+        // Format process ID and thread ID
+        $pid = isset($matches[3]) ? sprintf(
+            '<span class="npm-badge process">PID:%s</span>',
+            htmlspecialchars($matches[3])
+        ) : '-';
+
+        $tid = isset($matches[4]) ? sprintf(
+            '<span class="npm-badge thread">TID:%s</span>',
+            htmlspecialchars($matches[4])
+        ) : '-';
+
+        // Format connection ID
+        $connection = isset($matches[5]) ? sprintf(
+            '<span class="npm-badge connection">#%s</span>',
+            htmlspecialchars($matches[5])
+        ) : '-';
+
+        // Format message and error code
+        $message = htmlspecialchars($matches[6] ?? '-');
+        $errorCode = isset($matches[7]) ? sprintf(
+            '<span class="npm-badge error">%s</span>',
+            htmlspecialchars($matches[7])
+        ) : '-';
+
+        // Format client IP
+        $clientIp = isset($matches[8]) ? $this->formatIpBadge($matches[8]) : '-';
+
+        // Format server
+        $server = isset($matches[9]) ? sprintf(
+            '<span class="npm-badge server">%s</span>',
+            htmlspecialchars($matches[9])
+        ) : '-';
+
+        // Format request
+        $request = isset($matches[10]) ? $this->formatRequestBadge('GET', $matches[10]) : '-';
+
+        // Format host
+        $host = isset($matches[11]) ? $this->formatHostBadge($matches[11]) : '-';
+
+        return [
             'date' => $date,
             'level' => $level,
+            'pid' => $pid,
+            'tid' => $tid,
+            'connection' => $connection,
             'message' => $message,
-            'error' => $error,
+            'error_code' => $errorCode,
             'client_ip' => $clientIp,
+            'server' => $server,
             'request' => $request,
             'host' => $host
         ];
-
-        if ($this->debug) {
-            $this->debugLog("Error log parsed", [
-                'result' => $result
-            ]);
-        }
-
-        return $result;
     }
 
     protected function formatErrorBadge($error) {
@@ -295,12 +337,25 @@ class NPMDefaultHostParser extends BaseNPMParser {
     }
 
     public function getType() {
-        return 'npm-default-host-' . $this->currentType;
+        return 'default_host_' . $this->currentType;
     }
 
-    public function getColumns($type = 'access') {
-        $patternKey = 'npm-default-host-' . $type;
-        $columns = $this->patterns[$patternKey]['columns'] ?? [];
+    public function getColumns($type = null) {
+        $type = $type ?? $this->currentType;
+        $patternKey = 'default_host_' . $type;
+        
+        if (isset($this->patterns['npm'][$patternKey])) {
+            $columns = $this->patterns['npm'][$patternKey]['columns'];
+        } else {
+            $columns = [];
+            if ($this->debug) {
+                $this->debugLog("Pattern not found for columns", [
+                    'type' => $type,
+                    'pattern_key' => $patternKey,
+                    'available_patterns' => array_keys($this->patterns['npm'])
+                ]);
+            }
+        }
         
         if ($this->debug) {
             $this->debugLog("Getting columns", [

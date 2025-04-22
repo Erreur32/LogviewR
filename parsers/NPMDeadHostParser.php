@@ -24,7 +24,7 @@ class NPMDeadHostParser extends BaseNPMParser {
         $this->patterns = require __DIR__ . '/../config/log_patterns.php';
         
         // Initialize columns for access logs by default
-        $this->columns = $this->patterns['npm-dead-host-access']['columns'];
+        $this->columns = $this->patterns['npm']['dead_host_access']['columns'] ?? [];
         
         // Load exclusion filters
         if (isset($this->patterns['filters']['exclude'])) {
@@ -38,7 +38,7 @@ class NPMDeadHostParser extends BaseNPMParser {
     public function setType($type) {
         $this->currentType = $type;
         // Update columns based on type
-        $this->columns = $this->patterns['npm-dead-host-' . $type]['columns'] ?? $this->columns;
+        $this->columns = $this->patterns['npm']['dead_host_' . $type]['columns'] ?? $this->columns;
     }
 
     public function parse($line, $type = 'access') {
@@ -47,21 +47,13 @@ class NPMDeadHostParser extends BaseNPMParser {
             return null;
         }
 
-        // Add debug logging
-        $this->debugLog("Current type", ['type' => $this->currentType]);
-        $this->debugLog("Input line", ['line' => $line]);
-
         // Get the appropriate pattern based on current type
-        $pattern = $this->patterns['npm-dead-host-' . $this->currentType]['pattern'];
-        $this->debugLog("Using pattern", ['pattern' => $pattern]);
+        $pattern = $this->patterns['npm']['dead_host_' . $this->currentType]['pattern'];
         
         // Try to match the line with our pattern
         if (!preg_match($pattern, $line, $matches)) {
-            $this->debugLog("No match found for line");
             return null;
         }
-
-        $this->debugLog("Matches found", ['matches' => $matches]);
 
         return $this->currentType === 'access' 
             ? $this->parseAccessLog($matches)
@@ -69,24 +61,45 @@ class NPMDeadHostParser extends BaseNPMParser {
     }
 
     protected function parseAccessLog($matches) {
-        // Séparer la requête en méthode et chemin
-        $request = $matches[6] ?? '-';
-        $requestParts = explode(' ', trim($request), 2);
-        $requestMethod = $requestParts[0] ?? $matches[3] ?? '-';  // Utiliser la méthode du log si disponible
-        $requestPath = $requestParts[1] ?? '-';
+        // Format date
+        $date = parent::formatDate($matches[1]);
+
+        // Format status badges
+        $status = parent::formatStatusBadge($matches[2]);
+        $statusIn = $this->formatDefaultBadge($matches[3] ?? '-', 'status-in');
+
+        // Format method and protocol
+        $method = $this->formatMethodBadge($matches[4] ?? '-');
+        $protocol = $this->formatProtocolBadge($matches[5] ?? '-');
+
+        // Format host and request
+        $host = parent::formatHostBadge($matches[6] ?? '-');
+        $request = $this->formatRequestBadge($matches[4] ?? '-', $matches[6] ?? '-');
+
+        // Format client IP and length
+        $clientIp = parent::formatIpBadge($matches[7] ?? '-');
+        $length = parent::formatSize($matches[8] ?? '0');
+
+        // Format gzip
+        $gzip = $this->formatGzipBadge($matches[9] ?? '-');
+
+        // Format user agent and referer
+        $userAgent = isset($matches[10]) ? parent::formatUserAgentBadge($matches[10]) : '-';
+        $referer = isset($matches[11]) ? parent::formatRefererBadge($matches[11]) : '-';
 
         return [
-            'date' => parent::formatDate($matches[1]),
-            'status' => parent::formatStatusBadge($matches[2]),
-            'method' => $this->formatMethodBadge($requestMethod),
-            'protocol' => $this->formatProtocolBadge($matches[4] ?? '-'),
-            'host' => parent::formatHostBadge($matches[5] ?? '-'),
-            'request' => $this->formatRequestBadge($requestMethod, $requestPath),
-            'client_ip' => parent::formatIpBadge($matches[7] ?? '-'),
-            'length' => parent::formatSize($matches[8] ?? '0'),
-            'gzip' => $this->formatGzipBadge($matches[9] ?? '-'),
-            'user_agent' => isset($matches[10]) ? parent::formatUserAgentBadge($matches[10]) : '-',
-            'referer' => isset($matches[11]) ? parent::formatRefererBadge($matches[11]) : '-'
+            'date' => $date,
+            'status' => $status,
+            'status_in' => $statusIn,
+            'method' => $method,
+            'protocol' => $protocol,
+            'host' => $host,
+            'request' => $request,
+            'client_ip' => $clientIp,
+            'length' => $length,
+            'gzip' => $gzip,
+            'user_agent' => $userAgent,
+            'referer' => $referer
         ];
     }
 
@@ -137,7 +150,7 @@ class NPMDeadHostParser extends BaseNPMParser {
     }
 
     public function getType() {
-        return 'npm-dead-host-' . $this->currentType;
+        return 'dead_host_' . $this->currentType;
     }
 
     /**
@@ -148,7 +161,21 @@ class NPMDeadHostParser extends BaseNPMParser {
     public function getColumns($type = 'access') {
         // If type is provided, use it, otherwise use currentType
         $actualType = $type ?: $this->currentType;
-        return $this->patterns['npm-dead-host-' . $actualType]['columns'] ?? [];
+        return $this->patterns['npm']['dead_host_' . $actualType]['columns'] ?? [];
+    }
+
+    /**
+     * Format a value with a default badge style
+     * @param string $value The value to format
+     * @param string $class The CSS class to apply
+     * @return string The formatted badge
+     */
+    protected function formatDefaultBadge($value, $class) {
+        return sprintf(
+            '<span class="npm-badge %s">%s</span>',
+            htmlspecialchars($class),
+            htmlspecialchars($value)
+        );
     }
 
     protected function formatMethodBadge($method) {

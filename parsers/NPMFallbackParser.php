@@ -17,8 +17,14 @@ class NPMFallbackParser extends BaseNPMParser {
     public function __construct() {
         parent::__construct();
         
+        // Load configuration
+        $config = require __DIR__ . '/../config/config.php';
+        
+        // Load patterns and columns from configuration
+        $this->patterns = require __DIR__ . '/../config/log_patterns.php';
+        
         // Initialize columns for access logs by default
-        $this->columns = $this->patterns['npm-fallback-access']['columns'];
+        $this->columns = $this->patterns['npm']['fallback_access']['columns'] ?? [];
         
         // Load exclusion filters
         if (isset($this->patterns['filters']['exclude'])) {
@@ -32,7 +38,7 @@ class NPMFallbackParser extends BaseNPMParser {
     public function setType($type) {
         $this->currentType = $type;
         // Update columns based on type
-        $this->columns = $this->patterns['npm-fallback-' . $type]['columns'] ?? $this->columns;
+        $this->columns = $this->patterns['npm']['fallback_' . $type]['columns'] ?? $this->columns;
     }
 
     public function parse($line, $type = 'access') {
@@ -42,7 +48,7 @@ class NPMFallbackParser extends BaseNPMParser {
         }
 
         // Get the appropriate pattern based on current type
-        $pattern = $this->patterns['npm-fallback-' . $this->currentType]['pattern'];
+        $pattern = $this->patterns['npm']['fallback_' . $this->currentType]['pattern'];
         
         // Try to match the line with our pattern
         if (!preg_match($pattern, $line, $matches)) {
@@ -60,24 +66,45 @@ class NPMFallbackParser extends BaseNPMParser {
      * @return array Parsed data
      */
     protected function parseAccessLog($matches) {
-        // Séparer la requête en méthode et chemin
-        $request = $matches[6] ?? '-';
-        $requestParts = explode(' ', trim($request), 2);
-        $requestMethod = $requestParts[0] ?? $matches[3] ?? '-';  // Utiliser la méthode du log si disponible
-        $requestPath = $requestParts[1] ?? '-';
+        // Format date
+        $date = parent::formatDate($matches[1]);
+
+        // Format status badges
+        $status = parent::formatStatusBadge($matches[2]);
+        $statusIn = $this->formatDefaultBadge($matches[3] ?? '-', 'status-in');
+
+        // Format method and protocol
+        $method = $this->formatMethodBadge($matches[4] ?? '-');
+        $protocol = $this->formatProtocolBadge($matches[5] ?? '-');
+
+        // Format host and request
+        $host = parent::formatHostBadge($matches[6] ?? '-');
+        $request = $this->formatRequestBadge($matches[4] ?? '-', $matches[6] ?? '-');
+
+        // Format client IP and length
+        $clientIp = parent::formatIpBadge($matches[7] ?? '-');
+        $length = parent::formatSize($matches[8] ?? '0');
+
+        // Format gzip
+        $gzip = $this->formatGzipBadge($matches[9] ?? '-');
+
+        // Format user agent and referer
+        $userAgent = isset($matches[10]) ? parent::formatUserAgentBadge($matches[10]) : '-';
+        $referer = isset($matches[11]) ? parent::formatRefererBadge($matches[11]) : '-';
 
         return [
-            'date' => parent::formatDate($matches[1]),
-            'status' => parent::formatStatusBadge($matches[2]),
-            'method' => $this->formatMethodBadge($requestMethod),
-            'protocol' => $this->formatProtocolBadge($matches[4] ?? '-'),
-            'host' => parent::formatHostBadge($matches[5] ?? '-'),
-            'request' => $this->formatRequestBadge($requestMethod, $requestPath),
-            'client_ip' => parent::formatIpBadge($matches[7] ?? '-'),
-            'length' => parent::formatSize($matches[8] ?? '0'),
-            'gzip' => $this->formatGzipBadge($matches[9] ?? '-'),
-            'user_agent' => isset($matches[10]) ? parent::formatUserAgentBadge($matches[10]) : '-',
-            'referer' => isset($matches[11]) ? parent::formatRefererBadge($matches[11]) : '-'
+            'date' => $date,
+            'status' => $status,
+            'status_in' => $statusIn,
+            'method' => $method,
+            'protocol' => $protocol,
+            'host' => $host,
+            'request' => $request,
+            'client_ip' => $clientIp,
+            'length' => $length,
+            'gzip' => $gzip,
+            'user_agent' => $userAgent,
+            'referer' => $referer
         ];
     }
 
@@ -92,7 +119,7 @@ class NPMFallbackParser extends BaseNPMParser {
         $date = parent::formatDate($matches[1]);
 
         // Format error level
-        $level = $this->formatErrorLevel($matches[2] ?? '-');
+        $level = $this->formatErrorLevel($matches[2]);
 
         // Format process ID
         $pid = isset($matches[3]) ? sprintf(
@@ -100,36 +127,21 @@ class NPMFallbackParser extends BaseNPMParser {
             htmlspecialchars($matches[3])
         ) : '-';
 
-        // Format connection ID
-        $connection = isset($matches[4]) ? sprintf(
-            '<span class="npm-badge connection">#%s</span>',
+        // Format thread ID
+        $tid = isset($matches[4]) ? sprintf(
+            '<span class="npm-badge thread">TID:%s</span>',
             htmlspecialchars($matches[4])
         ) : '-';
 
         // Format message
         $message = htmlspecialchars($matches[5] ?? '-');
 
-        // Format client and server
-        $client = isset($matches[6]) ? parent::formatIpBadge($matches[6]) : '-';
-        $server = isset($matches[7]) ? parent::formatIpBadge($matches[7]) : '-';
-
-        // Format request and host
-        $request = isset($matches[8]) ? sprintf(
-            '<span class="npm-badge request">%s</span>',
-            htmlspecialchars($matches[8])
-        ) : '-';
-        $host = isset($matches[9]) ? parent::formatHostBadge($matches[9]) : '-';
-
         return [
             'date' => $date,
             'level' => $level,
-            'process' => $pid,
-            'connection' => $connection,
-            'message' => $message,
-            'client' => $client,
-            'server' => $server,
-            'request' => $request,
-            'host' => $host
+            'pid' => $pid,
+            'tid' => $tid,
+            'message' => $message
         ];
     }
 
@@ -185,8 +197,22 @@ class NPMFallbackParser extends BaseNPMParser {
         return $methodBadge . ' ' . $pathBadge;
     }
 
+    /**
+     * Format a default badge for any value
+     * @param string $value The value to format
+     * @param string $class The CSS class to use
+     * @return string HTML formatted badge
+     */
+    protected function formatDefaultBadge($value, $class) {
+        return sprintf(
+            '<span class="npm-badge %s">%s</span>',
+            htmlspecialchars($class),
+            htmlspecialchars($value)
+        );
+    }
+
     public function getType() {
-        return 'npm-fallback-' . $this->currentType;
+        return 'fallback_' . $this->currentType;
     }
 
     /**
@@ -197,6 +223,6 @@ class NPMFallbackParser extends BaseNPMParser {
     public function getColumns($type = 'access') {
         // If type is provided, use it, otherwise use currentType
         $actualType = $type ?: $this->currentType;
-        return $this->patterns['npm-fallback-' . $actualType]['columns'] ?? [];
+        return $this->patterns['npm']['fallback_' . $actualType]['columns'] ?? [];
     }
 } 

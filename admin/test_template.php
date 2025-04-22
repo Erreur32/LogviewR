@@ -4,9 +4,9 @@ if (!defined('LOGVIEWR_ROOT')) {
     define('LOGVIEWR_ROOT', dirname(__DIR__));
 }
 
-// Vérifier que les variables nécessaires sont définies
-if (!isset($allParsersLoaded) || !isset($allRegexValid) || !isset($allPathsAccessible) || !isset($allExtensionsLoaded)) {
-    die("❌ Erreur : Variables de test non définies");
+// Vérifier que la variable testResults est définie
+if (!isset($testResults)) {
+    die("❌ Erreur : Variable testResults non définie");
 }
 ?>
 <!DOCTYPE html>
@@ -19,15 +19,15 @@ if (!isset($allParsersLoaded) || !isset($allRegexValid) || !isset($allPathsAcces
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
     <style>
         :root {
-            --primary-color: #2563eb;
-            --success-color: #16a34a;
-            --error-color: #dc2626;
-            --warning-color: #ca8a04;
-            --background-color: #f8fafc;
-            --card-background: #ffffff;
-            --text-color: #1e293b;
+            --primary-color: #3498db;
+            --success-color: #2ecc71;
+            --error-color: #e74c3c;
+            --warning-color: #f1c40f;
+            --background-color: #1a1a1a;
+            --card-background: #2d2d2d;
+            --text-color: #ffffff;
             --border-radius: 0.75rem;
-            --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
             --transition: all 0.3s ease;
         }
 
@@ -43,68 +43,66 @@ if (!isset($allParsersLoaded) || !isset($allRegexValid) || !isset($allPathsAcces
             padding: 2rem 1rem;
         }
 
-        h1 {
+        h1, h2, h3 {
             color: var(--primary-color);
             font-weight: 700;
-            margin-bottom: 2rem;
-            font-size: 2.25rem;
-        }
-
-        h2 {
-            color: var(--text-color);
-            font-weight: 600;
-            font-size: 1.5rem;
             margin-bottom: 1.5rem;
         }
 
-        .test-section {
+        .test-card {
             background-color: var(--card-background);
             border-radius: var(--border-radius);
             box-shadow: var(--shadow);
             padding: 1.5rem;
-            margin-bottom: 2rem;
+            margin-bottom: 1.5rem;
             transition: var(--transition);
         }
 
-        .test-section:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-        }
+ 
 
-        .test-result {
-            background-color: var(--background-color);
+        .test-item {
+            background-color: rgba(255, 255, 255, 0.05);
             border-radius: calc(var(--border-radius) * 0.75);
             padding: 1rem;
             margin-bottom: 1rem;
-            transition: var(--transition);
         }
 
         .test-success {
-            background-color: #f0fdf4;
             border-left: 4px solid var(--success-color);
         }
 
         .test-error {
-            background-color: #fef2f2;
             border-left: 4px solid var(--error-color);
         }
 
         .test-warning {
-            background-color: #fefce8;
             border-left: 4px solid var(--warning-color);
         }
 
         pre {
-            background-color: #f1f5f9;
+            background-color: rgba(0, 0, 0, 0.2);
             border-radius: calc(var(--border-radius) * 0.5);
             padding: 1rem;
-            margin: 0.5rem 0;
+            color: var(--text-color);
             font-size: 0.875rem;
             overflow-x: auto;
         }
 
-        .bi {
-            margin-right: 0.5rem;
+        .status-icon {
+            font-size: 1.25rem;
+            margin-right: 0.75rem;
+        }
+
+        .status-icon.success {
+            color: var(--success-color);
+        }
+
+        .status-icon.error {
+            color: var(--error-color);
+        }
+
+        .status-icon.warning {
+            color: var(--warning-color);
         }
 
         .btn-primary {
@@ -117,192 +115,90 @@ if (!isset($allParsersLoaded) || !isset($allRegexValid) || !isset($allPathsAcces
         }
 
         .btn-primary:hover {
-            background-color: #1d4ed8;
+            background-color: #2980b9;
             transform: translateY(-1px);
-        }
-
-        .status-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 1rem;
-            margin-bottom: 1rem;
-        }
-
-        .status-item {
-            background-color: var(--background-color);
-            border-radius: calc(var(--border-radius) * 0.75);
-            padding: 1rem;
-            display: flex;
-            align-items: center;
-            transition: var(--transition);
-        }
-
-        .status-item i {
-            font-size: 1.25rem;
-            margin-right: 0.75rem;
-        }
-
-        .status-item.success i {
-            color: var(--success-color);
-        }
-
-        .status-item.error i {
-            color: var(--error-color);
-        }
-
-        @media (max-width: 768px) {
-            .container {
-                padding: 1rem;
-            }
-
-            h1 {
-                font-size: 1.75rem;
-            }
-
-            .test-section {
-                padding: 1rem;
-            }
         }
     </style>
 </head>
 <body>
-    <div class="container mt-4">
-        <h1 class="mb-4">🔍 Test de Configuration - LogviewR</h1>
+    <div class="container">
+        <h1>🔍 Test de Configuration - LogviewR</h1>
         
-        <!-- Section État Général -->
-        <div class="test-section">
-            <h2>📊 État Général</h2>
-            <div class="row">
-                <div class="col-md-6">
-                    <div class="test-result <?php echo $allParsersLoaded ? 'test-success' : 'test-error'; ?>">
-                        <i class="bi <?php echo $allParsersLoaded ? 'bi-check-circle' : 'bi-x-circle'; ?>"></i>
-                        Parsers chargés
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="test-result <?php echo $allRegexValid ? 'test-success' : 'test-error'; ?>">
-                        <i class="bi <?php echo $allRegexValid ? 'bi-check-circle' : 'bi-x-circle'; ?>"></i>
-                        Expressions régulières valides
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="test-result <?php echo $allPathsAccessible ? 'test-success' : 'test-error'; ?>">
-                        <i class="bi <?php echo $allPathsAccessible ? 'bi-check-circle' : 'bi-x-circle'; ?>"></i>
-                        Permissions des dossiers
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="test-result <?php echo $allExtensionsLoaded ? 'test-success' : 'test-error'; ?>">
-                        <i class="bi <?php echo $allExtensionsLoaded ? 'bi-check-circle' : 'bi-x-circle'; ?>"></i>
-                        Extensions PHP requises
-                    </div>
-                </div>
+        <!-- Système -->
+        <div class="test-card">
+            <h2>💻 Système</h2>
+            <div class="test-item <?php echo $testResults['system']['php_version']['success'] ? 'test-success' : 'test-error'; ?>">
+                <i class="bi bi-cpu status-icon <?php echo $testResults['system']['php_version']['success'] ? 'success' : 'error'; ?>"></i>
+                <strong>Version PHP:</strong> <?php echo $testResults['system']['php_version']['message']; ?>
+                <div class="small">(Requis: <?php echo $testResults['system']['php_version']['required']; ?>)</div>
+            </div>
+            
+            <div class="test-item <?php echo $testResults['system']['extensions']['success'] ? 'test-success' : 'test-error'; ?>">
+                <i class="bi bi-puzzle status-icon <?php echo $testResults['system']['extensions']['success'] ? 'success' : 'error'; ?>"></i>
+                <strong>Extensions:</strong>
+                <ul class="mb-0">
+                    <?php foreach ($testResults['system']['extensions']['details'] as $ext => $loaded): ?>
+                        <li><?php echo $ext; ?>: <?php echo $loaded ? '✅' : '❌'; ?></li>
+                    <?php endforeach; ?>
+                </ul>
             </div>
         </div>
 
-        <!-- Section Test des Parsers -->
-        <div class="test-section">
-            <h2>🔧 Test des Parsers</h2>
-            <?php if ($allParsersLoaded): ?>
-                <?php foreach ($testCases as $case): ?>
-                    <div class="test-result">
-                        <h5><?php echo htmlspecialchars($case['description']); ?></h5>
-                        <pre><?php echo htmlspecialchars($case['line']); ?></pre>
-                        <?php
-                        $result = testParsing($parser, $case['line'], $case['type']);
-                        if ($result['success']):
-                        ?>
-                            <div class="test-success">
-                                <i class="bi bi-check-circle"></i> Parsing réussi
-                                <pre><?php echo json_encode($result['result'], JSON_PRETTY_PRINT); ?></pre>
-                            </div>
-                        <?php else: ?>
-                            <div class="test-error">
-                                <i class="bi bi-x-circle"></i> Erreur de parsing: <?php echo htmlspecialchars($result['error']); ?>
-                            </div>
-                        <?php endif; ?>
+        <!-- Chemins -->
+        <div class="test-card">
+            <h2>📁 Chemins</h2>
+            <?php foreach ($testResults['paths'] as $name => $path): ?>
+                <div class="test-item <?php echo ($path['readable'] && $path['writable']) ? 'test-success' : 'test-error'; ?>">
+                    <i class="bi bi-folder status-icon <?php echo ($path['readable'] && $path['writable']) ? 'success' : 'error'; ?>"></i>
+                    <strong><?php echo ucfirst($name); ?>:</strong> <?php echo $path['path']; ?>
+                    <div class="small">
+                        Existe: <?php echo $path['exists'] ? '✅' : '❌'; ?> |
+                        Lecture: <?php echo $path['readable'] ? '✅' : '❌'; ?> |
+                        Écriture: <?php echo $path['writable'] ? '✅' : '❌'; ?>
                     </div>
-                <?php endforeach; ?>
-            <?php else: ?>
-                <div class="test-error">
-                    <i class="bi bi-x-circle"></i> Impossible de charger les parsers
                 </div>
-            <?php endif; ?>
+            <?php endforeach; ?>
         </div>
 
-        <!-- Section Test des Expressions Régulières -->
-        <div class="test-section">
-            <h2>🔍 Test des Expressions Régulières</h2>
-            <?php foreach ($regexResults as $type => $result): ?>
-                <div class="test-result <?php echo $result['success'] ? 'test-success' : 'test-error'; ?>">
-                    <h5><?php echo htmlspecialchars($type); ?></h5>
-                    <pre><?php echo htmlspecialchars($result['pattern']); ?></pre>
-                    <?php if (!$result['success']): ?>
-                        <div class="test-error">
-                            <i class="bi bi-x-circle"></i> Erreur: <?php echo htmlspecialchars($result['error']); ?>
+        <!-- Configuration -->
+        <div class="test-card">
+            <h2>⚙️ Configuration</h2>
+            <div class="test-item <?php echo $testResults['config']['debug']['writable'] ? 'test-success' : 'test-warning'; ?>">
+                <i class="bi bi-bug status-icon <?php echo $testResults['config']['debug']['enabled'] ? 'success' : 'warning'; ?>"></i>
+                <strong>Debug:</strong> <?php echo $testResults['config']['debug']['enabled'] ? 'Activé' : 'Désactivé'; ?>
+                <div class="small">
+                    Fichier: <?php echo $testResults['config']['debug']['log_file']; ?><br>
+                    Écriture: <?php echo $testResults['config']['debug']['writable'] ? '✅' : '❌'; ?>
+                </div>
+            </div>
+
+            <?php foreach ($testResults['config']['paths'] as $type => $info): ?>
+                <div class="test-item <?php echo ($info['exists'] && $info['readable']) ? 'test-success' : 'test-error'; ?>">
+                    <i class="bi bi-journal-text status-icon <?php echo ($info['exists'] && $info['readable']) ? 'success' : 'error'; ?>"></i>
+                    <strong>Logs <?php echo ucfirst($type); ?>:</strong> <?php echo $info['path'] ?: 'Non configuré'; ?>
+                    <?php if ($info['path']): ?>
+                        <div class="small">
+                            Existe: <?php echo $info['exists'] ? '✅' : '❌'; ?> |
+                            Lecture: <?php echo $info['readable'] ? '✅' : '❌'; ?>
                         </div>
                     <?php endif; ?>
                 </div>
             <?php endforeach; ?>
         </div>
 
-        <!-- Section Test des Permissions -->
-        <div class="test-section">
-            <h2>📂 Test des Permissions</h2>
-            <?php foreach ($permissionResults as $path => $result): ?>
-                <div class="test-result <?php echo $result['readable'] ? 'test-success' : 'test-error'; ?>">
-                    <h5><?php echo htmlspecialchars($path); ?></h5>
-                    <?php if ($result['exists']): ?>
-                        <div>
-                            <i class="bi bi-check-circle"></i> Dossier existe
-                        </div>
-                        <?php if ($result['readable']): ?>
-                            <div>
-                                <i class="bi bi-check-circle"></i> Dossier lisible
-                            </div>
-                        <?php else: ?>
-                            <div class="test-error">
-                                <i class="bi bi-x-circle"></i> <?php echo htmlspecialchars($result['error']); ?>
-                            </div>
-                        <?php endif; ?>
-                    <?php else: ?>
-                        <div class="test-error">
-                            <i class="bi bi-x-circle"></i> <?php echo htmlspecialchars($result['error']); ?>
-                        </div>
+        <!-- Patterns -->
+        <div class="test-card">
+            <h2>🔍 Patterns</h2>
+            <?php foreach ($testResults['patterns'] as $type => $info): ?>
+                <div class="test-item <?php echo $info['success'] ? 'test-success' : 'test-error'; ?>">
+                    <i class="bi bi-regex status-icon <?php echo $info['success'] ? 'success' : 'error'; ?>"></i>
+                    <strong><?php echo ucfirst(str_replace('_', ' ', $type)); ?>:</strong>
+                    <?php if ($info['error']): ?>
+                        <div class="text-danger"><?php echo $info['error']; ?></div>
                     <?php endif; ?>
+                    <pre class="mb-0"><?php echo htmlspecialchars($info['pattern']); ?></pre>
                 </div>
             <?php endforeach; ?>
-        </div>
-
-        <!-- Section Comparaison des Configurations -->
-        <div class="test-section">
-            <h2>⚙️ Comparaison des Configurations</h2>
-            
-            <!-- Configuration -->
-            <h3>Configuration (config.php)</h3>
-            <?php if (empty($configDifferences)): ?>
-                <div class="test-success">
-                    <i class="bi bi-check-circle"></i> La configuration est identique à la configuration par défaut
-                </div>
-            <?php else: ?>
-                <div class="test-warning">
-                    <i class="bi bi-exclamation-triangle"></i> Différences détectées
-                    <pre><?php echo json_encode($configDifferences, JSON_PRETTY_PRINT); ?></pre>
-                </div>
-            <?php endif; ?>
-
-            <!-- Patterns -->
-            <h3>Patterns (log_patterns.php)</h3>
-            <?php if (empty($patternDifferences)): ?>
-                <div class="test-success">
-                    <i class="bi bi-check-circle"></i> Les patterns sont identiques aux patterns par défaut
-                </div>
-            <?php else: ?>
-                <div class="test-warning">
-                    <i class="bi bi-exclamation-triangle"></i> Différences détectées
-                    <pre><?php echo json_encode($patternDifferences, JSON_PRETTY_PRINT); ?></pre>
-                </div>
-            <?php endif; ?>
         </div>
 
         <!-- Bouton de retour -->

@@ -15,7 +15,7 @@ RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
     Header set X-Frame-Options "DENY"
     Header set Referrer-Policy "strict-origin-when-cross-origin"
     Header set Permissions-Policy "geolocation=(), microphone=(), camera=(), clipboard-read=(), clipboard-write=(), payment=()"
-    Header set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: https:; font-src 'self' https://cdnjs.cloudflare.com; connect-src 'self';"
+    Header set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self'"
     Header set Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
     Header set Cross-Origin-Embedder-Policy "require-corp"
     Header set Cross-Origin-Opener-Policy "same-origin"
@@ -34,10 +34,24 @@ RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 </FilesMatch>
 
 # Autoriser l'accès aux fichiers PHP spécifiques
-<FilesMatch "^(index|login|logout)\.php$">
+<Files ~ "^(index|backup_manager|login|logout)\.php$">
     Order allow,deny
     Allow from all
-</FilesMatch>
+    Require all granted
+</Files>
+
+# Configuration des sessions PHP
+php_value upload_max_filesize 5M
+php_value post_max_size 5M
+php_value max_execution_time 300
+php_value max_input_time 300
+php_value memory_limit 128M
+php_value session.cookie_httponly 1
+php_value session.cookie_secure 1
+php_value session.use_only_cookies 1
+php_value session.cookie_samesite "Strict"
+php_value session.gc_maxlifetime 1800
+php_value session.cookie_lifetime 1800
 
 # Protection contre les attaques par force brute
 <IfModule mod_evasive20.c>
@@ -118,16 +132,6 @@ ErrorDocument 403 /error.php?code=403
 ErrorDocument 404 /error.php?code=404
 ErrorDocument 500 /error.php?code=500
 
-# Limitation de la taille des fichiers uploadés
-php_value upload_max_filesize 5M
-php_value post_max_size 5M
-php_value max_execution_time 300
-php_value max_input_time 300
-php_value memory_limit 128M
-php_value max_input_vars 1000
-php_value session.cookie_httponly 1
-php_value session.cookie_secure 1
-php_value session.use_only_cookies 1
-php_value session.cookie_samesite "Strict"
-php_value session.gc_maxlifetime 1800
-php_value session.cookie_lifetime 1800 
+# Redirection des erreurs vers index.php
+ErrorDocument 403 /LogviewR/admin/index.php
+ErrorDocument 404 /LogviewR/admin/index.php 
