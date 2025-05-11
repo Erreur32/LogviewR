@@ -90,7 +90,7 @@ const LogviewR = {
         rules: {
             numeric: {
                 'default_lines_per_page': { min: 10, max: 1000 },
-                'max_lines_per_request': { min: 100, max: 50000 },
+                'max_lines_per_request': { min: 100, max: 100000 },
                 'refresh_interval': { min: 1, max: 3600 }
             },
             debug: {
@@ -105,6 +105,17 @@ const LogviewR = {
         // Valider un champ
         validateField(input) {
             if (!input) return false;
+
+            // Ignore hidden or disabled fields
+            if (input.type === 'hidden' || input.disabled || input.offsetParent === null) {
+                return true;
+            }
+
+            // Permettre le champ 'Contenu à Exclure' vide (dans les patterns)
+            if ((input.id === 'exclude_content' || input.name === 'config[filters][exclude][content]') && input.value.trim() === '') {
+                LogviewR.UI.showValidationStatus(input, true, '');
+                return true;
+            }
 
             // Récupérer les règles en fonction du nom du champ
             let rules = null;
@@ -123,7 +134,7 @@ const LogviewR = {
             // Si pas de règles spécifiques, validation basique
             if (!rules) {
                 const isValid = input.value.trim() !== '';
-                LogviewR.UI.showValidationStatus(input, isValid, 'Ce champ est obligatoire');
+                LogviewR.UI.showValidationStatus(input, isValid, isValid ? '' : 'Ce champ est obligatoire');
                 return isValid;
             }
 
@@ -131,13 +142,13 @@ const LogviewR = {
             if (rules.values) {
                 const isValid = rules.values.includes(input.value);
                 LogviewR.UI.showValidationStatus(input, isValid, 
-                    `La valeur doit être l'une des suivantes : ${rules.values.join(', ')}`);
+                    isValid ? '' : `La valeur doit être l'une des suivantes : ${rules.values.join(', ')}`);
                 return isValid;
             } 
             
             if (rules.required) {
                 const isValid = input.value.trim() !== '';
-                LogviewR.UI.showValidationStatus(input, isValid, 'Ce champ est obligatoire');
+                LogviewR.UI.showValidationStatus(input, isValid, isValid ? '' : 'Ce champ est obligatoire');
                 return isValid;
             } 
             
@@ -145,7 +156,7 @@ const LogviewR = {
                 const value = parseInt(input.value);
                 const isValid = !isNaN(value) && value >= rules.min && value <= rules.max;
                 LogviewR.UI.showValidationStatus(input, isValid, 
-                    `La valeur doit être comprise entre ${rules.min} et ${rules.max}`);
+                    isValid ? '' : `La valeur doit être comprise entre ${rules.min} et ${rules.max}`);
                 return isValid;
             }
 
@@ -400,15 +411,19 @@ const LogviewR = {
                     if (!this.Validator.validateField(input)) {
                         isValid = false;
                         invalidFields.push(input);
+                                                    // Ajoute ce log pour voir le coupable !
+                                                    console.log('Champ invalide:', input, 'Valeur:', input.value, 'Name:', input.name, 'Type:', input.type);
                     }
                 });
 
                 if (!isValid) {
                     e.preventDefault();
-                    this.UI.showNotification('Veuillez corriger les erreurs dans le formulaire', 'error');
-                    invalidFields.forEach(field => {
-                        field.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    });
+                    // Affiche le message global seulement si plusieurs champs sont invalides
+                    if (invalidFields.length > 1) {
+                        this.UI.showNotification('Veuillez corriger les erreurs dans le formulaire', 'error');
+                    }
+                    // Scroll vers le premier champ invalide
+                    invalidFields[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
                 }
             });
         });
@@ -637,6 +652,73 @@ const LogviewR = {
         }
     }
 };
+
+// === LIVE PATH CHECK FOR LOG PATHS === 🚦
+// This function will check the path on the server via AJAX and update the tip
+function checkLogPathLive(input) {
+    // Get the value of the input
+    const path = input.value.trim();
+    // If empty, clear validation (no error, no green)
+    if (!path) {
+        LogviewR.UI.showValidationStatus(input, false, '');
+        return;
+    }
+    // Prepare AJAX request to check_path.php
+    fetch('check_path.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ path })
+    })
+    .then(response => response.json())
+    .then(result => {
+        // Use the existing UI function to show the tip (green/red)
+        LogviewR.UI.showValidationStatus(input, result.exists && result.readable, result.message);
+    })
+    .catch(() => {
+        // On error, show invalid
+        LogviewR.UI.showValidationStatus(input, false, 'Erreur lors de la vérification du chemin');
+    });
+}
+
+// Helper: check if at least one log path is valid
+function isAtLeastOneLogPathValid() {
+    let valid = false;
+    $('.path-input').each(function() {
+        // Consider valid if the green tip is present (class .valid)
+        const status = $(this).closest('.input-validation-container').find('.validation-status');
+        if (status.hasClass('valid')) {
+            valid = true;
+        }
+    });
+    return valid;
+}
+
+// Attach the live check to all log path inputs
+$(function() {
+    // Target all log path inputs by class (path-input)
+    $('.path-input').on('input', function() {
+        // Call the live check on each input event
+        checkLogPathLive(this);
+    });
+    // Optionally, trigger once at page load for initial state
+    $('.path-input').each(function() {
+        checkLogPathLive(this);
+    });
+
+    // Add global validation on form submit
+    $('#paths-form').on('submit', function(e) {
+        // Remove previous global error
+        $('#log-paths-error').remove();
+        if (!isAtLeastOneLogPathValid()) {
+            e.preventDefault();
+            // Insert a global error message above the form
+            $('<div id="log-paths-error" class="alert alert-danger" style="margin-bottom:16px;"><i class="fas fa-exclamation-circle"></i> Au moins un chemin de log valide est requis !</div>')
+                .insertBefore('#paths-form');
+            // Optionally, scroll to the form
+            document.getElementById('paths-form').scrollIntoView({behavior: 'smooth', block: 'center'});
+        }
+    });
+});
 
 // Initialiser l'application au chargement de la page
 document.addEventListener('DOMContentLoaded', () => LogviewR.init()); 

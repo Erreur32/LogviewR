@@ -3262,3 +3262,34 @@ a {
     background: #be7edb;
     border-bottom: 1px solid #ddd;
   }
+
+
+  .validation-feedback {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+    min-height: 22px;
+}
+.validation-status.valid {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    background: #4caf50;
+    border-radius: 50%;
+}
+.validation-status.invalid {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    background: #f44336;
+    border-radius: 50%;
+}
+.validation-message {
+    font-size: 13px;
+    color: #f44336;
+    line-height: 1.2;
+}
+.validation-status.valid + .validation-message {
+    color: #4caf50;
+}

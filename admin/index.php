@@ -798,12 +798,12 @@ $lastCheck = $updateChecker->getLastCheck();
                         <div class="settings-column">
                             <div class="option-group">
                                 <label for="default_lines_per_page">Lignes par page par défaut</label>
-                                <input type="number" id="default_lines_per_page" name="app[default_lines_per_page]" 
+                                <input type="number" id="default_lines_per_page" name="config[app][default_lines_per_page]" 
                                        value="<?php echo $config['app']['default_lines_per_page'] ?? 50; ?>" class="form-control">
                             </div>
                             <div class="option-group">
                                 <label for="max_lines_per_request">Lignes maximum par requête</label>
-                                <input type="number" class="form-control" id="max_lines_per_request" name="app[max_lines_per_request]" 
+                                <input type="number" class="form-control" id="max_lines_per_request" name="config[app][max_lines_per_request]" 
                                        value="<?php echo htmlspecialchars($config['app']['max_lines_per_request'] ?? 20000); ?>"
                                        min="100" max="200000">
                                 <small class="form-text text-muted">
@@ -818,7 +818,7 @@ $lastCheck = $updateChecker->getLastCheck();
                         <div class="settings-column">
                             <div class="option-group">
                                 <label for="refresh_interval">Intervalle de rafraîchissement (secondes)</label>
-                                <input type="number" id="refresh_interval" name="app[refresh_interval]" 
+                                <input type="number" id="refresh_interval" name="config[app][refresh_interval]" 
                                     value="<?php echo $config['app']['refresh_interval'] ?? 6; ?>" 
                                     min="1" step="1" class="form-control">
                                 <small class="form-text">
@@ -869,7 +869,7 @@ $lastCheck = $updateChecker->getLastCheck();
                     <div class="option-group">
                         <h4>Format d'affichage dans l'interface</h4>
                         <label for="date_format_display">Format d'affichage</label>
-                        <input type="text" id="date_format_display" name="date_formats[display]" 
+                        <input type="text" id="date_format_display" name="config[date_formats][display]" 
                                value="<?php echo htmlspecialchars($config['date_formats']['display'] ?? 'd/m/Y H:i:s'); ?>" class="form-control">
                         
                         <button type="button" class="toggle-examples-btn" id="toggleExamplesBtn">
@@ -931,7 +931,7 @@ $lastCheck = $updateChecker->getLastCheck();
                     <div class="option-group">
                         <h4>Fuseau Horaire</h4>
                         <label for="timezone">Fuseau horaire</label>
-                        <select id="timezone" name="timezone" class="form-control">
+                        <select id="timezone" name="config[timezone]" class="form-control">
                             <?php
                             $timezones = DateTimeZone::listIdentifiers();
                             $current_timezone = $config['timezone'] ?? 'Europe/Paris';
@@ -1227,11 +1227,17 @@ $lastCheck = $updateChecker->getLastCheck();
                     <div class="path-group">
                         <div class="path-input-container">
                         <label for="apache_path">Chemin des logs Apache</label>
-                        <div class="input-with-example">
-                            <input type="text" id="apache_path" name="paths[apache_logs]" 
-                                   value="<?php echo htmlspecialchars($config['paths']['apache_logs'] ?? ''); ?>" 
-                                       class="form-control path-input" placeholder="/var/log/apache2">
-                            <div class="file-count">
+                        <div class="input-with-example" style="display: flex; align-items: flex-start; gap: 16px;">
+                            <div class="input-validation-container" style="flex: 1;">
+                                <input type="text" id="apache_path" name="paths[apache_logs]" 
+                                    value="<?php echo htmlspecialchars($config['paths']['apache_logs'] ?? ''); ?>" 
+                                    class="form-control path-input" placeholder="/var/log/apache2">
+                                <div class="validation-feedback">
+                                    <span class="validation-status"></span>
+                                    <span class="validation-message"></span>
+                                </div>
+                            </div>
+                            <div class="file-count" style="min-width: 160px;">
                                 <i class="fas fa-file-alt"></i>
                                 <?php
                                 $apache_path = $config['paths']['apache_logs'] ?? '/var/log/apache2';
@@ -1239,7 +1245,7 @@ $lastCheck = $updateChecker->getLastCheck();
                                 $unreadable_files = countUnreadableFiles($apache_path);
                                 echo "<span class='readable-count'>Fichiers lisibles: $readable_files</span>";
                                 if ($unreadable_files > 0) {
-                                echo "<span class='unreadable-count'>Fichiers non lisibles: $unreadable_files</span>";
+                                    echo "<span class='unreadable-count'>Fichiers non lisibles: $unreadable_files</span>";
                                 }
                                 ?>
                             </div>
@@ -1264,13 +1270,24 @@ $lastCheck = $updateChecker->getLastCheck();
                             <label for="nginx_path">Chemin des logs <?php echo (isset($config['nginx']['use_npm']) && $config['nginx']['use_npm']) ? 'Nginx Proxy Manager' : 'Nginx'; ?></label>
                             <div class="input-with-example">
                                 <?php if (isset($config['nginx']['use_npm']) && $config['nginx']['use_npm']): ?>
-                                    <input type="text" id="nginx_path" name="paths[npm_logs]" 
-                                           value="<?php echo htmlspecialchars($config['paths']['npm_logs'] ?? ''); ?>" 
-                                           class="form-control path-input" placeholder="/var/log/nginx-proxy-manager">
+                                    <div class="input-with-example" style="display: flex; align-items: flex-start; gap: 16px;">
+                                        <div class="input-validation-container" style="flex: 1;">                                    
+                                        <input type="text" id="nginx_path" name="paths[npm_logs]" 
+                                            value="<?php echo htmlspecialchars($config['paths']['npm_logs'] ?? ''); ?>" 
+                                            class="form-control path-input" placeholder="/var/log/nginx-proxy-manager">
+                                            <div class="validation-feedback">
+                                                    <span class="validation-status"></span>
+                                                    <span class="validation-message"></span>
+                                                </div>
+                                        </div>                                            
                                 <?php else: ?>
                                     <input type="text" id="nginx_path" name="paths[nginx_logs]" 
                                            value="<?php echo htmlspecialchars($config['paths']['nginx_logs'] ?? ''); ?>" 
                                            class="form-control path-input" placeholder="/var/log/nginx">
+                                           <div class="validation-feedback">
+                                                <span class="validation-status"></span>
+                                                <span class="validation-message"></span>
+                                            </div>
                                 <?php endif; ?>
                                 <div class="file-count">
                                     <i class="fas fa-file-alt"></i>
@@ -1287,6 +1304,8 @@ $lastCheck = $updateChecker->getLastCheck();
                                     ?>
                                 </div>
                             </div>
+
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1296,24 +1315,34 @@ $lastCheck = $updateChecker->getLastCheck();
                     <h3><i class="fas fa-terminal"></i>  Syslog</h3>
                     <div class="path-group">
                         <div class="path-input-container">
-                        <label for="syslog_path">Chemin des logs Syslog</label>
-                        <div class="input-with-example">
-                            <input type="text" id="syslog_path" name="paths[syslog]" 
-                                   value="<?php echo htmlspecialchars($config['paths']['syslog'] ?? ''); ?>" 
-                                   class="form-control path-input" placeholder="/var/log/syslog">
-                            <div class="file-count">
-                                <i class="fas fa-file-alt"></i>
-                                <?php
-                                $syslog_path = $config['paths']['syslog'] ?? '/var/log/syslog';
-                                $readable_files = countReadableFiles($syslog_path);
-                                $unreadable_files = countUnreadableFiles($syslog_path);
-                                echo "<span class='readable-count'>Fichiers lisibles: $readable_files</span>";
-                                if ($unreadable_files > 0) {
-                                    echo "<span class='unreadable-count'>Fichiers non lisibles: $unreadable_files</span>";
-                                }
-                                ?>
+                         <label for="syslog_path">Chemin des logs Syslog</label>
+                            <div class="input-with-example">
+
+                                <div class="input-with-example" style="display: flex; align-items: flex-start; gap: 16px;">
+                                    <div class="input-validation-container" style="flex: 1;">                        
+                                        <input type="text" id="syslog_path" name="paths[syslog]" 
+                                            value="<?php echo htmlspecialchars($config['paths']['syslog'] ?? ''); ?>" 
+                                            class="form-control path-input" placeholder="/var/log/syslog">
+                                                    <div class="validation-feedback">
+                                                        <span class="validation-status"></span>
+                                                        <span class="validation-message"></span>
+                                                    </div>
+                                    </div> 
+                                    <div class="file-count">
+                                        <i class="fas fa-file-alt"></i>
+                                        <?php
+                                        $syslog_path = $config['paths']['syslog'] ?? '/var/log/syslog';
+                                        $readable_files = countReadableFiles($syslog_path);
+                                        $unreadable_files = countUnreadableFiles($syslog_path);
+                                        echo "<span class='readable-count'>Fichiers lisibles: $readable_files</span>";
+                                        if ($unreadable_files > 0) {
+                                            echo "<span class='unreadable-count'>Fichiers non lisibles: $unreadable_files</span>";
+                                        }
+                                        ?>
+                                    </div>
                                 </div>
-                                </div>
+
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -2624,7 +2653,7 @@ footer {
                                 'success'
                             );
                             // <-- AJOUTE CETTE LIGNE :
-                            autoResizeTextareas('#patterns-tab');
+                            //autoResizeTextareas('#patterns-tab');
                         } else {
                             LogviewR.UI.showNotification('✅ Vérification terminée : ' + data.message, 'success');
                             setTimeout(() => window.location.reload(), 3200);
@@ -2632,7 +2661,7 @@ footer {
                     } else {
                         LogviewR.UI.showNotification('❌ ' + (data.message || 'Erreur lors de la vérification.'), 'error');
                         // <-- AJOUTE CETTE LIGNE :
-                        autoResizeTextareas('#patterns-tab');
+                        //autoResizeTextareas('#patterns-tab');
                     }
                 })
                 .catch(error => {
@@ -2645,6 +2674,10 @@ footer {
             });
         }
     });
+
+
+ 
+
     </script>
 
     <script>
@@ -2759,48 +2792,7 @@ footer {
     });
 
 
-    // Auto-resize for all pattern textareas in filters tab
-    document.addEventListener('DOMContentLoaded', function() {
-        // Select all textareas in the filters form
-        document.querySelectorAll('#filters-form textarea').forEach(function(textarea) {
-            // Function to auto-resize the textarea
-            const autoResize = function() {
-                this.style.height = 'auto'; // Reset height
-                this.style.height = (this.scrollHeight) + 'px'; // Set to scrollHeight
-            };
-            // Initial resize
-            autoResize.call(textarea);
-            // Resize on input
-            textarea.addEventListener('input', autoResize);
-        });
-    });
-
-    // Auto-resize all visible textareas in a given container
-    function autoResizeTextareas(containerSelector) {
-        document.querySelectorAll(containerSelector + ' textarea').forEach(function(textarea) {
-            const autoResize = function() {
-                this.style.height = 'auto';
-                this.style.height = (this.scrollHeight) + 'px';
-            };
-            autoResize.call(textarea);
-            textarea.removeEventListener('input', autoResize); // Avoid duplicates
-            textarea.addEventListener('input', autoResize);
-        });
-    }
-
-    // Resize sur clic onglet Patterns
-    document.addEventListener('DOMContentLoaded', function() {
-        const patternsTabBtn = document.querySelector('[data-tab="patterns"]');
-        if (patternsTabBtn) {
-            patternsTabBtn.addEventListener('click', function() {
-                setTimeout(function() {
-                    autoResizeTextareas('#patterns-tab');
-                }, 200);
-            });
-        }
-        // Resize aussi au chargement initial
-        autoResizeTextareas('#patterns-tab');
-    });
+ 
 
     // This code sends the value of the switch to the server as soon as it is toggled.
     document.addEventListener('DOMContentLoaded', function() {
