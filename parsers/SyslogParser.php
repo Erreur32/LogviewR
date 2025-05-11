@@ -27,7 +27,10 @@ class SyslogParser extends BaseParser {
         $this->debug = $config['debug']['enabled'] ?? false;
         
         // Load pattern from configuration
-        $patterns = require __DIR__ . '/../config/log_patterns.php';
+        $patterns_file = file_exists(__DIR__ . '/../config/log_patterns.user.php')
+            ? __DIR__ . '/../config/log_patterns.user.php'
+            : __DIR__ . '/../config/log_patterns.php';
+        $patterns = require $patterns_file;
         $this->syslogPattern = $patterns['syslog']['pattern'];
         $this->columns = $patterns['syslog']['columns'];
         

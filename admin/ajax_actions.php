@@ -1,268 +1,478 @@
 <?php
-session_start();
-
-// Vérifier si les fichiers de configuration existent
-if (!file_exists('../config/config.php') || !file_exists('../config/admin.php') || !file_exists('../config/log_patterns.php')) {
-    header('Content-Type: application/json');
-    echo json_encode([
-        'success' => false,
-        'message' => 'Fichiers de configuration manquants'
-    ]);
-    exit;
+// Vérifier si la session n'est pas déjà démarrée
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
 }
+
+// Inclure les fonctions nécessaires
+require_once __DIR__ . '/functions.php';
+require_once __DIR__ . '/../includes/PatternManager.php';
 
 // Vérifier si l'utilisateur est connecté
 if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== true) {
-    header('Content-Type: application/json');
-    echo json_encode([
-        'success' => false,
-        'message' => 'Non autorisé'
-    ]);
-    exit;
+    die(json_encode(['success' => false, 'message' => 'Non autorisé']));
 }
 
-// Charger les configurations
-$config_file = '../config/config.php';
-$admin_config_file = '../config/admin.php';
-$patterns_file = '../config/log_patterns.php';
+// Initialiser le gestionnaire de patterns
+$patternManager = new PatternManager();
 
-$current_config = require $config_file;
-$admin_config = require $admin_config_file;
-$current_patterns = require $patterns_file;
+// Fonction de validation des données
+function validateConfig($config) {
+    $errors = [];
 
-// Fonction pour sauvegarder la configuration
-function saveConfig($config) {
-    $configContent = "<?php\n";
-    $configContent .= "return " . var_export($config, true) . ";\n";
-    return file_put_contents('../config/config.php', $configContent) !== false;
-}
+    // Vérifier la structure de base
+    if (!is_array($config)) {
+        $errors[] = "La configuration doit être un tableau";
+        return $errors;
+    }
 
-// Fonction pour nettoyer les patterns (enlever les sauts de ligne)
-function cleanPatterns($patterns) {
-    if (isset($patterns['filters']['exclude'])) {
-        foreach ($patterns['filters']['exclude'] as $type => $items) {
-            if (is_array($items)) {
-                $patterns['filters']['exclude'][$type] = array_map(function($pattern) {
-                    return rtrim($pattern, "\n\r");
-                }, $items);
+    // Vérifier les sections requises
+    $requiredSections = ['app', 'paths', 'nginx', 'filters', 'themes', 'security', 'admin'];
+ 
+
+    // Validation des chemins
+    if (isset($config['paths'])) {
+        foreach ($config['paths'] as $key => $path) {
+            if (!is_string($path) || !preg_match('/^\/[a-zA-Z0-9\/_-]+$/', $path)) {
+                $errors[] = "Chemin invalide pour '$key': $path";
             }
         }
     }
-    return $patterns;
+
+    // Validation des thèmes
+    if (isset($config['themes'])) {
+        $requiredThemes = ['light', 'dark'];
+        foreach ($requiredThemes as $theme) {
+            if (!isset($config['themes'][$theme])) {
+                $errors[] = "Thème '$theme' manquant";
+            } else {
+                $requiredColors = ['primary_color', 'text_color', 'bg_color'];
+                foreach ($requiredColors as $color) {
+                    if (!isset($config['themes'][$theme][$color])) {
+                        $errors[] = "Couleur '$color' manquante pour le thème '$theme'";
+                    }
+                }
+            }
+        }
+    }
+
+    return $errors;
 }
 
 // Fonction pour sauvegarder les patterns
-function savePatterns($patterns) {
-    // Nettoyer les patterns avant de les sauvegarder
-    $patterns = cleanPatterns($patterns);
+function savePatterns($patterns, $filePath) {
+    // Remove unwanted keys if present (safety for legacy POST data)
+    unset($patterns['action'], $patterns['active_tab']);
     
-    $patternsContent = "<?php\n";
-    $patternsContent .= "return " . var_export($patterns, true) . ";\n";
-    return file_put_contents('../config/log_patterns.php', $patternsContent) !== false;
+    // Initialize user patterns array
+    $user_patterns = [];
+    
+    // Load existing user patterns if file exists
+    if (file_exists($filePath)) {
+        try {
+            $user_patterns = require $filePath;
+            // Remove redundant 'patterns' key if it exists
+            if (isset($user_patterns['patterns'])) {
+                unset($user_patterns['patterns']);
+            }
+        } catch (Exception $e) {
+            error_log('Error loading user patterns: ' . $e->getMessage());
+            $user_patterns = [];
+        }
+    }
+    
+    // Only update patterns that have been modified
+    foreach ($patterns as $type => $type_patterns) {
+        if (!isset($user_patterns[$type])) {
+            $user_patterns[$type] = [];
+        }
+        
+        foreach ($type_patterns as $pattern_type => $pattern_data) {
+            if (isset($pattern_data['pattern']) && !empty($pattern_data['pattern'])) {
+                // Validate pattern format
+                if (preg_match('/^\/.*\/[imsxADSUXJu]*$/', $pattern_data['pattern'])) {
+                    $user_patterns[$type][$pattern_type] = $pattern_data;
+                } else {
+                    error_log('Invalid pattern format: ' . $pattern_data['pattern']);
+                    return false;
+                }
+            }
+        }
+    }
+    
+    // Create directory if it doesn't exist
+    $dir = dirname($filePath);
+    if (!is_dir($dir)) {
+        if (!mkdir($dir, 0755, true)) {
+            error_log('Failed to create directory: ' . $dir);
+            return false;
+        }
+    }
+    
+    // Write only the modified patterns
+    $content = "<?php\n// User defined patterns\nreturn " . var_export($user_patterns, true) . ";\n";
+    if (file_put_contents($filePath, $content) === false) {
+        error_log('Failed to write patterns file: ' . $filePath);
+        return false;
+    }
+
+    // Clear cache
+    clearstatcache(true, $filePath);
+    if (function_exists('opcache_invalidate')) {
+        opcache_invalidate($filePath, true);
+    }
+
+    return true;
+}
+
+// Fonction pour formater les patterns
+function formatPatterns($array, $indent = 2) {
+    $result = "array (\n";
+    $spaces = str_repeat(' ', $indent);
+    
+    foreach ($array as $key => $value) {
+        $result .= $spaces;
+        
+        // Handle numeric keys for patterns
+        if (is_numeric($key)) {
+            $result .= $key . ' => ';
+        } else {
+            $result .= "'" . addslashes($key) . "' => ";
+        }
+        
+        if (is_array($value)) {
+            $result .= formatPatterns($value, $indent + 2);
+        } else {
+            // Special handling for regex patterns
+            if (is_string($value) && preg_match('/^\/.*\/[imsxADSUXJu]*$/', $value)) {
+                $result .= $value;
+            } else {
+                $result .= "'" . addslashes($value) . "'";
+            }
+        }
+        
+        $result .= ",\n";
+    }
+    
+    $result .= str_repeat(' ', $indent - 2) . ")";
+    return $result;
 }
 
 // Traiter les actions POST
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
-    $response = ['success' => false, 'message' => 'Action non reconnue'];
+    
+    switch($action) {
+        case 'update_patterns':
+            if (!isset($_POST['patterns'])) {
+                echo json_encode(['success' => false, 'message' => 'Aucun pattern reçu']);
+                exit;
+            }
 
-    switch ($action) {
+            $patterns = json_decode($_POST['patterns'], true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                echo json_encode(['success' => false, 'message' => 'Format de patterns invalide']);
+                exit;
+            }
+
+            // Utiliser la classe PatternManager pour sauvegarder les patterns
+            $result = $patternManager->savePatterns($patterns);
+            if ($result['success']) {
+                error_log('Patterns sauvegardés avec succès via PatternManager');
+                echo json_encode(['success' => true, 'message' => 'Patterns sauvegardés avec succès']);
+            } else {
+                error_log('Erreur lors de la sauvegarde des patterns: ' . ($result['message'] ?? 'Erreur inconnue'));
+                echo json_encode(['success' => false, 'message' => $result['message'] ?? 'Erreur lors de la sauvegarde des patterns']);
+            }
+            break;
+            
+        case 'reset_patterns':
+            // Réinitialisation des patterns
+            $result = $patternManager->resetPatterns();
+            die(json_encode($result));
+            break;
+            
+        case 'validate_pattern':
+            // Validation d'un seul pattern
+            if (!isset($_POST['pattern'])) {
+                die(json_encode(['valid' => false, 'message' => 'Pattern manquant']));
+            }
+            $result = $patternManager->validatePattern($_POST['pattern']);
+            die(json_encode($result));
+            break;
+            
         case 'update_config':
-            // Mise à jour du thème
-            if (isset($_POST['theme'])) {
-                $current_config['theme'] = $_POST['theme'];
-            }
-            
-            // Mise à jour des couleurs des thèmes
-            if (isset($_POST['themes'])) {
-                $themes = json_decode($_POST['themes'], true);
-                if ($themes) {
-                    $current_config['themes'] = $themes;
-                } else {
-                    foreach ($_POST['themes'] as $theme_name => $colors) {
-                        if (!isset($current_config['themes'][$theme_name])) {
-                            $current_config['themes'][$theme_name] = [];
-                        }
-                        foreach ($colors as $color_name => $color_value) {
-                            $current_config['themes'][$theme_name][$color_name] = $color_value;
-                        }
-                    }
-                }
-            }
-            
-            if (saveConfig($current_config)) {
-                $response = [
-                    'success' => true,
-                    'message' => 'Thème mis à jour avec succès'
-                ];
-            } else {
-                $response = [
-                    'success' => false,
-                    'message' => 'Erreur lors de la sauvegarde du thème'
-                ];
-            }
-            break;
+            // Always load the default config for robust merging
+            $default_config_file = __DIR__ . '/../config/config.php';
+            $config_file = __DIR__ . '/../config/config.user.php';
+            $admin_file = __DIR__ . '/../config/admin.php';
+            $defaultConfig = file_exists($default_config_file) ? require $default_config_file : [];
+            $currentConfig = file_exists($config_file) ? require $config_file : [];
+            $adminConfig = file_exists($admin_file) ? require $admin_file : [];
 
-        case 'save_switch':
-            // Mettre à jour un switch
-            $name = $_POST['name'] ?? '';
-            $value = $_POST['value'] ?? '0';
-
-            if ($name === 'debug[enabled]') {
-                $current_config['debug']['enabled'] = $value === '1';
-                if (saveConfig($current_config)) {
-                    $response = [
-                        'success' => true,
-                        'message' => 'Mode debug ' . ($value === '1' ? 'activé' : 'désactivé')
-                    ];
-                }
-            } elseif ($name === 'use_npm') {
-                $current_config['nginx']['use_npm'] = $value === '1';
-                if (saveConfig($current_config)) {
-                    $response = [
-                        'success' => true,
-                        'message' => 'Nginx Proxy Manager ' . ($value === '1' ? 'activé' : 'désactivé')
-                    ];
-                }
-            }
-            break;
-
-        case 'save_all':
-            // Mise à jour des switches (debug et NPM)
-            if (isset($_POST['debug']['enabled'])) {
-                $current_config['debug']['enabled'] = $_POST['debug']['enabled'] === '1';
-            }
-            
-            if (isset($_POST['use_npm'])) {
-                $current_config['nginx']['use_npm'] = $_POST['use_npm'] === '1';
-            }
-            
-            // Mise à jour des chemins
-            if (isset($_POST['paths']['nginx_logs'])) {
-                $current_config['paths']['nginx_logs'] = $_POST['paths']['nginx_logs'];
-            }
-            
-            if (isset($_POST['paths']['apache_logs'])) {
-                $current_config['paths']['apache_logs'] = $_POST['paths']['apache_logs'];
-            }
-            
-            if (isset($_POST['paths']['syslog'])) {
-                $current_config['paths']['syslog'] = $_POST['paths']['syslog'];
-            }
-            
-            // Mise à jour des extensions exclues
-            if (isset($_POST['app']['excluded_extensions'])) {
-                $extensions = explode("\n", $_POST['app']['excluded_extensions']);
-                $extensions = array_map('trim', $extensions);
-                $extensions = array_filter($extensions);
-                $current_config['app']['excluded_extensions'] = $extensions;
-            }
-            
-            // Mise à jour des filtres d'exclusion
-            if (isset($_POST['filters']['exclude']['ips'])) {
-                $current_patterns['filters']['exclude']['ips'] = array_map('trim', array_filter(explode("\n", $_POST['filters']['exclude']['ips'])));
-            }
-            
-            if (isset($_POST['filters']['exclude']['requests'])) {
-                $current_patterns['filters']['exclude']['requests'] = array_map('trim', array_filter(explode("\n", $_POST['filters']['exclude']['requests'])));
-            }
-            
-            if (isset($_POST['filters']['exclude']['user_agents'])) {
-                $current_patterns['filters']['exclude']['user_agents'] = array_map('trim', array_filter(explode("\n", $_POST['filters']['exclude']['user_agents'])));
-            }
-            
-            if (isset($_POST['filters']['exclude']['users'])) {
-                $current_patterns['filters']['exclude']['users'] = array_map('trim', array_filter(explode("\n", $_POST['filters']['exclude']['users'])));
-            }
-            
-            if (isset($_POST['filters']['exclude']['content'])) {
-                $current_patterns['filters']['exclude']['content'] = array_map('trim', array_filter(explode("\n", $_POST['filters']['exclude']['content'])));
-            }
-            
-            // Mise à jour des patterns
-            if (isset($_POST['patterns'])) {
-                foreach ($_POST['patterns'] as $type => $subtypes) {
-                    foreach ($subtypes as $subtype => $data) {
-                        if (isset($data['pattern'])) {
-                            $current_patterns[$type][$subtype]['pattern'] = $data['pattern'];
-                        }
-                    }
-                }
-            }
-            
-            // Mise à jour du thème
-            if (isset($_POST['theme'])) {
-                $current_config['theme'] = $_POST['theme'];
-            }
-            
-            // Mise à jour des couleurs des thèmes
-            if (isset($_POST['themes'])) {
-                foreach ($_POST['themes'] as $theme_name => $colors) {
-                    if (!isset($current_config['themes'][$theme_name])) {
-                        $current_config['themes'][$theme_name] = [];
-                    }
-                    foreach ($colors as $color_name => $color_value) {
-                        $current_config['themes'][$theme_name][$color_name] = $color_value;
-                    }
-                }
-            }
-            
-            // Sauvegarder la configuration
-            $config_saved = saveConfig($current_config);
-            $patterns_saved = savePatterns($current_patterns);
-            
-            if ($config_saved && $patterns_saved) {
-                $response = [
-                    'success' => true,
-                    'message' => 'Configuration mise à jour avec succès'
-                ];
-            } else {
-                $response = [
-                    'success' => false,
-                    'message' => 'Erreur lors de la sauvegarde de la configuration'
-                ];
-            }
-            break;
-
-        case 'save_debug_switch':
-            // Validate debug mode value (must be 0 or 1)
-            if (!isset($_POST['debug']) || !in_array($_POST['debug'], ['0', '1'], true)) {
-                http_response_code(400);
-                die(json_encode(['status' => 'error', 'message' => 'Invalid debug value']));
+            // Decode the new config from POST (JSON)
+            $newConfig = json_decode($_POST['config'], true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                error_log('JSON decode error: ' . json_last_error_msg());
+                die(json_encode(['success' => false, 'message' => 'Invalid data']));
             }
 
-            $debug = (int)$_POST['debug'];
-            
-            try {
-                // Update configuration file
-                $current_config['debug'] = $debug;
-                if (!saveConfig($current_config)) {
-                    throw new Exception('Failed to save configuration');
+            // Si les paramètres de debug sont présents, les sauvegarder dans admin.php
+            if (isset($newConfig['debug'])) {
+                // Initialiser la section debug si elle n'existe pas
+                if (!isset($adminConfig['debug'])) {
+                    $adminConfig['debug'] = [];
                 }
-
-                // Log the change
-                error_log(sprintf("[INFO] Debug mode changed to %s by admin", $debug ? 'enabled' : 'disabled'));
                 
-                die(json_encode(['status' => 'success']));
-            } catch (Exception $e) {
-                http_response_code(500);
-                die(json_encode(['status' => 'error', 'message' => $e->getMessage()]));
+                // Mettre à jour les paramètres de debug
+                $adminConfig['debug'] = array_merge($adminConfig['debug'], [
+                    'enabled' => $newConfig['debug']['enabled'] ?? false,
+                    'log_to_apache' => $newConfig['debug']['log_to_apache'] ?? false,
+                    'require_login' => $newConfig['debug']['require_login'] ?? false
+                ]);
+                
+                // Sauvegarder la configuration admin
+                $adminContent = "<?php\nreturn " . var_export($adminConfig, true) . ";\n";
+                if (file_put_contents($admin_file, $adminContent) === false) {
+                    die(json_encode(['success' => false, 'message' => 'Error saving debug configuration']));
+                }
+                unset($newConfig['debug']); // Retirer debug de la config normale
+            }
+
+            // If patterns are present, save them using PatternManager
+            if (isset($newConfig['patterns'])) {
+                $result = $patternManager->savePatterns($newConfig['patterns']);
+                if (!$result['success']) {
+                    die(json_encode($result));
+                }
+                unset($newConfig['patterns']); // Remove patterns from config
+            }
+
+            // Merge: default config < user config < new changes
+            $finalConfig = array_replace_recursive($defaultConfig, $currentConfig, $newConfig);
+
+            // Save the merged config to config.user.php
+            $configContent = "<?php\nreturn " . var_export($finalConfig, true) . ";\n";
+            if (file_put_contents($config_file, $configContent) === false) {
+                die(json_encode(['success' => false, 'message' => 'Error saving configuration']));
+            }
+
+            // Invalidate opcache if needed
+            if (function_exists('opcache_invalidate')) {
+                opcache_invalidate($config_file, true);
+                opcache_invalidate($admin_file, true);
+            }
+
+            die(json_encode(['success' => true, 'message' => 'Configuration updated successfully']));
+            break;
+            
+        case 'save_switch':
+            // Validate input
+            if (!isset($_POST['name']) || !isset($_POST['value'])) {
+                die(json_encode(['success' => false, 'message' => 'Paramètres manquants']));
+            }
+
+            $name = $_POST['name'];
+            $value = $_POST['value'] === '1';
+
+            // Handle special case for Nginx/NPM switch
+            if ($name === 'use_npm') {
+                $config = [
+                    'nginx' => [
+                        'use_npm' => $value
+                    ],
+                    'paths' => [
+                        'nginx_logs' => $value ? '/var/log/npm' : '/var/log/nginx'
+                    ]
+                ];
+            } else {
+                // Handle other switches
+                $parts = explode('[', str_replace(']', '', $name));
+                $config = [];
+                $current = &$config;
+                
+                foreach ($parts as $part) {
+                    $current[$part] = [];
+                    $current = &$current[$part];
+                }
+                $current = $value;
+            }
+
+            // Save configuration
+            if (saveConfig($config)) {
+                die(json_encode([
+                    'success' => true, 
+                    'message' => 'Configuration mise à jour avec succès'
+                ]));
+            } else {
+                die(json_encode([
+                    'success' => false, 
+                    'message' => 'Erreur lors de la mise à jour de la configuration'
+                ]));
             }
             break;
+            
+        case 'update_filters':
+            // Validate input
+            if (!isset($_POST['enabled'])) {
+                die(json_encode(['success' => false, 'message' => 'Paramètre enabled manquant']));
+            }
 
+            $enabled = $_POST['enabled'] === '1';
+
+            // Charger la configuration existante
+            $config_file = __DIR__ . '/../config/config.user.php';
+            if (!file_exists($config_file)) {
+                die(json_encode(['success' => false, 'message' => 'Fichier de configuration non trouvé']));
+            }
+
+            $currentConfig = require $config_file;
+
+            // Mettre à jour la section filters
+            if (!isset($currentConfig['filters'])) {
+                $currentConfig['filters'] = [];
+            }
+            $currentConfig['filters']['enabled'] = $enabled;
+
+            // Sauvegarder la configuration
+            $configContent = "<?php\nreturn " . formatArray($currentConfig) . ";\n";
+            if (file_put_contents($config_file, $configContent) === false) {
+                die(json_encode(['success' => false, 'message' => 'Erreur lors de la sauvegarde de la configuration']));
+            }
+
+            // Invalider le cache si nécessaire
+            if (function_exists('opcache_invalidate')) {
+                opcache_invalidate($config_file, true);
+            }
+
+            die(json_encode(['success' => true, 'message' => 'État des filtres mis à jour avec succès']));
+            break;
+            
+        case 'save_all':
+            $config_file = __DIR__ . '/../config/config.user.php';
+            $config = file_exists($config_file) ? require $config_file : [];
+
+            // Update selected theme at root level
+            if (isset($_POST['theme'])) {
+                $config['theme'] = $_POST['theme'];
+            }
+
+            // Update custom colors for each theme (light, dark, glass)
+            foreach (['light', 'dark', 'glass'] as $theme) {
+                foreach (['primary_color', 'text_color', 'bg_color', 'accent_color'] as $color) {
+                    $key = "themes[$theme][$color]";
+                    if (isset($_POST[$key])) {
+                        if (!isset($config['themes'][$theme])) {
+                            $config['themes'][$theme] = [];
+                        }
+                        $config['themes'][$theme][$color] = $_POST[$key];
+                    }
+                }
+            }
+
+            // Save config
+            file_put_contents($config_file, "<?php\nreturn " . var_export($config, true) . ";\n");
+            echo json_encode(['success' => true]);
+            exit;
+            break;
+            
+        case 'save_update_switch':
+            $enabled = isset($_POST['enabled']) && $_POST['enabled'] == 1;
+            $admin_file = __DIR__ . '/../config/admin.php';
+            if (!file_exists($admin_file)) {
+                die(json_encode(['success' => false, 'message' => 'admin.php introuvable']));
+            }
+            $adminConfig = require $admin_file;
+            $adminConfig['admin']['update_check']['enabled'] = $enabled;
+            $content = "<?php\nreturn " . var_export($adminConfig, true) . ";\n";
+            if (file_put_contents($admin_file, $content) === false) {
+                die(json_encode(['success' => false, 'message' => 'Erreur lors de la sauvegarde']));
+            }
+            die(json_encode(['success' => true]));
+            break;
+            
         default:
-            $response = [
-                'success' => false,
-                'message' => 'Action inconnue: ' . $action
-            ];
+            die(json_encode(['success' => false, 'message' => 'Action non reconnue']));
     }
+}
 
-    header('Content-Type: application/json');
-    echo json_encode($response);
-} else {
-    header('Content-Type: application/json');
-    echo json_encode([
-        'success' => false,
-        'message' => 'Méthode non autorisée'
-    ]);
+// Instant update check for GitHub tags (AJAX)
+if (isset($_GET['action']) && $_GET['action'] === 'check_update_now') {
+    // GitHub API URL for tags
+    $apiUrl = 'https://api.github.com/repos/Erreur32/LogviewR/tags';
+    $ch = curl_init($apiUrl);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_USERAGENT, 'LogviewR-Admin'); // GitHub API requires a user-agent
+    $result = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($httpCode === 200 && $result) {
+        $tags = json_decode($result, true);
+        if (is_array($tags) && count($tags) > 0) {
+            $latest = $tags[0]['name'];
+            echo json_encode([
+                'success' => true,
+                'message' => "Dernier tag GitHub : $latest",
+                'latest_tag' => $latest,
+                'tags' => array_column($tags, 'name')
+            ]);
+        } else {
+            echo json_encode(['success' => false, 'message' => "Aucun tag trouvé sur GitHub."]);
+        }
+    } else {
+        echo json_encode(['success' => false, 'message' => "Erreur lors de la récupération des tags GitHub (HTTP $httpCode)."]);
+    }
+    exit;
+}
+
+/**
+ * Format an array with proper indentation to match var_export() style
+ * @param array $array The array to format
+ * @param int $indent The current indentation level
+ * @return string The formatted array as a string
+ */
+function formatArray($array, $indent = 0) {
+    $indentStr = str_repeat('  ', $indent);
+    $result = "array (\n";
+    
+    foreach ($array as $key => $value) {
+        $result .= $indentStr . "  ";
+        
+        if (is_string($key)) {
+            $result .= "'" . addslashes($key) . "' => ";
+        }
+        
+        if (is_array($value)) {
+            $result .= formatArray($value, $indent + 1);
+        } else if (is_string($value)) {
+            // Special handling for filters with regex patterns
+            if (strpos($value, "\n") !== false) {
+                $lines = explode("\n", $value);
+                $result .= "array (\n";
+                $index = 0;
+                foreach ($lines as $line) {
+                    $line = trim($line);
+                    if (!empty($line)) {
+                        $result .= $indentStr . "    " . $index . " => '" . addslashes($line) . "',\n";
+                        $index++;
+                    }
+                }
+                $result .= $indentStr . "  )";
+            } else {
+                $result .= "'" . addslashes($value) . "'";
+            }
+        } else if (is_bool($value)) {
+            $result .= $value ? 'true' : 'false';
+        } else if (is_null($value)) {
+            $result .= 'null';
+        } else {
+            $result .= $value;
+        }
+        
+        $result .= ",\n";
+    }
+    
+    $result .= $indentStr . ")";
+    return $result;
 } 

@@ -2,6 +2,131 @@
 
 ## État du Projet 📊
 
+
+$data = [
+    // Configuration générale de l'application
+    'app' => [
+        'default_lines_per_page' => int,      // Nombre de lignes par page
+        'max_lines_per_request' => int,       // Maximum de lignes par requête
+        'refresh_interval' => int,            // Intervalle de rafraîchissement
+        'excluded_extensions' => array,       // Extensions à exclure
+        'enable_ip_exclusion' => bool,        // Activation de l'exclusion d'IP
+        'excluded_ips' => array,              // Liste des IPs à exclure
+        'debug' => [
+            'enabled' => bool,                // Mode debug activé
+            'log_level' => string,            // Niveau de log (DEBUG, INFO, WARNING, ERROR)
+            'log_format' => string,           // Format des messages de log
+            'log_to_apache' => bool           // Écrire dans les logs Apache
+        ]
+    ],
+
+    // Chemins des fichiers de log
+    'paths' => [
+        'apache_logs' => string,              // Chemin des logs Apache
+        'nginx_logs' => string,               // Chemin des logs Nginx
+        'npm_logs' => string,                 // Chemin des logs Nginx Proxy Manager
+        'syslog' => string                    // Chemin des logs système
+    ],
+
+    // Configuration Nginx
+    'nginx' => [
+        'use_npm' => bool                     // Utiliser Nginx Proxy Manager
+    ],
+
+    // Filtres d'exclusion
+    'filters' => [
+        'enabled' => bool,                    // Activation des filtres
+        'exclude' => [
+            'ips' => array,                   // Patterns d'IPs à exclure
+            'requests' => array,              // Patterns de requêtes à exclure
+            'user_agents' => array,           // Patterns de user-agents à exclure
+            'users' => array,                 // Patterns d'utilisateurs à exclure
+            'referers' => array,              // Patterns de référents à exclure
+            'content' => array                // Patterns de contenu à exclure
+        ]
+    ],
+
+    // Configuration des thèmes
+    'themes' => [
+        'light' => [
+            'primary_color' => string,        // Couleur principale
+            'text_color' => string,           // Couleur du texte
+            'bg_color' => string              // Couleur de fond
+        ],
+        'dark' => [
+            'primary_color' => string,        // Couleur principale
+            'text_color' => string,           // Couleur du texte
+            'bg_color' => string              // Couleur de fond
+        ]
+    ],
+
+    // Configuration des mises à jour
+    'update_check' => [
+        'enabled' => bool,                    // Activation des vérifications
+        'check_interval' => int,              // Intervalle de vérification
+        'cache_dir' => string                 // Dossier de cache
+    ],
+
+    // Configuration des patterns de logs
+    'patterns' => [
+        'apache' => [
+            'access' => [
+                'pattern' => string           // Pattern pour les logs d'accès
+            ],
+            'error' => [
+                'pattern' => string           // Pattern pour les logs d'erreur
+            ]
+        ],
+        'nginx' => [
+            'access' => [
+                'pattern' => string           // Pattern pour les logs d'accès
+            ],
+            'error' => [
+                'pattern' => string           // Pattern pour les logs d'erreur
+            ]
+        ],
+        'npm' => [
+            'default_host_access' => [
+                'pattern' => string           // Pattern pour les logs d'accès par défaut
+            ],
+            'proxy_host_access' => [
+                'pattern' => string           // Pattern pour les logs d'accès proxy
+            ],
+            'error' => [
+                'pattern' => string           // Pattern pour les logs d'erreur
+            ]
+        ]
+    ],
+
+    // Configuration de la sécurité
+    'security' => [
+        'max_login_attempts' => int,          // Nombre maximum de tentatives de connexion
+        'lockout_time' => int,                // Temps de verrouillage
+        'password_history' => int,            // Historique des mots de passe
+        'password_expiry' => int              // Expiration du mot de passe
+    ],
+
+    // Configuration de l'administrateur
+    'admin' => [
+        'username' => string,                 // Nom d'utilisateur admin
+        'password' => string,                 // Mot de passe admin (hashé)
+        'session_timeout' => int,             // Timeout de session
+        'min_password_length' => int,         // Longueur minimale du mot de passe
+        'require_special_chars' => bool,      // Caractères spéciaux requis
+        'require_numbers' => bool,            // Chiffres requis
+        'require_uppercase' => bool           // Majuscules requises
+    ],
+
+    // Configuration des formats de date
+    'date_formats' => [
+        'display' => string                   // Format d'affichage des dates
+    ],
+
+    // Fuseau horaire
+    'timezone' => string                      // Fuseau horaire par défaut
+];
+
+
 ### Fonctionnalités Implémentées ✅
 - Parsing de base des logs Apache, Nginx et Syslog
 - Interface utilisateur de base avec thème sombre/clair

@@ -22,7 +22,7 @@ const columnConfigs = {
             size: { name: 'Size', width: '100px', align: 'right', orderable: true },
             referer: { 
                 name: 'Referer', 
-                width: '200px', 
+                width: '150px', 
                 align: 'left', 
                 orderable: true,
                 render: function(data) {
@@ -66,30 +66,49 @@ const columnConfigs = {
         }
     },
     'apache-404': {
-        host: { name: 'Host', width: '150px', align: 'center', orderable: true },
-        ip: { name: 'IP', width: '120px', align: 'center', orderable: true },
-        real_ip: { name: 'Real IP', width: '120px', align: 'center', orderable: true },
-        date: { name: 'Date', width: '150px', align: 'center', orderable: true },
-        request: { 
-            name: 'Request', 
-            width: '300px', 
-            align: 'left', 
+        date: { 
+            name: 'Date', 
+            width: '150px', 
+            align: 'center', 
             orderable: true,
             render: function(data) {
-                return `<div class="request-wrapper">${data}</div>`;
+                return data ? data.replace(' +0200', '') : '';
             }
         },
-        size: { name: 'Size', width: '100px', align: 'right', orderable: true },
+        host: { 
+            name: 'Host', 
+            width: '200px', 
+            align: 'center', 
+            orderable: true 
+        },
+        ip: { 
+            name: 'IP', 
+            width: '150px', 
+            align: 'center', 
+            orderable: true 
+        },
+        real_ip: { 
+            name: 'Real IP', 
+            width: '150px', 
+            align: 'center', 
+            orderable: true 
+        },
+        size: { 
+            name: 'Size', 
+            width: '80px', 
+            align: 'right', 
+            orderable: true,
+            render: function(data) {
+                return data || '0.0B';
+            }
+        },
         referer: { 
             name: 'Referer', 
-            width: '200px', 
+            width: '150px', 
             align: 'left', 
             orderable: true,
             render: function(data) {
-                if (!data || data === '-') {
-                    return '<span class="text-muted">-</span>';
-                }
-                return data;
+                return data || '-';
             }
         },
         user_agent: { 
@@ -98,10 +117,7 @@ const columnConfigs = {
             align: 'left', 
             orderable: true,
             render: function(data) {
-                if (!data || data === '-') {
-                    return '<span class="text-muted">-</span>';
-                }
-                return data;
+                return data || '-';
             }
         }
     },
@@ -370,125 +386,23 @@ window.getFiltersEnabled = function() {
     };
 };
 
-// Fonction pour rafraîchir le tableau
-function refreshTable() {
-    console.log('DEBUG - Début du rafraîchissement du tableau');
-    if (!currentLogFile || !window.logTable) {
-        console.log('DEBUG - Pas de fichier ou tableau non initialisé');
-        return;
-    }
-    
-    const button = $('#refreshLogs');
-    const icon = button.find('i');
-    const wrapper = $('.dataTables_wrapper');
-    
-    // Prevent multiple clicks while loading
-    if (button.hasClass('loading')) {
-        console.log('DEBUG - Le bouton est déjà en cours de chargement');
-        return;
-    }
-    
-    console.log('DEBUG - Activation de l\'état de chargement');
-    // Add loading state and disable button
-    button.addClass('loading').prop('disabled', true);
-    icon.addClass('fa-spin');
-    wrapper.addClass('loading');
-    
-    // Save current state
-    const currentState = {
-        search: window.logTable.search(),
-        page: window.logTable.page(),
-        order: window.logTable.order(),
-        length: window.logTable.page.len()
-    };
-    console.log('DEBUG - État actuel sauvegardé:', currentState);
-
-    // Show loading indicator in table with fade effect
-    $('#logTable').fadeOut(150).addClass('loading-data');
-    
-    // Reload data with timeout for minimum animation duration
-    const minLoadingTime = 300; // Reduced minimum loading time
-    const loadingStart = Date.now();
-    
-    return loadLog(currentLogFile, true)
-        .then(() => {
-            console.log('DEBUG - Chargement des données terminé');
-            // Ensure minimum loading time for better UX
-            const elapsed = Date.now() - loadingStart;
-            if (elapsed < minLoadingTime) {
-                return new Promise(resolve => setTimeout(resolve, minLoadingTime - elapsed));
-            }
-        })
-        .then(() => {
-            console.log('DEBUG - Restauration de l\'état');
-            // Restore state
-            if (currentState.search) {
-                window.logTable.search(currentState.search);
-            }
-            if (currentState.order.length) {
-                window.logTable.order(currentState.order);
-            }
-            window.logTable.page.len(currentState.length);
-            
-            // Fade in the table
-            $('#logTable').fadeIn(150);
-            
-            return window.logTable.page(currentState.page).draw('page');
-        })
-        .catch(error => {
-            console.error('DEBUG - Erreur lors du rafraîchissement:', error);
-            $('#errorMessage')
-                .text('Failed to refresh data. Please try again.')
-                .removeClass('d-none')
-                .fadeIn();
-            
-            setTimeout(() => {
-                $('#errorMessage').fadeOut();
-            }, 5000);
-        })
-        .finally(() => {
-            console.log('DEBUG - Nettoyage des états de chargement');
-            // Remove loading states with smooth transition
-            wrapper.removeClass('loading');
-            setTimeout(() => {
-                button.removeClass('loading').prop('disabled', false);
-                icon.removeClass('fa-spin');
-                $('#logTable').removeClass('loading-data');
-            }, 150);
-            
-            // Force redraw to ensure all states are cleared
-            if (window.logTable) {
-                console.log('DEBUG - Redessinage forcé du tableau');
-                window.logTable.draw(false);
-            }
-            console.log('DEBUG - Rafraîchissement terminé');
-        });
-}
-
-// Initialisation du tableau
+// Fonction pour initialiser le tableau
 function initLogTable(response, logFile) {
     console.log('DEBUG - Start of table initialization');
-    console.log('DEBUG - Log type:', response.type);
-    console.log('DEBUG - Columns:', response.columns);
-    console.log('DEBUG - Lines:', response.lines);
 
-    // Vérifier si le tableau existe et est une instance de DataTable
     if ($.fn.DataTable.isDataTable('#logTable')) {
-        console.log('DEBUG - Destroying old table');
         $('#logTable').DataTable().destroy();
         $('#output').empty();
     }
 
     if (!response.lines || response.lines.length === 0) {
-        console.log('DEBUG - No log lines found');
         $('#output').html('<div class="alert alert-info">No log lines found</div>');
         return;
     }
 
-    // Initialiser le conteneur du tableau
     const tableContainer = $('#output');
 
-    // Création des en-têtes de colonnes
+    // Création des en-têtes de colonnes à partir de la configuration
     const headers = Object.entries(response.columns)
         .map(([key, value]) => `<th>${value.name}</th>`)
         .join('');
@@ -504,129 +418,65 @@ function initLogTable(response, logFile) {
         },
         success: function(html) {
             console.log('DEBUG - Template loaded successfully');
-            // Injecter le HTML dans le conteneur
             tableContainer.html(html);
 
-            // Initialisation du tableau
             try {
                 console.log('DEBUG - Attempting to initialize DataTable');
                 
-                // Préparer les colonnes
-                const columns = Object.entries(response.columns).map(([key, value], index) => {
-                    // Utiliser la configuration spécifique au type de log
-                    const logType = response.type.split('-')[0]; // ex: 'apache' from 'apache-referer'
-                    const subType = response.type.split('-')[1]; // ex: 'referer' from 'apache-referer'
-                    const columnConfig = columnConfigs[logType]?.[subType]?.[key] || {};
-                    console.log('DEBUG - Processing column:', {
-                        key,
-                        value,
-                        index,
-                        columnConfig,
-                        logType,
-                        subType
-                    });
-                    return {
-                        data: key,
-                        name: key,
-                        title: value.name,
-                        className: `dt-${value.class || `column-${key}`}`,
-                        width: columnConfig.width || 'auto',
-                        orderable: columnConfig.orderable ?? true,
-                        searchable: true,
-                        visible: true,
-                        render: columnConfig.render || function(data) {
-                            if (!data) return '';
-                            return `<div class="badge-wrapper">${data}</div>`;
-                        }
-                    };
-                });
-
-                console.log('DEBUG - Final columns configuration:', columns);
-
-                // Vérifier que les colonnes sont correctement définies
-                if (!columns || columns.length === 0) {
-                    console.error('No columns defined for table initialization');
-                    return;
-                }
-
+                // Initialisation du tableau avec la configuration du PHP
                 window.logTable = $('#logTable').DataTable({
                     data: response.lines,
-                    columns: columns,
+                    columns: Object.entries(response.columns).map(([key, column]) => ({
+                        data: key,
+                        name: key,
+                        title: column.name,
+                        className: column.class,
+                        width: column.width,
+                        orderable: column.sortable,
+                        searchable: column.searchable,
+                        visible: column.visible,
+                        render: function(data, type, row) {
+                            if (!data) return '';
+                            
+                            // Gestion du rendu selon le type
+                            switch (column.render_type) {
+                                case 'date':
+                                    return `<span class="sortable-date" data-sort-value="${Date.parse(data)}">${data}</span>`;
+                                case 'ip_badge':
+                                    return `<span class="log-badge ip">${data}</span>`;
+                                case 'level_badge':
+                                    return `<span class="log-badge level-${data.toLowerCase()}">${data}</span>`;
+                                case 'referer_badge':
+                                    if (data === '-') return '<span class="log-badge referer-empty">-</span>';
+                                    const truncated = column.truncate && data.length > column.truncate 
+                                        ? data.substring(0, column.truncate) + '...' 
+                                        : data;
+                                    return `<span class="log-badge referer" title="${data}"><a href="${data}" target="_blank">${truncated}</a></span>`;
+                                case 'text':
+                                    if (column.truncate && data.length > column.truncate) {
+                                        return `<span title="${data}">${data.substring(0, column.truncate)}...</span>`;
+                                    }
+                                    return data;
+                                default:
+                            return `<div class="badge-wrapper">${data}</div>`;
+                        }
+                        }
+                    })),
                     pageLength: defaultLinesPerPage,
                     order: [[0, 'desc']],
-                    language: {
-                        emptyTable: "No data available in table",
-                        info: "Showing _START_ to _END_ of _TOTAL_ entries",
-                        infoEmpty: "Showing 0 to 0 of 0 entries",
-                        infoFiltered: "(filtered from _MAX_ total entries)",
-                        infoThousands: ",",
-                        lengthMenu: "Show _MENU_ entries",
-                        loadingRecords: "Loading...",
-                        processing: "Processing...",
-                        search: "Search:",
-                        zeroRecords: "No matching records found",
-                        paginate: {
-                            first: "First",
-                            last: "Last",
-                            next: "Next",
-                            previous: "Previous"
-                        }
-                    },
                     deferRender: true,
                     processing: true,
                     scrollX: true,
                     scrollY: '60vh',
                     scrollCollapse: true,
                     dom: 'rt<"bottom"ip>',
-                    escapeHtml: false
+                    colReorder: true
                 });
+
+                // Gestionnaires d'événements pour les filtres
+                setupEventHandlers();
+                
                 console.log('DEBUG - Table initialized successfully');
-                console.log('DEBUG - Number of rows in table:', window.logTable.rows().count());
-
-                // Déplacer les gestionnaires d'événements ici, après l'initialisation
-                // Gestionnaire pour le filtre de niveau
-                $('#levelFilter').on('change', function() {
-                    const level = $(this).val();
-                    const levelColumnIndex = Object.keys(window.logTable.settings()[0].aoColumns).findIndex(col => 
-                        col === 'level' || col === 'niveau'
-                    );
-                    if (levelColumnIndex !== -1) {
-                        window.logTable.column(levelColumnIndex).search(level, true, false).draw();
-                    }
-                });
-
-                // Filtre persistant
-                window.logTable.on('search.dt', function() {
-                    const searchValue = window.logTable.search();
-                    localStorage.setItem('logTableSearch', searchValue);
-                });
-
-                const savedSearch = localStorage.getItem('logTableSearch');
-                if (savedSearch) {
-                    window.logTable.search(savedSearch).draw();
-                }
-
-                // Changement de page
-                window.logTable.on('page.dt', function() {
-                    const pageInfo = window.logTable.page.info();
-                    localStorage.setItem('logTablePage', pageInfo.page);
-                });
-
-                const savedPage = localStorage.getItem('logTablePage');
-                if (savedPage) {
-                    window.logTable.page(parseInt(savedPage)).draw('page');
-                }
-
-                // Gestionnaires pour les autres filtres
-                $('#persistentFilter').on('input', function() {
-                    const filterValue = $(this).val();
-                    window.logTable.search(filterValue).draw();
-                });
-
-                $('#lengthMenu').on('change', function() {
-                    const length = $(this).val();
-                    window.logTable.page.len(length).draw();
-                });
 
             } catch (error) {
                 console.error('Error during table initialization:', error);
@@ -639,20 +489,101 @@ function initLogTable(response, logFile) {
     });
 }
 
-// Gestionnaires d'événements pour les filtres
+// Configuration des gestionnaires d'événements
+function setupEventHandlers() {
+    // Filtre de niveau
+    $('#levelFilter').on('change', function() {
+        const level = $(this).val();
+        if (window.logTable) {
+            window.logTable.column('level:name').search(level).draw();
+        }
+    });
+
+    // Filtre persistant
 $('#persistentFilter').on('input', function() {
-    const filterValue = $(this).val();
     if (window.logTable) {
-        window.logTable.search(filterValue).draw();
+            window.logTable.search($(this).val()).draw();
     }
 });
 
+    // Nombre de lignes par page
 $('#lengthMenu').on('change', function() {
-    const length = $(this).val();
     if (window.logTable) {
-        window.logTable.page.len(length).draw();
+            window.logTable.page.len($(this).val()).draw();
+        }
+    });
+
+    // Sauvegarde des préférences
+    window.logTable.on('search.dt', function() {
+        localStorage.setItem('logTableSearch', window.logTable.search());
+    });
+
+    window.logTable.on('page.dt', function() {
+        localStorage.setItem('logTablePage', window.logTable.page.info().page);
+    });
+
+    // Restauration des préférences
+    const savedSearch = localStorage.getItem('logTableSearch');
+    if (savedSearch) {
+        window.logTable.search(savedSearch).draw();
     }
-});
+
+    const savedPage = localStorage.getItem('logTablePage');
+    if (savedPage) {
+        window.logTable.page(parseInt(savedPage)).draw('page');
+    }
+}
+
+// Fonction de rafraîchissement
+function refreshTable() {
+    if (!currentLogFile || !window.logTable) return;
+    
+    const button = $('#refreshLogs');
+    const icon = button.find('i');
+    
+    if (button.hasClass('loading')) return;
+    
+    button.addClass('loading').prop('disabled', true);
+    icon.addClass('fa-spin');
+    
+    const currentState = {
+        search: window.logTable.search(),
+        page: window.logTable.page(),
+        order: window.logTable.order(),
+        length: window.logTable.page.len()
+    };
+
+    $('#logTable').fadeOut(150);
+    
+    loadLog(currentLogFile, true)
+        .then(() => {
+            if (currentState.search) {
+                window.logTable.search(currentState.search);
+            }
+            if (currentState.order.length) {
+                window.logTable.order(currentState.order);
+            }
+            window.logTable.page.len(currentState.length);
+            
+            $('#logTable').fadeIn(150);
+            return window.logTable.page(currentState.page).draw('page');
+        })
+        .catch(error => {
+            console.error('Refresh error:', error);
+            $('#errorMessage')
+                .text('Failed to refresh data. Please try again.')
+                .removeClass('d-none')
+                .fadeIn();
+            
+            setTimeout(() => {
+                $('#errorMessage').fadeOut();
+            }, 5000);
+        })
+        .finally(() => {
+            button.removeClass('loading').prop('disabled', false);
+            icon.removeClass('fa-spin');
+        });
+}
 
 // Gestionnaire pour le bouton de rafraîchissement
 $('#refreshLogs').on('click', function(e) {

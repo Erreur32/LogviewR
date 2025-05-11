@@ -9,36 +9,29 @@ class NPMDeadHostParser extends BaseNPMParser {
     protected $pattern;
     protected $currentType = 'access';
     protected $patterns;
-    protected $excludedIps = [];
-    protected $excludedRequests = [];
-    protected $excludedUserAgents = [];
-    protected $excludedUsers = [];
 
     public function __construct() {
         parent::__construct();
         
-        // Load configuration
-        $config = require __DIR__ . '/../config/config.php';
+        // Initialiser ParserFactory si ce n'est pas déjà fait
+        ParserFactory::init();
         
-        // Load patterns and columns from configuration
-        $this->patterns = require __DIR__ . '/../config/log_patterns.php';
+        // Utiliser les patterns de ParserFactory
+        $this->patterns = ParserFactory::getPatterns();
         
         // Initialize columns for access logs by default
-        $this->columns = $this->patterns['npm-dead-host-access']['columns'];
+        $this->columns = $this->patterns['npm']['dead_host_access']['columns'] ?? [];
         
-        // Load exclusion filters
-        if (isset($this->patterns['filters']['exclude'])) {
-            $this->excludedIps = $this->patterns['filters']['exclude']['ips'] ?? [];
-            $this->excludedRequests = $this->patterns['filters']['exclude']['requests'] ?? [];
-            $this->excludedUserAgents = $this->patterns['filters']['exclude']['user_agents'] ?? [];
-            $this->excludedUsers = $this->patterns['filters']['exclude']['users'] ?? [];
+        if ($this->debug) {
+            error_log("[DEBUG] NPMDeadHostParser: Patterns loaded: " . print_r(array_keys($this->patterns['npm']), true));
+            error_log("[DEBUG] NPMDeadHostParser: Columns initialized: " . print_r($this->columns, true));
         }
     }
 
     public function setType($type) {
         $this->currentType = $type;
         // Update columns based on type
-        $this->columns = $this->patterns['npm-dead-host-' . $type]['columns'] ?? $this->columns;
+        $this->columns = $this->patterns['npm']['dead_host_' . $type]['columns'] ?? $this->columns;
     }
 
     public function parse($line, $type = 'access') {
@@ -47,46 +40,79 @@ class NPMDeadHostParser extends BaseNPMParser {
             return null;
         }
 
-        // Add debug logging
-        $this->debugLog("Current type", ['type' => $this->currentType]);
-        $this->debugLog("Input line", ['line' => $line]);
-
         // Get the appropriate pattern based on current type
-        $pattern = $this->patterns['npm-dead-host-' . $this->currentType]['pattern'];
-        $this->debugLog("Using pattern", ['pattern' => $pattern]);
-        
-        // Try to match the line with our pattern
-        if (!preg_match($pattern, $line, $matches)) {
-            $this->debugLog("No match found for line");
+        $patternKey = 'dead_host_' . $this->currentType;
+        if (!isset($this->patterns['npm'][$patternKey]['pattern'])) {
+            if ($this->debug) {
+                error_log("[DEBUG] NPMDeadHostParser: Pattern not found for type: " . $type);
+                error_log("[DEBUG] NPMDeadHostParser: Available patterns: " . print_r(array_keys($this->patterns['npm']), true));
+            }
             return null;
         }
 
-        $this->debugLog("Matches found", ['matches' => $matches]);
+        $pattern = $this->patterns['npm'][$patternKey]['pattern'];
+        
+        // Try to match the line with our pattern
+        if (!preg_match($pattern, $line, $matches)) {
+            if ($this->debug) {
+                error_log("[DEBUG] NPMDeadHostParser: Line does not match pattern");
+                error_log("[DEBUG] NPMDeadHostParser: Line: " . $line);
+                error_log("[DEBUG] NPMDeadHostParser: Pattern: " . $pattern);
+            }
+            return null;
+        }
 
-        return $this->currentType === 'access' 
+        $result = $this->currentType === 'access' 
             ? $this->parseAccessLog($matches)
             : $this->parseErrorLog($matches, $line);
+
+        // Apply filters if enabled
+        if ($result && !isset($result['filtered']) && $this->shouldFilter($result)) {
+            if ($this->debug) {
+                error_log("[DEBUG] NPMDeadHostParser: Entry filtered");
+            }
+            return ['filtered' => true, 'reason' => 'filter_match'];
+        }
+
+        return $result;
     }
 
     protected function parseAccessLog($matches) {
-        // Séparer la requête en méthode et chemin
-        $request = $matches[6] ?? '-';
-        $requestParts = explode(' ', trim($request), 2);
-        $requestMethod = $requestParts[0] ?? $matches[3] ?? '-';  // Utiliser la méthode du log si disponible
-        $requestPath = $requestParts[1] ?? '-';
+        // Store raw values for filtering
+        $rawData = [
+            'ip' => $matches[7] ?? '-',
+            'request' => $matches[6] ?? '-',
+            'user_agent' => $matches[10] ?? '-',
+            'host' => $matches[6] ?? '-',
+            'status' => $matches[2] ?? '-',
+            'method' => $matches[4] ?? '-',
+            'protocol' => $matches[5] ?? '-',
+            'referer' => $matches[11] ?? '-'
+        ];
+
+        // Check if this entry should be filtered
+        if ($this->shouldFilter(['raw' => $rawData])) {
+            if ($this->debug) {
+                $this->debugLog("Entry filtered", ['raw_data' => $rawData]);
+            }
+            return ['filtered' => true, 'reason' => 'filter_match'];
+        }
 
         return [
             'date' => parent::formatDate($matches[1]),
             'status' => parent::formatStatusBadge($matches[2]),
-            'method' => $this->formatMethodBadge($requestMethod),
-            'protocol' => $this->formatProtocolBadge($matches[4] ?? '-'),
-            'host' => parent::formatHostBadge($matches[5] ?? '-'),
-            'request' => $this->formatRequestBadge($requestMethod, $requestPath),
+            'status_in' => $this->formatDefaultBadge($matches[3] ?? '-', 'status-in'),
+            'method' => $this->formatMethodBadge($matches[4] ?? '-'),
+            'protocol' => $this->formatProtocolBadge($matches[5] ?? '-'),
+            'host' => parent::formatHostBadge($matches[6] ?? '-'),
+            'request' => $this->formatRequestBadge($matches[4] ?? '-', $matches[6] ?? '-'),
             'client_ip' => parent::formatIpBadge($matches[7] ?? '-'),
             'length' => parent::formatSize($matches[8] ?? '0'),
             'gzip' => $this->formatGzipBadge($matches[9] ?? '-'),
-            'user_agent' => isset($matches[10]) ? parent::formatUserAgentBadge($matches[10]) : '-',
-            'referer' => isset($matches[11]) ? parent::formatRefererBadge($matches[11]) : '-'
+            'user_agent' => parent::formatUserAgentBadge($matches[10] ?? '-'),
+            'referer' => parent::formatRefererBadge($matches[11] ?? '-'),
+            // Raw data for filtering
+            'raw' => $rawData
         ];
     }
 
@@ -97,47 +123,34 @@ class NPMDeadHostParser extends BaseNPMParser {
         // Format error level
         $level = $this->formatErrorLevel($matches[2] ?? '-');
 
-        // Format process ID
-        $pid = isset($matches[3]) ? sprintf(
-            '<span class="npm-badge process">PID:%s</span>',
-            htmlspecialchars($matches[3])
-        ) : '-';
+        // Format PID and TID
+        $pid = $matches[3] ?? '-';
+        $tid = $matches[4] ?? '-';
+        $connection = $matches[5] ?? '-';
 
-        // Format connection ID
-        $connection = isset($matches[4]) ? sprintf(
-            '<span class="npm-badge connection">#%s</span>',
-            htmlspecialchars($matches[4])
-        ) : '-';
-
-        // Format message
-        $message = htmlspecialchars($matches[5] ?? '-');
-
-        // Format client and server
-        $client = isset($matches[6]) ? parent::formatIpBadge($matches[6]) : '-';
-        $server = isset($matches[7]) ? parent::formatIpBadge($matches[7]) : '-';
-
-        // Format request and host
-        $request = isset($matches[8]) ? sprintf(
-            '<span class="npm-badge request">%s</span>',
-            htmlspecialchars($matches[8])
-        ) : '-';
-        $host = isset($matches[9]) ? parent::formatHostBadge($matches[9]) : '-';
+        // Format message and other components
+        $message = $matches[6] ?? '-';
+        $client = $matches[7] ?? '-';
+        $server = $matches[8] ?? '-';
+        $request = $matches[9] ?? '-';
+        $host = $matches[10] ?? '-';
 
         return [
             'date' => $date,
             'level' => $level,
-            'process' => $pid,
-            'connection' => $connection,
-            'message' => $message,
-            'client' => $client,
-            'server' => $server,
-            'request' => $request,
-            'host' => $host
+            'pid' => sprintf('<span class="npm-badge process">PID:%s</span>', htmlspecialchars($pid)),
+            'tid' => sprintf('<span class="npm-badge thread">TID:%s</span>', htmlspecialchars($tid)),
+            'connection' => sprintf('<span class="npm-badge connection">#%s</span>', htmlspecialchars($connection)),
+            'message' => htmlspecialchars($message),
+            'client' => parent::formatIpBadge($client),
+            'server' => parent::formatHostBadge($server),
+            'request' => $this->formatRequestBadge('GET', $request),
+            'host' => parent::formatHostBadge($host)
         ];
     }
 
     public function getType() {
-        return 'npm-dead-host-' . $this->currentType;
+        return 'dead_host_' . $this->currentType;
     }
 
     /**
@@ -148,7 +161,21 @@ class NPMDeadHostParser extends BaseNPMParser {
     public function getColumns($type = 'access') {
         // If type is provided, use it, otherwise use currentType
         $actualType = $type ?: $this->currentType;
-        return $this->patterns['npm-dead-host-' . $actualType]['columns'] ?? [];
+        return $this->patterns['npm']['dead_host_' . $actualType]['columns'] ?? [];
+    }
+
+    /**
+     * Format a value with a default badge style
+     * @param string $value The value to format
+     * @param string $class The CSS class to apply
+     * @return string The formatted badge
+     */
+    protected function formatDefaultBadge($value, $class) {
+        return sprintf(
+            '<span class="npm-badge %s">%s</span>',
+            htmlspecialchars($class),
+            htmlspecialchars($value)
+        );
     }
 
     protected function formatMethodBadge($method) {
@@ -189,11 +216,19 @@ class NPMDeadHostParser extends BaseNPMParser {
     }
 
     protected function formatErrorLevel($level) {
-        $level = strtoupper($level);
         return sprintf(
             '<span class="npm-badge level-%s">%s</span>',
             strtolower($level),
             htmlspecialchars($level)
         );
+    }
+
+    /**
+     * Get the pattern used by this parser
+     * @return string The pattern
+     */
+    public function getPattern() {
+        $patternKey = 'dead_host_' . $this->currentType;
+        return $this->patterns['npm'][$patternKey]['pattern'] ?? '';
     }
 } 

@@ -26,17 +26,25 @@ set_error_handler('customErrorHandler');
  * Handles file reading, parsing, and response formatting
  */
 
-// Load configuration files
-$config_file = __DIR__ . '/config/config.php';
-$patterns_file = __DIR__ . '/config/log_patterns.php';
+// Charger la configuration
+$config_file = file_exists(__DIR__ . '/config/config.user.php') 
+    ? __DIR__ . '/config/config.user.php'
+    : __DIR__ . '/config/config.php';
 
-// Validate configuration files
+$patterns_file = file_exists(__DIR__ . '/config/log_patterns.user.php')
+    ? __DIR__ . '/config/log_patterns.user.php'
+    : __DIR__ . '/config/log_patterns.php';
+
+require_once $config_file;
+require_once $patterns_file;
+require_once __DIR__ . '/includes/config.php';
+ 
 if (!file_exists($config_file)) {
-    die(json_encode(['error' => 'Missing configuration file: config.php']));
+    die('Erreur: Fichier de configuration manquant (config.php)');
 }
 
 if (!file_exists($patterns_file)) {
-    die(json_encode(['error' => 'Missing patterns file: log_patterns.php']));
+    die('Erreur: Fichier de patterns manquant (log_patterns.php)');
 }
 
 try {
@@ -50,19 +58,34 @@ try {
     if (!is_array($patterns)) {
         throw new Exception('Invalid configuration: log_patterns.php must return an array');
     }
+
+ 
 } catch (Exception $e) {
     die(json_encode(['error' => 'Error loading configuration: ' . $e->getMessage()]));
 }
 
-// Configure execution environment
-if (isset($config['app']['max_execution_time'])) {
-    ini_set('max_execution_time', $config['app']['max_execution_time']);
+// Vérifier que la configuration de debug existe
+if (!isset($config['debug']) || !is_array($config['debug'])) {
+    $config['debug'] = ['enabled' => false];
+}
+
+// Vérifier que debug.enabled existe
+if (!isset($config['debug']['enabled'])) {
+    $config['debug']['enabled'] = false;
+}
+
+// Load configuration
+$adminConfig = require __DIR__ . '/config/admin.php';
+
+// Set max execution time from admin config
+if (isset($adminConfig['admin']['max_execution_time'])) {
+    ini_set('max_execution_time', $adminConfig['admin']['max_execution_time']);
 }
 
 // Include and configure ParserFactory
 require_once __DIR__ . '/parsers/ParserFactory.php';
-ParserFactory::init();  // Initialize first
-ParserFactory::setConfig($config);  // Then set config
+ParserFactory::init();  // Initialize factory
+ParserFactory::setConfig($config);  // Set config
 
 header('Content-Type: application/json');
 
@@ -85,30 +108,24 @@ if (!is_readable($logfile)) {
     die(json_encode(['error' => "File $logfile is not readable"]));
 }
 
-// Create parser instance
+// Initialize parser
 try {
     $logType = ParserFactory::detectLogType($logfile);
-    if ($config['debug']['enabled']) {
-        error_log("[DEBUG] Detected log type: " . $logType);
+    if (!$logType) {
+        throw new Exception("Could not detect log type for file: " . $logfile);
     }
     
     $parser = ParserFactory::getParser($logType);
-    if ($config['debug']['enabled']) {
-        error_log("[DEBUG] Created parser: " . get_class($parser));
+    if (!$parser) {
+        throw new Exception("Could not create parser for log type: " . $logType);
     }
     
-    // Handle filters
-    $filtersEnabled = isset($_POST['filters_enabled']) ? $_POST['filters_enabled'] === '1' : true;
-    if (method_exists($parser, 'setFiltersEnabled')) {
-        $parser->setFiltersEnabled($filtersEnabled);
-    }
-
     if ($config['debug']['enabled']) {
-        error_log("[DEBUG] Filters enabled: " . ($filtersEnabled ? 'true' : 'false'));
+        error_log("[DEBUG] Detected log type: " . $logType);
+        error_log("[DEBUG] Created parser: " . get_class($parser));
     }
 } catch (Exception $e) {
-    error_log("ERROR - Parser creation failed: " . $e->getMessage());
-    die(json_encode(['error' => 'Error creating parser: ' . $e->getMessage()]));
+    throw new Exception("Could not initialize parser: " . $e->getMessage());
 }
 
 /**
@@ -166,7 +183,7 @@ try {
         'reasons' => []
     ];
 
-    // Process file
+    // Process file with buffered reading for better performance
     $buffer = [];
     $lineCount = 0;
     $maxLines = $config['app']['max_lines_per_request'];
@@ -176,50 +193,49 @@ try {
         throw new Exception("Cannot open file: " . $logfile);
     }
 
+    // Read by 8KB blocks for better performance
+    $blockSize = 8192;
+    $remainder = '';
+    
     while (!feof($handle) && $lineCount < $maxLines) {
-        $line = fgets($handle);
-        if ($line === false) {
-            if (!feof($handle)) {
+        $chunk = $remainder . fread($handle, $blockSize);
+        $lines = explode("\n", $chunk);
+        
+        // Keep the last incomplete chunk for next iteration
+        $remainder = end($lines);
+        array_pop($lines);
+        
+        foreach ($lines as $line) {
+            if (empty(trim($line))) {
+                $stats['skipped_lines']++;
                 continue;
             }
-            break;
-        }
-
-        $stats['total_lines']++;
-        $lineCount++;
-        
-        try {
-            $result = analyzeLine($line);
-        } catch (Exception $e) {
-            if ($config['debug']['enabled']) {
-                error_log("[DEBUG] Error analyzing line: " . $e->getMessage());
-            }
-            $result = ['status' => 'unreadable', 'reason' => 'parser_error'];
-        }
-        
-        switch ($result['status']) {
-            case 'valid':
-                if (isset($result['data'])) {
-                    $buffer[] = $result['data'];
-                    $stats['valid_lines']++;
-                }
-                break;
-            case 'filtered':
-                $stats['filtered_lines']++;
-                break;
-            case 'skipped':
-                $stats['skipped_lines']++;
-                break;
-            case 'unreadable':
+            
+            $stats['total_lines']++;
+            
+            // Parse the line
+            $result = $parser->parse($line);
+            
+            if ($result === null) {
                 $stats['unreadable_lines']++;
-                break;
-        }
-
-        if (isset($result['reason'])) {
-            $stats['reasons'][$result['reason']] = ($stats['reasons'][$result['reason']] ?? 0) + 1;
+                continue;
+            }
+            
+            // Check if line is filtered
+            if (isset($result['filtered']) && $result['filtered'] === true) {
+                $stats['filtered_lines']++;
+                $reason = $result['reason'] ?? 'filter_match';
+                $stats['reasons'][$reason] = ($stats['reasons'][$reason] ?? 0) + 1;
+                continue;  // Skip filtered lines
+            }
+            
+            // Only add valid lines to the buffer
+            $stats['valid_lines']++;
+            $buffer[] = $result;
+            $lineCount++;
         }
     }
-
+    
     fclose($handle);
 
     // Prepare response
@@ -236,9 +252,9 @@ try {
 
     $response = [
         'success' => true,
-        'type' => $logType,
+        'type' => $parser->getType(),
         'columns' => $parser->getColumns(),
-        'lines' => array_values($buffer),
+        'lines' => $buffer,
         'stats' => $stats,
         'file_info' => $fileInfo,
         'execution_time' => round((microtime(true) - $start_time) * 1000, 2)

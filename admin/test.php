@@ -14,54 +14,8 @@ if (!file_exists('../config/log_patterns.php') || !file_exists('../config/config
 // Chargement des dépendances
 require_once '../parsers/BaseParser.php';
 require_once '../parsers/ApacheAccessParser.php';
-
-// Initialisation des variables
-$log_patterns = [];
-$config = [];
-$default_config = [];
-$default_patterns = [];
-
-// Chargement des configurations avec vérification
-if (file_exists('../config/log_patterns.php')) {
-    $log_patterns = require '../config/log_patterns.php';
-} else {
-    die("❌ Erreur : Fichier log_patterns.php manquant");
-}
-
-if (file_exists('../config/config.php')) {
-    $config = require '../config/config.php';
-} else {
-    die("❌ Erreur : Fichier config.php manquant");
-}
-
-if (file_exists('../config/default_config.php')) {
-    $default_config = require '../config/default_config.php';
-} else {
-    die("❌ Erreur : Fichier default_config.php manquant");
-}
-
-if (file_exists('../config/default_patterns.php')) {
-    $default_patterns = require '../config/default_patterns.php';
-} else {
-    die("❌ Erreur : Fichier default_patterns.php manquant");
-}
-
-// Vérification des variables après chargement
-if (!isset($log_patterns) || !is_array($log_patterns)) {
-    die("❌ Erreur : Variable log_patterns non définie ou invalide");
-}
-
-if (!isset($config) || !is_array($config)) {
-    die("❌ Erreur : Variable config non définie ou invalide");
-}
-
-if (!isset($default_config) || !is_array($default_config)) {
-    die("❌ Erreur : Variable default_config non définie ou invalide");
-}
-
-if (!isset($default_patterns) || !is_array($default_patterns)) {
-    die("❌ Erreur : Variable default_patterns non définie ou invalide");
-}
+require_once '../config/log_patterns.php';
+require_once '../config/config.php';
 
 /**
  * Test the parsing of a log line
@@ -137,35 +91,6 @@ function testDirectoryPermissions($path) {
     return $result;
 }
 
-/**
- * Compare two configurations and return differences
- * @param array $config1 First configuration
- * @param array $config2 Second configuration
- * @return array Differences between configurations
- */
-function compareConfigurations($config1, $config2) {
-    $differences = [];
-    
-    foreach ($config1 as $key => $value) {
-        if (!array_key_exists($key, $config2)) {
-            $differences[$key] = ['type' => 'missing', 'value' => $value];
-        } elseif (is_array($value) && is_array($config2[$key])) {
-            $sub_differences = compareConfigurations($value, $config2[$key]);
-            if (!empty($sub_differences)) {
-                $differences[$key] = $sub_differences;
-            }
-        } elseif ($value !== $config2[$key]) {
-            $differences[$key] = [
-                'type' => 'different',
-                'value1' => $value,
-                'value2' => $config2[$key]
-            ];
-        }
-    }
-    
-    return $differences;
-}
-
 // Initialisation des variables de test
 $parser = null;
 $allParsersLoaded = false;
@@ -176,21 +101,21 @@ $allExtensionsLoaded = true;
 // Test des parsers
 try {
     $parser = new ApacheAccessParser();
-    $allParsersLoaded = true;
-} catch (Exception $e) {
-    $allParsersLoaded = false;
+$allParsersLoaded = true;
+        } catch (Exception $e) {
+            $allParsersLoaded = false;
 }
 
 // Cas de test pour les parsers
-$testCases = [
+        $testCases = [
     'access' => [
         'description' => 'Apache Access Log',
-        'type' => 'access',
+                'type' => 'access',
         'line' => '192.168.1.1 - - [01/Jan/2024:00:00:00 +0100] "GET /index.php HTTP/1.1" 200 1234'
-    ],
+            ],
     'error' => [
         'description' => 'Apache Error Log',
-        'type' => 'error',
+                'type' => 'error',
         'line' => '[Mon Jan 01 00:00:00 2024] [error] [client 192.168.1.1] PHP Fatal error: Uncaught Error'
     ],
     'nginx' => [
@@ -200,34 +125,18 @@ $testCases = [
     ]
 ];
 
-// Test des expressions régulières avec vérification
+// Test des expressions régulières
 $regexResults = [];
-$patterns_to_test = [];
-
-if (isset($log_patterns['apache']['access']['pattern'])) {
-    $patterns_to_test['apache_access'] = $log_patterns['apache']['access']['pattern'];
-}
-if (isset($log_patterns['apache']['error']['pattern'])) {
-    $patterns_to_test['apache_error'] = $log_patterns['apache']['error']['pattern'];
-}
-if (isset($log_patterns['apache']['404_only']['pattern'])) {
-    $patterns_to_test['apache_404'] = $log_patterns['apache']['404_only']['pattern'];
-}
-if (isset($log_patterns['nginx']['access']['pattern'])) {
-    $patterns_to_test['nginx_access'] = $log_patterns['nginx']['access']['pattern'];
-}
-if (isset($log_patterns['nginx']['error']['pattern'])) {
-    $patterns_to_test['nginx_error'] = $log_patterns['nginx']['error']['pattern'];
-}
-if (isset($log_patterns['syslog']['pattern'])) {
-    $patterns_to_test['syslog'] = $log_patterns['syslog']['pattern'];
-}
-if (isset($log_patterns['npm']['default_host_access']['pattern'])) {
-    $patterns_to_test['npm_access'] = $log_patterns['npm']['default_host_access']['pattern'];
-}
-if (isset($log_patterns['npm']['default_host_error']['pattern'])) {
-    $patterns_to_test['npm_error'] = $log_patterns['npm']['default_host_error']['pattern'];
-}
+$patterns_to_test = [
+    'apache_access' => $log_patterns['apache']['access']['pattern'],
+    'apache_error' => $log_patterns['apache']['error']['pattern'],
+    'apache_404' => $log_patterns['apache']['404_only']['pattern'],
+    'nginx_access' => $log_patterns['nginx']['access']['pattern'],
+    'nginx_error' => $log_patterns['nginx']['error']['pattern'],
+    'syslog' => $log_patterns['syslog']['pattern'],
+    'npm_access' => $log_patterns['npm']['default_host_access']['pattern'],
+    'npm_error' => $log_patterns['npm']['default_host_error']['pattern']
+];
 
 foreach ($patterns_to_test as $type => $pattern) {
     $regexResults[$type] = testRegex($pattern);
@@ -248,8 +157,8 @@ $paths_to_test = [
 foreach ($paths_to_test as $path) {
     $permissionResults[$path] = testDirectoryPermissions($path);
     if (!$permissionResults[$path]['readable']) {
-        $allPathsAccessible = false;
-    }
+    $allPathsAccessible = false;
+}
 }
 
 // Test des extensions PHP requises
@@ -261,9 +170,5 @@ foreach ($requiredExtensions as $ext) {
     }
 }
 
-// Comparaison des configurations
-$configDifferences = compareConfigurations($config, $default_config);
-$patternDifferences = compareConfigurations($log_patterns, $default_patterns);
-
-// Charger le template de test
-require_once __DIR__ . '/test_template.php'; 
+// Inclusion du template d'affichage
+require_once 'test_template.php'; 

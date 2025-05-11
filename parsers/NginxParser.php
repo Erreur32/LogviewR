@@ -37,9 +37,12 @@ class NginxParser extends BaseParser {
         $config = require __DIR__ . '/../config/config.php';
         $this->debug = $config['debug']['enabled'] ?? false;
         
-        // Load patterns from configuration
-        $patterns = require __DIR__ . '/../config/log_patterns.php';
-        $this->accessLogPattern = $patterns['nginx']['access']['pattern'];
+        // Load pattern from configuration
+        $patterns_file = file_exists(__DIR__ . '/../config/log_patterns.user.php')
+            ? __DIR__ . '/../config/log_patterns.user.php'
+            : __DIR__ . '/../config/log_patterns.php';
+        $patterns = require $patterns_file;
+        $this->accessLogPattern = $patterns['nginx']['access']['pattern'] ?? '/^(\S+) - \S+ \[([^\]]+)\] "(.*?)" (\d{3}) (\d+) "(.*?)" "(.*?)"$/';
         $this->errorLogPattern = $patterns['nginx']['error']['pattern'];
         $this->columns = $patterns['nginx']['access']['columns'];
         
@@ -66,6 +69,10 @@ class NginxParser extends BaseParser {
     }
 
     public function parse($line, $type = 'access') {
+        if ($this->applyFilters($line)) {
+            return ['filtered' => true, 'reason' => 'filter_match'];
+        }
+
         $line = trim($line);
         if (empty($line)) {
             return null;

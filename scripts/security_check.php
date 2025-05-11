@@ -52,10 +52,12 @@ if (!is_file($logfile) || !is_readable($logfile)) {
 }
 
 // Vérification de la taille du fichier
+/*
 if (filesize($logfile) > 10485760) { // 10MB max
     header('HTTP/1.1 413 Request Entity Too Large');
     die('Fichier trop volumineux');
 }
+*/
 
 // Vérification du type de fichier
 $finfo = finfo_open(FILEINFO_MIME_TYPE);
@@ -69,7 +71,7 @@ if (!in_array($mime_type, ['text/plain', 'application/x-log'])) {
 
 // Vérification du nombre de lignes demandées
 $max_lines = isset($_POST['max_lines']) ? (int)$_POST['max_lines'] : 100;
-if ($max_lines < 1 || $max_lines > 50000) { // Augmenté à 50000 lignes
+if ($max_lines < 1 || $max_lines > 100000) { // Augmenté à 100000 lignes
     header('HTTP/1.1 400 Bad Request');
     die('Nombre de lignes invalide');
 }

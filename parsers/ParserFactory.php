@@ -29,17 +29,44 @@ class ParserFactory {
         'raw' => 'RawParser'
     ];
     private static $debug = false;
+    private static $initialized = false;
 
     /**
      * Initialize the factory with configuration
      */
     public static function init() {
-        // Load configuration
-        self::$config = require __DIR__ . '/../config/config.php';
-        self::$debug = self::$config['debug']['enabled'] ?? false;
+        if (self::$initialized) {
+            return;
+        }
+
+        // Charger la configuration
+        $config_file = file_exists(__DIR__ . '/../config/config.user.php') 
+            ? __DIR__ . '/../config/config.user.php'
+            : __DIR__ . '/../config/config.php';
+        self::$config = require $config_file;
+
+        // Charger les patterns par défaut
+        $default_patterns = require __DIR__ . '/../config/log_patterns.php';
         
-        // Load patterns
-        self::$patterns = require __DIR__ . '/../config/log_patterns.php';
+        // Charger les patterns user s'ils existent
+        $user_patterns = [];
+        if (file_exists(__DIR__ . '/../config/log_patterns.user.php')) {
+            $user_patterns = require __DIR__ . '/../config/log_patterns.user.php';
+        }
+        
+        // Fusionner les patterns (les patterns user écrasent les patterns par défaut)
+        self::$patterns = array_replace_recursive($default_patterns, $user_patterns);
+
+        // Debug log pour vérifier le chargement des patterns
+        if (isset(self::$config['debug']['enabled']) && self::$config['debug']['enabled']) {
+            error_log("[DEBUG] ParserFactory: Loading patterns from: " . __DIR__ . '/../config/log_patterns.php');
+            if (file_exists(__DIR__ . '/../config/log_patterns.user.php')) {
+                error_log("[DEBUG] ParserFactory: Loading user patterns from: " . __DIR__ . '/../config/log_patterns.user.php');
+            }
+            error_log("[DEBUG] ParserFactory: Available patterns: " . print_r(array_keys(self::$patterns), true));
+        }
+
+        self::$initialized = true;
     }
 
     /**
@@ -50,9 +77,10 @@ class ParserFactory {
     public static function setConfig($config) {
         self::$config = $config;
         self::$debug = $config['debug']['enabled'] ?? false;
+        
         // Also load patterns if not already loaded
         if (!self::$patterns) {
-            self::$patterns = require __DIR__ . '/../config/log_patterns.php';
+            self::init();
         }
     }
 
@@ -65,6 +93,30 @@ class ParserFactory {
     public static function detectLogType($filePath) {
         if (self::$debug) {
             error_log("[INFO] ParserFactory: Detecting log type for file: " . $filePath);
+        }
+
+        // Vérifier les extensions exclues AVANT tout traitement
+        $extension = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
+        $config_file = file_exists(__DIR__ . '/../config/config.user.php') 
+            ? __DIR__ . '/../config/config.user.php'
+            : __DIR__ . '/../config/config.php';
+        $config = require $config_file;
+        $excluded_extensions = $config['app']['excluded_extensions'] ?? [];
+        
+        // Si l'extension est un nombre (ex: .1, .2), vérifier l'extension précédente
+        if (is_numeric($extension)) {
+            $previousExtension = strtolower(pathinfo(pathinfo($filePath, PATHINFO_FILENAME), PATHINFO_EXTENSION));
+            if (in_array('.' . ltrim($previousExtension, '.'), $excluded_extensions)) {
+                if (self::$debug) {
+                    error_log("[DEBUG] File excluded by previous extension: " . $filePath);
+                }
+                return null;
+            }
+        } else if (in_array('.' . ltrim($extension, '.'), $excluded_extensions)) {
+            if (self::$debug) {
+                error_log("[DEBUG] File excluded by extension: " . $filePath);
+            }
+            return null;
         }
 
         // Si le type est déjà connu (ex: "apache-error"), on le retourne directement
@@ -221,12 +273,18 @@ class ParserFactory {
             
             if (file_exists($parserFile)) {
                 require_once $parserFile;
-                $parser = new $parserClass();
+                $parser = new $parserClass(self::$config);
                 
                 // Set the type for NPM parsers
                 if (strpos($logType, 'npm-') === 0) {
-                    $type = substr($logType, strrpos($logType, '-') + 1);
-                    $parser->setType($type);
+                    $parts = explode('-', $logType);
+                    $type = end($parts); // Get the last part (access/error)
+                    if (method_exists($parser, 'setType')) {
+                        if (self::$debug) {
+                            error_log("[DEBUG] Setting parser type to: " . $type);
+                        }
+                        $parser->setType($type);
+                    }
                 }
                 
                 return $parser;
@@ -256,5 +314,17 @@ class ParserFactory {
     public static function getColumns($type, $subtype = null) {
         $parser = self::getParser($type);
         return $parser->getColumns($subtype);
+    }
+
+    /**
+     * Get the patterns array
+     * 
+     * @return array The patterns array
+     */
+    public static function getPatterns() {
+        if (!self::$initialized) {
+            self::init();
+        }
+        return self::$patterns;
     }
 } 

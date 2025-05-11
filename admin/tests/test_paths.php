@@ -1,6 +1,6 @@
 <?php
 // Test script to verify paths
-$config = require_once __DIR__ . '/../config/config.php';
+$config = require_once __DIR__ . '/../../config/config.php';
 
 // Define constants if not already defined
 if (!defined('BASE_PATH')) {

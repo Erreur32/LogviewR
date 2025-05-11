@@ -1,318 +1,299 @@
-<?php
-// Vérifier que ce fichier n'est pas appelé directement
-if (!defined('LOGVIEWR_ROOT')) {
-    define('LOGVIEWR_ROOT', dirname(__DIR__));
-}
-
-// Vérifier que les variables nécessaires sont définies
-if (!isset($allParsersLoaded) || !isset($allRegexValid) || !isset($allPathsAccessible) || !isset($allExtensionsLoaded)) {
-    die("❌ Erreur : Variables de test non définies");
-}
-?>
 <!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Test de Configuration - LogviewR</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
+    <title>Test de configuration LogviewR</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
         :root {
-            --primary-color: #2563eb;
-            --success-color: #16a34a;
-            --error-color: #dc2626;
-            --warning-color: #ca8a04;
-            --background-color: #f8fafc;
-            --card-background: #ffffff;
-            --text-color: #1e293b;
-            --border-radius: 0.75rem;
-            --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-            --transition: all 0.3s ease;
+            --primary-color: #3498db;
+            --success-color: #2ecc71;
+            --error-color: #e74c3c;
+            --warning-color: #f39c12;
+            --dark-bg: #2c3e50;
+            --light-bg: #ecf0f1;
+            --text-color: #333;
+            --border-radius: 5px;
+            --box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
 
         body {
-            background-color: var(--background-color);
-            color: var(--text-color);
-            font-family: system-ui, -apple-system, sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: var(--light-bg);
+            color: var(--text-color);
         }
 
         .container {
             max-width: 1200px;
-            padding: 2rem 1rem;
+            margin: 0 auto;
+            padding: 20px;
         }
 
-        h1 {
-            color: var(--primary-color);
-            font-weight: 700;
-            margin-bottom: 2rem;
-            font-size: 2.25rem;
+        .admin-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background-color: var(--dark-bg);
+            border-radius: var(--border-radius);
+            color: white;
         }
 
-        h2 {
-            color: var(--text-color);
-            font-weight: 600;
-            font-size: 1.5rem;
-            margin-bottom: 1.5rem;
+        .admin-nav a {
+            color: white;
+            text-decoration: none;
+            padding: 8px 15px;
+            border-radius: var(--border-radius);
+            margin-left: 10px;
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .admin-nav a:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .admin-nav a.active {
+            background-color: var(--primary-color);
+        }
+
+        .summary {
+            background-color: var(--dark-bg);
+            color: white;
+            padding: 20px;
+            border-radius: var(--border-radius);
+            margin-bottom: 30px;
+        }
+
+        .summary-stats {
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .summary-stat {
+            text-align: center;
+            padding: 15px;
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: var(--border-radius);
+            min-width: 150px;
+        }
+
+        .summary-value {
+            font-size: 2em;
+            font-weight: bold;
+            margin-bottom: 5px;
         }
 
         .test-section {
-            background-color: var(--card-background);
+            background-color: white;
+            padding: 20px;
             border-radius: var(--border-radius);
-            box-shadow: var(--shadow);
-            padding: 1.5rem;
-            margin-bottom: 2rem;
-            transition: var(--transition);
+            margin-bottom: 20px;
+            box-shadow: var(--box-shadow);
         }
 
-        .test-section:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+        .test-section h2 {
+            color: var(--dark-bg);
+            border-bottom: 2px solid var(--primary-color);
+            padding-bottom: 10px;
+            margin-top: 0;
         }
 
-        .test-result {
-            background-color: var(--background-color);
-            border-radius: calc(var(--border-radius) * 0.75);
-            padding: 1rem;
-            margin-bottom: 1rem;
-            transition: var(--transition);
+        .result {
+            margin: 10px 0;
+            padding: 15px;
+            border-radius: var(--border-radius);
+            background-color: rgba(0, 0, 0, 0.05);
         }
 
-        .test-success {
-            background-color: #f0fdf4;
+        .result.success {
             border-left: 4px solid var(--success-color);
         }
 
-        .test-error {
-            background-color: #fef2f2;
+        .result.error {
             border-left: 4px solid var(--error-color);
         }
 
-        .test-warning {
-            background-color: #fefce8;
-            border-left: 4px solid var(--warning-color);
-        }
-
-        pre {
-            background-color: #f1f5f9;
-            border-radius: calc(var(--border-radius) * 0.5);
-            padding: 1rem;
-            margin: 0.5rem 0;
-            font-size: 0.875rem;
+        .details {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: var(--border-radius);
+            margin-top: 10px;
+            display: none;
             overflow-x: auto;
         }
 
-        .bi {
-            margin-right: 0.5rem;
-        }
-
-        .btn-primary {
+        .toggle-details {
             background-color: var(--primary-color);
+            color: white;
             border: none;
-            border-radius: calc(var(--border-radius) * 0.5);
-            padding: 0.75rem 1.5rem;
-            font-weight: 500;
-            transition: var(--transition);
+            padding: 5px 10px;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            margin-top: 5px;
         }
 
-        .btn-primary:hover {
-            background-color: #1d4ed8;
-            transform: translateY(-1px);
-        }
-
-        .status-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 1rem;
-            margin-bottom: 1rem;
-        }
-
-        .status-item {
-            background-color: var(--background-color);
-            border-radius: calc(var(--border-radius) * 0.75);
-            padding: 1rem;
-            display: flex;
-            align-items: center;
-            transition: var(--transition);
-        }
-
-        .status-item i {
-            font-size: 1.25rem;
-            margin-right: 0.75rem;
-        }
-
-        .status-item.success i {
-            color: var(--success-color);
-        }
-
-        .status-item.error i {
-            color: var(--error-color);
+        .toggle-details:hover {
+            background-color: #2980b9;
         }
 
         @media (max-width: 768px) {
-            .container {
-                padding: 1rem;
+            .summary-stats {
+                flex-direction: column;
             }
 
-            h1 {
-                font-size: 1.75rem;
+            .summary-stat {
+                width: 100%;
             }
 
-            .test-section {
-                padding: 1rem;
+            .admin-header {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .admin-nav {
+                margin-top: 15px;
             }
         }
     </style>
 </head>
 <body>
-    <div class="container mt-4">
-        <h1 class="mb-4">🔍 Test de Configuration - LogviewR</h1>
-        
-        <!-- Section État Général -->
-        <div class="test-section">
-            <h2>📊 État Général</h2>
-            <div class="row">
-                <div class="col-md-6">
-                    <div class="test-result <?php echo $allParsersLoaded ? 'test-success' : 'test-error'; ?>">
-                        <i class="bi <?php echo $allParsersLoaded ? 'bi-check-circle' : 'bi-x-circle'; ?>"></i>
-                        Parsers chargés
-                    </div>
+    <div class="container">
+        <div class="admin-header">
+            <h1>Test de configuration LogviewR</h1>
+            <div class="admin-nav">
+                <a href="index.php">Tableau de bord</a>
+                <a href="test.php" class="active">Tests</a>
+                <a href="logout.php">Déconnexion</a>
+            </div>
+        </div>
+
+        <div class="summary">
+            <h2>Résumé des tests</h2>
+            <div class="summary-stats">
+                <div class="summary-stat">
+                    <div class="summary-value"><?php echo $allParsersLoaded ? '✅' : '❌'; ?></div>
+                    <div class="summary-label">Parsers</div>
                 </div>
-                <div class="col-md-6">
-                    <div class="test-result <?php echo $allRegexValid ? 'test-success' : 'test-error'; ?>">
-                        <i class="bi <?php echo $allRegexValid ? 'bi-check-circle' : 'bi-x-circle'; ?>"></i>
-                        Expressions régulières valides
-                    </div>
+                <div class="summary-stat">
+                    <div class="summary-value"><?php echo $allRegexValid ? '✅' : '❌'; ?></div>
+                    <div class="summary-label">Expressions régulières</div>
                 </div>
-                <div class="col-md-6">
-                    <div class="test-result <?php echo $allPathsAccessible ? 'test-success' : 'test-error'; ?>">
-                        <i class="bi <?php echo $allPathsAccessible ? 'bi-check-circle' : 'bi-x-circle'; ?>"></i>
-                        Permissions des dossiers
-                    </div>
+                <div class="summary-stat">
+                    <div class="summary-value"><?php echo $allPathsAccessible ? '✅' : '❌'; ?></div>
+                    <div class="summary-label">Dossiers</div>
                 </div>
-                <div class="col-md-6">
-                    <div class="test-result <?php echo $allExtensionsLoaded ? 'test-success' : 'test-error'; ?>">
-                        <i class="bi <?php echo $allExtensionsLoaded ? 'bi-check-circle' : 'bi-x-circle'; ?>"></i>
-                        Extensions PHP requises
-                    </div>
+                <div class="summary-stat">
+                    <div class="summary-value"><?php echo $allExtensionsLoaded ? '✅' : '❌'; ?></div>
+                    <div class="summary-label">Extensions PHP</div>
                 </div>
             </div>
         </div>
 
-        <!-- Section Test des Parsers -->
         <div class="test-section">
-            <h2>🔧 Test des Parsers</h2>
-            <?php if ($allParsersLoaded): ?>
-                <?php foreach ($testCases as $case): ?>
-                    <div class="test-result">
-                        <h5><?php echo htmlspecialchars($case['description']); ?></h5>
-                        <pre><?php echo htmlspecialchars($case['line']); ?></pre>
-                        <?php
-                        $result = testParsing($parser, $case['line'], $case['type']);
-                        if ($result['success']):
-                        ?>
-                            <div class="test-success">
-                                <i class="bi bi-check-circle"></i> Parsing réussi
-                                <pre><?php echo json_encode($result['result'], JSON_PRETTY_PRINT); ?></pre>
-                            </div>
-                        <?php else: ?>
-                            <div class="test-error">
-                                <i class="bi bi-x-circle"></i> Erreur de parsing: <?php echo htmlspecialchars($result['error']); ?>
-                            </div>
-                        <?php endif; ?>
+            <h2>Test des parsers</h2>
+            <?php if (isset($parser) && $parser !== null): ?>
+                <?php foreach ($testCases as $type => $test): ?>
+                    <?php
+                    $result = testParsing($parser, $test['line'], $test['type']);
+                    $success = $result['success'];
+                    ?>
+                    <div class="result <?php echo $success ? 'success' : 'error'; ?>">
+                        <h3><?php echo htmlspecialchars($test['description']); ?></h3>
+                        <p><?php echo $success ? '✅ Test réussi' : '❌ Test échoué'; ?></p>
+                        <button class="toggle-details" data-target="details-<?php echo $type; ?>">
+                            Voir les détails
+                        </button>
+                        <div id="details-<?php echo $type; ?>" class="details">
+                            <h4>Exemple de log :</h4>
+                            <pre><?php echo htmlspecialchars($test['line']); ?></pre>
+                            <h4>Résultat :</h4>
+                            <pre><?php echo htmlspecialchars(print_r($result, true)); ?></pre>
+                        </div>
                     </div>
                 <?php endforeach; ?>
             <?php else: ?>
-                <div class="test-error">
-                    <i class="bi bi-x-circle"></i> Impossible de charger les parsers
+                <div class="result error">
+                    <p>❌ Erreur : Impossible d'initialiser le parser</p>
                 </div>
             <?php endif; ?>
         </div>
 
-        <!-- Section Test des Expressions Régulières -->
         <div class="test-section">
-            <h2>🔍 Test des Expressions Régulières</h2>
-            <?php foreach ($regexResults as $type => $result): ?>
-                <div class="test-result <?php echo $result['success'] ? 'test-success' : 'test-error'; ?>">
-                    <h5><?php echo htmlspecialchars($type); ?></h5>
-                    <pre><?php echo htmlspecialchars($result['pattern']); ?></pre>
-                    <?php if (!$result['success']): ?>
-                        <div class="test-error">
-                            <i class="bi bi-x-circle"></i> Erreur: <?php echo htmlspecialchars($result['error']); ?>
+            <h2>Test des expressions régulières</h2>
+            <?php if (isset($regexResults)): ?>
+                <?php foreach ($regexResults as $type => $result): ?>
+                    <div class="result <?php echo $result['success'] ? 'success' : 'error'; ?>">
+                        <h3>Pattern pour <?php echo htmlspecialchars($type); ?></h3>
+                        <p><?php echo $result['success'] ? '✅ Pattern valide' : '❌ Pattern invalide'; ?></p>
+                        <button class="toggle-details" data-target="regex-<?php echo $type; ?>">
+                            Voir le pattern
+                        </button>
+                        <div id="regex-<?php echo $type; ?>" class="details">
+                            <pre><?php echo htmlspecialchars($result['pattern']); ?></pre>
+                            <?php if (isset($result['error'])): ?>
+                                <p class="error">Erreur : <?php echo htmlspecialchars($result['error']); ?></p>
+                            <?php endif; ?>
                         </div>
-                    <?php endif; ?>
-                </div>
-            <?php endforeach; ?>
-        </div>
-
-        <!-- Section Test des Permissions -->
-        <div class="test-section">
-            <h2>📂 Test des Permissions</h2>
-            <?php foreach ($permissionResults as $path => $result): ?>
-                <div class="test-result <?php echo $result['readable'] ? 'test-success' : 'test-error'; ?>">
-                    <h5><?php echo htmlspecialchars($path); ?></h5>
-                    <?php if ($result['exists']): ?>
-                        <div>
-                            <i class="bi bi-check-circle"></i> Dossier existe
-                        </div>
-                        <?php if ($result['readable']): ?>
-                            <div>
-                                <i class="bi bi-check-circle"></i> Dossier lisible
-                            </div>
-                        <?php else: ?>
-                            <div class="test-error">
-                                <i class="bi bi-x-circle"></i> <?php echo htmlspecialchars($result['error']); ?>
-                            </div>
-                        <?php endif; ?>
-                    <?php else: ?>
-                        <div class="test-error">
-                            <i class="bi bi-x-circle"></i> <?php echo htmlspecialchars($result['error']); ?>
-                        </div>
-                    <?php endif; ?>
-                </div>
-            <?php endforeach; ?>
-        </div>
-
-        <!-- Section Comparaison des Configurations -->
-        <div class="test-section">
-            <h2>⚙️ Comparaison des Configurations</h2>
-            
-            <!-- Configuration -->
-            <h3>Configuration (config.php)</h3>
-            <?php if (empty($configDifferences)): ?>
-                <div class="test-success">
-                    <i class="bi bi-check-circle"></i> La configuration est identique à la configuration par défaut
-                </div>
+                    </div>
+                <?php endforeach; ?>
             <?php else: ?>
-                <div class="test-warning">
-                    <i class="bi bi-exclamation-triangle"></i> Différences détectées
-                    <pre><?php echo json_encode($configDifferences, JSON_PRETTY_PRINT); ?></pre>
-                </div>
-            <?php endif; ?>
-
-            <!-- Patterns -->
-            <h3>Patterns (log_patterns.php)</h3>
-            <?php if (empty($patternDifferences)): ?>
-                <div class="test-success">
-                    <i class="bi bi-check-circle"></i> Les patterns sont identiques aux patterns par défaut
-                </div>
-            <?php else: ?>
-                <div class="test-warning">
-                    <i class="bi bi-exclamation-triangle"></i> Différences détectées
-                    <pre><?php echo json_encode($patternDifferences, JSON_PRETTY_PRINT); ?></pre>
+                <div class="result error">
+                    <p>❌ Erreur : Aucun pattern trouvé</p>
                 </div>
             <?php endif; ?>
         </div>
 
-        <!-- Bouton de retour -->
-        <div class="text-center mt-4">
-            <a href="index.php" class="btn btn-primary">
-                <i class="bi bi-arrow-left"></i> Retour à l'administration
-            </a>
+        <div class="test-section">
+            <h2>Test des permissions</h2>
+            <?php if (isset($permissionResults)): ?>
+                <?php foreach ($permissionResults as $path => $result): ?>
+                    <div class="result <?php echo ($result['exists'] && $result['readable']) ? 'success' : 'error'; ?>">
+                        <h3><?php echo htmlspecialchars($path); ?></h3>
+                        <p>
+                            <?php if ($result['exists'] && $result['readable']): ?>
+                                ✅ Dossier accessible
+                            <?php else: ?>
+                                ❌ <?php echo htmlspecialchars($result['error']); ?>
+                            <?php endif; ?>
+                        </p>
+                        <button class="toggle-details" data-target="path-<?php echo md5($path); ?>">
+                            Voir les détails
+                        </button>
+                        <div id="path-<?php echo md5($path); ?>" class="details">
+                            <pre><?php echo htmlspecialchars(print_r($result, true)); ?></pre>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            <?php else: ?>
+                <div class="result error">
+                    <p>❌ Erreur : Aucun dossier à tester</p>
+                </div>
+            <?php endif; ?>
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('toggle-details')) {
+                const targetId = e.target.getAttribute('data-target');
+                const details = document.getElementById(targetId);
+                
+                if (details.style.display === 'none' || !details.style.display) {
+                    details.style.display = 'block';
+                    e.target.textContent = 'Masquer les détails';
+                } else {
+                    details.style.display = 'none';
+                    e.target.textContent = 'Voir les détails';
+                }
+            }
+        });
+    </script>
 </body>
 </html> 

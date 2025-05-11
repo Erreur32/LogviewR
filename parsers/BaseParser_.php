@@ -243,19 +243,9 @@ abstract class BaseParser {
     }
 
     protected function formatHostBadge($host) {
-        // Si c'est une IP, utilise la classe et l'attribut IP
-        if (filter_var($host, FILTER_VALIDATE_IP)) {
-            $ipHash = $host !== '-' ? substr(md5($host), 0, 1) : '0';
-            return sprintf(
-                '<span class="log-badge ip%s" data-ip-hash="%s" data-ip="%s">%s</span>',
-                $host === '-' ? ' ip-empty' : '',
-                $ipHash,
-                htmlspecialchars($host, ENT_QUOTES),
-                htmlspecialchars($host)
-            );
-        }
-        // Sinon, badge host classique
+        // Generate a consistent color hash based on the host
         $hostHash = $host !== '-' ? substr(md5($host), 0, 1) : '0';
+        
         return sprintf(
             '<span class="log-badge host%s" data-host-hash="%s" data-host="%s">%s</span>',
             $host === '-' ? ' host-empty' : '',
@@ -268,35 +258,15 @@ abstract class BaseParser {
     protected function formatIpBadge($ip) {
         // Generate a consistent color hash based on the IP
         $ipHash = $ip !== '-' ? substr(md5($ip), 0, 1) : '0';
-
-        // Detect if IP is local/private
-        $isLocal = false;
-        if ($ip !== '-' && $ip !== '') {
-            // IPv4
-            if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
-                if (
-                    preg_match('/^10\./', $ip) ||
-                    preg_match('/^192\.168\./', $ip) ||
-                    preg_match('/^127\./', $ip) ||
-                    preg_match('/^172\.(1[6-9]|2[0-9]|3[0-1])\./', $ip)
-                ) {
-                    $isLocal = true;
-                }
-            }
-            // IPv6
-            if ($ip === '::1') {
-                $isLocal = true;
-            }
-        }
-        $localClass = $isLocal ? ' ip-local' : '';
+        
         $badge = sprintf(
-            '<span class="log-badge ip%s%s" data-ip-hash="%s" data-ip="%s">%s</span>',
+            '<span class="log-badge ip%s" data-ip-hash="%s" data-ip="%s">%s</span>',
             $ip === '-' ? ' ip-empty' : '',
-            $localClass,
             $ipHash,
             htmlspecialchars($ip, ENT_QUOTES),
             htmlspecialchars($ip)
         );
+
         return $badge;
     }
 

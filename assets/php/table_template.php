@@ -42,7 +42,6 @@ Inclut toutes les lignes, même celles qui sont filtrées ou ignorées
 Statistiques détaillées:
 - Lignes valides: ' . formatNumber($response['stats']['valid_lines'] ?? 0) . '
 - Lignes filtrées: ' . formatNumber($response['stats']['filtered_lines'] ?? 0) . '
-- Lignes ignorées: ' . formatNumber($response['stats']['skipped_lines'] ?? 0) . '
 - Lignes ignorées par les filtres: ' . formatNumber($response['stats']['unreadable_lines'] ?? 0) . '">
         <span class="number">' . formatNumber($response['stats']['total_lines'] ?? 0) . '</span>
         <span class="label">lignes totales</span>
@@ -112,11 +111,11 @@ Format: ' . h($response['type'] ?? 'raw') . '">
         <span class="number">' . formatNumber($response['stats']['filtered_lines'] ?? 0) . '</span>
         <span class="label">lignes filtrées</span>
     </div>
-    <div class="stats-badge skipped" title="Lignes ignorées
+  <!--  <div class="stats-badge skipped" title="Lignes ignorées
 Ces lignes ont été ignorées car elles sont vides ou ne correspondent pas au format attendu">
         <span class="number">' . formatNumber($response['stats']['skipped_lines'] ?? 0) . '</span>
         <span class="label">lignes ignorées</span>
-    </div>
+    </div>-->
     <div class="stats-badge unreadable" title="Lignes ignorées format incorrect ou invalide">
         <span class="number">' . formatNumber($response['stats']['unreadable_lines'] ?? 0) . '</span>
         <span class="label">lignes  illisibles</span>

@@ -4,14 +4,26 @@
  * This file loads and manages all configuration settings
  */
 
-// Load main configuration
-$config = require_once __DIR__ . '/../config/config.php';
+// Load configuration - Use user config if exists, otherwise use default
+$configFile = file_exists(__DIR__ . '/../config/config.user.php') 
+    ? __DIR__ . '/../config/config.user.php'
+    : __DIR__ . '/../config/config.php';
+$config = require_once $configFile;
+
+// Load patterns - Use user patterns if exists, otherwise use default
+$patternsFile = file_exists(__DIR__ . '/../config/log_patterns.user.php')
+    ? __DIR__ . '/../config/log_patterns.user.php'
+    : __DIR__ . '/../config/log_patterns.php';
+$patterns = require_once $patternsFile;
 
 // Set timezone
 date_default_timezone_set($config['timezone'] ?? 'Europe/Paris');
 
 // Define constants
-define('LOGVIEWR_VERSION', '1.4.0');
+$versionInfo = require __DIR__ . '/../version.php';
+if (!defined('LOGVIEWR_VERSION')) {
+    define('LOGVIEWR_VERSION', $versionInfo['version']);
+}
 define('LOGVIEWR_ROOT', dirname(__DIR__));
 define('LOGVIEWR_ADMIN', LOGVIEWR_ROOT . '/admin');
 define('LOGVIEWR_INCLUDES', LOGVIEWR_ROOT . '/includes');
@@ -36,4 +48,8 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// ... existing code ... 
+// Return merged configuration
+return [
+    'config' => $config,
+    'patterns' => $patterns
+]; 

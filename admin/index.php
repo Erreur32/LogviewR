@@ -1,31 +1,151 @@
 <?php
-session_start();
+// Vérifier si la session n'est pas déjà démarrée
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+// Vérifier si l'utilisateur est connecté
+if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== true) {
+    header('Location: login.php');
+    exit;
+}
+
+// Inclure les fonctions nécessaires
+require_once __DIR__ . '/functions.php';
 
 // Charger la configuration globale
 require_once __DIR__ . '/../includes/config.php';
 
 // Check configuration files
-$config_file = __DIR__ . '/../config/config.php';
+$config_file = file_exists(__DIR__ . '/../config/config.user.php')
+    ? __DIR__ . '/../config/config.user.php'
+    : __DIR__ . '/../config/config.php';
+
 $admin_config_file = __DIR__ . '/../config/admin.php';
-$patterns_file = __DIR__ . '/../config/log_patterns.php';
 
 // Initialize configurations
 $config = [];
 $patterns = [];
+$default_patterns = [];
+$custom_patterns = [];
+
+// Initialize default debug configuration
+// $config['debug'] = [
+//     'enabled' => false,
+//     'log_level' => 'INFO',
+//     'log_format' => '[%timestamp%] [%level%] %message%'
+// ];
 
 // Load configuration
 if (file_exists($config_file)) {
-    $config = require $config_file;
+    $loaded_config = require $config_file;
+    if (is_array($loaded_config)) {
+        $config = array_replace_recursive($config, $loaded_config);
+    }
 } else {
     die('Error: Configuration file missing (config.php)');
 }
 
 // Load patterns
-if (file_exists($patterns_file)) {
-    $patterns = require $patterns_file;
-} else {
-    die('Error: Patterns file missing (log_patterns.php)');
+$default_patterns_file = __DIR__ . '/../config/log_patterns.php';
+$user_patterns_file = __DIR__ . '/../config/log_patterns.user.php';
+
+// Charger les patterns par défaut
+$default_patterns = require $default_patterns_file;
+
+// Initialiser les patterns avec les valeurs par défaut
+$patterns = $default_patterns;
+
+// Charger les patterns personnalisés s'ils existent
+if (file_exists($user_patterns_file)) {
+    try {
+        $custom_patterns = require $user_patterns_file;
+        
+        // Ne mettre à jour que les patterns qui ont été modifiés
+        foreach ($custom_patterns as $type => $type_patterns) {
+            if (is_array($type_patterns)) {
+                foreach ($type_patterns as $pattern_type => $pattern_data) {
+                    // Vérifier si le pattern existe dans les patterns par défaut
+                    if (isset($default_patterns[$type][$pattern_type])) {
+                        // Ne mettre à jour que si le pattern est différent
+                        if (isset($pattern_data['pattern']) && 
+                            !empty($pattern_data['pattern']) && 
+                            $pattern_data['pattern'] !== $default_patterns[$type][$pattern_type]['pattern']) {
+                            $patterns[$type][$pattern_type] = $pattern_data;
+                           // error_log("Pattern modifié: $type/$pattern_type");
+                        }
+                    }
+                }
+            }
+        }
+    } catch (Exception $e) {
+        error_log('Error loading user patterns: ' . $e->getMessage());
+    }
 }
+
+// Configuration des couleurs et icônes
+$pattern_config = [
+    'apache' => [
+        'icon' => 'fa-server',
+        'title' => 'Apache',
+        'access_color' => '#4CAF50',
+        'error_color' => '#F44336'
+    ],
+    'nginx' => [
+        'icon' => 'fa-cubes',
+        'title' => 'Nginx',
+        'access_color' => '#2196F3',
+        'error_color' => '#FF9800'
+    ],
+    'npm' => [
+        'icon' => 'fa-cubes',
+        'title' => 'Nginx Proxy Manager',
+        'access_color' => '#9C27B0',
+        'error_color' => '#E91E63',
+        'patterns' => [
+            'default_host_access' => [
+                'label' => 'Default Host Access',
+                'icon' => 'fa-server'
+            ],
+            'proxy_host_access' => [
+                'label' => 'Proxy Host Access',
+                'icon' => 'fa-exchange-alt'
+            ],
+            'dead_host_access' => [
+                'label' => 'Dead Host Access',
+                'icon' => 'fa-skull'
+            ],
+            'fallback_access' => [
+                'label' => 'Fallback Access',
+                'icon' => 'fa-random'
+            ],
+            'letsencrypt_requests_access' => [
+                'label' => 'Let\'s Encrypt Requests',
+                'icon' => 'fa-lock'
+            ],
+            'error' => [
+                'label' => 'Error Log',
+                'icon' => 'fa-exclamation-triangle'
+            ],
+            'default_host_error' => [
+                'label' => 'Default Host Error',
+                'icon' => 'fa-exclamation-circle'
+            ],
+            'proxy_host_error' => [
+                'label' => 'Proxy Host Error',
+                'icon' => 'fa-exclamation-circle'
+            ],
+            'dead_host_error' => [
+                'label' => 'Dead Host Error',
+                'icon' => 'fa-exclamation-circle'
+            ],
+            'fallback_error' => [
+                'label' => 'Fallback Error',
+                'icon' => 'fa-exclamation-circle'
+            ]
+        ]
+    ]
+];
 
 // Load admin configuration
 if (!file_exists($admin_config_file)) {
@@ -39,12 +159,6 @@ try {
     }
 } catch (Exception $e) {
     die('Configuration loading error: ' . $e->getMessage());
-}
-
-// Vérifier la connexion
-if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== true) {
-    header('Location: login.php');
-    exit;
 }
 
 // Vérifier le timeout de session
@@ -61,136 +175,120 @@ $_SESSION['admin_login_time'] = time();
 $message = '';
 $error = '';
 
+// Fonction pour recharger les configurations
+
+function reloadConfigurations() {
+    global $config_file, $patterns_file, $admin_config_file;
+    global $config, $patterns, $admin_config;
+    
+    // Recharger la configuration
+    if (file_exists($config_file)) {
+        $config = require $config_file;
+    }
+    
+    // Recharger les patterns
+    if (file_exists($patterns_file)) {
+        $patterns = require $patterns_file;
+    }
+    
+    // Recharger la configuration admin
+    if (file_exists($admin_config_file)) {
+        $admin_config = require $admin_config_file;
+    }
+}
+
 // Traitement des actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['action'])) {
         switch ($_POST['action']) {
             case 'update_config':
                 try {
-                    // Charger le contenu actuel de version.php
-                    $version_file = __DIR__ . '/../version.php';
-                    $version_content = require $version_file;
-
-                    // Si c'est une mise à jour des paramètres de mise à jour
-                    if (isset($_POST['update_check'])) {
-                        // Convertir l'intervalle d'heures en secondes
-                        $interval_hours = (int)$_POST['update_check']['check_interval'];
-                        $interval_seconds = $interval_hours * 3600;
-
-                        // Mettre à jour uniquement les paramètres de mise à jour
-                        $version_content['update_check'] = [
-                            'enabled' => isset($_POST['update_check']['enabled']),
-                            'check_interval' => $interval_seconds,
-                            'cache_dir' => 'cache', // Toujours utiliser le chemin relatif
-                            'cache_file' => 'update_cache.json'
-                        ];
-
-                        // Sauvegarder dans version.php
-                        $success = file_put_contents($version_file, "<?php\nreturn " . var_export($version_content, true) . ";\n");
-                        
-                        if ($success === false) {
-                            throw new Exception('Erreur lors de la sauvegarde des paramètres de mise à jour');
+                    // Charger la configuration actuelle
+                    $current_config = require $config_file;
+                    
+                    // Initialiser la nouvelle configuration avec les valeurs actuelles
+                    $new_config = $current_config;
+                    
+                    // Mettre à jour uniquement les valeurs qui ont été soumises
+                    if (isset($_POST['config'])) {
+                        foreach ($_POST['config'] as $key => $value) {
+                            if (isset($new_config[$key])) {
+                                // Préserver le chemin du fichier de log s'il existe
+                                if ($key === 'debug' && isset($value['log_file'])) {
+                                    $new_config[$key]['log_file'] = $current_config[$key]['log_file'];
+                                } else {
+                                    $new_config[$key] = $value;
+                                }
+                            }
                         }
-
-                        $_SESSION['message'] = 'Configuration des mises à jour sauvegardée avec succès';
-                        header('Location: ' . $_SERVER['PHP_SELF'] . '?tab=updates');
-                        exit;
                     }
-                    // Sinon, c'est une autre configuration à mettre à jour
-                    else {
-                        // Utiliser la configuration actuelle
-                        $new_config = $config;
-                        
-                        // Traitement des chemins
-                        if (isset($_POST['paths'])) {
-                            $new_config['paths'] = [
-                            'apache_logs' => $_POST['paths']['apache_logs'] ?? '/var/log/apache2',
-                            'nginx_logs' => $_POST['paths']['nginx_logs'] ?? '/var/log/nginx',
-                                'npm_logs' => $_POST['paths']['npm_logs'] ?? '/var/log/npm',
-                            'syslog' => $_POST['paths']['syslog'] ?? '/var/log'
+
+                    // Charger la configuration admin actuelle
+                    $admin_config = require $admin_config_file;
+                    // Mettre à jour les options admin
+                    if (isset($_POST['admin'])) {
+                        foreach ($_POST['admin'] as $key => $value) {
+                            if ($key === 'remember_me') {
+                                $admin_config['admin']['remember_me'] = true;
+                            } else {
+                                $admin_config['admin'][$key] = $value;
+                            }
+                        }
+                        // Si la case n'est pas cochée, elle n'est pas envoyée dans $_POST
+                        if (!isset($_POST['admin']['remember_me'])) {
+                            $admin_config['admin']['remember_me'] = false;
+                        }
+                    }
+
+                    // Mettre à jour les filtres si présents
+                    if (isset($_POST['config']['filters'])) {
+                        if (!isset($new_config['filters'])) {
+                            $new_config['filters'] = [
+                                'enabled' => false,
+                                'exclude' => []
                             ];
                         }
                         
-                        // Traitement des extensions exclues
-                        if (isset($_POST['app']['excluded_extensions'])) {
-                            $extensions = array_filter(array_map('trim', explode("\n", $_POST['app']['excluded_extensions'])));
-                            $new_config['app']['excluded_extensions'] = $extensions;
+                        // Mettre à jour l'état des filtres
+                        if (isset($_POST['config']['filters']['enabled'])) {
+                            $new_config['filters']['enabled'] = $_POST['config']['filters']['enabled'] === '1';
                         }
                         
-                        // Traitement du debug
-                        if (isset($_POST['debug'])) {
-                            $new_config['debug'] = array_replace_recursive($new_config['debug'] ?? [], $_POST['debug']);
-                        }
-                        
-                        // Traitement de nginx séparément
-                        if (isset($_POST['nginx'])) {
-                            $new_config['nginx'] = array_replace_recursive($new_config['nginx'] ?? [], $_POST['nginx']);
-                        }
-                        
-                        // Sauvegarder la configuration
-                        if (file_put_contents($config_file, "<?php\nreturn " . var_export($new_config, true) . ";\n")) {
-                            $config = $new_config; // Mettre à jour la configuration en mémoire
-                            
-                            // Si c'est un changement de debug, on redirige
-                            if (isset($_POST['debug_change'])) {
-                                header('Location: ' . $_SERVER['PHP_SELF'] . '?tab=debug&nocache=' . time());
-                                exit;
+                        // Mettre à jour les patterns d'exclusion
+                        if (isset($_POST['config']['filters']['exclude'])) {
+                            foreach ($_POST['config']['filters']['exclude'] as $type => $patterns) {
+                                if (is_string($patterns)) {
+                                    // Convertir les patterns en tableau et les nettoyer
+                                    $patterns = array_filter(array_map('trim', explode("\n", $patterns)));
+                                    // Créer un tableau indexé numériquement
+                                    $new_config['filters']['exclude'][$type] = array_values($patterns);
+                                }
                             }
-                            
-                            $_SESSION['message'] = 'Configuration mise à jour avec succès';
-                        } else {
-                            throw new Exception('Erreur lors de la sauvegarde de la configuration');
                         }
                     }
+                    
+                    // Sauvegarder la configuration admin
+                  if (file_put_contents($admin_config_file, "<?php\nreturn " . var_export($admin_config, true) . ";\n")) {
+                        $admin_config = require $admin_config_file;
+                    } else {
+                        throw new Exception('Erreur lors de la sauvegarde de la configuration admin');
+                    }
+                  
+                    // Sauvegarder la configuration utilisateur
+                    if (saveConfig($new_config)) {
+                        // Désactivation du rafraîchissement automatique
+                        // header('Location: index.php');
+                        $success_message = "Configuration sauvegardée avec succès !";
+                    } else {
+                        $error_message = "Erreur lors de la sauvegarde de la configuration.";
+                    }
+                    
                 } catch (Exception $e) {
                     $error = $e->getMessage();
                 }
                 break;
                 
-            case 'update_patterns':
-                try {
-                    // Récupérer les filtres d'exclusion globaux
-                    $global_filters = $_POST['filters']['exclude'] ?? [];
-                    $new_patterns = ['filters' => ['exclude' => []]];
-                    
-                    // Traiter chaque type de filtre
-                    foreach (['ips', 'requests', 'user_agents', 'users', 'referers', 'content'] as $filter_type) {
-                        $filters = array_filter(array_map('trim', explode("\n", $global_filters[$filter_type] ?? '')));
-                        $new_patterns['filters']['exclude'][$filter_type] = $filters;
-                    }
-                    
-                    // Récupérer les patterns spécifiques
-                    $submitted_patterns = $_POST['patterns'] ?? [];
-                    foreach ($submitted_patterns as $type => $patterns) {
-                        if (!isset($current_patterns[$type])) continue;
-                        
-                        $new_patterns[$type] = [];
-                        foreach ($patterns as $subtype => $data) {
-                            if (!isset($current_patterns[$type][$subtype])) continue;
-                            
-                            $new_patterns[$type][$subtype] = [
-                                'pattern' => $data['pattern'] ?? '',
-                                'columns' => $current_patterns[$type][$subtype]['columns'] ?? []
-                            ];
-                        }
-                    }
-                    
-                    // Fusionner avec les patterns actuels pour les valeurs manquantes
-                    $new_patterns = array_replace_recursive($current_patterns, $new_patterns);
-                    
-                    // Générer le contenu du fichier
-                    if (file_put_contents($patterns_file, "<?php\nreturn " . var_export($new_patterns, true) . ";\n")) {
-                        $current_patterns = $new_patterns; // Mettre à jour les patterns en mémoire
-                        $config['patterns'] = $current_patterns; // Mettre à jour la config
-                        $message = 'Patterns et filtres mis à jour avec succès';
-                    } else {
-                        throw new Exception('Erreur lors de la mise à jour des patterns et filtres');
-                    }
-                } catch (Exception $e) {
-                    $error = $e->getMessage();
-                }
-                break;
-
+ 
             case 'change_password':
                 $current_password = $_POST['current_password'] ?? '';
                 $new_password = $_POST['new_password'] ?? '';
@@ -272,8 +370,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if (file_put_contents($config_file, $config_content) === false) {
                         throw new Exception('Impossible d\'écrire le fichier de configuration');
                     }
-
-                    $message = "Chemins et exclusions mis à jour avec succès";
                     
                     // Recharger la configuration
                     $config = require $config_file;
@@ -287,8 +383,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $config = require __DIR__ . '/../config/config.php';
                 $config['app']['excluded_ips'] = array_filter(explode("\n", $_POST['excluded_ips']));
                 $config['app']['enable_ip_exclusion'] = isset($_POST['enable_ip_exclusion']);
-                file_put_contents(__DIR__ . '/../config/config.php', '<?php return ' . var_export($config, true) . ';');
-                $message = "Configuration des IPs exclues mise à jour avec succès.";
+                if (file_put_contents(__DIR__ . '/../config/config.php', '<?php return ' . var_export($config, true) . ';')) {
+                    reloadConfigurations(); // Recharger les configurations
+                    $message = "Configuration des IPs exclues mise à jour avec succès.";
+                }
                 break;
 
             case 'reset_options':
@@ -322,16 +420,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $new_patterns = $default_patterns;
                     
                     // Sauvegarder les configurations
-                    file_put_contents($config_file, "<?php\nreturn " . var_export($new_config, true) . ";\n");
-                    file_put_contents($admin_config_file, "<?php\nreturn " . var_export($new_admin_config, true) . ";\n");
-                    file_put_contents($patterns_file, "<?php\nreturn " . var_export($new_patterns, true) . ";\n");
-                    
-                    // Recharger les configurations
-                    $config = $new_config;
-                    $admin_config = $new_admin_config;
-                    $current_patterns = $new_patterns;
-                    
-                    $_SESSION['success_message'] = "Les options ont été réinitialisées avec succès. Le mot de passe actuel a été conservé.";
+                    if (file_put_contents($config_file, "<?php\nreturn " . var_export($new_config, true) . ";\n") &&
+                        file_put_contents($admin_config_file, "<?php\nreturn " . var_export($new_admin_config, true) . ";\n") &&
+                        file_put_contents($patterns_file, "<?php\nreturn " . var_export($new_patterns, true) . ";\n")) {
+                        reloadConfigurations(); // Recharger les configurations
+                        $_SESSION['success_message'] = "Les options ont été réinitialisées avec succès. Le mot de passe actuel a été conservé.";
+                    } else {
+                        throw new Exception('Erreur lors de la sauvegarde des configurations');
+                    }
                 } catch (Exception $e) {
                     $_SESSION['error_message'] = "Erreur lors de la réinitialisation des options : " . $e->getMessage();
                 }
@@ -340,16 +436,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             case 'reset_config':
                 try {
                     // Charger les configurations par défaut
-                    $default_config = require __DIR__ . '/../config/default_config.php';
-                    $default_patterns = require __DIR__ . '/../config/default_patterns.php';
+                    $default_config = require __DIR__ . '/../config/config.php';
+                    $default_patterns = require __DIR__ . '/../config/log_patterns.php';
                     
                     // Sauvegarder la configuration par défaut
                     if (file_put_contents($config_file, "<?php\nreturn " . var_export($default_config, true) . ";\n")) {
-                        $config = $default_config;
-                        
                         // Sauvegarder les patterns par défaut
                         if (file_put_contents($patterns_file, "<?php\nreturn " . var_export($default_patterns, true) . ";\n")) {
-                            $patterns = $default_patterns;
+                            reloadConfigurations(); // Recharger les configurations
                             $_SESSION['message'] = 'Configuration réinitialisée avec succès';
                         } else {
                             throw new Exception('Erreur lors de la réinitialisation des patterns');
@@ -361,9 +455,96 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $error = $e->getMessage();
                 }
                 break;
+
+            case 'reset_patterns':
+                try {
+                    // Charger les patterns par défaut
+                    $default_patterns = require __DIR__ . '/../config/log_patterns.php';
+                    
+                    // Sauvegarder les patterns par défaut
+                    if (file_put_contents($patterns_file, "<?php\nreturn " . var_export($default_patterns, true) . ";\n")) {
+                        $patterns = $default_patterns;
+                        $message = 'Patterns réinitialisés avec succès';
+                    } else {
+                        throw new Exception('Erreur lors de la réinitialisation des patterns');
+                    }
+                } catch (Exception $e) {
+                    $error = $e->getMessage();
+                }
+                break;
+
+            case 'update_patterns':
+             
+                // Gestion des patterns de logs
+                if (isset($_POST['patterns'])) {
+                    $patterns = $_POST['patterns'];
+                    
+                    // Log pour debug
+                    error_log('Patterns reçus: ' . print_r($patterns, true));
+                    
+                    // Construire le contenu du fichier
+                    $content = "<?php\n";
+                    $content .= "// Patterns de logs utilisateur\n";
+                    $content .= "return array (\n";
+                    
+                    // Fonction récursive pour formater les tableaux
+                    function formatPatterns($array, $indent = 2) {
+                        $result = "array (\n";
+                        $spaces = str_repeat(' ', $indent);
+                        
+                        foreach ($array as $key => $value) {
+                            $result .= $spaces;
+                            
+                            // Handle numeric keys for patterns
+                            if (is_numeric($key)) {
+                                $result .= $key . ' => ';
+                            } else {
+                                $result .= "'" . addslashes($key) . "' => ";
+                            }
+                            
+                            if (is_array($value)) {
+                                $result .= formatPatterns($value, $indent + 2);
+                            } else {
+                                // Special handling for regex patterns
+                                if (is_string($value) && preg_match('/^\/.*\/[imsxADSUXJu]*$/', $value)) {
+                                    $result .= $value;
+                                } else {
+                                    $result .= "'" . addslashes($value) . "'";
+                                }
+                            }
+                            
+                            $result .= ",\n";
+                        }
+                        
+                        $result .= str_repeat(' ', $indent - 2) . ")";
+                        return $result;
+                    }
+                    
+                    $content .= formatPatterns($patterns);
+                    $content .= ");\n";
+                    
+                    // Log pour debug
+                    error_log('Contenu généré: ' . $content);
+                    
+                    // Chemin du fichier
+                    $filePath = __DIR__ . '/../config/log_patterns.user.php';
+                    
+                    // Sauvegarder dans le fichier
+                    if (file_put_contents($filePath, $content) !== false) {
+                        // Recharger la configuration
+                        reloadConfigurations();
+                        
+                        // Afficher un message de succès
+                        showNotification('✅ Les patterns de logs ont été mis à jour avec succès !', 'success');
+                    } else {
+                        showNotification('❌ Erreur lors de la sauvegarde des patterns', 'error');
+                    }
+                }
+                
         }
     }
 }
+
 
 function isExcludedFile($filename, $excluded_extensions) {
     $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
@@ -413,7 +594,7 @@ function countUnreadableFiles($directory) {
     return $count;
 }
 
-// ... existing code ...
+ 
 require_once __DIR__ . '/../includes/UpdateChecker.php';
 
 // Initialize update checker
@@ -421,7 +602,7 @@ $updateChecker = new UpdateChecker();
 $versionInfo = $updateChecker->getVersionInfo();
 $updateInfo = $updateChecker->checkForUpdates();
 
-// ... existing code ...
+ 
 
 // Add update notification in the header
 if ($updateInfo) {
@@ -433,7 +614,7 @@ if ($updateInfo) {
                 <p>Version ' . $updateInfo['latest_version'] . ' est disponible (vous utilisez ' . $updateInfo['current_version'] . ')</p>
                 <div class="update-actions">
                     <a href="' . $updateInfo['update_url'] . '" target="_blank" class="btn btn-warning btn-sm">
-                        <i class="fas fa-download"></i> Télécharger la mise à jour
+                     <!--   <i class="fas fa-download"></i> Télécharger la mise à jour -->
                     </a>
                     <a href="?tab=updates" class="btn btn-info btn-sm">
                         <i class="fas fa-info-circle"></i> Plus d\'informations
@@ -441,11 +622,21 @@ if ($updateInfo) {
                 </div>
             </div>
         </div>
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Close">
+            <i class="fas fa-times"></i>
+        </button>
     </div>';
 }
 
-// ... existing code ...
+// Initialisation des variables pour l'onglet Mises à jour
+require_once __DIR__ . '/../includes/UpdateChecker.php';
+$updateChecker = new UpdateChecker();
+$currentVersion = $updateChecker->getCurrentVersion() ?? '';
+$remoteVersion = $updateChecker->getRemoteVersion() ?? $currentVersion;
+$updateInfo = $updateChecker->checkForUpdates();
+$versionInfo = $updateChecker->getVersionInfo();
+$changelog = $versionInfo['changelog'] ?? [];
+$lastCheck = $updateChecker->getLastCheck();
 
 ?>
 <!DOCTYPE html>
@@ -453,24 +644,94 @@ if ($updateInfo) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🛠️ LogviewR  -Administration-</title>
-
+    <title>🛠️ LogviewR - Administration</title>
+    
+    <!-- Charger jQuery en premier -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <link rel="stylesheet" href="assets/css/admin.css">
+    <link rel="stylesheet" href="../assets/css/variables.css">
+    <!--<link rel="stylesheet" href="../assets/css/base_.css">-->
     <link rel="stylesheet" href="assets/css/debug-log.css">
+    <link rel="stylesheet" href="assets/css/admin.css">
+
     <script>
         // Initialiser la configuration pour le JavaScript
         window.currentConfig = <?php echo json_encode($config); ?>;
     </script>
     <script src="assets/js/admin.js"></script>
     <script src="assets/js/debug-log.js" defer></script>
+
+    <style>
+    /* Make the admin container wider and centered */
+    .admin-container {
+        width: 98vw; /* Use almost the full viewport width */
+        max-width: 1800px; /* Large max width for big screens */
+        margin: 30px auto 60px auto; /* Centered with top/bottom margin */
+        padding: 20px 10px 40px 10px; /* Reduce side padding */
+        background: var(--bg-color, #232526);
+        border-radius: 16px;
+        box-shadow: 0 4px 32px rgba(0,0,0,0.10);
+        min-height: 80vh;
+        overflow-x: visible; /* Prevent horizontal scroll */
+    }
+
+    /* Make the admin tabs wrap and avoid horizontal scroll */
+    .admin-tabs {
+        display: flex;
+        flex-wrap: wrap; /* Allow tabs to wrap to next line */
+        gap: 8px;
+        overflow-x: visible; /* Remove horizontal scroll */
+        width: 100%;
+        margin-bottom: 24px;
+        justify-content: flex-start;
+    }
+
+    .admin-tab {
+        flex: 0 1 auto; /* Allow tabs to shrink/grow */
+        min-width: 120px;
+        max-width: 220px;
+        text-align: center;
+        white-space: nowrap;
+        padding: 8px 18px;
+        border-radius: 8px 8px 0 0;
+        background: var(--bg-color, #232526);
+        color: var(--text-color, #e0e6ed);
+        border: 1px solid #444;
+        border-bottom: none;
+        transition: background 0.2s, color 0.2s;
+        cursor: pointer;
+    }
+
+    .admin-tab.active {
+        background: var(--primary-color, #3498db);
+        color: #fff;
+        font-weight: bold;
+        border-bottom: 2px solid var(--primary-color, #3498db);
+    }
+
+    @media (max-width: 900px) {
+        .admin-container {
+            width: 100vw;
+            max-width: 100vw;
+            padding: 8px 2px 40px 2px;
+        }
+        .admin-tabs {
+            gap: 4px;
+        }
+        .admin-tab {
+            min-width: 90px;
+            padding: 6px 8px;
+            font-size: 13px;
+        }
+    }
+    </style>
 </head>
 <body>
     <div class="admin-container">
         <div class="admin-header">
             <h1>
                 <i class="fas fa-cog"></i> LogviewR   administration <?php echo LOGVIEWR_VERSION; ?>
-                <?php if (isset($config['debug']['enabled']) && $config['debug']['enabled']): ?>
+                <?php if (isset($admin_config['debug']['enabled']) && $admin_config['debug']['enabled']): ?>
                     <span class="debug-badge" title="Mode Debug Activé">
                         <i class="fas fa-bug"></i> DEBUG
                     </span>
@@ -500,9 +761,7 @@ if ($updateInfo) {
             <a href="?tab=general" class="admin-tab <?php echo (!isset($_GET['tab']) || $_GET['tab'] === 'general') ? 'active' : ''; ?>" data-tab="general">
                 <i class="fas fa-cog"></i> Options Générales
             </a>
-            <a href="?tab=debug" class="admin-tab <?php echo (isset($_GET['tab']) && $_GET['tab'] === 'debug') ? 'active' : ''; ?>" data-tab="debug">
-                <i class="fas fa-bug"></i> Debug & Logs
-            </a>
+
             <a href="?tab=paths" class="admin-tab <?php echo (isset($_GET['tab']) && $_GET['tab'] === 'paths') ? 'active' : ''; ?>" data-tab="paths">
                 <i class="fas fa-folder"></i> Chemins des logs
             </a>
@@ -521,6 +780,9 @@ if ($updateInfo) {
             <a href="?tab=updates" class="admin-tab <?php echo (isset($_GET['tab']) && $_GET['tab'] === 'updates') ? 'active' : ''; ?>" data-tab="updates">
                 <i class="fas fa-sync-alt"></i> Mises à jour
             </a>
+            <a href="?tab=debug" class="admin-tab <?php echo (isset($_GET['tab']) && $_GET['tab'] === 'debug') ? 'active' : ''; ?>" data-tab="debug">
+                <i class="fas fa-bug"></i> Login & Debug  
+            </a>            
         </div>
 
         <!-- Onglet Options Générales -->
@@ -541,23 +803,27 @@ if ($updateInfo) {
                             </div>
                             <div class="option-group">
                                 <label for="max_lines_per_request">Lignes maximum par requête</label>
-                                <input type="number" id="max_lines_per_request" name="app[max_lines_per_request]" 
-                                       value="<?php echo $config['app']['max_lines_per_request'] ?? 20000; ?>" class="form-control">
-                                <small class="form-text">
-                                    Nombre maximum de lignes à charger par requête AJAX.<br>
-                                    Une valeur trop élevée peut impacter les performances.
+                                <input type="number" class="form-control" id="max_lines_per_request" name="app[max_lines_per_request]" 
+                                       value="<?php echo htmlspecialchars($config['app']['max_lines_per_request'] ?? 20000); ?>"
+                                       min="100" max="200000">
+                                <small class="form-text text-muted">
+                                    <i class="fas fa-info-circle"></i> Définit le nombre maximum de lignes qui peuvent être chargées en une seule requête. 
+                                    Valeur recommandée : entre 1000 et 10000 pour de meilleures performances.
                                 </small>
+                                <div class="alert_ alert-warning mt-2" id="max_lines_warning" style="display: none;">
+                                    <i class="fas fa-exclamation-triangle"></i> Attention : Une valeur supérieure à 10000 peut ralentir l'application et consommer plus de ressources serveur.
+                                </div>
                             </div>
                         </div>
                         <div class="settings-column">
                             <div class="option-group">
                                 <label for="refresh_interval">Intervalle de rafraîchissement (secondes)</label>
                                 <input type="number" id="refresh_interval" name="app[refresh_interval]" 
-                                    value="<?php echo ($config['app']['refresh_interval'] ?? 6000) / 1000; ?>" 
+                                    value="<?php echo $config['app']['refresh_interval'] ?? 6; ?>" 
                                     min="1" step="1" class="form-control">
                                 <small class="form-text">
                                     Intervalle en secondes entre chaque rafraîchissement automatique.<br>
-                                    Valeur par défaut: 6 secondes
+                                    Valeur par défaut: 15 secondes
                                 </small>
                             </div>
                         </div>
@@ -578,15 +844,15 @@ if ($updateInfo) {
                             <div class="exclusion-examples">
                                 <h4><i class="fas fa-lightbulb"></i> Exemples</h4>
                                 <div class="example-item">
-                                    <code>gz</code>
+                                    <code>.gz</code>
                                     <span class="example-description">Exclure tous les fichiers .gz</span>
                                 </div>
                                 <div class="example-item">
-                                    <code>zip</code>
+                                    <code>.zip</code>
                                     <span class="example-description">Exclure tous les fichiers .zip</span>
                                 </div>
                                 <div class="example-item">
-                                    <code>tar</code>
+                                    <code>.tar</code>
                                     <span class="example-description">Exclure tous les fichiers .tar</span>
                                 </div>
                                 <div class="example-note">
@@ -719,7 +985,35 @@ if ($updateInfo) {
 
         <!-- Nouvel onglet Debug & Logs -->
         <div class="admin-card" id="debug-tab" style="display: none;">
-            <h2><i class="fas fa-bug"></i> Debug & Logs</h2>
+
+
+            <h2>🔐 Login Page principal</h2>
+                <div class="option-group debug-toggle">
+                    <label class="switch">
+                        <input type="checkbox" name="debug[require_login]" id="debug_require_login" data-switch 
+                        <?php echo isset($admin_config['debug']['require_login']) && $admin_config['debug']['require_login'] ? 'checked' : ''; ?>>
+                        <span class="slider"></span>
+                    </label>
+                    <div class="debug-label">
+                        <label>Exiger une connexion pour la page principale</label>
+                    </div>
+
+
+
+            </div>
+            <div class="option-group debug-toggle" style="">
+                                <label class="switch">
+                                    <input type="checkbox" name="admin[remember_me]" id="remember_me" data-switch
+                                    <?php echo isset($admin_config['admin']['remember_me']) && $admin_config['admin']['remember_me'] ? 'checked' : ''; ?>>
+                                    <span class="slider"></span>
+                                </label>
+                                <div class="debug-label">
+                                    <label>Rester connecté</label> 
+                                    <small class="form-text">plus besoin de se reconnecter !</small>
+                                </div>
+                            </div>  
+                    
+            <h2><i class="fas fa-bug"></i> Debug & Infos</h2>
             <form method="POST" action="" id="debug-form" data-form="main">
                 <input type="hidden" name="action" value="update_config">
                 <input type="hidden" name="active_tab" value="debug">
@@ -730,17 +1024,20 @@ if ($updateInfo) {
                         <div class="settings-column_">
                             <div class="option-group debug-toggle">
                                 <label class="switch">
-                                    <input type="checkbox" name="debug[enabled]" id="debug_enabled" data-switch <?php echo isset($config['debug']['enabled']) && $config['debug']['enabled'] ? 'checked' : ''; ?>>
+                                    <input type="checkbox" name="debug[enabled]" id="debug_enabled" data-switch 
+                                    <?php echo isset($admin_config['debug']['enabled']) && $admin_config['debug']['enabled'] ? 'checked' : ''; ?>>
                                     <span class="slider"></span>
                                 </label>
                                 <div class="debug-label">
-                                <label>Activer le mode debug</label>
+                                    <label>Activer le mode debug</label>
+                                </div>
                             </div>
-                        </div>
                             
+
+
                             <div class="option-group debug-toggle">
                                 <label class="switch">
-                                    <input type="checkbox" name="debug[log_to_apache]" id="debug_log_to_apache" data-switch <?php echo isset($config['debug']['log_to_apache']) && $config['debug']['log_to_apache'] ? 'checked' : ''; ?>>
+                                    <input type="checkbox" name="debug[log_to_apache]" id="debug_log_to_apache" data-switch <?php echo isset($admin_config['debug']['log_to_apache']) && $admin_config['debug']['log_to_apache'] ? 'checked' : ''; ?>>
                                     <span class="slider"></span>
                                 </label>
                                 <div class="debug-label">
@@ -750,68 +1047,44 @@ if ($updateInfo) {
                                     </small>
                                 </div>
                             </div>
+
+
+
+                            <div class="form-actions">
+                                <!-- Bouton Enregistrer les changements supprimé du formulaire debug -->
+                            </div>
                         </div>
                         
-                        <?php if (!isset($config['debug']['enabled']) || !$config['debug']['enabled']): ?>
+                        <?php if (!isset($admin_config['debug']['enabled']) || !$admin_config['debug']['enabled']): ?>
                             <div class="debug-status-message">
-                                <i class="fas fa-info-circle"></i> Le mode debug est actuellement désactivé. Activez-le pour voir les logs de debug.
+                                <i class="fas fa-info-circle"></i> Le mode debug est actuellement désactivé. Activez-le et enregistrez pour voir les logs de debug.
                             </div>
                         <?php else: ?>
 
-                <div class="form-group">
-                <h4>🔧 Config des Log</h4>
-                    <div class="option-group"><h3>🔍 Niveau de Log</h3>
-                        
-                        <select id="log_level" name="debug[log_level]" class="form-control">
-                            <option value="DEBUG" <?php echo ($config['debug']['log_level'] ?? '') === 'DEBUG' ? 'selected' : ''; ?>>DEBUG</option>
-                            <option value="INFO" <?php echo ($config['debug']['log_level'] ?? '') === 'INFO' ? 'selected' : ''; ?>>INFO</option>
-                            <option value="WARNING" <?php echo ($config['debug']['log_level'] ?? '') === 'WARNING' ? 'selected' : ''; ?>>WARNING</option>
-                            <option value="ERROR" <?php echo ($config['debug']['log_level'] ?? '') === 'ERROR' ? 'selected' : ''; ?>>ERROR</option>
-                        </select>                        <small class="form-text">
-                        Niveau de log minimum  
-                        </small>
-
-                        <br><br><h3>📝 Format des messages de Log</h3>
-                        <label for="log_format">Format des messages de log</label>
-                        <input type="text" id="log_format" name="debug[log_format]" 
-                               value="<?php echo htmlspecialchars($config['debug']['log_format'] ?? '[%timestamp%] [%level%] %message%'); ?>" 
-                               class="form-control">
-                        <small class="form-text">
-                            Variables disponibles: %timestamp%, %level%, %message% 
-                        </small>
-                                          
-                    </div>
-                </div>   
+    
                 <?php endif; ?>
                 <!-- Section d'affichage des logs de debug -->
                 <div class="form-group">
-                     <?php if (isset($config['debug']['enabled']) && $config['debug']['enabled']): ?>
-                        <div class="debug-log-container">
+                     <?php if (isset($admin_config['debug']['enabled']) && $admin_config['debug']['enabled']): ?>
+
+                        <div class="debug-log-container log-card" style="margin-top:32px;">
                             <div class="debug-log-header">
                                 <h5><i class="fas fa-file-alt"></i> debug.log</h5>
                                 <div class="debug-log-controls">
-                                    <button type="button" class="btn btn-sm" id="refreshLogBtn">
+                                    <button type="button" class="btn btn-sm btn-refresh" id="refreshPhpLogBtn">
                                         <i class="fas fa-sync-alt"></i> Rafraîchir
                                     </button>
-                                    <button type="button" class="btn btn-sm" id="toggleLogBtn">
-                                        <i class="fas fa-eye-slash"></i> Masquer
-                                    </button>
-                                    <button type="button" class="btn btn-danger btn-sm" id="clearLogBtn">
+                                    <button type="button" class="btn btn-sm btn-danger" id="clearPhpLogBtn">
                                         <i class="fas fa-trash-alt"></i> Vider
                                     </button>
                                 </div>
                             </div>
-                            <div id="debug-log-content" class="debug-log-content">
+                            <div id="php-log-content" class="debug-log-content">
                                 <pre><code><?php
-                                $debug_log = dirname(__DIR__) . '/logs/debug.log';
-                                if (file_exists($debug_log) && is_readable($debug_log)) {
-                                    $lines = array_slice(file($debug_log), -100);
+                                $php_log = dirname(__DIR__) . '/logs/debug.log';
+                                if (file_exists($php_log) && is_readable($php_log)) {
+                                    $lines = array_slice(file($php_log), -100);
                                     foreach ($lines as $line) {
-                                        // Formatage des messages de debug
-                                        if (preg_match('/^\[DEBUG\]/', $line)) {
-                                            $line = preg_replace('/^\[DEBUG\]/', '<span class="debug-tag">[DEBUG]</span>', $line);
-                                            $line = preg_replace('/Array\\n\\(\\n(.*?)\\n\\)/s', '<span class="debug-array">Array\n(\n$1\n)</span>', $line);
-                                        }
                                         echo htmlspecialchars($line);
                                     }
                                 } else {
@@ -819,9 +1092,38 @@ if ($updateInfo) {
                                 }
                                 ?></code></pre>
                             </div>
-                            <div id="log-status" class="log-status"></div>
+                            <div id="php-log-status" class="log-status"></div>
                         </div>
- 
+                        
+                        
+                        <!-- Bloc pour php_errors.log -->
+                        <div class="debug-log-container log-card" style="margin-top:32px;">
+                            <div class="debug-log-header">
+                                <h5><i class="fas fa-file-alt"></i> php_errors.log</h5>
+                                <div class="debug-log-controls">
+                                    <button type="button" class="btn btn-sm btn-refresh" id="refreshPhpLogBtn">
+                                        <i class="fas fa-sync-alt"></i> Rafraîchir
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-danger" id="clearPhpLogBtn">
+                                        <i class="fas fa-trash-alt"></i> Vider
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="php-log-content" class="debug-log-content">
+                                <pre><code><?php
+                                $php_log = dirname(__DIR__) . '/logs/php_errors.log';
+                                if (file_exists($php_log) && is_readable($php_log)) {
+                                    $lines = array_slice(file($php_log), -100);
+                                    foreach ($lines as $line) {
+                                        echo htmlspecialchars($line);
+                                    }
+                                } else {
+                                    echo "Le fichier php_errors.log n'existe pas ou n'est pas lisible.";
+                                }
+                                ?></code></pre>
+                            </div>
+                            <div id="php-log-status" class="log-status"></div>
+                        </div>
                     <?php endif; ?>
                 </div>
 
@@ -950,35 +1252,40 @@ if ($updateInfo) {
                 <!-- Section Nginx -->
                 <div class="option-group">
                     <h3><i class="fas fa-cubes"></i> <?php echo (isset($config['nginx']['use_npm']) && $config['nginx']['use_npm']) ? 'Nginx Proxy Manager' : 'Nginx'; ?></h3>
-                    <div class="option-group">
+                    <div class="option-group"  style="width: 200px; margin-left: 24px; margin-top: 25px;">
                         <label class="switch">
-                            <input type="checkbox" name="nginx[use_npm]" id="use_npm" data-switch
-                                   <?php echo ($config['nginx']['use_npm'] ?? false) ? 'checked' : ''; ?>>
-                            <span class="slider"></span>
+                            <input type="checkbox" id="use_npm" name="nginx[use_npm]" data-switch <?php echo $config['nginx']['use_npm'] ? 'checked' : ''; ?>>
+                            <span class="slider round"></span>
                         </label>
-                        <label>Activer Nginx Proxy Manager</label>
+                        <span class="switch-label">Utiliser Nginx Proxy Manager</span>
                     </div>
                     <div class="path-group">
                         <div class="path-input-container">
-                        <label for="nginx_path">Chemin des logs <?php echo (isset($config['nginx']['use_npm']) && $config['nginx']['use_npm']) ? 'Nginx Proxy Manager' : 'Nginx'; ?></label>
-                        <div class="input-with-example">
-                            <input type="text" id="nginx_path" name="paths[<?php echo (isset($config['nginx']['use_npm']) && $config['nginx']['use_npm']) ? 'npm_logs' : 'nginx_logs'; ?>]" 
-                                   value="<?php echo htmlspecialchars((isset($config['nginx']['use_npm']) && $config['nginx']['use_npm']) ? ($config['paths']['npm_logs'] ?? '') : ($config['paths']['nginx_logs'] ?? '')); ?>" 
-                                       class="form-control path-input" placeholder="/var/log/nginx">
-                            <div class="file-count">
-                                <i class="fas fa-file-alt"></i>
-                                <?php
-                                $nginx_path = (isset($config['nginx']['use_npm']) && $config['nginx']['use_npm']) ? 
-                                    ($config['paths']['npm_logs'] ?? '/var/log/nginx') : 
-                                    ($config['paths']['nginx_logs'] ?? '/var/log/nginx');
-                                $readable_files = countReadableFiles($nginx_path);
-                                $unreadable_files = countUnreadableFiles($nginx_path);
-                                echo "<span class='readable-count'>Fichiers lisibles: $readable_files</span>";
-                                if ($unreadable_files > 0) {
-                                    echo "<span class='unreadable-count'>Fichiers non lisibles: $unreadable_files</span>";
-                                }
-                                ?>
-                            </div>
+                            <label for="nginx_path">Chemin des logs <?php echo (isset($config['nginx']['use_npm']) && $config['nginx']['use_npm']) ? 'Nginx Proxy Manager' : 'Nginx'; ?></label>
+                            <div class="input-with-example">
+                                <?php if (isset($config['nginx']['use_npm']) && $config['nginx']['use_npm']): ?>
+                                    <input type="text" id="nginx_path" name="paths[npm_logs]" 
+                                           value="<?php echo htmlspecialchars($config['paths']['npm_logs'] ?? ''); ?>" 
+                                           class="form-control path-input" placeholder="/var/log/nginx-proxy-manager">
+                                <?php else: ?>
+                                    <input type="text" id="nginx_path" name="paths[nginx_logs]" 
+                                           value="<?php echo htmlspecialchars($config['paths']['nginx_logs'] ?? ''); ?>" 
+                                           class="form-control path-input" placeholder="/var/log/nginx">
+                                <?php endif; ?>
+                                <div class="file-count">
+                                    <i class="fas fa-file-alt"></i>
+                                    <?php
+                                    $nginx_path = (isset($config['nginx']['use_npm']) && $config['nginx']['use_npm']) ? 
+                                        ($config['paths']['npm_logs'] ?? '/var/log/nginx-proxy-manager') : 
+                                        ($config['paths']['nginx_logs'] ?? '/var/log/nginx');
+                                    $readable_files = countReadableFiles($nginx_path);
+                                    $unreadable_files = countUnreadableFiles($nginx_path);
+                                    echo "<span class='readable-count'>Fichiers lisibles: $readable_files</span>";
+                                    if ($unreadable_files > 0) {
+                                        echo "<span class='unreadable-count'>Fichiers non lisibles: $unreadable_files</span>";
+                                    }
+                                    ?>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -986,7 +1293,7 @@ if ($updateInfo) {
 
                 <!-- Section Syslog -->
                 <div class="option-group">
-                    <h3><i class="fas fa-terminal"></i> Syslog</h3>
+                    <h3><i class="fas fa-terminal"></i>  Syslog</h3>
                     <div class="path-group">
                         <div class="path-input-container">
                         <label for="syslog_path">Chemin des logs Syslog</label>
@@ -1021,236 +1328,420 @@ if ($updateInfo) {
 
         <!-- Onglet Filtres d'Exclusion -->
         <div class="admin-card" id="filters-tab" style="display: none;">
-            <div class="section patterns-section">
-                <h2><i class="fas fa-filter"></i> Filtres d'Exclusion Globaux</h2>
+            <h2><i class="fas fa-filter"></i> Filtres d'Exclusion Globaux</h2>
+            
+            <form method="post" action="" id="filters-form" data-form="main">
+                <input type="hidden" name="action" value="update_config">
+                <input type="hidden" name="active_tab" value="filters">
                 
-                <form method="post" action="" id="filters-form" data-form="main">
-                    <input type="hidden" name="action" value="update_patterns">
-                    <input type="hidden" name="active_tab" value="filters">
+                <div class="filter-toggle-container">
+                    <label class="switch">
+                        <input type="checkbox" name="config[filters][enabled]" value="1" <?php echo ($config['filters']['enabled'] ?? false) ? 'checked' : ''; ?>>
+                        <span class="slider round"></span>
+                    </label>
+                    <span class="filter-toggle-label">Activer les filtres par défaut</span>
+                </div>
+                
+                <div class="global-filters">
+                    <h3><i class="fas fa-shield-alt"></i> Filtres d'Exclusion Globaux</h3>
                     
-                    <div class="global-filters">
-                        <h3><i class="fas fa-shield-alt"></i> Filtres d'Exclusion Globaux</h3>
-                        
-                        <div class="filter-group">
-                            <label>
-                                <div class="label-content">
-                                    <i class="fas fa-network-wired"></i> Liste IPs à Exclure
-                                </div>
-                                <span class="pattern-help" data-help="Exclure des adresses IP spécifiques des logs.
-
-                                            Format: /^192\.168\.1\.(10|50)$/
-
-                                            Exemples:
-                                            • /^192\.168\.1\.(10|50)$/ - Exclura les IPs 192.168.1.10 et 192.168.1.50
-                                            • /^10\.0\.0\.(1|2|3)$/ - Exclura les IPs 10.0.0.1, 10.0.0.2 et 10.0.0.3
-                                            • /^172\.16\.0\.\d{1,3}$/ - Exclura toutes les IPs du réseau 172.16.0.x">
-                                                                                <i class="fas fa-question-circle"></i>
-                                </span>
-                            </label>
-                            <div class="input-validation-container">
-                                <textarea name="filters[exclude][ips]" id="exclude_ips" class="pattern-input" rows="4"><?php 
-                                    if (isset($patterns['filters']['exclude']['ips'])) {
-                                        echo implode("\n", $patterns['filters']['exclude']['ips']);
-                                    }
-                                ?></textarea>
-                                <div class="validation-wrapper">
-                                    <div class="validation-status"></div>
-                                    <div class="validation-message"></div>
-                                </div>
+                    <div class="filter-group">
+                        <label>
+                            <div class="label-content">
+                                <i class="fas fa-ban"></i> IPs à Exclure
                             </div>
-                            <small><i class="fas fa-info-circle"></i> Un pattern par ligne, format regex (ex: /^192\.168\.1\.(10|50)$/)</small>
-                        </div>
-                        
-                        <div class="filter-group">
-                            <label>
-                                <div class="label-content">
-                                    <i class="fas fa-link"></i> Requêtes à Exclure
-                                </div>
-                                <span class="pattern-help" data-help="Exclure des requêtes spécifiques des logs. Format: /pattern/ - Exemple: /favicon\.ico/ exclura toutes les requêtes pour favicon.ico, /\.(jpg|png|gif)$/ exclura les requêtes d'images">
-                                    <i class="fas fa-question-circle"></i>
-                                </span>
-                            </label>
-                            <div class="input-validation-container">
-                                <textarea name="filters[exclude][requests]" id="exclude_requests" class="pattern-input" rows="4"><?php 
-                                    if (isset($patterns['filters']['exclude']['requests'])) {
-                                        echo implode("\n", $patterns['filters']['exclude']['requests']);
-                                    }
-                                ?></textarea>
-                                <div class="validation-wrapper">
-                                    <div class="validation-status"></div>
-                                    <div class="validation-message"></div>
-                                </div>
+                            <span class="pattern-help" data-help="Exclure des IPs spécifiques des logs. Format: /pattern/ - Exemple: /^192\.168\.1\./ exclura toutes les IPs commençant par 192.168.1., /^10\.0\.0\./ exclura les IPs du réseau 10.0.0.0/24">
+                                <i class="fas fa-question-circle"></i>
+                            </span>
+                        </label>
+                        <div class="input-validation-container">
+                            <textarea name="config[filters][exclude][ips]" id="exclude_ips" class="pattern-input" rows="4"><?php 
+                                if (isset($config['filters']['exclude']['ips'])) {
+                                    echo implode("\n", $config['filters']['exclude']['ips']);
+                                }
+                            ?></textarea>
+                            <div class="validation-wrapper">
+                                <div class="validation-status"></div>
+                                <div class="validation-message"></div>
                             </div>
-                            <small><i class="fas fa-info-circle"></i> Un pattern par ligne (ex: /favicon\.ico/, /\.(jpg|png|gif)$/)</small>
                         </div>
-                        
-                        <div class="filter-group">
-                            <label>
-                                <div class="label-content">
-                                    <i class="fas fa-robot"></i> User-Agents à Exclure
-                                </div>
-                                <span class="pattern-help" data-help="Exclure des User-Agents spécifiques des logs. Format: /pattern/ - Exemple: /bot/ exclura tous les bots, /crawler/ exclura les crawlers, /^Mozilla/ exclura les navigateurs standards">
-                                    <i class="fas fa-question-circle"></i>
-                                </span>
-                            </label>
-                            <div class="input-validation-container">
-                                <textarea name="filters[exclude][user_agents]" id="exclude_user_agents" class="pattern-input" rows="4"><?php 
-                                    if (isset($patterns['filters']['exclude']['user_agents'])) {
-                                        echo implode("\n", $patterns['filters']['exclude']['user_agents']);
-                                    }
-                                ?></textarea>
-                                <div class="validation-wrapper">
-                                    <div class="validation-status"></div>
-                                    <div class="validation-message"></div>
-                                </div>
-                            </div>
-                            <small><i class="fas fa-info-circle"></i> Un pattern par ligne (ex: /bot/, /crawler/, /^Mozilla/)</small>
-                        </div>
-                        
-                        <div class="filter-group">
-                            <label>
-                                <div class="label-content">
-                                    <i class="fas fa-user-slash"></i> Utilisateurs à Exclure
-                                </div>
-                                <span class="pattern-help" data-help="Exclure des utilisateurs spécifiques des logs. Format: /pattern/ - Exemple: /^anonymous$/ exclura l'utilisateur 'anonymous', /^-$/ exclura les utilisateurs non authentifiés, /^admin$/ exclura l'administrateur">
-                                    <i class="fas fa-question-circle"></i>
-                                </span>
-                            </label>
-                            <div class="input-validation-container">
-                                <textarea name="filters[exclude][users]" id="exclude_users" class="pattern-input" rows="4"><?php 
-                                    if (isset($patterns['filters']['exclude']['users'])) {
-                                        echo implode("\n", $patterns['filters']['exclude']['users']);
-                                    }
-                                ?></textarea>
-                                <div class="validation-wrapper">
-                                    <div class="validation-status"></div>
-                                    <div class="validation-message"></div>
-                                </div>
-                            </div>
-                            <small><i class="fas fa-info-circle"></i> Un pattern par ligne (ex: /^anonymous$/, /^-$/, /^admin$/)</small>
-                        </div>
-
-                        <div class="filter-group">
-                            <label>
-                                <i class="fas fa-search"></i> Contenu Général à Exclure
-                                <span class="pattern-help" data-help="Format: /pattern/ - Exclut les lignes contenant ce pattern, quelle que soit la colonne">
-                                    <i class="fas fa-question-circle"></i>
-                                </span>
-                            </label>
-                            <div class="input-validation-container">
-                                <textarea name="filters[exclude][content]" id="exclude_content" class="pattern-input" rows="4"><?php 
-                                    if (isset($patterns['filters']['exclude']['content'])) {
-                                        echo implode("\n", $patterns['filters']['exclude']['content']);
-                                    }
-                                ?></textarea>
-                                <div class="validation-wrapper">
-                                    <div class="validation-status"></div>
-                                    <div class="validation-message"></div>
-                                </div>
-                            </div>
-                            <small><i class="fas fa-info-circle"></i> Un pattern par ligne (ex: /maintenance/, /health[_-]check/)</small>
-                        </div>
+                        <small><i class="fas fa-info-circle"></i> Un pattern par ligne .ex: <pre><code style="background:rgb(35, 91, 40);">/^192\.168\.1\./, /^10\.0\.0\./</code></pre></small>
                     </div>
                     
-                    <div class="form-actions">
-                        <button type="submit" class="btn btn-primary">
-                            <i class="fas fa-save"></i> Enregistrer les Filtres
-                        </button>
+                    <div class="filter-group">
+                        <label>
+                            <div class="label-content">
+                                <i class="fas fa-link"></i> Requêtes à Exclure
+                            </div>
+                            <span class="pattern-help" data-help="Exclure des requêtes spécifiques des logs. Format: /pattern/ - Exemple: /favicon\.ico/ exclura toutes les requêtes pour favicon.ico, /\.(jpg|png|gif)$/ exclura les requêtes d'images">
+                                <i class="fas fa-question-circle"></i>
+                            </span>
+                        </label>
+                        <div class="input-validation-container">
+                            <textarea name="config[filters][exclude][requests]" id="exclude_requests" class="pattern-input" rows="4"><?php 
+                                if (isset($config['filters']['exclude']['requests'])) {
+                                    echo implode("\n", $config['filters']['exclude']['requests']);
+                                }
+                            ?></textarea>
+                            <div class="validation-wrapper">
+                                <div class="validation-status"></div>
+                                <div class="validation-message"></div>
+                            </div>
+                        </div>
+                        <small><i class="fas fa-info-circle"></i> Un pattern par ligne .ex: <pre><code style="background:rgb(35, 91, 40);">/favicon\.ico/, /\.(jpg|png|gif)$/</code></pre></small>
                     </div>
-                </form>
-            </div>
+                    
+                    <div class="filter-group">
+                        <label>
+                            <div class="label-content">
+                                <i class="fas fa-robot"></i> User-Agents à Exclure
+                            </div>
+                            <span class="pattern-help" data-help="Exclure des User-Agents spécifiques des logs. Format: /pattern/ - Exemple: /bot/ exclura tous les bots, /crawler/ exclura les crawlers, /^Mozilla/ exclura les navigateurs standards">
+                                <i class="fas fa-question-circle"></i>
+                            </span>
+                        </label>
+                        <div class="input-validation-container">
+                            <textarea name="config[filters][exclude][user_agents]" id="exclude_user_agents" class="pattern-input" rows="4"><?php 
+                                if (isset($config['filters']['exclude']['user_agents'])) {
+                                    echo implode("\n", $config['filters']['exclude']['user_agents']);
+                                }
+                            ?></textarea>
+                            <div class="validation-wrapper">
+                                <div class="validation-status"></div>
+                                <div class="validation-message"></div>
+                            </div>
+                        </div>
+                        <small><i class="fas fa-info-circle"></i> Un pattern par ligne .ex: <pre><code style="background:rgb(35, 91, 40);">/bot/, /crawler/, /^Mozilla/</code></pre></small>
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label>
+                            <div class="label-content">
+                                <i class="fas fa-user"></i> Utilisateurs à Exclure
+                            </div>
+                            <span class="pattern-help" data-help="Exclure des utilisateurs spécifiques des logs. Format: /pattern/ - Exemple: /^admin/ exclura tous les utilisateurs commençant par 'admin', /^system/ exclura les utilisateurs système">
+                                <i class="fas fa-question-circle"></i>
+                            </span>
+                        </label>
+                        <div class="input-validation-container">
+                            <textarea name="config[filters][exclude][users]" id="exclude_users" class="pattern-input" rows="4"><?php 
+                                if (isset($config['filters']['exclude']['users'])) {
+                                    echo implode("\n", $config['filters']['exclude']['users']);
+                                }
+                            ?></textarea>
+                            <div class="validation-wrapper">
+                                <div class="validation-status"></div>
+                                <div class="validation-message"></div>
+                            </div>
+                        </div>
+                        <small><i class="fas fa-info-circle"></i> Un pattern par ligne .ex: <pre><code style="background:rgb(35, 91, 40);">/^admin/, /^system/</code></pre></small>
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label>
+                            <div class="label-content">
+                                <i class="fas fa-file-alt"></i> Contenu à Exclure
+                            </div>
+                            <span class="pattern-help" data-help="Exclure des contenus spécifiques des logs. Format: /pattern/ - Exemple: /error/ exclura les lignes contenant 'error', /warning/ exclura les lignes contenant 'warning'">
+                                <i class="fas fa-question-circle"></i>
+                            </span>
+                        </label>
+                        <div class="input-validation-container">
+                            <textarea name="config[filters][exclude][content]" id="exclude_content" class="pattern-input" rows="4"><?php 
+                                if (isset($config['filters']['exclude']['content'])) {
+                                    if (is_array($config['filters']['exclude']['content'])) {
+                                        echo implode("\n", $config['filters']['exclude']['content']);
+                                    } else {
+                                        echo $config['filters']['exclude']['content'];
+                                    }
+                                }
+                            ?></textarea>
+                            <div class="validation-wrapper">
+                                <div class="validation-status"></div>
+                                <div class="validation-message"></div>
+                            </div>
+                        </div>
+                        <small><i class="fas fa-info-circle"></i> Un pattern par ligne .ex: <pre><code style="background:rgb(35, 91, 40);">/error/, /warning/</code></pre></small>
+                    </div>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Enregistrer les Filtres
+                    </button>
+                </div>
+            </form>
         </div>
+
+        <style>
+        .filter-toggle-container {
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 40px;  /* Réduit de 60px à 40px */
+            height: 22px; /* Réduit de 34px à 22px */
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px; /* Réduit de 26px à 16px */
+            width: 16px;  /* Réduit de 26px à 16px */
+            left: 3px;    /* Ajusté de 4px à 3px */
+            bottom: 3px;  /* Ajusté de 4px à 3px */
+            background-color: white;
+            transition: .4s;
+        }
+
+        input:checked + .slider {
+            background-color: #2196F3;
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(18px); /* Ajusté de 26px à 18px */
+        }
+
+        .slider.round {
+            border-radius: 22px; /* Ajusté de 34px à 22px */
+        }
+
+        .slider.round:before {
+            border-radius: 50%;
+        }
+
+        .filter-toggle-label {
+            font-size: 14px;
+            color: #666;
+        }
+        </style>
 
         <!-- Onglet Patterns de Logs -->
         <div class="admin-card" id="patterns-tab" style="display: none;">
-            <div class="section patterns-section">
-                <h2><i class="fas fa-code"></i> Patterns de Logs par Type</h2>
+            <h2><i class="fas fa-code"></i> Patterns de Logs</h2>
+            <form id="patterns-form" method="post" class="space-y-6">
+                <input type="hidden" name="action" value="update_patterns">
+                <input type="hidden" name="active_tab" value="patterns">
                 
-                <form method="post" action="" id="patterns-form" data-form="main">
-                    <input type="hidden" name="action" value="update_patterns">
-                    <input type="hidden" name="active_tab" value="patterns">
-                    
-                        <?php 
-                    // Configuration des icônes et descriptions pour chaque type de pattern
-                    $pattern_config = [
-                        'apache' => ['icon' => 'fa-server', 'title' => 'Apache'],
-                        'nginx' => ['icon' => 'fa-cubes', 'title' => 'Nginx'],
-                        'npm' => ['icon' => 'fa-cubes', 'title' => 'Nginx Proxy Manager'],
-                        'apache-404' => ['icon' => 'fa-exclamation-circle', 'title' => 'Apache 404'],
-                        'apache-referer' => ['icon' => 'fa-link', 'title' => 'Apache Referer'],
-                        'syslog' => ['icon' => 'fa-stream', 'title' => 'Syslog']
-                    ];
-
-                    // Parcourir tous les patterns disponibles
-                    foreach ($patterns as $type => $type_data):
-                        // Ignorer les sections non-pattern (comme 'filters')
-                        if ($type === 'filters') continue;
-                        
-                        // Récupérer la configuration du pattern ou utiliser des valeurs par défaut
-                        $config = $pattern_config[$type] ?? [
-                            'icon' => 'fa-file-code',
-                            'title' => ucfirst($type)
-                        ];
-                    ?>
-                        <div class="pattern-group">
-                            <h3 class="pattern-title">
-                                <i class="fas <?php echo $config['icon']; ?>"></i>
-                                <span><?php echo $config['title']; ?></span>
-                            </h3>
-
-                            <?php if (is_array($type_data)): ?>
-                                    <?php 
-                                // Si c'est un pattern unique
-                                if (isset($type_data['pattern'])):
-                                ?>
-                                    <div class="pattern-subgroup">
-                                            <label>
-                                            <i class="fas fa-file-code"></i>
-                                            Pattern <?php echo $config['title']; ?>
-                                            <span class="pattern-help" data-help="Format pour les logs <?php echo $config['title']; ?>">
-                                                    <i class="fas fa-question-circle"></i>
-                                                </span>
+                <?php
+                // Utiliser les patterns déjà chargés
+                global $patterns, $default_patterns, $custom_patterns;
+                
+                // Utiliser la configuration globale des couleurs et icônes
+                global $pattern_config;
+                
+                foreach ($pattern_config as $type => $config):
+                ?>
+                    <div class="pattern-group">
+                        <h3 style="border-left: 4px solid <?php echo $config['access_color']; ?>;">
+                            <i class="fas <?php echo $config['icon']; ?>"></i> <?php echo $config['title']; ?>
+                        </h3>
+                        <?php if (isset($patterns[$type])): ?>
+                            <?php if ($type === 'npm'): ?>
+                                <?php foreach ($config['patterns'] as $pattern_type => $pattern_config): ?>
+                                    <?php if (isset($patterns[$type][$pattern_type])): ?>
+                                        <?php
+                                        $custom_value = $custom_patterns[$type][$pattern_type]['pattern'] ?? null;
+                                        $default_value = $default_patterns[$type][$pattern_type]['pattern'] ?? null;
+                                        $is_custom = ($custom_value !== null) && ($custom_value !== $default_value);
+                                        $pattern_source = $is_custom ? 'custom' : 'default';
+                                        ?>
+                                        <div class="pattern-subgroup" style="border-left: 4px solid <?php echo strpos($pattern_type, 'error') !== false ? $config['error_color'] : $config['access_color']; ?>;">
+                                            <label for="<?php echo $type; ?>_<?php echo $pattern_type; ?>_pattern">
+                                                <i class="fas <?php echo $pattern_config['icon']; ?>" style="color: <?php echo strpos($pattern_type, 'error') !== false ? $config['error_color'] : $config['access_color']; ?>;"></i>
+                                                <?php echo $pattern_config['label']; ?>
                                             </label>
-                                            <input type="text" 
-                                               name="patterns[<?php echo $type; ?>][pattern]"
-                                                   class="pattern-input"
-                                               value="<?php echo htmlspecialchars($type_data['pattern']); ?>">
+                                            <div class="pattern-input-container">
+                                                <input type="text" 
+                                                       id="<?php echo $type; ?>_<?php echo $pattern_type; ?>_pattern" 
+                                                       name="patterns[<?php echo $type; ?>][<?php echo $pattern_type; ?>][pattern]" 
+                                                       value="<?php echo htmlspecialchars($patterns[$type][$pattern_type]['pattern'] ?? ''); ?>" 
+                                                       class="form-control">
+                                                <span class="pattern-info <?php echo $pattern_source; ?>">
+                                                    <i class="fas <?php echo $is_custom ? 'fa-edit' : 'fa-copy'; ?>"></i>
+                                                    <?php echo ucfirst($pattern_source); ?>
+                                                </span>
                                             </div>
-                                <?php
-                                // Si c'est un groupe de patterns (comme apache access/error)
-                                else:
-                                    foreach ($type_data as $subtype => $subtype_data):
-                                        if (!isset($subtype_data['pattern'])) continue;
-                            ?>
-                                    <div class="pattern-subgroup">
-                                        <label>
-                                            <i class="fas <?php echo strpos($subtype, 'error') !== false ? 'fa-exclamation-triangle' : 'fa-file-alt'; ?>"></i>
-                                            Pattern <?php echo ucfirst($subtype); ?>
-                                            <span class="pattern-help" data-help="Format pour les logs <?php echo $subtype; ?> de <?php echo $config['title']; ?>">
-                                                <i class="fas fa-question-circle"></i>
-                                            </span>
-                                        </label>
-                                        <input type="text" 
-                                               name="patterns[<?php echo $type; ?>][<?php echo $subtype; ?>][pattern]"
-                                               class="pattern-input"
-                                               value="<?php echo htmlspecialchars($subtype_data['pattern']); ?>">
+                                            <div class="pattern-help">
+                                                <i class="fas fa-info-circle"></i>
+                                                <?php echo $pattern_config['help'] ?? 'Pattern pour les logs ' . $pattern_config['label']; ?>
+                                            </div>
                                         </div>
-                            <?php
-                                    endforeach;
-                                endif;
-                                ?>
+                                    <?php endif; ?>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <?php if (isset($patterns[$type]['access'])): ?>
+                                    <?php
+                                    $custom_value = $custom_patterns[$type]['access']['pattern'] ?? null;
+                                    $default_value = $default_patterns[$type]['access']['pattern'] ?? null;
+                                    $is_custom = ($custom_value !== null) && ($custom_value !== $default_value);
+                                    $pattern_source = $is_custom ? 'custom' : 'default';
+                                    ?>
+                                    <div class="pattern-subgroup" style="border-left: 4px solid <?php echo $config['access_color']; ?>;">
+                                        <label for="<?php echo $type; ?>_access_pattern">
+                                            <i class="fas fa-check-circle" style="color: <?php echo $config['access_color']; ?>;"></i>
+                                            Pattern Access Log
+                                        </label>
+                                        <div class="pattern-input-container">
+                                            <input type="text" 
+                                                   id="<?php echo $type; ?>_access_pattern" 
+                                                   name="patterns[<?php echo $type; ?>][access][pattern]" 
+                                                   value="<?php echo htmlspecialchars($patterns[$type]['access']['pattern'] ?? ''); ?>" 
+                                                   class="form-control">
+                                            <span class="pattern-info <?php echo $pattern_source; ?>">
+                                                <i class="fas <?php echo $is_custom ? 'fa-edit' : 'fa-copy'; ?>"></i>
+                                                <?php echo ucfirst($pattern_source); ?>
+                                            </span>
+                                        </div>
+                                        <div class="pattern-help">
+                                            <i class="fas fa-info-circle"></i>
+                                            Pattern pour les logs d'accès <?php echo $config['title']; ?>
+                                        </div>
+                                    </div>
                                 <?php endif; ?>
-                            </div>
-                        <?php endforeach; ?>
-                    
-                    <div class="form-actions">
-                        <button type="submit" class="btn btn-primary">
-                            <i class="fas fa-save"></i> Enregistrer les Patterns
-                        </button>
+                                <?php if (isset($patterns[$type]['error'])): ?>
+                                    <?php
+                                    $custom_value = $custom_patterns[$type]['error']['pattern'] ?? null;
+                                    $default_value = $default_patterns[$type]['error']['pattern'] ?? null;
+                                    $is_custom = ($custom_value !== null) && ($custom_value !== $default_value);
+                                    $pattern_source = $is_custom ? 'custom' : 'default';
+                                    ?>
+                                    <div class="pattern-subgroup" style="border-left: 4px solid <?php echo $config['error_color']; ?>;">
+                                        <label for="<?php echo $type; ?>_error_pattern">
+                                            <i class="fas fa-exclamation-triangle" style="color: <?php echo $config['error_color']; ?>;"></i>
+                                            Pattern Error Log
+                                        </label>
+                                        <div class="pattern-input-container">
+                                            <input type="text" 
+                                                   id="<?php echo $type; ?>_error_pattern" 
+                                                   name="patterns[<?php echo $type; ?>][error][pattern]" 
+                                                   value="<?php echo htmlspecialchars($patterns[$type]['error']['pattern'] ?? ''); ?>" 
+                                                   class="form-control">
+                                            <span class="pattern-info <?php echo $pattern_source; ?>">
+                                                <i class="fas <?php echo $is_custom ? 'fa-edit' : 'fa-copy'; ?>"></i>
+                                                <?php echo ucfirst($pattern_source); ?>
+                                            </span>
+                                        </div>
+                                        <div class="pattern-help">
+                                            <i class="fas fa-info-circle"></i>
+                                            Pattern pour les logs d'erreur <?php echo $config['title']; ?>
+                                        </div>
+                                    </div>
+                                <?php endif; ?>
+                                <?php if ($type === 'apache'): ?>
+                                    <!-- Pattern pour Apache 404 -->
+                                    <?php
+                                    $custom_value = $custom_patterns['apache-404']['pattern'] ?? null;
+                                    $default_value = $default_patterns['apache-404']['pattern'] ?? null;
+                                    $is_custom = ($custom_value !== null) && ($custom_value !== $default_value);
+                                    $pattern_source = $is_custom ? 'custom' : 'default';
+                                    ?>
+                                    <div class="pattern-subgroup" style="border-left: 4px solid #FF9800;">
+                                        <label for="apache_404_pattern">
+                                            <i class="fas fa-exclamation-circle" style="color: #FF9800;"></i>
+                                            Pattern 404 Log
+                                        </label>
+                                        <div class="pattern-input-container">
+                                            <input type="text" 
+                                                   id="apache_404_pattern" 
+                                                   name="patterns[apache-404][pattern]" 
+                                                   value="<?php echo htmlspecialchars($patterns['apache-404']['pattern'] ?? ''); ?>" 
+                                                   class="form-control">
+                                            <span class="pattern-info <?php echo $pattern_source; ?>">
+                                                <i class="fas <?php echo $is_custom ? 'fa-edit' : 'fa-copy'; ?>"></i>
+                                                <?php echo ucfirst($pattern_source); ?>
+                                            </span>
+                                        </div>
+                                        <div class="pattern-help">
+                                            <i class="fas fa-info-circle"></i>
+                                            Pattern pour les logs d'erreurs 404 Apache
+                                        </div>
+                                    </div>
+                                    <!-- Pattern pour Apache Referer -->
+                                    <?php
+                                    $custom_value = $custom_patterns['apache-referer']['pattern'] ?? null;
+                                    $default_value = $default_patterns['apache-referer']['pattern'] ?? null;
+                                    $is_custom = ($custom_value !== null) && ($custom_value !== $default_value);
+                                    $pattern_source = $is_custom ? 'custom' : 'default';
+                                    ?>
+                                    <div class="pattern-subgroup" style="border-left: 4px solid #2196F3;">
+                                        <label for="apache_referer_pattern">
+                                            <i class="fas fa-link" style="color: #2196F3;"></i>
+                                            Pattern Referer Log
+                                        </label>
+                                        <div class="pattern-input-container">
+                                            <input type="text" 
+                                                   id="apache_referer_pattern" 
+                                                   name="patterns[apache-referer][pattern]" 
+                                                   value="<?php echo htmlspecialchars($patterns['apache-referer']['pattern'] ?? ''); ?>" 
+                                                   class="form-control">
+                                            <span class="pattern-info <?php echo $pattern_source; ?>">
+                                                <i class="fas <?php echo $is_custom ? 'fa-edit' : 'fa-copy'; ?>"></i>
+                                                <?php echo ucfirst($pattern_source); ?>
+                                            </span>
+                                        </div>
+                                        <div class="pattern-help">
+                                            <i class="fas fa-info-circle"></i>
+                                            Pattern pour les logs de référents Apache
+                                        </div>
+                                    </div>
+                                <?php endif; ?>
+                            <?php endif; ?>
+                        <?php endif; ?>
                     </div>
-                </form>
-            </div>
+                <?php endforeach; ?>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Enregistrer les Patterns
+                    </button>
+                    <button type="button" class="btn btn-warning" onclick="resetPatterns()">
+                        <i class="fas fa-undo"></i> Réinitialiser les Patterns
+                    </button>
+                </div>
+            </form>
         </div>
+
+        <script>
+        function resetPatterns() {
+            if (confirm('Êtes-vous sûr de vouloir réinitialiser tous les patterns ?\n\nCette action :\n- Réinitialisera tous les patterns aux valeurs par défaut\n- Ne peut pas être annulée')) {
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '';
+
+                const actionInput = document.createElement('input');
+                actionInput.type = 'hidden';
+                actionInput.name = 'action';
+                actionInput.value = 'reset_patterns';
+                form.appendChild(actionInput);
+
+                document.body.appendChild(form);
+                form.submit();
+            }
+        }
+        </script>
 
         <!-- Nouvel onglet Thème -->
         <div class="admin-card" id="theme-tab" style="display: none;">
@@ -1258,9 +1749,24 @@ if ($updateInfo) {
             <div class="form-group">
                 <h3>Sélection du Thème</h3>
                 <div class="theme-selector">
+
+                   <div class="theme-option">
+                        <input type="radio" id="theme_dark" name="theme" value="dark"
+                        <?php echo (!isset($config['theme']) || $config['theme'] === 'dark') ? 'checked' : ''; ?>>
+                        <label for="theme_dark" class="theme-preview dark">
+                            <span class="theme-name">Thème Sombre</span>
+                            <div class="theme-colors">
+                                <span class="color" style="background: <?php echo $config['themes']['dark']['primary_color'] ?? '#3498db'; ?>"></span>
+                                <span class="color" style="background: <?php echo $config['themes']['dark']['text_color'] ?? '#ffffff'; ?>"></span>
+                                <span class="color" style="background: <?php echo $config['themes']['dark']['bg_color'] ?? '#1a1a1a'; ?>"></span>
+                            </div>
+                            <small class="theme-description">👁️ Réduit la fatigue oculaire !</small>
+                        </label>
+                  </div>
+
                     <div class="theme-option">
                         <input type="radio" id="theme_light" name="theme" value="light"
-                        <?php echo (!isset($config['theme']) || $config['theme'] === 'light') ? 'checked' : ''; ?>>
+                        <?php echo (isset($config['theme']) && $config['theme'] === 'light') ? 'checked' : ''; ?>>
                         <label for="theme_light" class="theme-preview light">
                             <span class="theme-name">Thème Clair</span>
                             <div class="theme-colors">
@@ -1273,30 +1779,164 @@ if ($updateInfo) {
                     </div>
                     
                     <div class="theme-option">
-                        <input type="radio" id="theme_dark" name="theme" value="dark"
-                        <?php echo (isset($config['theme']) && $config['theme'] === 'dark') ? 'checked' : ''; ?>>
-                        <label for="theme_dark" class="theme-preview dark">
-                            <span class="theme-name">Thème Sombre</span>
+                        <input type="radio" id="theme_glass" name="theme" value="glass"
+                        <?php echo (isset($config['theme']) && $config['theme'] === 'glass') ? 'checked' : ''; ?>>
+                        <label for="theme_glass" class="theme-preview glass">
+                            <span class="theme-name">Dark Moderne Glass</span>
                             <div class="theme-colors">
-                                <span class="color" style="background: <?php echo $config['themes']['dark']['primary_color'] ?? '#3498db'; ?>"></span>
-                                <span class="color" style="background: <?php echo $config['themes']['dark']['text_color'] ?? '#ffffff'; ?>"></span>
-                                <span class="color" style="background: <?php echo $config['themes']['dark']['bg_color'] ?? '#1a1a1a'; ?>"></span>
+                                <span class="color" style="background: linear-gradient(90deg, #6a85b6 0%, #b993d6 100%);"></span>
+                                <span class="color" style="background: <?php echo $config['themes']['glass']['text_color'] ?? '#e0e6ed'; ?>;"></span>
+                                <span class="color" style="background: <?php echo $config['themes']['glass']['bg_color'] ?? '#232526'; ?>;"></span>
                             </div>
-                            <small class="theme-description">👁️ Réduit la fatigue oculaire !</small>
+                            <small class="theme-description">✨ Effet glassmorphism moderne</small>
                         </label>
                     </div>
+
+                </div>
+ 
+                  <div class="alert1 mt-3" id="theme-warning" style="display: none;">
+                <!-- <div class="alert alert-info mt-3" id="theme-warning" style="display: none;">
+                     <i class="fas fa-info-circle"></i> 
+                    Le thème est actuellement sauvegardé uniquement pour votre session. 
+                    Pour le rendre permanent, cliquez sur "Enregistrer le thème".
+                    -->
+                </div>
+    
+                <div class="alert alert-success mt-3" id="theme-success" style="display: none;">
+                    <i class="fas fa-check-circle"></i> 
+                    Le thème est correctement enregistré dans la configuration.
                 </div>
 
                 <div class="theme-actions" style="margin-top: 20px; text-align: center;">
+                    <button type="button" id="save-theme" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Enregistrer le thème
+                    </button>
                     <button type="button" id="reset-themes" class="btn btn-warning">
                         <i class="fas fa-undo"></i> Réinitialiser les thèmes par défaut
                     </button>
                 </div>
+
+                <script>
+                document.addEventListener('DOMContentLoaded', function() {
+                    const configTheme = '<?php echo $config['theme'] ?? 'dark'; ?>';
+                    const themeWarning = document.getElementById('theme-warning');
+                    const themeSuccess = document.getElementById('theme-success');
+                    const radioButtons = document.querySelectorAll('input[name="theme"]');
+                    
+                    // Ne pas afficher de message au chargement initial
+                    themeWarning.style.display = 'none';
+                    themeSuccess.style.display = 'none';
+                    
+                    // Fonction pour vérifier si le thème actuel correspond à la configuration
+                    function checkThemeMatch() {
+                        const selectedTheme = document.querySelector('input[name="theme"]:checked').value;
+                        // Afficher le message d'avertissement uniquement si le thème sélectionné est différent
+                        if (selectedTheme !== configTheme) {
+                            themeWarning.style.display = 'block';
+                            themeSuccess.style.display = 'none';
+                        } else {
+                            themeWarning.style.display = 'none';
+                            themeSuccess.style.display = 'none';
+                        }
+                    }
+
+                    // Forcer la sélection du thème configuré au chargement
+                    const defaultTheme = document.querySelector(`input[value="${configTheme}"]`);
+                    if (defaultTheme) {
+                        defaultTheme.checked = true;
+                    }
+
+                    // Vérifier à chaque changement de thème
+                    radioButtons.forEach(radio => {
+                        radio.addEventListener('change', checkThemeMatch);
+                    });
+
+                    document.getElementById('save-theme').addEventListener('click', function() {
+                        const selectedTheme = document.querySelector('input[name="theme"]:checked').value;
+                        const button = this;
+                        
+                        button.disabled = true;
+                        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enregistrement...';
+                        
+                        // Récupérer les couleurs personnalisées pour chaque thème
+                        const themeData = {};
+                        document.querySelectorAll('.color-input input[type="color"]').forEach(input => {
+                            const name = input.name;
+                            const value = input.value;
+                            themeData[name] = value;
+                        });
+                        // Construction du body POST
+                        const params = new URLSearchParams();
+                        params.append('action', 'save_all');
+                        params.append('theme', selectedTheme);
+                        for (const key in themeData) {
+                            params.append(key, themeData[key]);
+                        }
+                        fetch('ajax_actions.php', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded',
+                            },
+                            body: params.toString()
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                themeWarning.style.display = 'none';
+                                themeSuccess.style.display = 'block';
+                            //    showNotification('success', '✨ Thème enregistré avec succès !');
+                                // Mettre à jour le thème configuré
+                                window.configTheme = selectedTheme;
+                                
+                                // Masquer le message de succès après 3 secondes
+                                setTimeout(() => {
+                                    themeSuccess.style.display = 'none';
+                                }, 3000);
+                            } else {
+                                showNotification('error', '❌ Erreur lors de l\'enregistrement du thème');
+                                themeWarning.style.display = 'block';
+                                themeSuccess.style.display = 'none';
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            showNotification('error', '❌ Erreur lors de l\'enregistrement du thème');
+                        })
+                        .finally(() => {
+                            button.disabled = false;
+                            button.innerHTML = '<i class="fas fa-save"></i> Enregistrer le thème';
+                        });
+                    });
+                });
+                </script>
             </div>
 
             <div class="form-group">
                 <h3>Personnalisation des Couleurs</h3>
                 <div class="color-customization">
+
+
+                    
+                    <div class="color-group">
+                        <h4>Thème Sombre</h4>
+                        <div class="color-input">
+                            <label for="dark_primary_color">Couleur principale</label>
+                            <input type="color" id="dark_primary_color" name="themes[dark][primary_color]" 
+                                   value="<?php echo $config['themes']['dark']['primary_color'] ?? '#3498db'; ?>">
+                        </div>
+                        <div class="color-input">
+                            <label for="dark_text_color">Couleur du texte</label>
+                            <input type="color" id="dark_text_color" name="themes[dark][text_color]" 
+                                   value="<?php echo $config['themes']['dark']['text_color'] ?? '#ffffff'; ?>">
+                        </div>
+                        <div class="color-input">
+                            <label for="dark_bg_color">Couleur de fond</label>
+                            <input type="color" id="dark_bg_color" name="themes[dark][bg_color]" 
+                                   value="<?php echo $config['themes']['dark']['bg_color'] ?? '#1a1a1a'; ?>">
+                        </div>
+                    </div>
+
+                        
                     <div class="color-group">
                         <h4>Thème Clair</h4>
                         <div class="color-input">
@@ -1316,22 +1956,29 @@ if ($updateInfo) {
                         </div>
                     </div>
 
+
+
                     <div class="color-group">
-                        <h4>Thème Sombre</h4>
+                        <h4>Dark Moderne Glass</h4>
                         <div class="color-input">
-                            <label for="dark_primary_color">Couleur principale</label>
-                            <input type="color" id="dark_primary_color" name="themes[dark][primary_color]" 
-                                   value="<?php echo $config['themes']['dark']['primary_color'] ?? '#3498db'; ?>">
+                            <label for="glass_primary_color">Couleur principale (dégradé)</label>
+                            <input type="color" id="glass_primary_color" name="themes[glass][primary_color]" 
+                                   value="<?php echo $config['themes']['glass']['primary_color'] ?? '#6a85b6'; ?>">
                         </div>
                         <div class="color-input">
-                            <label for="dark_text_color">Couleur du texte</label>
-                            <input type="color" id="dark_text_color" name="themes[dark][text_color]" 
-                                   value="<?php echo $config['themes']['dark']['text_color'] ?? '#ffffff'; ?>">
+                            <label for="glass_text_color">Couleur du texte</label>
+                            <input type="color" id="glass_text_color" name="themes[glass][text_color]" 
+                                   value="<?php echo $config['themes']['glass']['text_color'] ?? '#e0e6ed'; ?>">
                         </div>
                         <div class="color-input">
-                            <label for="dark_bg_color">Couleur de fond</label>
-                            <input type="color" id="dark_bg_color" name="themes[dark][bg_color]" 
-                                   value="<?php echo $config['themes']['dark']['bg_color'] ?? '#1a1a1a'; ?>">
+                            <label for="glass_bg_color">Couleur de fond</label>
+                            <input type="color" id="glass_bg_color" name="themes[glass][bg_color]" 
+                                   value="<?php echo $config['themes']['glass']['bg_color'] ?? '#232526'; ?>">
+                        </div>
+                        <div class="color-input">
+                            <label for="glass_accent_color">Accent</label>
+                            <input type="color" id="glass_accent_color" name="themes[glass][accent_color]" 
+                                   value="<?php echo $config['themes']['glass']['accent_color'] ?? '#b993d6'; ?>">
                         </div>
                     </div>
                 </div>
@@ -1389,347 +2036,465 @@ if ($updateInfo) {
                 <div class="form-group">
                     <div class="option-group">
                         <label class="switch">
-                            <input type="checkbox" name="update_check[enabled]" id="update_check_enabled" 
-                                   <?php echo ($versionInfo['update_check']['enabled'] ?? true) ? 'checked' : ''; ?>>
+                            <input type="checkbox" name="admin[update_check][enabled]" id="update_check_enabled" 
+                                   <?php echo ($admin_config['admin']['update_check']['enabled'] ?? false) ? 'checked' : ''; ?>>
                             <span class="slider"></span>
                         </label>
                         <label>Activer la vérification des mises à jour</label>
                         <small class="form-text">
-                            Si activé, le système vérifiera automatiquement les nouvelles versions disponibles
-                        </small>
-                    </div>
-
-                    <div class="option-group">
-                        <label for="update_check_interval">Intervalle de vérification (heures)</label>
-                        <input type="number" id="update_check_interval" name="update_check[check_interval]" 
-                               value="<?php echo ($versionInfo['update_check']['check_interval'] ?? 86400) / 3600; ?>" 
-                               min="1" max="168" class="form-control">
-                        <small class="form-text">
-                            Intervalle en heures entre chaque vérification de mise à jour (1-168 heures)
-                        </small>
-                    </div>
-
-                    <div class="option-group">
-                        <label for="update_cache_dir">Dossier de cache</label>
-                        <input type="text" id="update_cache_dir" name="update_check[cache_dir]" 
-                               value="<?php echo htmlspecialchars(dirname(__DIR__) . '/cache'); ?>" 
-                               class="form-control" readonly>
-                        <small class="form-text">
-                            Dossier où seront stockées les informations de mise à jour
+                            Si activé, le système vérifiera automatiquement les nouvelles versions disponibles via les tags GitHub
                         </small>
                     </div>
                 </div>
 
+                <!-- Bouton de vérification instantanée -->
+                <div class="form-actions" style="margin-top: 10px;">
+                    <button type="button" class="btn btn-info" id="check-update-now">
+                        <i class="fas fa-search"></i> Vérifier maintenant
+                    </button>
+                </div>
+
+                <!-- Retrait du bouton sauvegarde -->
+                <!--
                 <button type="submit" class="btn btn-primary">
-                    <i class="fas fa-save"></i> Sauvegarder les paramètres
+                    <i class="fas fa-save"></i> Sauvegarder la configuration
                 </button>
+                -->
             </form>
 
             <div class="update-status">
                 <h3><i class="fas fa-info-circle"></i> État actuel</h3>
                 <div class="status-item">
                     <span class="label">Version actuelle :</span>
-                    <span class="value"><?php echo htmlspecialchars(LOGVIEWR_VERSION); ?></span>
+                    <span class="value"><?php echo htmlspecialchars($currentVersion ?? ''); ?></span>
                 </div>
                 <div class="status-item">
-                    <span class="label">Date de sortie :</span>
-                    <span class="value"><?php echo htmlspecialchars($versionInfo['release_date'] ?? 'Inconnue'); ?></span>
+                    <span class="label">Dernière version distante :</span>
+                    <span class="value"><?php echo htmlspecialchars($remoteVersion ?? ''); ?></span>
                 </div>
                 <div class="status-item">
                     <span class="label">Dernière vérification :</span>
-                    <span class="value"><?php 
-                        $lastCheck = $updateChecker->getLastCheck();
-                        echo $lastCheck ? date('d/m/Y H:i:s', $lastCheck) : 'Jamais';
-                    ?></span>
-                </div>
-                <div class="status-item">
-                    <span class="label">Prochaine vérification :</span>
-                    <span class="value"><?php 
-                        $lastCheck = $updateChecker->getLastCheck();
-                        $interval = $updateChecker->getCheckInterval();
-                        $nextCheck = $lastCheck ? $lastCheck + $interval : time() + $interval;
-                        echo date('d/m/Y H:i:s', $nextCheck);
-                    ?></span>
+                    <span class="value"><?php echo $lastCheck ? date('d/m/Y H:i:s', $lastCheck) : 'Jamais'; ?></span>
                 </div>
             </div>
-
-            <?php if ($updateInfo): ?>
-            <div class="update-available">
-                <h3><i class="fas fa-exclamation-triangle"></i> Mise à jour disponible</h3>
-                <div class="update-details">
-                    <div class="version-comparison">
-                        <div class="version current">
-                            <span class="label">Version actuelle :</span>
-                            <span class="value"><?php echo $updateInfo['current_version']; ?></span>
-                        </div>
-                        <div class="version latest">
-                            <span class="label">Nouvelle version :</span>
-                            <span class="value"><?php echo $updateInfo['latest_version']; ?></span>
-                        </div>
-                    </div>
-                    
-                    <div class="update-actions">
-                        <a href="<?php echo $updateInfo['update_url']; ?>" target="_blank" class="btn btn-warning">
-                            <i class="fas fa-download"></i> Télécharger la mise à jour
-                        </a>
-                    </div>
-                </div>
-            </div>
-            <?php endif; ?>
 
             <div class="changelog">
                 <h3><i class="fas fa-list"></i> Historique des versions</h3>
-                <?php foreach ($versionInfo['changelog'] as $version => $info): ?>
-                <div class="changelog-entry">
-                    <div class="version-header">
-                        <span class="version">Version <?php echo $version; ?></span>
-                        <span class="date">(<?php echo $info['date']; ?>)</span>
-                    </div>
-                    <ul class="changes-list">
-                        <?php foreach ($info['changes'] as $change): ?>
-                        <li><?php echo $change; ?></li>
-                        <?php endforeach; ?>
-                    </ul>
+                <div class="changelog-content">
+                    <?php
+                    // Afficher changelog version distante si différente
+                    if ($remoteVersion !== $currentVersion && isset($changelog[$remoteVersion])) {
+                        echo '<div class="version-entry version-remote">';
+                        echo '<h4>Nouvelle version : ' . htmlspecialchars($remoteVersion) . '</h4>';
+                        echo '<ul class="changelog-list">';
+                        foreach ($changelog[$remoteVersion]['changes'] as $change) {
+                            echo '<li>' . htmlspecialchars($change) . '</li>';
+                        }
+                        echo '</ul>';
+                        echo '</div>';
+                    }
+                    // Afficher changelog version locale
+                    if (isset($changelog[$currentVersion])) {
+                        echo '<div class="version-entry version-local">';
+                        echo '<h4>Votre version : ' . htmlspecialchars($currentVersion) . '</h4>';
+                        echo '<ul class="changelog-list">';
+                        foreach ($changelog[$currentVersion]['changes'] as $change) {
+                            echo '<li>' . htmlspecialchars($change) . '</li>';
+                        }
+                        echo '</ul>';
+                        echo '</div>';
+                    }
+                    // Afficher l'historique complet
+                    if (is_array($changelog)) {
+                        foreach ($changelog as $ver => $log) {
+                            if ($ver === $currentVersion || $ver === $remoteVersion) continue;
+                            echo '<div class="version-entry">';
+                            echo '<h4>Version ' . htmlspecialchars($ver) . '</h4>';
+                            echo '<ul class="changelog-list">';
+                            foreach ($log['changes'] as $change) {
+                                echo '<li>' . htmlspecialchars($change) . '</li>';
+                            }
+                            echo '</ul>';
+                            echo '</div>';
+                        }
+                    }
+                    ?>
                 </div>
-                <?php endforeach; ?>
             </div>
         </div>
+
+        <style>
+        /* Styles pour l'onglet Mises à jour */
+        .update-status {
+            margin: 20px 0;
+            padding: 15px;
+            background: var(--bg-color);
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            margin: 10px 0;
+            padding: 8px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 4px;
+        }
+
+        .status-item .label {
+            font-weight: bold;
+            color: var(--text-color);
+        }
+
+        .status-item .value {
+            font-family: 'Consolas', monospace;
+            color: var(--primary-color);
+        }
+
+        .changelog {
+            margin-top: 30px;
+        }
+
+        .version-entry {
+            margin: 15px 0;
+            padding: 15px;
+            background: var(--bg-color);
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+
+        .version-entry h4 {
+            color: var(--primary-color);
+            margin: 0 0 10px 0;
+        }
+
+        .version-date {
+            color: var(--text-color);
+            font-size: 0.9em;
+            opacity: 0.8;
+        }
+
+        .no-versions {
+            text-align: center;
+            padding: 20px;
+            color: var(--text-color);
+            opacity: 0.7;
+        }
+        </style>
     </div>
 
-    <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Gestionnaire pour le bouton de réinitialisation
-        document.getElementById('resetOptionsBtn').addEventListener('click', function() {
-            if (confirm('Êtes-vous sûr de vouloir réinitialiser toutes les options à leurs valeurs par défaut ?\n\nCette action :\n- Réinitialisera tous les paramètres\n- Conservera votre mot de passe actuel\n- Ne peut pas être annulée')) {
-                // Créer un formulaire temporaire pour envoyer la requête
-                const form = document.createElement('form');
-                form.method = 'POST';
-                form.action = '';
-
-                // Ajouter l'action de réinitialisation
-                const actionInput = document.createElement('input');
-                actionInput.type = 'hidden';
-                actionInput.name = 'action';
-                actionInput.value = 'reset_options';
-                form.appendChild(actionInput);
-
-                // Ajouter le formulaire au document et le soumettre
-                document.body.appendChild(form);
-                form.submit();
-            }
-        });
-    });
-    </script>
-    
-    <script>
-    // Code de gestion des logs directement dans la page
-    document.addEventListener('DOMContentLoaded', function() {
-        console.log('Initialisation des boutons de log...');
-        
-        function showStatus(message, type = 'success') {
-            const statusDiv = document.getElementById('log-status');
-            statusDiv.textContent = message;
-            statusDiv.className = `log-status ${type}`;
-            setTimeout(() => {
-                statusDiv.style.display = 'none';
-            }, 5000);
-        }
-        
-        // Bouton Rafraîchir
-        document.getElementById('refreshLogBtn').addEventListener('click', function() {
-            console.log('Clic sur Rafraîchir');
-            const button = this;
-            button.disabled = true;
-            button.classList.add('btn-loading');
+    <footer>
+        <div class="footer-left">
+            <span id="datetime" class="footer-datetime"></span>
+        </div>
+        <div class="footer-center">
+            <span class="footer-made-by">
+            Made with <i class="fas fa-coffee"></i> by 
+            <a href="https://github.com/Erreur32" target="_blank">Erreur32</a>
             
-            fetch('get_debug_log.php')
+            | <a href="../admin/login.php" class="admin-link" ><i class="fas fa-cog"></i> Admin</a>
+            | <i class="fab fa-github"></i><a href="https://github.com/Erreur32/LogviewR" target="_blank"> v<?php echo LOGVIEWR_VERSION; ?></a> DEV
+            </span>
+        </div>
+        <div class="footer-right">
+            <div class="execution-times" style="display: flex; flex-direction: column; gap: 2px;">
+            <!-- Temps de chargement de la page -->
+            <div class="execution-time-badge page-load" style="text-align: right;">
+                <?php
+                $execution_time = microtime(true) - $_SERVER["REQUEST_TIME_FLOAT"];
+                echo sprintf('Chargement page: %.4f secondes', $execution_time);
+                ?>
+            </div>
+            <!-- Temps d'exécution des scripts -->
+            <div class="execution-time-badge script-load" id="execution_time" style="text-align: right;"></div>
+            </div>
+        </div>
+    </footer>
+
+        <script> // date heure footer
+            function updateDateTime() {
+                const now = new Date();
+                const datetime = now.toLocaleString('fr-FR');
+                document.getElementById('datetime').textContent = datetime;
+            }
+            setInterval(updateDateTime, 1000);
+            updateDateTime();
+        </script>
+
+<style>
+footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background-color: var(--bg-color, #232526);
+    border-top: 1px solid #444;
+    padding: 5px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    z-index: 1000;
+    height: 30px;
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+}
+.footer-left, .footer-center, .footer-right {
+    flex: 1;
+}
+.footer-center {
+    text-align: center;
+}
+.footer-left {
+    text-align: left;
+    padding-left: 40px;
+}
+.footer-right {
+    text-align: right;
+    padding-right: 40px;
+}
+
+
+
+/* ==========================================================================
+   Footer Styles
+   ========================================================================== */
+   footer {
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    background-color: var(--bg-color) !important;
+    border-top: 1px solid var(--border-color) !important;
+    padding: 5px 20px !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    font-size: 12px !important;
+    z-index: 1000 !important;
+    height: 30px !important;
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1) !important;
+}
+
+.footer-left {
+    flex: 1;
+    text-align: left;
+    padding-left: 40px;
+}
+
+.footer-center {
+    flex: 1;
+    text-align: center;
+}
+
+.footer-right {
+    flex: 1;
+    text-align: right;
+    padding-right: 40px;
+}
+
+.footer-datetime {
+    color: var(--text-color);
+    font-family: 'Consolas', monospace;
+}
+
+.footer-made-by {
+    color: var(--text-color);
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.footer-made-by i {
+    color: var(--primary-color);
+    margin: 0 3px;
+}
+
+.footer-made-by a {
+    color: var(--primary-color);
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+.footer-made-by a:hover {
+    color: var(--text-color);
+}
+
+.footer-execution-time {
+    color: var(--badge-method-get);
+    opacity: 0.8;
+    font-family: 'Consolas', monospace;
+}
+
+</style>   
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Gestion du switch des filtres
+        const filterSwitch = document.querySelector('input[name="config[filters][enabled]"]');
+        if (filterSwitch) {
+            filterSwitch.addEventListener('change', function() {
+                const form = document.getElementById('filters-form');
+                const formData = new FormData(form);
+                formData.append('action', 'update_config');
+                
+                fetch('', {
+                    method: 'POST',
+                    body: formData
+                })
                 .then(response => {
                     if (!response.ok) {
-                        throw new Error(`Erreur HTTP: ${response.status}`);
+                        throw new Error('Erreur lors de la sauvegarde');
                     }
                     return response.text();
                 })
-                .then(content => {
-                    document.getElementById('debug-log-content').innerHTML = 
-                        `<pre><code>${content}</code></pre>`;
-                    showStatus('Logs rafraîchis avec succès');
+                .then(() => {
+                    // Supprimer les messages existants
+                    const existingMessages = form.querySelectorAll('.alert');
+                    existingMessages.forEach(msg => msg.remove());
+                    
+                    // Afficher un message de succès uniquement si ce n'est pas le switch des filtres
+                    if (!form.querySelector('input[name="config[filters][enabled]"]')) {
+                        const successMessage = document.createElement('div');
+                        successMessage.className = 'alert alert-success';
+                        successMessage.innerHTML = '<i class="fas fa-check-circle"></i> Filtres activés/désactivés avec succès !';
+                        form.insertBefore(successMessage, form.firstChild);
+                        
+                        // Supprimer le message après 3 secondes
+                        setTimeout(() => {
+                            successMessage.remove();
+                        }, 3000);
+                    }
                 })
                 .catch(error => {
                     console.error('Erreur:', error);
-                    showStatus(`Erreur lors du rafraîchissement: ${error.message}`, 'error');
-                })
-                .finally(() => {
-                    button.disabled = false;
-                    button.classList.remove('btn-loading');
                 });
-        });
-
-        // Bouton Masquer/Afficher
-        document.getElementById('toggleLogBtn').addEventListener('click', function() {
-            console.log('Clic sur Masquer/Afficher');
-            const content = document.getElementById('debug-log-content');
-            const isHidden = content.classList.toggle('hidden');
-            const icon = this.querySelector('i');
-            const text = this.querySelector('i').nextSibling;
-            
-            if (isHidden) {
-                icon.className = 'fas fa-eye';
-                text.textContent = ' Afficher';
-                showStatus('Logs masqués');
-            } else {
-                icon.className = 'fas fa-eye-slash';
-                text.textContent = ' Masquer';
-                showStatus('Logs affichés');
-            }
-        });
-
-        // Bouton Vider
-        document.getElementById('clearLogBtn').addEventListener('click', async function(e) {
-            e.preventDefault();
-            console.log('🔄 Clic sur le bouton Vider');
-            const button = this;
-
-            try {
-                if (!confirm('Êtes-vous sûr de vouloir vider le fichier de log ?')) {
-                    console.log('❌ Opération annulée par l\'utilisateur');
-                    return;
-                }
-
-                console.log('✅ Confirmation acceptée, envoi de la requête...');
-                button.disabled = true;
-                button.classList.add('btn-loading');
-                showStatus('Envoi de la requête...', 'info');
-
-                const response = await fetch('clear_debug_log.php', {
-                    method: 'POST',
-                    credentials: 'same-origin',
-                    headers: {
-                        'Accept': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                });
-
-                console.log('📥 Status de la réponse:', response.status);
-                const data = await response.text();
-                console.log('📦 Données brutes reçues:', data);
-
-                let result;
-                try {
-                    result = JSON.parse(data);
-                } catch (e) {
-                    console.error('❌ Erreur de parsing JSON:', e);
-                    throw new Error('Réponse invalide du serveur');
-                }
-
-                if (result.success) {
-                    console.log('✨ Succès:', result);
-                    showStatus('✨ Logs réinitialisés avec succès');
-                    // Rafraîchir l'affichage
-                    document.getElementById('refreshLogBtn').click();
-                } else {
-                    throw new Error(result.message || 'Erreur inconnue');
-                }
-            } catch (error) {
-                console.error('❌ Erreur:', error);
-                showStatus(`❌ Erreur: ${error.message}`, 'error');
-            } finally {
-                button.disabled = false;
-                button.classList.remove('btn-loading');
-            }
-        });
-    });
-    </script>
-
-  
-
-    <!-- Modale de confirmation -->
-    <div class="modal-overlay" id="confirmModal">
-        <div class="modal-confirm">
-            <div class="modal-header">
-                <i class="fas fa-exclamation-triangle"></i>
-                <h3>Confirmation</h3>
-            </div>
-            <div class="modal-content">
-                Êtes-vous sûr de vouloir vider le fichier de log ?
-            </div>
-            <div class="modal-actions">
-                <button class="modal-btn modal-btn-cancel" id="cancelClear">
-                    <i class="fas fa-times"></i> Annuler
-                </button>
-                <button class="modal-btn modal-btn-confirm" id="confirmClear">
-                    <i class="fas fa-check"></i> Confirmer
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <script>
-    // Code de gestion des logs directement dans la page
-    document.addEventListener('DOMContentLoaded', function() {
-        console.log('Initialisation des boutons de log...');
-        
-        function showStatus(message, type = 'success') {
-            const statusDiv = document.getElementById('log-status');
-            statusDiv.textContent = message;
-            statusDiv.className = `log-status ${type}`;
-            setTimeout(() => {
-                statusDiv.style.display = 'none';
-            }, 5000);
+            });
         }
 
-        // Fonction pour montrer la modale
+        // Gestion du bouton de réinitialisation
+        const resetOptionsBtn = document.getElementById('resetOptionsBtn');
+        if (resetOptionsBtn) {
+            resetOptionsBtn.addEventListener('click', function() {
+                if (confirm('Êtes-vous sûr de vouloir réinitialiser toutes les options à leurs valeurs par défaut ?\n\nCette action :\n- Réinitialisera tous les paramètres\n- Conservera votre mot de passe actuel\n- Ne peut pas être annulée')) {
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = '';
+
+                    const actionInput = document.createElement('input');
+                    actionInput.type = 'hidden';
+                    actionInput.name = 'action';
+                    actionInput.value = 'reset_options';
+                    form.appendChild(actionInput);
+
+                    document.body.appendChild(form);
+                    form.submit();
+                }
+            });
+        }
+
+
+        // Gestion des logs
+        const debugTab = document.getElementById('debug-tab');
+        if (debugTab && debugTab.style.display !== 'none') {
+            const refreshBtn = document.getElementById('refreshLogBtn');
+            const toggleBtn = document.getElementById('toggleLogBtn');
+            const clearBtn = document.getElementById('clearLogBtn');
+
+            if (refreshBtn) {
+                refreshBtn.addEventListener('click', async function() {
+                    const button = this;
+                    button.disabled = true;
+                    button.classList.add('btn-loading');
+                    
+                    try {
+                        const response = await fetch('get_debug_log.php');
+                        if (!response.ok) {
+                            throw new Error(`Erreur HTTP: ${response.status}`);
+                        }
+                        const content = await response.text();
+                        const logContent = document.getElementById('debug-log-content');
+                        if (logContent) {
+                            logContent.innerHTML = `<pre><code>${content}</code></pre>`;
+                        }
+                        showStatus('Logs rafraîchis avec succès');
+                    } catch (error) {
+                        console.error('Erreur:', error);
+                        showStatus(`Erreur lors du rafraîchissement: ${error.message}`, 'error');
+                    } finally {
+                        button.disabled = false;
+                        button.classList.remove('btn-loading');
+                    }
+                });
+            }
+
+            if (toggleBtn) {
+                toggleBtn.addEventListener('click', function() {
+                    const content = document.getElementById('debug-log-content');
+                    const isHidden = content.classList.toggle('hidden');
+                    const icon = this.querySelector('i');
+                    const text = this.querySelector('i').nextSibling;
+                    
+                    if (isHidden) {
+                        icon.className = 'fas fa-eye';
+                        text.textContent = ' Afficher';
+                        showStatus('Logs masqués');
+                    } else {
+                        icon.className = 'fas fa-eye-slash';
+                        text.textContent = ' Masquer';
+                        showStatus('Logs affichés');
+                    }
+                });
+            }
+
+            if (clearBtn) {
+                clearBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    showModal();
+                });
+            }
+        }
+
+        // Fonction utilitaire pour afficher le statut
+        function showStatus(message, type = 'success') {
+            const statusDiv = document.getElementById('log-status');
+            if (statusDiv) {
+                statusDiv.textContent = message;
+                statusDiv.className = `log-status ${type}`;
+                setTimeout(() => {
+                    statusDiv.style.display = 'none';
+                }, 5000);
+            }
+        }
+
+        // Fonctions pour la modale
         function showModal() {
             document.getElementById('confirmModal').classList.add('show');
         }
 
-        // Fonction pour cacher la modale
         function hideModal() {
             document.getElementById('confirmModal').classList.remove('show');
         }
-        
-        // Bouton Rafraîchir
-        document.getElementById('refreshLogBtn').addEventListener('click', async function() {
-            console.log('Clic sur Rafraîchir');
-            const button = this;
-            button.disabled = true;
-            button.classList.add('btn-loading');
-            
-            try {
-                const response = await fetch('get_debug_log.php');
-                if (!response.ok) {
-                    throw new Error(`Erreur HTTP: ${response.status}`);
-                }
-                const content = await response.text();
-                document.getElementById('debug-log-content').innerHTML = 
-                    `<pre><code>${content}</code></pre>`;
-                showStatus('Logs rafraîchis avec succès');
-            } catch (error) {
-                console.error('Erreur:', error);
-                showStatus(`Erreur lors du rafraîchissement: ${error.message}`, 'error');
-            } finally {
-                button.disabled = false;
-                button.classList.remove('btn-loading');
-            }
-        });
 
-        // Bouton Masquer/Afficher
-        document.getElementById('toggleLogBtn').addEventListener('click', function() {
-            console.log('Clic sur Masquer/Afficher');
-            const content = document.getElementById('debug-log-content');
-            const isHidden = content.classList.toggle('hidden');
-            const icon = this.querySelector('i');
-            const text = this.querySelector('i').nextSibling;
-            
-            if (isHidden) {
-                icon.className = 'fas fa-eye';
-                text.textContent = ' Afficher';
-                showStatus('Logs masqués');
-            } else {
-                icon.className = 'fas fa-eye-slash';
-                text.textContent = ' Masquer';
-                showStatus('Logs affichés');
-            }
-        });
+        // Gestion des événements de la modale
+        const cancelClear = document.getElementById('cancelClear');
+        const confirmClear = document.getElementById('confirmClear');
+        const confirmModal = document.getElementById('confirmModal');
+
+        if (cancelClear) {
+            cancelClear.addEventListener('click', hideModal);
+        }
+
+        if (confirmClear) {
+            confirmClear.addEventListener('click', clearLogs);
+        }
+
+        if (confirmModal) {
+            confirmModal.addEventListener('click', function(e) {
+                if (e.target === this) {
+                    hideModal();
+                }
+            });
+        }
 
         // Fonction pour vider les logs
         async function clearLogs() {
@@ -1748,27 +2513,19 @@ if ($updateInfo) {
                     }
                 });
 
-                console.log('📥 Status de la réponse:', response.status);
-                const data = await response.text();
-                console.log('📦 Données brutes reçues:', data);
-
-                let result;
-                try {
-                    result = JSON.parse(data);
-                } catch (e) {
-                    console.error('❌ Erreur de parsing JSON:', e);
-                    throw new Error('Réponse invalide du serveur');
+                if (!response.ok) {
+                    throw new Error(`Erreur HTTP: ${response.status}`);
                 }
 
+                const result = await response.json();
                 if (result.success) {
-                    console.log('✨ Succès:', result);
                     showStatus('✨ Logs réinitialisés avec succès');
                     document.getElementById('refreshLogBtn').click();
                 } else {
                     throw new Error(result.message || 'Erreur inconnue');
                 }
             } catch (error) {
-                console.error('❌ Erreur:', error);
+                console.error('Erreur:', error);
                 showStatus(`❌ Erreur: ${error.message}`, 'error');
             } finally {
                 button.disabled = false;
@@ -1776,327 +2533,296 @@ if ($updateInfo) {
                 hideModal();
             }
         }
-
-        // Bouton Vider (ouvre la modale)
-        document.getElementById('clearLogBtn').addEventListener('click', function(e) {
-            e.preventDefault();
-            console.log('🔄 Clic sur le bouton Vider');
-            showModal();
-        });
-
-        // Boutons de la modale
-        document.getElementById('cancelClear').addEventListener('click', function() {
-            console.log('❌ Opération annulée par l\'utilisateur');
-            hideModal();
-        });
-
-        document.getElementById('confirmClear').addEventListener('click', function() {
-            console.log('✅ Confirmation acceptée');
-            clearLogs();
-        });
-
-        // Fermer la modale en cliquant en dehors
-        document.getElementById('confirmModal').addEventListener('click', function(e) {
-            if (e.target === this) {
-                hideModal();
-            }
-        });
     });
     </script>
 
-    <style>
+    <script>
+    document.getElementById('max_lines_per_request').addEventListener('input', function() {
+        const value = parseInt(this.value);
+        const warning = document.getElementById('max_lines_warning');
+        
+        if (value > 10000) {
+            warning.style.display = 'block';
+        } else {
+            warning.style.display = 'none';
+        }
+    });
 
-    .btn-danger {
-        background-color: #dc3545;
-        border-color: #dc3545;
-        color: white;
-    }
-    .btn-danger:hover {
-        background-color: #c82333;
-        border-color: #bd2130;
-    }
-    .btn-loading {
-        opacity: 0.7;
-        cursor: not-allowed;
-        position: relative;
-    }
-    .btn-loading:after {
-        content: '';
-        width: 1em;
-        height: 1em;
-        border: 2px solid #fff;
-        border-top: 2px solid transparent;
-        border-radius: 50%;
-        position: absolute;
-        right: 0.5em;
-        top: 50%;
-        transform: translateY(-50%);
-        animation: spin 1s linear infinite;
-    }
-    @keyframes spin {
-        0% { transform: translateY(-50%) rotate(0deg); }
-        100% { transform: translateY(-50%) rotate(360deg); }
-    }
-    .btn:disabled {
-        opacity: 0.7;
-        cursor: not-allowed;
-    }
-    .debug-log-content {
-        transition: all 0.3s ease-in-out;
-        max-height: 500px;
-        overflow-y: auto;
-    }
-    .debug-log-content.hidden {
-        max-height: 0;
-        overflow: hidden;
-        padding: 0;
-        margin: 0;
-        opacity: 0;
-    }
-    .log-status {
-        margin-top: 10px;
-        padding: 10px;
-        border-radius: 4px;
-        display: none;
-    }
-    .log-status.success {
-        background-color: #d4edda;
-        color: #155724;
-        border: 1px solid #c3e6cb;
-        display: block;
-    }
-    .log-status.error {
-        background-color: #f8d7da;
-        color: #721c24;
-        border: 1px solid #f5c6cb;
-        display: block;
-    }
+    </script>
 
-    /* Styles pour la modale de confirmation */
-    .modal-overlay {
-        display: none;
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0, 0, 0, 0.5);
-        z-index: 1000;
-        align-items: center;
-        justify-content: center;
-    }
-    .modal-overlay.show {
-        display: flex;
-    }
-    .modal-confirm {
-        background: var(--bg-color, #fff);
-        border-radius: 8px;
-        padding: 20px;
-        max-width: 400px;
-        width: 90%;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    }
-    .modal-header {
-        display: flex;
-        align-items: center;
-        margin-bottom: 15px;
-    }
-    .modal-header i {
-        color: #dc3545;
-        font-size: 24px;
-        margin-right: 10px;
-    }
-    .modal-header h3 {
-        margin: 0;
-        color: var(--text-color, #333);
-    }
-    .modal-content {
-        margin-bottom: 20px;
-        color: var(--text-color, #333);
-    }
-    .modal-actions {
-        display: flex;
-        justify-content: flex-end;
-        gap: 10px;
-    }
-    .modal-btn {
-        padding: 8px 16px;
-        border-radius: 4px;
-        border: none;
-        cursor: pointer;
-        font-weight: 500;
-        transition: all 0.2s;
-    }
-    .modal-btn-cancel {
-        background: #6c757d;
-        color: white;
-    }
-    .modal-btn-cancel:hover {
-        background: #5a6268;
-    }
-    .modal-btn-confirm {
-        background: #dc3545;
-        color: white;
-    }
-    .modal-btn-confirm:hover {
-        background: #c82333;
-    }
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const filtersForm = document.getElementById('filters-form');
+        
+        if (filtersForm) {
+            filtersForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                const formData = new FormData(this);
+                formData.append('action', 'update_config');
+                
+                try {
+                    const response = await fetch('', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error('Erreur lors de la sauvegarde');
+                    }
+                    
+                    const result = await response.text();
+                    
+                    // Afficher un message de succès
+                    const successMessage = document.createElement('div');
+                    successMessage.className = 'alert alert-success';
+                    successMessage.innerHTML = '<i class="fas fa-check-circle"></i> Configuration sauvegardée avec succès !';
+                    filtersForm.insertBefore(successMessage, filtersForm.firstChild);
+                    
+                    // Supprimer le message après 3 secondes
+                    setTimeout(() => {
+                        successMessage.remove();
+                    }, 3000);
+                    
+                } catch (error) {
+                    // Afficher un message d'erreur
+                    const errorMessage = document.createElement('div');
+                    errorMessage.className = 'alert alert-danger';
+                    errorMessage.innerHTML = '<i class="fas fa-exclamation-circle"></i> Erreur lors de la sauvegarde : ' + error.message;
+                    filtersForm.insertBefore(errorMessage, filtersForm.firstChild);
+                    
+                    // Supprimer le message après 5 secondes
+                    setTimeout(() => {
+                        errorMessage.remove();
+                    }, 5000);
+                }
+            });
+        }
+    });
+    </script>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+                // ... existing code ...
+        // Vérification instantanée des mises à jour
+        const checkUpdateBtn = document.getElementById('check-update-now');
+        if (checkUpdateBtn) {
+            checkUpdateBtn.addEventListener('click', function() {
+                checkUpdateBtn.disabled = true;
+                checkUpdateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Vérification...';
+                fetch('ajax_actions.php?action=check_update_now', {
+                    method: 'GET',
+                    headers: { 'Accept': 'application/json' }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Si le message indique qu'il n'y a pas de nouvelle version
+                        if (data.message && data.message.match(/(à jour|dernière version|latest|up to date)/i)) {
+                            LogviewR.UI.showNotification(
+                                `🎉 Vous utilisez déjà la dernière version : <b>${data.current_version || ''}</b>`,
+                                'success'
+                            );
+                            // <-- AJOUTE CETTE LIGNE :
+                            autoResizeTextareas('#patterns-tab');
+                        } else {
+                            LogviewR.UI.showNotification('✅ Vérification terminée : ' + data.message, 'success');
+                            setTimeout(() => window.location.reload(), 3200);
+                        }
+                    } else {
+                        LogviewR.UI.showNotification('❌ ' + (data.message || 'Erreur lors de la vérification.'), 'error');
+                        // <-- AJOUTE CETTE LIGNE :
+                        autoResizeTextareas('#patterns-tab');
+                    }
+                })
+                .catch(error => {
+                    showNotification('error', '❌ Erreur : ' + error.message);
+                })
+                .finally(() => {
+                    checkUpdateBtn.disabled = false;
+                    checkUpdateBtn.innerHTML = '<i class="fas fa-search"></i> Vérifier maintenant';
+                });
+            });
+        }
+    });
+    </script>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // ... autres codes ...
+        const updateSwitch = document.getElementById('update_check_enabled');
+        if (updateSwitch) {
+            updateSwitch.addEventListener('change', function() {
+                updateSwitch.disabled = true;
+                const enabled = updateSwitch.checked ? 1 : 0;
+                fetch('ajax_actions.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: 'action=save_update_switch&enabled=' + enabled
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showNotification('success', '✅ Option sauvegardée !');
+                    } else {
+                        showNotification('error', '❌ ' + (data.message || 'Erreur lors de la sauvegarde.'));
+                    }
+                })
+                .catch(error => {
+                    showNotification('error', '❌ Erreur : ' + error.message);
+                })
+                .finally(() => {
+                    setTimeout(() => { updateSwitch.disabled = false; }, 600);
+                });
+            });
+        }
+    });
+
     
-    
+    document.addEventListener('DOMContentLoaded', function() {
+    // Gestionnaire pour le bouton de fermeture du popup de mise à jour (admin)
+    const closeButtons = document.querySelectorAll('.update-alert .btn-close');
+    closeButtons.forEach(button => {
+        button.addEventListener('click', function() {
+        const alert = this.closest('.update-alert');
+        if (alert) {
+            alert.classList.add('fade'); // Animation
+            setTimeout(() => { alert.remove(); }, 150);
+        }
+        });
+    });
+    });
+    </script>
 
-    /* Styles pour les logs de debug */
-    .debug-tag {
-        color: #3498db;
-        font-weight: bold;
-    }
-    .debug-array {
-        color: #e67e22;
-        white-space: pre;
-    }
-    .debug-log-content {
-        background-color: var(--bg-color, #1a1a1a);
-        border: 1px solid var(--border-color, #333);
-        border-radius: 4px;
-        padding: 10px;
-        margin-top: 10px;
-        max-height: 500px;
-        overflow-y: auto;
-    }
-    .debug-log-content pre {
-        margin: 0;
-        white-space: pre-wrap;
-        word-wrap: break-word;
-    }
-    .debug-log-content code {
-        color: var(--text-color, #fff);
-        font-family: monospace;
-        font-size: 12px;
-        line-height: 1.4;
-    }
-    .debug-log-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 10px;
-    }
-    .debug-log-controls {
-        display: flex;
-        gap: 5px;
-    }
-    .alert-info {
-        background-color: #d1ecf1;
-        border-color: #bee5eb;
-        color: #0c5460;
-        padding: 10px;
-        border-radius: 4px;
-        margin-top: 10px;
-    }
-    </style>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // ... existing code ...
 
-    <style>
-    /* Styles pour l'onglet Mises à jour */
-    .update-status {
-        background: var(--bg-color);
-        border: 1px solid var(--border-color);
-        border-radius: 5px;
-        padding: 15px;
-        margin-bottom: 20px;
-    }
+        // --- PHP Errors Log (php_errors.log) ---
+        const refreshPhpBtn = document.getElementById('refreshPhpLogBtn');
+        const clearPhpBtn = document.getElementById('clearPhpLogBtn');
+        const phpLogContent = document.getElementById('php-log-content');
+        const phpLogStatus = document.getElementById('php-log-status');
 
-    .status-item {
-        display: flex;
-        justify-content: space-between;
-        margin-bottom: 10px;
-        padding-bottom: 5px;
-        border-bottom: 1px solid var(--border-color);
-    }
+        // Refresh php_errors.log content
+        if (refreshPhpBtn) {
+            refreshPhpBtn.addEventListener('click', async function() {
+                refreshPhpBtn.disabled = true;
+                refreshPhpBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Rafraîchir';
+                try {
+                    const response = await fetch('get_php_errors_log.php');
+                    const text = await response.text();
+                    phpLogContent.innerHTML = `<pre><code>${text}</code></pre>`;
+                    phpLogStatus.textContent = 'Logs PHP rafraîchis avec succès';
+                    phpLogStatus.className = 'log-status success';
+                } catch (e) {
+                    phpLogStatus.textContent = 'Erreur lors du rafraîchissement : ' + e.message;
+                    phpLogStatus.className = 'log-status error';
+                } finally {
+                    setTimeout(() => { phpLogStatus.textContent = ''; }, 4000);
+                    refreshPhpBtn.disabled = false;
+                    refreshPhpBtn.innerHTML = '<i class="fas fa-sync-alt"></i> Rafraîchir';
+                }
+            });
+        }
 
-    .status-item:last-child {
-        border-bottom: none;
-        margin-bottom: 0;
-    }
+        // Clear php_errors.log content
+        if (clearPhpBtn) {
+            clearPhpBtn.addEventListener('click', async function() {
+                if (!confirm('Voulez-vous vraiment vider php_errors.log ?')) return;
+                clearPhpBtn.disabled = true;
+                clearPhpBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Vider';
+                try {
+                    const response = await fetch('clear_php_errors_log.php', {
+                        method: 'POST',
+                        headers: { 'Accept': 'application/json' }
+                    });
+                    const result = await response.json();
+                    if (result.success) {
+                        phpLogContent.innerHTML = '<pre><code>(vide)</code></pre>';
+                        phpLogStatus.textContent = 'php_errors.log vidé avec succès';
+                        phpLogStatus.className = 'log-status success';
+                    } else {
+                        phpLogStatus.textContent = result.message || 'Erreur lors du vidage';
+                        phpLogStatus.className = 'log-status error';
+                    }
+                } catch (e) {
+                    phpLogStatus.textContent = 'Erreur lors du vidage : ' + e.message;
+                    phpLogStatus.className = 'log-status error';
+                } finally {
+                    setTimeout(() => { phpLogStatus.textContent = ''; }, 4000);
+                    clearPhpBtn.disabled = false;
+                    clearPhpBtn.innerHTML = '<i class="fas fa-trash-alt"></i> Vider';
+                }
+            });
+        }
+    });
 
-    .update-available {
-        background: #fff3cd;
-        border: 1px solid #ffeeba;
-        border-radius: 5px;
-        padding: 15px;
-        margin-bottom: 20px;
-    }
 
-    .version-comparison {
-        display: flex;
-        gap: 20px;
-        margin: 15px 0;
-    }
+    // Auto-resize for all pattern textareas in filters tab
+    document.addEventListener('DOMContentLoaded', function() {
+        // Select all textareas in the filters form
+        document.querySelectorAll('#filters-form textarea').forEach(function(textarea) {
+            // Function to auto-resize the textarea
+            const autoResize = function() {
+                this.style.height = 'auto'; // Reset height
+                this.style.height = (this.scrollHeight) + 'px'; // Set to scrollHeight
+            };
+            // Initial resize
+            autoResize.call(textarea);
+            // Resize on input
+            textarea.addEventListener('input', autoResize);
+        });
+    });
 
-    .version {
-        flex: 1;
-        text-align: center;
-        padding: 10px;
-        background: var(--bg-color);
-        border-radius: 5px;
-    }
-
-    .version .label {
-        display: block;
-        font-size: 0.9em;
-        color: var(--text-muted);
-    }
-
-    .version .value {
-        display: block;
-        font-size: 1.2em;
-        font-weight: bold;
-        margin-top: 5px;
-    }
-
-    .changelog {
-        background: var(--bg-color);
-        border: 1px solid var(--border-color);
-        border-radius: 5px;
-        padding: 15px;
+    // Auto-resize all visible textareas in a given container
+    function autoResizeTextareas(containerSelector) {
+        document.querySelectorAll(containerSelector + ' textarea').forEach(function(textarea) {
+            const autoResize = function() {
+                this.style.height = 'auto';
+                this.style.height = (this.scrollHeight) + 'px';
+            };
+            autoResize.call(textarea);
+            textarea.removeEventListener('input', autoResize); // Avoid duplicates
+            textarea.addEventListener('input', autoResize);
+        });
     }
 
-    .changelog-entry {
-        margin-bottom: 20px;
-        padding-bottom: 15px;
-        border-bottom: 1px solid var(--border-color);
-    }
+    // Resize sur clic onglet Patterns
+    document.addEventListener('DOMContentLoaded', function() {
+        const patternsTabBtn = document.querySelector('[data-tab="patterns"]');
+        if (patternsTabBtn) {
+            patternsTabBtn.addEventListener('click', function() {
+                setTimeout(function() {
+                    autoResizeTextareas('#patterns-tab');
+                }, 200);
+            });
+        }
+        // Resize aussi au chargement initial
+        autoResizeTextareas('#patterns-tab');
+    });
 
-    .changelog-entry:last-child {
-        border-bottom: none;
-        margin-bottom: 0;
-        padding-bottom: 0;
-    }
+    // This code sends the value of the switch to the server as soon as it is toggled.
+    document.addEventListener('DOMContentLoaded', function() {
+    const rememberMeSwitch = document.getElementById('remember_me');
+    if (rememberMeSwitch) {
+        rememberMeSwitch.addEventListener('change', function() {
+            const formData = new FormData();
+            formData.append('action', 'update_config');
+            formData.append('admin[remember_me]', rememberMeSwitch.checked ? '1' : '');
 
-    .version-header {
-        margin-bottom: 10px;
+            fetch('', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.text())
+            .then(() => {
+                LogviewR.UI.showNotification('Option "Rester connecté" sauvegardée !', 'success');
+            });
+        });
     }
+});
+    </script>
 
-    .version-header .version {
-        font-weight: bold;
-        color: var(--primary-color);
-    }
-
-    .version-header .date {
-        color: var(--text-muted);
-        font-size: 0.9em;
-        margin-left: 10px;
-    }
-
-    .changes-list {
-        margin: 0;
-        padding-left: 20px;
-    }
-
-    .changes-list li {
-        margin-bottom: 5px;
-    }
-
-    .changes-list li:last-child {
-        margin-bottom: 0;
-    }
-    </style>
 </body>
 </html> 

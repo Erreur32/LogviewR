@@ -28,7 +28,6 @@ class UpdateChecker {
         $this->currentVersion = $this->versionInfo['version'] ?? '1.0.0';
         $this->apiUrl = $this->versionInfo['api_url'] ?? '';
         $this->updateUrl = $this->versionInfo['update_check']['update_url'] ?? 'https://api.logviewr.com/updates';
-        $this->enabled = $this->versionInfo['update_check']['enabled'] ?? true;
         $this->checkInterval = $this->versionInfo['update_check']['check_interval'] ?? 86400;
         
         // Get the root directory of the project
@@ -37,6 +36,22 @@ class UpdateChecker {
         // Set cache directory - use absolute path from project root
         $this->cacheDir = $rootDir . '/cache';
         $this->cacheFile = $this->versionInfo['update_check']['cache_file'] ?? 'update_cache.json';
+
+        // Load update_check enabled from admin.php (priority)
+        $adminConfigFile = __DIR__ . '/../config/admin.php';
+        if (file_exists($adminConfigFile)) {
+            $adminConfig = require $adminConfigFile;
+            // Use admin.php value if available
+            if (isset($adminConfig['admin']['update_check']['enabled'])) {
+                $this->enabled = $adminConfig['admin']['update_check']['enabled'];
+            } else {
+                // Fallback to version.php value
+                $this->enabled = $this->versionInfo['update_check']['enabled'] ?? true;
+            }
+        } else {
+            // Fallback to version.php value
+            $this->enabled = $this->versionInfo['update_check']['enabled'] ?? true;
+        }
 
         // Ensure cache directory exists and is writable
         if (!is_dir($this->cacheDir)) {
@@ -119,30 +134,40 @@ class UpdateChecker {
     }
 
     /**
-     * Fetch the latest version from GitHub API
+     * Fetch the latest version from the remote version.php (raw GitHub)
      * @return string Latest version number
      */
     private function fetchLatestVersion() {
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $this->apiUrl);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_USERAGENT, 'LogviewR Update Checker');
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
-        
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-
-        if ($httpCode !== 200) {
-            throw new Exception("Failed to fetch version information. HTTP Code: " . $httpCode);
+        $url = 'https://raw.githubusercontent.com/Erreur32/LogviewR/refs/heads/main/version.php';
+        $context = stream_context_create([
+            'http' => [
+                'timeout' => 5,
+                'user_agent' => 'LogviewR-UpdateChecker'
+            ]
+        ]);
+        $raw = @file_get_contents($url, false, $context);
+        if ($raw === false) {
+            throw new Exception('Unable to fetch remote version.php');
         }
-
-        $data = json_decode($response, true);
-        if (!isset($data['tag_name'])) {
-            throw new Exception("Invalid response from GitHub API");
+        // Extract the $versionInfo array from the remote PHP file
+        if (preg_match('/\$versionInfo\s*=\s*(\[.*?\]);/s', $raw, $matches)) {
+            $arrayCode = $matches[1];
+            // Convert PHP array syntax to PHP array (for eval)
+            $arrayCode = str_replace(['array (', ')'], ['[', ']'], $arrayCode);
+            $arrayCode = preg_replace('/=>/', '=>', $arrayCode);
+            try {
+                eval('$remote = ' . $arrayCode . ';');
+                if (isset($remote['version'])) {
+                    return $remote['version'];
+                } else {
+                    throw new Exception('No version found in remote version.php');
+                }
+            } catch (Throwable $e) {
+                throw new Exception('Error parsing remote version.php: ' . $e->getMessage());
+            }
+        } else {
+            throw new Exception('Could not extract versionInfo from remote version.php');
         }
-
-        return ltrim($data['tag_name'], 'v');
     }
 
     /**
@@ -216,5 +241,17 @@ class UpdateChecker {
      */
     private function getCacheFile() {
         return $this->cacheDir . '/' . $this->cacheFile;
+    }
+
+    /**
+     * Always fetch the remote version (even if not newer)
+     * @return string|null
+     */
+    public function getRemoteVersion() {
+        try {
+            return $this->fetchLatestVersion();
+        } catch (Exception $e) {
+            return null;
+        }
     }
 } 

@@ -16,14 +16,19 @@ class Logger {
     private function __construct() {
         // Load configuration with error handling
         try {
+            // Check for user config first
+            $configFile = __DIR__ . '/../config/config.user.php';
+            if (!file_exists($configFile)) {
             $configFile = __DIR__ . '/../config/config.php';
+            }
+            
             if (!file_exists($configFile)) {
                 throw new Exception("Le fichier de configuration n'existe pas: $configFile");
             }
             
             $config = require $configFile;
             if (!is_array($config)) {
-                throw new Exception('Configuration invalide: config.php doit retourner un tableau');
+                throw new Exception('Configuration invalide: le fichier de configuration doit retourner un tableau');
             }
             
             // Set default values if not present in config
@@ -173,6 +178,22 @@ class Logger {
         } catch (Exception $e) {
             error_log("Error writing to debug log: " . $e->getMessage());
         }
+    }
+
+    public function debug($message) {
+        $this->log($message, 'DEBUG');
+    }
+
+    public function info($message) {
+        $this->log($message, 'INFO');
+    }
+
+    public function warning($message) {
+        $this->log($message, 'WARNING');
+    }
+
+    public function error($message) {
+        $this->log($message, 'ERROR');
     }
 
     public function clear() {

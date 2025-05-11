@@ -1,7 +1,17 @@
 # LogviewR 📊
 
-Un visualiseur de logs old school pour Apache, Nginx, NPM et Syslog.
- 
+LogviewR est un outil de visualisation et d'analyse de logs en temps réel, conçu pour être simple, rapide et efficace.
+
+## Fonctionnalités 🌟
+
+- Support multi-formats (Apache, Nginx, NPM, Syslog, PHP)
+- Interface responsive et moderne avec 3 thèmes (Dark, Light, Glass)
+- Filtrage en temps réel
+- Administration sécurisée avec debug avancé
+- Mise à jour automatique
+- Support multilingue
+- Système de permissions avancé
+
 ## Fonctionnalités Principales ✨
 
 <details>
@@ -38,30 +48,32 @@ Un visualiseur de logs old school pour Apache, Nginx, NPM et Syslog.
   - **Interface d'administration sécurisée**  
   - **Gestion des patterns de logs**  
   - **Configuration des sources**  
-  - **Monitoring en temps réel**
+
 </details>
 
 
 ## Installation 🚀
 
-1. Cloner le dépôt :
-```bash
-git clone https://github.com/votre-utilisateur/LogviewR.git
-cd LogviewR
-```
- 
- 
-2. Configurer le serveur web :
-```apache
-<VirtualHost *:80>
-    ServerName logviewr.local
-    DocumentRoot /chemin/vers/LogviewR
-    <Directory /chemin/vers/LogviewR>
-        AllowOverride All
-        Require all granted
-    </Directory>
-</VirtualHost>
-```
+1. **Prérequis**
+   - PHP 8.0+
+   - Serveur web (Apache/Nginx)
+   - Droits de lecture sur les fichiers de logs
+
+2. **Installation**
+   ```bash
+   # Cloner le dépôt
+   git clone https://github.com/Erreur32/LogviewR.git
+   cd LogviewR
+
+   # Configurer les permissions
+   chmod -R 755 .
+   chmod -R 777 cache/
+   ```
+
+3. **Configuration**
+   - Copier `config/config.example.php` vers `config/config.php`
+   - Modifier les paramètres selon vos besoins
+   - Configurer les chemins des logs dans `config/sources.php`
 
 ## Screen
 
@@ -73,10 +85,26 @@ cd LogviewR
 
 ## Configuration ⚙️
 
-Panneau admin avec toutes les tions configurable!
+Panneau admin avec toutes les options configurable!
 
+    login : admin
+    password: password 
 
-## Utilisation 📝
+### Permissions des Logs 🔐
+
+Pour accéder aux logs Apache, il est nécessaire de configurer les permissions correctement :
+
+```bash
+# Ajouter l'utilisateur www-data au groupe adm pour accéder aux logs
+sudo usermod -aG adm www-data
+
+# Vérifier les permissions du dossier des logs
+sudo chmod 750 /var/log/apache2
+```
+
+Cette configuration permet à l'application web d'accéder aux logs Apache tout en maintenant la sécurité du système.
+
+## Utilisation 🖥️
 
 1. **Accès à l'Interface**
    - Ouvrir `http://votre-domaine/` dans votre navigateur
@@ -115,15 +143,35 @@ Pour toute question ou problème :
 
 ## Versions 🔄
 
-### Version 1.3.0 (En cours)
-- Amélioration de la détection des types de logs
-- Optimisation du parsing des logs
-- Correction des problèmes de performance
-- Amélioration de la gestion des filtres
-- Support des logs avec noms de domaine personnalisés
-- Correction des bugs de l'interface
+### Version 1.5.0 (2024-04-25)
+- ✨ Nouveau thème "Dark Moderne Glass" avec effet glassmorphism
+- 🔧 Système de debug amélioré avec logs détaillés
+- 🎨 Nouvelle interface d'administration repensée
+- 📊 Support des logs PHP avec visualisation en temps réel
+- 🔒 Système de permissions avancé avec vérification automatique
 
-### Version 1.2.0
+### Version 1.4.1 (2024-04-22)
+- 🐛 Correction du parsing des logs d'erreur NPM Proxy Host
+- 🔧 Amélioration de la gestion des types de logs NPM
+- ✨ Meilleure détection des colonnes selon le type de log
+- 📝 Mise à jour de la documentation
+- 🎨 Réorganisation du code des parsers
+
+### Version 1.4.0 (2024-03-20)
+- ✨ Nouveau système de mise à jour amélioré
+- 🔧 Optimisation des performances
+- 🎨 Amélioration de l'interface utilisateur
+- 🛡️ Renforcement de la sécurité
+- 📝 Documentation mise à jour
+
+### Version 1.3.0 (2024-04-02)
+- Support complet des logs NPM
+- Amélioration de la détection des types de logs
+- Optimisation de l'interface utilisateur
+- Auto-rafraîchissement des logs
+- Support des noms de domaine personnalisés
+
+### Version 1.2.0 (2024-03-31)
 - Support complet des logs NPM
 - Amélioration de la détection des types de logs
 - Optimisation de l'interface utilisateur

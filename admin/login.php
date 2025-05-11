@@ -36,7 +36,19 @@ $success = '';
 
 // Vérifier si l'utilisateur est déjà connecté
 if (isset($_SESSION['admin_logged_in']) && $_SESSION['admin_logged_in'] === true) {
-    header('Location: index.php');
+    // Rediriger vers la page demandée ou la page admin par défaut
+    if (isset($_GET['redirect'])) {
+        // Vérifier si l'URL de redirection est valide
+        $redirect = filter_var($_GET['redirect'], FILTER_SANITIZE_URL);
+        if (strpos($redirect, '..') !== false || strpos($redirect, '//') !== false) {
+            // URL invalide, rediriger vers la page admin
+            header('Location: index.php');
+        } else {
+            header('Location: ' . $redirect);
+        }
+    } else {
+        header('Location: index.php');
+    }
     exit;
 }
 
@@ -58,25 +70,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     
     if (empty($error)) {
-        if ($username === ($admin_config['admin']['username'] ?? 'admin') && 
-            password_verify($password, $admin_config['admin']['password'] ?? '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi')) {
+        if ($username === $admin_config['admin']['username'] && password_verify($password, $admin_config['admin']['password'])) {
             $_SESSION['admin_logged_in'] = true;
             $_SESSION['admin_login_time'] = time();
-            $_SESSION['login_attempts'] = 0;
-            header('Location: index.php');
+            
+            // Rediriger vers la page demandée ou la page admin par défaut
+            if (isset($_GET['redirect'])) {
+                // Vérifier si l'URL de redirection est valide
+                $redirect = filter_var($_GET['redirect'], FILTER_SANITIZE_URL);
+                if (strpos($redirect, '..') !== false || strpos($redirect, '//') !== false) {
+                    // URL invalide, rediriger vers la page admin
+                    header('Location: index.php');
+                } else {
+                    header('Location: ' . $redirect);
+                }
+            } else {
+                header('Location: index.php');
+            }
             exit;
         } else {
+            $error = 'Nom d\'utilisateur ou mot de passe incorrect';
             $_SESSION['login_attempts']++;
             $_SESSION['last_attempt'] = time();
-            $error = 'Identifiants incorrects';
         }
     }
 }
 
-// Vérifier si on vient d'être déconnecté pour timeout
-if (isset($_GET['timeout']) && $_GET['timeout'] == 1) {
-    $error = 'Votre session a expiré. Veuillez vous reconnecter.';
-}
+
 ?>
 <!DOCTYPE html>
 <html lang="fr">

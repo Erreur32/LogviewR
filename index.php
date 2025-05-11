@@ -2,10 +2,48 @@
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
+// Charger d'abord les fonctions utilitaires
+require_once __DIR__ . '/includes/functions.php';
+
 // Charger la configuration
-$config_file = __DIR__ . '/config/config.php';
-$patterns_file = __DIR__ . '/config/log_patterns.php';
+$config_file = file_exists(__DIR__ . '/config/config.user.php') 
+    ? __DIR__ . '/config/config.user.php'
+    : __DIR__ . '/config/config.php';
+
+$patterns_file = file_exists(__DIR__ . '/config/log_patterns.user.php')
+    ? __DIR__ . '/config/log_patterns.user.php'
+    : __DIR__ . '/config/log_patterns.php';
+
+require_once $config_file;
+require_once $patterns_file;
 require_once __DIR__ . '/includes/config.php';
+
+// Charger la configuration admin
+$admin_config = require __DIR__ . '/config/admin.php';
+
+// Démarrer la session si elle n'est pas déjà démarrée
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+// Debug pour vérifier la configuration
+error_log('Debug - admin_config: ' . print_r($admin_config, true));
+error_log('Debug - require_login: ' . (isset($admin_config['debug']['require_login']) ? 'true' : 'false'));
+error_log('Debug - SESSION: ' . print_r($_SESSION, true));
+
+// Vérifier si le login est requis pour la page principale
+if (isset($admin_config['debug']['require_login']) && $admin_config['debug']['require_login'] === true) {
+    // Vérifier si l'utilisateur est connecté
+    if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== true) {
+        error_log('Debug - Redirection vers login.php');
+        // Construire l'URL de redirection de manière plus robuste
+        $baseUrl = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http") . "://$_SERVER[HTTP_HOST]";
+        $redirect_url = $baseUrl . getAbsolutePath('admin/login.php') . '?redirect=' . urlencode($_SERVER['REQUEST_URI']);
+        error_log('Debug - URL de redirection: ' . $redirect_url);
+        header('Location: ' . $redirect_url);
+        exit;
+    }
+}
 
 if (!file_exists($config_file)) {
     die('Erreur: Fichier de configuration manquant (config.php)');
@@ -26,6 +64,8 @@ try {
     if (!is_array($patterns)) {
         throw new Exception('Configuration invalide: log_patterns.php doit retourner un tableau');
     }
+
+ 
 } catch (Exception $e) {
     die('Erreur de chargement de la configuration: ' . $e->getMessage());
 }
@@ -33,10 +73,14 @@ try {
 // Vérifier et initialiser les tableaux si nécessaire
 if (!isset($config['app']) || !is_array($config['app'])) {
     $config['app'] = [
-        'excluded_extensions' => ['gz', 'zip', 'tar', 'rar', '7z', 'bz2', 'xz'],
         'max_execution_time' => 300,
         'default_lines_per_page' => 25
     ];
+}
+
+// S'assurer que les extensions exclues sont définies
+if (!isset($config['app']['excluded_extensions']) || !is_array($config['app']['excluded_extensions'])) {
+    $config['app']['excluded_extensions'] = ['gz', 'zip', 'tar', 'rar', '7z', 'bz2', 'xz'];
 }
 
 // Définir $temp_dir avant son utilisation
@@ -100,18 +144,60 @@ if (!isset($patterns['nginx']) || !is_array($patterns['nginx'])) {
 }
 
 // Fonction pour vérifier si un fichier doit être exclu
-function isExcludedFile($filename, $excluded_extensions) {
-    if (!is_array($excluded_extensions)) {
+function isExcludedFile($filename) {
+    global $config;
+    
+    if (!isset($config['app']['excluded_extensions']) || !is_array($config['app']['excluded_extensions'])) {
         return false;
     }
+    
+    // Convertir toutes les extensions en minuscules une seule fois
+    $excluded_extensions = array_map('strtolower', $config['app']['excluded_extensions']);
+    
+    // Obtenir l'extension
     $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
-    return in_array($extension, $excluded_extensions);
+    
+    // Si l'extension est un nombre (ex: .1, .2), vérifier l'extension précédente
+    if (is_numeric($extension)) {
+        $previousExtension = strtolower(pathinfo(pathinfo($filename, PATHINFO_FILENAME), PATHINFO_EXTENSION));
+        // Ajouter le point si nécessaire
+        $previousExtension = '.' . ltrim($previousExtension, '.');
+        return in_array($previousExtension, $excluded_extensions);
+    }
+    
+    // Vérifier les extensions composées (ex: .log.gz)
+    $fullName = strtolower($filename);
+    foreach ($excluded_extensions as $ext) {
+        // Ajouter le point si nécessaire
+        $ext = '.' . ltrim($ext, '.');
+        // Vérifier l'extension simple
+        if ('.' . $extension === $ext) {
+            return true;
+        }
+        // Vérifier l'extension composée
+        if (str_ends_with($fullName, $ext)) {
+            return true;
+        }
+    }
+    
+    return false;
 }
 
 // Fonction pour lister les fichiers de logs avec gestion des erreurs
-function listLogFiles($directory, $excluded_extensions) {
+function listLogFiles($directory) {
     $files = [];
-    if (is_dir($directory)) {
+    
+    if (!is_dir($directory)) {
+        error_log("Le répertoire n'existe pas: " . $directory);
+        return $files;
+    }
+    
+    if (!is_readable($directory)) {
+        error_log("Le répertoire n'est pas lisible: " . $directory);
+        return $files;
+    }
+    
+    try {
         $items = scandir($directory);
         foreach ($items as $item) {
             if ($item === '.' || $item === '..') continue;
@@ -124,26 +210,43 @@ function listLogFiles($directory, $excluded_extensions) {
             
             $path = $directory . '/' . $item;
             if (is_file($path)) {
-                $extension = pathinfo($path, PATHINFO_EXTENSION);
-                if (!in_array($extension, $excluded_extensions)) {
+                // Vérifier si le fichier est vide
+                if (filesize($path) === 0) {
+                    continue;
+                }
+                
+                // Vérifier si le fichier est lisible
+                if (!is_readable($path)) {
+                    continue;
+                }
+                
+                // Si le fichier n'est PAS exclu, l'ajouter à la liste
+                if (!isExcludedFile($item)) {
                     $files[] = $item;
+                } else {
+                    // Log pour le débogage
+                 //   error_log("Fichier exclu: " . $item . " (extension exclue)");
                 }
             }
         }
+    } catch (Exception $e) {
+        error_log("Erreur lors de la lecture du répertoire: " . $e->getMessage());
     }
+    
+    // Trier les fichiers
+    sort($files);
     return $files;
 }
 
 // Lister les fichiers de logs pour chaque type
 $log_files = [
-    'apache' => listLogFiles($config['paths']['apache_logs'], $config['app']['excluded_extensions']),
+    'apache' => listLogFiles($config['paths']['apache_logs']),
     'nginx' => listLogFiles(
         isset($config['nginx']['use_npm']) && $config['nginx']['use_npm'] ? 
             $config['paths']['npm_logs'] : 
-            $config['paths']['nginx_logs'], 
-        $config['app']['excluded_extensions']
+            $config['paths']['nginx_logs']
     ),
-    'syslog' => listLogFiles($config['paths']['syslog'], $config['app']['excluded_extensions'])
+    'syslog' => listLogFiles($config['paths']['syslog'])
 ];
 
 require_once __DIR__ . '/includes/Logger.php';
@@ -151,10 +254,26 @@ require_once __DIR__ . '/includes/Logger.php';
 class LogManager {
     private $excluded_extensions;
     private $config;
+    private $filters_enabled;
     
     public function __construct($config) {
         $this->config = $config;
-        $this->excluded_extensions = $config['app']['excluded_extensions'];
+        
+        // Les filtres de contenu sont gérés séparément dans les parsers
+        $this->filters_enabled = $config['filters']['enabled'] ?? true;
+        
+        // Les extensions exclues sont toujours appliquées, indépendamment des filtres de contenu
+        // Car elles concernent la sélection des fichiers, pas le contenu des logs
+        $this->excluded_extensions = isset($config['app']['excluded_extensions']) ? 
+            array_map(function($ext) {
+                // Normaliser le format des extensions
+                return '.' . ltrim($ext, '.');
+            }, $config['app']['excluded_extensions']) : 
+            ['.gz', '.zip', '.tar', '.rar', '.7z', '.bz2', '.xz'];
+            
+        if ($this->config['debug']['enabled']) {
+            error_log("[DEBUG] LogManager initialized with excluded extensions: " . implode(', ', $this->excluded_extensions));
+        }
     }
     
     public function formatFileSize($size) {
@@ -258,15 +377,31 @@ class LogManager {
             return false;
         }
         
-        // Vérifier les extensions exclues
-        foreach ($this->excluded_extensions as $ext) {
-            if (str_ends_with(strtolower($file), '.' . $ext)) {
+        // Vérifier les extensions exclues (indépendant des filtres de contenu)
+        // Cette logique est séparée des filtres de contenu des logs
+        $extension = strtolower(pathinfo($file, PATHINFO_EXTENSION));
+        
+        // Si l'extension est un nombre (ex: .1, .2), vérifier l'extension précédente
+        if (is_numeric($extension)) {
+            $previousExtension = strtolower(pathinfo(pathinfo($file, PATHINFO_FILENAME), PATHINFO_EXTENSION));
+            if (in_array('.' . ltrim($previousExtension, '.'), $this->excluded_extensions)) {
+                if ($this->config['debug']['enabled']) {
+                    error_log("[DEBUG] File excluded by previous extension: " . $file);
+                }
                 return false;
             }
+        } else if (in_array('.' . ltrim($extension, '.'), $this->excluded_extensions)) {
+            if ($this->config['debug']['enabled']) {
+                error_log("[DEBUG] File excluded by extension: " . $file);
+            }
+            return false;
         }
         
         // Vérifier si le fichier est lisible
         if (!is_readable($file)) {
+            if ($this->config['debug']['enabled']) {
+                error_log("[DEBUG] File not readable: " . $file);
+            }
             return false;
         }
         
@@ -359,7 +494,7 @@ class LogManager {
             if (!preg_match('/\.(log|log\.1)$/', $file)) continue;
             
             // Check excluded extensions
-            if (isExcludedFile($file, $this->excluded_extensions)) continue;
+            if (isExcludedFile($file)) continue;
             
             $log_entry = [
                 'name' => $file,
@@ -466,6 +601,10 @@ class LogManager {
 
 $logManager = new LogManager($config);
 
+// Charger la configuration admin
+$admin_config = require __DIR__ . '/config/admin.php';
+$filters_enabled = $config['filters']['enabled'] ?? false;
+
 // Traitement des actions AJAX
 if (isset($_GET['action']) && $_GET['action'] === 'reload_logs' && isset($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
     // Recharger les logs
@@ -497,6 +636,51 @@ if (empty($log_file)) {
     $log_file = $config['paths']['default_log'] ?? '';
 }
 
+// Vérifier les mises à jour
+if (isset($config['admin']['update_check']['enabled']) && $config['admin']['update_check']['enabled']) {
+    require_once __DIR__ . '/includes/UpdateChecker.php';
+    $updateChecker = new UpdateChecker();
+    $updateInfo = $updateChecker->checkForUpdates();
+    
+    if ($updateInfo) {
+        echo '<div class="alert alert-warning alert-dismissible fade show update-alert" role="alert" style="position: fixed; top: 20px; right: 20px; z-index: 9999; max-width: 400px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <div>
+                        <h5 class="alert-heading mb-1">Mise à jour disponible !</h5>
+                        <p class="mb-0">Version ' . $updateInfo['latest_version'] . ' est disponible (vous utilisez ' . $updateInfo['current_version'] . ')</p>
+                    </div>
+                    <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            </div>';
+    }
+}
+
+// Après le chargement de la configuration
+
+// Démarrer la session si ce n'est pas déjà fait
+session_start();
+
+// Récupérer les valeurs de la session ou utiliser les valeurs par défaut
+$default_lines = isset($_SESSION['default_lines_per_page']) 
+    ? $_SESSION['default_lines_per_page'] 
+    : $config['app']['default_lines_per_page'];
+
+$max_lines = isset($_SESSION['max_lines_per_request'])
+    ? $_SESSION['max_lines_per_request']
+    : $config['app']['max_lines_per_request'];
+
+// Sauvegarder les nouvelles valeurs dans la session si elles sont modifiées
+if (isset($_POST['lines_per_page'])) {
+    $_SESSION['default_lines_per_page'] = (int)$_POST['lines_per_page'];
+    $default_lines = $_SESSION['default_lines_per_page'];
+}
+
+if (isset($_POST['max_lines'])) {
+    $_SESSION['max_lines_per_request'] = (int)$_POST['max_lines'];
+    $max_lines = $_SESSION['max_lines_per_request'];
+}
+
 // Traitement des actions normales
 ?>
 <!DOCTYPE html>
@@ -504,34 +688,63 @@ if (empty($log_file)) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LogviewR</title>
-  
+    <title> LogviewR</title>
+      <!-- Favicon -->
+      <link rel="icon" type="image/x-icon" href="favicon.ico">
   <!-- Charger d'abord jQuery -->
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   
   <!-- Puis le JavaScript de DataTables -->
   <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.js"></script>
+  <script src="https://cdn.datatables.net/colreorder/1.5.4/js/dataTables.colReorder.min.js"></script>
   
   <!-- CSS externes -->
   <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.11.5/css/jquery.dataTables.css">
+  <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/colreorder/1.5.4/css/colReorder.dataTables.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   
   <!-- Notre CSS personnalisé -->
-
-
   <link rel="stylesheet" href="assets/css/variables.css">
   <link rel="stylesheet" href="assets/css/base.css">
   <link rel="stylesheet" href="assets/css/table.css">
+
   <link rel="stylesheet" href="assets/css/badges.css">
   <link rel="stylesheet" href="assets/css/links.css">
   <link rel="stylesheet" href="assets/css/syslog.css">
 
-  
+  <script>
+    // Définir la configuration globale
+    window.config = {
+        filters_enabled: <?php echo $filters_enabled ? 'true' : 'false'; ?>
+    };
+</script>
+ 
   <!--  Notre JavaScript personnalisé -->
+  <script src="assets/js/column_config.js" defer></script>
   <script src="assets/js/table.js" defer></script>
+
   <script src="assets/js/filters.js" defer></script>
-
-
+  
+  <!-- Script pour gérer la fermeture du popup de mise à jour -->
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Gestionnaire pour le bouton de fermeture du popup de mise à jour
+      const closeButtons = document.querySelectorAll('.update-alert .btn-close');
+      closeButtons.forEach(button => {
+        button.addEventListener('click', function() {
+          const alert = this.closest('.update-alert');
+          if (alert) {
+            // Ajouter la classe fade pour l'animation
+            alert.classList.add('fade');
+            // Supprimer l'élément après l'animation
+            setTimeout(() => {
+              alert.remove();
+            }, 150);
+          }
+        });
+      });
+    });
+  </script>
 </head>
 <body>
   <div class="container">
@@ -543,8 +756,9 @@ if (empty($log_file)) {
 
     <div class="header-container">
       <h2>
-        <i class="fas fa-scroll"></i>
-        <a href="https://v32.myoueb.fr/LogviewR/">LogviewR</a>
+       <!-- <i class="fas fa-scroll"></i> -->
+       <img src="favicon.png" style="width: 48px; vertical-align: middle; margin-right: 5px;">
+        <a href="<?= 'https://' . $_SERVER['HTTP_HOST'] . '/LogviewR/' ?>">LogviewR</a>
         <span id="selectedFileInfo"></span>
       </h2>
       <div class="header-controls">
@@ -746,31 +960,42 @@ if (empty($log_file)) {
       </div>
     </div>
 
+
+
     <div id="logForm">
-      <div class="level-filter">
-        <label>Niveau </label>
-        <select id="levelFilter">
-          <option value="">Tous</option>
-          <option value="error">Erreurs</option>
-          <option value="warning">Avertissements</option>
-          <option value="info">Information</option>
-          <option value="notice">Notices</option>
-        </select>
-      </div>
+
+      <button id="filterToggle" class="filter-toggle <?php echo $filters_enabled ? 'active' : ''; ?>" title="Activer/Désactiver les filtres" style="width: 134px;">
+          <i class="fas fa-filter"></i> Filtres <?php echo $filters_enabled ? 'ON' : 'OFF'; ?>
+      </button>
+
+
 
       <div class="filter-group">
         <label>Filtre recherche:</label>
         <input type="text" id="persistentFilter" placeholder="Filtrer les résultats...">
       </div>
 
+
+      <button id="resetFilters">Réinitialiser</button>
+
       <div class="length-menu">
         <label>Lignes:</label>
         <select id="lengthMenu">
-          <option value="10">10</option>
-          <option value="25" selected>25</option>
-          <option value="50">50</option>
-          <option value="100">100</option>
-          <option value="-1">Tout</option>
+          <?php
+          $default_lines = (int)$config['app']['default_lines_per_page'];
+          // Définir les options avec la valeur par défaut incluse
+          $options = [10, 25, 32, 50, 100, -1];
+          // S'assurer que la valeur par défaut est dans les options
+          if (!in_array($default_lines, $options)) {
+              $options[] = $default_lines;
+              sort($options);
+          }
+          foreach ($options as $value) {
+              $selected = ($value == $default_lines) ? 'selected' : '';
+              $display = ($value == -1) ? 'Tout' : $value;
+              echo "<option value=\"$value\" $selected>$display</option>";
+          }
+          ?>
         </select>
       </div>
 
@@ -783,16 +1008,12 @@ if (empty($log_file)) {
             <input type="checkbox" id="autoRefreshToggle">
             Auto-Refresh
           </label>
-          <input type="number" id="refreshInterval" value="<?php echo ($config['app']['refresh_interval'] ?? 1000) / 1000; ?>" min="10" step="10">
-          <span>s</span>
-        </div>
+          <input type="number" id="refreshInterval" value="<?php echo $config['app']['refresh_interval'] ?? 20; ?>" min="5" step="1">
+        sec. </div>
       </div>
 
-      <button id="filterToggle" class="filter-toggle active" title="Activer/Désactiver les filtres">
-        <i class="fas fa-filter"></i> Filtres ON
-      </button>
 
-      <button id="resetFilters">Réinitialiser</button>
+
     </div>
 
     <div class="output-container">
@@ -816,8 +1037,8 @@ if (empty($log_file)) {
         <span class="footer-made-by">
           Made with <i class="fas fa-coffee"></i> by 
           <a href="https://github.com/Erreur32" target="_blank">Erreur32</a>
-          | <a href="admin/login.php" class="admin-link"><i class="fas fa-cog"></i> Administration</a>
-          | <a href="https://github.com/Erreur32/LogviewR" target="_blank"><i class="fab fa-github"></i> v<?php echo LOGVIEWR_VERSION; ?></a>
+          | <a href="admin/login.php" class="admin-link" ><i class="fas fa-cog"></i> Admin</a>
+          | <i class="fab fa-github"></i><a href="https://github.com/Erreur32/LogviewR" target="_blank" style=""> v<?php echo LOGVIEWR_VERSION; ?></a>
         </span>
       </div>
       <div class="footer-right">
@@ -837,9 +1058,12 @@ if (empty($log_file)) {
     </footer>
   </div>
 
+
+
+
   <script>
     let currentLogFile = '';
-    const defaultLinesPerPage = <?php echo $config['app']['default_lines_per_page']; ?>;
+    const defaultLinesPerPage = <?php echo (int)$config['app']['default_lines_per_page']; ?>;
     
     function toggleTheme() {
       const html = document.documentElement;
@@ -906,7 +1130,7 @@ if (empty($log_file)) {
           method: 'POST',
           data: { 
             logfile: logFile,
-            filters_enabled: window.getFiltersEnabled() ? '1' : '0'
+            filters_enabled: filtersEnabled ? '1' : '0'
           },
           dataType: 'json',
           success: function(response) {
@@ -958,9 +1182,10 @@ if (empty($log_file)) {
     // Fonction pour afficher le message de bienvenue
     function showWelcomeMessage() {
       const welcomeMessage = `
-        <div class="welcome-message"  style="border: 1px solid var(--primary-color);">
+        <div class="welcome-message">
           <div class="welcome-icon">
-            <i class="fas fa-file-alt"></i>
+            <!--     <i class="fas fa-file-alt"></i> -->
+            <img src="favicon.png" style="width: 60px; vertical-align: middle; margin-right: 5px;">
           </div>
           <div class="welcome-content">
             <h4>Bienvenue dans LogviewR</h4>
@@ -986,10 +1211,6 @@ if (empty($log_file)) {
       $('.category').removeClass('active');
       $(this).closest('.category').addClass('active');
       localStorage.setItem('selectedLogFile', logFile);
-      
-      // Gérer la visibilité du filtre de niveau
-      const isSyslog = $(this).closest('.category').find('h3').text().includes('Syslog');
-      $('.level-filter').toggle(isSyslog);
       
       loadLog(logFile);
     });
@@ -1092,7 +1313,25 @@ if (empty($log_file)) {
     const savedLevel = localStorage.getItem('selectedLevel');
 
     // Initialiser le menu de longueur avec la valeur de configuration
-    $('#lengthMenu').val(defaultLinesPerPage);
+    $(document).ready(function() {
+      // Récupérer la valeur de configuration
+      const configValue = <?php echo (int)$config['app']['default_lines_per_page']; ?>;
+      
+      // Mettre à jour le select avec la valeur de configuration
+      $('#lengthMenu').val(configValue);
+      
+      // Si la valeur n'existe pas dans les options, sélectionner la plus proche
+      if ($('#lengthMenu').val() === null) {
+        const values = $('#lengthMenu option').map(function() {
+          return parseInt($(this).val());
+        }).get().filter(v => v > 0);
+        
+        const closest = values.reduce(function(prev, curr) {
+          return (Math.abs(curr - configValue) < Math.abs(prev - configValue) ? curr : prev);
+        });
+        $('#lengthMenu').val(closest);
+      }
+    });
 
     if (savedTheme) {
       document.documentElement.setAttribute('data-theme', savedTheme);
@@ -1234,6 +1473,29 @@ if (empty($log_file)) {
             loadLog(currentLogFile);
         }
     });
+
+    // Gestion du toggle des filtres
+    document.getElementById('filterToggle').addEventListener('click', function() {
+        this.classList.toggle('active');
+        const isActive = this.classList.contains('active');
+        this.innerHTML = `<i class="fas fa-filter"></i> Filtres ${isActive ? 'ON' : 'OFF'}`;
+        
+        // Sauvegarder l'état des filtres
+        fetch('admin/ajax_actions.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: `action=update_filters&enabled=${isActive ? '1' : '0'}`
+        });
+        
+        // Mettre à jour l'état des filtres dans les parseurs
+        if (typeof updateFiltersState === 'function') {
+            updateFiltersState(isActive);
+        }
+    });
+
+
   </script>
  
 </body>

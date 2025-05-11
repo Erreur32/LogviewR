@@ -5,6 +5,41 @@ Toutes les modifications notables de ce projet seront documentées dans ce fichi
 Le format est basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/),
 et ce projet adhère au [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2024-04-25 🎉
+### Ajouté ✨
+- Nouveau thème "Dark Moderne Glass" avec effet glassmorphism
+- Système de debug amélioré avec logs détaillés
+- Nouvelle interface d'administration repensée
+- Support des logs PHP avec visualisation en temps réel
+- Système de permissions avancé avec vérification automatique
+
+### Modifié 🔄
+- Refonte complète du panneau d'administration
+- Amélioration de la gestion des thèmes
+- Optimisation des performances de parsing
+- Mise à jour du système de mise à jour automatique
+- Amélioration de la sécurité globale
+
+### Corrigé 🐛
+- Correction des problèmes de performance avec les grands fichiers
+- Résolution des bugs d'affichage dans le mode debug
+- Correction des problèmes de permissions sur les logs
+- Amélioration de la stabilité générale
+
+## [1.4.1] - 2024-04-22 🔧
+### Corrigé
+- 🐛 Correction du parsing des logs d'erreur NPM Proxy Host
+- 🔧 Amélioration de la gestion des types de logs NPM
+- ✨ Meilleure détection des colonnes selon le type de log
+- 📝 Mise à jour de la documentation
+- 🎨 Réorganisation du code des parsers
+
+### Détails techniques
+- Correction de la méthode `setType` dans `NPMProxyHostParser`
+- Amélioration de la détection des types dans `ParserFactory`
+- Réorganisation du code pour une meilleure maintenabilité
+- Mise à jour des patterns de logs pour une meilleure compatibilité
+
 ## [1.4.0] - 2024-03-20 🎉
 ### Ajouté
 - ✨ Nouveau système de mise à jour amélioré

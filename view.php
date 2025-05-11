@@ -1,14 +1,33 @@
 <?php
-require_once 'config/config.php';
+// Charger la configuration
+$config_file = file_exists(__DIR__ . '/config/config.user.php') 
+    ? __DIR__ . '/config/config.user.php'
+    : __DIR__ . '/config/config.php';
+
+$patterns_file = file_exists(__DIR__ . '/config/log_patterns.user.php')
+    ? __DIR__ . '/config/log_patterns.user.php'
+    : __DIR__ . '/config/log_patterns.php';
+
+require_once $config_file;
+require_once $patterns_file;
+require_once __DIR__ . '/includes/config.php';
+ 
+if (!file_exists($config_file)) {
+    die('Erreur: Fichier de configuration manquant (config.php)');
+}
+
+if (!file_exists($patterns_file)) {
+    die('Erreur: Fichier de patterns manquant (log_patterns.php)');
+}
+
+require_once $config_file;
 require_once 'parsers/ParserFactory.php';
 
 // Define constants if not already defined
 if (!defined('LOGS_DIR')) {
     define('LOGS_DIR', '/var/log');
 }
-if (!defined('MAX_LINES')) {
-    define('MAX_LINES', $config['app']['max_lines_per_request'] ?? 20000);
-}
+ 
 
 // Enable error reporting for debugging
 if (isset($config['debug']) && $config['debug']['enabled']) {
@@ -151,32 +170,29 @@ if (file_exists($logFile)) {
                 if ($logType === 'syslog') {
                     // For system logs, filter only by level
                     if ($level && isset($parsedLine['level']) && $parsedLine['level'] !== $level) {
-                        continue;
-                    }
-                } else {
-                    // For other log types (Apache, Nginx, NPM)
-                    if (isset($parsedLine['filtered']) && $parsedLine['filtered'] === true) {
                         $filteredCount++;
-                        if ($debug) {
-                            error_log("[DEBUG] Filtered line: " . json_encode($parsedLine));
-                        }
-                        continue;
-                    }
-                    
-                    // Apply additional filters if needed
-                    if ($filter && !preg_match('/' . preg_quote($filter, '/') . '/i', $line)) {
-                        if ($debug) {
-                            error_log("[DEBUG] Line filtered by search pattern: " . $line);
-                        }
-                        continue;
-                    }
-                    if ($level && isset($parsedLine['level']) && $parsedLine['level'] !== $level) {
-                        if ($debug) {
-                            error_log("[DEBUG] Line filtered by level: " . $parsedLine['level']);
-                        }
                         continue;
                     }
                 }
+                
+                // Check if line is filtered by parser
+                if (isset($parsedLine['filtered']) && $parsedLine['filtered'] === true) {
+                    $filteredCount++;
+                    if ($debug) {
+                        error_log("[DEBUG] Filtered line: " . json_encode($parsedLine));
+                    }
+                    continue;
+                }
+                
+                // Apply additional search filter if needed
+                if ($filter && !preg_match('/' . preg_quote($filter, '/') . '/i', $line)) {
+                    $filteredCount++;
+                    if ($debug) {
+                        error_log("[DEBUG] Line filtered by search pattern: " . $line);
+                    }
+                    continue;
+                }
+                
                 $logs[] = $parsedLine;
                 $lineCount++;
             }

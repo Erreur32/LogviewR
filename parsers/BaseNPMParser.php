@@ -7,61 +7,138 @@ require_once __DIR__ . '/BaseParser.php';
  * This class extends BaseParser and adds NPM-specific functionality
  * and formatting methods.
  */
-class BaseNPMParser extends BaseParser {
-    protected $currentType = 'access';
-    protected $patterns = [];
-    protected $columns = [];
+abstract class BaseNPMParser extends BaseParser {
+    protected $pattern;
     protected $debug = false;
-    protected $excludedIps = [];
-    protected $excludedRequests = [];
-    protected $excludedUserAgents = [];
-    protected $excludedUsers = [];
-    protected $excludedReferers = [];
-    protected $excludedContent = [];
-    protected $filtersEnabled = true;
 
-    /**
-     * Constructor
-     */
     public function __construct() {
         parent::__construct();
         
-        // Load configuration
-        $config = require __DIR__ . '/../config/config.php';
-        $this->debug = $config['debug']['enabled'] ?? false;
-        
-        // Load patterns and columns from configuration
-        $this->patterns = require __DIR__ . '/../config/log_patterns.php';
-        
-        // Load exclusion filters
-        if (isset($this->patterns['filters']['exclude'])) {
-            $this->excludedIps = $this->patterns['filters']['exclude']['ips'] ?? [];
-            $this->excludedRequests = $this->patterns['filters']['exclude']['requests'] ?? [];
-            $this->excludedUserAgents = $this->patterns['filters']['exclude']['user_agents'] ?? [];
-            $this->excludedUsers = $this->patterns['filters']['exclude']['users'] ?? [];
-            $this->excludedReferers = $this->patterns['filters']['exclude']['referers'] ?? [];
-            $this->excludedContent = $this->patterns['filters']['exclude']['content'] ?? [];
+        // Initialize columns configuration
+        $this->columns = [
+            'date' => $this->defaultColumnConfig['date'],
+            'host' => [
+                'name' => 'Host',
+                'class' => 'column-host',
+                'width' => '120px',
+                'align' => 'left',
+                'sortable' => true,
+                'searchable' => true,
+                'visible' => true
+            ],
+            'message' => [
+                'name' => 'Message',
+                'class' => 'column-message',
+                'width' => 'auto',
+                'align' => 'left',
+                'sortable' => true,
+                'searchable' => true,
+                'visible' => true
+            ]
+        ];
+    }
+
+    /**
+     * Parse a line of log
+     * @param string $line The line to parse
+     * @return array|null The parsed data or null if parsing failed
+     */
+    public function parse($line) {
+        if (preg_match($this->getPattern(), $line, $matches)) {
+            return [
+                'date' => $this->parseDate($matches[1]),
+                'host' => $matches[2],
+                'message' => $matches[3]
+            ];
         }
+        return null;
     }
 
     /**
-     * Enable or disable filters
-     * 
-     * @param bool $enabled Whether filters should be enabled
+     * Get the pattern used by this parser
+     * @return string The pattern
      */
-    public function setFiltersEnabled($enabled) {
-        $this->filtersEnabled = $enabled;
+    abstract public function getPattern();
+
+    /**
+     * Parse the date from the log line
+     * @param string $date The date string from the log
+     * @return string The formatted date
+     */
+    protected function parseDate($date) {
+        return date('Y-m-d H:i:s', strtotime($date));
     }
 
     /**
-     * Set the current log type (access or error)
-     * 
-     * @param string $type Log type
+     * Check if a log entry should be filtered
+     * @param array $data The log data to check
+     * @return bool True if the entry should be filtered
      */
-    public function setType($type) {
-        $this->currentType = $type;
-        // Update columns based on type
-        $this->columns = $this->patterns['npm-' . $this->getType()]['columns'] ?? $this->columns;
+    protected function shouldFilter($data) {
+        // Si les filtres sont désactivés, ne pas filtrer
+        if (!isset($this->config['filters']['enabled']) || !$this->config['filters']['enabled']) {
+            if ($this->debug) {
+                error_log("[DEBUG] Filters are disabled");
+            }
+            return false;
+        }
+
+        // Charger les filtres depuis config.user.php
+        $config_file = file_exists(__DIR__ . '/../config/config.user.php')
+            ? __DIR__ . '/../config/config.user.php'
+            : __DIR__ . '/../config/config.php';
+        $config = require $config_file;
+
+        if (!isset($config['filters']['exclude'])) {
+            if ($this->debug) {
+                error_log("[DEBUG] No filters found in configuration");
+            }
+            return false;
+        }
+
+        $filters = $config['filters']['exclude'];
+        $rawData = $data['raw'] ?? [];
+
+        // Vérifier les filtres IP
+        if (isset($filters['ips']) && !empty($filters['ips'])) {
+            foreach ($filters['ips'] as $pattern) {
+                if (isset($rawData['ip']) && preg_match($pattern, $rawData['ip'])) {
+                    if ($this->debug) {
+                        error_log("[DEBUG] IP filter match: " . $rawData['ip'] . " matches pattern: " . $pattern);
+                    }
+                    return true;
+                }
+            }
+        }
+
+        // Vérifier les filtres de requêtes
+        if (isset($filters['requests']) && !empty($filters['requests'])) {
+            foreach ($filters['requests'] as $pattern) {
+                if (isset($rawData['request']) && preg_match($pattern, $rawData['request'])) {
+                    if ($this->debug) {
+                        error_log("[DEBUG] Request filter match: " . $rawData['request'] . " matches pattern: " . $pattern);
+                    }
+                    return true;
+                }
+            }
+        }
+
+        // Vérifier les filtres user-agent
+        if (isset($filters['user_agents']) && !empty($filters['user_agents'])) {
+            foreach ($filters['user_agents'] as $pattern) {
+                if (isset($rawData['user_agent']) && preg_match($pattern, $rawData['user_agent'])) {
+                    if ($this->debug) {
+                        error_log("[DEBUG] User-Agent filter match: " . $rawData['user_agent'] . " matches pattern: " . $pattern);
+                    }
+                    return true;
+                }
+            }
+        }
+
+        if ($this->debug) {
+            error_log("[DEBUG] No filter matches found for data: " . json_encode($rawData));
+        }
+        return false;
     }
 
     /**
@@ -71,10 +148,29 @@ class BaseNPMParser extends BaseParser {
      * @return string Formatted badge
      */
     protected function formatMethodBadge($method) {
+        if (empty($method) || $method === '-') {
+            return '<span class="method-badge empty">-</span>';
+        }
+
         $method = strtoupper($method);
+        $methodColors = [
+            'GET' => '#4CAF50',
+            'POST' => '#2196F3',
+            'PUT' => '#FF9800',
+            'DELETE' => '#F44336',
+            'HEAD' => '#9C27B0',
+            'OPTIONS' => '#607D8B',
+            'PATCH' => '#795548',
+            'CONNECT' => '#9E9E9E',
+            'TRACE' => '#795548'
+        ];
+
+        $color = $methodColors[$method] ?? '#9E9E9E';
+
         return sprintf(
-            '<span class="npm-badge method-%s">%s</span>',
-            strtolower($method),
+            '<span class="method-badge" style="background-color: %s" title="%s">%s</span>',
+            $color,
+            htmlspecialchars($method),
             htmlspecialchars($method)
         );
     }
@@ -86,9 +182,25 @@ class BaseNPMParser extends BaseParser {
      * @return string Formatted badge
      */
     protected function formatProtocolBadge($protocol) {
+        if (empty($protocol) || $protocol === '-') {
+            return '<span class="protocol-badge empty">-</span>';
+        }
+
+        $protocolColors = [
+            'HTTP/1.0' => '#FF9800',
+            'HTTP/1.1' => '#4CAF50',
+            'HTTP/2' => '#2196F3',
+            'HTTP/3' => '#9C27B0',
+            'HTTPS' => '#4CAF50',
+            'HTTP' => '#FF9800'
+        ];
+
+        $color = $protocolColors[$protocol] ?? '#9E9E9E';
+
         return sprintf(
-            '<span class="npm-badge protocol-%s">%s</span>',
-            strtolower($protocol),
+            '<span class="protocol-badge" style="background-color: %s" title="%s">%s</span>',
+            $color,
+            htmlspecialchars($protocol),
             htmlspecialchars($protocol)
         );
     }
@@ -130,8 +242,24 @@ class BaseNPMParser extends BaseParser {
      * @return string Formatted badge
      */
     protected function formatHostBadge($host) {
+        if (empty($host) || $host === '-') {
+            return '<span class="host-badge empty">-</span>';
+        }
+
+        // Générer une couleur unique basée sur le nom d'hôte
+        $color = substr(md5($host), 0, 6);
+        
+        // Détecter si c'est un localhost ou une IP
+        $isLocalhost = (strpos($host, 'localhost') !== false || $host === '127.0.0.1');
+        $isIP = filter_var($host, FILTER_VALIDATE_IP) !== false;
+        
+        $class = $isLocalhost ? ' localhost' : ($isIP ? ' ip' : '');
+
         return sprintf(
-            '<span class="npm-badge host">%s</span>',
+            '<span class="host-badge%s" style="background-color: #%s" title="%s">%s</span>',
+            $class,
+            $color,
+            htmlspecialchars($host),
             htmlspecialchars($host)
         );
     }
@@ -143,8 +271,37 @@ class BaseNPMParser extends BaseParser {
      * @return string Formatted badge
      */
     protected function formatIpBadge($ip) {
+        if (empty($ip) || $ip === '-') {
+            return '<span class="ip-badge empty">-</span>';
+        }
+
+        // Générer une couleur unique basée sur l'IP
+        $color = substr(md5($ip), 0, 6);
+        
+        // Déterminer si c'est un bot connu
+        $isBot = false;
+        $knownBots = [
+            '/^66\.249\./' => 'Google',
+            '/^157\.55\./' => 'Bing',
+            '/^40\.77\./' => 'Bing',
+            '/^17\.58\./' => 'Apple',
+            '/^131\.253\./' => 'Bing',
+            '/^199\.59\./' => 'Twitter',
+            '/^54\.174\./' => 'Amazon'
+        ];
+
+        foreach ($knownBots as $pattern => $botName) {
+            if (preg_match($pattern, $ip)) {
+                $isBot = true;
+                break;
+            }
+        }
+
         return sprintf(
-            '<span class="npm-badge ip">%s</span>',
+            '<span class="ip-badge%s" style="background-color: #%s" title="%s">%s</span>',
+            $isBot ? ' bot' : '',
+            $color,
+            htmlspecialchars($ip),
             htmlspecialchars($ip)
         );
     }
@@ -260,111 +417,5 @@ class BaseNPMParser extends BaseParser {
         if ($this->debug) {
             parent::debugLog($message, $data);
         }
-    }
-
-    public function parse($line, $type = 'access') {
-        $line = trim($line);
-        if (empty($line)) {
-            return null;
-        }
-
-        // Get the appropriate pattern based on current type
-        $pattern = $this->patterns[$this->getType()]['pattern'];
-        
-        // Try to match the line with our pattern
-        if (!preg_match($pattern, $line, $matches)) {
-            return null;
-        }
-
-        return $this->currentType === 'access' 
-            ? $this->parseAccessLog($matches)
-            : $this->parseErrorLog($matches, $line);
-    }
-
-    protected function parseAccessLog($matches) {
-        // Format date
-        $date = $this->formatDate($matches[1]);
-
-        // Format status codes
-        $statusIn = isset($matches[2]) ? $this->formatStatusCode($matches[2]) : '-';
-        $statusOut = isset($matches[3]) ? $this->formatStatusCode($matches[3]) : '-';
-
-        // Format method and protocol
-        $method = $this->formatMethodBadge($matches[4] ?? '-');
-        $protocol = $this->formatProtocolBadge($matches[5] ?? '-');
-
-        // Format host and request
-        $host = $this->formatHostBadge($matches[6] ?? '-');
-        $request = $this->formatRequestBadge($matches[7] ?? '-', $matches[8] ?? '-');
-
-        // Format client IP
-        $clientIp = $this->formatIpBadge($matches[9] ?? '-');
-
-        // Format length and gzip
-        $length = $this->formatSize($matches[10] ?? '0');
-        $gzip = $this->formatGzipBadge($matches[11] ?? '-');
-
-        // Format sent-to
-        $sentTo = isset($matches[12]) ? $this->formatIpBadge($matches[12]) : '-';
-
-        // Format user agent and referer
-        $userAgent = isset($matches[13]) ? $this->formatUserAgentBadge($matches[13]) : '-';
-        $referer = isset($matches[14]) ? $this->formatRefererBadge($matches[14]) : '-';
-
-        return [
-            'date' => $date,
-            'status_in' => $statusIn,
-            'status_out' => $statusOut,
-            'method' => $method,
-            'protocol' => $protocol,
-            'host' => $host,
-            'request' => $request,
-            'client_ip' => $clientIp,
-            'length' => $length,
-            'gzip' => $gzip,
-            'sent_to' => $sentTo,
-            'user_agent' => $userAgent,
-            'referer' => $referer
-        ];
-    }
-
-    protected function parseErrorLog($matches, $line) {
-        // Format date
-        $date = parent::formatDate($matches[1]);
-
-        // Format error level
-        $level = $this->formatErrorLevel($matches[2] ?? '-');
-
-        // Format process ID
-        $pid = isset($matches[3]) ? $this->formatPid($matches[3]) : '-';
-
-        // Format connection ID
-        $connection = isset($matches[4]) ? $this->formatTid($matches[4]) : '-';
-
-        // Format message
-        $message = htmlspecialchars($matches[5] ?? '-');
-
-        // Format client and server
-        $client = isset($matches[6]) ? parent::formatIpBadge($matches[6]) : '-';
-        $server = isset($matches[7]) ? parent::formatIpBadge($matches[7]) : '-';
-
-        // Format request and host
-        $request = isset($matches[8]) ? sprintf(
-            '<span class="npm-badge request">%s</span>',
-            htmlspecialchars($matches[8])
-        ) : '-';
-        $host = isset($matches[9]) ? parent::formatHostBadge($matches[9]) : '-';
-
-        return [
-            'date' => $date,
-            'level' => $level,
-            'process' => $pid,
-            'connection' => $connection,
-            'message' => $message,
-            'client' => $client,
-            'server' => $server,
-            'request' => $request,
-            'host' => $host
-        ];
     }
 } 

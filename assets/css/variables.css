@@ -150,7 +150,7 @@
     --text-color: #ffffff;
     --primary-color: #64B5F6;
     --secondary-color: #B0BEC5;
-    --border-color: #2c2c2c;
+    --border-color: #535252;
     --hover-color: #1e1e1e;
 
     /* Status Colors */
@@ -165,7 +165,7 @@
     --table-header-bg: #111314de;
     --table-row-alt-bg: #242424;
     --table-row-hover-bg: #333333;
-    --table-border-color: #2c2c2c;
+    --table-border-color: #464545;
     --table-text-color: #ffffff;
     --table-header-text-color: #ffffff;
     --table-sorting-bg: transparent;
@@ -340,4 +340,63 @@ html[data-theme="dark"] body .dataTables_wrapper {
    ========================================================================== */
 [data-theme="light"] {
     --frame-bg: #f5f5f5;
+}
+
+
+      /* Styles pour le message de bienvenue selon le thème */
+      [data-theme="dark"] .welcome-message {
+        background: #1a1a1a;
+        border: 1px solid var(--primary-color);
+        color: #ffffff;
+      }
+  
+      [data-theme="light"] .welcome-message {
+        background: #ffffff;
+        border: 1px solid var(--primary-color);
+        color: #333333;
+      }
+  
+
+/* ==========================================================================
+   Glass Theme Variables
+   ========================================================================== */
+   [data-theme="glass"] {
+    --bg-color: #232526;
+    --text-color: #e0e6ed;
+    --primary-color: #6a85b6;
+    --secondary-color: #b993d6;
+    --border-color: #444;
+    --hover-color: #2d2d2d;
+
+    --accent-color: #b993d6;
+
+    /* Table Colors */
+    --table-bg: #232526;
+    --table-hover: #2d2d2d;
+    --table-header-bg: rgba(106,133,182,0.15);
+    --table-row-alt-bg: #262829;
+    --table-row-hover-bg: #2d2d2d;
+    --table-border-color: #444;
+    --table-text-color: #e0e6ed;
+    --table-header-text-color: #e0e6ed;
+
+    /* Glass effect */
+    --glass-bg: rgba(34, 40, 49, 0.7);
+    --glass-blur: 8px;
+
+    /* Badge Colors */
+    --badge-bg: #2c2c2c;
+    --badge-text: #e0e6ed;
+    --badge-border: #3c3c3c;
+
+    /* Footer */
+    --footer-bg: #232526;
+    --footer-text: #e0e6ed;
+}      
+
+.theme-preview.glass, [data-theme="glass"] .admin-card, [data-theme="glass"] .admin-header {
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--glass-blur));
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
 }

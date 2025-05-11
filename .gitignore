@@ -1,14 +1,18 @@
 # Configuration locale
-/config/local.php
-/config/config.local.php
+config/config.user.php
+config/log_patterns.user.php
+logs/*
 .env
 .env.local
 .env.*.local
 
 # Cache et logs
 /cache/*
+!/cache/.gitkeep
+
 /logs/*
-*.log
+!/logs/.gitkeep
+
 update_cache.json
 
 # IDE et éditeurs
@@ -56,4 +60,4 @@ sess_*
 
 # Fichiers de cache PHP
 *.cache.php
-*.cache 
+*.cache
