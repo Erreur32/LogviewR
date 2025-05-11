@@ -1,16 +1,9 @@
 # LogviewR 📊
 
-LogviewR est un outil de visualisation et d'analyse de logs en temps réel, conçu pour être simple, rapide et efficace.
+LogviewR est un outil de visualisation et d'analyse de logs en temps réel, conçu pour être simple. 
 
-## Fonctionnalités 🌟
 
-- Support multi-formats (Apache, Nginx, NPM, Syslog, PHP)
-- Interface responsive et moderne avec 3 thèmes (Dark, Light, Glass)
-- Filtrage en temps réel
-- Administration sécurisée avec debug avancé
-- Mise à jour automatique
-- Support multilingue
-- Système de permissions avancé
+ 
 
 ## Fonctionnalités Principales ✨
 
