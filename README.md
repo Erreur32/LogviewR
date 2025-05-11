@@ -1,5 +1,5 @@
-# LogviewR 📊
-
+# <img src="favicon.png" alt="LogviewR" width="42"> LogviewR 
+ 
 LogviewR est un outil de visualisation et d'analyse de logs en temps réel, conçu pour être simple. 
 
 
@@ -63,11 +63,7 @@ LogviewR est un outil de visualisation et d'analyse de logs en temps réel, con�
    chmod -R 777 cache/
    ```
 
-3. **Configuration**
-   - Copier `config/config.example.php` vers `config/config.php`
-   - Modifier les paramètres selon vos besoins
-   - Configurer les chemins des logs dans `config/sources.php`
-
+ 
 ## Screen
 
 <details>
