@@ -85,6 +85,8 @@ services:
       # Mount host logs directory (read-only) for log viewer functionality
       # This allows LogviewR to read log files from the host system
       # Host System plugin uses /host/logs to access /var/log
+      # NOTE: If /:/host:ro is commented, we need this mount. Otherwise use symlink in entrypoint.
+      # For dev, we keep the mount since /:/host:ro is commented to avoid permission issues
       - /var/log:/host/logs:ro
       # Optional: Mount specific log directories for direct access
       # Uncomment if you want plugins to access logs directly without /host/ prefix:
