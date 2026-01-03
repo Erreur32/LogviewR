@@ -212,10 +212,10 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
         return JSON.stringify(plugin.settings.logFiles);
     }, [plugin?.settings?.logFiles]);
 
-    // Load log files from plugin settings (DB) - don't scan automatically
+    // Load log files from plugin settings (DB) and system detected files
     useEffect(() => {
         if (pluginId === 'host-system') {
-            // Load from plugin settings (DB) instead of scanning
+            // Load from plugin settings (DB) first
             if (plugin?.settings?.logFiles && Array.isArray(plugin.settings.logFiles)) {
                 const dbFiles = plugin.settings.logFiles as Array<{ path: string; type: string; enabled: boolean }>;
                 setLogFiles(dbFiles);
@@ -240,33 +240,70 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
             loadDefaultFiles();
             setNewLogFile({ path: '', type: 'custom' });
             
-            // Only scan if no files in DB (first time setup)
-            if (!plugin?.settings?.logFiles || (Array.isArray(plugin.settings.logFiles) && plugin.settings.logFiles.length === 0)) {
-                // First time: scan automatically
-                loadLogFiles(true).catch(err => {
-                    console.warn('Failed to scan logging services on first load:', err);
-                });
-            } else {
-                // Load rotation info even if files are in DB
-                const loadRotationInfo = async () => {
-                    try {
-                        const rotationResponse = await api.get<{
+            // Always load system detected files (even if files are in DB)
+            // This ensures the "Fichiers de logs système" section shows detected files
+            const loadSystemDetectedFiles = async () => {
+                try {
+                    setIsLoadingLogFiles(true);
+                    const detectResponse = await api.get<{
+                        primaryService: { type: string; active: boolean; logFilesCount: number } | null;
+                        allServices: Array<{ type: string; active: boolean; logFilesCount: number }>;
+                        categorizedFiles: {
+                            systemBaseFiles: Array<{ path: string; type: string; enabled: boolean; detected: boolean; validated: boolean; isSystemCritical?: boolean }>;
+                            autoDetectedFiles: Array<{ path: string; type: string; enabled: boolean; detected: boolean; validated: boolean; parserType: string }>;
+                        };
+                        logRotation?: {
                             rotationSystem: string;
                             active: boolean;
                             configPath?: string;
                             configFiles?: string[];
                             configuredLogFiles: Array<{ path: string; type: string; rotationPattern?: string; keepDays?: number; compress?: boolean }>;
-                            commonLogFiles: Array<{ path: string; type: string; osTypes: string[] }>;
-                        }>('/api/log-viewer/log-rotation-info');
-                        if (rotationResponse.success && rotationResponse.result) {
-                            setLogRotationInfo(rotationResponse.result);
+                            commonLogFiles?: Array<{ path: string; type: string; osTypes: string[] }>;
+                        };
+                    }>('/api/log-viewer/detect-logging-services');
+                    
+                    if (detectResponse.success && detectResponse.result) {
+                        // Store system detected files for display
+                        setSystemDetectedFiles([
+                            ...(detectResponse.result.categorizedFiles.systemBaseFiles || []),
+                            ...(detectResponse.result.categorizedFiles.autoDetectedFiles || [])
+                        ]);
+                        
+                        // Set log rotation info if available
+                        if (detectResponse.result.logRotation) {
+                            setLogRotationInfo({
+                                ...detectResponse.result.logRotation,
+                                commonLogFiles: detectResponse.result.logRotation.commonLogFiles || []
+                            });
+                        } else {
+                            // Try to load rotation info separately
+                            try {
+                                const rotationResponse = await api.get<{
+                                    rotationSystem: string;
+                                    active: boolean;
+                                    configPath?: string;
+                                    configFiles?: string[];
+                                    configuredLogFiles: Array<{ path: string; type: string; rotationPattern?: string; keepDays?: number; compress?: boolean }>;
+                                    commonLogFiles: Array<{ path: string; type: string; osTypes: string[] }>;
+                                }>('/api/log-viewer/log-rotation-info');
+                                if (rotationResponse.success && rotationResponse.result) {
+                                    setLogRotationInfo(rotationResponse.result);
+                                }
+                            } catch (rotationError) {
+                                console.warn('Failed to load log rotation info:', rotationError);
+                            }
                         }
-                    } catch (rotationError) {
-                        console.warn('Failed to load log rotation info:', rotationError);
                     }
-                };
-                loadRotationInfo();
-            }
+                } catch (error) {
+                    console.warn('Failed to load system detected files:', error);
+                    // Don't block UI if detection fails
+                } finally {
+                    setIsLoadingLogFiles(false);
+                }
+            };
+            
+            // Load system detected files in background (non-blocking)
+            loadSystemDetectedFiles();
         } else if (pluginId === 'apache' || pluginId === 'nginx' || pluginId === 'npm') {
             // Load custom log files from plugin settings
             if (plugin?.settings?.logFiles) {
@@ -1366,7 +1403,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
 
                                 {isLogFilesExpanded && (
                                     <div className="bg-[#0f0f0f] rounded-lg border border-gray-800 p-4">
-                                {isLoadingLogFiles && pluginId === 'host-system' ? (
+                                {isLoadingLogFiles && pluginId === 'host-system' && (!logFiles || logFiles.length === 0) && (!systemDetectedFiles || systemDetectedFiles.length === 0) ? (
                                     <div className="text-center py-4 text-gray-500 text-xs">Chargement...</div>
                                 ) : (
                                     <>
