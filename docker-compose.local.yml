@@ -66,6 +66,9 @@ services:
       # Exemple de secret généré : aB3xK9mP2vQ7wR5tY8uI0oP1aS6dF4gH7jK2lM9nB0vC3xZ6
       - JWT_SECRET=${JWT_SECRET:-change-me-in-production-please-use-strong-secret}
       - CONFIG_FILE_PATH=${CONFIG_FILE_PATH:-/app/config/logviewr.conf}
+      # Host metrics access (read-only mount of host filesystem)
+      # Used to read hostname, disk usage, and system info from the host
+      - HOST_ROOT_PATH=${HOST_ROOT_PATH:-/host}
     volumes:
       # Persistent storage for database
       - logviewr_data_local:/app/data
