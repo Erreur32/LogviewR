@@ -53,7 +53,7 @@
     "tailwindcss": "^3.4.17",
     "typescript": "~5.8.2",
     "vite": "^6.2.0",
-    "vitest": "^2.1.9"
+    "vitest": "^4.0.16"
   },
   "overrides": {
     "tough-cookie": ">=4.1.3"
