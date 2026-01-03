@@ -26,7 +26,7 @@ export interface NpmPluginConfig {
 
 export class NpmLogPlugin extends BasePlugin implements LogSourcePlugin {
     constructor() {
-        super('npm', 'Nginx Proxy Manager Logs', '0.1.0');
+        super('npm', 'Nginx Proxy Manager Logs', '0.1.3');
     }
 
     async getStats(): Promise<PluginStats> {

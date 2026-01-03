@@ -27,7 +27,7 @@ export interface ApachePluginConfig {
 
 export class ApacheLogPlugin extends BasePlugin implements LogSourcePlugin {
     constructor() {
-        super('apache', 'Apache Logs', '0.1.0');
+        super('apache', 'Apache Logs', '0.1.3');
     }
 
     async getStats(): Promise<PluginStats> {
