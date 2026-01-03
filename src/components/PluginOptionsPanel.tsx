@@ -266,13 +266,35 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
         }
     }, [pluginId, plugin]);
 
+    // Debounce ref for basePath changes to avoid reloading while user is typing
+    const basePathDebounceRef = useRef<NodeJS.Timeout | null>(null);
+    const lastSavedBasePathRef = useRef<string>('');
+
     // Load custom regexes for log source plugins
     useEffect(() => {
         if (isLogSourcePlugin && plugin) {
             loadCustomRegexes();
-            // Load quick first, then complete in background
-            loadDetectedFiles(true);
+            // Only load detected files if basePath has actually changed and is different from last saved
+            const currentBasePath = String(formData.basePath || '').trim();
+            if (currentBasePath && currentBasePath !== lastSavedBasePathRef.current) {
+                // Clear any pending debounce
+                if (basePathDebounceRef.current) {
+                    clearTimeout(basePathDebounceRef.current);
+                }
+                // Debounce the reload to avoid reloading while user is typing
+                basePathDebounceRef.current = setTimeout(() => {
+                    // Load quick first, then complete in background
+                    loadDetectedFiles(true);
+                    lastSavedBasePathRef.current = currentBasePath;
+                }, 1000); // Wait 1 second after user stops typing
+            }
         }
+        
+        return () => {
+            if (basePathDebounceRef.current) {
+                clearTimeout(basePathDebounceRef.current);
+            }
+        };
     }, [pluginId, isLogSourcePlugin, plugin, formData.basePath]);
     
     const loadDetectedFiles = async (quick: boolean = false) => {
@@ -704,12 +726,27 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
             readCompressed: 'Lire les fichiers compressés'
         };
         
-        // Auto-save on input change (except for toggles that already have auto-save)
-        if (field !== 'readCompressed' && field !== 'maxLines') {
+        // Auto-save on input change (except for toggles and basePath)
+        // basePath is handled separately with debounce to avoid reloading files while user is typing
+        if (field !== 'readCompressed' && field !== 'maxLines' && field !== 'basePath') {
             await autoSave();
             // Show notification
             const fieldLabel = fieldLabels[field] || field;
             showInlineNotification(`${fieldLabel} sauvegardé`, elementRef);
+        } else if (field === 'basePath') {
+            // For basePath, save with debounce to avoid reloading while user is typing
+            // Clear any pending save
+            if (autoSaveTimeoutRef.current) {
+                clearTimeout(autoSaveTimeoutRef.current);
+            }
+            // Debounce the save (500ms)
+            autoSaveTimeoutRef.current = setTimeout(async () => {
+                await autoSave();
+                const fieldLabel = fieldLabels[field] || field;
+                showInlineNotification(`${fieldLabel} sauvegardé`, elementRef);
+                // Update last saved basePath to trigger detected files reload
+                lastSavedBasePathRef.current = String(value).trim();
+            }, 500);
         }
     };
 
@@ -1249,10 +1286,17 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                         {/* Log Files Management (host-system, apache, nginx, npm) - Collapsible */}
                         {(pluginId === 'host-system' || pluginId === 'apache' || pluginId === 'nginx' || pluginId === 'npm') && (
                             <div className="mt-4 pt-4 border-t border-gray-800">
-                                <button
-                                    type="button"
+                                <div
+                                    role="button"
+                                    tabIndex={0}
                                     onClick={() => setIsLogFilesExpanded(!isLogFilesExpanded)}
-                                    className="w-full flex items-center justify-between p-3 bg-[#1a1a1a] rounded border border-purple-500/30 hover:bg-[#252525] transition-colors mb-3"
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' || e.key === ' ') {
+                                            e.preventDefault();
+                                            setIsLogFilesExpanded(!isLogFilesExpanded);
+                                        }
+                                    }}
+                                    className="w-full flex items-center justify-between p-3 bg-[#1a1a1a] rounded border border-purple-500/30 hover:bg-[#252525] transition-colors mb-3 cursor-pointer"
                                 >
                                     <h4 className="text-base font-bold text-purple-400 flex items-center gap-2">
                                         <FileText size={18} />
@@ -1279,7 +1323,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                             <ChevronDown size={18} className="text-gray-400" />
                                     )}
                                 </div>
-                                </button>
+                                </div>
 
                                 {isLogFilesExpanded && (
                                     <div className="bg-[#0f0f0f] rounded-lg border border-gray-800 p-4">
@@ -1579,10 +1623,17 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                         {/* Detected Files with Regex Section */}
                         {(['apache', 'nginx', 'npm', 'host-system'].includes(pluginId)) && formData.basePath && (
                             <div className="mt-4 pt-4 border-t border-gray-800">
-                                <button
-                                    type="button"
+                                <div
+                                    role="button"
+                                    tabIndex={0}
                                     onClick={() => setIsDetectedFilesExpanded(!isDetectedFilesExpanded)}
-                                    className="w-full flex items-center justify-between p-3 bg-[#1a1a1a] rounded border border-cyan-500/30 hover:bg-[#252525] transition-colors mb-3"
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' || e.key === ' ') {
+                                            e.preventDefault();
+                                            setIsDetectedFilesExpanded(!isDetectedFilesExpanded);
+                                        }
+                                    }}
+                                    className="w-full flex items-center justify-between p-3 bg-[#1a1a1a] rounded border border-cyan-500/30 hover:bg-[#252525] transition-colors mb-3 cursor-pointer"
                                 >
                                     <h4 className="text-base font-bold text-cyan-400 flex items-center gap-2">
                                         <FileText size={18} />
@@ -1607,7 +1658,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                             <ChevronDown size={18} className="text-gray-400" />
                                         )}
                                     </div>
-                                </button>
+                                </div>
                                 
                                 {isDetectedFilesExpanded && (
                                     <>

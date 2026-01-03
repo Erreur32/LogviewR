@@ -27,7 +27,7 @@ export interface NginxPluginConfig {
 
 export class NginxLogPlugin extends BasePlugin implements LogSourcePlugin {
     constructor() {
-        super('nginx', 'Nginx Logs', '0.1.3');
+        super('nginx', 'Nginx Logs', '0.1.4');
     }
 
     async getStats(): Promise<PluginStats> {
@@ -40,8 +40,11 @@ export class NginxLogPlugin extends BasePlugin implements LogSourcePlugin {
             const config = this.config?.settings as NginxPluginConfig | undefined;
             const basePath = config?.basePath || this.getDefaultBasePath();
             
+            // Convert to Docker path if needed
+            const actualBasePath = this.convertToDockerPath(basePath);
+            
             // Test if base path exists and is readable
-            await fs.access(basePath);
+            await fs.access(actualBasePath);
             return true;
         } catch {
             return false;
@@ -105,6 +108,9 @@ export class NginxLogPlugin extends BasePlugin implements LogSourcePlugin {
         const results: LogFileInfo[] = [];
         
         try {
+            // Convert basePath to Docker path if needed (handles /var/log/nginx, etc.)
+            const actualBasePath = this.convertToDockerPath(basePath);
+            
             // Convert glob patterns to regex patterns
             const regexPatterns = patterns.map(p => {
                 const regexStr = p
@@ -158,7 +164,7 @@ export class NginxLogPlugin extends BasePlugin implements LogSourcePlugin {
                 }
             };
 
-            await scanDirectory(basePath);
+            await scanDirectory(actualBasePath);
         } catch (error) {
             console.error(`[NginxLogPlugin] Error scanning files:`, error);
         }

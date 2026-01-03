@@ -5,6 +5,7 @@
  */
 
 import type { IPlugin, PluginConfig, PluginStats } from './PluginInterface.js';
+import * as fsSync from 'fs';
 
 export abstract class BasePlugin implements IPlugin {
     protected id: string;
@@ -53,6 +54,64 @@ export abstract class BasePlugin implements IPlugin {
 
     isEnabled(): boolean {
         return this.config?.enabled === true;
+    }
+
+    /**
+     * Detect if running in Docker container
+     */
+    protected isDocker(): boolean {
+        try {
+            // Check /proc/self/cgroup (Linux)
+            const cgroup = fsSync.readFileSync('/proc/self/cgroup', 'utf8');
+            if (cgroup.includes('docker') || cgroup.includes('containerd')) {
+                return true;
+            }
+        } catch {
+            // Not Linux or file doesn't exist
+        }
+        
+        // Check environment variable
+        if (process.env.DOCKER === 'true' || process.env.DOCKER_CONTAINER === 'true') {
+            return true;
+        }
+        
+        // Check for .dockerenv file
+        try {
+            fsSync.accessSync('/.dockerenv');
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    /**
+     * Convert a standard log path to Docker path if needed
+     * Converts paths starting with /var/log to /host/logs (or /host/var/log if symlink exists)
+     * This handles paths like /var/log, /var/log/apache2, /var/log/nginx, etc.
+     */
+    protected convertToDockerPath(filePath: string): string {
+        if (!this.isDocker()) {
+            return filePath;
+        }
+
+        const HOST_ROOT_PATH = process.env.HOST_ROOT_PATH || '/host';
+        const DOCKER_LOG_PATH = '/host/logs';
+        const STANDARD_LOG_PATH = '/var/log';
+
+        // If path starts with /var/log, convert it
+        if (filePath.startsWith(STANDARD_LOG_PATH)) {
+            // Check if /host/logs exists (symlink created by docker-entrypoint.sh)
+            if (fsSync.existsSync(DOCKER_LOG_PATH)) {
+                // Replace /var/log with /host/logs
+                return filePath.replace(STANDARD_LOG_PATH, DOCKER_LOG_PATH);
+            } else {
+                // Fallback: use /host/var/log (direct mount)
+                const dockerPath = filePath.replace(STANDARD_LOG_PATH, `${HOST_ROOT_PATH}/var/log`);
+                return dockerPath;
+            }
+        }
+
+        return filePath;
     }
 
     abstract getStats(): Promise<PluginStats>;

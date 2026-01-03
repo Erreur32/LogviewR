@@ -4,7 +4,7 @@
 
 <img src="LogviewR_banner.svg" alt="LogviewR" width="512" height="256" />
 
-![LogviewR](https://img.shields.io/badge/LogviewR-0.1.3-111827?style=for-the-badge)
+![LogviewR](https://img.shields.io/badge/LogviewR-0.1.4-111827?style=for-the-badge)
 ![Status](https://img.shields.io/badge/Status-DEVELOPMENT-374151?style=for-the-badge)
 ![Docker](https://img.shields.io/badge/Docker-Ready-1f2937?style=for-the-badge&logo=docker&logoColor=38bdf8)
 ![React](https://img.shields.io/badge/React-19-111827?style=for-the-badge&logo=react&logoColor=38bdf8)
@@ -332,6 +332,65 @@ Lors du premier démarrage de LogviewR, si aucun utilisateur n'existe dans la ba
 | `DASHBOARD_PORT` | Port du dashboard | `7500` | Non |
 | `HOST_IP` | IP de la machine hôte | Auto-détection | Non |
 | `CONFIG_FILE_PATH` | Chemin du fichier de configuration externe | `/app/config/logviewr.conf` | Non |
+| `ADM_GID` | GID du groupe adm sur l'hôte (pour lire les fichiers de logs) | `4` | Non |
+| `HOST_ROOT_PATH` | Chemin racine du système hôte monté dans le conteneur | `/host` | Non |
+
+### Permissions des fichiers de logs système
+
+Le plugin **Host System Logs** nécessite l'accès en lecture aux fichiers de logs système. Par défaut, ces fichiers appartiennent à `root:adm` avec des permissions `640` (lecture pour root et le groupe adm).
+
+#### Configuration automatique
+
+Le conteneur Docker est automatiquement configuré pour :
+- Ajouter l'utilisateur `node` au groupe `adm` (GID 4)
+- Permettre la lecture des fichiers appartenant à `root:adm`
+
+#### Vérification du GID du groupe adm
+
+Pour vérifier que le GID correspond entre l'hôte et le conteneur :
+
+```bash
+# Sur l'hôte
+getent group adm | cut -d: -f3
+
+# Dans le conteneur
+docker exec logviewr id
+```
+
+Si le GID est différent de 4, ajoutez dans votre fichier `.env` :
+```bash
+ADM_GID=votre_gid
+```
+
+#### Fichiers avec permissions restrictives
+
+Certains fichiers de logs peuvent avoir des permissions plus restrictives (`600` - lecture/écriture pour root uniquement) :
+
+**Exemples de fichiers problématiques :**
+- `/var/log/php8.0-fpm.log` (appartient à `root:root` avec `600`)
+- `/var/log/rkhunter.log.1` (appartient à `root:root` avec `600`)
+
+**Solution :** Modifier les permissions sur l'hôte pour permettre la lecture par le groupe `adm` :
+
+```bash
+# Changer le groupe en adm et ajouter la lecture pour le groupe
+sudo chgrp adm /var/log/php8.0-fpm.log*
+sudo chmod 640 /var/log/php8.0-fpm.log*
+
+sudo chgrp adm /var/log/rkhunter.log*
+sudo chmod 640 /var/log/rkhunter.log*
+```
+
+**Vérification après modification :**
+```bash
+# Vérifier les permissions
+ls -la /var/log/php8.0-fpm.log
+ls -la /var/log/rkhunter.log.1
+
+# Devrait afficher : -rw-r----- 1 root adm (640)
+```
+
+**Note de sécurité :** Modifier les permissions des fichiers de logs pour permettre la lecture par le groupe `adm` est une pratique standard sur les systèmes Linux. Le groupe `adm` est conçu pour permettre l'accès aux fichiers de logs aux administrateurs système.
 
 ### Configuration Docker
 

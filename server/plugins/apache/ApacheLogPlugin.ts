@@ -27,7 +27,7 @@ export interface ApachePluginConfig {
 
 export class ApacheLogPlugin extends BasePlugin implements LogSourcePlugin {
     constructor() {
-        super('apache', 'Apache Logs', '0.1.3');
+        super('apache', 'Apache Logs', '0.1.4');
     }
 
     async getStats(): Promise<PluginStats> {
@@ -40,8 +40,11 @@ export class ApacheLogPlugin extends BasePlugin implements LogSourcePlugin {
             const config = this.config?.settings as ApachePluginConfig | undefined;
             const basePath = config?.basePath || this.getDefaultBasePath();
             
+            // Convert to Docker path if needed
+            const actualBasePath = this.convertToDockerPath(basePath);
+            
             // Test if base path exists and is readable
-            await fs.access(basePath);
+            await fs.access(actualBasePath);
             return true;
         } catch {
             return false;
@@ -105,6 +108,9 @@ export class ApacheLogPlugin extends BasePlugin implements LogSourcePlugin {
         const results: LogFileInfo[] = [];
         
         try {
+            // Convert basePath to Docker path if needed (handles /var/log/apache2, etc.)
+            const actualBasePath = this.convertToDockerPath(basePath);
+            
             // Convert glob patterns to regex patterns
             // Handle compressed files (.gz, .bz2, .xz) by allowing optional extensions after .log
             const regexPatterns = patterns.map(p => {
@@ -167,7 +173,7 @@ export class ApacheLogPlugin extends BasePlugin implements LogSourcePlugin {
                 }
             };
 
-            await scanDirectory(basePath);
+            await scanDirectory(actualBasePath);
         } catch (error) {
             console.error(`[ApacheLogPlugin] Error scanning files:`, error);
         }

@@ -87,7 +87,7 @@ export class HostSystemLogPlugin extends BasePlugin implements LogSourcePlugin {
     private osInfo: Awaited<ReturnType<typeof detectOS>> | null = null;
 
     constructor() {
-        super('host-system', 'Host System Logs', '0.1.3');
+        super('host-system', 'Host System Logs', '0.1.4');
         // Detect OS on initialization and set default log files
         detectOS().then(info => {
             this.osInfo = info;
@@ -102,41 +102,25 @@ export class HostSystemLogPlugin extends BasePlugin implements LogSourcePlugin {
     }
 
     /**
-     * Detect if running in Docker
-     */
-    private isDocker(): boolean {
-        try {
-            // Check if /.dockerenv exists or if /host/logs exists (Docker mount)
-            return fsSync.existsSync('/.dockerenv') || fsSync.existsSync(this.DOCKER_LOG_PATH);
-        } catch {
-            return false;
-        }
-    }
-
-    /**
      * Get the base path for logs (Docker or standard)
      */
     private getLogBasePath(): string {
         if (this.isDocker()) {
-            // Check if /host/logs exists (Docker mount)
+            // Check if /host/logs exists (symlink created by docker-entrypoint.sh)
             if (fsSync.existsSync(this.DOCKER_LOG_PATH)) {
                 return this.DOCKER_LOG_PATH;
+            }
+            // Fallback: use /host/var/log directly if symlink doesn't exist
+            const directPath = `${this.HOST_ROOT_PATH}/var/log`;
+            if (fsSync.existsSync(directPath)) {
+                return directPath;
             }
         }
         // Fallback to standard path
         return this.STANDARD_LOG_PATH;
     }
 
-    /**
-     * Convert a standard log path to Docker path if needed
-     */
-    private convertToDockerPath(filePath: string): string {
-        if (this.isDocker() && filePath.startsWith(this.STANDARD_LOG_PATH)) {
-            // Replace /var/log with /host/logs
-            return filePath.replace(this.STANDARD_LOG_PATH, this.DOCKER_LOG_PATH);
-        }
-        return filePath;
-    }
+    // Note: convertToDockerPath is now inherited from BasePlugin
 
     async getStats(): Promise<PluginStats> {
         // Host system plugin doesn't provide device/network stats
@@ -146,7 +130,7 @@ export class HostSystemLogPlugin extends BasePlugin implements LogSourcePlugin {
     async testConnection(): Promise<boolean> {
         // Test if we can read at least one log file
         try {
-            const config = this.config?.settings as HostSystemPluginConfig | undefined;
+            const config = this.config?.settings as unknown as HostSystemPluginConfig | undefined;
             const logFiles = config?.logFiles || this.defaultLogFiles;
             const basePath = this.getLogBasePath();
             
@@ -186,7 +170,7 @@ export class HostSystemLogPlugin extends BasePlugin implements LogSourcePlugin {
      * (since system log files are already detected, user will add subdirectories manually if needed)
      */
     private shouldExclude(filePath: string, entryName: string, isDirectory: boolean, basePath: string): boolean {
-        const config = this.config?.settings as HostSystemPluginConfig | undefined;
+        const config = this.config?.settings as unknown as HostSystemPluginConfig | undefined;
         const excludeFilters = config?.excludeFilters;
         
         // For host-system plugin: by default, exclude all directories in basePath
@@ -262,10 +246,8 @@ export class HostSystemLogPlugin extends BasePlugin implements LogSourcePlugin {
         const results: LogFileInfo[] = [];
         
         try {
-            // Use Docker path if in Docker, otherwise use provided basePath
-            const actualBasePath = this.isDocker() && basePath === this.STANDARD_LOG_PATH 
-                ? this.DOCKER_LOG_PATH 
-                : basePath;
+            // Convert basePath to Docker path if needed (handles /var/log, /var/log/apache2, etc.)
+            const actualBasePath = this.convertToDockerPath(basePath);
 
             // If no patterns provided, use default patterns
             const actualPatterns = patterns.length > 0 ? patterns : this.getDefaultFilePatterns();
@@ -389,7 +371,7 @@ export class HostSystemLogPlugin extends BasePlugin implements LogSourcePlugin {
         }
 
         // Get custom parser config if available
-        const config = this.config?.settings as HostSystemPluginConfig | undefined;
+        const config = this.config?.settings as unknown as HostSystemPluginConfig | undefined;
         const logFile = config?.logFiles?.find(f => f.type === logType);
         const customParserConfig = logFile?.customParserConfig;
 
@@ -1005,9 +987,25 @@ export class HostSystemLogPlugin extends BasePlugin implements LogSourcePlugin {
                         // Add to auto-detected files
                         const existing = autoDetectedFiles.find(f => f.path === logFile.path);
                         if (!existing) {
+                            // Map log file type to valid autoDetectedFiles type
+                            // journald -> syslog, user/cron -> custom, others stay as-is
+                            let mappedType: 'syslog' | 'auth' | 'kern' | 'daemon' | 'mail' | 'custom';
+                            if (logFile.type === 'journald') {
+                                mappedType = 'syslog';
+                            } else if (logFile.type === 'user' || logFile.type === 'cron') {
+                                mappedType = 'custom';
+                            } else if (logFile.type === 'syslog' || logFile.type === 'auth' || 
+                                      logFile.type === 'kern' || logFile.type === 'daemon' || 
+                                      logFile.type === 'mail' || logFile.type === 'custom') {
+                                mappedType = logFile.type;
+                            } else {
+                                // Fallback to custom for unknown types
+                                mappedType = 'custom';
+                            }
+                            
                             autoDetectedFiles.push({
                                 path: logFile.path,
-                                type: logFile.type === 'journald' ? 'syslog' : logFile.type,
+                                type: mappedType,
                                 enabled: true,
                                 detected: true,
                                 validated: logFile.source === 'config',

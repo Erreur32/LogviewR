@@ -5,6 +5,75 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.4] - 2026-01-03
+
+### Fixed
+
+#### Plugin Options Panel
+- **Auto-refresh issue**: Fixed automatic refresh that was overwriting user input when editing `basePath` field
+  - Added debounce (500ms) for `basePath` field auto-save
+  - Added debounce (1s) for detected files reload after `basePath` changes
+  - Prevents file list from reloading while user is typing
+  - User modifications are no longer overwritten during editing
+
+#### Docker Path Conversion
+- **Apache and Nginx plugins**: Fixed Docker path conversion for log files
+  - Added `convertToDockerPath()` method in `BasePlugin` for automatic path conversion
+  - Converts `/var/log/apache2` to `/host/logs/apache2` (or `/host/var/log/apache2` as fallback)
+  - Converts `/var/log/nginx` to `/host/logs/nginx` (or `/host/var/log/nginx` as fallback)
+  - Handles all paths starting with `/var/log` automatically
+  - Works correctly even when `/host/logs` symlink doesn't exist
+
+#### Host System Plugin
+- **Docker path fallback**: Improved fallback mechanism for log base path
+  - Uses `/host/var/log` directly when `/host/logs` symlink doesn't exist
+  - Prevents "Connection failed" errors when symlink creation fails
+  - Better compatibility with read-only filesystems
+
+#### HTML Validation
+- **Nested buttons**: Fixed React hydration error caused by nested `<button>` elements
+  - Replaced parent buttons with `<div>` elements using `role="button"` and `tabIndex={0}`
+  - Added keyboard navigation support (Enter and Space keys)
+  - Applied to "Fichiers de logs système" and "Fichiers détectés avec regex" sections
+  - Maintains full functionality and accessibility
+
+#### TypeScript Errors
+- **Type conversions**: Fixed TypeScript errors for `HostSystemPluginConfig` type conversions
+  - Added `as unknown as` intermediate conversion for safe type casting
+  - Fixed type mapping for 'user' and 'cron' log types in auto-detected files
+  - Improved type safety in plugin configuration handling
+
+### Added
+
+#### Log File Permissions
+- **Docker permissions**: Added automatic configuration for reading system log files
+  - Container automatically adds `node` user to `adm` group (GID 4)
+  - Allows reading files owned by `root:adm` with permissions `640`
+  - Configurable via `ADM_GID` environment variable for custom GID
+  - Supports reading auth.log, cron.log, daemon.log, syslog, and other system logs
+
+#### Documentation
+- **README updates**: Added comprehensive documentation for log file permissions
+  - Section explaining Docker permissions configuration
+  - Instructions for handling files with restrictive permissions (600)
+  - Examples for fixing permissions on php8.0-fpm.log and rkhunter.log.1
+  - Security notes about adm group usage
+
+### Changed
+
+#### Docker Configuration
+- **docker-compose.yml**: Added `group_add` configuration for adm group
+  - Automatically adds container to adm group for log file access
+  - Configurable via `ADM_GID` environment variable (default: 4)
+
+#### docker-entrypoint.sh
+- **Group management**: Enhanced entrypoint script to add node user to adm group
+  - Creates adm group with standard GID 4 if it doesn't exist
+  - Adds node user to adm group for log file access
+  - Works seamlessly with Docker volume mounts
+
+---
+
 ## [0.1.3] - 2026-01-03
 
 ---

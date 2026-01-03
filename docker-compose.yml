@@ -55,6 +55,13 @@ services:
       # Uncomment and set if accessing via domain name instead of IP:port
       # PUBLIC_URL: https://dashboard.example.com
 
+    # Add node user to adm group (GID 4) to read log files owned by root:adm
+    # This allows reading files like auth.log, cron.log, daemon.log, etc.
+    # The GID 4 is standard for adm group on Debian/Ubuntu systems
+    # If your system uses a different GID for adm, set ADM_GID in .env file
+    group_add:
+      - "${ADM_GID:-4}"  # Default GID 4 for adm group
+
     volumes:
       # Persistent storage for:
       # - SQLite database (dashboard.db)
@@ -71,6 +78,10 @@ services:
       # Create symlink /host/logs -> /host/var/log for backward compatibility
       # The plugin expects /host/logs but /host/var/log is already available via /:/host:ro
       # This is done via entrypoint script to avoid Docker mount issues
+      # 
+      # ⚠️ IMPORTANT: Do NOT mount /var/log:/host/logs:ro here!
+      # It causes "read-only file system" errors. Use the symlink created by entrypoint instead.
+      #
       # Optional: Mount specific log directories for direct access
       # Uncomment if you want plugins to access logs directly without /host/ prefix:
       # - /var/log/apache2:/var/log/apache2:ro    # Apache logs (accessible at /var/log/apache2)
