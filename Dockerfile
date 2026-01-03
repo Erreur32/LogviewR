@@ -39,6 +39,10 @@ RUN apk add --no-cache su-exec
 # Créer le répertoire data avec les bonnes permissions
 RUN mkdir -p /app/data && chown -R node:node /app
 
+# Créer les répertoires de montage pour les volumes host (évite les erreurs de montage)
+# Ces répertoires seront montés par docker-compose avec les volumes du host
+RUN mkdir -p /host/logs /host/proc /host/sys /host/etc /host/usr/bin
+
 # Copier l'entrypoint script (nécessite su-exec)
 COPY docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod +x /app/docker-entrypoint.sh

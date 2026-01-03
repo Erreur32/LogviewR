@@ -62,6 +62,7 @@ services:
       - ./data:/app/data
       # Mount host filesystem (read-only) to access real host metrics
       # This allows the app to read hostname, disk usage, and other system info from the host
+      # NOTE: This mount must come FIRST to create /host directory before other mounts
       - /:/host:ro
       # Mount host /proc and /sys separately for better compatibility
       # These are used to read CPU, memory, network stats, and hostname
@@ -71,6 +72,7 @@ services:
       # This allows LogviewR to read log files from the host system
       # Host System plugin uses /host/logs to access /var/log
       # Other plugins (Apache, Nginx, NPM) can access logs via /host/var/log/...
+      # NOTE: This is a symlink/bind mount that will work after /:/host:ro is mounted
       - /var/log:/host/logs:ro
       # Optional: Mount specific log directories for direct access
       # Uncomment if you want plugins to access logs directly without /host/ prefix:
