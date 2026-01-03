@@ -19,7 +19,7 @@
 
 services:
   logviewr:
-    image: ghcr.io/erreur32/LogviewR:latest
+    image: ghcr.io/erreur32/logviewr:latest
     container_name: logviewr
     restart: unless-stopped
 

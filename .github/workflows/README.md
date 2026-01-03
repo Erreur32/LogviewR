@@ -13,7 +13,7 @@ Le workflow utilise le `GITHUB_TOKEN` automatique fourni par GitHub Actions. Ce 
 
 ### Image publiée
 
-L'image est publiée sur : `ghcr.io/erreur32/LogviewR`
+L'image est publiée sur : `ghcr.io/erreur32/logviewr`
 
 Tags disponibles :
 - `latest` : Dernière version sur la branche main
@@ -27,9 +27,9 @@ Pour utiliser l'image dans docker-compose :
 ```yaml
 services:
   logviewr:
-    image: ghcr.io/erreur32/LogviewR:latest
+    image: ghcr.io/erreur32/logviewr:latest
     # ou
-    image: ghcr.io/erreur32/LogviewR:v0.1.2
+    image: ghcr.io/erreur32/logviewr:v0.1.2
 ```
 
 ### Authentification pour pull (si privé)

@@ -50,8 +50,8 @@ Si c'est la première fois que vous poussez vers GitHub Container Registry :
 ## 📦 Image publiée
 
 Une fois le workflow réussi, l'image sera disponible sur :
-- `ghcr.io/erreur32/LogviewR:latest`
-- `ghcr.io/erreur32/LogviewR:v0.1.2` (si tag créé)
+- `ghcr.io/erreur32/logviewr:latest`
+- `ghcr.io/erreur32/logviewr:v0.1.2` (si tag créé)
 
 ## 🔍 Vérifier le workflow
 

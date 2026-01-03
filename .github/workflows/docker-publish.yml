@@ -12,7 +12,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/LogviewR
+  IMAGE_NAME: ${{ github.repository_owner }}/logviewr
 
 
 jobs:
