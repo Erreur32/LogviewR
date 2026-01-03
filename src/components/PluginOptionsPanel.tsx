@@ -229,12 +229,19 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
             // Load default files for display (OS-specific, no scan)
             const loadDefaultFiles = async () => {
                 try {
+                    setIsLoadingLogFiles(true);
                     const defaultResponse = await api.get<{ logFiles: Array<{ path: string; type: string; enabled: boolean }> }>('/api/log-viewer/default-log-files');
                     if (defaultResponse.success && defaultResponse.result) {
                         setDefaultLogFiles(defaultResponse.result.logFiles);
+                    } else {
+                        console.warn('Failed to load default log files: response not successful');
+                        setDefaultLogFiles([]);
                     }
                 } catch (error) {
-                    console.warn('Failed to load default log files:', error);
+                    console.error('Failed to load default log files:', error);
+                    setDefaultLogFiles([]);
+                } finally {
+                    // Don't set loading to false here - let loadSystemDetectedFiles handle it
                 }
             };
             loadDefaultFiles();
@@ -312,11 +319,57 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                 setLogFiles([]);
             }
             setNewLogFile({ path: '', type: 'access' });
+            
+            // Scan files if basePath is available (for apache, nginx, npm)
+            if (formData.basePath) {
+                const scanFiles = async () => {
+                    try {
+                        setIsLoadingLogFiles(true);
+                        const response = await api.get<{
+                            files: Array<{
+                                path: string;
+                                type: string;
+                                size: number;
+                                modified: string;
+                            }>;
+                        }>(`/api/log-viewer/plugins/${pluginId}/files?basePath=${encodeURIComponent(String(formData.basePath))}&quick=true`);
+                        
+                        if (response.success && response.result?.files) {
+                            // Convert scanned files to logFiles format
+                            const scannedFiles = response.result.files.map(file => ({
+                                path: file.path,
+                                type: file.type,
+                                enabled: false
+                            }));
+                            
+                            // Merge with existing logFiles from DB (keep enabled state)
+                            const existingPaths = new Set((plugin?.settings?.logFiles as Array<{ path: string; enabled: boolean }> || []).map(f => f.path));
+                            const mergedFiles = scannedFiles.map(file => {
+                                const existing = (plugin?.settings?.logFiles as Array<{ path: string; type: string; enabled: boolean }> || []).find(f => f.path === file.path);
+                                return existing || file;
+                            });
+                            
+                            // If no files in DB, set scanned files
+                            if (!plugin?.settings?.logFiles || (Array.isArray(plugin.settings.logFiles) && plugin.settings.logFiles.length === 0)) {
+                                setLogFiles(mergedFiles);
+                            }
+                        }
+                    } catch (error) {
+                        console.warn(`Failed to scan files for ${pluginId}:`, error);
+                    } finally {
+                        setIsLoadingLogFiles(false);
+                    }
+                };
+                
+                // Only scan if section is expanded or if no files in DB
+                if (isLogFilesExpanded || !plugin?.settings?.logFiles || (Array.isArray(plugin.settings.logFiles) && plugin.settings.logFiles.length === 0)) {
+                    scanFiles();
+                }
+            }
         }
-    }, [pluginId, plugin, logFilesKey]);
+    }, [pluginId, plugin, logFilesKey, formData.basePath, isLogFilesExpanded]);
 
     // Load custom regexes for log source plugins
-    // Note: loadDetectedFiles is now only called manually via "Valider" button, not on basePath change
     useEffect(() => {
         if (isLogSourcePlugin && plugin) {
             loadCustomRegexes();
@@ -327,6 +380,46 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
             }
         }
     }, [pluginId, isLogSourcePlugin, plugin]);
+    
+    // Auto-load detected files when "Fichiers détectés avec regex" section is expanded
+    useEffect(() => {
+        if (isDetectedFilesExpanded && isLogSourcePlugin && formData.basePath && detectedFiles.length === 0 && !isLoadingDetectedFiles) {
+            loadDetectedFiles(true);
+        }
+    }, [isDetectedFilesExpanded]);
+    
+    // Auto-scan files when "Fichiers de logs personnalisés" section is expanded for apache, nginx, npm
+    useEffect(() => {
+        if (isLogFilesExpanded && (pluginId === 'apache' || pluginId === 'nginx' || pluginId === 'npm') && formData.basePath && logFiles.length === 0 && !isLoadingLogFiles) {
+            const scanFiles = async () => {
+                try {
+                    setIsLoadingLogFiles(true);
+                    const response = await api.get<{
+                        files: Array<{
+                            path: string;
+                            type: string;
+                            size: number;
+                            modified: string;
+                        }>;
+                    }>(`/api/log-viewer/plugins/${pluginId}/files?basePath=${encodeURIComponent(String(formData.basePath))}&quick=true`);
+                    
+                    if (response.success && response.result?.files) {
+                        const scannedFiles = response.result.files.map(file => ({
+                            path: file.path,
+                            type: file.type,
+                            enabled: false
+                        }));
+                        setLogFiles(scannedFiles);
+                    }
+                } catch (error) {
+                    console.warn(`Failed to auto-scan files for ${pluginId}:`, error);
+                } finally {
+                    setIsLoadingLogFiles(false);
+                }
+            };
+            scanFiles();
+        }
+    }, [isLogFilesExpanded, pluginId, formData.basePath]);
     
     const loadDetectedFiles = async (quick: boolean = false) => {
         if (!isLogSourcePlugin || !formData.basePath) return;
@@ -1379,15 +1472,56 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                         {pluginId === 'host-system' ? 'Fichiers de logs système' : 'Fichiers de logs personnalisés'}
                                     </h4>
                                     <div className="flex items-center gap-2">
-                                    {pluginId === 'host-system' && (
+                                    {(pluginId === 'host-system' || pluginId === 'apache' || pluginId === 'nginx' || pluginId === 'npm') && (
                                         <button
                                             type="button"
                                                 onClick={(e) => {
                                                     e.stopPropagation();
-                                                    loadLogFiles(true);
+                                                    if (pluginId === 'host-system') {
+                                                        loadLogFiles(true);
+                                                    } else {
+                                                        // Scan files for apache, nginx, npm
+                                                        const scanFiles = async () => {
+                                                            if (!formData.basePath) return;
+                                                            try {
+                                                                setIsLoadingLogFiles(true);
+                                                                const response = await api.get<{
+                                                                    files: Array<{
+                                                                        path: string;
+                                                                        type: string;
+                                                                        size: number;
+                                                                        modified: string;
+                                                                    }>;
+                                                                }>(`/api/log-viewer/plugins/${pluginId}/files?basePath=${encodeURIComponent(String(formData.basePath))}&quick=true`);
+                                                                
+                                                                if (response.success && response.result?.files) {
+                                                                    // Convert scanned files to logFiles format
+                                                                    const scannedFiles = response.result.files.map(file => ({
+                                                                        path: file.path,
+                                                                        type: file.type,
+                                                                        enabled: false
+                                                                    }));
+                                                                    
+                                                                    // Merge with existing logFiles (keep enabled state)
+                                                                    const existingPaths = new Set(logFiles.map(f => f.path));
+                                                                    const mergedFiles = scannedFiles.map(file => {
+                                                                        const existing = logFiles.find(f => f.path === file.path);
+                                                                        return existing || file;
+                                                                    });
+                                                                    
+                                                                    setLogFiles(mergedFiles);
+                                                                }
+                                                            } catch (error) {
+                                                                console.error(`Failed to scan files for ${pluginId}:`, error);
+                                                            } finally {
+                                                                setIsLoadingLogFiles(false);
+                                                            }
+                                                        };
+                                                        scanFiles();
+                                                    }
                                                 }}
                                                 className="text-xs px-2 py-1 bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 rounded transition-colors flex items-center gap-1"
-                                                title="Rescanner les services de logging (journalctl, syslog-ng, rsyslog)"
+                                                title={pluginId === 'host-system' ? "Rescanner les services de logging (journalctl, syslog-ng, rsyslog)" : "Scanner les fichiers de logs dans le répertoire"}
                                         >
                                             <RefreshCw size={12} />
                                             Actualiser
@@ -1403,15 +1537,17 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
 
                                 {isLogFilesExpanded && (
                                     <div className="bg-[#0f0f0f] rounded-lg border border-gray-800 p-4">
-                                {isLoadingLogFiles && pluginId === 'host-system' && (!logFiles || logFiles.length === 0) && (!systemDetectedFiles || systemDetectedFiles.length === 0) ? (
+                                {isLoadingLogFiles && pluginId === 'host-system' && defaultLogFiles.length === 0 && (!logFiles || logFiles.length === 0) && (!systemDetectedFiles || systemDetectedFiles.length === 0) ? (
                                     <div className="text-center py-4 text-gray-500 text-xs">Chargement...</div>
+                                ) : isLoadingLogFiles && (pluginId === 'apache' || pluginId === 'nginx' || pluginId === 'npm') && logFiles.length === 0 ? (
+                                    <div className="text-center py-4 text-gray-500 text-xs">Scan des fichiers en cours...</div>
                                 ) : (
                                     <>
                                         {pluginId === 'host-system' ? (
                                             /* Host System: 2 columns layout */
                                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                                                 {/* Default Log Files - Collapsible */}
-                                                {defaultLogFiles.length > 0 && (
+                                                {(defaultLogFiles.length > 0 || systemDetectedFiles.length > 0) && (
                                                     <div>
                                                         <button
                                                             type="button"
@@ -1419,7 +1555,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                                             className="w-full flex items-center justify-between p-2 bg-[#1a1a1a] rounded border border-gray-700 hover:bg-[#252525] transition-colors mb-2"
                                                         >
                                                             <span className="text-xs font-medium text-gray-300">
-                                                                Fichiers par défaut ({defaultLogFiles.length})
+                                                                Fichiers par défaut ({defaultLogFiles.length > 0 ? defaultLogFiles.length : systemDetectedFiles.length})
                                                             </span>
                                                             {isDefaultLogFilesExpanded ? (
                                                                 <ChevronUp size={14} className="text-gray-400" />
@@ -1429,7 +1565,8 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                                         </button>
                                                         {isDefaultLogFilesExpanded && (
                                                         <div className="space-y-1">
-                                                            {defaultLogFiles.map((file, idx) => {
+                                                            {/* Show default files first, fallback to system detected files if empty */}
+                                                            {(defaultLogFiles.length > 0 ? defaultLogFiles : systemDetectedFiles.map(f => ({ path: f.path, type: f.type, enabled: false }))).map((file, idx) => {
                                                                 const isAdded = logFiles.find(f => f.path === file.path);
                                                                 return (
                                                                     <div key={idx} className="flex items-center gap-2 p-1.5 bg-[#0a0a0a] rounded border border-gray-800">
