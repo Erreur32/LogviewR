@@ -506,6 +506,12 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
     // Auto-save helper with debounce
     const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     
+    // Ref to store latest formData for autoSave callback
+    const formDataRef = useRef(formData);
+    useEffect(() => {
+        formDataRef.current = formData;
+    }, [formData]);
+
     const autoSave = async (skipValidation: boolean = false) => {
         // Clear existing timeout
         if (autoSaveTimeoutRef.current) {
@@ -515,8 +521,11 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
         // Set new timeout for debounce (500ms)
         autoSaveTimeoutRef.current = setTimeout(async () => {
             try {
+                // Use ref to get latest formData values (avoids closure issues)
+                const currentFormData = formDataRef.current;
+                
                 // Skip validation for auto-save (only validate on manual test)
-                const settings = { ...formData };
+                const settings = { ...currentFormData };
                 if (isLogSourcePlugin) {
                     (settings as any).logFiles = logFiles;
                     // Save exclude filters
@@ -530,7 +539,8 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                     enabled: plugin?.enabled ?? false,
                     settings
                 });
-                await fetchPlugins();
+                // Force refresh to update component state
+                await fetchPlugins(true);
             } catch (error) {
                 console.error('Auto-save failed:', error);
             }
@@ -708,19 +718,25 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
     };
 
     const handleInputChange = async (field: string, value: string | number | boolean, elementRef?: HTMLElement | null) => {
+        // Update form data first
         setFormData(prev => ({ ...prev, [field]: value }));
         setTestResult(null);
         
-        // No auto-save for path and pattern fields (basePath, accessLogPattern, errorLogPattern)
-        // User must click "Valider" or "Enregistrer" to save these fields
-        // Only auto-save for toggles (readCompressed, maxLines checkbox)
+        // Auto-save logic:
+        // - readCompressed: Auto-save (toggle)
+        // - maxLines: Auto-save (toggle or number input)
+        // - basePath, accessLogPattern, errorLogPattern: NO auto-save (wait for "Enregistrer" or "Valider")
+        // - logFiles (add/remove/toggle): Auto-save via their own functions
+        // - excludeFilters: Auto-save via autoSaveExcludeFilters
+        
         if (field === 'readCompressed' || field === 'maxLines') {
-            // Auto-save for toggles only
+            // Auto-save for toggles and number inputs
             const fieldLabels: Record<string, string> = {
                 maxLines: 'Limite de lignes',
                 readCompressed: 'Lire les fichiers compressés'
             };
             
+            // Use updated formData in autoSave
             await autoSave();
             const fieldLabel = fieldLabels[field] || field;
             showInlineNotification(`${fieldLabel} sauvegardé`, elementRef);
@@ -1054,28 +1070,8 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                         <input
                                             type="checkbox"
                                             checked={Boolean(formData.readCompressed)}
-                                            onChange={async (e) => {
-                                                const newValue = e.target.checked;
-                                                handleInputChange('readCompressed', newValue, e.currentTarget);
-                                                
-                                                // Auto-save when toggle changes
-                                                try {
-                                                    const settings = { ...formData, readCompressed: newValue };
-                                                    if (isLogSourcePlugin) {
-                                                        (settings as any).logFiles = logFiles;
-                                                    }
-                                                    
-                                                    await updatePluginConfig(pluginId, {
-                                                        enabled: plugin?.enabled ?? false,
-                                                        settings
-                                                    });
-                                                    
-                                                    await fetchPlugins();
-                                                    
-                                                    showInlineNotification('Lecture des fichiers compressés sauvegardée', e.currentTarget);
-                                                } catch (error) {
-                                                    console.error('Failed to auto-save readCompressed:', error);
-                                                }
+                                            onChange={(e) => {
+                                                handleInputChange('readCompressed', e.target.checked, e.currentTarget);
                                             }}
                                             className="w-4 h-4 rounded border-gray-600 bg-[#1a1a1a] text-purple-500 focus:ring-purple-500"
                                         />
@@ -1096,28 +1092,9 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                             <input
                                                 type="checkbox"
                                                 checked={Number(formData.maxLines ?? 0) > 0}
-                                                onChange={async (e) => {
+                                                onChange={(e) => {
                                                     const newValue = e.target.checked ? 10000 : 0; // Default to 10000 when enabled, 0 when disabled
                                                     handleInputChange('maxLines', newValue, e.currentTarget);
-                                                    
-                                                    // Auto-save when toggle changes
-                                                    try {
-                                                        const settings = { ...formData, maxLines: newValue };
-                                                        if (isLogSourcePlugin) {
-                                                            (settings as any).logFiles = logFiles;
-                                                        }
-                                                        
-                                                        await updatePluginConfig(pluginId, {
-                                                            enabled: plugin?.enabled ?? false,
-                                                            settings
-                                                        });
-                                                        
-                                                        await fetchPlugins();
-                                                        
-                                                        showInlineNotification('Limite de lignes sauvegardée', e.currentTarget);
-                                                    } catch (error) {
-                                                        console.error('Failed to auto-save maxLines:', error);
-                                                    }
                                                 }}
                                                 className="w-4 h-4 rounded border-gray-600 bg-[#1a1a1a] text-purple-500 focus:ring-purple-500"
                                             />

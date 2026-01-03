@@ -9,6 +9,7 @@ import nginxIcon from '../icons/nginx.svg';
 import npmIcon from '../icons/npm.svg';
 import debianIcon from '../icons/debian.svg';
 import ubuntuIcon from '../icons/ubuntu.svg';
+import mintIcon from '../icons/mint.svg';
 import centosIcon from '../icons/centos.svg';
 import fedoraIcon from '../icons/fedora.svg';
 import archIcon from '../icons/arch.svg';
@@ -40,6 +41,8 @@ export function getPluginIcon(pluginId: string, osType?: string): string {
             return debianIcon;
           case 'ubuntu':
             return ubuntuIcon;
+          case 'mint':
+            return mintIcon;
           case 'centos':
           case 'rhel':
             return centosIcon;

@@ -330,6 +330,13 @@ function getCommonLogFilesByOS(osType: string): Array<{
         );
     }
     
+    // Linux Mint specific files
+    if (osType === 'mint') {
+        commonFiles.push(
+            { path: '/var/log/mintupdate.log', type: 'custom', osTypes: ['mint'] }
+        );
+    }
+    
     // CentOS/RHEL/Fedora common files
     if (['centos', 'rhel', 'fedora'].includes(osType)) {
         commonFiles.push(

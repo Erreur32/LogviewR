@@ -77,43 +77,64 @@ export async function detectOS(): Promise<OSInfo> {
         };
 
         const lines = osReleaseContent.split('\n');
+        let idValue: string | null = null;
+        let idLikeValue: string | null = null;
+        
+        // First pass: collect ID and ID_LIKE values
         for (const line of lines) {
             if (line.startsWith('ID=')) {
-                const id = line.split('=')[1]?.replace(/^"|"$/g, '').toLowerCase();
-                if (id === 'debian') {
-                    osInfo.type = 'debian';
-                    osInfo.logFormat = 'systemd'; // Debian 12+ uses systemd
-                    osInfo.usesISO8601 = true;
-                } else if (id === 'ubuntu') {
-                    osInfo.type = 'ubuntu';
-                    // Ubuntu 16.04+ uses systemd
-                    osInfo.logFormat = 'systemd';
-                    osInfo.usesISO8601 = true;
-                } else if (id === 'linuxmint') {
-                    osInfo.type = 'mint';
-                    // Linux Mint is based on Ubuntu, uses systemd
-                    osInfo.logFormat = 'systemd';
-                    osInfo.usesISO8601 = true;
-                } else if (id === 'centos' || id === 'rhel' || id === 'rocky' || id === 'almalinux') {
-                    osInfo.type = id === 'rhel' ? 'rhel' : 'centos';
-                    osInfo.logFormat = 'systemd';
-                    osInfo.usesISO8601 = true;
-                } else if (id === 'fedora') {
-                    osInfo.type = 'fedora';
-                    osInfo.logFormat = 'systemd';
-                    osInfo.usesISO8601 = true;
-                } else if (id === 'arch' || id === 'archlinux') {
-                    osInfo.type = 'arch';
-                    osInfo.logFormat = 'systemd';
-                    osInfo.usesISO8601 = true;
-                } else if (id === 'opensuse' || id === 'sles') {
-                    osInfo.type = 'suse';
-                    osInfo.logFormat = 'systemd';
-                    osInfo.usesISO8601 = true;
-                }
+                idValue = line.split('=')[1]?.replace(/^"|"$/g, '').toLowerCase().trim();
+            } else if (line.startsWith('ID_LIKE=')) {
+                idLikeValue = line.split('=')[1]?.replace(/^"|"$/g, '').toLowerCase().trim();
             } else if (line.startsWith('VERSION_ID=')) {
                 osInfo.version = line.split('=')[1]?.replace(/^"|"$/g, '');
             }
+        }
+        
+        // Helper function to check if ID_LIKE contains a specific value
+        // ID_LIKE can contain multiple values separated by spaces: "ubuntu debian"
+        const idLikeContains = (value: string): boolean => {
+            if (!idLikeValue) return false;
+            // Split by spaces and check each part
+            const parts = idLikeValue.split(/\s+/);
+            return parts.some(part => part === value || part.includes(value));
+        };
+        
+        // Determine OS type from ID or ID_LIKE
+        // IMPORTANT: Check Mint BEFORE Ubuntu because Mint has ID_LIKE=ubuntu
+        if (idValue === 'linuxmint' || idValue === 'mint' || idLikeContains('linuxmint') || idLikeContains('mint')) {
+            // Linux Mint detection
+            // Mint can have: ID=linuxmint, ID_LIKE="ubuntu debian"
+            osInfo.type = 'mint';
+            osInfo.logFormat = 'systemd';
+            osInfo.usesISO8601 = true;
+        } else if (idValue === 'ubuntu' || (idLikeContains('ubuntu') && !idLikeContains('mint') && !idLikeContains('linuxmint'))) {
+            // Ubuntu detection (but not Mint)
+            osInfo.type = 'ubuntu';
+            osInfo.logFormat = 'systemd';
+            osInfo.usesISO8601 = true;
+        } else if (idValue === 'debian' || (idLikeContains('debian') && !idLikeContains('ubuntu'))) {
+            // Debian detection (but not Ubuntu-based)
+            osInfo.type = 'debian';
+            osInfo.logFormat = 'systemd'; // Debian 12+ uses systemd
+            osInfo.usesISO8601 = true;
+        } else if (idValue === 'centos' || idValue === 'rhel' || idValue === 'rocky' || idValue === 'almalinux' || 
+                      idLikeContains('centos') || idLikeContains('rhel')) {
+            osInfo.type = idValue === 'rhel' ? 'rhel' : 'centos';
+            osInfo.logFormat = 'systemd';
+            osInfo.usesISO8601 = true;
+        } else if (idValue === 'fedora' || idLikeContains('fedora')) {
+            osInfo.type = 'fedora';
+            osInfo.logFormat = 'systemd';
+            osInfo.usesISO8601 = true;
+        } else if (idValue === 'arch' || idValue === 'archlinux' || idLikeContains('arch')) {
+            osInfo.type = 'arch';
+            osInfo.logFormat = 'systemd';
+            osInfo.usesISO8601 = true;
+        } else if (idValue === 'opensuse' || idValue === 'sles' || idLikeContains('suse') || idLikeContains('sles')) {
+            osInfo.type = 'suse';
+            osInfo.logFormat = 'systemd';
+            osInfo.usesISO8601 = true;
         }
 
         // If systemd is detected, use ISO 8601 format
@@ -158,9 +179,20 @@ export function usesISO8601(): boolean {
  */
 export function getDefaultLogFiles(osType: OSType): Array<{ path: string; type: string; enabled: boolean }> {
     switch (osType) {
+        case 'mint':
+            // Linux Mint specific: includes Ubuntu/Debian logs plus Mint-specific files
+            return [
+                { path: '/var/log/syslog', type: 'syslog', enabled: true },
+                { path: '/var/log/auth.log', type: 'auth', enabled: true },
+                { path: '/var/log/kern.log', type: 'kern', enabled: false },
+                { path: '/var/log/daemon.log', type: 'daemon', enabled: false },
+                { path: '/var/log/mail.log', type: 'mail', enabled: false },
+                { path: '/var/log/mail.err', type: 'mail', enabled: false },
+                { path: '/var/log/mintupdate.log', type: 'custom', enabled: false }
+            ];
+        
         case 'debian':
         case 'ubuntu':
-        case 'mint':
             return [
                 { path: '/var/log/syslog', type: 'syslog', enabled: true },
                 { path: '/var/log/auth.log', type: 'auth', enabled: true },
@@ -216,9 +248,21 @@ export function getDefaultLogFiles(osType: OSType): Array<{ path: string; type: 
  */
 export function getDefaultFilePatterns(osType: OSType): string[] {
     switch (osType) {
+        case 'mint':
+            // Linux Mint specific patterns: includes Ubuntu/Debian patterns plus Mint-specific
+            return [
+                'syslog*',
+                'auth.log*',
+                'kern.log*',
+                'daemon.log*',
+                'mail.log*',
+                'mail.err*',
+                'mintupdate.log*',
+                '*.log'
+            ];
+        
         case 'debian':
         case 'ubuntu':
-        case 'mint':
             return [
                 'syslog*',
                 'auth.log*',
