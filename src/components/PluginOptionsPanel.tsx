@@ -5,7 +5,7 @@
  * Displays plugin options directly under the plugin card
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Settings, CheckCircle, XCircle, RefreshCw, AlertCircle, Save, Eye, EyeOff, Plus, Trash2, FileText, Code, ChevronUp, ChevronDown, RotateCw } from 'lucide-react';
 import { usePluginStore, type Plugin } from '../stores/pluginStore';
 import { Button } from './ui/Button';
@@ -204,15 +204,27 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
         setIsDetectedFilesExpanded(pluginId === 'host-system');
     }, [pluginId]);
 
+    // Create a stable key from logFiles to detect changes
+    const logFilesKey = useMemo(() => {
+        if (!plugin?.settings?.logFiles || !Array.isArray(plugin.settings.logFiles)) {
+            return '';
+        }
+        return JSON.stringify(plugin.settings.logFiles);
+    }, [plugin?.settings?.logFiles]);
+
     // Load log files from plugin settings (DB) - don't scan automatically
     useEffect(() => {
         if (pluginId === 'host-system') {
             // Load from plugin settings (DB) instead of scanning
-            if (plugin?.settings?.logFiles) {
+            if (plugin?.settings?.logFiles && Array.isArray(plugin.settings.logFiles)) {
                 const dbFiles = plugin.settings.logFiles as Array<{ path: string; type: string; enabled: boolean }>;
                 setLogFiles(dbFiles);
                 // Also set rsyslogFiles for display
                 setRsyslogFiles(dbFiles.map(f => ({ ...f, enabled: false })));
+            } else {
+                // Clear log files if no files in settings
+                setLogFiles([]);
+                setRsyslogFiles([]);
             }
             // Load default files for display (OS-specific, no scan)
             const loadDefaultFiles = async () => {
@@ -264,38 +276,20 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
             }
             setNewLogFile({ path: '', type: 'access' });
         }
-    }, [pluginId, plugin]);
-
-    // Debounce ref for basePath changes to avoid reloading while user is typing
-    const basePathDebounceRef = useRef<NodeJS.Timeout | null>(null);
-    const lastSavedBasePathRef = useRef<string>('');
+    }, [pluginId, plugin, logFilesKey]);
 
     // Load custom regexes for log source plugins
+    // Note: loadDetectedFiles is now only called manually via "Valider" button, not on basePath change
     useEffect(() => {
         if (isLogSourcePlugin && plugin) {
             loadCustomRegexes();
-            // Only load detected files if basePath has actually changed and is different from last saved
-            const currentBasePath = String(formData.basePath || '').trim();
-            if (currentBasePath && currentBasePath !== lastSavedBasePathRef.current) {
-                // Clear any pending debounce
-                if (basePathDebounceRef.current) {
-                    clearTimeout(basePathDebounceRef.current);
-                }
-                // Debounce the reload to avoid reloading while user is typing
-                basePathDebounceRef.current = setTimeout(() => {
-                    // Load quick first, then complete in background
-                    loadDetectedFiles(true);
-                    lastSavedBasePathRef.current = currentBasePath;
-                }, 1000); // Wait 1 second after user stops typing
+            // Load detected files only on initial load or when plugin changes
+            // Not on basePath change to avoid reloading while user is typing
+            if (formData.basePath) {
+                loadDetectedFiles(true);
             }
         }
-        
-        return () => {
-            if (basePathDebounceRef.current) {
-                clearTimeout(basePathDebounceRef.current);
-            }
-        };
-    }, [pluginId, isLogSourcePlugin, plugin, formData.basePath]);
+    }, [pluginId, isLogSourcePlugin, plugin]);
     
     const loadDetectedFiles = async (quick: boolean = false) => {
         if (!isLogSourcePlugin || !formData.basePath) return;
@@ -717,37 +711,21 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
         setFormData(prev => ({ ...prev, [field]: value }));
         setTestResult(null);
         
-        // Get field label for notification
-        const fieldLabels: Record<string, string> = {
-            basePath: 'Chemin de base',
-            accessLogPattern: 'Pattern logs d\'accès',
-            errorLogPattern: 'Pattern logs d\'erreur',
-            maxLines: 'Limite de lignes',
-            readCompressed: 'Lire les fichiers compressés'
-        };
-        
-        // Auto-save on input change (except for toggles and basePath)
-        // basePath is handled separately with debounce to avoid reloading files while user is typing
-        if (field !== 'readCompressed' && field !== 'maxLines' && field !== 'basePath') {
+        // No auto-save for path and pattern fields (basePath, accessLogPattern, errorLogPattern)
+        // User must click "Valider" or "Enregistrer" to save these fields
+        // Only auto-save for toggles (readCompressed, maxLines checkbox)
+        if (field === 'readCompressed' || field === 'maxLines') {
+            // Auto-save for toggles only
+            const fieldLabels: Record<string, string> = {
+                maxLines: 'Limite de lignes',
+                readCompressed: 'Lire les fichiers compressés'
+            };
+            
             await autoSave();
-            // Show notification
             const fieldLabel = fieldLabels[field] || field;
             showInlineNotification(`${fieldLabel} sauvegardé`, elementRef);
-        } else if (field === 'basePath') {
-            // For basePath, save with debounce to avoid reloading while user is typing
-            // Clear any pending save
-            if (autoSaveTimeoutRef.current) {
-                clearTimeout(autoSaveTimeoutRef.current);
-            }
-            // Debounce the save (500ms)
-            autoSaveTimeoutRef.current = setTimeout(async () => {
-                await autoSave();
-                const fieldLabel = fieldLabels[field] || field;
-                showInlineNotification(`${fieldLabel} sauvegardé`, elementRef);
-                // Update last saved basePath to trigger detected files reload
-                lastSavedBasePathRef.current = String(value).trim();
-            }, 500);
         }
+        // For basePath, accessLogPattern, errorLogPattern: no auto-save, wait for manual save
     };
 
     const validateForm = (): { valid: boolean; error?: string } => {
@@ -778,6 +756,58 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
         return { valid: true };
     };
 
+    const handleSave = async () => {
+        const validation = validateForm();
+        if (!validation.valid) {
+            setTestResult({
+                success: false,
+                message: validation.error || 'Veuillez remplir tous les champs requis'
+            });
+            return;
+        }
+
+        try {
+            const settings = { ...formData };
+            if (isLogSourcePlugin) {
+                (settings as any).logFiles = logFiles;
+                const hasFilters = excludeFilters.files?.length || excludeFilters.directories?.length || excludeFilters.paths?.length;
+                if (hasFilters) {
+                    (settings as any).excludeFilters = excludeFilters;
+                }
+            }
+            
+            await updatePluginConfig(pluginId, {
+                enabled: plugin?.enabled ?? false,
+                settings
+            });
+            // Force refresh plugins to update the component
+            await fetchPlugins(true);
+            
+            // Reload detected files after saving basePath
+            if (isLogSourcePlugin && formData.basePath) {
+                loadDetectedFiles(true);
+            }
+            
+            // Reload log files for host-system plugin after save
+            if (pluginId === 'host-system') {
+                // The useEffect will automatically reload logFiles when plugin.settings.logFiles changes
+                // But we can also explicitly reload if needed
+            }
+            
+            showInlineNotification('Configuration enregistrée avec succès');
+            setTestResult({
+                success: true,
+                message: 'Configuration enregistrée avec succès'
+            });
+        } catch (error) {
+            console.error('Failed to save configuration:', error);
+            setTestResult({
+                success: false,
+                message: 'Erreur lors de l\'enregistrement de la configuration'
+            });
+        }
+    };
+
     const handleTest = async () => {
         setIsTesting(true);
         setTestResult(null);
@@ -790,6 +820,38 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
             });
             setIsTesting(false);
             return;
+        }
+
+        // After successful validation, save automatically before testing
+        try {
+            const settings = { ...formData };
+            if (isLogSourcePlugin) {
+                (settings as any).logFiles = logFiles;
+                const hasFilters = excludeFilters.files?.length || excludeFilters.directories?.length || excludeFilters.paths?.length;
+                if (hasFilters) {
+                    (settings as any).excludeFilters = excludeFilters;
+                }
+            }
+            
+            await updatePluginConfig(pluginId, {
+                enabled: plugin?.enabled ?? false,
+                settings
+            });
+            // Force refresh plugins to update the component
+            await fetchPlugins(true);
+            
+            // Reload detected files after saving basePath
+            if (isLogSourcePlugin && formData.basePath) {
+                loadDetectedFiles(true);
+            }
+            
+            // Reload log files for host-system plugin after save
+            if (pluginId === 'host-system') {
+                // The useEffect will automatically reload logFiles when plugin.settings.logFiles changes
+            }
+        } catch (error) {
+            console.error('Failed to save configuration:', error);
+            // Continue with test even if save fails
         }
 
         try {
@@ -2088,7 +2150,15 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                 )}
 
                 {/* Actions */}
-                <div className="flex items-center justify-center gap-2 pt-6 border-t border-gray-800">
+                <div className="flex items-center justify-center gap-3 pt-6 border-t border-gray-800">
+                    <button
+                        type="button"
+                        onClick={handleSave}
+                        className="px-6 py-3 rounded-lg font-semibold text-base transition-all duration-200 flex items-center gap-2 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95"
+                    >
+                        <Save size={18} />
+                        <span>Enregistrer</span>
+                    </button>
                     <button
                         type="button"
                         onClick={handleTest}
@@ -2107,7 +2177,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                         ) : (
                             <>
                                 <RefreshCw size={18} />
-                                <span>Tester la configuration</span>
+                                <span>Valider</span>
                             </>
                         )}
                     </button>
