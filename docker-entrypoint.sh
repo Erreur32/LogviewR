@@ -21,6 +21,13 @@ chown -R ${NODE_UID}:${NODE_GID} /app/data 2>/dev/null || true
 find /app/data -type d -exec chmod 755 {} \; 2>/dev/null || true
 find /app/data -type f -exec chmod 644 {} \; 2>/dev/null || true
 
+# Create symlink /host/logs -> /host/var/log for backward compatibility
+# The plugin expects /host/logs but /host/var/log is already available via /:/host:ro mount
+# This avoids Docker mount issues with read-only filesystem
+if [ -d "/host/var/log" ] && [ ! -e "/host/logs" ]; then
+    ln -s /host/var/log /host/logs 2>/dev/null || true
+fi
+
 # Switch to node user and execute the main command (passed as arguments)
 # Use su-exec (available in Alpine) to switch user
 exec su-exec node "$@"
