@@ -57,42 +57,18 @@
 - **Tableau interactif** : Colonnes dynamiques selon le type de log
 - **Tri adaptatif** : Tri automatique par type (date, nombre, IP, texte)
 - **Badges colorés** : Visualisation intuitive des niveaux, codes HTTP, IP, hostnames
-- **Formatage intelligent** : Mise en forme automatique selon le type de colonne
-- **Pagination** : Navigation efficace dans les grandes quantités de logs
-- **Masquage lignes vides** : Affichage uniquement des lignes pertinentes
-
+ 
 ### Filtres et recherche
 
 - **Recherche texte** : Recherche dans tous les champs des logs
-- **Filtres par niveau** : INFO, WARN, ERROR, DEBUG, etc.
-- **Filtres par date** : Sélection de plage de dates avec calendrier
-- **Filtres par IP** : Recherche par adresse IP source
-- **Filtres HTTP** : Méthode, code de statut, URL
-- **Filtres spécifiques** : Filtres adaptés selon le type de log
-
-### Mode Live
-
-- **Suivi en temps réel** : Mode "Live" pour suivre les nouveaux logs au fur et à mesure
-- **WebSocket** : Connexion WebSocket pour des mises à jour instantanées
-- **Reconnexion automatique** : Gestion automatique des déconnexions
-- **Indicateur de statut** : Affichage visuel de l'état de la connexion
-
-### Gestion des fichiers
-
-- **Détection automatique** : Scan automatique des fichiers de logs disponibles
-- **Regroupement intelligent** : Regroupement par catégorie et nom de base
-- **Fichiers rotatifs** : Gestion des fichiers rotatifs (access.log.1, access.log.2, etc.)
-- **Fichiers compressés** : Support des fichiers `.gz` avec décompression automatique
-- **Indicateurs visuels** : Icônes distinctives pour fichiers compressés
-- **Filtres avancés** : Filtre "Tous" / "Regex uniquement" pour les fichiers gérés
+ 
+ 
 
 ### Regex personnalisées
 
 - **Éditeur intégré** : Éditeur de regex avec test en temps réel
 - **Regex par fichier** : Configuration de regex personnalisées par fichier
-- **Regex par défaut** : Regex par défaut pour chaque type de log
-- **Génération automatique** : Génération de regex à partir d'exemples de logs
-- **Validation** : Validation de la syntaxe avant sauvegarde
+ 
 
 ### Statistiques et analytique
 
@@ -107,9 +83,8 @@
 
 LogviewR supporte plusieurs plugins pour différents types de logs :
 
-### 🖥️ Host System
-
-**Plugin pour les logs système Linux/Unix**
+<details>
+<summary><strong>🖥️ Host System</strong> - Plugin pour les logs système Linux/Unix</summary>
 
 - **Types de logs supportés** :
   - Syslog (`/var/log/syslog`, `/var/log/messages`)
@@ -131,9 +106,10 @@ LogviewR supporte plusieurs plugins pour différents types de logs :
   - Patterns de fichiers personnalisables
   - Regex personnalisées par type de log
 
-### 🌐 Apache
+</details>
 
-**Plugin pour les logs Apache HTTP Server**
+<details>
+<summary><strong>🌐 Apache</strong> - Plugin pour les logs Apache HTTP Server</summary>
 
 - **Types de logs supportés** :
   - Access logs (formats Combined, Common, VHost)
@@ -152,9 +128,10 @@ LogviewR supporte plusieurs plugins pour différents types de logs :
   - Regex par défaut modifiables
   - Support des fichiers compressés (.gz)
 
-### 🚀 Nginx
+</details>
 
-**Plugin pour les logs Nginx**
+<details>
+<summary><strong>🚀 Nginx</strong> - Plugin pour les logs Nginx</summary>
 
 - **Types de logs supportés** :
   - Access logs (formats Combined, Common, Main, Extended)
@@ -172,9 +149,10 @@ LogviewR supporte plusieurs plugins pour différents types de logs :
   - Regex par défaut modifiables
   - Support des fichiers compressés (.gz)
 
-### 🔄 Nginx Proxy Manager (NPM)
+</details>
 
-**Plugin pour les logs Nginx Proxy Manager**
+<details>
+<summary><strong>🔄 Nginx Proxy Manager (NPM)</strong> - Plugin pour les logs Nginx Proxy Manager</summary>
 
 - **Types de logs supportés** :
   - Access logs (formats standard avec cache, sans cache, custom combined, extended)
@@ -192,137 +170,14 @@ LogviewR supporte plusieurs plugins pour différents types de logs :
   - Regex par défaut modifiables
   - Support des fichiers compressés (.gz)
 
----
-
-## 🚀 Installation
-
-### Prérequis
-
-- Docker et Docker Compose  
- 
-
-### Installation avec Docker (Recommandé)
-
-LogviewR propose plusieurs fichiers Docker Compose selon votre usage :
-
-#### Production (`docker-compose.yml`)
-
-Pour un déploiement en production avec l'image pré-construite depuis le registry :
-
-1. **Cloner le dépôt** :
-   ```bash
-   git clone https://github.com/Erreur32/LogviewR.git
-   cd LogviewR
-   ```
-
-2. **Créer le fichier `.env`** :
-   ```bash
-   # Générer un secret JWT sécurisé
-   JWT_SECRET=$(openssl rand -base64 32)
-   echo "JWT_SECRET=$JWT_SECRET" > .env
-   echo "DASHBOARD_PORT=7500" >> .env
-   ```
-
-3. **Lancer avec Docker Compose** :
-   ```bash
-   docker-compose up -d
-   ```
-
-4. **Accéder à l'application** :
-   Ouvrez votre navigateur à l'adresse : `http://localhost:7500`
-
-#### Build local (`docker-compose.local.yml`)
-
-Pour construire l'image localement (utile pour tester avant de publier) :
-
-```bash
-docker-compose -f docker-compose.local.yml up -d --build
-```
-
-#### Développement (`docker-compose.dev.yml`)
-
-Pour le développement avec hot-reload :
-
-```bash
-# Utiliser un nom de projet différent pour éviter les conflits avec la prod
-docker-compose -f docker-compose.dev.yml -p logviewr-dev up --build
-```
-
-**Note** : Les fichiers `docker-compose.dev.yml` et `docker-compose.local.yml` sont fournis à titre d'exemple pour le développement. Pour la production, utilisez `docker-compose.yml` qui utilise l'image officielle depuis le registry.
-
-#### Première connexion
-
-- Si aucun utilisateur n'existe, un formulaire d'inscription s'affichera automatiquement
-- Créez votre premier compte administrateur (nom d'utilisateur, email, mot de passe)
-- Le premier utilisateur créé obtient automatiquement le rôle `admin`
-- Après l'inscription, vous serez automatiquement connecté
-- ⚠️ **Important** : Changez votre mot de passe après la première connexion si nécessaire
-
-### Installation en développement
-
-1. **Cloner le dépôt** :
-   ```bash
-   git clone https://github.com/Erreur32/LogviewR.git
-   cd LogviewR
-   ```
-
-2. **Installer les dépendances** :
-   ```bash
-   npm install
-   ```
-
-3. **Créer le fichier `.env`** :
-   ```bash
-   JWT_SECRET=dev_secret_change_in_production
-   DASHBOARD_PORT=7500
-   ```
-
-4. **Lancer en mode développement** :
-   ```bash
-   npm run dev
-   ```
-
-5. **Accéder à l'application** :
-   - Frontend : `http://localhost:5174`
-   - Backend : `http://localhost:3004`
-
-6. **Première connexion** :
-   - Si aucun utilisateur n'existe, un formulaire d'inscription s'affichera automatiquement
-   - Créez votre premier compte administrateur (nom d'utilisateur, email, mot de passe)
-   - Le premier utilisateur créé obtient automatiquement le rôle `admin`
-   - Après l'inscription, vous serez automatiquement connecté
+</details>
 
 ---
 
-## 🔐 Première connexion
-
-Lors du premier démarrage de LogviewR, si aucun utilisateur n'existe dans la base de données :
-
-1. **Un formulaire d'inscription s'affiche automatiquement**
-   - Remplissez les champs requis :
-     - **Nom d'utilisateur** : Votre identifiant de connexion
-     - **Email** : Votre adresse email
-     - **Mot de passe** : Minimum 8 caractères
-     - **Confirmer le mot de passe** : Répétez le mot de passe
-   
-2. **Le premier utilisateur est automatiquement admin**
-   - Aucun compte par défaut n'est créé
-   - Vous choisissez vos propres identifiants
-   - Le premier utilisateur créé obtient le rôle `admin` automatiquement
-
-3. **Connexion automatique**
-   - Après l'inscription réussie, vous êtes automatiquement connecté
-   - Vous pouvez immédiatement commencer à utiliser LogviewR
-
-4. **Connexions suivantes**
-   - Utilisez vos identifiants pour vous connecter
-   - Le modal de connexion s'affichera si vous n'êtes pas authentifié
-
-⚠️ **Note de sécurité** : Si un message d'alerte concernant le `JWT_SECRET` s'affiche, suivez les instructions pour configurer un secret sécurisé avant de continuer.
-
 ---
 
-## ⚙️ Configuration
+<details>
+<summary><strong>⚙️ Configuration</strong></summary>
 
 ### Variables d'environnement
 
@@ -335,7 +190,8 @@ Lors du premier démarrage de LogviewR, si aucun utilisateur n'existe dans la ba
 | `ADM_GID` | GID du groupe adm sur l'hôte (pour lire les fichiers de logs) | `4` | Non |
 | `HOST_ROOT_PATH` | Chemin racine du système hôte monté dans le conteneur | `/host` | Non |
 
-### Permissions des fichiers de logs système
+<details>
+<summary><strong>Permissions des fichiers de logs système</strong></summary>
 
 Le plugin **Host System Logs** nécessite l'accès en lecture aux fichiers de logs système. Par défaut, ces fichiers appartiennent à `root:adm` avec des permissions `640` (lecture pour root et le groupe adm).
 
@@ -392,27 +248,38 @@ ls -la /var/log/rkhunter.log.1
 
 **Note de sécurité :** Modifier les permissions des fichiers de logs pour permettre la lecture par le groupe `adm` est une pratique standard sur les systèmes Linux. Le groupe `adm` est conçu pour permettre l'accès aux fichiers de logs aux administrateurs système.
 
+</details>
+
 ### Configuration Docker
 
 #### Montage des volumes
 
-Pour accéder aux logs de votre système hôte, montez le répertoire `/var/log` :
+Le fichier `docker-compose.yml` configure automatiquement les montages nécessaires pour accéder aux logs du système hôte :
 
 ```yaml
 volumes:
-  - /var/log:/host/logs:ro
+  # Montage du système de fichiers hôte (lecture seule)
+  # Cela monte tout le système, y compris /var/log, sous /host
+  - /:/host:ro
+  
+  # Montage séparé de /proc et /sys pour une meilleure compatibilité
+  - /proc:/host/proc:ro
+  - /sys:/host/sys:ro
 ```
 
-#### Montage optionnel de répertoires spécifiques
+**Important :** Le système utilise automatiquement `/host/var/log` pour accéder aux logs. Un symlink `/host/logs -> /host/var/log` est créé automatiquement par le script `docker-entrypoint.sh` si possible, mais le code utilise `/host/var/log` directement comme fallback.
 
-Pour un accès direct aux logs sans le préfixe `/host/` :
+**⚠️ Ne pas utiliser** le montage explicite `/var/log:/host/logs:ro` car il cause des erreurs "read-only file system" avec Docker.
 
-```yaml
-volumes:
-  - /var/log/apache2:/var/log/apache2:ro    # Apache logs
-  - /var/log/nginx:/var/log/nginx:ro        # Nginx logs
-  - /var/log/npm:/var/log/npm:ro            # NPM logs
-```
+#### Accès aux fichiers de logs
+
+Les plugins accèdent aux fichiers de logs via les chemins suivants :
+- **Host System** : `/host/var/log/syslog`, `/host/var/log/auth.log`, etc.
+- **Apache** : `/host/var/log/apache2/access.log`, `/host/var/log/apache2/error.log`
+- **Nginx** : `/host/var/log/nginx/access.log`, `/host/var/log/nginx/error.log`
+- **NPM** : `/host/var/log/npm/*.log`
+
+La conversion des chemins est automatique : si vous configurez `/var/log/apache2` dans un plugin, il sera automatiquement converti en `/host/var/log/apache2` (ou `/host/logs/apache2` si le symlink existe) dans le conteneur Docker.
 
 ### Configuration des plugins
 
@@ -427,6 +294,7 @@ Chaque plugin peut être configuré depuis l'interface d'administration :
    - Regex par défaut
    - Option de lecture des fichiers compressés
 
+</details>
 
 ---
 
