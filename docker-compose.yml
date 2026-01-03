@@ -1,0 +1,100 @@
+# ===========================================
+# LogviewR - Docker Compose (Production)
+# ===========================================
+#
+# Docker Compose configuration for PRODUCTION
+# 
+# Usage:
+#   docker-compose up -d
+#   docker-compose pull && docker-compose up -d  # Update and restart
+#
+# Environment variables:
+#   DASHBOARD_PORT - Dashboard port (default: 7500)
+#   JWT_SECRET     - JWT secret for authentication (REQUIRED - use .env file)
+#   PUBLIC_URL     - Public URL if using reverse proxy (optional)
+#
+# IMPORTANT: Create a .env file with JWT_SECRET before starting:
+#   JWT_SECRET=$(openssl rand -base64 32)
+#   echo "JWT_SECRET=$JWT_SECRET" > .env
+
+services:
+  logviewr:
+    image: ghcr.io/erreur32/LogviewR:latest
+    container_name: logviewr
+    restart: unless-stopped
+
+    ports:
+      # Dashboard port mapping: host port → container port 3000
+      - "${DASHBOARD_PORT:-7500}:3000"
+
+    environment:
+      # 🔐 SECRET OBLIGATOIRE - JWT secret for authentication
+      # ⚠️ CRITICAL SECURITY: Never use default secret in production!
+      # Generate with: openssl rand -base64 32
+      # Store in .env file: JWT_SECRET=votre_secret_genere
+      JWT_SECRET: ${JWT_SECRET}
+
+      # Dashboard port mapping (host port → container port 3000)
+      # This is the port exposed on the host machine
+      # Must match the port in the "ports" section above
+      DASHBOARD_PORT: ${DASHBOARD_PORT:-7500}
+      
+      # Host machine IP address (optional, for better log display)
+      # If not set, the container will try to auto-detect from Docker gateway
+      # Example: HOST_IP=192.168.1.100
+      HOST_IP: ${HOST_IP:-}
+
+      # Configuration file path (optional external config file)
+      CONFIG_FILE_PATH: ${CONFIG_FILE_PATH:-/app/config/logviewr.conf}
+
+      # Host metrics access (read-only mount of host filesystem)
+      # Used to read hostname, disk usage, and system info from the host
+      HOST_ROOT_PATH: ${HOST_ROOT_PATH:-/host}
+
+      # PUBLIC_URL (only if using reverse proxy like nginx)
+      # Uncomment and set if accessing via domain name instead of IP:port
+      # PUBLIC_URL: https://dashboard.example.com
+
+    volumes:
+      # Persistent storage for:
+      # - SQLite database (dashboard.db)
+      # - Application configuration
+      - ./data:/app/data
+      # Mount host filesystem (read-only) to access real host metrics
+      # This allows the app to read hostname, disk usage, and other system info from the host
+      - /:/host:ro
+      # Mount host /proc and /sys separately for better compatibility
+      # These are used to read CPU, memory, network stats, and hostname
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      # Mount host logs directory (read-only) for log viewer functionality
+      # This allows LogviewR to read log files from the host system
+      # Host System plugin uses /host/logs to access /var/log
+      # Other plugins (Apache, Nginx, NPM) can access logs via /host/var/log/...
+      - /var/log:/host/logs:ro
+      # Optional: Mount specific log directories for direct access
+      # Uncomment if you want plugins to access logs directly without /host/ prefix:
+      # - /var/log/apache2:/var/log/apache2:ro    # Apache logs (accessible at /var/log/apache2)
+      # - /var/log/nginx:/var/log/nginx:ro        # Nginx logs (accessible at /var/log/nginx)
+      # - /var/log/npm:/var/log/npm:ro            # NPM logs (accessible at /var/log/npm)
+      # Note: Without these mounts, plugins must use /host/var/log/... paths in configuration
+
+    # Health check: verify container is responding to API requests
+    # Uses wget (available in Alpine base image) to check /api/health endpoint
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+
+    # Resource limits (optional)
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '0.5'
+    #       memory: 512M
+    #     reservations:
+    #       cpus: '0.1'
+    #       memory: 256M

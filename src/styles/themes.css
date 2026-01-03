@@ -1,0 +1,2163 @@
+/**
+ * Theme System - CSS Variables
+ * 
+ * This file defines the CSS variable architecture for the theme system.
+ * Three themes are available: dark, glass, and modern.
+ * 
+ * Variables are defined in :root and can be overridden per theme.
+ */
+
+:root {
+    /* Accent Colors */
+    --accent-primary: #3b82f6;
+    --accent-primary-hover: #2563eb;
+    --accent-success: #10b981;
+    --accent-warning: #f59e0b;
+    --accent-error: #ef4444;
+    --accent-info: #06b6d4;
+
+    /* Background Colors */
+    --bg-primary: #0f0f0f;
+    --bg-secondary: #1a1a1a;
+    --bg-tertiary: #252525;
+    --bg-card: #1a1a1a;
+    --bg-header: #111111;
+    --bg-footer: rgba(10, 10, 10, 0.9);
+
+    /* Text Colors */
+    --text-primary: #e5e5e5;
+    --text-secondary: #999999;
+    --text-tertiary: #666666;
+
+    /* Border Colors */
+    --border-color: #333333;
+    --border-color-light: #444444;
+    --border-color-hover: #555555;
+
+    /* Input/Textarea Colors */
+    --input-bg: #1a1a1a;
+    --input-text: #e5e5e5;
+    --input-border: #333333;
+    --input-border-focus: #3b82f6;
+    --input-placeholder: #666666;
+
+    /* Button Colors */
+    --button-bg: #1a1a1a;
+    --button-text: #e5e5e5;
+    --button-hover-bg: #252525;
+    --button-hover-text: #ffffff;
+    --button-active-bg: #3b82f6;
+    --button-active-text: #ffffff;
+    --button-border: #333333;
+
+    /* Card/Container Colors */
+    --card-bg: #1a1a1a;
+    --card-border: #333333;
+
+    /* Effects */
+    --backdrop-blur: none;
+}
+
+/* Dark Theme - Popular dark theme style (inspired by GitHub Dark, VS Code Dark+) */
+/* Clear color hierarchy: background < headers/footers < cards < card headers */
+[data-theme="dark"] {
+    /* Accent Colors */
+    --accent-unifi: #1fb0ec;
+
+    /* Background Colors - Clear hierarchy inspired by popular dark themes */
+    --bg-primary: #0d1117;        /* Main background (GitHub Dark style) */
+    --bg-header: #161b22;          /* Header/Footer (slightly lighter than background) */
+    --bg-footer: #161b22;          /* Footer same as header */
+    --bg-card: #161b22;            /* Card background (distinct from main background) */
+    --bg-secondary: #21262d;       /* Card headers, table headers, secondary elements */
+    --bg-tertiary: #30363d;        /* Hover states, tertiary elements */
+
+    /* Border Colors - Visible but subtle */
+    --border-color: #30363d;        /* Main borders */
+    --border-color-light: #373e47;  /* Lighter borders */
+    --border-color-hover: #484f58;  /* Hover borders */
+
+    /* Input/Textarea Colors */
+    --input-bg: #0d1117;           /* Input background (same as main background) */
+    --input-text: #c9d1d9;        /* Input text (GitHub style) */
+    --input-border: #30363d;      /* Input border */
+    --input-border-focus: #1f6feb; /* Focus border (GitHub blue) */
+    --input-placeholder: #6e7681;  /* Placeholder text */
+
+    /* Card/Container Colors */
+    --card-bg: #161b22;            /* Card background */
+    --card-border: #30363d;        /* Card border */
+
+    /* Header/Footer borders */
+    --header-border: #21262d;      /* Header border (slightly lighter) */
+    --footer-border: #21262d;      /* Footer border */
+
+    /* Text Colors */
+    --text-primary: #c9d1d9;       /* Primary text (GitHub style) */
+    --text-secondary: #8b949e;     /* Secondary text */
+    --text-tertiary: #6e7681;      /* Tertiary text */
+
+    /* Button Colors */
+    --button-bg: #21262d;          /* Button background */
+    --button-text: #c9d1d9;       /* Button text */
+    --button-hover-bg: #30363d;   /* Button hover */
+    --button-hover-text: #ffffff; /* Button hover text */
+    --button-active-bg: #1f6feb;  /* Button active */
+    --button-active-text: #ffffff; /* Button active text */
+    --button-border: #30363d;     /* Button border */
+
+    /* UniFi Card Background */
+    --bg-unifi-card: #161b22;     /* Same as card background */
+
+    /* Effects */
+    --backdrop-blur: none;
+}
+
+/* Glass Theme - Transparent backgrounds with blur effect */
+[data-theme="glass"] {
+    /* Accent Colors - Sobres et élégants */
+    --accent-primary: #5b9bd5;
+    --accent-primary-hover: #4a8bc2;
+    --accent-success: #6bbf8e;
+    --accent-warning: #d4a574;
+    --accent-error: #d87a7a;
+    --accent-info: #6bb3d4;
+    --accent-unifi: #6bb3d4;
+
+    /* Background Colors - Glass effect raffiné */
+    --bg-primary: #0a0a0a;
+    --bg-secondary: rgba(20, 20, 25, 0.75);
+    --bg-tertiary: rgba(30, 30, 35, 0.65);
+    --bg-card: rgba(22, 22, 28, 0.8);
+    --bg-header: #0f0f0f;
+    --bg-footer: #0f0f0f;
+
+    /* Text Colors - Très lisibles */
+    --text-primary: #e8e8e8;
+    --text-secondary: #b8b8b8;
+    --text-tertiary: #888888;
+
+    /* Border Colors - Bordures glass subtiles */
+    --border-color: rgba(255, 255, 255, 0.08);
+    --border-color-light: rgba(255, 255, 255, 0.12);
+    --border-color-hover: rgba(255, 255, 255, 0.18);
+
+    /* Button Colors */
+    --button-bg: rgba(30, 30, 35, 0.7);
+    --button-text: #e8e8e8;
+    --button-hover-bg: rgba(40, 40, 45, 0.8);
+    --button-hover-text: #ffffff;
+    --button-active-bg: #5b9bd5;
+    --button-active-text: #ffffff;
+    --button-border: rgba(255, 255, 255, 0.1);
+
+    /* Input/Textarea Colors - Glass effect */
+    --input-bg: rgba(25, 25, 30, 0.7);
+    --input-text: #e8e8e8;
+    --input-border: rgba(255, 255, 255, 0.1);
+    --input-border-focus: #5b9bd5;
+    --input-placeholder: #888888;
+
+    /* Cards - Glass effect raffiné */
+    --card-bg: rgba(22, 22, 28, 0.8);
+    --card-border: rgba(255, 255, 255, 0.08);
+
+    /* Header/Footer borders */
+    --header-border: rgba(255, 255, 255, 0.1);
+    --footer-border: rgba(255, 255, 255, 0.1);
+
+    /* Shadows - Subtiles */
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.5);
+    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.6);
+
+    /* UniFi Card Background */
+    --bg-unifi-card: rgba(22, 22, 28, 0.8);
+
+    /* Effects */
+    --backdrop-blur: blur(16px);
+}
+
+/* Modern Theme - Gradient bleu-mauve doux avec cartes transparentes */
+[data-theme="modern"] {
+    /* Accent Colors - Doux et harmonieux */
+    --accent-primary: #8b7cf6;
+    --accent-primary-hover: #7c6af0;
+    --accent-success: #6bbf8e;
+    --accent-warning: #d4a574;
+    --accent-error: #e88a8a;
+    --accent-info: #6bb3d4;
+    --accent-unifi: #6bb3d4;
+
+    /* Background Colors - Gradient bleu-mauve doux */
+    --bg-primary: #0a0d14;
+    --bg-secondary: rgba(30, 25, 50, 0.4);
+    --bg-tertiary: rgba(40, 35, 65, 0.35);
+    --bg-card: rgba(35, 30, 55, 0.5);
+    --bg-header: rgba(40, 35, 60, 0.6);
+    --bg-footer: rgba(40, 35, 60, 0.6);
+
+    /* Text Colors - Très lisibles sur gradient */
+    --text-primary: #f0f2f8;
+    --text-secondary: #c8d0e0;
+    --text-tertiary: #9aa5b8;
+
+    /* Borders - Aucune bordure visible */
+    --border-color: transparent;
+    --border-color-light: transparent;
+    --border-color-hover: transparent;
+
+    /* Inputs - Transparents avec glass effect */
+    --input-bg: rgba(40, 35, 60, 0.6);
+    --input-text: #f0f2f8;
+    --input-border: transparent;
+    --input-border-focus: rgba(139, 124, 246, 0.5);
+    --input-placeholder: #9aa5b8;
+
+    /* Cards - Transparentes mais lisibles */
+    --card-bg: rgba(35, 30, 55, 0.5);
+    --card-border: transparent;
+
+    /* Header/Footer borders - Transparentes */
+    --header-border: transparent;
+    --footer-border: transparent;
+
+    /* Shadows - Subtiles pour la profondeur */
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+
+    /* UniFi Card Background */
+    --bg-unifi-card: rgba(35, 30, 55, 0.5);
+
+    /* Effects */
+    --backdrop-blur: blur(12px);
+}
+
+[data-theme="nightly"] {
+    /* Background Colors - Noir vers gris foncé, moins de transparence */
+    --bg-primary: #0a0a0a;
+    --bg-secondary: #1a1a1a;
+    --bg-tertiary: #252525;
+    --bg-card: #151515;
+    --bg-unifi-card: #0f0f0f;
+    --bg-header: #0d0d0d;
+    --bg-footer: #0d0d0d;
+
+    /* Border Colors - Super fines avec teinte chaude (anti-lumière bleue) */
+    --border-color: rgba(230, 225, 215, 0.08);
+    --border-color-light: rgba(230, 225, 215, 0.12);
+    --border-color-hover: rgba(230, 225, 215, 0.18);
+
+    /* Text Colors - Couleurs chaudes, pas de blanc pur (anti-lumière bleue) */
+    --text-primary: #f5f3f0;
+    --text-secondary: #c4beb5;
+    --text-tertiary: #8a857d;
+
+    /* Accent Colors */
+    --accent-primary: #3b82f6;
+    --accent-primary-hover: #2563eb;
+    --accent-unifi: #1fb0ec;
+    --accent-success: #10b981;
+    --accent-warning: #f59e0b;
+    --accent-error: #ef4444;
+
+    /* Button Colors - Moins de transparence */
+    --button-bg: #1a1a1a;
+    --button-text: #f5f3f0;
+    --button-hover-bg: #252525;
+    --button-hover-text: #faf9f7;
+    --button-active-bg: #3b82f6;
+    --button-active-text: #faf9f7;
+    --button-border: rgba(230, 225, 215, 0.08);
+
+    /* Input/Textarea Colors - Moins de transparence */
+    --input-bg: #151515;
+    --input-text: #f5f3f0;
+    --input-border: rgba(230, 225, 215, 0.08);
+    --input-border-focus: #3b82f6;
+    --input-placeholder: #8a857d;
+
+    /* Cards - Moins de transparence */
+    --card-bg: #151515;
+    --card-border: rgba(230, 225, 215, 0.08);
+
+    /* Header/Footer borders - Couleurs chaudes avec teinte bleue subtile */
+    --header-border: rgba(150, 180, 200, 0.2);
+    --footer-border: rgba(150, 180, 200, 0.2);
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, .3);
+    --shadow-md: 0 4px 6px rgba(0, 0, 0, .4);
+    --shadow-lg: 0 10px 15px rgba(0, 0, 0, .5);
+
+    /* Effects */
+    --backdrop-blur: none;
+}
+
+[data-theme="neon"] {
+    --bg-primary: rgba(15, 15, 25, .7);
+    --bg-secondary: rgba(30, 25, 45, .6);
+    --bg-tertiary: rgba(45, 35, 65, .5);
+    --bg-card: rgba(40, 30, 60, .5);
+    --bg-unifi-card: rgba(20, 15, 35, .7);
+    --bg-header: rgba(20, 15, 35, .8);
+    --bg-footer: rgba(15, 15, 25, .75);
+    --border-color: rgba(192, 132, 252, .25);
+    --border-color-light: rgba(192, 132, 252, .35);
+    --border-color-hover: rgba(167, 139, 250, .4);
+    --text-primary: #f8fafc;
+    --text-secondary: #e2e8f0;
+    --text-tertiary: #cbd5e1;
+    --text-disabled: #94a3b8;
+    --accent-primary: #c084fc;
+    --accent-primary-hover: #a855f7;
+    --accent-unifi: #1fb0ec;
+    --accent-success: #34d399;
+    --accent-warning: #fbbf24;
+    --accent-error: #f87171;
+    --accent-info: #60a5fa;
+    --button-bg: rgba(192, 132, 252, .2);
+    --button-text: #f8fafc;
+    --button-hover-bg: rgba(167, 139, 250, .25);
+    --button-hover-text: #ffffff;
+    --button-active-bg: rgba(192, 132, 252, .5);
+    --button-active-text: #ffffff;
+    --button-border: rgba(192, 132, 252, .4);
+    --input-bg: rgba(30, 25, 45, .6);
+    --input-text: #f8fafc;
+    --input-border: rgba(192, 132, 252, .25);
+    --input-border-focus: #c084fc;
+    --input-placeholder: #cbd5e1;
+    --card-bg: rgba(40, 30, 60, .5);
+    --card-border: rgba(192, 132, 252, .25);
+    --header-border: rgba(192, 132, 252, .25);
+    --footer-border: rgba(192, 132, 252, .25);
+    --backdrop-blur: blur(12px);
+    --shadow-sm: 0 1px 2px rgba(139, 92, 246, .3);
+    --shadow-md: 0 4px 6px rgba(139, 92, 246, .4);
+    --shadow-lg: 0 10px 15px rgba(139, 92, 246, .5);
+    --shadow-xl: 0 20px 25px rgba(139, 92, 246, .6);
+}
+
+/* Neon theme - Beautiful animated gradient background */
+[data-theme="neon"] body,
+[data-theme="neon"] html {
+    background: 
+        linear-gradient(135deg, 
+            rgba(192, 132, 252, 0.35) 0%,
+            rgba(167, 139, 250, 0.3) 20%,
+            rgba(139, 92, 246, 0.32) 40%,
+            rgba(59, 130, 246, 0.25) 60%,
+            rgba(192, 132, 252, 0.35) 80%,
+            rgba(167, 139, 250, 0.3) 100%
+        ),
+        linear-gradient(135deg, 
+            #0f0a1a 0%,
+            #1a0f2e 25%,
+            #1e0f3a 50%,
+            #2a1545 75%,
+            #1a0f2e 100%
+        ) !important;
+    background-size: 100% 100%, 400% 400% !important;
+    background-position: 0 0, 0 0 !important;
+    background-attachment: fixed !important;
+    background-repeat: no-repeat !important;
+    min-height: 100vh !important;
+    width: 100% !important;
+    animation: neonGradientShift 35s ease infinite !important;
+}
+
+/* Ensure body and html take full viewport for Neon theme */
+[data-theme="neon"] body {
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+[data-theme="neon"] html {
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+@keyframes neonGradientShift {
+    0% { background-position: 0% 50%, 0% 50%; }
+    50% { background-position: 100% 50%, 100% 50%; }
+    100% { background-position: 0% 50%, 0% 50%; }
+}
+
+/* Global input/textarea/select styles using CSS variables */
+[data-theme="dark"] input[type="text"],
+[data-theme="dark"] input[type="password"],
+[data-theme="dark"] input[type="email"],
+[data-theme="dark"] input[type="number"],
+[data-theme="dark"] input[type="search"],
+[data-theme="dark"] input[type="tel"],
+[data-theme="dark"] input[type="url"],
+[data-theme="dark"] textarea,
+[data-theme="dark"] select {
+    background-color: var(--input-bg) !important;
+    color: var(--input-text) !important;
+    border-color: var(--input-border) !important;
+}
+
+[data-theme="dark"] input::placeholder,
+[data-theme="dark"] textarea::placeholder {
+    color: var(--input-placeholder) !important;
+}
+
+[data-theme="dark"] input:focus,
+[data-theme="dark"] textarea:focus,
+[data-theme="dark"] select:focus {
+    border-color: var(--input-border-focus) !important;
+    outline: none;
+    box-shadow: 0 0 0 1px var(--input-border-focus) !important;
+}
+
+/* Dark theme - Remove focus outline on all elements except inputs */
+[data-theme="dark"] *:focus:not(input):not(textarea):not(select):not(button):not(a):not([role="button"]),
+[data-theme="dark"] *:focus-visible:not(input):not(textarea):not(select):not(button):not(a):not([role="button"]) {
+    box-shadow: none !important;
+    outline: none !important;
+}
+
+/* Dark theme - Remove focus outline on buttons */
+[data-theme="dark"] button:focus,
+[data-theme="dark"] a:focus,
+[data-theme="dark"] [role="button"]:focus {
+    box-shadow: none !important;
+    outline: none !important;
+}
+
+/* Dark theme - Remove shadows on hover for cleaner look */
+[data-theme="dark"] button:hover,
+[data-theme="dark"] a:hover,
+[data-theme="dark"] [role="button"]:hover,
+[data-theme="dark"] .hover\:shadow-md:hover,
+[data-theme="dark"] .hover\:shadow-lg:hover {
+    box-shadow: none !important;
+}
+
+/* Override hardcoded input backgrounds to use CSS variables */
+[data-theme="dark"] input[class*="bg-[#1a1a1a]"],
+[data-theme="dark"] textarea[class*="bg-[#1a1a1a]"] {
+    background-color: var(--input-bg) !important;
+    border-color: var(--input-border) !important;
+}
+
+/* Global input/textarea/select styles for Glass theme */
+[data-theme="glass"] input[type="text"],
+[data-theme="glass"] input[type="password"],
+[data-theme="glass"] input[type="email"],
+[data-theme="glass"] input[type="number"],
+[data-theme="glass"] input[type="search"],
+[data-theme="glass"] input[type="tel"],
+[data-theme="glass"] input[type="url"],
+[data-theme="glass"] textarea,
+[data-theme="glass"] select {
+    background-color: var(--input-bg) !important;
+    color: var(--input-text) !important;
+    border-color: var(--input-border) !important;
+}
+
+[data-theme="glass"] input::placeholder,
+[data-theme="glass"] textarea::placeholder {
+    color: var(--input-placeholder) !important;
+}
+
+[data-theme="glass"] input:focus,
+[data-theme="glass"] textarea:focus,
+[data-theme="glass"] select:focus {
+    border-color: var(--input-border-focus) !important;
+    outline: none;
+}
+
+/* Glass theme - Remove focus outline on buttons */
+[data-theme="glass"] button:focus,
+[data-theme="glass"] a:focus,
+[data-theme="glass"] [role="button"]:focus {
+    box-shadow: none !important;
+    outline: none !important;
+}
+
+/* Override hardcoded input backgrounds for Glass theme */
+[data-theme="glass"] input[class*="bg-[#1a1a1a]"],
+[data-theme="glass"] textarea[class*="bg-[#1a1a1a]"] {
+    background-color: var(--input-bg) !important;
+    border-color: var(--input-border) !important;
+}
+
+/* ============================================
+   GLASS THEME - Glassmorphism Effects
+   ============================================
+   Effets glass raffinés et sobres pour une lisibilité optimale
+*/
+
+/* Header and Footer - Opaque (no transparency) */
+[data-theme="glass"] header,
+[data-theme="glass"] .bg-theme-header,
+[data-theme="glass"] header.bg-theme-header {
+    background-color: var(--bg-header) !important;
+    border-color: var(--header-border) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+
+[data-theme="glass"] footer,
+[data-theme="glass"] .bg-theme-footer,
+[data-theme="glass"] footer.bg-theme-footer {
+    background-color: var(--bg-footer) !important;
+    border-color: var(--footer-border) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+
+/* Cards - Glass effect raffiné avec backdrop blur */
+[data-theme="glass"] [class*="card"],
+[data-theme="glass"] [class*="section"],
+[data-theme="glass"] [class*="widget"],
+[data-theme="glass"] [class*="panel"],
+[data-theme="glass"] .bg-theme-secondary,
+[data-theme="glass"] .bg-theme-card {
+    background: var(--card-bg) !important;
+    backdrop-filter: var(--backdrop-blur) !important;
+    -webkit-backdrop-filter: var(--backdrop-blur) !important;
+    border-color: var(--card-border) !important;
+    box-shadow: var(--shadow-md) !important;
+}
+
+/* Secondary backgrounds - Glass effect subtil */
+[data-theme="glass"] .bg-theme-secondary {
+    background: var(--bg-secondary) !important;
+    backdrop-filter: var(--backdrop-blur) !important;
+    -webkit-backdrop-filter: var(--backdrop-blur) !important;
+}
+
+/* Tertiary backgrounds - Glass effect léger */
+[data-theme="glass"] .bg-theme-tertiary {
+    background: var(--bg-tertiary) !important;
+    backdrop-filter: blur(8px) !important;
+    -webkit-backdrop-filter: blur(8px) !important;
+}
+
+/* Primary background - Fond sombre solide */
+[data-theme="glass"] body,
+[data-theme="glass"] .bg-theme-primary {
+    background-color: var(--bg-primary) !important;
+}
+
+/* Borders - Glass borders subtiles */
+[data-theme="glass"] .border,
+[data-theme="glass"] .border-theme,
+[data-theme="glass"] [class*="border"]:not([class*="border-red"]):not([class*="border-green"]):not([class*="border-yellow"]):not([class*="border-blue"]):not([class*="border-purple"]):not([class*="border-orange"]):not([class*="border-cyan"]):not([class*="border-pink"]):not([class*="border-indigo"]):not([class*="border-emerald"]):not([class*="border-teal"]):not([class*="border-amber"]):not([class*="border-violet"]):not([class*="border-fuchsia"]):not([class*="border-rose"]):not([class*="border-lime"]):not([class*="border-sky"]) {
+    border-color: var(--border-color) !important;
+}
+
+/* Rounded containers - Glass effect avec ombre subtile */
+[data-theme="glass"] .rounded,
+[data-theme="glass"] .rounded-lg,
+[data-theme="glass"] .rounded-xl,
+[data-theme="glass"] .rounded-2xl {
+    box-shadow: var(--shadow-sm) !important;
+}
+
+/* Text colors for better readability */
+[data-theme="glass"] .text-theme-primary {
+    color: var(--text-primary) !important;
+}
+
+[data-theme="glass"] .text-theme-secondary {
+    color: var(--text-secondary) !important;
+}
+
+[data-theme="glass"] .text-theme-tertiary {
+    color: var(--text-tertiary) !important;
+}
+
+/* Override any backdrop-blur classes on header and footer for glass theme */
+[data-theme="glass"] header[class*="backdrop"],
+[data-theme="glass"] footer[class*="backdrop"] {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+
+/* Global input/textarea/select styles for Modern theme */
+[data-theme="modern"] input[type="text"],
+[data-theme="modern"] input[type="password"],
+[data-theme="modern"] input[type="email"],
+[data-theme="modern"] input[type="number"],
+[data-theme="modern"] input[type="search"],
+[data-theme="modern"] input[type="tel"],
+[data-theme="modern"] input[type="url"],
+[data-theme="modern"] textarea,
+[data-theme="modern"] select {
+    background-color: var(--input-bg) !important;
+    color: var(--input-text) !important;
+    border-color: var(--input-border) !important;
+}
+
+[data-theme="modern"] input::placeholder,
+[data-theme="modern"] textarea::placeholder {
+    color: var(--input-placeholder) !important;
+}
+
+[data-theme="modern"] input:focus,
+[data-theme="modern"] textarea:focus,
+[data-theme="modern"] select:focus {
+    border-color: var(--input-border-focus) !important;
+    outline: none;
+}
+
+/* Modern theme - Remove focus outline on buttons */
+[data-theme="modern"] button:focus,
+[data-theme="modern"] a:focus,
+[data-theme="modern"] [role="button"]:focus {
+    box-shadow: none !important;
+    outline: none !important;
+}
+
+/* Override hardcoded input backgrounds for Modern theme */
+[data-theme="modern"] input[class*="bg-[#1a1a1a]"],
+[data-theme="modern"] textarea[class*="bg-[#1a1a1a]"] {
+    background-color: var(--input-bg) !important;
+    border-color: var(--input-border) !important;
+}
+
+/* ============================================
+   MODERN THEME - Gradient bleu-mauve avec cartes transparentes
+   ============================================
+   Effet gradient doux avec cartes transparentes très lisibles
+*/
+
+/* Modern theme - Animated gradient background with same logic as elegant */
+/* Force background on html first, then body */
+[data-theme="modern"] html {
+    background: 
+        linear-gradient(135deg, 
+            rgba(91, 155, 213, 0.4) 0%, 
+            rgba(139, 124, 246, 0.38) 20%, 
+            rgba(236, 72, 153, 0.35) 40%, 
+            rgba(139, 124, 246, 0.38) 60%, 
+            rgba(91, 155, 213, 0.4) 80%,
+            rgba(139, 124, 246, 0.38) 100%
+        ),
+        linear-gradient(135deg, 
+            #1a1a2e 0%, 
+            #16213e 20%, 
+            #0f3460 40%, 
+            #533483 60%, 
+            #1a1a2e 80%,
+            #16213e 100%
+        ) !important;
+    background-size: 500% 500%, 600% 600% !important;
+    background-position: 0% 0%, 0% 0% !important;
+    background-attachment: fixed !important;
+    background-repeat: no-repeat !important;
+    min-height: 100vh !important;
+    width: 100% !important;
+    animation: modernGradientShift 12s linear infinite !important;
+}
+
+[data-theme="modern"] body {
+    background: 
+        linear-gradient(135deg, 
+            rgba(91, 155, 213, 0.4) 0%, 
+            rgba(139, 124, 246, 0.38) 20%, 
+            rgba(236, 72, 153, 0.35) 40%, 
+            rgba(139, 124, 246, 0.38) 60%, 
+            rgba(91, 155, 213, 0.4) 80%,
+            rgba(139, 124, 246, 0.38) 100%
+        ),
+        linear-gradient(135deg, 
+            #1a1a2e 0%, 
+            #16213e 20%, 
+            #0f3460 40%, 
+            #533483 60%, 
+            #1a1a2e 80%,
+            #16213e 100%
+        ) !important;
+    background-size: 500% 500%, 600% 600% !important;
+    background-position: 0% 0%, 0% 0% !important;
+    background-attachment: fixed !important;
+    background-repeat: no-repeat !important;
+    min-height: 100vh !important;
+    width: 100% !important;
+    animation: modernGradientShift 12s linear infinite !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    color: var(--text-primary) !important;
+}
+
+/* Modern theme - Override ALL inline styles from index.html - MUST come after body/html rules */
+[data-theme="modern"] body[style],
+[data-theme="modern"] body[style*="background"] {
+    background: 
+        linear-gradient(135deg, 
+            rgba(91, 155, 213, 0.4) 0%, 
+            rgba(139, 124, 246, 0.38) 20%, 
+            rgba(236, 72, 153, 0.35) 40%, 
+            rgba(139, 124, 246, 0.38) 60%, 
+            rgba(91, 155, 213, 0.4) 80%,
+            rgba(139, 124, 246, 0.38) 100%
+        ),
+        linear-gradient(135deg, 
+            #1a1a2e 0%, 
+            #16213e 20%, 
+            #0f3460 40%, 
+            #533483 60%, 
+            #1a1a2e 80%,
+            #16213e 100%
+        ) !important;
+    background-size: 500% 500%, 600% 600% !important;
+    background-position: 0% 0%, 0% 0% !important;
+    background-attachment: fixed !important;
+    background-repeat: no-repeat !important;
+    animation: modernGradientShift 12s linear infinite !important;
+    background-color: transparent !important;
+}
+
+@keyframes modernGradientShift {
+    0% { 
+        background-position: 0% 0%, 0% 0%; 
+    }
+    25% { 
+        background-position: 100% 0%, 50% 50%; 
+    }
+    50% { 
+        background-position: 100% 100%, 100% 100%; 
+    }
+    75% { 
+        background-position: 0% 100%, 50% 50%; 
+    }
+    100% { 
+        background-position: 0% 0%, 0% 0%; 
+    }
+}
+
+/* Modern theme - Maximum specificity override for inline styles from index.html */
+html[data-theme="modern"] body,
+html[data-theme="modern"] body[style],
+html[data-theme="modern"] body[style*="background-color"],
+html[data-theme="modern"] body[style*="background"] {
+    background: 
+        linear-gradient(135deg, 
+            rgba(91, 155, 213, 0.4) 0%, 
+            rgba(139, 124, 246, 0.38) 20%, 
+            rgba(236, 72, 153, 0.35) 40%, 
+            rgba(139, 124, 246, 0.38) 60%, 
+            rgba(91, 155, 213, 0.4) 80%,
+            rgba(139, 124, 246, 0.38) 100%
+        ),
+        linear-gradient(135deg, 
+            #1a1a2e 0%, 
+            #16213e 20%, 
+            #0f3460 40%, 
+            #533483 60%, 
+            #1a1a2e 80%,
+            #16213e 100%
+        ) !important;
+    background-size: 500% 500%, 600% 600% !important;
+    background-position: 0% 0%, 0% 0% !important;
+    background-attachment: fixed !important;
+    background-repeat: no-repeat !important;
+    animation: modernGradientShift 12s linear infinite !important;
+}
+
+/* Assurer que le contenu principal hérite aussi du gradient */
+[data-theme="modern"] main,
+[data-theme="modern"] #root,
+[data-theme="modern"] [class*="min-h-screen"],
+[data-theme="modern"] [class*="min-h-screen"].bg-theme-primary,
+[data-theme="modern"] .bg-theme-primary {
+    background: transparent !important;
+    background-color: transparent !important;
+}
+
+/* Header and Footer - Plus clairs et semi-transparents avec glass effect */
+[data-theme="modern"] header,
+[data-theme="modern"] .bg-theme-header,
+[data-theme="modern"] header.bg-theme-header {
+    background: rgba(40, 35, 60, 0.6) !important;
+    backdrop-filter: blur(20px) !important;
+    -webkit-backdrop-filter: blur(20px) !important;
+    border-color: transparent !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+}
+
+[data-theme="modern"] footer,
+[data-theme="modern"] .bg-theme-footer,
+[data-theme="modern"] footer.bg-theme-footer {
+    background: rgba(40, 35, 60, 0.6) !important;
+    backdrop-filter: blur(20px) !important;
+    -webkit-backdrop-filter: blur(20px) !important;
+    border-color: transparent !important;
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Cards - Transparentes mais très lisibles avec glass effect */
+[data-theme="modern"] [class*="card"],
+[data-theme="modern"] [class*="section"],
+[data-theme="modern"] [class*="widget"],
+[data-theme="modern"] [class*="panel"],
+[data-theme="modern"] .bg-theme-secondary,
+[data-theme="modern"] .bg-theme-card {
+    background: var(--card-bg) !important;
+    backdrop-filter: var(--backdrop-blur) !important;
+    -webkit-backdrop-filter: var(--backdrop-blur) !important;
+    border-color: transparent !important;
+    box-shadow: var(--shadow-md) !important;
+}
+
+
+/* Secondary backgrounds - Glass effect transparent */
+[data-theme="modern"] .bg-theme-secondary {
+    background: var(--bg-secondary) !important;
+    backdrop-filter: var(--backdrop-blur) !important;
+    -webkit-backdrop-filter: var(--backdrop-blur) !important;
+}
+
+/* Tertiary backgrounds - Glass effect plus transparent */
+[data-theme="modern"] .bg-theme-tertiary {
+    background: var(--bg-tertiary) !important;
+    backdrop-filter: blur(8px) !important;
+    -webkit-backdrop-filter: blur(8px) !important;
+}
+
+/* Aucune bordure visible - Toutes transparentes */
+[data-theme="modern"] .border,
+[data-theme="modern"] .border-theme,
+[data-theme="modern"] [class*="border"]:not([class*="border-red"]):not([class*="border-green"]):not([class*="border-yellow"]):not([class*="border-blue"]):not([class*="border-purple"]):not([class*="border-orange"]):not([class*="border-cyan"]):not([class*="border-pink"]):not([class*="border-indigo"]):not([class*="border-emerald"]):not([class*="border-teal"]):not([class*="border-amber"]):not([class*="border-violet"]):not([class*="border-fuchsia"]):not([class*="border-rose"]):not([class*="border-lime"]):not([class*="border-sky"]) {
+    border-color: transparent !important;
+}
+
+/* Rounded containers - Ombres subtiles pour la profondeur */
+[data-theme="modern"] .rounded,
+[data-theme="modern"] .rounded-lg,
+[data-theme="modern"] .rounded-xl,
+[data-theme="modern"] .rounded-2xl {
+    box-shadow: var(--shadow-sm) !important;
+}
+
+/* Text colors for excellent readability */
+[data-theme="modern"] .text-theme-primary {
+    color: var(--text-primary) !important;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3) !important;
+}
+
+[data-theme="modern"] .text-theme-secondary {
+    color: var(--text-secondary) !important;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2) !important;
+}
+
+[data-theme="modern"] .text-theme-tertiary {
+    color: var(--text-tertiary) !important;
+}
+
+/* Inputs - Glass effect avec focus visible */
+[data-theme="modern"] input:focus,
+[data-theme="modern"] textarea:focus,
+[data-theme="modern"] select:focus {
+    box-shadow: 0 0 0 2px var(--input-border-focus) !important;
+    outline: none !important;
+}
+
+/* Override any backdrop-blur classes on header and footer */
+[data-theme="modern"] header[class*="backdrop"],
+[data-theme="modern"] footer[class*="backdrop"] {
+    backdrop-filter: blur(20px) !important;
+    -webkit-backdrop-filter: blur(20px) !important;
+}
+
+/* Input/Textarea styles for Nightly theme */
+[data-theme="nightly"] input[type="text"],
+[data-theme="nightly"] input[type="password"],
+[data-theme="nightly"] input[type="email"],
+[data-theme="nightly"] input[type="number"],
+[data-theme="nightly"] input[type="search"],
+[data-theme="nightly"] input[type="tel"],
+[data-theme="nightly"] input[type="url"],
+[data-theme="nightly"] textarea,
+[data-theme="nightly"] select {
+    background-color: var(--input-bg) !important;
+    color: var(--input-text) !important;
+    border-color: var(--input-border) !important;
+}
+
+[data-theme="nightly"] input::placeholder,
+[data-theme="nightly"] textarea::placeholder {
+    color: var(--input-placeholder) !important;
+}
+
+[data-theme="nightly"] input:focus,
+[data-theme="nightly"] textarea:focus,
+[data-theme="nightly"] select:focus {
+    border-color: var(--input-border-focus) !important;
+    outline: none;
+}
+
+/* Nightly theme - Remove focus outline on buttons */
+[data-theme="nightly"] button:focus,
+[data-theme="nightly"] a:focus,
+[data-theme="nightly"] [role="button"]:focus {
+    box-shadow: none !important;
+    outline: none !important;
+}
+
+/* Override hardcoded input backgrounds for Nightly theme */
+[data-theme="nightly"] input[class*="bg-[#1a1a1a]"],
+[data-theme="nightly"] textarea[class*="bg-[#1a1a1a]"] {
+    background-color: var(--input-bg) !important;
+    border-color: var(--input-border) !important;
+}
+
+/* Input/Textarea styles for Neon theme */
+[data-theme="neon"] input[type="text"],
+[data-theme="neon"] input[type="password"],
+[data-theme="neon"] input[type="email"],
+[data-theme="neon"] input[type="number"],
+[data-theme="neon"] input[type="search"],
+[data-theme="neon"] input[type="tel"],
+[data-theme="neon"] input[type="url"],
+[data-theme="neon"] textarea,
+[data-theme="neon"] select {
+    background-color: var(--input-bg) !important;
+    color: var(--input-text) !important;
+    border-color: var(--input-border) !important;
+}
+
+[data-theme="neon"] input::placeholder,
+[data-theme="neon"] textarea::placeholder {
+    color: var(--input-placeholder) !important;
+}
+
+[data-theme="neon"] input:focus,
+[data-theme="neon"] textarea:focus,
+[data-theme="neon"] select:focus {
+    border-color: var(--input-border-focus) !important;
+    box-shadow: 0 0 0 2px rgba(192, 132, 252, 0.2) !important;
+    outline: none;
+}
+
+/* Neon theme - Remove focus outline on buttons */
+[data-theme="neon"] button:focus,
+[data-theme="neon"] a:focus,
+[data-theme="neon"] [role="button"]:focus {
+    box-shadow: none !important;
+    outline: none !important;
+}
+
+/* ============================================
+   GLOBAL - Remove focus outline on all interactive elements
+   ============================================
+   Remove blue focus outline on buttons, links, and interactive elements
+   across all themes
+*/
+button:focus,
+button:focus-visible,
+a:focus,
+a:focus-visible,
+[role="button"]:focus,
+[role="button"]:focus-visible,
+button:hover:focus,
+a:hover:focus,
+[role="button"]:hover:focus {
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+[data-theme="neon"] input[class*="bg-[#1a1a1a]"],
+[data-theme="neon"] textarea[class*="bg-[#1a1a1a]"] {
+    background-color: var(--input-bg) !important;
+    border-color: var(--input-border) !important;
+}
+
+/* ============================================
+   GLOBAL BORDER STYLES FOR DARK THEME
+   ============================================
+   Apply gray borders everywhere, except for colored borders (alerts, warnings, etc.)
+*/
+
+/* All borders default to gray - but exclude colored borders */
+[data-theme="dark"] .border:not([class*="border-red"]):not([class*="border-green"]):not([class*="border-yellow"]):not([class*="border-blue"]):not([class*="border-purple"]):not([class*="border-orange"]):not([class*="border-cyan"]):not([class*="border-pink"]):not([class*="border-indigo"]):not([class*="border-emerald"]):not([class*="border-teal"]):not([class*="border-amber"]):not([class*="border-violet"]):not([class*="border-fuchsia"]):not([class*="border-rose"]):not([class*="border-lime"]):not([class*="border-sky"]) {
+    border-color: var(--border-color) !important;
+}
+
+/* Gray border classes - override to use theme color */
+[data-theme="dark"] .border-gray-700,
+[data-theme="dark"] .border-gray-800,
+[data-theme="dark"] .border-gray-600,
+[data-theme="dark"] .border-gray-500,
+[data-theme="dark"] .border-gray-900 {
+    border-color: var(--border-color) !important;
+}
+
+/* Border overrides for common border classes - exclude colored ones */
+[data-theme="dark"] [class*="border-gray-"]:not([class*="border-red"]):not([class*="border-green"]):not([class*="border-yellow"]):not([class*="border-blue"]):not([class*="border-purple"]):not([class*="border-orange"]) {
+    border-color: var(--border-color) !important;
+}
+
+/* Section borders and dividers - gray everywhere */
+[data-theme="dark"] .border-t:not([class*="border-red"]):not([class*="border-green"]):not([class*="border-yellow"]):not([class*="border-blue"]):not([class*="border-purple"]):not([class*="border-orange"]),
+[data-theme="dark"] .border-b:not([class*="border-red"]):not([class*="border-green"]):not([class*="border-yellow"]):not([class*="border-blue"]):not([class*="border-purple"]):not([class*="border-orange"]),
+[data-theme="dark"] .border-l:not([class*="border-red"]):not([class*="border-green"]):not([class*="border-yellow"]):not([class*="border-blue"]):not([class*="border-purple"]):not([class*="border-orange"]),
+[data-theme="dark"] .border-r:not([class*="border-red"]):not([class*="border-green"]):not([class*="border-yellow"]):not([class*="border-blue"]):not([class*="border-purple"]):not([class*="border-orange"]) {
+    border-color: var(--border-color) !important;
+}
+
+/* Header and Footer specific styles for dark theme */
+[data-theme="dark"] header,
+[data-theme="dark"] .bg-theme-header,
+[data-theme="dark"] header.bg-theme-header {
+    background-color: var(--bg-header) !important;
+    border-color: var(--header-border) !important;
+    /* Remove transparency for solid background */
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+
+[data-theme="dark"] footer,
+[data-theme="dark"] .bg-theme-footer,
+[data-theme="dark"] footer.bg-theme-footer {
+    background-color: var(--bg-footer) !important;
+    border-color: var(--footer-border) !important;
+    /* Remove transparency and backdrop blur for solid background */
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+
+/* Override any backdrop-blur classes on header and footer for dark theme */
+[data-theme="dark"] header[class*="backdrop"],
+[data-theme="dark"] footer[class*="backdrop"] {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+
+/* Card and container backgrounds */
+[data-theme="dark"] [class*="bg-[#1a1a1a]"] {
+    background-color: var(--bg-card) !important;  /* #161b22 - cartes */
+}
+
+/* Card headers in modals and components - use bg-secondary for differentiation */
+[data-theme="dark"] [class*="card"] [class*="bg-[#1a1a1a]"],
+[data-theme="dark"] [class*="modal"] [class*="bg-[#1a1a1a]"],
+[data-theme="dark"] [class*="border-b"][class*="bg-[#1a1a1a]"] {
+    background-color: var(--bg-secondary) !important;  /* #21262d - headers de cartes */
+}
+
+/* Rounded containers and cards - gray borders */
+[data-theme="dark"] .rounded:not([class*="border-red"]):not([class*="border-green"]):not([class*="border-yellow"]):not([class*="border-blue"]):not([class*="border-purple"]):not([class*="border-orange"]),
+[data-theme="dark"] .rounded-lg:not([class*="border-red"]):not([class*="border-green"]):not([class*="border-yellow"]):not([class*="border-blue"]):not([class*="border-purple"]):not([class*="border-orange"]),
+[data-theme="dark"] .rounded-xl:not([class*="border-red"]):not([class*="border-green"]):not([class*="border-yellow"]):not([class*="border-blue"]):not([class*="border-purple"]):not([class*="border-orange"]),
+[data-theme="dark"] .rounded-2xl:not([class*="border-red"]):not([class*="border-green"]):not([class*="border-yellow"]):not([class*="border-blue"]):not([class*="border-purple"]):not([class*="border-orange"]) {
+    border-color: var(--border-color) !important;
+}
+
+/* Specific targeting for dashboard, administration sections */
+[data-theme="dark"] [class*="card"]:not([class*="border-red"]):not([class*="border-green"]):not([class*="border-yellow"]):not([class*="border-blue"]):not([class*="border-purple"]):not([class*="border-orange"]),
+[data-theme="dark"] [class*="section"]:not([class*="border-red"]):not([class*="border-green"]):not([class*="border-yellow"]):not([class*="border-blue"]):not([class*="border-purple"]):not([class*="border-orange"]),
+[data-theme="dark"] [class*="widget"]:not([class*="border-red"]):not([class*="border-green"]):not([class*="border-yellow"]):not([class*="border-blue"]):not([class*="border-purple"]):not([class*="border-orange"]),
+[data-theme="dark"] [class*="panel"]:not([class*="border-red"]):not([class*="border-green"]):not([class*="border-yellow"]):not([class*="border-blue"]):not([class*="border-purple"]):not([class*="border-orange"]),
+[data-theme="dark"] [class*="container"]:not([class*="border-red"]):not([class*="border-green"]):not([class*="border-yellow"]):not([class*="border-blue"]):not([class*="border-purple"]):not([class*="border-orange"]) {
+    border-color: var(--border-color) !important;
+}
+
+/* General border override - apply gray to all borders except colored ones */
+/* This catches any element with a border class that isn't explicitly colored */
+[data-theme="dark"] [class*="border"]:not([class*="border-red"]):not([class*="border-green"]):not([class*="border-yellow"]):not([class*="border-blue"]):not([class*="border-purple"]):not([class*="border-orange"]):not([class*="border-cyan"]):not([class*="border-pink"]):not([class*="border-indigo"]):not([class*="border-emerald"]):not([class*="border-teal"]):not([class*="border-amber"]):not([class*="border-violet"]):not([class*="border-fuchsia"]):not([class*="border-rose"]):not([class*="border-lime"]):not([class*="border-sky"]):not([class*="border-transparent"]):not([class*="border-white"]):not([class*="border-black"]):not([class*="border-accent"]) {
+    border-color: var(--border-color) !important;
+}
+
+/* Body + utility classes for theme colors */
+[data-theme="dark"] body {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .bg-theme-primary { background-color: var(--bg-primary) !important; }
+[data-theme="dark"] .bg-theme-secondary { background-color: var(--bg-secondary) !important; }
+[data-theme="dark"] .bg-theme-tertiary { background-color: var(--bg-tertiary) !important; }
+[data-theme="dark"] .bg-theme-card { background-color: var(--bg-card) !important; }
+[data-theme="dark"] .text-theme-primary { color: var(--text-primary) !important; }
+[data-theme="dark"] .text-theme-secondary { color: var(--text-secondary) !important; }
+[data-theme="dark"] .text-theme-tertiary { color: var(--text-tertiary) !important; }
+[data-theme="dark"] .border-theme { border-color: var(--border-color) !important; }
+
+/* ============================================
+   GLOBAL DASHBOARD STYLES - All Themes
+   ============================================
+   Replace hardcoded colors with theme variables
+*/
+
+/* Background colors - Replace hardcoded backgrounds */
+/* Dark theme: clear hierarchy with popular dark theme colors */
+[data-theme="dark"] [class*="bg-[#1a1a1a]"],
+[data-theme="dark"] [class*="bg-[#1b1b1b]"],
+[data-theme="dark"] [class*="bg-[#161b22]"] {
+    background-color: var(--bg-card) !important;  /* Card background */
+}
+
+[data-theme="dark"] [class*="bg-[#181818]"],
+[data-theme="dark"] [class*="bg-[#21262d]"] {
+    background-color: var(--bg-secondary) !important;  /* Card headers, table headers */
+}
+
+[data-theme]:not([data-theme="dark"]) [class*="bg-[#1a1a1a]"],
+[data-theme]:not([data-theme="dark"]) [class*="bg-[#181818]"],
+[data-theme]:not([data-theme="dark"]) [class*="bg-[#1b1b1b]"] {
+    background-color: var(--card-bg) !important;
+}
+
+/* Dark theme: better differentiation for modals and panels */
+[data-theme="dark"] [class*="bg-[#121212]"],
+[data-theme="dark"] [class*="bg-[#0d1117]"] {
+    background-color: var(--bg-primary) !important;  /* Main background #0d1117 */
+}
+
+[data-theme="dark"] [class*="bg-[#151515]"],
+[data-theme="dark"] [class*="bg-[#161b22]"] {
+    background-color: var(--bg-card) !important;  /* Card background #161b22 */
+}
+
+[data-theme]:not([data-theme="dark"]) [class*="bg-[#121212]"],
+[data-theme]:not([data-theme="dark"]) [class*="bg-[#151515]"] {
+    background-color: var(--card-bg) !important;
+}
+
+[data-theme] [class*="bg-[#101010]"],
+[data-theme] [class*="bg-[#141414]"] {
+    background-color: var(--bg-tertiary) !important;
+}
+
+[data-theme] [class*="bg-[#252525]"] {
+    background-color: var(--bg-tertiary) !important;
+}
+
+/* Text colors - Replace hardcoded gray text */
+[data-theme] .text-gray-300,
+[data-theme] .text-gray-200,
+[data-theme] .text-gray-100 {
+    color: var(--text-primary) !important;
+}
+
+[data-theme] .text-gray-400 {
+    color: var(--text-secondary) !important;
+}
+
+[data-theme] .text-gray-500 {
+    color: var(--text-tertiary) !important;
+}
+
+/* Border colors - Replace hardcoded gray borders */
+[data-theme] .border-gray-700,
+[data-theme] .border-gray-800,
+[data-theme] .border-gray-600,
+[data-theme] .border-gray-500 {
+    border-color: var(--border-color) !important;
+}
+
+/* Hover states */
+[data-theme] [class*="hover:bg-[#252525]"]:hover {
+    background-color: var(--bg-tertiary) !important;
+}
+
+[data-theme] .hover\:text-gray-200:hover,
+[data-theme] .hover\:text-white:hover {
+    color: var(--text-primary) !important;
+}
+
+/* Theme-specific utility classes for glass, modern, and nightly */
+[data-theme="glass"] .bg-theme-primary { background-color: var(--bg-primary) !important; }
+[data-theme="glass"] .bg-theme-secondary { background-color: var(--bg-secondary) !important; }
+[data-theme="glass"] .bg-theme-tertiary { background-color: var(--bg-tertiary) !important; }
+[data-theme="glass"] .bg-theme-card { background-color: var(--bg-card) !important; }
+[data-theme="glass"] .text-theme-primary { color: var(--text-primary) !important; }
+[data-theme="glass"] .text-theme-secondary { color: var(--text-secondary) !important; }
+[data-theme="glass"] .text-theme-tertiary { color: var(--text-tertiary) !important; }
+[data-theme="glass"] .border-theme { border-color: var(--border-color) !important; }
+
+/* Glass theme - Card and container backgrounds */
+[data-theme="glass"] [class*="bg-[#1a1a1a]"],
+[data-theme="glass"] [class*="bg-[#181818]"],
+[data-theme="glass"] [class*="bg-[#1b1b1b]"] {
+    background-color: var(--card-bg) !important;
+    backdrop-filter: var(--backdrop-blur) !important;
+    -webkit-backdrop-filter: var(--backdrop-blur) !important;
+}
+
+[data-theme="glass"] [class*="bg-[#101010]"],
+[data-theme="glass"] [class*="bg-[#141414]"] {
+    background-color: var(--bg-tertiary) !important;
+    backdrop-filter: blur(8px) !important;
+    -webkit-backdrop-filter: blur(8px) !important;
+}
+
+[data-theme="glass"] [class*="bg-[#252525]"] {
+    background-color: var(--bg-tertiary) !important;
+    backdrop-filter: blur(8px) !important;
+    -webkit-backdrop-filter: blur(8px) !important;
+}
+
+/* Glass theme - Border and text overrides */
+[data-theme="glass"] .border-gray-700,
+[data-theme="glass"] .border-gray-800,
+[data-theme="glass"] .border-gray-600,
+[data-theme="glass"] .border-gray-500 {
+    border-color: var(--border-color) !important;
+}
+
+[data-theme="glass"] .text-gray-300,
+[data-theme="glass"] .text-gray-200,
+[data-theme="glass"] .text-gray-100 {
+    color: var(--text-primary) !important;
+}
+
+[data-theme="glass"] .text-gray-400 {
+    color: var(--text-secondary) !important;
+}
+
+[data-theme="glass"] .text-gray-500 {
+    color: var(--text-tertiary) !important;
+}
+
+/* Modern theme - Make bg-theme-primary transparent so body background is visible */
+[data-theme="modern"] .bg-theme-primary { 
+    background: transparent !important;
+    background-color: transparent !important;
+}
+[data-theme="modern"] .bg-theme-secondary { background-color: var(--bg-secondary) !important; }
+[data-theme="modern"] .bg-theme-tertiary { background-color: var(--bg-tertiary) !important; }
+[data-theme="modern"] .bg-theme-card { background-color: var(--bg-card) !important; }
+[data-theme="modern"] .text-theme-primary { color: var(--text-primary) !important; }
+[data-theme="modern"] .text-theme-secondary { color: var(--text-secondary) !important; }
+[data-theme="modern"] .text-theme-tertiary { color: var(--text-tertiary) !important; }
+[data-theme="modern"] .border-theme { border-color: var(--border-color) !important; }
+
+/* Modern theme - Card and container backgrounds with glass effect */
+[data-theme="modern"] [class*="bg-[#1a1a1a]"],
+[data-theme="modern"] [class*="bg-[#181818]"],
+[data-theme="modern"] [class*="bg-[#1b1b1b]"] {
+    background-color: var(--card-bg) !important;
+    backdrop-filter: var(--backdrop-blur) !important;
+    -webkit-backdrop-filter: var(--backdrop-blur) !important;
+}
+
+[data-theme="modern"] [class*="bg-[#101010]"],
+[data-theme="modern"] [class*="bg-[#141414]"] {
+    background-color: var(--bg-tertiary) !important;
+    backdrop-filter: blur(8px) !important;
+    -webkit-backdrop-filter: blur(8px) !important;
+}
+
+[data-theme="modern"] [class*="bg-[#252525]"] {
+    background-color: var(--bg-tertiary) !important;
+    backdrop-filter: blur(8px) !important;
+    -webkit-backdrop-filter: blur(8px) !important;
+}
+
+/* Modern theme - Border and text overrides (borders are transparent) */
+[data-theme="modern"] .border-gray-700,
+[data-theme="modern"] .border-gray-800,
+[data-theme="modern"] .border-gray-600,
+[data-theme="modern"] .border-gray-500 {
+    border-color: transparent !important;
+}
+
+[data-theme="modern"] .text-gray-300,
+[data-theme="modern"] .text-gray-200,
+[data-theme="modern"] .text-gray-100 {
+    color: var(--text-primary) !important;
+}
+
+[data-theme="modern"] .text-gray-400 {
+    color: var(--text-secondary) !important;
+}
+
+[data-theme="modern"] .text-gray-500 {
+    color: var(--text-tertiary) !important;
+}
+
+[data-theme="nightly"] .bg-theme-primary { background-color: var(--bg-primary) !important; }
+[data-theme="nightly"] .bg-theme-secondary { background-color: var(--bg-secondary) !important; }
+[data-theme="nightly"] .bg-theme-tertiary { background-color: var(--bg-tertiary) !important; }
+[data-theme="nightly"] .bg-theme-card { 
+    background-color: var(--bg-card) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+[data-theme="nightly"] .text-theme-primary { color: var(--text-primary) !important; }
+[data-theme="nightly"] .text-theme-secondary { color: var(--text-secondary) !important; }
+[data-theme="nightly"] .text-theme-tertiary { color: var(--text-tertiary) !important; }
+[data-theme="nightly"] .border-theme { border-color: var(--border-color) !important; }
+
+/* ============================================
+   NIGHTLY THEME - Header and Footer Colors
+   ============================================
+   Opaque backgrounds with blue accent colors
+*/
+[data-theme="nightly"] header,
+[data-theme="nightly"] .bg-theme-header,
+[data-theme="nightly"] header.bg-theme-header {
+    background: linear-gradient(135deg, #0d0d0d 0%, #121212 50%, #0d0d0d 100%) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    border-color: var(--header-border) !important;
+}
+
+[data-theme="nightly"] footer,
+[data-theme="nightly"] .bg-theme-footer,
+[data-theme="nightly"] footer.bg-theme-footer {
+    background: linear-gradient(135deg, #0d0d0d 0%, #121212 50%, #0d0d0d 100%) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    border-color: var(--footer-border) !important;
+}
+
+/* ============================================
+   NIGHTLY THEME - Light Animated Network Background
+   ============================================
+   Simple and lightweight network effect
+*/
+/* Nightly theme - Gradient noir vers gris foncé, pas d'animation */
+[data-theme="nightly"] body,
+[data-theme="nightly"] html {
+    position: relative;
+    overflow-x: hidden;
+    background: linear-gradient(135deg, #0a0a0a 0%, #0f0f0f 25%, #1a1a1a 50%, #151515 75%, #0a0a0a 100%) !important;
+    background-attachment: fixed !important;
+    min-height: 100vh !important;
+    width: 100% !important;
+}
+
+/* Neon theme - Global theme variable overrides */
+[data-theme="neon"] .bg-theme-primary { background-color: var(--bg-primary) !important; }
+[data-theme="neon"] .bg-theme-secondary { background-color: var(--bg-secondary) !important; }
+[data-theme="neon"] .bg-theme-tertiary { background-color: var(--bg-tertiary) !important; }
+[data-theme="neon"] .bg-theme-card { background-color: var(--bg-card) !important; }
+[data-theme="neon"] .text-theme-primary { color: var(--text-primary) !important; }
+[data-theme="neon"] .text-theme-secondary { color: var(--text-secondary) !important; }
+[data-theme="neon"] .text-theme-tertiary { color: var(--text-tertiary) !important; }
+[data-theme="neon"] .border-theme { border-color: var(--border-color) !important; }
+
+/* Nightly theme - Card and container backgrounds */
+[data-theme="nightly"] [class*="bg-[#1a1a1a]"],
+[data-theme="nightly"] [class*="bg-[#181818]"],
+[data-theme="nightly"] [class*="bg-[#1b1b1b]"] {
+    background-color: var(--card-bg) !important;
+}
+
+[data-theme="nightly"] [class*="bg-[#101010]"],
+[data-theme="nightly"] [class*="bg-[#141414]"] {
+    background-color: var(--bg-tertiary) !important;
+}
+
+[data-theme="nightly"] [class*="bg-[#252525]"] {
+    background-color: var(--bg-tertiary) !important;
+}
+
+/* Nightly theme - Border overrides */
+[data-theme="nightly"] .border-gray-700,
+[data-theme="nightly"] .border-gray-800,
+[data-theme="nightly"] .border-gray-600,
+[data-theme="nightly"] .border-gray-500 {
+    border-color: var(--border-color) !important;
+}
+
+/* Nightly theme - Text color overrides */
+[data-theme="nightly"] .text-gray-300,
+[data-theme="nightly"] .text-gray-200,
+[data-theme="nightly"] .text-gray-100 {
+    color: var(--text-primary) !important;
+}
+
+[data-theme="nightly"] .text-gray-400 {
+    color: var(--text-secondary) !important;
+}
+
+[data-theme="nightly"] .text-gray-500 {
+    color: var(--text-tertiary) !important;
+}
+
+/* Neon theme - Border and text overrides */
+[data-theme="neon"] .border-gray-700,
+[data-theme="neon"] .border-gray-800,
+[data-theme="neon"] .border-gray-600,
+[data-theme="neon"] .border-gray-500 {
+    border-color: var(--border-color) !important;
+}
+
+[data-theme="neon"] .text-gray-300,
+[data-theme="neon"] .text-gray-200,
+[data-theme="neon"] .text-gray-100 {
+    color: var(--text-primary) !important;
+}
+
+[data-theme="neon"] .text-gray-400 {
+    color: var(--text-secondary) !important;
+}
+
+[data-theme="neon"] .text-gray-500 {
+    color: var(--text-tertiary) !important;
+}
+
+/* Neon theme - Header and footer with backdrop blur */
+[data-theme="neon"] header,
+[data-theme="neon"] .bg-theme-header,
+[data-theme="neon"] header.bg-theme-header {
+    background-color: var(--bg-header) !important;
+    backdrop-filter: var(--backdrop-blur) !important;
+    -webkit-backdrop-filter: var(--backdrop-blur) !important;
+    border-color: var(--header-border) !important;
+}
+
+[data-theme="neon"] footer,
+[data-theme="neon"] .bg-theme-footer,
+[data-theme="neon"] footer.bg-theme-footer {
+    background-color: var(--bg-footer) !important;
+    backdrop-filter: var(--backdrop-blur) !important;
+    -webkit-backdrop-filter: var(--backdrop-blur) !important;
+    border-color: var(--footer-border) !important;
+}
+
+/* Neon theme - Cards with glass effect and very light gradient shadows */
+[data-theme="neon"] [class*="card"],
+[data-theme="neon"] [class*="section"],
+[data-theme="neon"] [class*="widget"],
+[data-theme="neon"] [class*="panel"],
+[data-theme="neon"] .bg-theme-secondary,
+[data-theme="neon"] .bg-theme-card {
+    background-color: var(--card-bg) !important;
+    backdrop-filter: var(--backdrop-blur) !important;
+    -webkit-backdrop-filter: var(--backdrop-blur) !important;
+    border-color: var(--card-border) !important;
+    /* Very light shadows - minimal glow effect */
+    box-shadow: 
+        0 1px 3px rgba(192, 132, 252, 0.1),
+        0 2px 6px rgba(139, 92, 246, 0.12),
+        0 0 0 1px rgba(192, 132, 252, 0.1) inset !important;
+}
+
+/* Neon theme - Light shadows for main card containers */
+[data-theme="neon"] [class*="Card"],
+[data-theme="neon"] .bg-theme-card,
+[data-theme="neon"] div[class*="rounded-xl"],
+[data-theme="neon"] div[class*="rounded-2xl"] {
+    box-shadow: 
+        0 2px 8px rgba(192, 132, 252, 0.12),
+        0 1px 4px rgba(139, 92, 246, 0.15),
+        0 0 0 1px rgba(192, 132, 252, 0.12) inset !important;
+}
+
+/* Neon theme - Specific shadow for Card component - very light */
+[data-theme="neon"] .bg-theme-card.rounded-xl {
+    box-shadow: 
+        0 2px 8px rgba(192, 132, 252, 0.12),
+        0 1px 4px rgba(139, 92, 246, 0.15),
+        0 0 0 1px rgba(192, 132, 252, 0.12) inset !important;
+}
+
+/* Neon theme - Border overrides */
+[data-theme="neon"] .border,
+[data-theme="neon"] .border-theme,
+[data-theme="neon"] [class*="border"]:not([class*="border-red"]):not([class*="border-green"]):not([class*="border-yellow"]):not([class*="border-blue"]):not([class*="border-purple"]):not([class*="border-orange"]):not([class*="border-cyan"]):not([class*="border-pink"]):not([class*="border-indigo"]):not([class*="border-emerald"]):not([class*="border-teal"]):not([class*="border-amber"]):not([class*="border-violet"]):not([class*="border-fuchsia"]):not([class*="border-rose"]):not([class*="border-lime"]):not([class*="border-sky"]) {
+    border-color: var(--border-color) !important;
+}
+
+/* ============================================
+   UNIFI CARD BACKGROUND - All Themes
+   ============================================
+   Map bg-unifi-card to theme unifi card background with UniFi blue/cyan accent colors
+*/
+
+/* Dark theme - UniFi cards with blue/cyan tint */
+[data-theme="dark"] .bg-unifi-card {
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.98) 0%, rgba(8, 47, 73, 0.95) 50%, rgba(14, 116, 144, 0.2) 100%) !important;
+    border-color: rgba(59, 130, 246, 0.4) !important;
+}
+
+/* Glass theme - UniFi cards with blue/cyan glass effect */
+[data-theme="glass"] .bg-unifi-card {
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(8, 47, 73, 0.85) 50%, rgba(14, 116, 144, 0.25) 100%) !important;
+    backdrop-filter: var(--backdrop-blur) !important;
+    -webkit-backdrop-filter: var(--backdrop-blur) !important;
+    border-color: rgba(59, 130, 246, 0.5) !important;
+}
+
+/* Modern theme - UniFi cards with blue/cyan gradient */
+[data-theme="modern"] .bg-unifi-card {
+    background: linear-gradient(135deg, rgba(30, 58, 138, 0.7) 0%, rgba(14, 116, 144, 0.6) 50%, rgba(59, 130, 246, 0.4) 100%) !important;
+    backdrop-filter: var(--backdrop-blur) !important;
+    -webkit-backdrop-filter: var(--backdrop-blur) !important;
+    border-color: rgba(59, 130, 246, 0.6) !important;
+}
+
+/* Nightly theme - UniFi cards with subtle blue/cyan tint */
+[data-theme="nightly"] .bg-unifi-card {
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.98) 0%, rgba(8, 47, 73, 0.95) 50%, rgba(14, 116, 144, 0.25) 100%) !important;
+    border-color: rgba(150, 180, 200, 0.4) !important;
+}
+
+/* Neon theme - UniFi cards with cyan/purple accent */
+[data-theme="neon"] .bg-unifi-card {
+    background: linear-gradient(135deg, rgba(20, 15, 35, 0.75) 0%, rgba(14, 116, 144, 0.5) 50%, rgba(192, 132, 252, 0.4) 100%) !important;
+    backdrop-filter: var(--backdrop-blur) !important;
+    -webkit-backdrop-filter: var(--backdrop-blur) !important;
+    border-color: rgba(14, 116, 144, 0.6) !important;
+    box-shadow: 
+        0 1px 3px rgba(14, 116, 144, 0.3),
+        0 0 0 1px rgba(14, 116, 144, 0.2) inset !important;
+}
+
+/* Default fallback for other themes */
+[data-theme] .bg-unifi-card {
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.98) 0%, rgba(8, 47, 73, 0.95) 50%, rgba(14, 116, 144, 0.2) 100%) !important;
+    border-color: rgba(59, 130, 246, 0.4) !important;
+}
+
+/* UniFi card variants with opacity for table rows */
+[data-theme="dark"] .bg-unifi-card\/30 {
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.3) 0%, rgba(8, 47, 73, 0.25) 50%, rgba(14, 116, 144, 0.05) 100%) !important;
+}
+
+[data-theme="dark"] .bg-unifi-card\/20 {
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.2) 0%, rgba(8, 47, 73, 0.15) 50%, rgba(14, 116, 144, 0.03) 100%) !important;
+}
+
+[data-theme="glass"] .bg-unifi-card\/30 {
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.25) 0%, rgba(8, 47, 73, 0.2) 50%, rgba(14, 116, 144, 0.06) 100%) !important;
+    backdrop-filter: var(--backdrop-blur) !important;
+    -webkit-backdrop-filter: var(--backdrop-blur) !important;
+}
+
+[data-theme="glass"] .bg-unifi-card\/20 {
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.15) 0%, rgba(8, 47, 73, 0.12) 50%, rgba(14, 116, 144, 0.04) 100%) !important;
+    backdrop-filter: var(--backdrop-blur) !important;
+    -webkit-backdrop-filter: var(--backdrop-blur) !important;
+}
+
+[data-theme="modern"] .bg-unifi-card\/30 {
+    background: linear-gradient(135deg, rgba(30, 58, 138, 0.18) 0%, rgba(14, 116, 144, 0.15) 50%, rgba(59, 130, 246, 0.09) 100%) !important;
+    backdrop-filter: var(--backdrop-blur) !important;
+    -webkit-backdrop-filter: var(--backdrop-blur) !important;
+}
+
+[data-theme="modern"] .bg-unifi-card\/20 {
+    background: linear-gradient(135deg, rgba(30, 58, 138, 0.12) 0%, rgba(14, 116, 144, 0.1) 50%, rgba(59, 130, 246, 0.06) 100%) !important;
+    backdrop-filter: var(--backdrop-blur) !important;
+    -webkit-backdrop-filter: var(--backdrop-blur) !important;
+}
+
+[data-theme="nightly"] .bg-unifi-card\/30 {
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.3) 0%, rgba(8, 47, 73, 0.25) 50%, rgba(14, 116, 144, 0.06) 100%) !important;
+}
+
+[data-theme="nightly"] .bg-unifi-card\/20 {
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.2) 0%, rgba(8, 47, 73, 0.15) 50%, rgba(14, 116, 144, 0.04) 100%) !important;
+}
+
+[data-theme="neon"] .bg-unifi-card\/30 {
+    background: linear-gradient(135deg, rgba(20, 15, 35, 0.18) 0%, rgba(14, 116, 144, 0.12) 50%, rgba(192, 132, 252, 0.09) 100%) !important;
+    backdrop-filter: var(--backdrop-blur) !important;
+    -webkit-backdrop-filter: var(--backdrop-blur) !important;
+}
+
+[data-theme="neon"] .bg-unifi-card\/20 {
+    background: linear-gradient(135deg, rgba(20, 15, 35, 0.12) 0%, rgba(14, 116, 144, 0.08) 50%, rgba(192, 132, 252, 0.06) 100%) !important;
+    backdrop-filter: var(--backdrop-blur) !important;
+    -webkit-backdrop-filter: var(--backdrop-blur) !important;
+}
+
+/* Default fallback for table row variants */
+[data-theme] .bg-unifi-card\/30 {
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.3) 0%, rgba(8, 47, 73, 0.25) 50%, rgba(14, 116, 144, 0.05) 100%) !important;
+}
+
+[data-theme] .bg-unifi-card\/20 {
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.2) 0%, rgba(8, 47, 73, 0.15) 50%, rgba(14, 116, 144, 0.03) 100%) !important;
+}
+
+/* UniFi card variant with 50% opacity for code blocks and pre elements */
+[data-theme="dark"] .bg-unifi-card\/50 {
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.5) 0%, rgba(8, 47, 73, 0.45) 50%, rgba(14, 116, 144, 0.08) 100%) !important;
+}
+
+[data-theme="glass"] .bg-unifi-card\/50 {
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.4) 0%, rgba(8, 47, 73, 0.35) 50%, rgba(14, 116, 144, 0.1) 100%) !important;
+    backdrop-filter: var(--backdrop-blur) !important;
+    -webkit-backdrop-filter: var(--backdrop-blur) !important;
+}
+
+[data-theme="modern"] .bg-unifi-card\/50 {
+    background: linear-gradient(135deg, rgba(30, 58, 138, 0.3) 0%, rgba(14, 116, 144, 0.25) 50%, rgba(59, 130, 246, 0.15) 100%) !important;
+    backdrop-filter: var(--backdrop-blur) !important;
+    -webkit-backdrop-filter: var(--backdrop-blur) !important;
+}
+
+[data-theme="nightly"] .bg-unifi-card\/50 {
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.5) 0%, rgba(8, 47, 73, 0.45) 50%, rgba(14, 116, 144, 0.1) 100%) !important;
+}
+
+[data-theme="neon"] .bg-unifi-card\/50 {
+    background: linear-gradient(135deg, rgba(20, 15, 35, 0.3) 0%, rgba(14, 116, 144, 0.2) 50%, rgba(192, 132, 252, 0.15) 100%) !important;
+    backdrop-filter: var(--backdrop-blur) !important;
+    -webkit-backdrop-filter: var(--backdrop-blur) !important;
+}
+
+/* Default fallback for bg-unifi-card/50 */
+[data-theme] .bg-unifi-card\/50 {
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.5) 0%, rgba(8, 47, 73, 0.45) 50%, rgba(14, 116, 144, 0.08) 100%) !important;
+}
+
+[data-theme="neon"] table,
+[data-theme="neon"] thead,
+[data-theme="neon"] tbody,
+[data-theme="neon"] tr,
+[data-theme="neon"] td,
+[data-theme="neon"] th {
+    background-color: transparent !important;
+}
+
+/* Neon theme - Transparent backgrounds for table rows (alternating) */
+[data-theme="neon"] tbody tr:nth-child(even),
+[data-theme="neon"] tbody tr[class*="bg-[#101010]"],
+[data-theme="neon"] tbody tr[class*="bg-[#141414]"] {
+    background-color: rgba(45, 35, 65, 0.2) !important;
+}
+
+[data-theme="neon"] tbody tr:nth-child(odd) {
+    background-color: transparent !important;
+}
+
+/* Neon theme - Transparent backgrounds for table headers */
+[data-theme="neon"] thead[class*="bg-[#181818]"],
+[data-theme="neon"] thead tr {
+    background-color: rgba(30, 25, 45, 0.3) !important;
+}
+
+/* Neon theme - Transparent backgrounds for internal card sections */
+/* Ces règles doivent venir APRÈS les règles générales pour avoir priorité */
+[data-theme="neon"] [class*="bg-[#1a1a1a]"],
+[data-theme="neon"] [class*="bg-[#151515]"],
+[data-theme="neon"] [class*="bg-[#181818]"] {
+    background-color: rgba(40, 30, 60, 0.3) !important;
+    backdrop-filter: var(--backdrop-blur) !important;
+    -webkit-backdrop-filter: var(--backdrop-blur) !important;
+}
+
+/* ============================================
+   ADDITIONAL PAGES - Additional overrides
+   ============================================
+   Ensure all hardcoded colors use theme variables
+*/
+
+/* Additional background colors for pages */
+[data-theme] [class*="bg-[#050b14]"] {
+    background-color: var(--bg-card) !important;
+}
+
+/* Additional text colors */
+[data-theme] .text-gray-600 {
+    color: var(--text-tertiary) !important;
+}
+
+/* ============================================
+   UNIFORMISATION DES FONDS DE CARTES
+   ============================================
+   Remplace toutes les couleurs codées en dur par les variables de thème
+   pour une cohérence visuelle parfaite sur toutes les cartes
+   NOTE: Les règles spécifiques par thème (comme Neon) doivent venir APRÈS
+*/
+
+/* Fonds de cartes principales - uniformisation (sauf Neon et Nightly qui ont leurs propres règles) */
+/* Dark theme: hiérarchie claire avec couleurs populaires (GitHub Dark style) */
+[data-theme="dark"]:not([data-theme="neon"]):not([data-theme="nightly"]) [class*="bg-[#1a1a1a]"],
+[data-theme="dark"]:not([data-theme="neon"]):not([data-theme="nightly"]) [class*="bg-[#151515]"],
+[data-theme="dark"]:not([data-theme="neon"]):not([data-theme="nightly"]) [class*="bg-[#161b22]"] {
+    background-color: var(--bg-card) !important;  /* #161b22 - cartes */
+}
+
+[data-theme="dark"]:not([data-theme="neon"]):not([data-theme="nightly"]) [class*="bg-[#181818]"],
+[data-theme="dark"]:not([data-theme="neon"]):not([data-theme="nightly"]) [class*="bg-[#21262d]"] {
+    background-color: var(--bg-secondary) !important;  /* #21262d - headers de cartes */
+}
+
+[data-theme]:not([data-theme="dark"]):not([data-theme="neon"]):not([data-theme="nightly"]) [class*="bg-[#1a1a1a]"],
+[data-theme]:not([data-theme="dark"]):not([data-theme="neon"]):not([data-theme="nightly"]) [class*="bg-[#151515]"],
+[data-theme]:not([data-theme="dark"]):not([data-theme="neon"]):not([data-theme="nightly"]) [class*="bg-[#181818]"] {
+    background-color: var(--card-bg) !important;
+    backdrop-filter: var(--backdrop-blur) !important;
+    -webkit-backdrop-filter: var(--backdrop-blur) !important;
+}
+
+/* Nightly theme - Pas de transparence sur les blocs */
+[data-theme="nightly"] [class*="bg-[#1a1a1a]"],
+[data-theme="nightly"] [class*="bg-[#151515]"],
+[data-theme="nightly"] [class*="bg-[#181818]"] {
+    background-color: var(--card-bg) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+
+/* Fonds alternatifs pour tableaux (lignes paires/impaires) - sauf Neon et Nightly */
+[data-theme]:not([data-theme="neon"]):not([data-theme="nightly"]) [class*="bg-[#101010]"],
+[data-theme]:not([data-theme="neon"]):not([data-theme="nightly"]) [class*="bg-[#141414]"] {
+    background-color: var(--bg-tertiary) !important;
+}
+
+/* Fond pour sections spéciales (Docker, info système, etc.) - sauf Neon et Nightly */
+[data-theme]:not([data-theme="neon"]):not([data-theme="nightly"]) [class*="bg-[#05151a]"] {
+    background-color: var(--bg-secondary) !important;
+    backdrop-filter: var(--backdrop-blur) !important;
+    -webkit-backdrop-filter: var(--backdrop-blur) !important;
+}
+
+/* Fond pour widgets et panneaux - sauf Neon et Nightly */
+/* Dark theme: widgets utilisent bg-card pour différenciation */
+[data-theme="dark"]:not([data-theme="neon"]):not([data-theme="nightly"]) [class*="bg-[#111111]"] {
+    background-color: var(--bg-card) !important;  /* #161b22 - cartes */
+}
+
+[data-theme]:not([data-theme="dark"]):not([data-theme="neon"]):not([data-theme="nightly"]) [class*="bg-[#111111]"] {
+    background-color: var(--card-bg) !important;
+    backdrop-filter: var(--backdrop-blur) !important;
+    -webkit-backdrop-filter: var(--backdrop-blur) !important;
+}
+
+/* Nightly theme - Pas de transparence sur les sections spéciales */
+[data-theme="nightly"] [class*="bg-[#101010]"],
+[data-theme="nightly"] [class*="bg-[#141414]"],
+[data-theme="nightly"] [class*="bg-[#05151a]"],
+[data-theme="nightly"] [class*="bg-[#111111]"] {
+    background-color: var(--bg-secondary) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+
+/* Bordures uniformes pour toutes les cartes */
+[data-theme] .border-gray-800,
+[data-theme] .border-gray-700,
+[data-theme] .border-gray-700\/60 {
+    border-color: var(--border-color) !important;
+}
+
+/* Hover states uniformisés */
+[data-theme] [class*="hover:bg-[#1a1a1a]"]:hover,
+[data-theme] [class*="hover:bg-[#252525]"]:hover {
+    background-color: var(--bg-tertiary) !important;
+}
+
+/* Progress bars backgrounds - uniformisation */
+[data-theme] [class*="bg-[#1a1a1a]"][class*="rounded-full"] {
+    background-color: var(--bg-tertiary) !important;
+}
+
+/* Tables headers - uniformisation (sauf Neon) */
+/* Dark theme: headers de tableaux avec bg-secondary pour différenciation claire */
+[data-theme="dark"] thead[class*="bg-[#181818]"],
+[data-theme="dark"] thead[class*="bg-[#21262d]"],
+[data-theme="dark"] thead {
+    background-color: var(--bg-secondary) !important;  /* #21262d - distinct from cards */
+}
+
+[data-theme]:not([data-theme="neon"]):not([data-theme="dark"]) thead[class*="bg-[#181818]"] {
+    background-color: var(--bg-secondary) !important;
+}
+
+/* Plugin cards - fonds uniformisés (sauf Neon) */
+[data-theme]:not([data-theme="neon"]) [class*="plugin"] [class*="bg-[#1a1a1a]"],
+[data-theme]:not([data-theme="neon"]) [class*="Plugin"] [class*="bg-[#1a1a1a]"],
+[data-theme]:not([data-theme="neon"]) [class*="freebox"] [class*="bg-[#1a1a1a]"],
+[data-theme]:not([data-theme="neon"]) [class*="Freebox"] [class*="bg-[#1a1a1a]"],
+[data-theme]:not([data-theme="neon"]) [class*="unifi"] [class*="bg-[#1a1a1a]"],
+[data-theme]:not([data-theme="neon"]) [class*="UniFi"] [class*="bg-[#1a1a1a]"] {
+    background-color: var(--card-bg) !important;
+    backdrop-filter: var(--backdrop-blur) !important;
+    -webkit-backdrop-filter: var(--backdrop-blur) !important;
+}
+
+/* System server widget - fond uniformisé (sauf Neon) */
+[data-theme]:not([data-theme="neon"]) [class*="System"] [class*="bg-[#1a1a1a]"],
+[data-theme]:not([data-theme="neon"]) [class*="system"] [class*="bg-[#1a1a1a]"],
+[data-theme]:not([data-theme="neon"]) [class*="Server"] [class*="bg-[#1a1a1a]"],
+[data-theme]:not([data-theme="neon"]) [class*="server"] [class*="bg-[#1a1a1a]"] {
+    background-color: var(--card-bg) !important;
+    backdrop-filter: var(--backdrop-blur) !important;
+    -webkit-backdrop-filter: var(--backdrop-blur) !important;
+}
+
+/* Table backgrounds */
+[data-theme] .bg-gray-900 {
+    background-color: var(--bg-tertiary) !important;
+}
+
+[data-theme] .bg-gray-800 {
+    background-color: var(--bg-tertiary) !important;
+}
+
+[data-theme] .bg-gray-500 {
+    background-color: var(--border-color) !important;
+}
+
+/* Border colors for tables */
+[data-theme] .border-gray-700\/60 {
+    border-color: var(--border-color) !important;
+    opacity: 0.6;
+}
+
+/* UniFi specific colors - Map to theme accent colors */
+[data-theme] .text-unifi-accent {
+    color: var(--accent-unifi, var(--accent-primary)) !important;
+}
+
+[data-theme] .border-unifi-accent {
+    border-color: var(--accent-unifi, var(--accent-primary)) !important;
+}
+
+/* ============================================
+   ELEGANT THEME - Animated theme with elegant gradients
+   ============================================
+   Elegant animated theme with subtle background animations and icon animations
+*/
+
+[data-theme="elegant"] {
+    --bg-primary: rgba(26, 26, 46, 0.98);
+    --bg-secondary: rgba(45, 35, 65, 0.6);
+    --bg-tertiary: rgba(60, 50, 80, 0.5);
+    --bg-card: rgba(35, 30, 55, 0.7);
+    --bg-unifi-card: rgba(30, 25, 50, 0.8);
+    --bg-header: rgba(30, 25, 50, 0.85);
+    --bg-footer: rgba(25, 20, 45, 0.9);
+    --border-color: rgba(196, 181, 253, 0.4);
+    --border-color-light: rgba(196, 181, 253, 0.5);
+    --border-color-hover: rgba(167, 139, 250, 0.6);
+    --text-primary: #f0f2f8;
+    --text-secondary: #d8d0e8;
+    --text-tertiary: #b8aed8;
+    --accent-primary: #a78bfa;
+    --accent-primary-hover: #8b5cf6;
+    --accent-unifi: #1fb0ec;
+    --accent-success: #10b981;
+    --accent-warning: #f59e0b;
+    --accent-error: #ef4444;
+    --accent-info: #06b6d4;
+    --button-bg: rgba(196, 181, 253, 0.25);
+    --button-text: #f0f2f8;
+    --button-hover-bg: rgba(167, 139, 250, 0.35);
+    --button-hover-text: #ffffff;
+    --button-active-bg: #a78bfa;
+    --button-active-text: #ffffff;
+    --button-border: rgba(196, 181, 253, 0.5);
+    --input-bg: rgba(45, 35, 65, 0.6);
+    --input-text: #f0f2f8;
+    --input-border: rgba(196, 181, 253, 0.4);
+    --input-border-focus: #a78bfa;
+    --input-placeholder: #b8aed8;
+    --card-bg: rgba(35, 30, 55, 0.7);
+    --card-border: rgba(196, 181, 253, 0.4);
+    --header-border: rgba(196, 181, 253, 0.4);
+    --footer-border: rgba(196, 181, 253, 0.4);
+    --backdrop-blur: blur(12px);
+    --shadow-sm: none;
+    --shadow-md: none;
+    --shadow-lg: none;
+    --shadow-xl: none;
+}
+
+/* Elegant theme - Animated blue-mauve-rose darker gradient background with more pronounced animation */
+/* Force background on html first, then body */
+[data-theme="elegant"] html {
+    background: 
+        linear-gradient(135deg, 
+            rgba(96, 165, 250, 0.65) 0%,
+            rgba(167, 139, 250, 0.6) 25%,
+            rgba(244, 114, 182, 0.55) 50%,
+            rgba(167, 139, 250, 0.6) 75%,
+            rgba(96, 165, 250, 0.65) 100%
+        ),
+        linear-gradient(135deg, 
+            #0f0f1a 0%,
+            #1a0f2e 25%,
+            #2a1a3d 50%,
+            #1a0f2e 75%,
+            #0f0f1a 100%
+        ) !important;
+    background-size: 500% 500%, 600% 600% !important;
+    background-position: 0% 0%, 0% 0% !important;
+    background-attachment: fixed !important;
+    background-repeat: no-repeat !important;
+    min-height: 100vh !important;
+    width: 100% !important;
+    animation: elegantGradientShift 12s linear infinite !important;
+}
+
+[data-theme="elegant"] body {
+    background: 
+        linear-gradient(135deg, 
+            rgba(96, 165, 250, 0.65) 0%,
+            rgba(167, 139, 250, 0.6) 25%,
+            rgba(244, 114, 182, 0.55) 50%,
+            rgba(167, 139, 250, 0.6) 75%,
+            rgba(96, 165, 250, 0.65) 100%
+        ),
+        linear-gradient(135deg, 
+            #0f0f1a 0%,
+            #1a0f2e 25%,
+            #2a1a3d 50%,
+            #1a0f2e 75%,
+            #0f0f1a 100%
+        ) !important;
+    background-size: 500% 500%, 600% 600% !important;
+    background-position: 0% 0%, 0% 0% !important;
+    background-attachment: fixed !important;
+    background-repeat: no-repeat !important;
+    min-height: 100vh !important;
+    width: 100% !important;
+    animation: elegantGradientShift 12s linear infinite !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+/* Elegant theme - Override ALL inline styles from index.html - MUST come after body/html rules */
+[data-theme="elegant"] body[style],
+[data-theme="elegant"] body[style*="background"] {
+    background: 
+        linear-gradient(135deg, 
+            rgba(96, 165, 250, 0.65) 0%,
+            rgba(167, 139, 250, 0.6) 25%,
+            rgba(244, 114, 182, 0.55) 50%,
+            rgba(167, 139, 250, 0.6) 75%,
+            rgba(96, 165, 250, 0.65) 100%
+        ),
+        linear-gradient(135deg, 
+            #0f0f1a 0%,
+            #1a0f2e 25%,
+            #2a1a3d 50%,
+            #1a0f2e 75%,
+            #0f0f1a 100%
+        ) !important;
+    background-size: 500% 500%, 600% 600% !important;
+    background-position: 0% 50%, 0% 50% !important;
+    background-attachment: fixed !important;
+    background-repeat: no-repeat !important;
+    animation: elegantGradientShift 15s ease-in-out infinite !important;
+    background-color: transparent !important;
+}
+
+@keyframes elegantGradientShift {
+    0% { 
+        background-position: 0% 0%, 0% 0%; 
+    }
+    25% { 
+        background-position: 100% 0%, 50% 50%; 
+    }
+    50% { 
+        background-position: 100% 100%, 100% 100%; 
+    }
+    75% { 
+        background-position: 0% 100%, 50% 50%; 
+    }
+    100% { 
+        background-position: 0% 0%, 0% 0%; 
+    }
+}
+
+/* Elegant theme - Maximum specificity override for inline styles from index.html */
+html[data-theme="elegant"] body,
+html[data-theme="elegant"] body[style],
+html[data-theme="elegant"] body[style*="background-color"],
+html[data-theme="elegant"] body[style*="background"] {
+    background: 
+        linear-gradient(135deg, 
+            rgba(96, 165, 250, 0.65) 0%,
+            rgba(167, 139, 250, 0.6) 25%,
+            rgba(244, 114, 182, 0.55) 50%,
+            rgba(167, 139, 250, 0.6) 75%,
+            rgba(96, 165, 250, 0.65) 100%
+        ),
+        linear-gradient(135deg, 
+            #0f0f1a 0%,
+            #1a0f2e 25%,
+            #2a1a3d 50%,
+            #1a0f2e 75%,
+            #0f0f1a 100%
+        ) !important;
+    background-size: 500% 500%, 600% 600% !important;
+    background-position: 0% 50%, 0% 50% !important;
+    background-attachment: fixed !important;
+    background-repeat: no-repeat !important;
+    animation: elegantGradientShift 15s ease-in-out infinite !important;
+}
+
+/* Elegant theme - Preview card glow animation */
+@keyframes elegantPreviewGlow {
+    0%, 100% { 
+        box-shadow: 
+            inset 0 0 30px rgba(196, 181, 253, 0.3), 
+            0 0 20px rgba(251, 207, 232, 0.25);
+    }
+    50% { 
+        box-shadow: 
+            inset 0 0 40px rgba(196, 181, 253, 0.5), 
+            0 0 30px rgba(251, 207, 232, 0.4),
+            0 0 40px rgba(147, 197, 253, 0.3);
+    }
+}
+
+/* Elegant theme - Icon pulse animation */
+@keyframes elegantIconPulse {
+    0%, 100% { 
+        transform: scale(1);
+        opacity: 1;
+    }
+    50% { 
+        transform: scale(1.1);
+        opacity: 0.8;
+    }
+}
+
+.elegant-icon-pulse {
+    animation: elegantIconPulse 2s ease-in-out infinite;
+}
+
+/* Elegant theme - Apply icon animation to success icons */
+[data-theme="elegant"] svg[class*="text-emerald"],
+[data-theme="elegant"] svg[class*="text-green"],
+[data-theme="elegant"] .text-accent-success svg,
+[data-theme="elegant"] [class*="success"] svg {
+    animation: elegantIconPulse 2s ease-in-out infinite;
+}
+
+/* Elegant theme - Header and footer with flat style (no shadows, no borders) */
+[data-theme="elegant"] header,
+[data-theme="elegant"] .bg-theme-header,
+[data-theme="elegant"] header.bg-theme-header {
+    background-color: var(--bg-header) !important;
+    backdrop-filter: var(--backdrop-blur) !important;
+    -webkit-backdrop-filter: var(--backdrop-blur) !important;
+    border: none !important;
+    border-color: transparent !important;
+    box-shadow: none !important;
+}
+
+[data-theme="elegant"] footer,
+[data-theme="elegant"] .bg-theme-footer,
+[data-theme="elegant"] footer.bg-theme-footer {
+    background-color: var(--bg-footer) !important;
+    backdrop-filter: var(--backdrop-blur) !important;
+    -webkit-backdrop-filter: var(--backdrop-blur) !important;
+    border: none !important;
+    border-color: transparent !important;
+    box-shadow: none !important;
+}
+
+/* Elegant theme - Cards with flat style (no shadows, no borders) */
+[data-theme="elegant"] [class*="card"],
+[data-theme="elegant"] [class*="section"],
+[data-theme="elegant"] [class*="widget"],
+[data-theme="elegant"] [class*="panel"],
+[data-theme="elegant"] .bg-theme-secondary,
+[data-theme="elegant"] .bg-theme-card {
+    background-color: var(--card-bg) !important;
+    backdrop-filter: var(--backdrop-blur) !important;
+    -webkit-backdrop-filter: var(--backdrop-blur) !important;
+    border: none !important;
+    border-color: transparent !important;
+    box-shadow: none !important;
+}
+
+/* Elegant theme - Input/Textarea styles */
+[data-theme="elegant"] input[type="text"],
+[data-theme="elegant"] input[type="password"],
+[data-theme="elegant"] input[type="email"],
+[data-theme="elegant"] input[type="number"],
+[data-theme="elegant"] input[type="search"],
+[data-theme="elegant"] input[type="tel"],
+[data-theme="elegant"] input[type="url"],
+[data-theme="elegant"] textarea,
+[data-theme="elegant"] select {
+    background-color: var(--input-bg) !important;
+    color: var(--input-text) !important;
+    border-color: var(--input-border) !important;
+}
+
+[data-theme="elegant"] input::placeholder,
+[data-theme="elegant"] textarea::placeholder {
+    color: var(--input-placeholder) !important;
+}
+
+[data-theme="elegant"] input:focus,
+[data-theme="elegant"] textarea:focus,
+[data-theme="elegant"] select:focus {
+    border-color: var(--input-border-focus) !important;
+    box-shadow: 0 0 0 2px rgba(196, 181, 253, 0.3) !important;
+    outline: none;
+    animation: elegantInputGlow 2s ease-in-out infinite !important;
+}
+
+@keyframes elegantInputGlow {
+    0%, 100% { 
+        box-shadow: 0 0 0 2px rgba(196, 181, 253, 0.3) !important;
+    }
+    50% { 
+        box-shadow: 0 0 0 2px rgba(251, 207, 232, 0.4) !important;
+    }
+}
+
+/* Elegant theme - Remove focus outline on buttons */
+[data-theme="elegant"] button:focus,
+[data-theme="elegant"] a:focus,
+[data-theme="elegant"] [role="button"]:focus {
+    box-shadow: none !important;
+    outline: none !important;
+}
+
+/* Elegant theme - Border overrides - No borders */
+[data-theme="elegant"] .border,
+[data-theme="elegant"] .border-theme,
+[data-theme="elegant"] [class*="border"]:not([class*="border-red"]):not([class*="border-green"]):not([class*="border-yellow"]):not([class*="border-blue"]):not([class*="border-purple"]):not([class*="border-orange"]):not([class*="border-cyan"]):not([class*="border-pink"]):not([class*="border-indigo"]):not([class*="border-emerald"]):not([class*="border-teal"]):not([class*="border-amber"]):not([class*="border-violet"]):not([class*="border-fuchsia"]):not([class*="border-rose"]):not([class*="border-lime"]):not([class*="border-sky"]) {
+    border: none !important;
+    border-color: transparent !important;
+}
+
+/* Elegant theme - Text color overrides */
+[data-theme="elegant"] .text-theme-primary {
+    color: var(--text-primary) !important;
+}
+
+[data-theme="elegant"] .text-theme-secondary {
+    color: var(--text-secondary) !important;
+}
+
+[data-theme="elegant"] .text-theme-tertiary {
+    color: var(--text-tertiary) !important;
+}
+
+/* Elegant theme - Background utility classes */
+/* Elegant theme - Make bg-theme-primary transparent so body background is visible */
+[data-theme="elegant"] .bg-theme-primary { 
+    background: transparent !important;
+    background-color: transparent !important;
+}
+[data-theme="elegant"] .bg-theme-secondary { background-color: var(--bg-secondary) !important; }
+[data-theme="elegant"] .bg-theme-tertiary { background-color: var(--bg-tertiary) !important; }
+[data-theme="elegant"] .bg-theme-card { background-color: var(--bg-card) !important; }
+[data-theme="elegant"] .border-theme { border-color: var(--border-color) !important; }
+
+/* Elegant theme - Override any inline styles or hardcoded backgrounds */
+[data-theme="elegant"] main,
+[data-theme="elegant"] #root,
+[data-theme="elegant"] [class*="min-h-screen"],
+[data-theme="elegant"] [class*="min-h-screen"].bg-theme-primary {
+    background: transparent !important;
+    background-color: transparent !important;
+}
+
+/* Elegant theme - UniFi cards with elegant mauve-rose gradient - flat style */
+[data-theme="elegant"] .bg-unifi-card {
+    background: linear-gradient(135deg, rgba(30, 25, 50, 0.8) 0%, rgba(196, 181, 253, 0.4) 50%, rgba(251, 207, 232, 0.35) 100%) !important;
+    backdrop-filter: var(--backdrop-blur) !important;
+    -webkit-backdrop-filter: var(--backdrop-blur) !important;
+    border: none !important;
+    border-color: transparent !important;
+    box-shadow: none !important;
+}
+
+

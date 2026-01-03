@@ -1,0 +1,107 @@
+# Dependencies
+node_modules
+npm-debug.log
+yarn-error.log
+pnpm-debug.log
+
+# Build outputs
+dist
+dist-ssr
+*.local
+
+# Development files and IDE configurations
+.vscode
+.idea
+.cursor
+*.code-workspace
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Environment and config files (sensitive - contains secrets, tokens, API keys)
+.env
+.env.local
+.env.*.local
+.env.production
+.env.development
+.env.test
+.env.*
+commit-message.txt
+
+# Database and data files
+data/
+*.db
+*.db-shm
+*.db-wal
+
+# Configuration files (sensitive)
+config/logviewr.conf
+config/*.conf
+!config/*.example
+!config/*.example.conf
+
+# Freebox tokens
+.freebox_token
+.freebox_token-dev
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Documentation (not needed in Docker image)
+Docs/
+Doc_Dev/
+Aide*
+
+# Scripts (development only)
+scripts/
+
+# CI/CD
+.github/
+.cursor/
+
+# Backup files
+*.backup
+*.bak
+*~
+
+# Logs
+logs
+*.log
+
+# Test files
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+
+# IDE and editor files
+.claude
+.reboot_schedule.json
+
+# Secrets and sensitive files (additional patterns)
+*secret*
+*token*
+*.key
+*.pem
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.crt
+*.cert
+*.pwd
+*.passwd
+*.password
+
+# OS files
+Thumbs.db
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+

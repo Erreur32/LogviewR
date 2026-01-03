@@ -1,0 +1,102 @@
+# ===========================================
+# LogviewR - Log Viewer Application
+# Docker Compose - Development Mode
+# ===========================================
+#
+# Docker Compose configuration for DEVELOPMENT with hot reload
+# Changes to source files automatically trigger recompilation and browser refresh
+#
+# Usage:
+#   docker compose -f docker-compose.dev.yml up --build
+#
+# IMPORTANT: Pour éviter d'arrêter le Docker prod, utilisez un nom de projet différent :
+#   docker compose -f docker-compose.dev.yml -p logviewr-dev up --build
+#
+# Ou en mode détaché (background) :
+#   docker compose -f docker-compose.dev.yml -p logviewr-dev up -d --build
+#
+# Environment variables:
+#   DASHBOARD_PORT - Vite dev server port (default: 3777)
+#   SERVER_PORT    - Backend API port (default: 3779)
+#   JWT_SECRET     - JWT secret for authentication
+#
+# NOTE: Frontend port changed from 3000 to 5174 to avoid conflicts with production
+#       Production uses port 7500, npm dev uses 5175, docker dev uses 3777
+
+services:
+  logviewr-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: logviewr-dev
+    ports:
+      - "${DASHBOARD_PORT:-3777}:5174"  # Vite dev server (frontend) - Port hôte 3777 → Port conteneur 5174
+      - "${SERVER_PORT:-3779}:3003"    # API server (backend) - Port hôte 3779 → Port conteneur 3003
+    environment:
+      - NODE_ENV=development
+      # Use local database (shared with npm run dev)
+      - DATABASE_PATH=/app/data/dashboard.db
+      # ⚠️ SECURITE CRITIQUE : JWT_SECRET - Secret pour signer les tokens JWT
+      # 
+      # IMPORTANT : Ne JAMAIS utiliser la valeur par défaut en production !
+      # Le secret par défaut est uniquement pour le développement.
+      #
+      # Pour générer un secret sécurisé (minimum 32 caractères) :
+      #   Linux/Mac:   openssl rand -base64 32
+      #   PowerShell:  [Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Maximum 256 }))
+      #
+      # Méthodes de configuration :
+      #   1. Fichier .env (recommandé) :
+      #      Créez un fichier .env avec : JWT_SECRET=votre_secret_genere
+      #      Puis lancez : docker-compose -f docker-compose.dev.yml --env-file .env up --build
+      #
+      #   2. Variable d'environnement système :
+      #      export JWT_SECRET=$(openssl rand -base64 32)
+      #      docker-compose -f docker-compose.dev.yml up --build
+      #
+      #   3. Ligne de commande :
+      #      JWT_SECRET=votre_secret docker-compose -f docker-compose.dev.yml up --build
+      #
+      # Exemple de secret généré : aB3xK9mP2vQ7wR5tY8uI0oP1aS6dF4gH7jK2lM9nB0vC3xZ6
+      - JWT_SECRET=${JWT_SECRET:-dev_secret_change_in_production}
+      - VITE_PORT=5174
+      - PORT=3003
+      - SERVER_PORT=${SERVER_PORT:-3779}
+      - DASHBOARD_PORT=${DASHBOARD_PORT:-3777}
+      # Host root path used to read real host metrics when running in Docker
+      # The corresponding filesystem mount is configured in the volumes section below.
+      - HOST_ROOT_PATH=${HOST_ROOT_PATH:-/host}
+    volumes:
+      # Mount source code for hot reload
+      - .:/app
+      # Preserve container's node_modules (avoid overwriting with host's)
+      - /app/node_modules
+      # Mount local data directory to share database with npm run dev
+      - ./data:/app/data
+      # Mount host filesystem (read-only) to access real host metrics
+      # This allows the app to read hostname, disk usage, and other system info from the host
+      # Note: Removed /:/host:ro mount as it can cause permission issues
+      # Use specific mounts below instead
+      # - /:/host:ro
+      # Mount host /proc and /sys separately for better compatibility
+      # These are used to read CPU, memory, network stats, and hostname
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      # Mount host logs directory (read-only) for log viewer functionality
+      # This allows LogviewR to read log files from the host system
+      # Host System plugin uses /host/logs to access /var/log
+      - /var/log:/host/logs:ro
+      # Optional: Mount specific log directories for direct access
+      # Uncomment if you want plugins to access logs directly without /host/ prefix:
+      - /var/log/apache2:/var/log/apache2:ro    # Apache logs (accessible at /var/log/apache2)
+      # /var/log/nginx:/var/log/nginx:ro        # Nginx logs (accessible at /var/log/nginx)
+      - /var/log/npm:/var/log/npm:ro            # NPM logs (accessible at /var/log/npm)
+      # Note: Without these mounts, plugins must use /host/var/log/... paths in configuration
+      
+    restart: unless-stopped
+
+# Note: Using local ./data directory mount instead of Docker volume
+# to share token and database with npm run dev mode
+# volumes:
+#   logviewr_data_dev:
+#     name: logviewr_data_dev

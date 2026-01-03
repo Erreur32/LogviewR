@@ -1,0 +1,107 @@
+# ===========================================
+# LogviewR - Log Viewer Application
+# Docker Compose - Local Build
+# ===========================================
+#
+# Docker Compose configuration for LOCAL DEVELOPMENT
+# This file builds the image locally for testing and development.
+#
+# For production deployment, use docker-compose.yml instead (uses pre-built image from registry)
+#
+# Usage:
+#   1. Build and start:
+#      docker-compose -f docker-compose.local.yml up -d --build
+#
+#   2. With custom port (default: 7501):
+#      DASHBOARD_PORT=8080 docker-compose -f docker-compose.local.yml up -d
+#
+#   3. With environment file:
+#      docker-compose -f docker-compose.local.yml --env-file .env up -d
+#
+#   4. Stop and remove:
+#      docker-compose -f docker-compose.local.yml down
+#
+# Environment variables:
+#   DASHBOARD_PORT - Port to expose the dashboard (default: 7501)
+#   JWT_SECRET     - JWT secret for authentication (required in production)
+#   CONFIG_FILE_PATH - Path to external config file (optional)
+
+services:
+  logviewr-local:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: logviewr-local
+    ports:
+      - "${DASHBOARD_PORT:-7501}:3000"
+    environment:
+      #- NODE_ENV=production
+      #- PORT=3000
+      - DASHBOARD_PORT=${DASHBOARD_PORT:-7501}
+      # HOST_IP: IP address of the host machine on the local network
+      # If not set, the container will try to auto-detect, but may use container IP
+      # Example: HOST_IP=192.168.1.100
+      - HOST_IP=${HOST_IP:-192.168.1.150}
+      # ⚠️ SECURITE CRITIQUE : JWT_SECRET - Secret pour signer les tokens JWT
+      # 
+      # IMPORTANT : Ne JAMAIS utiliser la valeur par défaut en production !
+      # Le secret par défaut est uniquement pour le développement.
+      #
+      # Pour générer un secret sécurisé (minimum 32 caractères) :
+      #   Linux/Mac:   openssl rand -base64 32
+      #   PowerShell:  [Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Maximum 256 }))
+      #
+      # Méthodes de configuration :
+      #   1. Fichier .env (recommandé) :
+      #      Créez un fichier .env avec : JWT_SECRET=votre_secret_genere
+      #      Puis lancez : docker-compose -f docker-compose.local.yml --env-file .env up -d --build
+      #
+      #   2. Variable d'environnement système :
+      #      export JWT_SECRET=$(openssl rand -base64 32)
+      #      docker-compose -f docker-compose.local.yml up -d --build
+      #
+      #   3. Ligne de commande :
+      #      JWT_SECRET=votre_secret docker-compose -f docker-compose.local.yml up -d --build
+      #
+      # Exemple de secret généré : aB3xK9mP2vQ7wR5tY8uI0oP1aS6dF4gH7jK2lM9nB0vC3xZ6
+      - JWT_SECRET=${JWT_SECRET:-change-me-in-production-please-use-strong-secret}
+      - CONFIG_FILE_PATH=${CONFIG_FILE_PATH:-/app/config/logviewr.conf}
+    volumes:
+      # Persistent storage for database
+      - logviewr_data_local:/app/data
+      # Mount host filesystem (read-only) to access real host metrics
+      - /:/host:ro
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      # Mount host logs directory (read-only) for log viewer functionality
+      # This allows LogviewR to read log files from the host system
+      # Host System plugin uses /host/logs to access /var/log
+      - /var/log:/host/logs:ro
+      # Optional: Mount specific log directories for direct access
+      # Uncomment if you want plugins to access logs directly without /host/ prefix:
+      # - /var/log/apache2:/var/log/apache2:ro    # Apache logs (accessible at /var/log/apache2)
+      # - /var/log/nginx:/var/log/nginx:ro        # Nginx logs (accessible at /var/log/nginx)
+      # - /var/log/npm:/var/log/npm:ro            # NPM logs (accessible at /var/log/npm)
+      # Note: Without these mounts, plugins must use /host/var/log/... paths in configuration
+
+    restart: unless-stopped
+    # Health check (use 127.0.0.1 instead of localhost to avoid IPv6 issues)
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    # Uncomment to limit resources (optional)
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '1'
+    #       memory: 512M
+    #     reservations:
+    #       cpus: '0.5'
+    #       memory: 256M
+
+volumes:
+  logviewr_data_local:
+    name: logviewr_data_local

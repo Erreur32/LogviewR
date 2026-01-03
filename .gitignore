@@ -1,0 +1,99 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.cursor
+.cursor/plans
+*.code-workspace
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Tokens and sensitive files (if any)
+*.token
+*.token-dev
+
+# Database files (contains sensitive data: users, passwords, tokens, configs)
+data/
+*.db
+*.db-shm
+*.db-wal
+
+# Environment variables (sensitive - contains secrets, tokens, API keys)
+.env
+.env.local
+.env.*.local
+.env.production
+.env.development
+.env.test
+.env.*
+commit-message.txt
+
+# Configuration files (contains sensitive data: passwords, tokens, API keys)
+config/logviewr.conf
+config/*.conf
+!config/*.example
+!config/*.example.conf
+
+# Claude Code
+.claude
+.reboot_schedule.json
+
+# Local comparison / archives that must never be committed
+# Private development folder (contains tokens, internal docs, secrets)
+Doc_dev/
+Doc_Dev/
+Aide*
+
+# Scripts with hardcoded credentials (development only)
+# These scripts contain sensitive credentials and should not be committed
+test-backend.sh
+unifi.sh
+unifi_script.sh
+unifi_token.sh
+unifi_token_interactif.sh
+unitfi_test.sh
+
+# Backup files
+*.backup
+*.bak
+*~
+
+# Secrets and sensitive files (additional patterns)
+*secret*
+*token*
+*.key
+*.pem
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.crt
+*.cert
+*.pwd
+*.passwd
+*.password
+
+# OS files
+Thumbs.db
+.DS_Store
+.AppleDouble
+.LSOverride
+._*

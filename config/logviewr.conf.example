@@ -1,0 +1,23 @@
+# ===========================================
+# LogviewR Configuration File
+# ===========================================
+#
+# This file contains the configuration for all plugins and application settings.
+# 
+# Usage:
+#   1. Copy this file to logviewr.conf
+#   2. Edit the configuration as needed
+#   3. Mount it in Docker: ./config/logviewr.conf:/app/config/logviewr.conf:ro
+#   4. Restart the container or call POST /api/config/import
+#
+# Format: INI (key=value)
+# Sections: [app], [plugin.<plugin_id>]
+#
+# ===========================================
+
+# Application Settings
+[app]
+timezone=Europe/Paris
+language=fr
+theme=dark
+

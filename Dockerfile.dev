@@ -1,0 +1,37 @@
+# ===========================================
+# LogviewR - Development Dockerfile
+# Node 22 Alpine - Hot Reload
+# ===========================================
+
+FROM node:22-alpine
+# FROM node:20-alpine
+
+WORKDIR /app
+
+# 🔴 Outils de build OBLIGATOIRES pour compiler better-sqlite3 et autres modules natifs
+# Ces outils sont nécessaires pour npm ci qui compile better-sqlite3
+RUN apk add --no-cache python3 make g++
+
+# Réduction du bruit npm en dev
+ENV NODE_ENV=development
+RUN npm config set fund false \
+ && npm config set audit false
+
+# Dépendances (dev + prod)
+COPY package*.json ./
+RUN npm ci
+
+# Le code source sera monté via volume (docker-compose)
+# => pas de COPY du code ici
+
+# Create mount points for host filesystem access
+# These directories are needed for bind mounts in docker-compose
+RUN mkdir -p /host/logs /host/proc /host/sys
+
+# Ports :
+# - Frontend (Vite) : 5173
+# - Backend API     : 3003
+EXPOSE 5173 3003
+
+# Lancement dev (vite + api en watch)
+CMD ["npm", "run", "dev"]
