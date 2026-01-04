@@ -87,7 +87,7 @@ export class HostSystemLogPlugin extends BasePlugin implements LogSourcePlugin {
     private osInfo: Awaited<ReturnType<typeof detectOS>> | null = null;
 
     constructor() {
-        super('host-system', 'Host System Logs', '0.1.5');
+        super('host-system', 'Host System Logs', '0.1.4');
         // Detect OS on initialization and set default log files
         detectOS().then(info => {
             this.osInfo = info;

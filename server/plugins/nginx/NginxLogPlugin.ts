@@ -27,7 +27,7 @@ export interface NginxPluginConfig {
 
 export class NginxLogPlugin extends BasePlugin implements LogSourcePlugin {
     constructor() {
-        super('nginx', 'Nginx Logs', '0.1.5');
+        super('nginx', 'Nginx Logs', '0.1.4');
     }
 
     async getStats(): Promise<PluginStats> {

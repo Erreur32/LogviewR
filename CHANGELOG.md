@@ -5,41 +5,6 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.5] - 2026-01-03
-
-### Fixed
-
-#### OS Detection
-- **Linux Mint detection**: Fixed OS detection for Linux Mint systems
-  - Improved detection logic to check Mint before Ubuntu (Mint has `ID_LIKE="ubuntu debian"`)
-  - Added helper function `idLikeContains()` to properly handle multi-value `ID_LIKE` fields
-  - Now correctly detects Mint even when only `ID_LIKE` contains "ubuntu"
-  - Supports detection via `ID=linuxmint`, `ID=mint`, or `ID_LIKE` containing "mint"/"linuxmint"
-
-### Added
-
-#### Linux Mint Support
-- **Mint icon**: Added Linux Mint icon to frontend plugin icons
-  - Mint icon now displays correctly in plugin management section
-  - Icon automatically shown when OS is detected as Mint
-  - Uses existing `mint.svg` icon file
-
-- **Mint-specific log files**: Added `mintupdate.log` to default system log files for Mint
-  - `/var/log/mintupdate.log` now included in default log files list for Mint
-  - Added to default file patterns (`mintupdate.log*`) for automatic detection
-  - Included in log rotation detection for Mint systems
-  - File is disabled by default but visible in log files list
-
-### Changed
-
-#### OS Detection Logic
-- **Detection order**: Reorganized OS detection to check Mint before Ubuntu
-  - Prevents Mint from being incorrectly detected as Ubuntu
-  - More accurate OS type identification for Mint-based systems
-  - Better handling of `ID_LIKE` field with multiple values
-
----
-
 ## [0.1.4] - 2026-01-03
 
 ### Fixed

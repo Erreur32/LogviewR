@@ -318,22 +318,28 @@ function getCommonLogFilesByOS(osType: string): Array<{
         osTypes: string[];
     }> = [];
     
-    // Debian/Ubuntu common files
-    if (['debian', 'ubuntu', 'mint'].includes(osType)) {
+    // Linux Mint specific files (must be checked before Debian/Ubuntu)
+    if (osType === 'mint') {
         commonFiles.push(
-            { path: '/var/log/syslog', type: 'syslog', osTypes: ['debian', 'ubuntu', 'mint'] },
-            { path: '/var/log/auth.log', type: 'auth', osTypes: ['debian', 'ubuntu', 'mint'] },
-            { path: '/var/log/kern.log', type: 'kern', osTypes: ['debian', 'ubuntu', 'mint'] },
-            { path: '/var/log/daemon.log', type: 'daemon', osTypes: ['debian', 'ubuntu', 'mint'] },
-            { path: '/var/log/mail.log', type: 'mail', osTypes: ['debian', 'ubuntu', 'mint'] },
-            { path: '/var/log/mail.err', type: 'mail', osTypes: ['debian', 'ubuntu', 'mint'] }
+            { path: '/var/log/syslog', type: 'syslog', osTypes: ['mint'] },
+            { path: '/var/log/auth.log', type: 'auth', osTypes: ['mint'] },
+            { path: '/var/log/kern.log', type: 'kern', osTypes: ['mint'] },
+            { path: '/var/log/daemon.log', type: 'daemon', osTypes: ['mint'] },
+            { path: '/var/log/mail.log', type: 'mail', osTypes: ['mint'] },
+            { path: '/var/log/mail.err', type: 'mail', osTypes: ['mint'] },
+            { path: '/var/log/mintupdate.log', type: 'custom', osTypes: ['mint'] }
         );
     }
     
-    // Linux Mint specific files
-    if (osType === 'mint') {
+    // Debian/Ubuntu common files
+    if (['debian', 'ubuntu'].includes(osType)) {
         commonFiles.push(
-            { path: '/var/log/mintupdate.log', type: 'custom', osTypes: ['mint'] }
+            { path: '/var/log/syslog', type: 'syslog', osTypes: ['debian', 'ubuntu'] },
+            { path: '/var/log/auth.log', type: 'auth', osTypes: ['debian', 'ubuntu'] },
+            { path: '/var/log/kern.log', type: 'kern', osTypes: ['debian', 'ubuntu'] },
+            { path: '/var/log/daemon.log', type: 'daemon', osTypes: ['debian', 'ubuntu'] },
+            { path: '/var/log/mail.log', type: 'mail', osTypes: ['debian', 'ubuntu'] },
+            { path: '/var/log/mail.err', type: 'mail', osTypes: ['debian', 'ubuntu'] }
         );
     }
     

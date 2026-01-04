@@ -2,7 +2,7 @@
  * OS Detection Utility
  * 
  * Detects the operating system type and version to adapt log parsing patterns
- * Supports: Debian, Ubuntu, CentOS, RHEL, Fedora, Arch, etc.
+ * Supports: Debian, Ubuntu, Mint, CentOS, RHEL, Fedora, Arch, etc.
  */
 
 import * as fs from 'fs/promises';
@@ -180,7 +180,7 @@ export function usesISO8601(): boolean {
 export function getDefaultLogFiles(osType: OSType): Array<{ path: string; type: string; enabled: boolean }> {
     switch (osType) {
         case 'mint':
-            // Linux Mint specific: includes Ubuntu/Debian logs plus Mint-specific files
+            // Linux Mint specific log files including mintupdate.log
             return [
                 { path: '/var/log/syslog', type: 'syslog', enabled: true },
                 { path: '/var/log/auth.log', type: 'auth', enabled: true },
@@ -249,7 +249,7 @@ export function getDefaultLogFiles(osType: OSType): Array<{ path: string; type: 
 export function getDefaultFilePatterns(osType: OSType): string[] {
     switch (osType) {
         case 'mint':
-            // Linux Mint specific patterns: includes Ubuntu/Debian patterns plus Mint-specific
+            // Linux Mint specific patterns including mintupdate.log
             return [
                 'syslog*',
                 'auth.log*',

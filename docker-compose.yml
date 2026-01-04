@@ -75,8 +75,19 @@ services:
       # These are used to read CPU, memory, network stats, and hostname
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
- 
- 
+      # Create symlink /host/logs -> /host/var/log for backward compatibility
+      # The plugin expects /host/logs but /host/var/log is already available via /:/host:ro
+      # This is done via entrypoint script to avoid Docker mount issues
+      # 
+      # ⚠️ IMPORTANT: Do NOT mount /var/log:/host/logs:ro here!
+      # It causes "read-only file system" errors. Use the symlink created by entrypoint instead.
+      #
+      # Optional: Mount specific log directories for direct access
+      # Uncomment if you want plugins to access logs directly without /host/ prefix:
+      # - /var/log/apache2:/var/log/apache2:ro    # Apache logs (accessible at /var/log/apache2)
+      # - /var/log/nginx:/var/log/nginx:ro        # Nginx logs (accessible at /var/log/nginx)
+      # - /var/log/npm:/var/log/npm:ro            # NPM logs (accessible at /var/log/npm)
+      # Note: Without these mounts, plugins must use /host/var/log/... paths in configuration
 
     # Health check: verify container is responding to API requests
     # Uses wget (available in Alpine base image) to check /api/health endpoint
