@@ -2,6 +2,8 @@
 
 <div align="center">
 
+‼️ En cour de developpement ACTIF , Version BETA ‼️
+
 <img src="LogviewR_banner.svg" alt="LogviewR" width="512" height="256" />
 
 ![LogviewR](https://img.shields.io/badge/LogviewR-0.1.4-111827?style=for-the-badge)
