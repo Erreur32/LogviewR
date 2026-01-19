@@ -20,7 +20,7 @@
     "test:ui": "vitest --ui"
   },
   "dependencies": {
-    "bcrypt": "^5.1.1",
+    "bcrypt": "^6.0.0",
     "better-sqlite3": "^9.2.2",
     "concurrently": "^9.2.1",
     "cors": "^2.8.5",
