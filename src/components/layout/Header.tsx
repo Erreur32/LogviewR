@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
-import { FileText, RefreshCw, Code, ChevronDown, History } from 'lucide-react';
+import { FileText, RefreshCw, Code, ChevronDown, History, Play, Square } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import logviewrLogo from '../../icons/logviewr.svg';
 import { UserMenu, Clock, Tooltip } from '../ui';
@@ -12,8 +12,11 @@ import { LogFileHistoryModal, type LogFileHistoryEntry, LOGFILE_HISTORY_KEY } fr
 import { RegexEditorModal } from '../modals/RegexEditorModal';
 import { getPluginIcon } from '../../utils/pluginIcons';
 import { api } from '../../api/client';
+import { AUTO_REFRESH_INTERVALS_MS } from '../../utils/constants';
 import type { PageType } from './Footer';
 import type { LogFileInfo } from '../../types/logViewer';
+
+export type LiveMode = 'off' | 'live' | 'auto';
 
 const LOGFILE_HISTORY_MAX = 50;
 
@@ -43,12 +46,15 @@ interface HeaderProps {
   viewMode?: 'parsed' | 'raw';
   onRefresh?: () => void;
   onToggleViewMode?: () => void;
-  // Log date range for calendar button
   logDateRange?: { min?: Date; max?: Date };
-  // OS type for plugin icons
   osType?: string;
-  // Plugin navigation callback
   onPluginClick?: (pluginId: string) => void;
+  // Live / Auto-refresh mode
+  liveMode?: LiveMode;
+  onStop?: () => void;
+  onToggleLive?: () => void;
+  onToggleAutoRefresh?: (intervalMs: number) => void;
+  autoRefreshIntervalMs?: number;
 }
 
 
@@ -70,16 +76,22 @@ export const Header: React.FC<HeaderProps> = ({
   logType,
   // OS type
   osType: osTypeProp,
-  // Log viewer controls
   isConnected,
   viewMode,
   onRefresh,
   onToggleViewMode,
-  onPluginClick
+  onPluginClick,
+  liveMode = 'off',
+  onStop,
+  onToggleLive,
+  onToggleAutoRefresh,
+  autoRefreshIntervalMs = 5000
 }) => {
   const [isFileSelectorModalOpen, setIsFileSelectorModalOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [isRegexEditorOpen, setIsRegexEditorOpen] = useState(false);
+  const [isPlayMenuOpen, setIsPlayMenuOpen] = useState(false);
+  const playMenuRef = useRef<HTMLDivElement>(null);
   const [osTypeState, setOsTypeState] = useState<string | undefined>(undefined);
   const [isPluginMenuOpen, setIsPluginMenuOpen] = useState(false);
   const [pluginMenuPosition, setPluginMenuPosition] = useState<{ top: number; left: number } | null>(null);
@@ -409,9 +421,80 @@ export const Header: React.FC<HeaderProps> = ({
             )}
           </div>
 
-          {/* Control Buttons - Actualiser, Mode parsé / brut */}
+          {/* Control Buttons - Play/Stop (when file selected), Actualiser, Mode parsé / brut */}
           {pageType === 'log-viewer' && (
             <div className="flex items-center gap-2">
+              {/* Play / Stop - only when a file is selected */}
+              {selectedFilePath && (liveMode === 'off' ? (
+                <div className="relative" ref={playMenuRef}>
+                  <Tooltip content="Démarrer le suivi des logs (Live ou Refresh auto)">
+                    <button
+                      type="button"
+                      onClick={() => setIsPlayMenuOpen((open) => !open)}
+                      className="p-2 bg-theme-secondary hover:bg-theme-primary border border-theme-border rounded-lg text-theme-primary transition-colors flex items-center justify-center"
+                      aria-expanded={isPlayMenuOpen}
+                      aria-haspopup="true"
+                    >
+                      <Play size={16} />
+                    </button>
+                  </Tooltip>
+                  {isPlayMenuOpen && (
+                    <>
+                      <div
+                        className="fixed inset-0 z-40"
+                        aria-hidden
+                        onClick={() => setIsPlayMenuOpen(false)}
+                      />
+                      <div
+                        className="absolute right-0 top-full mt-1 z-50 min-w-[200px] py-2 bg-theme-secondary border border-theme-border rounded-lg shadow-lg"
+                        role="menu"
+                      >
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="w-full px-4 py-2 text-left text-sm text-theme-primary hover:bg-theme-tertiary flex items-center gap-2"
+                          onClick={() => {
+                            onToggleLive?.();
+                            setIsPlayMenuOpen(false);
+                          }}
+                        >
+                          <Play size={14} />
+                          Live (temps réel)
+                        </button>
+                        <div className="border-t border-theme-border my-2" />
+                        <div className="px-4 py-2 text-xs text-theme-secondary mb-1">Refresh auto</div>
+                        <div className="flex flex-wrap gap-1 px-2">
+                          {AUTO_REFRESH_INTERVALS_MS.map((ms) => (
+                            <button
+                              key={ms}
+                              type="button"
+                              role="menuitem"
+                              className="px-3 py-1.5 text-xs rounded border border-theme-border bg-theme-primary/50 hover:bg-theme-tertiary text-theme-primary"
+                              onClick={() => {
+                                onToggleAutoRefresh?.(ms);
+                                setIsPlayMenuOpen(false);
+                              }}
+                            >
+                              {ms / 1000}s
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <Tooltip content={liveMode === 'live' ? 'Arrêter le suivi Live' : `Arrêter le refresh auto (${autoRefreshIntervalMs / 1000}s)`}>
+                  <button
+                    type="button"
+                    onClick={onStop}
+                    className="p-2 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/50 rounded-lg text-emerald-400 transition-colors flex items-center justify-center"
+                  >
+                    <Square size={16} />
+                  </button>
+                </Tooltip>
+              ))}
+
               {/* Refresh Button */}
               {onRefresh && (
                 <Tooltip content="Recharger les logs du fichier affiché">

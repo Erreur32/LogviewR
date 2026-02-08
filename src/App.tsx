@@ -88,6 +88,11 @@ const App: React.FC = () => {
     onToggleFollow?: () => void;
     onToggleViewMode?: () => void;
     logDateRange?: { min?: Date; max?: Date };
+    liveMode?: 'off' | 'live' | 'auto';
+    onStop?: () => void;
+    onToggleLive?: () => void;
+    onToggleAutoRefresh?: (intervalMs: number) => void;
+    autoRefreshIntervalMs?: number;
   } | null>(null);
 
   // Check if users exist on mount
@@ -434,6 +439,11 @@ const App: React.FC = () => {
           onRefresh={pluginHeaderData?.onRefresh}
           onToggleViewMode={pluginHeaderData?.onToggleViewMode}
           logDateRange={pluginHeaderData?.logDateRange}
+          liveMode={pluginHeaderData?.liveMode}
+          onStop={pluginHeaderData?.onStop}
+          onToggleLive={pluginHeaderData?.onToggleLive}
+          onToggleAutoRefresh={pluginHeaderData?.onToggleAutoRefresh}
+          autoRefreshIntervalMs={pluginHeaderData?.autoRefreshIntervalMs}
           onPluginClick={(pluginId) => {
             setSelectedPluginId(pluginId);
             setPluginHeaderData(null);

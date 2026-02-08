@@ -5,6 +5,26 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.8] - 2026-02-08
+
+### Added
+
+#### Log Viewer – Mode Live et Refresh auto
+- **Bouton Play dans le header** : une fois un fichier sélectionné, affichage d’un bouton Play ouvrant un menu
+  - **Live (temps réel)** : suivi WebSocket existant (tail -f)
+  - **Refresh auto** : rechargement HTTP périodique avec intervalle choisi (2s, 5s, 10s, 15s, 30s)
+- **Bouton Square (Stop)** : arrête le mode Live ou le Refresh auto
+- **Persistance** : l’intervalle choisi pour le Refresh auto est sauvegardé dans `localStorage` (`logviewer_auto_refresh_interval_ms`)
+- Constantes `AUTO_REFRESH_INTERVALS_MS`, `AUTO_REFRESH_DEFAULT_MS` et `AUTO_REFRESH_STORAGE_KEY` dans `src/utils/constants.ts`
+- Compatible mode parsé et mode brut (raw) : le refresh auto utilise la même logique que le bouton Actualiser
+
+### Changed
+
+#### Sécurité des dépendances
+- **Overrides npm** : `tar` >= 7.5.7 et `esbuild` >= 0.25.0 pour corriger les vulnérabilités (Dependabot) sans passage à bcrypt 6 ni vitest 4
+
+---
+
 ## [0.1.7] - 2026-02-08
 
 ### Added

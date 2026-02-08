@@ -47,6 +47,11 @@ export const POLLING_INTERVALS = {
   logFollow: 1000        // Follow logs backend (1s)
 } as const;
 
+// Auto-refresh intervals for log viewer (ms). User can choose one when "Refresh auto" is active.
+export const AUTO_REFRESH_INTERVALS_MS = [2000, 5000, 10000, 15000, 30000] as const;
+export const AUTO_REFRESH_DEFAULT_MS = 5000;
+export const AUTO_REFRESH_STORAGE_KEY = 'logviewer_auto_refresh_interval_ms';
+
 // API endpoints (relative to proxy)
 export const API_ROUTES = {
   // Auth

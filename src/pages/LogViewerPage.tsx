@@ -14,7 +14,10 @@ import { Button } from '../components/ui/Button.js';
 import { Badge } from '../components/ui/Badge.js';
 import { useLogViewerWebSocket } from '../hooks/useLogViewerWebSocket.js';
 import { Play, Square, RefreshCw, FileText } from 'lucide-react';
+import { AUTO_REFRESH_DEFAULT_MS, AUTO_REFRESH_STORAGE_KEY } from '../utils/constants.js';
 import type { LogFileInfo, LogViewerResponse, LogEntry, LogFilters as LogFiltersType } from '../types/logViewer.js';
+
+export type LiveMode = 'off' | 'live' | 'auto';
 
 interface LogViewerPageProps {
     pluginId?: string;
@@ -36,6 +39,11 @@ interface LogViewerPageProps {
         onRefresh?: () => void;
         onToggleViewMode?: () => void;
         logDateRange?: { min?: Date; max?: Date };
+        liveMode?: LiveMode;
+        onStop?: () => void;
+        onToggleLive?: () => void;
+        onToggleAutoRefresh?: (intervalMs: number) => void;
+        autoRefreshIntervalMs?: number;
     }) => void;
 }
 
@@ -75,6 +83,32 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
     const [availableFiles, setAvailableFiles] = useState<LogFileInfo[]>([]);
     const [osType, setOsType] = useState<string | undefined>(undefined);
     const [rememberLastFile, setRememberLastFile] = useState(true);
+
+    // Auto-refresh mode (polling). Live mode is from store isFollowing.
+    const [isAutoRefreshActive, setIsAutoRefreshActive] = useState(false);
+    const [autoRefreshIntervalMs, setAutoRefreshIntervalMs] = useState<number>(() => {
+        try {
+            const stored = localStorage.getItem(AUTO_REFRESH_STORAGE_KEY);
+            if (stored) {
+                const n = parseInt(stored, 10);
+                if (Number.isFinite(n) && n > 0) return n;
+            }
+        } catch {
+            // ignore
+        }
+        return AUTO_REFRESH_DEFAULT_MS;
+    });
+
+    const liveMode: LiveMode = isFollowing ? 'live' : isAutoRefreshActive ? 'auto' : 'off';
+
+    // Persist auto-refresh interval when it changes
+    useEffect(() => {
+        try {
+            localStorage.setItem(AUTO_REFRESH_STORAGE_KEY, String(autoRefreshIntervalMs));
+        } catch {
+            // ignore
+        }
+    }, [autoRefreshIntervalMs]);
 
     // Load remember last file setting
     useEffect(() => {
@@ -454,12 +488,12 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
 
     const handleRefresh = useCallback(() => {
         if (selectedFilePath && selectedLogType) {
-            // Stop following if active
             if (isFollowing && selectedPluginId) {
                 const fileId = `${selectedPluginId}:${selectedFilePath}`;
                 unsubscribe(fileId);
                 setFollowing(false);
             }
+            setIsAutoRefreshActive(false);
             loadLogs(selectedFilePath, selectedLogType);
         }
     }, [selectedFilePath, selectedLogType, isFollowing, selectedPluginId, unsubscribe, setFollowing, loadLogs]);
@@ -475,10 +509,45 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
             unsubscribe(fileId);
             setFollowing(false);
         } else {
+            setIsAutoRefreshActive(false);
             subscribe(selectedPluginId, selectedFilePath, selectedLogType, true);
             setFollowing(true);
         }
     }, [selectedPluginId, selectedFilePath, selectedLogType, isFollowing, subscribe, unsubscribe, setFollowing]);
+
+    const handleStop = useCallback(() => {
+        if (isFollowing && selectedPluginId && selectedFilePath) {
+            unsubscribe(`${selectedPluginId}:${selectedFilePath}`);
+            setFollowing(false);
+        }
+        setIsAutoRefreshActive(false);
+    }, [isFollowing, selectedPluginId, selectedFilePath, unsubscribe, setFollowing]);
+
+    const handleToggleLive = useCallback(() => {
+        handleToggleFollow();
+    }, [handleToggleFollow]);
+
+    const handleToggleAutoRefresh = useCallback((intervalMs: number) => {
+        setAutoRefreshIntervalMs(intervalMs);
+        if (isFollowing && selectedPluginId && selectedFilePath) {
+            unsubscribe(`${selectedPluginId}:${selectedFilePath}`);
+            setFollowing(false);
+        }
+        setIsAutoRefreshActive(true);
+    }, [isFollowing, selectedPluginId, selectedFilePath, unsubscribe, setFollowing]);
+
+    // Polling when liveMode === 'auto': refresh logs at autoRefreshIntervalMs (supports raw and parsed)
+    useEffect(() => {
+        if (liveMode !== 'auto' || !selectedFilePath || !selectedLogType || !selectedPluginId) {
+            return;
+        }
+        const path = selectedFilePath;
+        const logType = selectedLogType;
+        const intervalId = setInterval(() => {
+            loadLogsRef.current(path, logType);
+        }, autoRefreshIntervalMs);
+        return () => clearInterval(intervalId);
+    }, [liveMode, selectedFilePath, selectedLogType, selectedPluginId, autoRefreshIntervalMs]);
 
     // Calculate log date range from logs
     const logDateRange = useMemo(() => {
@@ -521,6 +590,9 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
     const handleFileSelectFromHeaderRef = useRef(handleFileSelectFromHeader);
     const handleRefreshRef = useRef(handleRefresh);
     const handleToggleFollowRef = useRef(handleToggleFollow);
+    const handleStopRef = useRef(handleStop);
+    const handleToggleLiveRef = useRef(handleToggleLive);
+    const handleToggleAutoRefreshRef = useRef(handleToggleAutoRefresh);
     const loadLogsRef = useRef(loadLogs);
     const viewModeRef = useRef(viewMode);
     const selectedFilePathRef = useRef(selectedFilePath);
@@ -532,11 +604,14 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
         handleFileSelectFromHeaderRef.current = handleFileSelectFromHeader;
         handleRefreshRef.current = handleRefresh;
         handleToggleFollowRef.current = handleToggleFollow;
+        handleStopRef.current = handleStop;
+        handleToggleLiveRef.current = handleToggleLive;
+        handleToggleAutoRefreshRef.current = handleToggleAutoRefresh;
         loadLogsRef.current = loadLogs;
         viewModeRef.current = viewMode;
         selectedFilePathRef.current = selectedFilePath;
         selectedLogTypeRef.current = selectedLogType;
-    }, [onPluginDataChange, handleFileSelectFromHeader, handleRefresh, handleToggleFollow, loadLogs, viewMode, selectedFilePath, selectedLogType]);
+    }, [onPluginDataChange, handleFileSelectFromHeader, handleRefresh, handleToggleFollow, handleStop, handleToggleLive, handleToggleAutoRefresh, loadLogs, viewMode, selectedFilePath, selectedLogType]);
 
     // Notify header when plugin data changes (separated from file loading to avoid loops)
     useEffect(() => {
@@ -554,24 +629,26 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
             onFiltersChange: setFilters as (filters: Partial<LogFiltersType>) => void,
             logType: selectedLogType || undefined,
             osType: selectedPluginId === 'host-system' ? osType : undefined,
-            // Log viewer controls
             isConnected,
             viewMode,
             onRefresh: handleRefreshRef.current,
             onToggleViewMode: () => {
                 const newMode = viewModeRef.current === 'parsed' ? 'raw' : 'parsed';
                 setViewMode(newMode);
-                // Reload logs when mode changes
                 if (selectedFilePathRef.current && selectedLogTypeRef.current) {
                     setTimeout(() => {
                         loadLogsRef.current(selectedFilePathRef.current!, selectedLogTypeRef.current!);
                     }, 100);
                 }
             },
-            // Log date range
-            logDateRange
+            logDateRange,
+            liveMode,
+            onStop: handleStopRef.current,
+            onToggleLive: handleToggleLiveRef.current,
+            onToggleAutoRefresh: handleToggleAutoRefreshRef.current,
+            autoRefreshIntervalMs
         });
-    }, [selectedPluginId, pluginName, availableFiles, selectedFilePath, selectedLogType, filters, setFilters, osType, isFollowing, isConnected, viewMode, logDateRange, setViewMode]);
+    }, [selectedPluginId, pluginName, availableFiles, selectedFilePath, selectedLogType, filters, setFilters, osType, isFollowing, isAutoRefreshActive, isConnected, viewMode, logDateRange, setViewMode, liveMode, autoRefreshIntervalMs]);
 
     // Filter logs based on active filters
     const filteredLogs = useMemo(() => {
