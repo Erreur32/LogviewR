@@ -70,15 +70,21 @@ const getColumnDisplayName = (columnName: string): string => {
         'vhost': 'Virtual Host',
         'port': 'Port',
         'ip': 'IP',
-        'method': 'Method',
+        'method': 'METHOD',
         'url': 'URL',
-        'status': 'Status',
-        'size': 'Size',
-        'referer': 'Referer',
-        'useragent': 'User Agent',
+        'status': 'STATUS',
+        'size': 'SIZE',
+        'referer': 'REFERER',
+        'useragent': 'USER AGENT',
         'module': 'Module',
         'clientip': 'Client IP',
-        'remoteip': 'Remote IP'
+        'remoteip': 'Remote IP',
+        'host': 'HOST',
+        'upstream': 'UPSTREAM',
+        'upstreamstatus': 'UPSTREAM STATUS',
+        'responsetime': 'RESPONSE TIME',
+        'cache': 'CACHE',
+        'gzip': 'GZIP'
     };
     
     return displayNames[col] || columnName;
@@ -94,17 +100,17 @@ const getColumnType = (columnName: string): 'date' | 'number' | 'ip' | 'text' | 
     }
     
     // Numeric columns
-    if (['status', 'statuscode', 'httpcode', 'size', 'responsetime', 'pid', 'tid'].includes(col)) {
+    if (['status', 'statuscode', 'httpcode', 'size', 'responsetime', 'pid', 'tid', 'gzip', 'upstreamstatus'].includes(col)) {
         return 'number';
     }
-    
+
     // IP columns
     if (['ip', 'ipaddress', 'clientip', 'remoteip'].includes(col)) {
         return 'ip';
     }
-    
-    // Badge columns (level, severity)
-    if (['level', 'severity'].includes(col)) {
+
+    // Badge columns (level, severity, HTTP method)
+    if (['level', 'severity', 'method', 'httpmethod'].includes(col)) {
         return 'badge';
     }
     
@@ -139,12 +145,14 @@ interface SortableHeaderProps {
     column: string;
     sortConfig: SortConfig;
     onSort: (column: string) => void;
+    logType?: string;
 }
 
-const SortableHeader: React.FC<SortableHeaderProps> = ({ column, sortConfig, onSort }) => {
+const SortableHeader: React.FC<SortableHeaderProps> = ({ column, sortConfig, onSort, logType }) => {
     const isSorted = sortConfig.column === column;
     const direction = isSorted ? sortConfig.direction : null;
-    
+    const headerPadding = logType === 'error' ? 'px-5 py-3' : 'px-4 py-3';
+
     const handleClick = () => {
         if (isSorted && sortConfig.direction === 'desc') {
             onSort(column); // Switch to asc
@@ -154,11 +162,11 @@ const SortableHeader: React.FC<SortableHeaderProps> = ({ column, sortConfig, onS
             onSort(column); // Start with desc for most columns
         }
     };
-    
+
     return (
         <th
             onClick={handleClick}
-            className={`px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider border-r border-gray-800 last:border-r-0 cursor-pointer hover:bg-gray-800/50 select-none transition-colors ${
+            className={`${headerPadding} text-left text-xs font-semibold text-gray-400 uppercase tracking-wider border-r border-gray-800 last:border-r-0 cursor-pointer hover:bg-gray-800/50 select-none transition-colors ${
                 isSorted ? 'bg-gray-800/30' : ''
             }`}
             style={{ width: 'auto' }}
@@ -364,14 +372,14 @@ export const LogTable: React.FC<LogTableProps> = ({
                         <div className="flex flex-wrap items-center gap-1.5">
                             <Tooltip content={`Utilisateur : ${user}`}>
                                 <span 
-                                    className="px-2 py-1 rounded text-xs font-medium cursor-help"
+                                    className="px-1.5 py-0.5 rounded text-xs font-medium cursor-help"
                                     style={getUserBadgeStyle(user)}
                                 >
                                     {user}
                                 </span>
                             </Tooltip>
                             <Tooltip content={`Type de commande : ${cmdType}`}>
-                                <span className="px-2 py-1 rounded text-xs bg-cyan-500/20 text-cyan-300 font-medium cursor-help">
+                                <span className="px-1.5 py-0.5 rounded text-xs bg-cyan-500/20 text-cyan-300 font-medium cursor-help">
                                     {cmdType}
                                 </span>
                             </Tooltip>
@@ -395,14 +403,14 @@ export const LogTable: React.FC<LogTableProps> = ({
                     return (
                         <div className="flex flex-wrap items-center gap-1.5">
                             <Tooltip content={`Type de service : ${serviceType}`}>
-                                <span className="px-2 py-1 rounded text-xs bg-orange-500/20 text-orange-300 font-medium cursor-help">
+                                <span className="px-1.5 py-0.5 rounded text-xs bg-orange-500/20 text-orange-300 font-medium cursor-help">
                                     {serviceType}
                                 </span>
                             </Tooltip>
                             {extractedUser && (
                                 <Tooltip content={`Utilisateur : ${extractedUser}`}>
                                     <span 
-                                        className="px-2 py-1 rounded text-xs font-medium cursor-help"
+                                        className="px-1.5 py-0.5 rounded text-xs font-medium cursor-help"
                                         style={getUserBadgeStyle(extractedUser)}
                                     >
                                         {extractedUser}
@@ -477,7 +485,7 @@ export const LogTable: React.FC<LogTableProps> = ({
                 return (
                     <Tooltip content={`Horodatage : ${formattedDate}`}>
                         <span 
-                            className="font-mono text-xs px-2 py-1 rounded cursor-help"
+                            className="font-mono text-xs px-1.5 py-0.5 rounded cursor-help"
                             style={timestampStyle}
                         >
                             {formattedDate}
@@ -492,7 +500,7 @@ export const LogTable: React.FC<LogTableProps> = ({
                 return (
                     <Tooltip content={`Adresse IP : ${ipValue}`}>
                         <span 
-                            className="font-mono text-xs px-2 py-1 rounded cursor-help"
+                            className="font-mono text-xs px-1.5 py-0.5 rounded cursor-help"
                             style={ipStyle}
                         >
                             {ipValue}
@@ -520,7 +528,33 @@ export const LogTable: React.FC<LogTableProps> = ({
                     const sizeFormatted = formatFileSize(sizeBytes);
                     return (
                         <Tooltip content={`Taille : ${sizeFormatted} (${sizeBytes.toLocaleString('fr-FR')} octets)`}>
-                            <span className="text-gray-300 cursor-help">{sizeFormatted}</span>
+                            <span className="cursor-help">
+                                <LogBadge type="size" value={sizeBytes} />
+                            </span>
+                        </Tooltip>
+                    );
+                }
+                if (column === 'gzip') {
+                    const gzipValue = value === '-' || value === '' || value === null || value === undefined ? '-' : value;
+                    const gzipDesc = gzipValue === '-' ? 'Non compressé ou non applicable' : `Ratio GZIP : ${gzipValue}`;
+                    return (
+                        <Tooltip content={gzipDesc}>
+                            <span className="cursor-help">
+                                <LogBadge type="gzip" value={gzipValue} />
+                            </span>
+                        </Tooltip>
+                    );
+                }
+                if (column === 'upstreamStatus' || column.toLowerCase() === 'upstreamstatus') {
+                    const code = value === '-' || value === '' ? null : Number(value);
+                    const codeDesc = code != null && !isNaN(code)
+                        ? (code >= 200 && code < 300 ? 'Succès upstream' : code >= 400 ? 'Erreur upstream' : 'Statut upstream')
+                        : 'Statut upstream non disponible';
+                    return (
+                        <Tooltip content={codeDesc}>
+                            <span className="cursor-help">
+                                <LogBadge type="upstreamStatus" value={code ?? '-'} />
+                            </span>
                         </Tooltip>
                     );
                 }
@@ -580,7 +614,7 @@ export const LogTable: React.FC<LogTableProps> = ({
                     };
                     const colorClass = actionColors[action] || 'bg-gray-500/20 text-gray-300';
                     return (
-                        <span className={`px-2 py-1 rounded text-xs ${colorClass}`}>
+                        <span className={`px-1.5 py-0.5 rounded text-xs ${colorClass}`}>
                             {String(value)}
                         </span>
                     );
@@ -599,7 +633,7 @@ export const LogTable: React.FC<LogTableProps> = ({
                         return (
                             <Tooltip content={`${columnLabel} : ${hostnameValue}`}>
                                 <span 
-                                    className="px-2 py-1 rounded text-xs cursor-help"
+                                    className="px-1.5 py-0.5 rounded text-xs cursor-help"
                                     style={hostnameStyle}
                                 >
                                     {hostnameValue}
@@ -622,7 +656,7 @@ export const LogTable: React.FC<LogTableProps> = ({
                             return (
                                 <Tooltip content={`Service : ${serviceName}${pid ? ` (PID: ${pid})` : ''}`}>
                                     <span className="inline-flex items-center gap-1.5 cursor-help">
-                                        <span className="px-2 py-1 rounded text-xs bg-blue-500/20 text-blue-300 font-medium">
+                                        <span className="px-1.5 py-0.5 rounded text-xs bg-blue-500/20 text-blue-300 font-medium">
                                             {serviceName.trim()}
                                         </span>
                                         {pid && (
@@ -637,7 +671,7 @@ export const LogTable: React.FC<LogTableProps> = ({
                         // Fallback if format doesn't match
                         return (
                             <Tooltip content={`Service : ${serviceValue}`}>
-                                <span className="px-2 py-1 rounded text-xs bg-blue-500/20 text-blue-300 cursor-help">
+                                <span className="px-1.5 py-0.5 rounded text-xs bg-blue-500/20 text-blue-300 cursor-help">
                                     {serviceValue}
                                 </span>
                             </Tooltip>
@@ -661,7 +695,7 @@ export const LogTable: React.FC<LogTableProps> = ({
                             return (
                                 <Tooltip content={`Tag : ${cleanTagName}${pid ? ` (PID: ${pid})` : ''}${cleanLevel ? ` - Niveau: ${cleanLevel}` : ''}`}>
                                     <span className="inline-flex items-center gap-1.5 cursor-help">
-                                        <span className="px-2 py-1 rounded text-xs bg-purple-500/20 text-purple-300 font-medium">
+                                        <span className="px-1.5 py-0.5 rounded text-xs bg-purple-500/20 text-purple-300 font-medium">
                                             {cleanTagName}
                                         </span>
                                         {pid && (
@@ -681,7 +715,7 @@ export const LogTable: React.FC<LogTableProps> = ({
                         // Fallback if format doesn't match
                         return (
                             <Tooltip content={`Tag : ${tagValue}`}>
-                                <span className="px-2 py-1 rounded text-xs bg-purple-500/20 text-purple-300 cursor-help">
+                                <span className="px-1.5 py-0.5 rounded text-xs bg-purple-500/20 text-purple-300 cursor-help">
                                     {tagValue}
                                 </span>
                             </Tooltip>
@@ -698,7 +732,7 @@ export const LogTable: React.FC<LogTableProps> = ({
                         return (
                             <Tooltip content={`Utilisateur : ${userValue}`}>
                                 <span 
-                                    className="px-2 py-1 rounded text-xs cursor-help"
+                                    className="px-1.5 py-0.5 rounded text-xs cursor-help"
                                     style={userStyle}
                                 >
                                     {userValue}
@@ -709,15 +743,29 @@ export const LogTable: React.FC<LogTableProps> = ({
                     return <span className="text-gray-600 italic">-</span>;
                 }
                 
-                // Truncate long columns with tooltip
+                // Upstream (NPM): IP or hostname with distinct badge
+                if (column.toLowerCase() === 'upstream') {
+                    const upstreamValue = String(value || '').trim();
+                    if (upstreamValue && upstreamValue !== '-' && upstreamValue !== 'undefined' && upstreamValue !== 'null') {
+                        return (
+                            <Tooltip content={`Upstream : ${upstreamValue}`}>
+                                <span className="cursor-help">
+                                    <LogBadge type="upstream" value={upstreamValue} />
+                                </span>
+                            </Tooltip>
+                        );
+                    }
+                    return <span className="text-gray-600 italic">-</span>;
+                }
+
+                // Truncate long columns with tooltip (single line, no overlap)
                 if (['referer', 'useragent', 'user-agent'].includes(column.toLowerCase())) {
                     const str = String(value);
-                    const truncated = str.length > 50 ? str.substring(0, 50) + '...' : str;
                     const columnLabel = column.toLowerCase() === 'referer' ? 'Referer' : 'User-Agent';
                     return (
                         <Tooltip content={`${columnLabel} : ${str}`}>
-                            <span className="text-gray-300 cursor-help">
-                                {truncated}
+                            <span className="text-gray-300 cursor-help block truncate min-w-0" title={str}>
+                                {str}
                             </span>
                         </Tooltip>
                     );
@@ -725,11 +773,10 @@ export const LogTable: React.FC<LogTableProps> = ({
                 
                 if (column === 'url' || column === 'urlPath') {
                     const str = String(value);
-                    const truncated = str.length > 80 ? str.substring(0, 80) + '...' : str;
                     return (
                         <Tooltip content={`URL complète : ${str}`}>
-                            <span className="text-gray-300 cursor-help">
-                                {truncated}
+                            <span className="text-gray-300 cursor-help block truncate min-w-0" title={str}>
+                                {str}
                             </span>
                         </Tooltip>
                     );
@@ -801,31 +848,31 @@ export const LogTable: React.FC<LogTableProps> = ({
                     <div className="flex items-center gap-3 flex-wrap">
                         {fileSize !== undefined && fileSize > 0 && (
                             <Tooltip content="Taille du fichier de log">
-                                <span className="bg-purple-500/20 text-purple-300 px-2 py-1 rounded border border-purple-500/30 cursor-help">
+                                <span className="bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded border border-purple-500/30 cursor-help">
                                     {formatFileSize(fileSize)}
                                 </span>
                             </Tooltip>
                         )}
                         <Tooltip content="Nombre total de lignes dans le fichier (y compris les lignes vides)">
-                            <span className="bg-blue-500/20 text-blue-300 px-2 py-1 rounded border border-blue-500/30 cursor-help">
+                            <span className="bg-blue-500/20 text-blue-300 px-1.5 py-0.5 rounded border border-blue-500/30 cursor-help">
                                 {stats.total.toLocaleString('fr-FR')} lignes totales
                             </span>
                         </Tooltip>
                         <Tooltip content="Nombre de lignes valides et parsées (lignes vides exclues)">
-                            <span className="bg-green-500/20 text-green-300 px-2 py-1 rounded border border-green-500/30 cursor-help">
+                            <span className="bg-green-500/20 text-green-300 px-1.5 py-0.5 rounded border border-green-500/30 cursor-help">
                                 {stats.valid.toLocaleString('fr-FR')} lignes valides
                             </span>
                         </Tooltip>
                         {stats.filtered > 0 && (
                             <Tooltip content="Nombre de lignes filtrées par les critères de recherche">
-                                <span className="bg-yellow-500/20 text-yellow-300 px-2 py-1 rounded border border-yellow-500/30 cursor-help">
+                                <span className="bg-yellow-500/20 text-yellow-300 px-1.5 py-0.5 rounded border border-yellow-500/30 cursor-help">
                                     {stats.filtered.toLocaleString('fr-FR')} lignes filtrées
                                 </span>
                             </Tooltip>
                         )}
                         {stats.unreadable > 0 && (
                             <Tooltip content="Nombre de lignes qui n'ont pas pu être parsées">
-                                <span className="bg-red-500/20 text-red-300 px-2 py-1 rounded border border-red-500/30 cursor-help">
+                                <span className="bg-red-500/20 text-red-300 px-1.5 py-0.5 rounded border border-red-500/30 cursor-help">
                                     {stats.unreadable.toLocaleString('fr-FR')} lignes illisibles
                                 </span>
                             </Tooltip>
@@ -917,69 +964,116 @@ export const LogTable: React.FC<LogTableProps> = ({
                 </div>
             </div>
             
-            <table className="w-full border-collapse table-fixed">
+            <table className="w-full border-collapse table-fixed" data-log-type={logType}>
                 <colgroup>
                     {orderedColumns.map((col) => {
                         const colLower = col.toLowerCase();
                         let width: string;
-                        
-                        // Timestamp columns: wider width for full date/time display (format: "02/01/2026 14:52:58" = ~19 chars)
+                        const isErrorLog = logType === 'error';
+
+                        // --- NPM error.log: TIME, LEVEL, MESSAGE — compact columns ---
+                        if (isErrorLog) {
+                            if (['timestamp', 'date', 'time'].includes(colLower)) {
+                                width = '158px';
+                            } else if (['level', 'severity'].includes(colLower)) {
+                                width = '56px';
+                            } else if (colLower === 'message') {
+                                width = 'auto';
+                            } else {
+                                width = '100px';
+                            }
+                            return <col key={col} style={{ width }} />;
+                        }
+
+                        // --- NPM access.log & autres: largeur = contenu badge uniquement, pas d'espace vide à droite ---
+                        // Timestamp/date/time: largeur au plus juste (ex. "08/02/2026 13:30:06")
                         if (['timestamp', 'date', 'time'].includes(colLower)) {
-                            width = '220px';
+                            width = '146px';
                         }
                         // Tag column: wider width to prevent overflow
                         else if (colLower === 'tag') {
                             width = '200px';
                         }
-                        // Hostname column: wider width
+                        // Hostname/host: largeur au plus juste (ex. "st3ve.eu", "v32.myoueb.fr")
                         else if (colLower === 'hostname' || colLower === 'host') {
-                            width = '180px';
+                            width = '108px';
                         }
-                        // Service column: wider width for service name and PID
+                        // Service column: badge + optional PID
                         else if (colLower === 'service') {
                             width = '200px';
                         }
-                        // Level/Severity: small badge width
+                        // Level/Severity: badge compact
                         else if (['level', 'severity'].includes(colLower)) {
-                            width = '100px';
+                            width = '56px';
                         }
-                        // Module: medium width
+                        // Module: badge width
                         else if (colLower === 'module') {
-                            width = '140px';
+                            width = '96px';
                         }
-                        // IP columns: fixed width for IP addresses
+                        // IP columns: badge compact
                         else if (['ip', 'ipaddress', 'clientip', 'remoteip'].includes(colLower)) {
-                            width = '140px';
+                            width = '114px';
                         }
-                        // Numeric columns: small fixed width
-                        else if (['status', 'statuscode', 'httpcode', 'size', 'responsetime', 'pid', 'tid', 'port'].includes(colLower)) {
-                            width = '90px';
+                        // Status/HTTP code: badge compact
+                        else if (['status', 'statuscode', 'httpcode'].includes(colLower)) {
+                            width = '48px';
                         }
-                        // Method: small width
+                        // Size: badge compact
+                        else if (colLower === 'size') {
+                            width = '66px';
+                        }
+                        // Columns often "-" (response time, cache, gzip): minimal width
+                        else if (colLower === 'responsetime') {
+                            width = '44px';
+                        }
+                        else if (colLower === 'cache') {
+                            width = '38px';
+                        }
+                        else if (colLower === 'gzip') {
+                            width = '40px';
+                        }
+                        // PID, TID, Port
+                        else if (['pid', 'tid', 'port'].includes(colLower)) {
+                            width = '52px';
+                        }
+                        // Method: badge
                         else if (colLower === 'method') {
-                            width = '80px';
+                            width = '52px';
                         }
-                        // Protocol: small width
+                        // Protocol
                         else if (colLower === 'protocol') {
-                            width = '90px';
+                            width = '72px';
                         }
-                        // VHost: medium width
+                        // VHost
                         else if (colLower === 'vhost') {
-                            width = '180px';
+                            width = '128px';
                         }
-                        // URL, referer, userAgent: medium width
-                        else if (['url', 'urlpath', 'referer', 'useragent', 'user-agent'].includes(colLower)) {
+                        // URL: fixed, truncated
+                        else if (['url', 'urlpath'].includes(colLower)) {
                             width = '200px';
                         }
-                        // Message: takes remaining space (no fixed width)
+                        // Referer / User-Agent: fixed, no overlap
+                        else if (colLower === 'referer') {
+                            width = '180px';
+                        }
+                        else if (['useragent', 'user-agent'].includes(colLower)) {
+                            width = '220px';
+                        }
+                        // NPM: upstream (often "-"), upstreamStatus (often "-" or code)
+                        else if (colLower === 'upstream') {
+                            width = '100px';
+                        }
+                        else if (colLower === 'upstreamstatus') {
+                            width = '44px';
+                        }
+                        // Message: remaining space
                         else if (colLower === 'message') {
                             width = 'auto';
                         }
-                        // Default: medium width
                         else {
                             width = '120px';
                         }
-                        
+
                         return <col key={col} style={{ width }} />;
                     })}
                 </colgroup>
@@ -991,6 +1085,7 @@ export const LogTable: React.FC<LogTableProps> = ({
                                 column={col}
                                 sortConfig={sortConfig}
                                 onSort={handleSort}
+                                logType={logType}
                             />
                         ))}
                     </tr>
@@ -1007,20 +1102,26 @@ export const LogTable: React.FC<LogTableProps> = ({
                                         : 'hover:bg-[#1a1a1a]'
                                 }`}
                             >
-                                {orderedColumns.map((col) => (
+                                {orderedColumns.map((col) => {
+                                    const isErrorLog = logType === 'error';
+                                    const cellPadding = isErrorLog ? 'px-5 py-3' : 'px-4 py-3';
+                                    return (
                                     <td
                                         key={col}
-                                        className={`px-4 py-3 text-sm border-r border-gray-800 last:border-r-0 ${
+                                        className={`${cellPadding} text-sm border-r border-gray-800 last:border-r-0 ${
                                             isUnparsed 
                                                 ? 'text-gray-500 italic' 
                                                 : ''
                                         } ${
-                                            col === 'message' || col === 'url' || col === 'urlPath' || col === 'referer' || col === 'userAgent' || col === 'user-agent' || col === 'tag'
+                                            col === 'message' || col === 'tag'
                                                 ? 'whitespace-normal break-words'
+                                                : ['referer', 'userAgent', 'user-agent', 'url', 'urlPath'].includes(col)
+                                                ? 'overflow-hidden min-w-0'
                                                 : col === 'timestamp' || col === 'date' || col === 'time'
                                                 ? 'whitespace-nowrap'
                                                 : 'whitespace-nowrap'
                                         }`}
+                                        style={['referer', 'userAgent', 'user-agent'].includes(col) ? { minWidth: 0, overflow: 'hidden' } : undefined}
                                     >
                                         {col === 'message' && isUnparsed ? (
                                             <span className="flex items-center gap-2">
@@ -1031,7 +1132,8 @@ export const LogTable: React.FC<LogTableProps> = ({
                                             formatCellValue(log, col)
                                         )}
                                     </td>
-                                ))}
+                                    );
+                                })}
                             </tr>
                         );
                     })}

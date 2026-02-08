@@ -5,6 +5,37 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.7] - 2026-02-08
+
+### Added
+
+#### Footer
+- **Badge taille des .gz**: Nouveau badge affichant la taille totale des fichiers de logs compressés (.gz)
+  - Affiché uniquement si au moins un plugin a des fichiers .gz (et option "Lire les .gz" activée)
+  - Style vert (emerald), icône Archive, tooltip explicatif
+  - Calcul via double appel stats (quick=true pour non .gz, sans quick pour total) puis différence
+
+#### Scripts
+- **update-version.sh**: Script de mise à jour de version adapté au projet LogviewR
+  - Met à jour `package.json`, `src/constants/version.ts` et `README.md` (badge, lien release, texte)
+  - Lecture de la version courante depuis `package.json` ; suggestion de version patch si aucun argument
+  - Rappel d’ajouter une entrée dans `CHANGELOG.md` et commandes git suggérées
+  - Portable macOS/Linux (sed in-place), couleurs ANSI si TTY
+
+### Changed
+
+#### Header / Clock
+- **Indicateur LED de l’horloge**: Couleur et animation alignées sur le thème
+  - Couleur jaune fixe remplacée par `var(--accent-primary)` (suit le thème)
+  - Nouvelle animation `clockLedGlow` (respiration 2s) : opacité et halo (box-shadow) en boucle
+  - Définition de l’animation dans `src/index.css`, appliquée sur le point du composant Clock
+
+#### Footer
+- **Libellés des badges stats**: Tooltip du badge « taille » précisé : « Taille totale des fichiers de logs non compressés »
+  - État des stats étendu avec `totalSizeGz` pour le nouveau badge .gz
+
+---
+
 ## [0.1.4] - 2026-01-03
 
 ### Fixed

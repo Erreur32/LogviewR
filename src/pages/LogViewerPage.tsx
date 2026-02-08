@@ -226,11 +226,26 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
                         if (!isCancelled) {
                             setAvailableFiles(mappedFiles);
                             
-                            // Priority: 1. initialDefaultLogFile, 2. last file if remember is enabled
+                            // Priority: 1. pending file (from history redirect when switching plugin), 2. initialDefaultLogFile, 3. last file
                             let fileToLoad: { path: string; type: string } | null = null;
                             
-                            if (initialDefaultLogFile) {
-                                // Check if the default log file exists in available files
+                            try {
+                                const pending = sessionStorage.getItem('logviewer_pending_file');
+                                if (pending) {
+                                    const parsed = JSON.parse(pending) as { pluginId: string; filePath: string; logType: string };
+                                    if (parsed.pluginId === selectedPluginId && parsed.filePath && parsed.logType) {
+                                        const fileExists = mappedFiles.find(f => f.path === parsed.filePath);
+                                        if (fileExists) {
+                                            fileToLoad = { path: parsed.filePath, type: parsed.logType };
+                                            sessionStorage.removeItem('logviewer_pending_file');
+                                        }
+                                    }
+                                }
+                            } catch {
+                                sessionStorage.removeItem('logviewer_pending_file');
+                            }
+                            
+                            if (!fileToLoad && initialDefaultLogFile) {
                                 const fileExists = mappedFiles.find(f => f.path === initialDefaultLogFile);
                                 if (fileExists && fileExists.readable !== false && fileExists.size > 0) {
                                     fileToLoad = { path: fileExists.path, type: fileExists.type };
@@ -238,10 +253,8 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
                             }
                             
                             if (!fileToLoad) {
-                                // Try to load last file if remember is enabled
                                 const lastFile = loadLastFile(selectedPluginId);
                                 if (lastFile) {
-                                    // Check if the last file still exists in available files
                                     const fileExists = mappedFiles.find(f => f.path === lastFile.filePath);
                                     if (fileExists && fileExists.readable !== false && fileExists.size > 0) {
                                         fileToLoad = { path: fileExists.path, type: fileExists.type };
@@ -250,7 +263,6 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
                             }
                             
                             if (fileToLoad) {
-                                // Set the file immediately
                                 setSelectedFile(null, fileToLoad.path, fileToLoad.type);
                             }
                         }

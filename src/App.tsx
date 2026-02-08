@@ -5,7 +5,8 @@ import {
   BarChart,
   DevicesList,
   HistoryLog,
-  LogPluginStatsCard
+  LogPluginStatsCard,
+  LogHistoryCard
 } from './components/widgets';
 import { ActionButton, UnsupportedFeature } from './components/ui';
 import { UserLoginModal, UserRegistrationModal } from './components/modals';
@@ -494,6 +495,7 @@ const App: React.FC = () => {
             </div>
           ) : (
             <>
+              {/* Groupe : cartes plugins (alignées sur la même ligne) */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
                 {plugins
                   .filter(p => p.enabled && (p.id === 'host-system' || p.id === 'nginx' || p.id === 'apache' || p.id === 'npm'))
@@ -527,6 +529,15 @@ const App: React.FC = () => {
                   <p className="text-sm text-gray-500">Activez un plugin dans les paramètres pour commencer</p>
                 </div>
               )}
+
+              {/* Groupe : historique des logs (entrées en plusieurs colonnes) */}
+              <LogHistoryCard
+                onOpenLog={(entry) => {
+                  setSelectedPluginId(entry.pluginId);
+                  setDefaultLogFile(entry.filePath);
+                  setCurrentPage('log-viewer');
+                }}
+              />
             </>
           )}
         </main>

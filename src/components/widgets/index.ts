@@ -11,3 +11,4 @@ export { PluginSummaryCard } from './PluginSummaryCard';
 // BandwidthHistoryWidget removed - Freebox widget no longer needed
 export { NetworkEventsWidget } from './NetworkEventsWidget';
 export { LogPluginStatsCard } from './LogPluginStatsCard';
+export { LogHistoryCard } from './LogHistoryCard';

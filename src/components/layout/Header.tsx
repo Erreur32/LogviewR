@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useMemo, useRef } from 'react';
-import { FileText, RefreshCw, Code, ChevronDown } from 'lucide-react';
+import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
+import { FileText, RefreshCw, Code, ChevronDown, History } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import logviewrLogo from '../../icons/logviewr.svg';
 import { UserMenu, Clock, Tooltip } from '../ui';
@@ -8,11 +8,14 @@ import { useUpdateStore } from '../../stores/updateStore';
 import { usePluginStore } from '../../stores/pluginStore';
 import { getVersionString } from '../../constants/version';
 import { LogFileSelectorModal } from '../modals/LogFileSelectorModal';
+import { LogFileHistoryModal, type LogFileHistoryEntry, LOGFILE_HISTORY_KEY } from '../modals/LogFileHistoryModal';
 import { RegexEditorModal } from '../modals/RegexEditorModal';
 import { getPluginIcon } from '../../utils/pluginIcons';
 import { api } from '../../api/client';
 import type { PageType } from './Footer';
 import type { LogFileInfo } from '../../types/logViewer';
+
+const LOGFILE_HISTORY_MAX = 50;
 
 interface HeaderProps {
   pageType?: PageType;
@@ -75,12 +78,58 @@ export const Header: React.FC<HeaderProps> = ({
   onPluginClick
 }) => {
   const [isFileSelectorModalOpen, setIsFileSelectorModalOpen] = useState(false);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [isRegexEditorOpen, setIsRegexEditorOpen] = useState(false);
   const [osTypeState, setOsTypeState] = useState<string | undefined>(undefined);
   const [isPluginMenuOpen, setIsPluginMenuOpen] = useState(false);
   const [pluginMenuPosition, setPluginMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const pluginButtonRef = useRef<HTMLButtonElement>(null);
   const pluginMenuRef = useRef<HTMLDivElement>(null);
+
+  // Log file history (persisted in localStorage)
+  const [logFileHistory, setLogFileHistory] = useState<LogFileHistoryEntry[]>(() => {
+    try {
+      const raw = localStorage.getItem(LOGFILE_HISTORY_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw) as LogFileHistoryEntry[];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(LOGFILE_HISTORY_KEY, JSON.stringify(logFileHistory));
+    } catch {
+      // ignore quota or parse errors
+    }
+  }, [logFileHistory]);
+
+  const addToLogFileHistory = useCallback((filePath: string, logType: string) => {
+    if (!pluginId || !pluginName) return;
+    setLogFileHistory((prev) => {
+      const existing = prev.find((e) => e.filePath === filePath && e.pluginId === pluginId);
+      const viewCount = (existing?.viewCount ?? 1) + 1;
+      const entry: LogFileHistoryEntry = {
+        filePath,
+        logType,
+        pluginId,
+        pluginName,
+        requestedAt: Date.now(),
+        viewCount
+      };
+      const withoutDuplicate = prev.filter(
+        (e) => !(e.filePath === filePath && e.pluginId === pluginId)
+      );
+      const next = [entry, ...withoutDuplicate].slice(0, LOGFILE_HISTORY_MAX);
+      return next;
+    });
+  }, [pluginId, pluginName]);
+
+  const clearLogFileHistory = useCallback(() => {
+    setLogFileHistory([]);
+  }, []);
 
   // Use prop osType if available, otherwise use state
   const osType = osTypeProp || osTypeState;
@@ -326,18 +375,28 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           )}
 
-          {/* Log File Selector Button */}
+          {/* Log File Selector Button + History Button */}
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setIsFileSelectorModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-theme-secondary hover:bg-theme-primary border border-theme-border rounded-lg text-theme-primary text-sm transition-colors"
-            >
-              <FileText size={18} />
-              <span className="hidden sm:inline">
-                {selectedFilePath ? selectedFilePath.split('/').pop() : 'Fichiers de logs'}
-              </span>
-              <span className="sm:hidden">Fichiers</span>
-            </button>
+            <Tooltip content="Choisir un fichier de log à afficher">
+              <button
+                onClick={() => setIsFileSelectorModalOpen(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-theme-secondary hover:bg-theme-primary border border-theme-border rounded-lg text-theme-primary text-sm transition-colors"
+              >
+                <FileText size={18} />
+                <span className="hidden sm:inline">
+                  {selectedFilePath ? selectedFilePath.split('/').pop() : 'Fichiers de logs'}
+                </span>
+                <span className="sm:hidden">Fichiers</span>
+              </button>
+            </Tooltip>
+            <Tooltip content="Historique des fichiers de logs déjà demandés">
+              <button
+                onClick={() => setIsHistoryModalOpen(true)}
+                className="p-2 bg-theme-secondary hover:bg-theme-primary border border-theme-border rounded-lg text-theme-primary transition-colors"
+              >
+                <History size={18} />
+              </button>
+            </Tooltip>
             {selectedFilePath && pluginId && (
               <Tooltip content="Éditer la regex personnalisée">
                 <button
@@ -350,31 +409,35 @@ export const Header: React.FC<HeaderProps> = ({
             )}
           </div>
 
-          {/* Control Buttons - Actualiser, Mode parsé */}
+          {/* Control Buttons - Actualiser, Mode parsé / brut */}
           {pageType === 'log-viewer' && (
             <div className="flex items-center gap-2">
-              {/* Refresh Button - Icon only */}
+              {/* Refresh Button */}
               {onRefresh && (
-                <button
-                  onClick={onRefresh}
-                  className="p-2 bg-theme-secondary hover:bg-theme-primary border border-theme-border rounded-lg text-theme-primary transition-colors flex items-center justify-center"
-                >
-                  <RefreshCw size={16} />
-                </button>
+                <Tooltip content="Recharger les logs du fichier affiché">
+                  <button
+                    onClick={onRefresh}
+                    className="p-2 bg-theme-secondary hover:bg-theme-primary border border-theme-border rounded-lg text-theme-primary transition-colors flex items-center justify-center"
+                  >
+                    <RefreshCw size={16} />
+                  </button>
+                </Tooltip>
               )}
 
-              {/* View Mode Toggle Button - Icon only */}
+              {/* View Mode Toggle (parsed / raw) */}
               {onToggleViewMode && (
-                <button
-                  onClick={onToggleViewMode}
-                  className={`p-2 border rounded-lg transition-colors flex items-center justify-center ${
-                    viewMode === 'raw'
-                      ? 'bg-purple-500/20 border-purple-500/50 text-purple-400'
-                      : 'bg-theme-secondary hover:bg-theme-primary border-theme-border text-theme-primary'
-                  }`}
-                >
-                  <FileText size={16} />
-                </button>
+                <Tooltip content={viewMode === 'raw' ? 'Passer en mode parsé (colonnes structurées)' : 'Passer en mode brut (texte brut)'}>
+                  <button
+                    onClick={onToggleViewMode}
+                    className={`p-2 border rounded-lg transition-colors flex items-center justify-center ${
+                      viewMode === 'raw'
+                        ? 'bg-purple-500/20 border-purple-500/50 text-purple-400'
+                        : 'bg-theme-secondary hover:bg-theme-primary border-theme-border text-theme-primary'
+                    }`}
+                  >
+                    <FileText size={16} />
+                  </button>
+                </Tooltip>
               )}
             </div>
           )}
@@ -389,9 +452,40 @@ export const Header: React.FC<HeaderProps> = ({
           onClose={() => setIsFileSelectorModalOpen(false)}
           files={availableFiles}
           selectedFilePath={selectedFilePath}
-          onFileSelect={onFileSelect || (() => {})}
+          onFileSelect={(filePath, logType) => {
+            addToLogFileHistory(filePath, logType);
+            onFileSelect?.(filePath, logType);
+          }}
           pluginName={pluginName}
           pluginId={pluginId}
+        />
+      )}
+
+      {/* Log File History Modal - click entry to open that log */}
+      {pageType === 'log-viewer' && (
+        <LogFileHistoryModal
+          isOpen={isHistoryModalOpen}
+          onClose={() => setIsHistoryModalOpen(false)}
+          entries={logFileHistory}
+          onClearHistory={clearLogFileHistory}
+          onSelectEntry={(entry) => {
+            if (entry.pluginId === pluginId) {
+              onFileSelect?.(entry.filePath, entry.logType);
+            } else {
+              try {
+                sessionStorage.setItem('logviewer_pending_file', JSON.stringify({
+                  pluginId: entry.pluginId,
+                  filePath: entry.filePath,
+                  logType: entry.logType
+                }));
+              } catch {
+                // ignore
+              }
+              onPluginClick?.(entry.pluginId);
+            }
+            setIsHistoryModalOpen(false);
+          }}
+          osType={osType}
         />
       )}
 

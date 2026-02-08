@@ -2,12 +2,26 @@ import React, { useMemo, useState, useEffect } from 'react';
 import {
   Settings,
   BarChart2,
-  Home
+  Home,
+  FileText,
+  HardDrive,
+  Archive
 } from 'lucide-react';
 import { usePluginStore } from '../../stores/pluginStore';
 import { getPluginIcon } from '../../utils/pluginIcons';
 import { api } from '../../api/client';
+import { Tooltip } from '../ui/Tooltip';
+import type { LogPluginStats } from '../../types/logViewer';
+
 export type PageType = 'dashboard' | 'analytics' | 'settings' | 'plugins' | 'users' | 'logs' | 'log-viewer';
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
+}
 
 interface FooterProps {
   currentPage?: PageType;
@@ -31,6 +45,7 @@ export const Footer: React.FC<FooterProps> = ({
 }) => {
   const { plugins } = usePluginStore();
   const [osType, setOsType] = useState<string | undefined>(undefined);
+  const [logStats, setLogStats] = useState<{ readableFiles: number; totalSize: number; totalSizeGz: number } | null>(null);
 
   // Load OS type for host-system plugin
   useEffect(() => {
@@ -70,6 +85,58 @@ export const Footer: React.FC<FooterProps> = ({
       });
   }, [plugins]);
 
+  // Aggregate log stats: readable files count, total size (sans .gz), total size des .gz
+  useEffect(() => {
+    if (enabledLogPlugins.length === 0) {
+      setLogStats(null);
+      return;
+    }
+    let cancelled = false;
+    const fetchAll = async () => {
+      let totalReadable = 0;
+      let totalSizeNoGz = 0;
+      let totalSizeWithGz = 0;
+      try {
+        const quickResults = await Promise.all(
+          enabledLogPlugins.map((plugin) =>
+            api.get<LogPluginStats>(`/api/log-viewer/plugins/${plugin.id}/stats?quick=true`)
+          )
+        );
+        if (cancelled) return;
+        quickResults.forEach((res) => {
+          if (res.success && res.result) {
+            totalReadable += res.result.readableFiles ?? 0;
+            totalSizeNoGz += res.result.totalSize ?? 0;
+          }
+        });
+        const fullResults = await Promise.all(
+          enabledLogPlugins.map((plugin) =>
+            api.get<LogPluginStats>(`/api/log-viewer/plugins/${plugin.id}/stats`)
+          )
+        );
+        if (cancelled) return;
+        fullResults.forEach((res) => {
+          if (res.success && res.result) {
+            totalSizeWithGz += res.result.totalSize ?? 0;
+          }
+        });
+        const totalSizeGz = Math.max(0, totalSizeWithGz - totalSizeNoGz);
+        if (!cancelled) {
+          setLogStats({
+            readableFiles: totalReadable,
+            totalSize: totalSizeNoGz,
+            totalSizeGz
+          });
+        }
+      } catch (err) {
+        console.warn('[Footer] Failed to fetch log stats:', err);
+        if (!cancelled) setLogStats(null);
+      }
+    };
+    fetchAll();
+    return () => { cancelled = true; };
+  }, [enabledLogPlugins]);
+
   // Get plugin display name
   const getPluginName = (pluginId: string): string => {
     switch (pluginId) {
@@ -101,9 +168,9 @@ export const Footer: React.FC<FooterProps> = ({
 
   return (
     <footer className="fixed bottom-0 left-0 right-0 bg-theme-footer backdrop-blur-md border-t border-theme p-3 z-50" style={{ backdropFilter: 'var(--backdrop-blur)' }}>
-      <div className="flex items-center justify-between max-w-[1920px] mx-auto px-2">
-        {/* Navigation tabs (sur la gauche) */}
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+      <div className="flex items-center justify-between max-w-[1920px] mx-auto px-2 gap-4">
+        {/* Navigation tabs (gauche) */}
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar flex-1 min-w-0">
           {visibleTabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = currentPage === tab.id;
@@ -144,9 +211,46 @@ export const Footer: React.FC<FooterProps> = ({
           )}
         </div>
 
-        {/* Plugin buttons (sur la droite) - affichés si plugins de logs activés */}
+        {/* Stats logs (centre) - nombre de fichiers lisibles + taille totale */}
+        <div className="flex items-center justify-center gap-3 flex-shrink-0">
+          {logStats !== null && (
+            <>
+              <Tooltip
+                content="Nombre de fichiers de logs accessibles en lecture (tous les plugins de logs activés)"
+                position="top"
+              >
+                <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-400 text-sm font-medium">
+                  <FileText size={16} className="flex-shrink-0" />
+                  {logStats.readableFiles} fichier{logStats.readableFiles !== 1 ? 's' : ''}
+                </span>
+              </Tooltip>
+              <Tooltip
+                content="Taille totale des fichiers de logs non compressés (tous les plugins)."
+                position="top"
+              >
+                <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 text-sm font-medium">
+                  <HardDrive size={16} className="flex-shrink-0" />
+                  {formatBytes(logStats.totalSize)}
+                </span>
+              </Tooltip>
+              {logStats.totalSizeGz > 0 && (
+                <Tooltip
+                  content="Taille totale des fichiers de logs compressés (.gz)."
+                  position="top"
+                >
+                  <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm font-medium">
+                    <Archive size={16} className="flex-shrink-0" />
+                    {formatBytes(logStats.totalSizeGz)} .gz
+                  </span>
+                </Tooltip>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Plugin buttons (droite) - affichés si plugins de logs activés */}
         {enabledLogPlugins.length > 0 && (
-          <div className="flex items-center gap-2 pl-4">
+          <div className="flex items-center gap-2 pl-2 flex-1 min-w-0 justify-end">
             {enabledLogPlugins.map((plugin) => {
               const pluginName = getPluginName(plugin.id);
               const isActive = currentPage === 'log-viewer' && sessionStorage.getItem('selectedPluginId') === plugin.id;

@@ -4,9 +4,12 @@
 
 ‼️ En cour de developpement ACTIF , Version BETA ‼️
 
+> [!IMPORTANT]
+>  NOT WORKING , NOT FINISH , DO NOT INSTALL
+
 <img src="LogviewR_banner.svg" alt="LogviewR" width="512" height="256" />
 
-![LogviewR](https://img.shields.io/badge/LogviewR-0.1.4-111827?style=for-the-badge)
+![LogviewR](https://img.shields.io/badge/LogviewR-0.1.7-111827?style=for-the-badge)
 ![Status](https://img.shields.io/badge/Status-DEVELOPMENT-374151?style=for-the-badge)
 ![Docker](https://img.shields.io/badge/Docker-Ready-1f2937?style=for-the-badge&logo=docker&logoColor=38bdf8)
 ![React](https://img.shields.io/badge/React-19-111827?style=for-the-badge&logo=react&logoColor=38bdf8)

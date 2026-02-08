@@ -11,7 +11,7 @@ interface ClockProps {
      */
     className?: string;
     /**
-     * Show yellow LED indicator (Freebox Revolution style)
+     * Show LED indicator (theme accent color, soft glow animation)
      * @default true
      */
     showLed?: boolean;
@@ -41,7 +41,14 @@ export const Clock: React.FC<ClockProps> = ({
     return (
         <div className={`flex items-center gap-2 bg-theme-secondary px-4 py-2 rounded-lg border border-theme ${className}`}>
             {showLed && (
-                <div className="w-2 h-2 rounded-full bg-yellow-400 shadow-lg shadow-yellow-400/50 animate-pulse" />
+                <div
+                    className="w-2 h-2 rounded-full flex-shrink-0"
+                    style={{
+                        backgroundColor: 'var(--accent-primary)',
+                        animation: 'clockLedGlow 2s ease-in-out infinite'
+                    }}
+                    aria-hidden
+                />
             )}
             <div className="flex flex-col items-end">
                 <div className="text-sm font-mono text-theme-primary font-semibold">

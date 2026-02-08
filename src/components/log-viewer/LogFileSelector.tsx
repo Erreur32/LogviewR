@@ -27,6 +27,10 @@ interface LogFileSelectorProps {
     onToggleCollapse?: () => void;
     pluginId?: string; // Plugin ID to detect subdomain patterns
     readCompressed?: boolean; // Whether compressed files should be displayed
+    /** Filter by filename/path (case-insensitive substring) */
+    fileSearchQuery?: string;
+    /** When true: show only non-.gz files with size > 0 (hide empty files) */
+    showOnlyNonGzWithData?: boolean;
 }
 
 // Map log types to display names
@@ -116,7 +120,9 @@ export function LogFileSelector({
     collapsed = false,
     onToggleCollapse,
     pluginId,
-    readCompressed = false
+    readCompressed = false,
+    fileSearchQuery = '',
+    showOnlyNonGzWithData = false
 }: LogFileSelectorProps) {
     const { plugins } = usePluginStore();
     const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set([...CATEGORY_ORDER.filter(cat => PARSED_TYPES.includes(cat)), 'subdomain', 'unparsed']));
@@ -141,9 +147,27 @@ export function LogFileSelector({
         return filePath.toLowerCase().endsWith('.gz');
     };
 
+    // Apply search and "only non-.gz with data" filters first, then compression filter
+    const filesAfterSearchAndEmptyFilter = useMemo(() => {
+        let result = files;
+        const q = (fileSearchQuery || '').trim().toLowerCase();
+        if (q) {
+            result = result.filter(f => f.path.toLowerCase().includes(q));
+        }
+        if (showOnlyNonGzWithData) {
+            result = result.filter(f => {
+                const pathLower = f.path.toLowerCase();
+                const isGz = pathLower.endsWith('.gz');
+                const hasData = (f.size ?? 0) > 0;
+                return !isGz && hasData;
+            });
+        }
+        return result;
+    }, [files, fileSearchQuery, showOnlyNonGzWithData]);
+
     // Separate readable and unreadable files, and filter out compressed files unless readCompressed is enabled
     const filteredFiles = useMemo(() => {
-        return files.filter(f => {
+        return filesAfterSearchAndEmptyFilter.filter(f => {
             const filename = f.path.toLowerCase();
             // If readCompressed is enabled, only show .gz files (other formats not supported yet)
             if (readCompressed) {
@@ -162,7 +186,7 @@ export function LogFileSelector({
                        !filename.endsWith('.tar.xz');
             }
         });
-    }, [files, readCompressed]);
+    }, [filesAfterSearchAndEmptyFilter, readCompressed]);
     
     const readableFiles = useMemo(() => filteredFiles.filter(f => f.readable !== false), [filteredFiles]);
     const unreadableFiles = useMemo(() => filteredFiles.filter(f => f.readable === false), [filteredFiles]);
