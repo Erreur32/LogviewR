@@ -11,6 +11,7 @@ import { usePluginStore } from '../../stores/pluginStore';
 import { getPluginIcon } from '../../utils/pluginIcons';
 import { api } from '../../api/client';
 import { Tooltip } from '../ui/Tooltip';
+import { useTranslation } from 'react-i18next';
 import type { LogPluginStats } from '../../types/logViewer';
 
 export type PageType = 'dashboard' | 'analytics' | 'settings' | 'plugins' | 'users' | 'logs' | 'log-viewer';
@@ -43,6 +44,7 @@ export const Footer: React.FC<FooterProps> = ({
   onLogout,
   userRole
 }) => {
+  const { t } = useTranslation();
   const { plugins } = usePluginStore();
   const [osType, setOsType] = useState<string | undefined>(undefined);
   const [logStats, setLogStats] = useState<{ readableFiles: number; totalSize: number; totalSizeGz: number } | null>(null);
@@ -174,40 +176,40 @@ export const Footer: React.FC<FooterProps> = ({
           {visibleTabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = currentPage === tab.id;
-
-            // Pour bien séparer :
-            // - Onglet "settings" (Administration globale) est géré via le bouton dédié sur le dashboard
-            // - Ici, on garde simplement le label défini dans allTabs
-            const displayLabel = tab.label;
+            const iconOnly = tab.id === 'analytics';
 
             return (
-              <button
-                key={tab.id}
-                onClick={() => handleTabClick(tab.id)}
-                className={`flex items-center gap-3 px-4 py-3 rounded-lg border transition-all ${
-                  isActive
-                    ? 'btn-theme-active border-theme-hover text-theme-primary'
-                    : 'btn-theme border-transparent text-theme-secondary hover:bg-theme-tertiary hover:text-theme-primary'
-                }`}
-              >
-                <Icon size={18} />
-                <span className="text-sm font-medium whitespace-nowrap">{displayLabel}</span>
-              </button>
+              <Tooltip key={tab.id} content={iconOnly ? t('footer.analyticsTooltip') : tab.label} position="top">
+                <button
+                  onClick={() => handleTabClick(tab.id)}
+                  className={`flex items-center gap-3 rounded-lg border transition-all duration-150 active:brightness-90 ${
+                    iconOnly ? 'p-3' : 'px-4 py-3'
+                  } ${
+                    isActive
+                      ? 'btn-theme-active border-theme-hover text-theme-primary'
+                      : 'btn-theme border-transparent text-theme-secondary hover:bg-theme-tertiary hover:text-theme-primary'
+                  }`}
+                >
+                  <Icon size={18} />
+                  {!iconOnly && <span className="text-sm font-medium whitespace-nowrap">{tab.label}</span>}
+                </button>
+              </Tooltip>
             );
           })}
           
-          {/* Show "Administration" button if settings tab is hidden */}
-          {!visibleTabs.find(t => t.id === 'settings') && (
-            <button
-              onClick={() => {
-                sessionStorage.setItem('adminMode', 'true');
-                onPageChange?.('settings');
-              }}
-              className="flex items-center gap-3 px-4 py-3 rounded-lg border transition-all btn-theme border-transparent text-theme-secondary hover:bg-theme-tertiary hover:text-theme-primary"
-            >
-              <Settings size={18} />
-              <span className="text-sm font-medium whitespace-nowrap">Administration</span>
-            </button>
+          {/* Show "Administration" button if settings tab is hidden (icon only) */}
+          {!visibleTabs.find(tab => tab.id === 'settings') && (
+            <Tooltip content={t('footer.administrationTooltip')} position="top">
+              <button
+                onClick={() => {
+                  sessionStorage.setItem('adminMode', 'true');
+                  onPageChange?.('settings');
+                }}
+                className="flex items-center p-3 rounded-lg border transition-all duration-150 active:brightness-90 btn-theme border-transparent text-theme-secondary hover:bg-theme-tertiary hover:text-theme-primary"
+              >
+                <Settings size={18} />
+              </button>
+            </Tooltip>
           )}
         </div>
 
@@ -216,29 +218,32 @@ export const Footer: React.FC<FooterProps> = ({
           {logStats !== null && (
             <>
               <Tooltip
-                content="Nombre de fichiers de logs accessibles en lecture (tous les plugins de logs activés)"
+                content={t('footer.statsReadableFilesTooltip')}
                 position="top"
+                wrap
               >
-                <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-400 text-sm font-medium">
+                <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-400 text-sm font-medium cursor-help">
                   <FileText size={16} className="flex-shrink-0" />
                   {logStats.readableFiles} fichier{logStats.readableFiles !== 1 ? 's' : ''}
                 </span>
               </Tooltip>
               <Tooltip
-                content="Taille totale des fichiers de logs non compressés (tous les plugins)."
+                content={t('footer.statsTotalSizeTooltip')}
                 position="top"
+                wrap
               >
-                <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 text-sm font-medium">
+                <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 text-sm font-medium cursor-help">
                   <HardDrive size={16} className="flex-shrink-0" />
                   {formatBytes(logStats.totalSize)}
                 </span>
               </Tooltip>
               {logStats.totalSizeGz > 0 && (
                 <Tooltip
-                  content="Taille totale des fichiers de logs compressés (.gz)."
+                  content={t('footer.statsGzSizeTooltip')}
                   position="top"
+                  wrap
                 >
-                  <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm font-medium">
+                  <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm font-medium cursor-help">
                     <Archive size={16} className="flex-shrink-0" />
                     {formatBytes(logStats.totalSizeGz)} .gz
                   </span>
@@ -260,7 +265,7 @@ export const Footer: React.FC<FooterProps> = ({
                 <button
                   key={plugin.id}
                   onClick={() => handlePluginClick(plugin.id)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all duration-150 active:brightness-90 ${
                     isActive
                       ? 'btn-theme-active border-theme-hover text-theme-primary bg-theme-tertiary'
                       : 'btn-theme border-transparent text-theme-secondary hover:bg-theme-tertiary hover:text-theme-primary'

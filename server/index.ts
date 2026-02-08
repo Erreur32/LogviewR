@@ -169,6 +169,7 @@ import updatesRoutes from './routes/updates.js';
 import debugRoutes from './routes/debug.js';
 // import latencyMonitoringRoutes from './routes/latency-monitoring.js'; // Removed: Latency monitoring system
 import databaseRoutes from './routes/database.js';
+import infoRoutes from './routes/info.js';
 // Initialize database purge service (loads configs from database)
 import { initializePurgeService } from './services/databasePurgeService.js';
 
@@ -183,6 +184,7 @@ app.use('/api/metrics', metricsRoutes);
 app.use('/api/docs', apiDocsRoutes);
 // app.use('/api/latency-monitoring', latencyMonitoringRoutes); // Removed: Latency monitoring system
 app.use('/api/database', databaseRoutes);
+app.use('/api/info', infoRoutes);
 // Note: systemRoutes contains /general and /security routes (non-Freebox)
 // systemServerRoutes contains system metrics routes
 app.use('/api/system', systemRoutes);
@@ -564,7 +566,7 @@ server.listen(port, host, () => {
   };
 
   // Read app version from package.json
-  let appVersion = '0.1.0'; // Default fallback
+  let appVersion = '0.2.0'; // Default fallback
   try {
     const packageJsonPath = path.join(__dirname, '..', 'package.json');
     const packageJson = JSON.parse(fsSync.readFileSync(packageJsonPath, 'utf8'));

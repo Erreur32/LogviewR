@@ -6,6 +6,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { X, Settings, CheckCircle, XCircle, RefreshCw, AlertCircle, Save, Eye, EyeOff, Plus, Trash2, FileText, Code } from 'lucide-react';
 import { usePluginStore, type Plugin } from '../../stores/pluginStore';
 import { Button } from '../ui/Button';
@@ -19,6 +20,7 @@ interface PluginConfigModalProps {
 }
 
 export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, onClose, pluginId }) => {
+    const { t } = useTranslation();
     const { plugins, updatePluginConfig, testPluginConnection, fetchPlugins } = usePluginStore();
     const [isSaving, setIsSaving] = useState(false);
     const [isTesting, setIsTesting] = useState(false);
@@ -222,24 +224,24 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
         if (isLogSourcePlugin) {
             // Validate log source plugin configuration
             if (!formData.basePath || typeof formData.basePath !== 'string' || !formData.basePath.trim()) {
-                return { valid: false, error: 'Le chemin de base est requis' };
+                return { valid: false, error: t('pluginConfig.basePathRequired') };
             }
             
             if (pluginId === 'nginx' || pluginId === 'apache') {
                 if (!formData.accessLogPattern || typeof formData.accessLogPattern !== 'string' || !formData.accessLogPattern.trim()) {
-                    return { valid: false, error: 'Le pattern pour les logs d\'accès est requis' };
+                    return { valid: false, error: t('pluginConfig.accessPatternRequired') };
                 }
                 if (!formData.errorLogPattern || typeof formData.errorLogPattern !== 'string' || !formData.errorLogPattern.trim()) {
-                    return { valid: false, error: 'Le pattern pour les logs d\'erreur est requis' };
+                    return { valid: false, error: t('pluginConfig.errorPatternRequired') };
                 }
             } else if (pluginId === 'npm') {
                 if (!formData.accessLogPattern || typeof formData.accessLogPattern !== 'string' || !formData.accessLogPattern.trim()) {
-                    return { valid: false, error: 'Le pattern pour les logs d\'accès est requis' };
+                    return { valid: false, error: t('pluginConfig.accessPatternRequired') };
                 }
             }
             
             if (typeof formData.maxLines !== 'number' || formData.maxLines < 0) {
-                return { valid: false, error: 'Le nombre maximum de lignes doit être un nombre positif ou zéro (0 = illimité)' };
+                return { valid: false, error: t('pluginConfig.maxLinesInvalid') };
             }
             
             return { valid: true };
@@ -256,7 +258,7 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
         if (!validation.valid) {
             setTestResult({
                 success: false,
-                message: validation.error || 'Veuillez remplir tous les champs requis'
+                message: validation.error || t('pluginConfig.fillRequired')
             });
             setIsSaving(false);
             return;
@@ -288,7 +290,7 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
                 await fetchPlugins();
                 setTestResult({
                     success: true,
-                    message: 'Configuration sauvegardée et plugin activé avec succès !'
+                    message: t('pluginConfig.saveSuccess')
                 });
                 // Close modal after a short delay
                 setTimeout(() => {
@@ -297,13 +299,13 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
             } else {
                 setTestResult({
                     success: false,
-                    message: 'Erreur lors de la sauvegarde de la configuration'
+                    message: t('pluginConfig.saveError')
                 });
             }
         } catch (error) {
             setTestResult({
                 success: false,
-                message: error instanceof Error ? error.message : 'Erreur lors de la sauvegarde'
+                message: error instanceof Error ? error.message : t('pluginConfig.saveError')
             });
         } finally {
             setIsSaving(false);
@@ -319,7 +321,7 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
         if (!validation.valid) {
             setTestResult({
                 success: false,
-                message: validation.error || 'Veuillez remplir tous les champs requis'
+                message: validation.error || t('pluginConfig.fillRequired')
             });
             setIsTesting(false);
             return;
@@ -360,26 +362,26 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
                         // Auto-save and enable plugin if using default path and first config
                         setTestResult({
                             success: true,
-                            message: 'Test réussi ! Configuration sauvegardée et plugin activé automatiquement.'
+                            message: t('pluginConfig.testSuccessAutoSave')
                         });
                         // Auto-save and enable
                         await handleSaveAndEnable();
                     } else {
                         setTestResult({
                             success: true,
-                            message: 'Test réussi ! Vous pouvez maintenant sauvegarder.'
+                            message: t('pluginConfig.testSuccess')
                         });
                     }
                 } else {
                     setTestResult({
                         success: false,
-                        message: result.message || 'Échec du test. Vérifiez le chemin et les permissions.'
+                        message: result.message || t('pluginConfig.testFailed')
                     });
                 }
             } else {
                 setTestResult({
                     success: false,
-                    message: 'Test de connexion impossible (voir logs backend)'
+                    message: t('plugins.testImpossible')
                 });
             }
 
@@ -388,7 +390,7 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
         } catch (error) {
             setTestResult({
                 success: false,
-                message: error instanceof Error ? error.message : 'Erreur lors du test de connexion'
+                message: error instanceof Error ? error.message : t('pluginConfig.testFailed')
             });
         } finally {
             setIsTesting(false);
@@ -404,7 +406,7 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
         if (!validation.valid) {
             setTestResult({
                 success: false,
-                message: validation.error || 'Veuillez remplir tous les champs requis'
+                message: validation.error || t('pluginConfig.fillRequired')
             });
             setIsSaving(false);
             return;
@@ -431,7 +433,7 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
             if (testResult && !testResult.connected) {
                 setTestResult({
                     success: false,
-                    message: testResult.message || 'Le test a échoué. Vérifiez la configuration avant de sauvegarder.'
+                    message: testResult.message || t('pluginConfig.testFailed')
                 });
                 setIsSaving(false);
                 return;
@@ -464,12 +466,12 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
                 if (testResult?.connected) {
                     setTestResult({
                         success: true,
-                        message: 'Configuration sauvegardée et plugin activé avec succès !'
+                        message: t('pluginConfig.saveSuccess')
                     });
                 } else {
                     setTestResult({
                         success: true,
-                        message: 'Configuration sauvegardée. Le plugin sera activé après un test réussi.'
+                        message: t('pluginConfig.saveSuccessAfterTest')
                     });
                 }
                 
@@ -480,13 +482,13 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
             } else {
                 setTestResult({
                     success: false,
-                    message: 'Erreur lors de la sauvegarde de la configuration'
+                    message: t('pluginConfig.saveError')
                 });
             }
         } catch (error) {
             setTestResult({
                 success: false,
-                message: error instanceof Error ? error.message : 'Erreur lors de la sauvegarde'
+                message: error instanceof Error ? error.message : t('pluginConfig.saveError')
             });
         } finally {
             setIsSaving(false);
@@ -538,8 +540,8 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
                             <Settings size={20} className={colorText} />
                         </div>
                         <div>
-                            <h2 className="text-lg font-bold text-white">Configuration {plugin.name}</h2>
-                            <p className="text-xs text-gray-500">Paramètres de connexion</p>
+                            <h2 className="text-lg font-bold text-white">{t('pluginConfig.title', { name: plugin.name })}</h2>
+                            <p className="text-xs text-gray-500">{t('pluginConfig.subtitle')}</p>
                         </div>
                     </div>
                     <button
@@ -558,7 +560,7 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
                             {/* Base Path */}
                             <div>
                                 <label htmlFor="base-path" className="block text-sm font-medium text-gray-300 mb-2">
-                                    Chemin de base <span className="text-red-500">*</span>
+                                    {t('pluginConfig.basePath')} <span className="text-red-500">*</span>
                                 </label>
                                 <input
                                     id="base-path"
@@ -571,10 +573,10 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
                                     required
                                 />
                                 <p className="text-xs text-gray-500 mt-1">
-                                    Chemin du répertoire contenant les fichiers de logs
+                                    {t('pluginConfig.basePathHelp')}
                                     {pluginId === 'host-system' && (
                                         <span className="text-blue-400 block mt-1">
-                                            💡 Par défaut : /var/log (ou /host/logs en Docker). Cliquez sur "Tester" pour valider automatiquement.
+                                            💡 {t('pluginConfig.basePathDefault')}
                                         </span>
                                     )}
                                 </p>
@@ -584,13 +586,13 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
                             {(pluginId === 'nginx' || pluginId === 'apache' || pluginId === 'npm') && (
                                 <div>
                                     <label htmlFor="access-pattern" className="block text-sm font-medium text-gray-300 mb-2">
-                                        Pattern logs d'accès <span className="text-red-500">*</span>
+                                        {t('pluginConfig.accessPattern')} <span className="text-red-500">*</span>
                                         {(() => {
                                             const defaults = getDefaultValues();
                                             const isDefault = !plugin?.settings?.accessLogPattern && String(formData.accessLogPattern || '') === (defaults.accessLogPattern || '');
                                             return isDefault && (
                                                 <span className="ml-2 px-2 py-0.5 text-xs bg-green-500/20 text-green-400 border border-green-500/30 rounded">
-                                                    Valeur par défaut
+                                                    {t('pluginConfig.defaultValue')}
                                                 </span>
                                             );
                                         })()}
@@ -615,12 +617,12 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
                                         required
                                     />
                                     <p className="text-xs text-gray-500 mt-1">
-                                        Pattern pour détecter les fichiers de logs d'accès
+                                        {t('pluginConfig.accessPatternHelp')}
                                         {(() => {
                                             const defaults = getDefaultValues();
                                             return defaults.accessLogPattern && (
                                                 <span className="text-green-400 block mt-1">
-                                                    💡 Valeur par défaut : <code className="bg-green-500/20 px-1 rounded">{defaults.accessLogPattern}</code>
+                                                    💡 {t('pluginConfig.defaultValueLabel')}: <code className="bg-green-500/20 px-1 rounded">{defaults.accessLogPattern}</code>
                                                 </span>
                                             );
                                         })()}
@@ -632,13 +634,13 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
                             {(pluginId === 'nginx' || pluginId === 'apache') && (
                                 <div>
                                     <label htmlFor="error-pattern" className="block text-sm font-medium text-gray-300 mb-2">
-                                        Pattern logs d'erreur <span className="text-red-500">*</span>
+                                        {t('pluginConfig.errorPattern')} <span className="text-red-500">*</span>
                                         {(() => {
                                             const defaults = getDefaultValues();
                                             const isDefault = !plugin?.settings?.errorLogPattern && String(formData.errorLogPattern || '') === (defaults.errorLogPattern || '');
                                             return isDefault && (
                                                 <span className="ml-2 px-2 py-0.5 text-xs bg-green-500/20 text-green-400 border border-green-500/30 rounded">
-                                                    Valeur par défaut
+                                                    {t('pluginConfig.defaultValue')}
                                                 </span>
                                             );
                                         })()}
@@ -663,12 +665,12 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
                                         required
                                     />
                                     <p className="text-xs text-gray-500 mt-1">
-                                        Pattern pour détecter les fichiers de logs d'erreur
+                                        {t('pluginConfig.errorPatternHelp')}
                                         {(() => {
                                             const defaults = getDefaultValues();
                                             return defaults.errorLogPattern && (
                                                 <span className="text-green-400 block mt-1">
-                                                    💡 Valeur par défaut : <code className="bg-green-500/20 px-1 rounded">{defaults.errorLogPattern}</code>
+                                                    💡 {t('pluginConfig.defaultValueLabel')}: <code className="bg-green-500/20 px-1 rounded">{defaults.errorLogPattern}</code>
                                                 </span>
                                             );
                                         })()}
@@ -679,7 +681,7 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
                             {/* Max Lines */}
                             <div>
                                 <label htmlFor="max-lines" className="block text-sm font-medium text-gray-300 mb-2">
-                                    Nombre maximum de lignes
+                                    {t('pluginConfig.maxLines')}
                                 </label>
                                 <input
                                     id="max-lines"
@@ -691,7 +693,7 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
                                     className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
                                 />
                                 <p className="text-xs text-gray-500 mt-1">
-                                    Nombre maximum de lignes à charger depuis chaque fichier de log
+                                    {t('pluginConfig.maxLinesHelp')}
                                 </p>
                             </div>
 
@@ -935,7 +937,7 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
                     {pluginId === 'unifi' && (
                         <div>
                             <label htmlFor="api-mode" className="block text-sm font-medium text-gray-300 mb-2">
-                                Mode de connexion
+                                {t('pluginConfig.connectionMode')}
                             </label>
                             <select
                                 id="api-mode"
@@ -944,13 +946,13 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
                                 onChange={(e) => handleInputChange('apiMode', e.target.value)}
                                 className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
                             >
-                                <option value="controller">Controller Local (URL/User/Pass)</option>
-                                <option value="site-manager">Site Manager API (Clé API)</option>
+                                <option value="controller">{t('pluginConfig.apiModeController')}</option>
+                                <option value="site-manager">{t('pluginConfig.apiModeSiteManager')}</option>
                             </select>
                             <p className="text-xs text-gray-500 mt-1">
                                 {formData.apiMode === 'site-manager' 
-                                    ? 'Utilise l\'API cloud UniFi Site Manager (unifi.ui.com)'
-                                    : 'Utilise l\'API locale du Controller UniFi'}
+                                    ? t('pluginConfig.apiModeSiteManagerHelp')
+                                    : t('pluginConfig.apiModeControllerHelp')}
                             </p>
                         </div>
                     )}
@@ -959,7 +961,7 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
                     {pluginId === 'unifi' && formData.apiMode === 'site-manager' && (
                         <div>
                             <label htmlFor="api-key" className="block text-sm font-medium text-gray-300 mb-2">
-                                Clé API Site Manager <span className="text-red-500">*</span>
+                                {t('pluginConfig.apiKeyLabel')} <span className="text-red-500">*</span>
                             </label>
                             <div className="relative">
                                 <input
@@ -968,7 +970,7 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
                                     type={showPassword ? 'text' : 'password'}
                                     value={formData.apiKey || ''}
                                     onChange={(e) => handleInputChange('apiKey', e.target.value)}
-                                    placeholder="Votre clé API UniFi Site Manager"
+                                    placeholder={t('pluginConfig.apiKeyPlaceholder')}
                                     className={`w-full px-3 py-2 bg-[#1a1a1a] border rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 pr-10 ${
                                         !formData.apiKey || !formData.apiKey.trim() 
                                             ? 'border-red-600 focus:ring-red-500' 
@@ -987,12 +989,12 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
                                 <div className="mt-2 p-2 bg-red-500/10 border border-red-500/30 rounded-lg">
                                     <div className="flex items-center gap-2 text-red-400 text-xs">
                                         <AlertCircle size={14} />
-                                        <span>⚠️ La clé API est requise pour le mode Site Manager</span>
+                                        <span>⚠️ {t('pluginConfig.apiKeyRequired')}</span>
                                     </div>
                                 </div>
                             )}
                             <p className="text-xs text-gray-500 mt-1">
-                                Obtenez votre clé API sur{' '}
+                                {t('pluginConfig.getApiKey')}{' '}
                                 <a 
                                     href="https://unifi.ui.com/api" 
                                     target="_blank" 
@@ -1021,7 +1023,7 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
                             {/* URL */}
                             <div>
                                 <label htmlFor="unifi-url" className="block text-sm font-medium text-gray-300 mb-2">
-                                    URL du Contrôleur UniFi <span className="text-red-500">*</span>
+                                    {t('pluginConfig.unifiControllerUrl')} <span className="text-red-500">*</span>
                                 </label>
                                 <input
                                     id="unifi-url"
@@ -1035,8 +1037,7 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
                                     pattern="https?://.+"
                                 />
                                 <p className="text-xs text-gray-500 mt-1">
-                                    Inclure le port (généralement 8443).{' '}
-                                    <span className="text-yellow-400">⚠️ Utilisez un compte administrateur LOCAL (pas un compte cloud) pour éviter les problèmes de 2FA.</span>
+                                    {t('pluginConfig.unifiControllerUrlHelp')}
                                 </p>
                                 <p className="text-xs text-gray-400 mt-1">
                                     Documentation:{' '}
@@ -1054,7 +1055,7 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
                             {/* Username */}
                             <div>
                                 <label htmlFor="unifi-username" className="block text-sm font-medium text-gray-300 mb-2">
-                                    Nom d'utilisateur <span className="text-red-500">*</span>
+                                    {t('pluginConfig.unifiUsername')} <span className="text-red-500">*</span>
                                 </label>
                                 <input
                                     id="unifi-username"
@@ -1071,7 +1072,7 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
                             {/* Password */}
                             <div>
                                 <label htmlFor="unifi-password" className="block text-sm font-medium text-gray-300 mb-2">
-                                    Mot de passe <span className="text-red-500">*</span>
+                                    {t('pluginConfig.unifiPassword')} <span className="text-red-500">*</span>
                                 </label>
                                 <div className="relative">
                                     <input
@@ -1097,7 +1098,7 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
                             {/* Site */}
                             <div>
                                 <label htmlFor="unifi-site" className="block text-sm font-medium text-gray-300 mb-2">
-                                    Site UniFi
+                                    {t('pluginConfig.unifiSite')}
                                 </label>
                                 <input
                                     id="unifi-site"
@@ -1109,7 +1110,7 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
                                     className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:outline-none transition-colors"
                                 />
                                 <p className="text-xs text-gray-500 mt-1">
-                                    Nom du site UniFi (généralement "default")
+                                    {t('pluginConfig.unifiSiteHelp')}
                                 </p>
                             </div>
                         </>
@@ -1121,10 +1122,9 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
                             <div className="flex items-start gap-2">
                                 <AlertCircle size={20} className="text-blue-400 mt-0.5" />
                                 <div className="text-sm text-gray-300">
-                                    <p className="font-medium mb-1">Configuration Freebox</p>
+                                    <p className="font-medium mb-1">{t('pluginConfig.freeboxTitle')}</p>
                                     <p className="text-gray-400">
-                                        Le plugin Freebox utilise l'authentification Freebox existante.
-                                        Configurez la connexion via l'onglet "Paramètres" ou utilisez l'API Freebox directement.
+                                        {t('pluginConfig.freeboxMessage')}
                                     </p>
                                 </div>
                             </div>
@@ -1158,7 +1158,7 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
                         <div className="p-3 bg-green-900/20 border border-green-700 rounded-lg">
                             <div className="flex items-center gap-2">
                                 <CheckCircle size={16} className="text-green-400" />
-                                <span className="text-sm text-green-400">Plugin connecté et opérationnel</span>
+                                <span className="text-sm text-green-400">{t('pluginConfig.pluginConnected')}</span>
                             </div>
                         </div>
                     )}
@@ -1171,10 +1171,10 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
                             <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
                                 <div className="flex items-center gap-2 text-green-400 text-sm">
                                     <CheckCircle size={16} />
-                                    <span className="font-medium">Valeurs par défaut détectées</span>
+                                    <span className="font-medium">{t('pluginConfig.defaultsDetected')}</span>
                                 </div>
                                 <p className="text-xs text-gray-400 mt-1">
-                                    Vous pouvez tester directement sans modifier les valeurs. Si le test réussit, la configuration sera sauvegardée automatiquement.
+                                    {t('pluginConfig.defaultsDetectedHelp')}
                                 </p>
                             </div>
                         );
@@ -1192,12 +1192,12 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
                             {isTesting ? (
                                 <>
                                     <RefreshCw size={16} className="animate-spin" />
-                                    Test en cours...
+                                    {t('pluginConfig.testRunning')}
                                 </>
                             ) : (
                                 <>
                                     <RefreshCw size={16} />
-                                    Tester
+                                    {t('pluginConfig.testButton')}
                                 </>
                             )}
                         </Button>
@@ -1209,12 +1209,12 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
                             {isSaving ? (
                                 <>
                                     <RefreshCw size={16} className="animate-spin" />
-                                    Sauvegarde...
+                                    {t('pluginConfig.saving')}
                                 </>
                             ) : (
                                 <>
                                     <Save size={16} />
-                                    Sauvegarder
+                                    {t('pluginConfig.saveButton')}
                                 </>
                             )}
                         </Button>

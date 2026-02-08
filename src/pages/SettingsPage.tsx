@@ -38,10 +38,12 @@ import {
   Download,
   Code,
   BarChart3,
-  Bell
+  Bell,
+  Star,
+  GitFork
 } from 'lucide-react';
 import { api } from '../api/client';
-import { API_ROUTES } from '../utils/constants';
+import { API_ROUTES, formatBytes } from '../utils/constants';
 import { getPermissionErrorMessage } from '../utils/permissions';
 import { usePluginStore } from '../stores/pluginStore';
 import { useUserAuthStore, type User } from '../stores/userAuthStore';
@@ -56,11 +58,13 @@ import { ThemeSection } from '../components/ThemeSection';
 import { Section, SettingRow } from '../components/SettingsSection';
 import { useUpdateStore } from '../stores/updateStore';
 import { UserMenu, Clock } from '../components/ui';
+import { useTranslation } from 'react-i18next';
+import { setAppLanguage, getAppLanguage } from '../i18n';
 
 interface SettingsPageProps {
   onBack: () => void;
   mode?: 'administration';
-  initialAdminTab?: 'general' | 'users' | 'plugins' | 'security' | 'exporter' | 'theme' | 'debug' | 'info' | 'backup' | 'analysis' | 'notifications';
+  initialAdminTab?: 'general' | 'users' | 'plugins' | 'security' | 'exporter' | 'theme' | 'debug' | 'info' | 'analysis' | 'notifications';
   onNavigateToPage?: (page: 'plugins' | 'users') => void;
   onUsersClick?: () => void;
   onSettingsClick?: () => void;
@@ -69,7 +73,7 @@ interface SettingsPageProps {
   onLogout?: () => void;
 }
 
-type AdminTab = 'general' | 'plugins' | 'security' | 'exporter' | 'theme' | 'debug' | 'info' | 'backup' | 'database' | 'regex' | 'analysis' | 'notifications';
+type AdminTab = 'general' | 'plugins' | 'security' | 'exporter' | 'theme' | 'debug' | 'info' | 'database' | 'regex' | 'analysis' | 'notifications';
 
 // Toggle component
 const Toggle: React.FC<{
@@ -552,6 +556,7 @@ const DatabasePerformanceSection: React.FC = () => {
 
 // App Logs Section Component (for Administration > Debug tab)
 const AppLogsSection: React.FC = () => {
+  const { t } = useTranslation();
   const [logs, setLogs] = useState<Array<{
     timestamp: string;
     level: 'error' | 'warn' | 'info' | 'debug' | 'verbose';
@@ -615,7 +620,7 @@ const AppLogsSection: React.FC = () => {
   };
 
   const clearLogs = async () => {
-    if (!confirm('Voulez-vous vraiment nettoyer la mémoire ?\n\nCela supprimera tous les logs du buffer en mémoire (max 1000 logs). Cette action est irréversible.')) return;
+    if (!confirm(t('debug.clearConfirm'))) return;
     try {
       await api.delete('/api/debug/logs');
       setLogs([]);
@@ -666,9 +671,9 @@ const AppLogsSection: React.FC = () => {
                 ? 'bg-gray-600 text-white border-2 border-gray-500'
                 : 'bg-[#1a1a1a] text-gray-400 border border-gray-700 hover:bg-gray-800 hover:text-gray-300'
             }`}
-            title="Afficher tous les logs (tous niveaux confondus)"
+            title={t('debug.filterAllTitle')}
           >
-            Tous
+            {t('debug.filterAll')}
           </button>
           <button
             onClick={() => setFilter('error')}
@@ -677,9 +682,9 @@ const AppLogsSection: React.FC = () => {
                 ? 'bg-red-600 text-white border-2 border-red-400'
                 : 'bg-[#1a1a1a] text-red-400 border border-red-800/50 hover:bg-red-900/20 hover:text-red-300'
             }`}
-            title="Afficher uniquement les logs d'erreur (niveau error)"
+            title={t('debug.filterErrorTitle')}
           >
-            Erreurs
+            {t('debug.filterError')}
           </button>
           <button
             onClick={() => setFilter('warn')}
@@ -688,9 +693,9 @@ const AppLogsSection: React.FC = () => {
                 ? 'bg-yellow-600 text-white border-2 border-yellow-400'
                 : 'bg-[#1a1a1a] text-yellow-400 border border-yellow-800/50 hover:bg-yellow-900/20 hover:text-yellow-300'
             }`}
-            title="Afficher uniquement les logs d'avertissement (niveau warn)"
+            title={t('debug.filterWarnTitle')}
           >
-            Avertissements
+            {t('debug.filterWarn')}
           </button>
           <button
             onClick={() => setFilter('info')}
@@ -699,9 +704,9 @@ const AppLogsSection: React.FC = () => {
                 ? 'bg-cyan-600 text-white border-2 border-cyan-400'
                 : 'bg-[#1a1a1a] text-cyan-400 border border-cyan-800/50 hover:bg-cyan-900/20 hover:text-cyan-300'
             }`}
-            title="Afficher uniquement les logs informatifs (niveau info)"
+            title={t('debug.filterInfoTitle')}
           >
-            Infos
+            {t('debug.filterInfo')}
           </button>
           <button
             onClick={() => setFilter('debug')}
@@ -710,9 +715,9 @@ const AppLogsSection: React.FC = () => {
                 ? 'bg-blue-600 text-white border-2 border-blue-400'
                 : 'bg-[#1a1a1a] text-blue-400 border border-blue-800/50 hover:bg-blue-900/20 hover:text-blue-300'
             }`}
-            title="Afficher uniquement les logs de débogage (niveau debug)"
+            title={t('debug.filterDebugTitle')}
           >
-            Debug
+            {t('debug.filterDebug')}
           </button>
           <button
             onClick={() => setFilter('verbose')}
@@ -721,16 +726,15 @@ const AppLogsSection: React.FC = () => {
                 ? 'bg-purple-600 text-white border-2 border-purple-400'
                 : 'bg-[#1a1a1a] text-purple-400 border border-purple-800/50 hover:bg-purple-900/20 hover:text-purple-300'
             }`}
-            title="Afficher uniquement les logs verbeux (niveau verbose)"
+            title={t('debug.filterVerboseTitle')}
           >
-            Verbose
+            {t('debug.filterVerbose')}
           </button>
           <span 
             className="text-xs text-gray-500 ml-2"
-            title={`${filteredLogs.length} log${filteredLogs.length !== 1 ? 's' : ''} affiché${filteredLogs.length !== 1 ? 's' : ''}${totalLogs > filteredLogs.length ? ` sur ${totalLogs} au total` : ''}`}
+            title={totalLogs > filteredLogs.length ? t('debug.logsCountTotal', { shown: filteredLogs.length, total: totalLogs }) : t('debug.logsCount', { count: filteredLogs.length })}
           >
-            {filteredLogs.length} log{filteredLogs.length !== 1 ? 's' : ''}
-            {totalLogs > filteredLogs.length && ` / ${totalLogs} total`}
+            {totalLogs > filteredLogs.length ? t('debug.logsCountTotal', { shown: filteredLogs.length, total: totalLogs }) : t('debug.logsCount', { count: filteredLogs.length })}
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -744,29 +748,26 @@ const AppLogsSection: React.FC = () => {
                 ? 'bg-purple-600 hover:bg-purple-500 text-white'
                 : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
             }`}
-            title={showAllLogs 
-                ? 'Afficher les 500 derniers logs' 
-                : `Afficher tous les logs (${totalLogs} au total)`
-            }
+            title={showAllLogs ? t('debug.showLast500') : t('debug.showAllTitle', { total: totalLogs })}
           >
             <FileText size={14} />
-            <span>{showAllLogs ? '500 derniers' : 'Voir tout'}</span>
+            <span>{showAllLogs ? t('debug.showLast500Short') : t('debug.showAllShort')}</span>
           </button>
           <button
             onClick={loadLogs}
             disabled={isLoading}
             className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm transition-colors disabled:opacity-50"
-            title="Rafraîchir manuellement la liste des logs"
+            title={t('debug.refreshTitle')}
           >
             <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
           </button>
           <button
             onClick={clearLogs}
             className="px-3 py-1.5 bg-orange-600 hover:bg-orange-500 text-white rounded-lg text-sm transition-colors flex items-center gap-2"
-            title="Nettoyer la mémoire : supprime tous les logs du buffer en mémoire (max 1000 logs). Utile pour libérer la mémoire après un débogage."
+            title={t('debug.clearTitle')}
           >
             <Sparkles size={14} />
-            <span>Nettoyer</span>
+            <span>{t('debug.clearButton')}</span>
           </button>
         </div>
       </div>
@@ -776,8 +777,7 @@ const AppLogsSection: React.FC = () => {
           <div className="flex items-center gap-2 text-yellow-400 text-sm">
             <AlertCircle size={16} />
             <span>
-              <strong>Attention :</strong> Affichage de {filteredLogs.length.toLocaleString()} logs. 
-              Cela peut affecter les performances du navigateur.
+              {t('debug.warningManyLogs', { count: filteredLogs.length.toLocaleString() })}
             </span>
           </div>
         </div>
@@ -787,8 +787,8 @@ const AppLogsSection: React.FC = () => {
           {filteredLogs.length === 0 ? (
             <div className="text-center text-gray-500 py-8">
               <FileText size={32} className="mx-auto mb-2 opacity-50" />
-              <p>Aucun log disponible</p>
-              <p className="text-xs text-gray-400 mt-2">Utilisez le bouton "Rafraîchir" pour charger les logs</p>
+              <p>{t('debug.noLogsAvailable')}</p>
+              <p className="text-xs text-gray-400 mt-2">{t('debug.noLogsHint')}</p>
             </div>
           ) : (
             <>
@@ -817,6 +817,7 @@ const AppLogsSection: React.FC = () => {
 
 // Debug Log Section Component (for Administration > Debug tab)
 const DebugLogSection: React.FC = () => {
+  const { t } = useTranslation();
   const [debugConfig, setDebugConfig] = useState<{ debug: boolean; verbose: boolean } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -860,7 +861,7 @@ const DebugLogSection: React.FC = () => {
     return (
       <div className="py-4 text-center text-gray-500">
         <Loader2 size={20} className="mx-auto mb-2 animate-spin" />
-        <p className="text-sm">Chargement...</p>
+        <p className="text-sm">{t('debug.loading')}</p>
       </div>
     );
   }
@@ -868,8 +869,8 @@ const DebugLogSection: React.FC = () => {
   return (
     <>
       <SettingRow
-        label="Logs de debug"
-        description="Active l'affichage des logs de debug dans la console du serveur (informations détaillées sur les opérations)"
+        label={t('debug.debugLogsLabel')}
+        description={t('debug.debugLogsDesc')}
       >
         <Toggle
           enabled={debugConfig.debug}
@@ -878,8 +879,8 @@ const DebugLogSection: React.FC = () => {
         />
       </SettingRow>
       <SettingRow
-        label="Logs verbeux"
-        description="Active l'affichage des logs très détaillés (verbose) - nécessite que le mode debug soit activé"
+        label={t('debug.verboseLogsLabel')}
+        description={t('debug.verboseLogsDesc')}
       >
         <Toggle
           enabled={debugConfig.verbose}
@@ -890,14 +891,14 @@ const DebugLogSection: React.FC = () => {
       {!debugConfig.debug && (
         <div className="mt-3 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
           <p className="text-xs text-blue-400">
-            Les logs de debug sont désactivés. Activez-les pour voir les détails des opérations dans les logs du serveur.
+            {t('debug.debugDisabledMessage')}
           </p>
         </div>
       )}
       {debugConfig.debug && (
         <div className="mt-3 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
           <p className="text-xs text-amber-400">
-            Les logs de debug sont activés. Les logs du serveur afficheront plus d'informations détaillées.
+            {t('debug.debugEnabledMessage')}
           </p>
         </div>
       )}
@@ -1018,6 +1019,7 @@ const BackupSection: React.FC = () => {
 
 // Default Page Configuration Section Component
 const DefaultPageSection: React.FC = () => {
+  const { t } = useTranslation();
   const { plugins } = usePluginStore();
   const [defaultPage, setDefaultPage] = useState<string>('dashboard');
   const [defaultPluginId, setDefaultPluginId] = useState<string>('');
@@ -1137,12 +1139,12 @@ const DefaultPageSection: React.FC = () => {
       {isSaving && (
         <div className="p-2 rounded-lg text-sm bg-blue-900/30 border border-blue-700 text-blue-400 flex items-center gap-2">
           <Loader2 className="animate-spin" size={16} />
-          <span>Sauvegarde automatique en cours...</span>
+          <span>{t('admin.general.defaultPageSection.autoSaveInProgress')}</span>
         </div>
       )}
 
       <div className="py-3 border-b border-gray-800">
-        <h4 className="text-sm font-medium text-white mb-2">Page par défaut</h4>
+        <h4 className="text-sm font-medium text-white mb-2">{t('admin.general.defaultPageSection.defaultPageTitle')}</h4>
         <select
           value={defaultPage}
           onChange={(e) => {
@@ -1154,18 +1156,18 @@ const DefaultPageSection: React.FC = () => {
           }}
           className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500"
         >
-          <option value="dashboard">Dashboard</option>
-          <option value="log-viewer">Visualiseur de logs</option>
+          <option value="dashboard">{t('admin.general.defaultPageSection.dashboard')}</option>
+          <option value="log-viewer">{t('admin.general.defaultPageSection.logViewer')}</option>
         </select>
         <p className="text-xs text-gray-400 mt-2">
-          Page affichée par défaut au chargement de l'application
+          {t('admin.general.defaultPageSection.defaultPageDescription')}
         </p>
                 </div>
 
       {defaultPage === 'log-viewer' && (
         <>
           <div className="py-3 border-b border-gray-800">
-            <h4 className="text-sm font-medium text-white mb-2">Plugin par défaut</h4>
+            <h4 className="text-sm font-medium text-white mb-2">{t('admin.general.defaultPageSection.defaultPlugin')}</h4>
             <select
               value={defaultPluginId}
               onChange={(e) => {
@@ -1174,23 +1176,23 @@ const DefaultPageSection: React.FC = () => {
               }}
               className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500"
             >
-              <option value="">Sélectionner un plugin</option>
+              <option value="">{t('admin.general.defaultPageSection.selectPlugin')}</option>
               {logSourcePlugins.map(plugin => (
                 <option key={plugin.id} value={plugin.id}>{plugin.name}</option>
               ))}
             </select>
             <p className="text-xs text-gray-400 mt-2">
-              Plugin de logs à afficher par défaut
+              {t('admin.general.defaultPageSection.defaultPluginDescription')}
             </p>
           </div>
 
           {defaultPluginId && (
             <div className="py-3 border-b border-gray-800">
-              <h4 className="text-sm font-medium text-white mb-2">Fichier de log par défaut</h4>
+              <h4 className="text-sm font-medium text-white mb-2">{t('admin.general.defaultPageSection.defaultLogFile')}</h4>
               {isLoadingFiles ? (
                 <div className="flex items-center gap-2 text-gray-400 text-sm">
                   <Loader2 className="animate-spin" size={16} />
-                  <span>Chargement des fichiers...</span>
+                  <span>{t('admin.general.defaultPageSection.loadingFiles')}</span>
               </div>
             ) : (
                 <>
@@ -1199,7 +1201,7 @@ const DefaultPageSection: React.FC = () => {
                     onChange={(e) => setDefaultLogFile(e.target.value)}
                     className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500"
                   >
-                    <option value="">Sélectionner un fichier</option>
+                    <option value="">{t('admin.general.defaultPageSection.selectFile')}</option>
                     {availableLogFiles.map(file => (
                       <option key={file.path} value={file.path}>
                         {file.path} ({file.type})
@@ -1207,7 +1209,7 @@ const DefaultPageSection: React.FC = () => {
                     ))}
                   </select>
                   <p className="text-xs text-gray-400 mt-2">
-                    Fichier de log à afficher par défaut pour ce plugin
+                    {t('admin.general.defaultPageSection.defaultLogFileDescription')}
                   </p>
                 </>
             )}
@@ -1217,11 +1219,11 @@ const DefaultPageSection: React.FC = () => {
       )}
 
       <div className="py-3 border-b border-gray-800">
-        <h4 className="text-sm font-medium text-white mb-2">Mémoriser le dernier fichier de log</h4>
+        <h4 className="text-sm font-medium text-white mb-2">{t('admin.general.defaultPageSection.rememberLastFile')}</h4>
         <div className="flex items-center justify-between">
           <div className="flex-1">
             <p className="text-xs text-gray-400 mb-2">
-              Lorsque cette option est activée, le dernier fichier de log sélectionné pour chaque plugin sera automatiquement rouvri lors de la prochaine visite.
+              {t('admin.general.defaultPageSection.rememberLastFileDescription')}
             </p>
           </div>
           <label className="relative inline-flex items-center cursor-pointer">
@@ -1241,6 +1243,7 @@ const DefaultPageSection: React.FC = () => {
 
 // General Network Configuration Section Component (for Administration > General tab)
 const GeneralNetworkSection: React.FC = () => {
+  const { t } = useTranslation();
   const [publicUrl, setPublicUrl] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -1306,10 +1309,10 @@ const GeneralNetworkSection: React.FC = () => {
           <AlertCircle size={20} className="text-amber-400 mt-0.5 flex-shrink-0" />
           <div className="flex-1">
             <h4 className="text-sm font-medium text-amber-400 mb-1">
-              Modifications non sauvegardées
+              {t('admin.general.network.unsavedChanges')}
             </h4>
             <p className="text-xs text-amber-300">
-              Vous avez modifié les paramètres. N'oubliez pas de cliquer sur <strong>"Sauvegarder"</strong> pour enregistrer vos changements.
+              {t('admin.general.network.unsavedChangesHint')}
             </p>
           </div>
         </div>
@@ -1326,13 +1329,13 @@ const GeneralNetworkSection: React.FC = () => {
       )}
       
       <div className="py-3 border-b border-gray-800">
-        <h4 className="text-sm font-medium text-white mb-2">URL publique (Domaine)</h4>
+        <h4 className="text-sm font-medium text-white mb-2">{t('admin.general.network.publicUrlLabel')}</h4>
         <div className="flex items-center gap-2 w-full">
           <input
             type="url"
             value={publicUrl}
             onChange={(e) => setPublicUrl(e.target.value)}
-            placeholder="https://votre-domaine.com"
+            placeholder={t('admin.general.network.publicUrlPlaceholder')}
             className="flex-1 w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500"
           />
           <button
@@ -1343,12 +1346,12 @@ const GeneralNetworkSection: React.FC = () => {
             {isSaving ? (
               <>
                 <Loader2 className="animate-spin" size={16} />
-                <span>Sauvegarde...</span>
+                <span>{t('admin.general.network.saving')}</span>
               </>
             ) : (
               <>
                 <Save size={16} />
-                <span>Sauvegarder</span>
+                <span>{t('admin.general.network.save')}</span>
               </>
             )}
           </button>
@@ -1356,10 +1359,10 @@ const GeneralNetworkSection: React.FC = () => {
       </div>
       
       <div className="text-xs text-gray-500 mt-2 p-3 bg-[#1a1a1a] rounded-lg border border-gray-800">
-        <p className="font-medium text-gray-400 mb-1">💡 Note :</p>
+        <p className="font-medium text-gray-400 mb-1">💡 {t('admin.general.network.note')}</p>
         <ul className="list-disc list-inside space-y-1 ml-2">
-          <li>Format attendu : <code className="text-blue-400">https://votre-domaine.com</code> ou <code className="text-blue-400">http://votre-domaine.com</code></li>
-          <li>Laissez vide pour utiliser l'IP locale ou les valeurs par défaut</li>
+          <li>{t('admin.general.network.formatExpected')}</li>
+          <li>{t('admin.general.network.leaveEmptyForLocal')}</li>
         </ul>
       </div>
     </div>
@@ -1368,6 +1371,7 @@ const GeneralNetworkSection: React.FC = () => {
 
 // User Profile Section Component (for Administration > General tab)
 const UserProfileSection: React.FC = () => {
+  const { t } = useTranslation();
   const { user: currentUser, checkAuth } = useUserAuthStore();
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
@@ -1572,8 +1576,8 @@ const UserProfileSection: React.FC = () => {
 
       {/* Avatar Section */}
       <SettingRow
-        label="Avatar"
-        description="Changer votre photo de profil"
+        label={t('admin.general.profile.avatar')}
+        description={t('admin.general.profile.avatarDescription')}
       >
         <div className="flex items-center gap-4 w-full">
           <div className="relative">
@@ -1616,7 +1620,7 @@ const UserProfileSection: React.FC = () => {
                 className="hidden"
               />
               <span className="inline-block px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm cursor-pointer transition-colors">
-                Choisir une image
+                {t('admin.general.profile.chooseImage')}
               </span>
             </label>
             {avatarFile && (
@@ -1656,7 +1660,7 @@ const UserProfileSection: React.FC = () => {
                     });
                     
                     if (response.success) {
-                      setSuccessMessage('Avatar mis à jour avec succès');
+                      setSuccessMessage(t('admin.general.profile.avatarUpdatedSuccess'));
                       setAvatarFile(null);
                       // Keep preview to show new avatar
                       await checkAuth();
@@ -1686,10 +1690,10 @@ const UserProfileSection: React.FC = () => {
                 {isUploadingAvatar ? (
                   <>
                     <Loader2 size={16} className="animate-spin" />
-                    <span>Enregistrement...</span>
+                    <span>{t('admin.general.profile.saving')}</span>
                   </>
                 ) : (
-                  <span>Enregistrer l'avatar</span>
+                  <span>{t('admin.general.profile.saveAvatar')}</span>
                 )}
               </button>
             )}
@@ -1698,8 +1702,8 @@ const UserProfileSection: React.FC = () => {
       </SettingRow>
 
       <SettingRow
-        label="Nom d'utilisateur"
-        description="Votre nom d'utilisateur (minimum 3 caractères)"
+        label={t('admin.general.profile.username')}
+        description={t('admin.general.profile.usernameDescription')}
       >
         <div className="flex items-center gap-3 w-full">
           <div className="p-2 bg-blue-500/10 rounded-lg border border-blue-500/20 flex-shrink-0">
@@ -1710,14 +1714,14 @@ const UserProfileSection: React.FC = () => {
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             className="flex-1 px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:outline-none transition-colors"
-            placeholder="Nom d'utilisateur"
+            placeholder={t('admin.general.profile.usernamePlaceholder')}
           />
         </div>
       </SettingRow>
 
       <SettingRow
-        label="Email"
-        description="Votre adresse email"
+        label={t('admin.general.profile.email')}
+        description={t('admin.general.profile.emailDescription')}
       >
         <div className="flex flex-col gap-2 w-full">
           <div className="flex items-center gap-3 w-full">
@@ -1731,7 +1735,7 @@ const UserProfileSection: React.FC = () => {
               className={`flex-1 px-3 py-2 bg-[#1a1a1a] border rounded-lg text-white text-sm focus:outline-none transition-colors ${
                 emailError ? 'border-red-500 focus:border-red-500' : 'border-gray-700 focus:border-purple-500'
               }`}
-              placeholder="votre@email.com"
+              placeholder={t('admin.general.profile.emailPlaceholder')}
             />
           </div>
           {emailError && (
@@ -1741,8 +1745,8 @@ const UserProfileSection: React.FC = () => {
       </SettingRow>
 
       <SettingRow
-        label="Mot de passe"
-        description={showPasswordFields ? "Modifier votre mot de passe" : "Cliquez pour modifier votre mot de passe"}
+        label={t('admin.general.profile.password')}
+        description={showPasswordFields ? t('admin.general.profile.passwordEdit') : t('admin.general.profile.passwordClickToEdit')}
       >
         <div className="flex flex-col gap-3 w-full">
           {!showPasswordFields ? (
@@ -1753,7 +1757,7 @@ const UserProfileSection: React.FC = () => {
               <div className="p-2 bg-amber-500/10 rounded-lg border border-amber-500/20 group-hover:bg-amber-500/20 transition-colors">
                 <Key size={18} className="text-amber-400" />
               </div>
-              <span className="flex-1 text-left">Modifier le mot de passe</span>
+              <span className="flex-1 text-left">{t('admin.general.profile.editPassword')}</span>
               <Edit2 size={16} className="text-gray-400 group-hover:text-amber-400 transition-colors" />
             </button>
           ) : (
@@ -1764,7 +1768,7 @@ const UserProfileSection: React.FC = () => {
                 </div>
                 <input
                   type={showOldPassword ? 'text' : 'password'}
-                  placeholder="Mot de passe actuel"
+                  placeholder={t('admin.general.profile.currentPasswordPlaceholder')}
                   value={oldPassword}
                   onChange={(e) => setOldPassword(e.target.value)}
                   className="flex-1 px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-amber-500 transition-colors"
@@ -1773,7 +1777,7 @@ const UserProfileSection: React.FC = () => {
                   type="button"
                   onClick={() => setShowOldPassword(!showOldPassword)}
                   className="p-2 text-gray-400 hover:text-amber-400 transition-colors"
-                  title={showOldPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                  title={showOldPassword ? t('admin.general.profile.hidePassword') : t('admin.general.profile.showPassword')}
                 >
                   {showOldPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
@@ -1784,7 +1788,7 @@ const UserProfileSection: React.FC = () => {
                 </div>
                 <input
                   type={showNewPassword ? 'text' : 'password'}
-                  placeholder="Nouveau mot de passe (min. 8 caractères)"
+                  placeholder={t('admin.general.profile.newPasswordPlaceholder')}
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   className="flex-1 px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-emerald-500 transition-colors"
@@ -1793,7 +1797,7 @@ const UserProfileSection: React.FC = () => {
                   type="button"
                   onClick={() => setShowNewPassword(!showNewPassword)}
                   className="p-2 text-gray-400 hover:text-emerald-400 transition-colors"
-                  title={showNewPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                  title={showNewPassword ? t('admin.general.profile.hidePassword') : t('admin.general.profile.showPassword')}
                 >
                   {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
@@ -1804,7 +1808,7 @@ const UserProfileSection: React.FC = () => {
                 </div>
                 <input
                   type={showConfirmPassword ? 'text' : 'password'}
-                  placeholder="Confirmer le nouveau mot de passe"
+                  placeholder={t('admin.general.profile.confirmPasswordPlaceholder')}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   className="flex-1 px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-emerald-500 transition-colors"
@@ -1813,7 +1817,7 @@ const UserProfileSection: React.FC = () => {
                   type="button"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                   className="p-2 text-gray-400 hover:text-emerald-400 transition-colors"
-                  title={showConfirmPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                  title={showConfirmPassword ? t('admin.general.profile.hidePassword') : t('admin.general.profile.showPassword')}
                 >
                   {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
@@ -1825,7 +1829,7 @@ const UserProfileSection: React.FC = () => {
                   className="flex-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-white text-sm transition-colors flex items-center justify-center gap-2"
                 >
                   <Save size={16} />
-                  {isSaving ? 'Enregistrement...' : 'Enregistrer'}
+                  {isSaving ? t('admin.general.profile.saving') : t('admin.general.profile.save')}
                 </button>
                 <button
                   onClick={() => {
@@ -1837,7 +1841,7 @@ const UserProfileSection: React.FC = () => {
                   }}
                   className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-white text-sm transition-colors"
                 >
-                  Annuler
+                  {t('admin.general.profile.cancel')}
                 </button>
               </div>
             </>
@@ -1853,7 +1857,7 @@ const UserProfileSection: React.FC = () => {
             className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-white text-sm font-medium transition-all flex items-center gap-2 shadow-lg shadow-blue-500/20"
           >
             <Save size={18} />
-            {isSaving ? 'Enregistrement...' : 'Enregistrer les modifications'}
+            {isSaving ? t('admin.general.profile.saving') : t('admin.general.profile.saveChanges')}
           </button>
         </div>
       )}
@@ -1861,51 +1865,321 @@ const UserProfileSection: React.FC = () => {
   );
 };
 
-// Info Section Component (for Administration > Info tab)
-const InfoSection: React.FC = () => {
+// Database stats from /api/database/stats (engine stats, not purge)
+interface DbEngineStats {
+  pageSize: number;
+  pageCount: number;
+  cacheSize: number;
+  synchronous: number;
+  journalMode: string;
+  walSize: number;
+  dbSize: number;
+}
+
+// Database Section Component (Administration > Base de données)
+const DatabaseSection: React.FC = () => {
+  const { t } = useTranslation();
+  const [dbStats, setDbStats] = useState<DbEngineStats | null>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchStats = async () => {
+      setStatsLoading(true);
+      try {
+        const response = await api.get<DbEngineStats>('/api/database/stats');
+        if (!cancelled && response.success && response.result) {
+          setDbStats(response.result);
+        }
+      } catch {
+        if (!cancelled) setDbStats(null);
+      } finally {
+        if (!cancelled) setStatsLoading(false);
+      }
+    };
+    fetchStats();
+    return () => { cancelled = true; };
+  }, []);
+
+  const syncLabel = dbStats?.synchronous === 0 ? 'OFF' : dbStats?.synchronous === 1 ? 'NORMAL' : dbStats?.synchronous === 2 ? 'FULL' : String(dbStats?.synchronous ?? '-');
+
   return (
     <div className="space-y-6">
-      <Section title="Informations du projet" icon={Info} iconColor="teal">
+      <Section title={t('database.title')} icon={Database} iconColor="purple">
         <div className="space-y-4">
-          <div className="p-4 bg-theme-secondary rounded-lg border border-theme">
-            <h3 className="text-lg font-semibold text-theme-primary mb-3">LogviewR</h3>
-            <p className="text-sm text-theme-secondary mb-4">
-              Application de visualisation de logs en temps réel. Support pour Apache, Nginx, NPM et logs système.
-            </p>
-            
-            <div className="space-y-1">
-              <div className="flex items-center justify-start gap-2 py-2 border-b border-gray-700">
-                <span className="text-sm text-gray-400">Version</span>
-                <span className="text-sm font-mono text-theme-primary">{getVersionString()}</span>
-                    
-                <span className="text-sm text-gray-400">Licence</span>
-                <span className="text-sm text-theme-primary">Privée</span>
+          <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+            <div className="flex items-start gap-3">
+              <Info size={20} className="text-blue-400 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <h4 className="text-sm font-semibold text-blue-400 mb-2">{t('database.defaultDbTitle')}</h4>
+                <p className="text-xs text-gray-400 mb-3">
+                  {t('database.defaultDbDesc')}
+                </p>
+                <div className="space-y-2 text-xs text-gray-300">
+                  <div><strong className="text-blue-400">{t('database.tablesUsed')}</strong></div>
+                  <ul className="list-disc list-inside space-y-1 ml-2">
+                    <li><code className="text-cyan-400">users</code> - {t('database.tableUsers')}</li>
+                    <li><code className="text-cyan-400">plugin_configs</code> - {t('database.tablePluginConfigs')}</li>
+                    <li><code className="text-cyan-400">log_sources</code> - {t('database.tableLogSources')}</li>
+                    <li><code className="text-cyan-400">log_files</code> - {t('database.tableLogFiles')}</li>
+                    <li><code className="text-cyan-400">logs</code> - {t('database.tableLogs')}</li>
+                    <li><code className="text-cyan-400">user_plugin_permissions</code> - {t('database.tableUserPluginPermissions')}</li>
+                    <li><code className="text-cyan-400">app_config</code> - {t('database.tableAppConfig')}</li>
+                  </ul>
+                </div>
               </div>
-              </div>
-              <br />
-            <a
-              href="https://github.com/Erreur32/LogviewR"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm transition-colors"
-            >
-              <Github size={16} />
-              <span>Voir sur GitHub</span>
-              <ExternalLink size={14} />
-            </a>
-          </div>
-
-          <div className="p-4 bg-theme-secondary rounded-lg border border-theme">
-            <h3 className="text-lg font-semibold text-theme-primary mb-3">Auteur</h3>
-            <div className="space-y-2">
-              <p className="text-sm text-theme-secondary">
-                Développé par <span className="text-theme-primary font-medium">Erreur32</span>
-              </p>
             </div>
           </div>
 
           <div className="p-4 bg-theme-secondary rounded-lg border border-theme">
-            <h3 className="text-lg font-semibold text-theme-primary mb-3">Technologies</h3>
+            <h4 className="text-sm font-semibold text-theme-primary mb-3">{t('database.statsTitle')}</h4>
+            {statsLoading ? (
+              <div className="flex items-center gap-2 text-sm text-gray-400">
+                <Loader2 size={16} className="animate-spin" />
+                {t('database.loading')}
+              </div>
+            ) : dbStats ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                <div className="flex justify-between py-1.5 border-b border-gray-700/50">
+                  <span className="text-gray-400">{t('database.type')}</span>
+                  <span className="font-mono text-theme-primary">SQLite</span>
+                </div>
+                <div className="flex justify-between py-1.5 border-b border-gray-700/50">
+                  <span className="text-gray-400">{t('database.sizeEstimate')}</span>
+                  <span className="font-mono text-theme-primary">{formatBytes(dbStats.dbSize)}</span>
+                </div>
+                <div className="flex justify-between py-1.5 border-b border-gray-700/50">
+                  <span className="text-gray-400">{t('database.journalMode')}</span>
+                  <span className="font-mono text-theme-primary">{dbStats.journalMode}</span>
+                </div>
+                <div className="flex justify-between py-1.5 border-b border-gray-700/50">
+                  <span className="text-gray-400">{t('database.pageSize')}</span>
+                  <span className="font-mono text-theme-primary">{dbStats.pageSize} B</span>
+                </div>
+                <div className="flex justify-between py-1.5 border-b border-gray-700/50">
+                  <span className="text-gray-400">{t('database.pageCount')}</span>
+                  <span className="font-mono text-theme-primary">{dbStats.pageCount.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between py-1.5 border-b border-gray-700/50">
+                  <span className="text-gray-400">{t('database.cache')}</span>
+                  <span className="font-mono text-theme-primary">
+                    {dbStats.cacheSize < 0 ? formatBytes(Math.abs(dbStats.cacheSize) * 1024) : t('database.cachePages', { count: dbStats.cacheSize })}
+                  </span>
+                </div>
+                <div className="flex justify-between py-1.5 border-b border-gray-700/50">
+                  <span className="text-gray-400">{t('database.synchronous')}</span>
+                  <span className="font-mono text-theme-primary">{syncLabel}</span>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400">{t('database.statsNotAvailable')}</p>
+            )}
+          </div>
+        </div>
+      </Section>
+    </div>
+  );
+};
+
+// GitHub repo stats (public API)
+const GITHUB_REPO = 'Erreur32/LogviewR';
+interface RepoStats {
+  stargazers_count: number;
+  forks_count: number;
+  open_issues_count: number;
+  watchers_count?: number;
+}
+
+// Info Section Component (for Administration > Info tab)
+const InfoSection: React.FC = () => {
+  const { t } = useTranslation();
+  const [changelogRaw, setChangelogRaw] = useState<string | null>(null);
+  const [changelogLoading, setChangelogLoading] = useState(false);
+  const [changelogView, setChangelogView] = useState<'latest' | 'full'>('latest');
+  const [repoStats, setRepoStats] = useState<RepoStats | null>(null);
+  const [repoStatsLoading, setRepoStatsLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchChangelog = async () => {
+      setChangelogLoading(true);
+      try {
+        const response = await api.get<{ content: string }>('/api/info/changelog');
+        if (!cancelled && response.success && response.result?.content) {
+          setChangelogRaw(response.result.content);
+        }
+      } catch {
+        if (!cancelled) setChangelogRaw(null);
+      } finally {
+        if (!cancelled) setChangelogLoading(false);
+      }
+    };
+    fetchChangelog();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchRepoStats = async () => {
+      setRepoStatsLoading(true);
+      try {
+        const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}`, { headers: { Accept: 'application/vnd.github.v3+json' } });
+        if (!cancelled && res.ok) {
+          const data = await res.json();
+          setRepoStats({
+            stargazers_count: data.stargazers_count ?? 0,
+            forks_count: data.forks_count ?? 0,
+            open_issues_count: data.open_issues_count ?? 0,
+            watchers_count: data.watchers_count
+          });
+        }
+      } catch {
+        if (!cancelled) setRepoStats(null);
+      } finally {
+        if (!cancelled) setRepoStatsLoading(false);
+      }
+    };
+    fetchRepoStats();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Parse changelog: extract version blocks ## [x.y.z] - date
+  const versionBlocks = useMemo(() => {
+    if (!changelogRaw) return [];
+    const sections: { version: string; date: string; body: string }[] = [];
+    const re = /##\s*\[([^\]]+)\]\s*-\s*(\d{4}-\d{2}-\d{2})/g;
+    let lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(changelogRaw)) !== null) {
+      if (lastIndex > 0) {
+        const prev = sections[sections.length - 1];
+        prev.body = changelogRaw.slice(lastIndex, m.index).trim();
+      }
+      sections.push({ version: m[1], date: m[2], body: '' });
+      lastIndex = m.index + m[0].length;
+    }
+    if (sections.length > 0) {
+      sections[sections.length - 1].body = changelogRaw.slice(lastIndex).trim();
+    }
+    return sections;
+  }, [changelogRaw]);
+
+  const displayContent = changelogView === 'latest' && versionBlocks.length > 0
+    ? versionBlocks[0]
+    : null;
+  const fullContent = changelogRaw ?? '';
+
+  // Simple markdown-like render: ###, **, -, list
+  const renderChangelogBlock = (body: string) => {
+    const lines = body.split(/\n/);
+    const out: React.ReactNode[] = [];
+    let key = 0;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (line.startsWith('### ')) {
+        out.push(<h4 key={key++} className="text-sm font-semibold text-cyan-400 mt-3 mb-1">{line.slice(4)}</h4>);
+      } else if (line.startsWith('#### ')) {
+        out.push(<h5 key={key++} className="text-xs font-semibold text-gray-300 mt-2 mb-0.5">{line.slice(5)}</h5>);
+      } else if (/^-\s+/.test(line) || /^\*\s+/.test(line)) {
+        const text = line.replace(/^[-*]\s+/, '').replace(/\*\*([^*]+)\*\*/g, (_, t) => `\u0000${t}\u0000`);
+        const parts = text.split(/\u0000/);
+        out.push(
+          <li key={key++} className="text-sm text-gray-300 ml-4 list-disc">
+            {parts.map((p, j) => (j % 2 === 1 ? <strong key={j} className="text-gray-200">{p}</strong> : p))}
+          </li>
+        );
+      } else if (line.trim() === '---') {
+        out.push(<hr key={key++} className="border-gray-600 my-2" />);
+      } else if (line.trim()) {
+        out.push(<p key={key++} className="text-sm text-gray-400 mb-1">{line}</p>);
+      }
+    }
+    return <ul className="list-none pl-0 space-y-0.5">{out}</ul>;
+  };
+
+  return (
+    <div className="space-y-6">
+      <Section title={t('info.title')} icon={Info} iconColor="teal">
+        <div className="space-y-4">
+          <div className="p-4 bg-theme-secondary rounded-lg border border-theme flex flex-col items-center text-center">
+            <img src={logviewrLogo} alt="LogviewR" className="h-16 w-auto mb-4 object-contain" />
+            <h3 className="text-lg font-semibold text-theme-primary mb-2">LogviewR</h3>
+            <p className="text-sm text-theme-secondary mb-4 max-w-lg">
+              {t('info.tagline')}
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-4 py-2 border-y border-gray-700 w-full max-w-md">
+              <span className="text-sm text-gray-400">{t('info.version')}</span>
+              <span className="text-sm font-mono text-theme-primary">{getVersionString()}</span>
+              <span className="text-gray-600">|</span>
+              <span className="text-sm text-gray-400">{t('info.license')}</span>
+              <span className="text-sm text-theme-primary">{t('info.licenseValue')}</span>
+            </div>
+            <a
+              href="https://github.com/Erreur32/LogviewR"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm transition-colors"
+            >
+              <Github size={16} />
+              <span>{t('info.viewOnGitHub')}</span>
+              <ExternalLink size={14} />
+            </a>
+
+            {/* Repo stats */}
+            <div className="mt-4 pt-4 border-t border-gray-700 w-full max-w-md">
+              <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">{t('info.repoStats')}</h4>
+              {repoStatsLoading ? (
+                <div className="flex items-center gap-2 text-sm text-gray-400">
+                  <Loader2 size={14} className="animate-spin" />
+                  {t('info.loading')}
+                </div>
+              ) : repoStats ? (
+                <div className="flex flex-wrap justify-center gap-4">
+                  <a href={`https://github.com/${GITHUB_REPO}/stargazers`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20 transition-colors text-sm">
+                    <Star size={16} />
+                    <span className="font-mono">{repoStats.stargazers_count.toLocaleString()}</span>
+                  </a>
+                  <a href={`https://github.com/${GITHUB_REPO}/forks`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 transition-colors text-sm">
+                    <GitFork size={16} />
+                    <span className="font-mono">{repoStats.forks_count.toLocaleString()}</span>
+                  </a>
+                  <a href={`https://github.com/${GITHUB_REPO}/issues`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-600/30 border border-gray-500/50 text-gray-300 hover:bg-gray-600/50 transition-colors text-sm">
+                    <span className="font-mono">{repoStats.open_issues_count.toLocaleString()}</span>
+                    <span className="text-xs">{t('info.issues')}</span>
+                  </a>
+                </div>
+              ) : (
+                <p className="text-xs text-gray-500">{t('info.statsNotAvailable')}</p>
+              )}
+            </div>
+          </div>
+
+          <div className="p-4 bg-theme-secondary rounded-lg border border-theme">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="p-2 rounded-lg bg-teal-500/10 border border-teal-500/30">
+                <FileText size={20} className="text-teal-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-theme-primary">{t('info.about')}</h3>
+            </div>
+            <p className="text-sm text-theme-secondary mb-2">
+              {t('info.aboutDescription')}
+            </p>
+            <p className="text-sm text-gray-400">
+              {t('info.aboutReadmeBefore')}
+              <a href="https://github.com/Erreur32/LogviewR" target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline">{t('info.aboutReadmeLink')}</a>
+              {t('info.aboutReadmeAfter')}
+            </p>
+          </div>
+
+          <div className="p-4 bg-theme-secondary rounded-lg border border-theme">
+            <h3 className="text-lg font-semibold text-theme-primary mb-3">{t('info.author')}</h3>
+            <p className="text-sm text-theme-secondary">
+              {t('info.developedByBefore')}<span className="text-theme-primary font-medium">Erreur32</span>
+            </p>
+          </div>
+
+          <div className="p-4 bg-theme-secondary rounded-lg border border-theme">
+            <h3 className="text-lg font-semibold text-theme-primary mb-3">{t('info.technologies')}</h3>
             <div className="flex flex-wrap gap-2">
               <span className="px-3 py-1 bg-blue-900/30 border border-blue-700 rounded text-xs text-blue-400">React</span>
               <span className="px-3 py-1 bg-blue-900/30 border border-blue-700 rounded text-xs text-blue-400">TypeScript</span>
@@ -1915,6 +2189,54 @@ const InfoSection: React.FC = () => {
               <span className="px-3 py-1 bg-yellow-900/30 border border-yellow-700 rounded text-xs text-yellow-400">Docker</span>
             </div>
           </div>
+
+          <div className="p-4 bg-theme-secondary rounded-lg border border-theme">
+            <h3 className="text-lg font-semibold text-theme-primary mb-3">{t('info.changelog')}</h3>
+            <div className="flex gap-2 mb-3">
+              <button
+                type="button"
+                onClick={() => setChangelogView('latest')}
+                className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${changelogView === 'latest' ? 'bg-cyan-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+              >
+                {t('info.latestVersion')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setChangelogView('full')}
+                className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${changelogView === 'full' ? 'bg-cyan-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+              >
+                {t('info.fullChangelog')}
+              </button>
+            </div>
+            {changelogLoading ? (
+              <div className="flex items-center gap-2 text-sm text-gray-400">
+                <Loader2 size={16} className="animate-spin" />
+                {t('info.changelogLoading')}
+              </div>
+            ) : displayContent ? (
+              <div className="rounded-lg bg-gray-900/50 border border-gray-700 p-4 text-left">
+                <h4 className="text-base font-bold text-cyan-400 mb-1">{t('info.versionLabel', { version: displayContent.version })}</h4>
+                <p className="text-xs text-gray-500 mb-3">{displayContent.date}</p>
+                {renderChangelogBlock(displayContent.body)}
+              </div>
+            ) : changelogView === 'full' && versionBlocks.length > 0 ? (
+              <div className="rounded-lg bg-gray-900/50 border border-gray-700 p-4 text-left max-h-96 overflow-y-auto space-y-4">
+                {versionBlocks.map((block) => (
+                  <div key={block.version + block.date}>
+                    <h4 className="text-base font-bold text-cyan-400 mb-1">{t('info.versionLabel', { version: block.version })}</h4>
+                    <p className="text-xs text-gray-500 mb-2">{block.date}</p>
+                    {renderChangelogBlock(block.body)}
+                  </div>
+                ))}
+              </div>
+            ) : changelogView === 'full' && fullContent ? (
+              <div className="rounded-lg bg-gray-900/50 border border-gray-700 p-4 text-left max-h-96 overflow-y-auto whitespace-pre-wrap text-sm text-gray-300 font-mono">
+                {fullContent}
+              </div>
+            ) : !changelogRaw ? (
+              <p className="text-sm text-gray-400">{t('info.changelogNotAvailable')}</p>
+            ) : null}
+          </div>
         </div>
       </Section>
     </div>
@@ -1923,7 +2245,9 @@ const InfoSection: React.FC = () => {
 
 // Users Management Section Component (for Administration tab)
 const UsersManagementSection: React.FC = () => {
+  const { t, i18n } = useTranslation();
   const { user: currentUser } = useUserAuthStore();
+  const dateLocale = i18n.language?.startsWith('fr') ? 'fr-FR' : 'en-US';
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -2061,23 +2385,23 @@ const UsersManagementSection: React.FC = () => {
                       <span className="font-medium text-theme-primary">{user.username}</span>
                       {user.role === 'admin' && (
                         <span className="px-2 py-0.5 bg-blue-900/30 border border-blue-700 rounded text-xs text-blue-400 whitespace-nowrap">
-                          Admin
+                          {t('admin.general.users.admin')}
                         </span>
                       )}
                     </div>
                     <p className="text-sm text-theme-secondary truncate">{user.email}</p>
                     <div className="flex flex-wrap items-center gap-3 mt-1.5 text-xs text-theme-tertiary">
-                      <span>Créé le {new Date(user.createdAt).toLocaleDateString('fr-FR')}</span>
+                      <span>{t('admin.general.users.createdAt')} {new Date(user.createdAt).toLocaleDateString(dateLocale)}</span>
                       {user.lastLogin && (
                         <>
                           <span className="text-gray-600">•</span>
-                          <span>Dernière connexion: {new Date(user.lastLogin).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })} {new Date(user.lastLogin).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+                          <span>{t('admin.general.users.lastLogin')}: {new Date(user.lastLogin).toLocaleDateString(dateLocale, { day: '2-digit', month: 'short', year: 'numeric' })} {new Date(user.lastLogin).toLocaleTimeString(dateLocale, { hour: '2-digit', minute: '2-digit' })}</span>
                         </>
                       )}
                       {user.lastLoginIp && (
                         <>
                           <span className="text-gray-600">•</span>
-                          <span className="font-mono text-gray-400">IP: {user.lastLoginIp}</span>
+                          <span className="font-mono text-gray-400">{t('admin.general.users.ip')}: {user.lastLoginIp}</span>
                         </>
                       )}
                     </div>
@@ -2089,7 +2413,7 @@ const UsersManagementSection: React.FC = () => {
                       <button
                         onClick={() => handleDelete(user.id)}
                         className="p-2 hover:bg-red-900/20 rounded text-red-400 hover:text-red-300 transition-colors"
-                        title="Supprimer"
+                        title={t('admin.general.users.delete')}
                       >
                         <Trash2 size={16} />
                       </button>
@@ -2116,6 +2440,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   onProfileClick,
   onLogout
 }) => {
+  const { t } = useTranslation();
   const { user: currentUser } = useUserAuthStore();
   // Check sessionStorage on mount in case initialAdminTab wasn't passed correctly
   const storedAdminTab = sessionStorage.getItem('adminTab') as AdminTab | null;
@@ -2160,18 +2485,17 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
  
 
   const adminTabs: { id: AdminTab; label: string; icon: React.ElementType; color: string }[] = [
-    { id: 'general', label: 'Général', icon: Settings, color: 'blue' },
-    { id: 'plugins', label: 'Plugins', icon: Plug, color: 'emerald' },
-    { id: 'regex', label: 'Regex', icon: Code, color: 'purple' },    
-    { id: 'theme', label: 'Thème', icon: Lightbulb, color: 'yellow' },
-    { id: 'security', label: 'Sécurité', icon: Shield, color: 'red' },
-    { id: 'exporter', label: 'Exporter', icon: Share2, color: 'amber' },
-    { id: 'database', label: 'Base de données', icon: Database, color: 'purple' },
-    { id: 'backup', label: 'Backup', icon: Download, color: 'orange' },
-    { id: 'analysis', label: 'Analyse', icon: BarChart3, color: 'cyan' },
-    { id: 'notifications', label: 'Notifications', icon: Bell, color: 'amber' },
-    { id: 'debug', label: 'Debug', icon: Monitor, color: 'violet' },
-    { id: 'info', label: 'Info', icon: Info, color: 'teal' }
+    { id: 'general', label: t('admin.tabs.general'), icon: Settings, color: 'blue' },
+    { id: 'plugins', label: t('admin.tabs.plugins'), icon: Plug, color: 'emerald' },
+    { id: 'regex', label: t('admin.tabs.regex'), icon: Code, color: 'purple' },
+    { id: 'theme', label: t('admin.tabs.theme'), icon: Lightbulb, color: 'yellow' },
+    { id: 'security', label: t('admin.tabs.security'), icon: Shield, color: 'red' },
+    { id: 'exporter', label: t('admin.tabs.exporter'), icon: Share2, color: 'amber' },
+    { id: 'database', label: t('admin.tabs.database'), icon: Database, color: 'purple' },
+    { id: 'analysis', label: t('admin.tabs.analysis'), icon: BarChart3, color: 'cyan' },
+    { id: 'notifications', label: t('admin.tabs.notifications'), icon: Bell, color: 'amber' },
+    { id: 'debug', label: t('admin.tabs.debug'), icon: Monitor, color: 'violet' },
+    { id: 'info', label: t('admin.tabs.info'), icon: Info, color: 'teal' }
   ];
 
   return (
@@ -2193,10 +2517,10 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 </div>
                 <div>
                   <h1 className="text-xl font-bold text-theme-primary">
-                    {mode === 'administration' ? 'Administration' : 'Paramètres'}
+                    {mode === 'administration' ? t('settings.administration') : t('settings.title')}
                   </h1>
                   <p className="text-sm text-theme-secondary">
-                    Gestion de l'application
+                    {t('settings.appManagement')}
                   </p>
                 </div>
               </div>
@@ -2334,26 +2658,19 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {/* Colonne 1 */}
                 <div className="space-y-6">
-                  <Section title="Mon Profil" icon={Users} iconColor="blue">
+                  <Section title={t('admin.general.myProfile')} icon={Users} iconColor="blue">
                     <UserProfileSection />
                   </Section>
-                  
-                  {/* Gestion des utilisateurs (Admin only) */}
-                  {currentUser?.role === 'admin' && (
-                    <Section title="Gestion des utilisateurs" icon={Users} iconColor="purple">
-                      <UsersManagementSection />
-                    </Section>
-                  )}
                 </div>
 
                 {/* Colonne 2 */}
                 <div className="space-y-6">
 
-                  <Section title="Page par défaut" icon={FileText} iconColor="cyan">
+                  <Section title={t('admin.general.defaultPage')} icon={FileText} iconColor="cyan">
                     <DefaultPageSection />
                   </Section>
 
-                  <Section title="Configuration réseau" icon={Network} iconColor="blue">
+                  <Section title={t('admin.general.networkConfig')} icon={Network} iconColor="blue">
                     <GeneralNetworkSection />
                   </Section>
 
@@ -2364,37 +2681,39 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 
                 {/* Colonne 3 */}
                 <div className="space-y-6">
-                  <Section title="Mises à jour" icon={RefreshCw} iconColor="amber">
-                    <UpdateCheckSection />
-                  </Section>
-
-                  <Section title="Informations" icon={Key} iconColor="purple">
+                  {/* Gestion des utilisateurs (Admin only) — anciennement en colonne 1, à la place du cadre Mises à jour */}
+                  {currentUser?.role === 'admin' && (
+                    <Section title={t('admin.general.userManagement')} icon={Users} iconColor="purple">
+                      <UsersManagementSection />
+                    </Section>
+                  )}
+                  <Section title={t('admin.general.informations')} icon={Key} iconColor="purple">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                       <div className="p-3 bg-[#1a1a1a] rounded-lg border border-gray-800">
                         <div className="flex justify-between items-center">
-                          <span className="text-sm text-gray-400">Version</span>
+                          <span className="text-sm text-gray-400">{t('admin.general.version')}</span>
                           <span className="text-sm text-white font-mono">{getVersionString()}</span>
                         </div>
                       </div>
                       <div className="p-3 bg-[#1a1a1a] rounded-lg border border-gray-800">
                         <div className="flex justify-between items-center">
-                          <span className="text-sm text-gray-400">Base de données</span>
+                          <span className="text-sm text-gray-400">{t('admin.general.database')}</span>
                           <span className="text-sm text-white">SQLite</span>
                         </div>
                       </div>
                       <div className="p-3 bg-[#1a1a1a] rounded-lg border border-gray-800">
                         <div className="flex justify-between items-center">
-                          <span className="text-sm text-gray-400">Authentification</span>
+                          <span className="text-sm text-gray-400">{t('admin.general.authentication')}</span>
                           <span className="text-sm text-white">JWT</span>
                         </div>
                       </div>
                     </div>
                   </Section>
 
-                  <Section title="Localisation" icon={Globe} iconColor="cyan">
+                  <Section title={t('admin.general.localization')} icon={Globe} iconColor="cyan">
                     <SettingRow
-                      label="Fuseau horaire"
-                      description="Définit le fuseau horaire de l'application"
+                      label={t('admin.general.timezone')}
+                      description={t('admin.general.timezoneDescription')}
                     >
                       <select className="px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm">
                         <option value="Europe/Paris">Europe/Paris (UTC+1)</option>
@@ -2404,14 +2723,18 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                     </SettingRow>
                   </Section>
 
-                  <Section title="Langue" icon={Globe} iconColor="cyan">
+                  <Section title={t('admin.general.language')} icon={Globe} iconColor="cyan">
                     <SettingRow
-                      label="Langue de l'interface"
-                      description="Sélectionnez la langue d'affichage"
+                      label={t('admin.general.languageLabel')}
+                      description={t('admin.general.languageDescription')}
                     >
-                      <select className="px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm">
-                        <option value="fr">Français</option>
-                        <option value="en">English</option>
+                      <select
+                        value={getAppLanguage()}
+                        onChange={(e) => setAppLanguage(e.target.value)}
+                        className="px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm"
+                      >
+                        <option value="fr">{t('admin.languageOptions.fr')}</option>
+                        <option value="en">{t('admin.languageOptions.en')}</option>
                       </select>
                     </SettingRow>
                   </Section>
@@ -2457,40 +2780,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 
             {/* Database Management Section */}
             {activeAdminTab === 'database' && (
-              <div className="space-y-6">
-                <Section title="Base de données" icon={Database} iconColor="purple">
-                  <div className="space-y-4">
-                    <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
-                      <div className="flex items-start gap-3">
-                        <Info size={20} className="text-blue-400 flex-shrink-0 mt-0.5" />
-                        <div className="flex-1">
-                          <h4 className="text-sm font-semibold text-blue-400 mb-2">Utilisation de la base de données</h4>
-                          <p className="text-xs text-gray-400 mb-3">
-                            La base de données SQLite stocke les données essentielles de LogviewR.
-                          </p>
-                          <div className="space-y-2 text-xs text-gray-300">
-                            <div><strong className="text-blue-400">Tables utilisées :</strong></div>
-                            <ul className="list-disc list-inside space-y-1 ml-2">
-                              <li><code className="text-cyan-400">users</code> - Gestion des utilisateurs et authentification</li>
-                              <li><code className="text-cyan-400">plugin_configs</code> - Configurations des plugins (Apache, Nginx, NPM, Host System)</li>
-                              <li><code className="text-cyan-400">log_sources</code> - Sources de logs configurées</li>
-                              <li><code className="text-cyan-400">log_files</code> - Fichiers de logs individuels et leurs configurations</li>
-                              <li><code className="text-cyan-400">logs</code> - Logs d'audit et d'activité</li>
-                              <li><code className="text-cyan-400">user_plugin_permissions</code> - Permissions des utilisateurs par plugin</li>
-                              <li><code className="text-cyan-400">app_config</code> - Configuration globale de l'application</li>
-                            </ul>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </Section>
-              </div>
-            )}
-
-            {/* Backup Section */}
-            {activeAdminTab === 'backup' && (
-              <BackupSection />
+              <DatabaseSection />
             )}
 
             {/* Info Section */}
@@ -2501,30 +2791,30 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             {/* Analysis Section */}
             {activeAdminTab === 'analysis' && (
               <div className="space-y-6">
-                <Section title="Analyse des Logs" icon={BarChart3} iconColor="cyan">
+                <Section title={t('analysis.title')} icon={BarChart3} iconColor="cyan">
                   <div className="space-y-4">
                     <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-lg">
                       <div className="flex items-start gap-3">
                         <AlertCircle size={20} className="text-amber-400 flex-shrink-0 mt-0.5" />
                         <div className="flex-1">
-                          <h4 className="text-sm font-semibold text-amber-400 mb-1">En cours de développement</h4>
+                          <h4 className="text-sm font-semibold text-amber-400 mb-1">{t('analysis.inDevTitle')}</h4>
                           <p className="text-xs text-gray-400">
-                            Cette fonctionnalité est en cours de développement. Elle permettra d'analyser vos logs pour détecter automatiquement les problèmes courants, les anomalies et les tendances.
+                            {t('analysis.inDevDesc')}
                           </p>
                         </div>
                       </div>
                     </div>
                     
                     <div className="space-y-3">
-                      <SettingRow label="Analyse automatique" description="Activer l'analyse automatique des logs pour détecter les problèmes">
+                      <SettingRow label={t('analysis.autoAnalysis')} description={t('analysis.autoAnalysisDesc')}>
                         <Toggle enabled={false} onChange={() => {}} disabled />
                       </SettingRow>
                       
-                      <SettingRow label="Détection d'anomalies" description="Détecter automatiquement les comportements anormaux dans les logs">
+                      <SettingRow label={t('analysis.anomalyDetection')} description={t('analysis.anomalyDetectionDesc')}>
                         <Toggle enabled={false} onChange={() => {}} disabled />
                       </SettingRow>
                       
-                      <SettingRow label="Alertes intelligentes" description="Générer des alertes basées sur l'analyse des patterns">
+                      <SettingRow label={t('analysis.smartAlerts')} description={t('analysis.smartAlertsDesc')}>
                         <Toggle enabled={false} onChange={() => {}} disabled />
                       </SettingRow>
                     </div>
@@ -2536,47 +2826,47 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             {/* Notifications Section */}
             {activeAdminTab === 'notifications' && (
               <div className="space-y-6">
-                <Section title="Notifications" icon={Bell} iconColor="amber">
+                <Section title={t('notifications.title')} icon={Bell} iconColor="amber">
                   <div className="space-y-4">
                     <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-lg">
                       <div className="flex items-start gap-3">
                         <AlertCircle size={20} className="text-amber-400 flex-shrink-0 mt-0.5" />
                         <div className="flex-1">
-                          <h4 className="text-sm font-semibold text-amber-400 mb-1">En cours de développement</h4>
+                          <h4 className="text-sm font-semibold text-amber-400 mb-1">{t('notifications.inDevTitle')}</h4>
                           <p className="text-xs text-gray-400">
-                            Cette fonctionnalité est en cours de développement. Elle permettra de configurer des notifications pour être alerté en cas de problèmes détectés dans vos logs (via webhooks, notifications in-app, etc.).
+                            {t('notifications.inDevDesc')}
                           </p>
                         </div>
                       </div>
                     </div>
                     
                     <div className="space-y-3">
-                      <SettingRow label="Notifications in-app" description="Recevoir des notifications dans l'application">
+                      <SettingRow label={t('notifications.inApp')} description={t('notifications.inAppDesc')}>
                         <Toggle enabled={false} onChange={() => {}} disabled />
                       </SettingRow>
                       
-                      <SettingRow label="Webhooks" description="Envoyer des alertes via webhooks">
+                      <SettingRow label={t('notifications.webhooks')} description={t('notifications.webhooksDesc')}>
                         <Toggle enabled={false} onChange={() => {}} disabled />
                       </SettingRow>
                       
                       <div className="pt-2 border-t border-gray-800">
-                        <h4 className="text-sm font-medium text-white mb-3">Configuration Webhook</h4>
+                        <h4 className="text-sm font-medium text-white mb-3">{t('notifications.webhookConfigTitle')}</h4>
                         <div className="space-y-3">
                           <div>
-                            <label className="block text-xs text-gray-400 mb-1">URL Webhook</label>
+                            <label className="block text-xs text-gray-400 mb-1">{t('notifications.webhookUrl')}</label>
                             <input
                               type="text"
                               disabled
-                              placeholder="https://example.com/webhook"
+                              placeholder={t('notifications.webhookUrlPlaceholder')}
                               className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
                             />
                           </div>
                           <div>
-                            <label className="block text-xs text-gray-400 mb-1">Secret (optionnel)</label>
+                            <label className="block text-xs text-gray-400 mb-1">{t('notifications.webhookSecret')}</label>
                             <input
                               type="password"
                               disabled
-                              placeholder="Secret pour signer les webhooks"
+                              placeholder={t('notifications.webhookSecretPlaceholder')}
                               className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
                             />
                           </div>
@@ -2592,37 +2882,23 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             {activeAdminTab === 'debug' && (
               <div className="space-y-6">
 
-                <Section title="Logs de l'application" icon={FileText} iconColor="cyan">
+                <Section title={t('debug.appLogsTitle')} icon={FileText} iconColor="cyan">
                   <AppLogsSection />
                 </Section>
-                <Section title="Niveaux de Log" icon={Monitor} iconColor="violet">
+                <Section title={t('debug.logLevelsTitle')} icon={Monitor} iconColor="violet">
                   <DebugLogSection />
                 </Section>
 
-                <Section title="Debug & Diagnostics" icon={Monitor} iconColor="violet">
+                <Section title={t('debug.debugDiagnosticsTitle')} icon={Monitor} iconColor="violet">
                   <div className="py-4 space-y-2 text-xs text-gray-400">
                     <p>
-                      Cette section regroupe des informations utiles pour le debug de LogviewR&nbsp;:
-                      utilisation des logs, configuration externe et métriques techniques.
+                      {t('debug.debugIntro')}
                     </p>
                     <ul className="list-disc list-inside space-y-1">
-                      <li>
-                        <span className="text-gray-300 font-semibold">Logs applicatifs</span>&nbsp;: utilisables via l&apos;onglet&nbsp;
-                        <span className="text-gray-100">Logs</span> (recherches, filtres, export).
-                      </li>
-                      <li>
-                        <span className="text-gray-300 font-semibold">Configuration externe</span>&nbsp;:
-                        fichier <code className="text-[11px] text-emerald-300">config/logviewr.conf</code> si monté,
-                        import/export via la section <span className="text-gray-100">Exporter</span>.
-                      </li>
-                      <li>
-                        <span className="text-gray-300 font-semibold">Métriques Prometheus</span>&nbsp;:
-                        endpoint <code className="text-[11px] text-sky-300">/api/metrics/prometheus</code> sur le backend.
-                      </li>
-                      <li>
-                        <span className="text-gray-300 font-semibold">Métriques InfluxDB</span>&nbsp;:
-                        endpoint <code className="text-[11px] text-sky-300">/api/metrics/influxdb</code> si activé.
-                      </li>
+                      <li>{t('debug.debugBullet1')}</li>
+                      <li>{t('debug.debugBullet2')}</li>
+                      <li>{t('debug.debugBullet3')}</li>
+                      <li>{t('debug.debugBullet4')}</li>
                     </ul>
  
                   </div>

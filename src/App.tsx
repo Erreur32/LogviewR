@@ -395,7 +395,7 @@ const App: React.FC = () => {
     const showAdmin = sessionStorage.getItem('adminMode') === 'true' || false;
     // Check if we should open a specific admin tab (from sessionStorage)
     // Read it immediately to ensure it's available
-    const adminTab = sessionStorage.getItem('adminTab') as 'general' | 'users' | 'plugins' | 'security' | 'exporter' | 'theme' | 'debug' | 'info' | 'backup' | undefined;
+    const adminTab = sessionStorage.getItem('adminTab') as 'general' | 'users' | 'plugins' | 'security' | 'exporter' | 'theme' | 'debug' | 'info' | undefined;
     // Only clear if we're actually using it (to avoid clearing it before SettingsPage reads it)
     // We'll let SettingsPage handle clearing it via useEffect
     return wrapWithBackground(renderPageWithFooter(

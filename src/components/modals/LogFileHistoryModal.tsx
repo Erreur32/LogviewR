@@ -6,6 +6,7 @@
  */
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { X, FileText, History, Trash2 } from 'lucide-react';
 import { getPluginIcon } from '../../utils/pluginIcons';
 
@@ -40,6 +41,7 @@ export const LogFileHistoryModal: React.FC<LogFileHistoryModalProps> = ({
     onSelectEntry,
     osType
 }) => {
+    const { t } = useTranslation();
     if (!isOpen) return null;
 
     const formatDate = (ts: number) => {
@@ -73,10 +75,10 @@ export const LogFileHistoryModal: React.FC<LogFileHistoryModalProps> = ({
                         </div>
                         <div>
                             <h2 className="text-xl font-semibold text-white">
-                                Historique des fichiers de logs
+                                {t('dashboard.logHistoryModalTitle')}
                             </h2>
                             <p className="text-sm text-gray-500 mt-0.5">
-                                Fichiers déjà demandés ou ouverts
+                                {t('dashboard.logHistoryModalSubtitle')}
                             </p>
                         </div>
                     </div>
@@ -92,8 +94,8 @@ export const LogFileHistoryModal: React.FC<LogFileHistoryModalProps> = ({
                     {entries.length === 0 ? (
                         <div className="text-center py-12 text-gray-500">
                             <FileText size={48} className="mx-auto mb-4 text-gray-600" />
-                            <p className="text-base font-medium">Aucun fichier dans l'historique</p>
-                            <p className="text-sm mt-1">Les fichiers que vous ouvrez apparaîtront ici.</p>
+                            <p className="text-base font-medium">{t('dashboard.noFilesInHistory')}</p>
+                            <p className="text-sm mt-1">{t('dashboard.filesYouOpenWillAppear')}</p>
                         </div>
                     ) : (
                         <ul className="space-y-2">
@@ -141,7 +143,7 @@ export const LogFileHistoryModal: React.FC<LogFileHistoryModalProps> = ({
                             className="flex items-center gap-2 px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg border border-red-500/40 transition-colors"
                         >
                             <Trash2 size={18} />
-                            Effacer la liste
+                            {t('dashboard.clearHistoryList')}
                         </button>
                     </div>
                 )}

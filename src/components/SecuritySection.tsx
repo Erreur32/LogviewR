@@ -6,12 +6,14 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Shield, Lock, AlertTriangle, Save, Loader2, CheckCircle, XCircle, Info, Trash2, RefreshCw, Plus, Globe } from 'lucide-react';
 import { Section, SettingRow } from './SettingsSection';
 import { api } from '../api/client';
 import { useUserAuthStore } from '../stores/userAuthStore';
 
 export const SecuritySection: React.FC = () => {
+    const { t } = useTranslation();
     const { user } = useUserAuthStore();
     const [isLoading, setIsLoading] = useState(false);
     const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -126,7 +128,7 @@ export const SecuritySection: React.FC = () => {
                 const result = response.result as { message?: string } | undefined;
                 const messageText = result?.message 
                     ? result.message 
-                    : 'Paramètres de sécurité sauvegardés avec succès';
+                    : t('security.saveSuccess');
                 setMessage({ type: 'success', text: messageText });
                 // Reload settings to get updated values
                 await checkSecuritySettings();
@@ -139,10 +141,10 @@ export const SecuritySection: React.FC = () => {
                 });
             } else {
                 const error = response.error as { message?: string } | undefined;
-                setMessage({ type: 'error', text: error?.message || 'Erreur lors de la sauvegarde' });
+                setMessage({ type: 'error', text: error?.message || t('security.saveError') });
             }
         } catch (error) {
-            setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Erreur lors de la sauvegarde' });
+            setMessage({ type: 'error', text: error instanceof Error ? error.message : t('security.saveError') });
         } finally {
             setIsLoading(false);
         }
@@ -183,11 +185,11 @@ export const SecuritySection: React.FC = () => {
             if (response.success) {
                 // Reload the list
                 await loadBlockedIPs();
-                setMessage({ type: 'success', text: `L'identifiant "${identifier}" a été débloqué avec succès` });
+                setMessage({ type: 'success', text: t('security.unblockSuccess', { id: identifier }) });
                 setTimeout(() => setMessage(null), 3000);
             }
         } catch (error: unknown) {
-            const errorMessage = (error as any)?.response?.data?.error?.message || 'Erreur lors du déblocage';
+            const errorMessage = (error as any)?.response?.data?.error?.message || t('security.unblockError');
             setMessage({ 
                 type: 'error', 
                 text: errorMessage
@@ -197,15 +199,15 @@ export const SecuritySection: React.FC = () => {
     };
 
     const formatRemainingTime = (seconds: number): string => {
-        if (seconds <= 0) return 'Expiré';
+        if (seconds <= 0) return t('security.expired');
         const minutes = Math.ceil(seconds / 60);
-        if (minutes < 60) return `${minutes} min`;
+        if (minutes < 60) return t('security.minutesShort', { count: minutes });
         const hours = Math.floor(minutes / 60);
         const remainingMinutes = minutes % 60;
         if (remainingMinutes === 0) {
-            return `${hours}h`;
+            return t('security.hoursShort', { hours });
         }
-        return `${hours}h ${remainingMinutes}min`;
+        return t('security.hoursMinutes', { hours, minutes: remainingMinutes });
     };
 
     const loadCorsConfig = async () => {
@@ -242,16 +244,16 @@ export const SecuritySection: React.FC = () => {
             });
             
             if (response.success) {
-                setMessage({ type: 'success', text: 'Configuration CORS sauvegardée. Un redémarrage du serveur est nécessaire pour appliquer les changements.' });
+                setMessage({ type: 'success', text: t('security.corsSaveSuccess') });
                 setTimeout(() => setMessage(null), 5000);
                 // Reload CORS config to get updated values
                 await loadCorsConfig();
             } else {
                 const error = response.error as { message?: string } | undefined;
-                setMessage({ type: 'error', text: error?.message || 'Erreur lors de la sauvegarde' });
+                setMessage({ type: 'error', text: error?.message || t('security.saveError') });
             }
         } catch (error) {
-            setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Erreur lors de la sauvegarde' });
+            setMessage({ type: 'error', text: error instanceof Error ? error.message : t('security.saveError') });
         } finally {
             setIsLoading(false);
         }
@@ -346,10 +348,10 @@ export const SecuritySection: React.FC = () => {
                     <AlertTriangle size={20} className="text-amber-400 mt-0.5 flex-shrink-0" />
                     <div className="flex-1">
                         <h4 className="text-sm font-medium text-amber-400 mb-1">
-                            Modifications non sauvegardées
+                            {t('security.unsavedTitle')}
                         </h4>
                         <p className="text-xs text-amber-300">
-                            Vous avez modifié des paramètres. N'oubliez pas de cliquer sur <strong>"Sauvegarder"</strong> pour enregistrer vos changements.
+                            {t('security.unsavedHint')}
                         </p>
                     </div>
                 </div>
@@ -378,13 +380,13 @@ export const SecuritySection: React.FC = () => {
                         <AlertTriangle size={20} className="text-yellow-400 mt-0.5 flex-shrink-0" />
                         <div className="flex-1">
                             <h4 className="text-sm font-medium text-yellow-400 mb-1">
-                                Secret JWT par défaut détecté
+                                {t('security.jwtWarningTitle')}
                             </h4>
                             <p className="text-xs text-yellow-300 mb-2">
-                                Pour des raisons de sécurité, définissez une variable d'environnement <code className="bg-yellow-900/30 px-1.5 py-0.5 rounded">JWT_SECRET</code> avec une valeur unique et sécurisée.
+                                {t('security.jwtWarningBody')}
                             </p>
                             <p className="text-xs text-gray-400">
-                                En production, utilisez un secret fort généré aléatoirement (minimum 32 caractères).
+                                {t('security.jwtWarningProduction')}
                             </p>
                         </div>
                     </div>
@@ -396,11 +398,11 @@ export const SecuritySection: React.FC = () => {
                 {/* Left Column: Protection contre les attaques */}
                 <div className="space-y-6">
                     {/* Protection Brute Force */}
-                    <Section title="Protection contre les attaques" icon={Shield} iconColor="red">
+                    <Section title={t('security.attackProtectionTitle')} icon={Shield} iconColor="red">
                         <div className="space-y-4">
                             <SettingRow
-                                label="Tentatives de connexion maximum"
-                                description="Nombre de tentatives de connexion autorisées avant blocage automatique"
+                                label={t('security.maxLoginAttempts')}
+                                description={t('security.maxLoginAttemptsDesc')}
                             >
                                 <div className="flex items-center gap-2">
                                     <input
@@ -411,13 +413,13 @@ export const SecuritySection: React.FC = () => {
                                         onChange={(e) => setMaxLoginAttempts(parseInt(e.target.value) || 5)}
                                         className="w-20 px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:outline-none"
                                     />
-                                    <span className="text-sm text-gray-400">tentatives</span>
+                                    <span className="text-sm text-gray-400">{t('security.attempts')}</span>
                                 </div>
                             </SettingRow>
 
                             <SettingRow
-                                label="Durée de blocage"
-                                description="Durée du blocage après dépassement du nombre maximum de tentatives"
+                                label={t('security.lockoutDuration')}
+                                description={t('security.lockoutDurationDesc')}
                             >
                                 <div className="flex items-center gap-2">
                                     <input
@@ -428,13 +430,13 @@ export const SecuritySection: React.FC = () => {
                                         onChange={(e) => setLockoutDuration(parseInt(e.target.value) || 15)}
                                         className="w-20 px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:outline-none"
                                     />
-                                    <span className="text-sm text-gray-400">minutes</span>
+                                    <span className="text-sm text-gray-400">{t('security.minutes')}</span>
                                 </div>
                             </SettingRow>
 
                             <SettingRow
-                                label="Fenêtre de suivi"
-                                description="Durée pendant laquelle les tentatives échouées sont comptabilisées"
+                                label={t('security.trackingWindow')}
+                                description={t('security.trackingWindowDesc')}
                             >
                                 <div className="flex items-center gap-2">
                                     <input
@@ -446,8 +448,8 @@ export const SecuritySection: React.FC = () => {
                                         disabled
                                         className="w-20 px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:outline-none opacity-50 cursor-not-allowed"
                                     />
-                                    <span className="text-sm text-gray-400">minutes</span>
-                                    <span className="text-xs text-gray-500">(lecture seule)</span>
+                                    <span className="text-sm text-gray-400">{t('security.minutes')}</span>
+                                    <span className="text-xs text-gray-500">{t('security.readOnly')}</span>
                                 </div>
                             </SettingRow>
 
@@ -455,9 +457,9 @@ export const SecuritySection: React.FC = () => {
                                 <div className="flex items-start gap-2">
                                     <CheckCircle size={16} className="text-green-400 mt-0.5 flex-shrink-0" />
                                     <div className="flex-1">
-                                        <p className="text-xs text-green-400 font-medium mb-1">Protection active</p>
+                                        <p className="text-xs text-green-400 font-medium mb-1">{t('security.protectionActive')}</p>
                                         <p className="text-xs text-gray-400">
-                                            Les tentatives de connexion échouées sont automatiquement bloquées après {maxLoginAttempts} tentatives pendant {lockoutDuration} minutes.
+                                            {t('security.protectionActiveDesc', { max: maxLoginAttempts, duration: lockoutDuration })}
                                         </p>
                                     </div>
                                 </div>
@@ -469,11 +471,11 @@ export const SecuritySection: React.FC = () => {
                 {/* Right Column: Options non implémentées */}
                 <div className="space-y-6">
                     {/* Authentification */}
-                    <Section title="Authentification" icon={Lock} iconColor="blue">
+                    <Section title={t('security.authTitle')} icon={Lock} iconColor="blue">
                         <div className="space-y-4">
                             <SettingRow
-                                label="Délai d'expiration de session"
-                                description="Durée avant expiration de la session utilisateur (appliqué aux nouvelles connexions uniquement)"
+                                label={t('security.sessionTimeout')}
+                                description={t('security.sessionTimeoutDesc')}
                             >
                                 <div className="flex items-center gap-2 flex-wrap">
                                     <input
@@ -484,12 +486,12 @@ export const SecuritySection: React.FC = () => {
                                         onChange={(e) => handleSessionTimeoutChange(parseInt(e.target.value) || 168)}
                                         className="w-20 px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:outline-none"
                                     />
-                                    <span className="text-sm text-gray-400">heures</span>
+                                    <span className="text-sm text-gray-400">{t('security.hours')}</span>
                                     {sessionTimeoutHours >= 24 && (
                                         <span className="text-sm text-blue-400 font-medium">
                                             ({sessionTimeoutHours % 24 === 0 
-                                                ? `${sessionTimeoutHours / 24} jour${sessionTimeoutHours >= 48 ? 's' : ''}`
-                                                : `${Math.round((sessionTimeoutHours / 24) * 10) / 10} jour${sessionTimeoutHours >= 48 ? 's' : ''}`
+                                                ? `${sessionTimeoutHours / 24} ${sessionTimeoutHours >= 48 ? t('security.days') : t('security.day')}`
+                                                : `${Math.round((sessionTimeoutHours / 24) * 10) / 10} ${sessionTimeoutHours >= 48 ? t('security.days') : t('security.day')}`
                                             })
                                         </span>
                                     )}
@@ -498,14 +500,14 @@ export const SecuritySection: React.FC = () => {
                                     <div className="mt-2 flex items-start gap-2 p-2 bg-yellow-900/20 rounded border border-yellow-700/50">
                                         <AlertTriangle size={14} className="text-yellow-400 mt-0.5 flex-shrink-0" />
                                         <p className="text-xs text-yellow-300">
-                                            <strong>Attention :</strong> Le nouveau délai d'expiration s'appliquera uniquement aux nouvelles connexions. Les sessions actives conserveront leur délai d'expiration d'origine.
+                                            {t('security.sessionWarning')}
                                         </p>
                                     </div>
                                 )}
                                 <div className="mt-2 flex items-start gap-2 p-2 bg-gray-900/50 rounded border border-gray-800">
                                     <Info size={14} className="text-gray-500 mt-0.5 flex-shrink-0" />
                                     <p className="text-xs text-gray-500">
-                                        La configuration est stockée en base de données et remplace la variable d'environnement <code className="bg-gray-800 px-1 rounded">JWT_EXPIRES_IN</code> si définie.
+                                        {t('security.sessionStorageNote')}
                                     </p>
                                 </div>
                             </SettingRow>
@@ -513,11 +515,11 @@ export const SecuritySection: React.FC = () => {
                     </Section>
 
                     {/* Sécurité réseau */}
-                    <Section title="Sécurité réseau" icon={Shield}>
+                    <Section title={t('security.networkSecurityTitle')} icon={Shield}>
                         <div className="space-y-4">
                             <SettingRow
-                                label="Exiger HTTPS"
-                                description="Forcer l'utilisation de HTTPS pour toutes les connexions"
+                                label={t('security.requireHttps')}
+                                description={t('security.requireHttpsDesc')}
                             >
                                 <div className="flex items-center gap-2">
                                     <input
@@ -526,19 +528,19 @@ export const SecuritySection: React.FC = () => {
                                         disabled
                                         className="w-4 h-4 text-blue-600 bg-[#1a1a1a] border-gray-700 rounded opacity-50 cursor-not-allowed"
                                     />
-                                    <span className="text-sm text-gray-500">Non implémenté</span>
+                                    <span className="text-sm text-gray-500">{t('security.notImplemented')}</span>
                                 </div>
                                 <div className="mt-2 flex items-start gap-2 p-2 bg-gray-900/50 rounded border border-gray-800">
                                     <XCircle size={14} className="text-gray-500 mt-0.5 flex-shrink-0" />
                                     <p className="text-xs text-gray-500">
-                                        Généralement géré par nginx/reverse proxy. Peut être ajouté via middleware Express si nécessaire.
+                                        {t('security.requireHttpsNote')}
                                     </p>
                                 </div>
                             </SettingRow>
 
                             <SettingRow
-                                label="Limitation de débit (Rate Limiting)"
-                                description="Limiter le nombre de requêtes par IP pour prévenir les attaques DDoS"
+                                label={t('security.rateLimit')}
+                                description={t('security.rateLimitDesc')}
                             >
                                 <div className="flex items-center gap-2">
                                     <input
@@ -547,12 +549,12 @@ export const SecuritySection: React.FC = () => {
                                         disabled
                                         className="w-4 h-4 text-blue-600 bg-[#1a1a1a] border-gray-700 rounded opacity-50 cursor-not-allowed"
                                     />
-                                    <span className="text-sm text-gray-500">Non implémenté</span>
+                                    <span className="text-sm text-gray-500">{t('security.notImplemented')}</span>
                                 </div>
                                 <div className="mt-2 flex items-start gap-2 p-2 bg-gray-900/50 rounded border border-gray-800">
                                     <XCircle size={14} className="text-gray-500 mt-0.5 flex-shrink-0" />
                                     <p className="text-xs text-gray-500">
-                                        Nécessite l'installation de <code className="bg-gray-800 px-1 rounded">express-rate-limit</code> et configuration des limites par endpoint.
+                                        {t('security.rateLimitNote')} <code className="bg-gray-800 px-1 rounded">express-rate-limit</code>
                                     </p>
                                 </div>
                             </SettingRow>
@@ -562,11 +564,11 @@ export const SecuritySection: React.FC = () => {
             </div>
 
             {/* Blocked IPs Section - Full Width */}
-            <Section title="IPs et comptes bloqués" icon={Shield} iconColor="red">
+            <Section title={t('security.blockedTitle')} icon={Shield} iconColor="red">
                 <div className="space-y-4">
                     <div className="flex items-center justify-between mb-2">
                         <p className="text-sm text-gray-400">
-                            Liste des adresses IP et noms d'utilisateur actuellement bloqués suite à des tentatives de connexion échouées
+                            {t('security.blockedListDesc')}
                         </p>
                         <button
                             onClick={loadBlockedIPs}
@@ -574,7 +576,7 @@ export const SecuritySection: React.FC = () => {
                             className="flex items-center gap-2 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             <RefreshCw size={14} className={isLoadingBlockedIPs ? 'animate-spin' : ''} />
-                            <span>Actualiser</span>
+                            <span>{t('security.refresh')}</span>
                         </button>
                     </div>
 
@@ -585,7 +587,7 @@ export const SecuritySection: React.FC = () => {
                     ) : blockedIPs.length === 0 ? (
                         <div className="py-8 text-center">
                             <CheckCircle size={32} className="text-green-400 mx-auto mb-2" />
-                            <p className="text-sm text-gray-400">Aucune IP ou compte bloqué actuellement</p>
+                            <p className="text-sm text-gray-400">{t('security.noBlocked')}</p>
                         </div>
                     ) : (
                         <div className="space-y-2">
@@ -600,20 +602,20 @@ export const SecuritySection: React.FC = () => {
                                                 {item.identifier}
                                             </span>
                                             <span className="px-2 py-0.5 bg-red-900/30 text-red-400 text-xs rounded">
-                                                {item.count} tentative{item.count > 1 ? 's' : ''}
+                                                {t('security.attempt', { count: item.count })}
                                             </span>
                                         </div>
                                         <div className="text-xs text-gray-500">
-                                            Bloqué pendant encore : <span className="text-orange-400 font-medium">{formatRemainingTime(item.remainingTime)}</span>
+                                            {t('security.blockedFor')} <span className="text-orange-400 font-medium">{formatRemainingTime(item.remainingTime)}</span>
                                         </div>
                                     </div>
                                     <button
                                         onClick={() => handleUnblock(item.identifier)}
                                         className="flex items-center gap-2 px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white text-sm rounded-lg transition-colors"
-                                        title="Débloquer cet identifiant"
+                                        title={t('security.unblockTitle')}
                                     >
                                         <Trash2 size={14} />
-                                        <span>Débloquer</span>
+                                        <span>{t('security.unblock')}</span>
                                     </button>
                                 </div>
                             ))}
@@ -623,17 +625,17 @@ export const SecuritySection: React.FC = () => {
             </Section>
 
             {/* CORS Configuration Section - Full Width */}
-            <Section title="Configuration CORS" icon={Globe} iconColor="cyan">
+            <Section title={t('security.corsTitle')} icon={Globe} iconColor="cyan">
                 <div className="space-y-4">
                     <div className="p-3 bg-blue-900/10 border border-blue-700/30 rounded-lg">
                         <div className="flex items-start gap-2">
                             <Info size={16} className="text-blue-400 mt-0.5 flex-shrink-0" />
                             <div className="flex-1">
                                 <p className="text-xs text-blue-300 mb-1">
-                                    <strong>Configuration CORS pour proxy et accès externe</strong>
+                                    <strong>{t('security.corsIntroTitle')}</strong>
                                 </p>
                                 <p className="text-xs text-gray-400">
-                                    Configurez les origines autorisées, méthodes HTTP et headers pour éviter les erreurs CORS avec des proxies locaux ou des accès externes.
+                                    {t('security.corsIntroDesc')}
                                 </p>
                             </div>
                         </div>
@@ -641,8 +643,8 @@ export const SecuritySection: React.FC = () => {
 
                     {/* Allowed Origins */}
                     <SettingRow
-                        label="Origines autorisées"
-                        description="Liste des domaines/IP autorisés à accéder à l'API. Utilisez * pour autoriser toutes les origines (non recommandé en production)."
+                        label={t('security.allowedOrigins')}
+                        description={t('security.allowedOriginsDesc')}
                     >
                         <div className="w-full space-y-2">
                             <div className="flex gap-2">
@@ -651,7 +653,7 @@ export const SecuritySection: React.FC = () => {
                                     value={newOrigin}
                                     onChange={(e) => setNewOrigin(e.target.value)}
                                     onKeyPress={(e) => e.key === 'Enter' && addOrigin()}
-                                    placeholder="https://example.com ou http://192.168.1.100:3000"
+                                    placeholder={t('security.originPlaceholder')}
                                     className="flex-1 px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500"
                                 />
                                 <button
@@ -659,7 +661,7 @@ export const SecuritySection: React.FC = () => {
                                     className="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded-lg transition-colors flex items-center gap-2"
                                 >
                                     <Plus size={14} />
-                                    <span>Ajouter</span>
+                                    <span>{t('security.add')}</span>
                                 </button>
                             </div>
                             {corsConfig?.allowedOrigins && corsConfig.allowedOrigins.length > 0 && (
@@ -673,7 +675,7 @@ export const SecuritySection: React.FC = () => {
                                             <button
                                                 onClick={() => removeOrigin(origin)}
                                                 className="text-red-400 hover:text-red-300 transition-colors"
-                                                title="Supprimer"
+                                                title={t('security.remove')}
                                             >
                                                 <Trash2 size={14} />
                                             </button>
@@ -682,15 +684,15 @@ export const SecuritySection: React.FC = () => {
                                 </div>
                             )}
                             {(!corsConfig?.allowedOrigins || corsConfig.allowedOrigins.length === 0) && (
-                                <p className="text-xs text-gray-500">Aucune origine configurée. Les valeurs par défaut seront utilisées.</p>
+                                <p className="text-xs text-gray-500">{t('security.noOriginsConfigured')}</p>
                             )}
                         </div>
                     </SettingRow>
 
                     {/* Allow Credentials */}
                     <SettingRow
-                        label="Autoriser les credentials"
-                        description="Permet l'envoi de cookies et headers d'authentification dans les requêtes cross-origin"
+                        label={t('security.allowCredentials')}
+                        description={t('security.allowCredentialsDesc')}
                     >
                         <div className="flex items-center gap-2">
                             <input
@@ -706,15 +708,15 @@ export const SecuritySection: React.FC = () => {
                                 className="w-4 h-4 text-blue-600 bg-[#1a1a1a] border-gray-700 rounded focus:ring-blue-500"
                             />
                             <span className="text-sm text-gray-400">
-                                {corsConfig?.allowCredentials !== undefined && corsConfig.allowCredentials ? 'Activé' : 'Désactivé'}
+                                {corsConfig?.allowCredentials !== undefined && corsConfig.allowCredentials ? t('security.enabled') : t('security.disabled')}
                             </span>
                         </div>
                     </SettingRow>
 
                     {/* Allowed Methods */}
                     <SettingRow
-                        label="Méthodes HTTP autorisées"
-                        description="Méthodes HTTP autorisées pour les requêtes cross-origin"
+                        label={t('security.allowedMethods')}
+                        description={t('security.allowedMethodsDesc')}
                     >
                         <div className="w-full space-y-2">
                             <div className="flex gap-2">
@@ -723,7 +725,7 @@ export const SecuritySection: React.FC = () => {
                                     value={newMethod}
                                     onChange={(e) => setNewMethod(e.target.value)}
                                     onKeyPress={(e) => e.key === 'Enter' && addMethod()}
-                                    placeholder="GET, POST, PUT, DELETE, etc."
+                                    placeholder={t('security.methodsPlaceholder')}
                                     className="flex-1 px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500"
                                 />
                                 <button
@@ -731,7 +733,7 @@ export const SecuritySection: React.FC = () => {
                                     className="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded-lg transition-colors flex items-center gap-2"
                                 >
                                     <Plus size={14} />
-                                    <span>Ajouter</span>
+                                    <span>{t('security.add')}</span>
                                 </button>
                             </div>
                             {corsConfig?.allowedMethods && corsConfig.allowedMethods.length > 0 && (
@@ -745,7 +747,7 @@ export const SecuritySection: React.FC = () => {
                                             <button
                                                 onClick={() => removeMethod(method)}
                                                 className="text-red-400 hover:text-red-300 transition-colors"
-                                                title="Supprimer"
+                                                title={t('security.remove')}
                                             >
                                                 <Trash2 size={14} />
                                             </button>
@@ -758,8 +760,8 @@ export const SecuritySection: React.FC = () => {
 
                     {/* Allowed Headers */}
                     <SettingRow
-                        label="Headers autorisés"
-                        description="Headers HTTP autorisés dans les requêtes cross-origin"
+                        label={t('security.allowedHeaders')}
+                        description={t('security.allowedHeadersDesc')}
                     >
                         <div className="w-full space-y-2">
                             <div className="flex gap-2">
@@ -768,7 +770,7 @@ export const SecuritySection: React.FC = () => {
                                     value={newHeader}
                                     onChange={(e) => setNewHeader(e.target.value)}
                                     onKeyPress={(e) => e.key === 'Enter' && addHeader()}
-                                    placeholder="Content-Type, Authorization, etc."
+                                    placeholder={t('security.headersPlaceholder')}
                                     className="flex-1 px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500"
                                 />
                                 <button
@@ -776,7 +778,7 @@ export const SecuritySection: React.FC = () => {
                                     className="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded-lg transition-colors flex items-center gap-2"
                                 >
                                     <Plus size={14} />
-                                    <span>Ajouter</span>
+                                    <span>{t('security.add')}</span>
                                 </button>
                             </div>
                             {corsConfig?.allowedHeaders && corsConfig.allowedHeaders.length > 0 && (
@@ -790,7 +792,7 @@ export const SecuritySection: React.FC = () => {
                                             <button
                                                 onClick={() => removeHeader(header)}
                                                 className="text-red-400 hover:text-red-300 transition-colors"
-                                                title="Supprimer"
+                                                title={t('security.remove')}
                                             >
                                                 <Trash2 size={14} />
                                             </button>
@@ -809,7 +811,7 @@ export const SecuritySection: React.FC = () => {
                             className="flex items-center gap-2 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white text-sm rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             {isLoading ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                            <span>Sauvegarder la configuration CORS</span>
+                            <span>{t('security.saveCors')}</span>
                         </button>
                     </div>
                 </div>
@@ -819,12 +821,12 @@ export const SecuritySection: React.FC = () => {
             <div className="p-4 bg-blue-900/10 border border-blue-700/30 rounded-lg">
                 <div className="flex items-center gap-2 mb-2">
                     <CheckCircle size={18} className="text-blue-400" />
-                    <h4 className="text-sm font-medium text-blue-400">Fonctionnalités actives</h4>
+                    <h4 className="text-sm font-medium text-blue-400">{t('security.activeFeaturesTitle')}</h4>
                 </div>
                 <ul className="space-y-1 text-xs text-gray-400">
-                    <li>• Protection contre les attaques brute force</li>
-                    <li>• Blocage automatique des IPs et comptes</li>
-                    <li>• Notifications de sécurité</li>
+                    <li>• {t('security.activeFeature1')}</li>
+                    <li>• {t('security.activeFeature2')}</li>
+                    <li>• {t('security.activeFeature3')}</li>
                 </ul>
             </div>
 
@@ -836,7 +838,7 @@ export const SecuritySection: React.FC = () => {
                     className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 rounded-lg text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
                 >
                     {isLoading ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
-                    <span>Sauvegarder les paramètres</span>
+                    <span>{t('security.saveSettings')}</span>
                 </button>
             </div>
         </div>

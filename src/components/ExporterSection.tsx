@@ -1,13 +1,18 @@
 /**
  * Exporter Section Component
- * 
+ *
  * Configuration for metrics export (Prometheus and InfluxDB)
+ * and overview stats (files count, .gz, active plugins, errors/anomalies placeholder).
  */
 
-import React, { useState, useEffect } from 'react';
-import { Share2, Server, Database, Save, Loader2, ExternalLink, AlertCircle, CheckCircle, Download, Upload, FileText } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Share2, Server, Database, Save, Loader2, ExternalLink, AlertCircle, CheckCircle, Download, Upload, FileText, Archive, Plug, AlertTriangle } from 'lucide-react';
 import { Section, SettingRow } from './SettingsSection';
 import { api } from '../api/client';
+import { usePluginStore } from '../stores/pluginStore';
+import { formatBytes } from '../utils/constants';
+import type { LogPluginStats } from '../types/logViewer';
 
 interface MetricsConfig {
     prometheus: {
@@ -49,12 +54,79 @@ export const ExporterSection: React.FC = () => {
     const [initialConfig, setInitialConfig] = useState<MetricsConfig | null>(null);
     const [publicUrl, setPublicUrl] = useState<string>('');
 
+    // Stats overview (files, .gz, plugins, errors; anomalies placeholder)
+    const [statsOverview, setStatsOverview] = useState<{
+        totalFiles: number;
+        gzCount: number;
+        totalSize: number;
+        plugins: Array<{ id: string; name: string; totalFiles: number; gzCount: number; readable: number; unreadable: number }>;
+        errorsCount: number;
+    } | null>(null);
+    const [statsOverviewLoading, setStatsOverviewLoading] = useState(false);
+
+    const { t } = useTranslation();
+    const { plugins } = usePluginStore();
+    const enabledLogPlugins = useMemo(() => {
+        const order = ['host-system', 'apache', 'npm', 'nginx'];
+        return plugins
+            .filter(p => p.enabled && order.includes(p.id))
+            .sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
+    }, [plugins]);
+
     useEffect(() => {
         // Load config first
         loadConfig();
         // Load public URL from system settings
         loadPublicUrl();
     }, []);
+
+    useEffect(() => {
+        if (enabledLogPlugins.length === 0) {
+            setStatsOverview(null);
+            return;
+        }
+        let cancelled = false;
+        setStatsOverviewLoading(true);
+        Promise.all(
+            enabledLogPlugins.map(p => api.get<LogPluginStats>(`/api/log-viewer/plugins/${p.id}/stats`))
+        ).then((responses) => {
+            if (cancelled) return;
+            let totalFiles = 0;
+            let gzCount = 0;
+            let totalSize = 0;
+            let errorsCount = 0;
+            const pluginList: typeof statsOverview.plugins = [];
+            responses.forEach((res, i) => {
+                if (!res.success || !res.result) return;
+                const plugin = enabledLogPlugins[i];
+                const r = res.result;
+                totalFiles += r.totalFiles ?? 0;
+                gzCount += r.gzCount ?? 0;
+                totalSize += r.totalSize ?? 0;
+                errorsCount += (r.errors?.length ?? 0);
+                pluginList.push({
+                    id: plugin.id,
+                    name: plugin.name,
+                    totalFiles: r.totalFiles ?? 0,
+                    gzCount: r.gzCount ?? 0,
+                    readable: r.readableFiles ?? 0,
+                    unreadable: r.unreadableFiles ?? 0
+                });
+            });
+            setStatsOverview({
+                totalFiles,
+                gzCount,
+                totalSize,
+                plugins: pluginList,
+                errorsCount
+            });
+        }).catch(() => {
+            if (!cancelled) setStatsOverview(null);
+        }).finally(() => {
+            if (!cancelled) setStatsOverviewLoading(false);
+        });
+        return () => { cancelled = true; };
+    }, [enabledLogPlugins]);
 
     // Load public URL from system settings
     const loadPublicUrl = async () => {
@@ -130,15 +202,15 @@ export const ExporterSection: React.FC = () => {
                 
                 setConfigMessage({
                     type: 'success',
-                    text: 'Configuration exportée avec succès'
+                    text: t('exporter.exportSuccess')
                 });
             } else {
-                throw new Error(response.error?.message || 'Échec de l\'export');
+                throw new Error(response.error?.message || t('exporter.exportError'));
             }
         } catch (error) {
             setConfigMessage({
                 type: 'error',
-                text: error instanceof Error ? error.message : 'Erreur lors de l\'export'
+                text: error instanceof Error ? error.message : t('exporter.exportErrorGeneric')
             });
         } finally {
             setIsExporting(false);
@@ -160,22 +232,22 @@ export const ExporterSection: React.FC = () => {
             });
             
             if (response.success && response.result) {
-                setConfigMessage({
-                    type: 'success',
-                    text: response.result.message || `Configuration importée : ${response.result.imported} plugin(s) configuré(s)`
-                });
+setConfigMessage({
+                type: 'success',
+                text: response.result.message || t('exporter.importSuccess', { count: response.result.imported })
+            });
                 
                 // Reload page after 2 seconds to apply changes
                 setTimeout(() => {
                     window.location.reload();
                 }, 2000);
             } else {
-                throw new Error(response.error?.message || 'Échec de l\'import');
+                throw new Error(response.error?.message || t('exporter.importError'));
             }
         } catch (error) {
             setConfigMessage({
                 type: 'error',
-                text: error instanceof Error ? error.message : 'Erreur lors de l\'import'
+                text: error instanceof Error ? error.message : t('exporter.importErrorGeneric')
             });
             setSelectedFile(null);
         }
@@ -198,7 +270,7 @@ export const ExporterSection: React.FC = () => {
             }
         } catch (error) {
             console.error('Failed to load metrics config:', error);
-            setMessage({ type: 'error', text: 'Erreur lors du chargement de la configuration' });
+            setMessage({ type: 'error', text: t('exporter.loadError') });
         } finally {
             setIsLoading(false);
         }
@@ -210,14 +282,14 @@ export const ExporterSection: React.FC = () => {
         try {
             const response = await api.post('/api/metrics/config', { config });
             if (response.success) {
-                setMessage({ type: 'success', text: 'Configuration sauvegardée avec succès !' });
+                setMessage({ type: 'success', text: t('exporter.saveSuccess') });
                 // Update initial config after save
                 setInitialConfig(JSON.parse(JSON.stringify(config)));
             } else {
-                setMessage({ type: 'error', text: response.error?.message || 'Erreur lors de la sauvegarde' });
+                setMessage({ type: 'error', text: response.error?.message || t('exporter.saveError') });
             }
         } catch (error) {
-            setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Erreur lors de la sauvegarde' });
+            setMessage({ type: 'error', text: error instanceof Error ? error.message : t('exporter.saveError') });
         } finally {
             setIsSaving(false);
         }
@@ -255,21 +327,21 @@ export const ExporterSection: React.FC = () => {
                 if (response.result.summary.errors === 0) {
                     setMessage({ 
                         type: 'success', 
-                        text: `Audit réussi : ${response.result.summary.success}/${response.result.summary.total} tests passés` 
+                        text: t('exporter.auditSuccess', { success: response.result.summary.success, total: response.result.summary.total }) 
                     });
                 } else {
                     setMessage({ 
                         type: 'error', 
-                        text: `Audit partiel : ${response.result.summary.errors} erreur(s) détectée(s)` 
+                        text: t('exporter.auditPartial', { count: response.result.summary.errors }) 
                     });
                 }
             } else {
-                throw new Error(response.error?.message || 'Échec de l\'audit');
+                throw new Error(response.error?.message || t('exporter.auditError'));
             }
         } catch (error) {
             setMessage({ 
                 type: 'error', 
-                text: error instanceof Error ? error.message : 'Erreur lors de l\'audit Prometheus' 
+                text: error instanceof Error ? error.message : t('exporter.auditErrorGeneric') 
             });
         } finally {
             setIsAuditing(false);
@@ -281,10 +353,10 @@ export const ExporterSection: React.FC = () => {
             const response = await api.get('/api/metrics/influxdb');
             if (response.success) {
                 // Show success message
-                setMessage({ type: 'success', text: 'Export InfluxDB réussi ! Les métriques sont disponibles.' });
+                setMessage({ type: 'success', text: t('exporter.influxTestSuccess') });
             }
         } catch (error) {
-            setMessage({ type: 'error', text: 'Erreur lors du test InfluxDB' });
+            setMessage({ type: 'error', text: t('exporter.influxTestError') });
         }
     };
 
@@ -304,10 +376,10 @@ export const ExporterSection: React.FC = () => {
                     <AlertCircle size={20} className="text-amber-400 mt-0.5 flex-shrink-0" />
                     <div className="flex-1">
                         <h4 className="text-sm font-medium text-amber-400 mb-1">
-                            Modifications non sauvegardées
+                            {t('exporter.unsavedTitle')}
                         </h4>
                         <p className="text-xs text-amber-300">
-                            Vous avez modifié la configuration des métriques. N'oubliez pas de cliquer sur <strong>"Sauvegarder la configuration"</strong> pour enregistrer vos changements.
+                            {t('exporter.unsavedHint')}
                         </p>
                     </div>
                 </div>
@@ -319,11 +391,80 @@ export const ExporterSection: React.FC = () => {
                 </div>
             )}
 
+            {/* Stats overview: files, .gz, active plugins, errors, anomalies (placeholder) */}
+            <Section title={t('exporter.overviewTitle')} icon={FileText} iconColor="amber">
+                <div className="space-y-4">
+                    {statsOverviewLoading ? (
+                        <div className="flex items-center gap-2 text-sm text-gray-400">
+                            <Loader2 size={18} className="animate-spin" />
+                            {t('exporter.loadingStats')}
+                        </div>
+                    ) : statsOverview ? (
+                        <>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                <div className="p-3 rounded-lg bg-theme-secondary border border-theme">
+                                    <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
+                                        <FileText size={14} />
+                                        {t('exporter.files')}
+                                    </div>
+                                    <div className="text-lg font-mono font-semibold text-theme-primary">{statsOverview.totalFiles.toLocaleString()}</div>
+                                </div>
+                                <div className="p-3 rounded-lg bg-theme-secondary border border-theme">
+                                    <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
+                                        <Archive size={14} />
+                                        {t('exporter.filesGz')}
+                                    </div>
+                                    <div className="text-lg font-mono font-semibold text-theme-primary">{statsOverview.gzCount.toLocaleString()}</div>
+                                </div>
+                                <div className="p-3 rounded-lg bg-theme-secondary border border-theme">
+                                    <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">{t('exporter.totalSize')}</div>
+                                    <div className="text-lg font-mono font-semibold text-theme-primary">{formatBytes(statsOverview.totalSize)}</div>
+                                </div>
+                                <div className="p-3 rounded-lg bg-theme-secondary border border-theme">
+                                    <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
+                                        <AlertCircle size={14} />
+                                        {t('exporter.errors')}
+                                    </div>
+                                    <div className="text-lg font-mono font-semibold text-theme-primary">{statsOverview.errorsCount}</div>
+                                </div>
+                            </div>
+                            <div className="p-3 rounded-lg bg-theme-secondary border border-theme">
+                                <div className="flex items-center gap-2 text-gray-400 text-xs mb-2">
+                                    <Plug size={14} />
+                                    {t('exporter.activePlugins')}
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    {statsOverview.plugins.map((p) => (
+                                        <span
+                                            key={p.id}
+                                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-200 text-sm"
+                                            title={t('exporter.pluginFilesTooltip', { files: p.totalFiles, gz: p.gzCount })}
+                                        >
+                                            {p.name}
+                                            <span className="font-mono text-xs text-gray-400">({p.totalFiles})</span>
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="p-3 rounded-lg bg-gray-900/40 border border-gray-700 border-dashed">
+                                <div className="flex items-center gap-2 text-gray-500 text-xs mb-1">
+                                    <AlertTriangle size={14} />
+                                    {t('exporter.errorsAnomalies')}
+                                </div>
+                                <p className="text-sm text-gray-500 italic">{t('exporter.errorsAnomaliesNotImplemented')}</p>
+                            </div>
+                        </>
+                    ) : (
+                        <p className="text-sm text-gray-400">{t('exporter.noActivePlugin')}</p>
+                    )}
+                </div>
+            </Section>
+
             {/* Prometheus Section */}
-            <Section title="Prometheus" icon={Server} iconColor="orange">
+            <Section title={t('exporter.prometheusTitle')} icon={Server} iconColor="orange">
                 <SettingRow
-                    label="Activer l'export Prometheus"
-                    description="Expose les métriques au format Prometheus sur /api/metrics/prometheus"
+                    label={t('exporter.enablePrometheus')}
+                    description={t('exporter.prometheusDesc')}
                 >
                     <div className="flex items-center gap-2">
                         <input
@@ -339,10 +480,10 @@ export const ExporterSection: React.FC = () => {
                             {config.prometheus.enabled ? (
                                 <span className="flex items-center gap-1 text-green-400">
                                     <CheckCircle size={14} />
-                                    Activé
+                                    {t('exporter.enabled')}
                                 </span>
                             ) : (
-                                'Désactivé'
+                                t('exporter.disabled')
                             )}
                         </span>
                     </div>
@@ -351,8 +492,8 @@ export const ExporterSection: React.FC = () => {
                 {config.prometheus.enabled && (
                     <>
                         <SettingRow
-                            label="Port du serveur"
-                            description="Port a changer si vous le souhaitez. Utilisé pour l'URL des métriques Prometheus."
+                            label={t('exporter.serverPort')}
+                            description={t('exporter.serverPortDesc')}
                         >
                             <div className="flex items-center gap-2">
                                 <input
@@ -369,16 +510,16 @@ export const ExporterSection: React.FC = () => {
                                     }}
                                     className="w-32 px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 />
-                                <span className="text-sm text-gray-400">port</span>
+                                <span className="text-sm text-gray-400">{t('exporter.port')}</span>
                                 <span className="text-xs text-gray-500">
-                                    (défaut: {getDefaultPort()})
+                                    {t('exporter.defaultPort', { port: getDefaultPort() })}
                                 </span>
                             </div>
                         </SettingRow>
 
                         <SettingRow
-                            label="Chemin de l'endpoint"
-                            description="Chemin pour accéder aux métriques Prometheus"
+                            label={t('exporter.endpointPath')}
+                            description={t('exporter.endpointPathDesc')}
                         >
                             <div className="flex items-center gap-2">
                                 <input
@@ -395,8 +536,8 @@ export const ExporterSection: React.FC = () => {
                         </SettingRow>
 
                         <SettingRow
-                            label="URL de l'endpoint"
-                            description="URL complète pour récupérer les métriques Prometheus"
+                            label={t('exporter.endpointUrl')}
+                            description={t('exporter.endpointUrlDesc')}
                         >
                             <div className="w-full">
                                 <div className="flex items-center gap-2 w-full">
@@ -412,7 +553,7 @@ export const ExporterSection: React.FC = () => {
                                         className="px-4 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg text-white text-sm transition-colors flex items-center gap-2 flex-shrink-0 whitespace-nowrap"
                                     >
                                         <ExternalLink size={16} />
-                                        Tester
+                                        {t('exporter.test')}
                                     </button>
                                     <button
                                         onClick={auditPrometheus}
@@ -420,7 +561,7 @@ export const ExporterSection: React.FC = () => {
                                         className="px-4 py-3 bg-orange-600 hover:bg-orange-700 rounded-lg text-white text-sm transition-colors flex items-center gap-2 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                                     >
                                         {isAuditing ? <Loader2 size={16} className="animate-spin" /> : <AlertCircle size={16} />}
-                                        Audit
+                                        {t('exporter.audit')}
                                     </button>
                                 </div>
                             </div>
@@ -429,13 +570,13 @@ export const ExporterSection: React.FC = () => {
                         {auditResult && (
                             <div className="mt-4 p-4 bg-gray-900/50 border border-gray-700 rounded-lg">
                                 <div className="flex items-center justify-between mb-3">
-                                    <h4 className="text-sm font-semibold text-gray-300">Résultats de l'audit</h4>
+                                    <h4 className="text-sm font-semibold text-gray-300">{t('exporter.auditResultsTitle')}</h4>
                                     <span className={`text-xs px-2 py-1 rounded ${
                                         auditResult.summary.errors === 0 
                                             ? 'bg-green-900/40 text-green-400' 
                                             : 'bg-orange-900/40 text-orange-400'
                                     }`}>
-                                        {auditResult.summary.success}/{auditResult.summary.total} réussis
+                                        {t('exporter.auditPassed', { success: auditResult.summary.success, total: auditResult.summary.total })}
                                     </span>
                                 </div>
                                 <div className="space-y-2">
@@ -452,16 +593,16 @@ export const ExporterSection: React.FC = () => {
                                                         ? 'bg-green-700/50 text-green-300' 
                                                         : 'bg-red-700/50 text-red-300'
                                                 }`}>
-                                                    {result.status === 'success' ? 'OK' : 'ERREUR'}
+                                                    {result.status === 'success' ? t('exporter.ok') : t('exporter.error')}
                                                 </span>
                                             </div>
                                             <p className="text-gray-400">{result.message}</p>
                                             {result.metricsCount !== undefined && (
-                                                <p className="text-gray-500 mt-1">Métriques: {result.metricsCount}</p>
+                                                <p className="text-gray-500 mt-1">{t('exporter.metricsCount', { count: result.metricsCount })}</p>
                                             )}
                                             {result.sampleMetrics && result.sampleMetrics.length > 0 && (
                                                 <div className="mt-1">
-                                                    <p className="text-gray-500 text-[10px]">Exemples: {result.sampleMetrics.slice(0, 5).join(', ')}</p>
+                                                    <p className="text-gray-500 text-[10px]">{t('exporter.samples')} {result.sampleMetrics.slice(0, 5).join(', ')}</p>
                                                 </div>
                                             )}
                                             {result.errors && result.errors.length > 0 && (
@@ -479,7 +620,7 @@ export const ExporterSection: React.FC = () => {
 
                         <div className="mt-4 p-3 bg-blue-900/20 border border-blue-700/50 rounded-lg">
                             <p className="text-xs text-blue-300 mb-2">
-                                <strong>Configuration Prometheus :</strong>
+                                <strong>{t('exporter.prometheusConfigTitle')}</strong>
                             </p>
                             <pre className="text-xs text-gray-400 overflow-x-auto">
 {`scrape_configs:
@@ -490,8 +631,7 @@ export const ExporterSection: React.FC = () => {
     metrics_path: '/api/metrics/prometheus'`}
                             </pre>
                             <p className="text-xs text-blue-400 mt-2">
-                                <strong>Note :</strong> Le port configuré ({config.prometheus.port || getDefaultPort()}) correspond au port réel du serveur backend. 
-                                L'endpoint est accessible à <code className="text-blue-300">/api/metrics/prometheus</code>.
+                                <strong>{t('exporter.prometheusNote', { port: config.prometheus.port || getDefaultPort() })}</strong>
                             </p>
                         </div>
                     </>
@@ -499,10 +639,10 @@ export const ExporterSection: React.FC = () => {
             </Section>
 
             {/* InfluxDB Section */}
-            <Section title="InfluxDB" icon={Database} iconColor="cyan">
+            <Section title={t('exporter.influxTitle')} icon={Database} iconColor="cyan">
                 <SettingRow
-                    label="Activer l'export InfluxDB"
-                    description="Exporte les métriques au format InfluxDB Line Protocol"
+                    label={t('exporter.enableInflux')}
+                    description={t('exporter.influxDesc')}
                 >
                     <div className="flex items-center gap-2">
                         <input
@@ -518,10 +658,10 @@ export const ExporterSection: React.FC = () => {
                             {config.influxdb.enabled ? (
                                 <span className="flex items-center gap-1 text-green-400">
                                     <CheckCircle size={14} />
-                                    Activé
+                                    {t('exporter.enabled')}
                                 </span>
                             ) : (
-                                'Désactivé'
+                                t('exporter.disabled')
                             )}
                         </span>
                     </div>
@@ -530,8 +670,8 @@ export const ExporterSection: React.FC = () => {
                 {config.influxdb.enabled && (
                     <>
                         <SettingRow
-                            label="URL du serveur InfluxDB"
-                            description="URL complète du serveur InfluxDB (ex: http://localhost:8086)"
+                            label={t('exporter.influxUrl')}
+                            description={t('exporter.influxUrlDesc')}
                         >
                             <input
                                 type="text"
@@ -546,8 +686,8 @@ export const ExporterSection: React.FC = () => {
                         </SettingRow>
 
                         <SettingRow
-                            label="Base de données"
-                            description="Nom de la base de données InfluxDB"
+                            label={t('exporter.influxDatabase')}
+                            description={t('exporter.influxDatabaseDesc')}
                         >
                             <input
                                 type="text"
@@ -562,8 +702,8 @@ export const ExporterSection: React.FC = () => {
                         </SettingRow>
 
                         <SettingRow
-                            label="Nom d'utilisateur"
-                            description="Nom d'utilisateur pour l'authentification InfluxDB (optionnel)"
+                            label={t('exporter.influxUsername')}
+                            description={t('exporter.influxUsernameDesc')}
                         >
                             <input
                                 type="text"
@@ -578,8 +718,8 @@ export const ExporterSection: React.FC = () => {
                         </SettingRow>
 
                         <SettingRow
-                            label="Mot de passe"
-                            description="Mot de passe pour l'authentification InfluxDB (optionnel)"
+                            label={t('exporter.influxPassword')}
+                            description={t('exporter.influxPasswordDesc')}
                         >
                             <input
                                 type="password"
@@ -594,8 +734,8 @@ export const ExporterSection: React.FC = () => {
                         </SettingRow>
 
                         <SettingRow
-                            label="Rétention"
-                            description="Durée de rétention des données (ex: 30d, 1w, 1h)"
+                            label={t('exporter.retention')}
+                            description={t('exporter.retentionDesc')}
                         >
                             <input
                                 type="text"
@@ -611,14 +751,14 @@ export const ExporterSection: React.FC = () => {
 
                         <div className="mt-4 p-3 bg-purple-900/20 border border-purple-700/50 rounded-lg">
                             <p className="text-xs text-purple-300 mb-2">
-                                <strong>Note :</strong> L'export InfluxDB est disponible via l'endpoint <code className="text-purple-400">/api/metrics/influxdb</code>
+                                <strong>{t('exporter.influxNote')}</strong>
                             </p>
                             <button
                                 onClick={testInfluxDB}
                                 className="mt-2 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 rounded text-white text-xs transition-colors flex items-center gap-2"
                             >
                                 <ExternalLink size={12} />
-                                Tester l'export
+                                {t('exporter.testExport')}
                             </button>
                         </div>
                     </>
@@ -633,16 +773,16 @@ export const ExporterSection: React.FC = () => {
                     className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     {isSaving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
-                    <span>Sauvegarder la configuration</span>
+                    <span>{t('exporter.saveConfig')}</span>
                 </button>
             </div>
 
             {/* Configuration Export/Import Section */}
-            <Section title="Export/Import de Configuration" icon={FileText} iconColor="amber">
+            <Section title={t('exporter.exportImportTitle')} icon={FileText} iconColor="amber">
                 <div className="space-y-4">
                     <SettingRow
-                        label="Exporter la configuration"
-                        description="Téléchargez la configuration complète de l'application (plugins, paramètres) au format .conf"
+                        label={t('exporter.exportConfig')}
+                        description={t('exporter.exportConfigDesc')}
                     >
                         <button
                             onClick={handleExportConfig}
@@ -650,13 +790,13 @@ export const ExporterSection: React.FC = () => {
                             className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             {isExporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
-                            <span>Exporter</span>
+                            <span>{t('exporter.exportButton')}</span>
                         </button>
                     </SettingRow>
 
                     <SettingRow
-                        label="Importer la configuration"
-                        description="Importez une configuration depuis un fichier .conf (remplace la configuration actuelle)"
+                        label={t('exporter.importConfig')}
+                        description={t('exporter.importConfigDesc')}
                     >
                         <div className="flex items-center gap-2">
                             <input
@@ -671,7 +811,7 @@ export const ExporterSection: React.FC = () => {
                                 className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white transition-colors cursor-pointer"
                             >
                                 <Upload size={16} />
-                                <span>Sélectionner un fichier</span>
+                                <span>{t('exporter.selectFile')}</span>
                             </label>
                             {selectedFile && (
                                 <span className="text-sm text-gray-400">{selectedFile.name}</span>

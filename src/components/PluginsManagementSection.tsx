@@ -5,6 +5,7 @@
  */
 
 import React, { useEffect, useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Settings, Power, CheckCircle, XCircle, AlertCircle, ExternalLink, Archive } from 'lucide-react';
 import { usePluginStore, type Plugin } from '../stores/pluginStore';
 import { Section, SettingRow } from './SettingsSection';
@@ -14,6 +15,7 @@ import { api } from '../api/client';
 import { Tooltip } from './ui/Tooltip';
 
 export const PluginsManagementSection: React.FC = () => {
+    const { t } = useTranslation();
     const { plugins, pluginStats, isLoading, fetchPlugins, updatePluginConfig } = usePluginStore();
     const [expandedPluginId, setExpandedPluginId] = useState<string | null>(null);
     const [osType, setOsType] = useState<string | undefined>(undefined);
@@ -104,7 +106,7 @@ export const PluginsManagementSection: React.FC = () => {
 
     return (
         <>
-            <Section title="Gestion des plugins" icon={Settings} iconColor="emerald">
+            <Section title={t('admin.pluginsSection.title')} icon={Settings} iconColor="emerald">
                 <div className="space-y-3">
                     {sortedPlugins.map((plugin) => (
                         <div key={plugin.id}>
@@ -154,17 +156,17 @@ export const PluginsManagementSection: React.FC = () => {
                                     {plugin.connectionStatus ? (
                                         <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-emerald-500/20 border border-emerald-500/30 rounded text-emerald-400 text-[10px] font-medium">
                                             <CheckCircle size={11} />
-                                            <span>Connecté</span>
+                                            <span>{t('admin.pluginsSection.connected')}</span>
                                         </div>
                                     ) : plugin.enabled ? (
                                         <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-yellow-500/20 border border-yellow-500/30 rounded text-yellow-400 text-[10px] font-medium">
                                             <AlertCircle size={11} />
-                                            <span>Non connecté</span>
+                                            <span>{t('admin.pluginsSection.notConnected')}</span>
                                         </div>
                                     ) : (
                                         <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-gray-500/20 border border-gray-500/30 rounded text-gray-400 text-[10px] font-medium">
                                             <XCircle size={11} />
-                                            <span>Désactivé</span>
+                                            <span>{t('admin.pluginsSection.disabled')}</span>
                                         </div>
                                     )}
                                 </div>
@@ -180,7 +182,7 @@ export const PluginsManagementSection: React.FC = () => {
                             {/* Actions */}
                             <div className="flex items-center justify-between pt-2.5 mt-auto">
                                 <div className="flex items-center gap-2">
-                                    <span className="text-[10px] text-theme-tertiary font-medium">Actif</span>
+                                    <span className="text-[10px] text-theme-tertiary font-medium">{t('admin.pluginsSection.active')}</span>
                                     <button
                                         onClick={() => handleToggle(plugin.id, !plugin.enabled)}
                                         className={`relative w-9 h-5 rounded-full transition-all ${
@@ -197,8 +199,8 @@ export const PluginsManagementSection: React.FC = () => {
                                 <div className="flex items-center gap-1.5">
                                     {['host-system', 'apache', 'nginx', 'npm'].includes(plugin.id) && (
                                         <Tooltip content={(plugin.settings?.readCompressed as boolean) 
-                                            ? 'Désactiver la lecture des fichiers compressés (.gz)' 
-                                            : 'Activer la lecture des fichiers compressés (.gz)'}>
+                                            ? t('admin.pluginsSection.tooltipCompressedOn') 
+                                            : t('admin.pluginsSection.tooltipCompressedOff')}>
                                             <button
                                                 onClick={(e) => handleToggleCompressed(plugin.id, e)}
                                                 className={`p-1.5 rounded-lg transition-all hover:shadow-lg cursor-help ${
@@ -211,7 +213,7 @@ export const PluginsManagementSection: React.FC = () => {
                                             </button>
                                         </Tooltip>
                                     )}
-                                    <Tooltip content={expandedPluginId === plugin.id ? 'Fermer les options de configuration' : 'Ouvrir les options de configuration'}>
+                                    <Tooltip content={expandedPluginId === plugin.id ? t('admin.pluginsSection.tooltipOptionsClose') : t('admin.pluginsSection.tooltipOptionsOpen')}>
                                         <button
                                             onClick={(e) => {
                                                 e.stopPropagation();

@@ -8,6 +8,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { RefreshCw, CheckCircle, XCircle, Code, Wand2, FileText, AlertCircle, Trash2, Plus } from 'lucide-react';
 import { api } from '../../api/client';
 import { Button } from '../ui/Button';
@@ -62,6 +63,7 @@ export const HostSystemFilesManager: React.FC<HostSystemFilesManagerProps> = ({
     currentConfig,
     onConfigChange
 }) => {
+    const { t } = useTranslation();
     const [systemBaseFiles, setSystemBaseFiles] = useState<SystemBaseFile[]>(currentConfig?.systemBaseFiles || []);
     const [autoDetectedFiles, setAutoDetectedFiles] = useState<AutoDetectedFile[]>(currentConfig?.autoDetectedFiles || []);
     const [customFiles, setCustomFiles] = useState<CustomFile[]>(currentConfig?.customFiles || []);
@@ -253,22 +255,22 @@ export const HostSystemFilesManager: React.FC<HostSystemFilesManagerProps> = ({
                 <div className="flex items-center justify-between mb-3">
                     <h3 className="text-sm font-semibold text-white flex items-center gap-2">
                         <FileText size={16} className="text-green-400" />
-                        Fichiers Système de Base
+                        {t('hostSystemFiles.systemBase')}
                     </h3>
                     <span className="text-xs text-gray-500 bg-green-500/20 px-2 py-1 rounded border border-green-500/30">
-                        {systemBaseFiles.filter(f => f.enabled).length} activé(s)
+                        {t('hostSystemFiles.enabledCount', { count: systemBaseFiles.filter(f => f.enabled).length })}
                     </span>
                 </div>
                 <p className="text-xs text-gray-500 mb-3">
-                    Fichiers système critiques détectés automatiquement avec regex standard validée
+                    {t('hostSystemFiles.systemBaseHelp')}
                 </p>
                 {isLoading ? (
                     <div className="text-center py-4 text-gray-500 text-sm">
                         <RefreshCw size={16} className="animate-spin mx-auto mb-2" />
-                        Chargement...
+                        {t('pluginOptions.loading')}
                     </div>
                 ) : systemBaseFiles.length === 0 ? (
-                    <div className="text-center py-4 text-gray-500 text-xs">Aucun fichier système détecté</div>
+                    <div className="text-center py-4 text-gray-500 text-xs">{t('hostSystemFiles.noSystemFiles')}</div>
                 ) : (
                     <div className="space-y-2 max-h-48 overflow-y-auto">
                         {systemBaseFiles.map((file, idx) => (
@@ -284,11 +286,11 @@ export const HostSystemFilesManager: React.FC<HostSystemFilesManagerProps> = ({
                                 </span>
                                 <span className="text-xs text-gray-500 px-2 py-0.5 bg-gray-800 rounded">{file.type}</span>
                                 {file.validated && (
-                                    <CheckCircle size={14} className="text-green-400" title="Regex validée" />
+                                    <CheckCircle size={14} className="text-green-400" title={t('hostSystemFiles.regexValidated')} />
                                 )}
                                 {file.isSystemCritical && (
                                     <span className="text-xs text-green-400 bg-green-500/20 px-1.5 py-0.5 rounded border border-green-500/30">
-                                        Système
+                                        {t('hostSystemFiles.system')}
                                     </span>
                                 )}
                             </div>
@@ -302,17 +304,17 @@ export const HostSystemFilesManager: React.FC<HostSystemFilesManagerProps> = ({
                 <div className="flex items-center justify-between mb-3">
                     <h3 className="text-sm font-semibold text-white flex items-center gap-2">
                         <Wand2 size={16} className="text-blue-400" />
-                        Fichiers Auto-détectés
+                        {t('hostSystemFiles.autoDetected')}
                     </h3>
                     <span className="text-xs text-gray-500 bg-blue-500/20 px-2 py-1 rounded border border-blue-500/30">
-                        {autoDetectedFiles.filter(f => f.enabled).length} activé(s)
+                        {t('hostSystemFiles.enabledCount', { count: autoDetectedFiles.filter(f => f.enabled).length })}
                     </span>
                 </div>
                 <p className="text-xs text-gray-500 mb-3">
-                    Fichiers détectés automatiquement avec regex standard validée (non-système)
+                    {t('hostSystemFiles.autoDetectedHelp')}
                 </p>
                 {autoDetectedFiles.length === 0 ? (
-                    <div className="text-center py-4 text-gray-500 text-xs">Aucun fichier auto-détecté</div>
+                    <div className="text-center py-4 text-gray-500 text-xs">{t('hostSystemFiles.noAutoDetected')}</div>
                 ) : (
                     <div className="space-y-2 max-h-48 overflow-y-auto">
                         {autoDetectedFiles.map((file, idx) => (
@@ -328,7 +330,7 @@ export const HostSystemFilesManager: React.FC<HostSystemFilesManagerProps> = ({
                                 </span>
                                 <span className="text-xs text-gray-500 px-2 py-0.5 bg-gray-800 rounded">{file.parserType}</span>
                                 {file.validated && (
-                                    <CheckCircle size={14} className="text-blue-400" title="Regex validée" />
+                                    <CheckCircle size={14} className="text-blue-400" title={t('hostSystemFiles.regexValidated')} />
                                 )}
                                 <button
                                     type="button"
@@ -348,17 +350,17 @@ export const HostSystemFilesManager: React.FC<HostSystemFilesManagerProps> = ({
                 <div className="flex items-center justify-between mb-3">
                     <h3 className="text-sm font-semibold text-white flex items-center gap-2">
                         <Code size={16} className="text-purple-400" />
-                        Fichiers Custom
+                        {t('hostSystemFiles.customFiles')}
                     </h3>
                     <span className="text-xs text-gray-500 bg-purple-500/20 px-2 py-1 rounded border border-purple-500/30">
-                        {customFiles.filter(f => f.enabled).length} activé(s)
+                        {t('hostSystemFiles.enabledCount', { count: customFiles.filter(f => f.enabled).length })}
                     </span>
                 </div>
                 <p className="text-xs text-gray-500 mb-3">
-                    Fichiers nécessitant une regex custom (définie manuellement)
+                    {t('hostSystemFiles.customFilesHelp')}
                 </p>
                 {customFiles.length === 0 ? (
-                    <div className="text-center py-4 text-gray-500 text-xs">Aucun fichier custom</div>
+                    <div className="text-center py-4 text-gray-500 text-xs">{t('hostSystemFiles.noCustomFiles')}</div>
                 ) : (
                     <div className="space-y-2 max-h-64 overflow-y-auto">
                         {customFiles.map((file, idx) => (
@@ -382,12 +384,12 @@ export const HostSystemFilesManager: React.FC<HostSystemFilesManagerProps> = ({
                                         {isDetecting === file.path ? (
                                             <>
                                                 <RefreshCw size={12} className="animate-spin" />
-                                                Détection...
+                                                {t('hostSystemFiles.detecting')}
                                             </>
                                         ) : (
                                             <>
                                                 <Wand2 size={12} />
-                                                Détecter
+                                                {t('hostSystemFiles.detect')}
                                             </>
                                         )}
                                     </button>
@@ -406,7 +408,7 @@ export const HostSystemFilesManager: React.FC<HostSystemFilesManagerProps> = ({
                                             onChange={(e) => setCustomRegexValue(e.target.value)}
                                             className="w-full px-2 py-1 bg-[#0f0f0f] border border-gray-800 rounded text-xs text-white font-mono focus:outline-none focus:ring-2 focus:ring-purple-500"
                                             rows={3}
-                                            placeholder="Entrez votre regex..."
+                                            placeholder={t('hostSystemFiles.enterRegex')}
                                         />
                                         <div className="flex gap-2">
                                             <button
@@ -414,7 +416,7 @@ export const HostSystemFilesManager: React.FC<HostSystemFilesManagerProps> = ({
                                                 onClick={() => saveCustomRegex(file.path)}
                                                 className="text-xs px-2 py-1 bg-green-500/20 hover:bg-green-500/30 text-green-400 rounded transition-colors"
                                             >
-                                                Enregistrer
+                                                {t('hostSystemFiles.save')}
                                             </button>
                                             <button
                                                 type="button"
@@ -424,7 +426,7 @@ export const HostSystemFilesManager: React.FC<HostSystemFilesManagerProps> = ({
                                                 }}
                                                 className="text-xs px-2 py-1 bg-gray-500/20 hover:bg-gray-500/30 text-gray-400 rounded transition-colors"
                                             >
-                                                Annuler
+                                                {t('hostSystemFiles.cancel')}
                                             </button>
                                         </div>
                                     </div>
@@ -437,7 +439,7 @@ export const HostSystemFilesManager: React.FC<HostSystemFilesManagerProps> = ({
                                         ) : (
                                             <div className="text-xs text-yellow-400 bg-yellow-500/10 p-2 rounded border border-yellow-500/30 flex items-center gap-2">
                                                 <AlertCircle size={12} />
-                                                Regex custom requise
+                                                {t('hostSystemFiles.customRegexRequired')}
                                             </div>
                                         )}
                                         <button
@@ -445,7 +447,7 @@ export const HostSystemFilesManager: React.FC<HostSystemFilesManagerProps> = ({
                                             onClick={() => startEditingRegex(file.path)}
                                             className="mt-2 text-xs px-2 py-1 bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 rounded transition-colors"
                                         >
-                                            {file.customParserConfig.regex ? 'Modifier' : 'Ajouter'} Regex
+                                            {file.customParserConfig.regex ? t('hostSystemFiles.editRegex') : t('hostSystemFiles.addRegex')}
                                         </button>
                                     </div>
                                 )}
@@ -464,7 +466,7 @@ export const HostSystemFilesManager: React.FC<HostSystemFilesManagerProps> = ({
                     className="text-xs px-3 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded transition-colors flex items-center gap-2 disabled:opacity-50"
                 >
                     <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
-                    Actualiser la détection
+                    {t('hostSystemFiles.refreshDetection')}
                 </button>
             </div>
         </div>

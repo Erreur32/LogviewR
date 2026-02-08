@@ -5,7 +5,8 @@
  */
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { CheckCircle, AlertCircle, XCircle, FileText, RefreshCw, ExternalLink, Code } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { CheckCircle, AlertCircle, XCircle, RefreshCw, Code } from 'lucide-react';
 import { api } from '../../api/client';
 import type { LogPluginStats } from '../../types/logViewer';
 import { Badge } from '../ui/Badge';
@@ -26,6 +27,7 @@ export const LogPluginStatsCard: React.FC<LogPluginStatsCardProps> = ({
     pluginName,
     onViewLogs 
 }) => {
+    const { t } = useTranslation();
     const [stats, setStats] = useState<LogPluginStats | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isLoadingCompressed, setIsLoadingCompressed] = useState(false);
@@ -161,17 +163,17 @@ export const LogPluginStatsCard: React.FC<LogPluginStatsCardProps> = ({
     };
 
     const getStatusText = () => {
-        if (!stats) return 'Chargement...';
+        if (!stats) return t('pluginCard.loading');
         
         switch (stats.status) {
             case 'ok':
-                return 'Tout est OK';
+                return t('pluginCard.statusOk');
             case 'warning':
-                return 'Avertissement';
+                return t('pluginCard.statusWarning');
             case 'error':
-                return 'Erreur';
+                return t('pluginCard.statusError');
             default:
-                return 'Inconnu';
+                return t('pluginCard.statusUnknown');
         }
     };
 
@@ -180,7 +182,7 @@ export const LogPluginStatsCard: React.FC<LogPluginStatsCardProps> = ({
             <div className="bg-[#1a1a1a] border border-gray-700 rounded-lg p-6">
                 <div className="flex items-center justify-center py-8">
                     <RefreshCw size={24} className="text-gray-400 animate-spin" />
-                    <span className="ml-3 text-gray-400">Chargement des statistiques...</span>
+                    <span className="ml-3 text-gray-400">{t('pluginCard.loadingStats')}</span>
                 </div>
             </div>
         );
@@ -191,7 +193,7 @@ export const LogPluginStatsCard: React.FC<LogPluginStatsCardProps> = ({
             <div className="bg-[#1a1a1a] border border-red-700 rounded-lg p-6">
                 <div className="flex items-center gap-2 text-red-400">
                     <AlertCircle size={20} />
-                    <span>Erreur : {error}</span>
+                    <span>{t('pluginCard.error')} : {error}</span>
                 </div>
                 <Button
                     onClick={fetchStats}
@@ -200,7 +202,7 @@ export const LogPluginStatsCard: React.FC<LogPluginStatsCardProps> = ({
                     size="sm"
                 >
                     <RefreshCw size={16} />
-                    Réessayer
+                    {t('pluginCard.retry')}
                 </Button>
             </div>
         );
@@ -229,16 +231,16 @@ export const LogPluginStatsCard: React.FC<LogPluginStatsCardProps> = ({
                         {isLoadingCompressed && (
                             <div className="flex items-center gap-1 mt-0.5">
                                 <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse" />
-                                <span className="text-[10px] text-gray-400">Mise à jour...</span>
+                                <span className="text-[10px] text-gray-400">{t('pluginCard.updating')}</span>
                             </div>
                         )}
                     </div>
                 </button>
                 <Tooltip content={
-                    stats.status === 'ok' ? 'Tous les fichiers sont accessibles et lisibles' :
-                    stats.status === 'warning' ? 'Certains fichiers présentent des problèmes' :
-                    stats.status === 'error' ? 'Des erreurs empêchent la lecture des fichiers' :
-                    'Statut inconnu'
+                    stats.status === 'ok' ? t('pluginCard.tooltipAllOk') :
+                    stats.status === 'warning' ? t('pluginCard.tooltipWarning') :
+                    stats.status === 'error' ? t('pluginCard.tooltipError') :
+                    t('pluginCard.tooltipUnknown')
                 }>
                     <div className="flex items-center gap-1.5 cursor-help">
                         {getStatusIcon()}
@@ -252,23 +254,23 @@ export const LogPluginStatsCard: React.FC<LogPluginStatsCardProps> = ({
             {/* Stats Grid - Compact - Single Row */}
             <div className="flex items-center justify-between gap-2 mb-3">
                 <div className="flex items-center gap-2 flex-1">
-                    <Tooltip content="Nombre total de fichiers de logs détectés pour ce plugin">
+                    <Tooltip content={t('pluginCard.tooltipTotal')}>
                         <div className="bg-[#0f0f0f] rounded-lg px-2 py-1.5 border border-gray-800 cursor-help flex-1">
                             <div className="text-base font-bold text-white leading-tight">
                                 {stats.totalFiles}
                             </div>
-                            <div className="text-[9px] text-gray-400 leading-tight">Total</div>
+                            <div className="text-[9px] text-gray-400 leading-tight">{t('pluginCard.total')}</div>
                         </div>
                     </Tooltip>
-                    <Tooltip content="Nombre de fichiers de logs qui peuvent être lus et parsés">
+                    <Tooltip content={t('pluginCard.tooltipReadable')}>
                         <div className="bg-green-900/20 border border-green-700/50 rounded-lg px-2 py-1.5 cursor-help flex-1">
                             <div className="text-base font-bold text-green-400 leading-tight">
                                 {stats.readableFiles}
                             </div>
-                            <div className="text-[9px] text-gray-400 leading-tight">Lisibles</div>
+                            <div className="text-[9px] text-gray-400 leading-tight">{t('pluginCard.readable')}</div>
                         </div>
                     </Tooltip>
-                    <Tooltip content="Nombre de fichiers de logs qui ne peuvent pas être lus ou parsés">
+                    <Tooltip content={t('pluginCard.tooltipError')}>
                         <div className={`rounded-lg px-2 py-1.5 border cursor-help flex-1 ${
                             stats.unreadableFiles > 0 
                                 ? 'bg-red-900/20 border-red-700/50' 
@@ -279,11 +281,11 @@ export const LogPluginStatsCard: React.FC<LogPluginStatsCardProps> = ({
                             }`}>
                                 {stats.unreadableFiles}
                             </div>
-                            <div className="text-[9px] text-gray-400 leading-tight">Erreurs</div>
+                            <div className="text-[9px] text-gray-400 leading-tight">{t('pluginCard.errors')}</div>
                         </div>
                     </Tooltip>
                 </div>
-                <Tooltip content="Taille totale de tous les fichiers de logs pour ce plugin">
+                <Tooltip content={t('pluginCard.tooltipSize')}>
                     <div className="bg-yellow-900/20 border border-yellow-700/50 rounded-lg px-2 py-1.5 cursor-help">
                         <div className="text-sm font-bold text-yellow-200 leading-tight">
                             {stats.totalSize >= 1024 * 1024 * 1024
@@ -292,7 +294,7 @@ export const LogPluginStatsCard: React.FC<LogPluginStatsCardProps> = ({
                                 ? `${(stats.totalSize / (1024 * 1024)).toFixed(2)} MB`
                                 : `${(stats.totalSize / 1024).toFixed(2)} KB`}
                         </div>
-                        <div className="text-[9px] text-gray-400 leading-tight">Taille</div>
+                        <div className="text-[9px] text-gray-400 leading-tight">{t('pluginCard.size')}</div>
                     </div>
                 </Tooltip>
             </div>
@@ -300,7 +302,7 @@ export const LogPluginStatsCard: React.FC<LogPluginStatsCardProps> = ({
             {/* Files by Type - Compact */}
             {Object.keys(stats.filesByType).length > 0 && (
                 <div className="mb-4">
-                    <h4 className="text-xs font-medium text-gray-400 mb-2">Par type</h4>
+                    <h4 className="text-xs font-medium text-gray-400 mb-2">{t('pluginCard.byType')}</h4>
                     <div className="space-y-1.5">
                         {Object.entries(stats.filesByType).map(([type, typeStats]) => {
                             const stats = typeStats as { total: number; readable: number; unreadable: number };
@@ -336,7 +338,7 @@ export const LogPluginStatsCard: React.FC<LogPluginStatsCardProps> = ({
                 <div className="mb-6">
                     <h4 className="text-sm font-medium text-yellow-400 mb-2 flex items-center gap-2">
                         <AlertCircle size={16} />
-                        Erreurs ({stats.errors.length})
+                        {t('pluginCard.errorsCount')} ({stats.errors.length})
                     </h4>
                     <div className="space-y-1 max-h-32 overflow-y-auto">
                         {stats.errors.map((error, index) => (
@@ -352,7 +354,7 @@ export const LogPluginStatsCard: React.FC<LogPluginStatsCardProps> = ({
             <div className="mt-auto pt-3 border-t border-gray-700 flex flex-col items-center gap-2">
                 {/* Custom Regex Badge - Compact */}
                 {customRegexCount > 0 && (
-                    <Tooltip content={`${customRegexCount} regex personnalisée${customRegexCount > 1 ? 's' : ''} configurée${customRegexCount > 1 ? 's' : ''} pour ce plugin`}>
+                    <Tooltip content={`${customRegexCount} ${t('pluginCard.customRegexTooltip')}`}>
                         <div className="cursor-help">
                             <Badge 
                                 variant="purple" 

@@ -5,6 +5,36 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-02-08
+
+### Added
+
+#### Internationalisation (i18n)
+- **Traduction complète de l’administration** : namespaces et clés pour tous les onglets (Exporter, Database, Analysis, Notifications, Debug, Info). Tous les textes utilisent `t()` avec `fr.json` / `en.json`.
+- **Page Analytique** : namespace `analytics` (titres, sections plugins, plus gros fichiers, base de données, infos utilisateur, rôles). Composant `AnalyticsPage` entièrement traduit.
+- **Vue Log (LogTable)** : namespace `logViewer` pour la pagination (lignes par page, page X sur Y), les stats (lignes totales/valides/filtrées/illisibles), les tooltips des cellules (codes HTTP, taille, GZIP, upstream, temps de réponse, niveau, méthode HTTP). S’applique à Apache, Nginx, NPM et System.
+- **Footer** : namespace `footer` pour les tooltips des boutons Analytique et Administration, et les tooltips détaillés des badges de stats (fichiers lisibles, taille totale, taille .gz).
+
+#### Footer – UX
+- **Tooltips sur les boutons** : tooltips au survol pour le bouton Analytique (« Statistiques et infos détaillées ») et Administration (« Paramètres et administration »). Tooltips détaillés pour les badges de stats (fichiers, taille, .gz).
+- **Boutons icône seule** : boutons Analytique et Administration affichés en icône uniquement (sans texte) pour un footer plus compact.
+- **Effet au clic** : retour visuel au clic sur les boutons de navigation (Analytique, Administration, plugins) via `active:brightness-90`, sans décalage des autres boutons.
+
+#### Composant Tooltip
+- **Affichage fiable** : rendu du tooltip dans un portail (`createPortal` vers `document.body`) pour éviter tout masquage par le footer (overflow, z-index). Z-index porté à 10000.
+- **Position** : calcul de la position en `useLayoutEffect` avant affichage pour éviter un flash en (0,0). Contraintes pour rester dans le viewport.
+- **Option `wrap`** : tooltips longs (badges stats) avec retour à la ligne et `max-w-sm`.
+
+### Changed
+
+#### Licence
+- **Licence projet** : affichage dans l’onglet Info passé de « Privée » à « Public, MIT » (fr.json / en.json, clé `info.licenseValue`).
+
+#### Versions
+- **Fallback version serveur** : valeur par défaut dans `server/index.ts` et `server/routes/system.ts` alignée sur `0.2.0` lorsque `package.json` n’est pas lisible.
+
+---
+
 ## [0.1.16] - 2026-02-08
 
 ### Fixed
@@ -477,4 +507,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+[0.2.0]: https://github.com/Erreur32/LogviewR/releases/tag/v0.2.0
 [0.1.0]: https://github.com/Erreur32/LogviewR/releases/tag/v0.1.0

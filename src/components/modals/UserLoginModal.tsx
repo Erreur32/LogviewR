@@ -5,7 +5,8 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { X, LogIn, AlertCircle, AlertTriangle, ExternalLink } from 'lucide-react';
+import { X, LogIn, AlertCircle, AlertTriangle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useUserAuthStore } from '../../stores/userAuthStore';
 import { api } from '../../api/client';
 
@@ -16,6 +17,7 @@ interface UserLoginModalProps {
 }
 
 export const UserLoginModal: React.FC<UserLoginModalProps> = ({ isOpen, onClose, onSuccess }) => {
+    const { t } = useTranslation();
     const { login, isLoading, error, clearError } = useUserAuthStore();
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
@@ -67,7 +69,7 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({ isOpen, onClose,
                 <div className="flex items-center justify-between mb-6">
                     <h2 className="text-xl font-semibold text-white flex items-center gap-2">
                         <LogIn size={20} />
-                        Connexion
+                        {t('login.title')}
                     </h2>
                     <button
                         onClick={onClose}
@@ -84,29 +86,28 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({ isOpen, onClose,
                                 <AlertTriangle size={20} className="text-amber-400 mt-0.5 flex-shrink-0" />
                                 <div className="flex-1">
                                     <h3 className="text-sm font-semibold text-amber-400 mb-2">
-                                        ⚠️ JWT_SECRET non configuré
+                                        ⚠️ {t('login.jwtTitle')}
                                     </h3>
                                     <p className="text-xs text-amber-300 mb-3">
-                                        Le secret JWT n'est pas configuré ou utilise la valeur par défaut. 
-                                        <strong className="text-amber-200"> C'est un risque de sécurité important !</strong>
+                                        {t('login.jwtMessage')}
                                     </p>
                                     <div className="bg-amber-950/50 border border-amber-800 rounded p-3 mb-3">
-                                        <p className="text-xs font-semibold text-amber-200 mb-2">Comment corriger :</p>
+                                        <p className="text-xs font-semibold text-amber-200 mb-2">{t('login.jwtHowTo')}</p>
                                         <ol className="text-xs text-amber-300 space-y-1.5 list-decimal list-inside">
                                             <li>
-                                                <strong>Générer un secret sécurisé :</strong>
+                                                <strong>{t('login.jwtStep1')}</strong>
                                                 <code className="block mt-1 px-2 py-1 bg-black/50 rounded text-amber-100 font-mono text-[10px]">
                                                     openssl rand -base64 32
                                                 </code>
                                             </li>
                                             <li>
-                                                <strong>Docker Compose :</strong> Ajouter dans votre fichier <code className="text-amber-200">.env</code> ou <code className="text-amber-200">docker-compose.yml</code> :
+                                                <strong>{t('login.jwtStep2')}</strong>
                                                 <code className="block mt-1 px-2 py-1 bg-black/50 rounded text-amber-100 font-mono text-[10px]">
                                                     JWT_SECRET=votre_secret_genere_ici
                                                 </code>
                                             </li>
                                             <li>
-                                                <strong>Redémarrer le conteneur :</strong>
+                                                <strong>{t('login.jwtStep3')}</strong>
                                                 <code className="block mt-1 px-2 py-1 bg-black/50 rounded text-amber-100 font-mono text-[10px]">
                                                     docker-compose restart
                                                 </code>
@@ -114,7 +115,7 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({ isOpen, onClose,
                                         </ol>
                                     </div>
                                     <p className="text-xs text-amber-300/80 italic">
-                                        💡 Le message disparaîtra automatiquement une fois le JWT_SECRET correctement configuré et le conteneur redémarré.
+                                        💡 {t('login.jwtNote')}
                                     </p>
                                 </div>
                             </div>
@@ -130,7 +131,7 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({ isOpen, onClose,
 
                     <div>
                         <label htmlFor="username" className="block text-sm text-gray-400 mb-2">
-                            Nom d'utilisateur
+                            {t('login.username')}
                         </label>
                         <input
                             id="username"
@@ -146,7 +147,7 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({ isOpen, onClose,
 
                     <div>
                         <label htmlFor="password" className="block text-sm text-gray-400 mb-2">
-                            Mot de passe
+                            {t('login.password')}
                         </label>
                         <input
                             id="password"
@@ -165,14 +166,14 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({ isOpen, onClose,
                             onClick={onClose}
                             className="flex-1 px-4 py-2 bg-[#1a1a1a] border border-gray-700 rounded text-gray-300 hover:bg-[#252525] transition-colors"
                         >
-                            Annuler
+                            {t('login.cancel')}
                         </button>
                         <button
                             type="submit"
                             disabled={isLoading}
                             className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded text-white font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            {isLoading ? 'Connexion...' : 'Se connecter'}
+                            {isLoading ? t('login.submitting') : t('login.submit')}
                         </button>
                     </div>
                 </form>

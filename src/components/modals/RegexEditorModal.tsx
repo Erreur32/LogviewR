@@ -5,6 +5,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { X, Save, Code, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { api } from '../../api/client';
 
@@ -36,6 +37,7 @@ export const RegexEditorModal: React.FC<RegexEditorModalProps> = ({
     logType,
     onSave
 }) => {
+    const { t } = useTranslation();
     const [regex, setRegex] = useState('');
     const [defaultRegex, setDefaultRegex] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
@@ -94,7 +96,7 @@ export const RegexEditorModal: React.FC<RegexEditorModalProps> = ({
 
     const handleSave = async () => {
         if (!regex.trim()) {
-            setError('La regex ne peut pas être vide');
+            setError(t('regex.editorRegexRequired'));
             return;
         }
 
@@ -102,7 +104,7 @@ export const RegexEditorModal: React.FC<RegexEditorModalProps> = ({
         try {
             new RegExp(regex);
         } catch (err) {
-            setError('Regex invalide : ' + (err instanceof Error ? err.message : String(err)));
+            setError(t('regex.editorInvalidRegex', { message: err instanceof Error ? err.message : String(err) }));
             return;
         }
 
@@ -127,7 +129,7 @@ export const RegexEditorModal: React.FC<RegexEditorModalProps> = ({
                 setError(response.error?.message || 'Erreur lors de la sauvegarde');
             }
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Erreur lors de la sauvegarde');
+            setError(err instanceof Error ? err.message : t('regex.editorSaveError'));
         } finally {
             setIsSaving(false);
         }
@@ -135,12 +137,12 @@ export const RegexEditorModal: React.FC<RegexEditorModalProps> = ({
 
     const handleTest = () => {
         if (!testLine.trim()) {
-            setTestResult({ success: false, error: 'Veuillez entrer une ligne de test' });
+            setTestResult({ success: false, error: t('regex.editorEnterTestLine') });
             return;
         }
 
         if (!regex.trim()) {
-            setTestResult({ success: false, error: 'Veuillez entrer une regex' });
+            setTestResult({ success: false, error: t('regex.editorEnterRegex') });
             return;
         }
 
@@ -150,18 +152,18 @@ export const RegexEditorModal: React.FC<RegexEditorModalProps> = ({
             if (match) {
                 setTestResult({
                     success: true,
-                    matches: match.map((m, i) => `Groupe ${i}: ${m || '(vide)'}`)
+                    matches: match.map((m, i) => t('regex.editorGroupMatch', { index: i, value: m || t('regex.empty') }))
                 });
             } else {
                 setTestResult({
                     success: false,
-                    error: 'Aucune correspondance trouvée'
+                    error: t('regex.editorNoMatchFound')
                 });
             }
         } catch (err) {
             setTestResult({
                 success: false,
-                error: 'Regex invalide : ' + (err instanceof Error ? err.message : String(err))
+                error: t('regex.editorInvalidRegex', { message: err instanceof Error ? err.message : String(err) })
             });
         }
     };
@@ -186,7 +188,7 @@ export const RegexEditorModal: React.FC<RegexEditorModalProps> = ({
                         </div>
                         <div>
                             <h2 className="text-xl font-semibold text-white">
-                                Éditeur de Regex
+                                {t('regex.editorTitle')}
                             </h2>
                             <p className="text-sm text-gray-400 mt-1">
                                 {filePath.split('/').pop()}
@@ -214,12 +216,12 @@ export const RegexEditorModal: React.FC<RegexEditorModalProps> = ({
                     {defaultRegex && (
                         <div className="p-4 bg-blue-900/20 border border-blue-700/50 rounded-lg">
                             <div className="flex items-center justify-between mb-2">
-                                <h3 className="text-sm font-medium text-blue-400">Regex par défaut</h3>
+                                <h3 className="text-sm font-medium text-blue-400">{t('regex.editorDefaultRegex')}</h3>
                                 <button
                                     onClick={handleUseDefault}
                                     className="text-xs px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
                                 >
-                                    Utiliser
+                                    {t('regex.editorUseDefault')}
                                 </button>
                             </div>
                             <code className="text-xs text-gray-300 break-all block bg-[#1a1a1a] p-2 rounded border border-gray-800">
@@ -231,7 +233,7 @@ export const RegexEditorModal: React.FC<RegexEditorModalProps> = ({
                     {/* Regex Input */}
                     <div>
                         <label className="block text-sm font-medium text-white mb-2">
-                            Expression régulière (Regex)
+                            {t('regex.editorRegexLabel')}
                         </label>
                         <textarea
                             value={regex}
@@ -241,19 +243,19 @@ export const RegexEditorModal: React.FC<RegexEditorModalProps> = ({
                                 setError(null);
                                 setTestResult(null);
                             }}
-                            placeholder='Entrez votre regex ici (ex: ^(\S+)\s+-\s+-\s+\[([^\]]+)\]\s+...)'
+                            placeholder={t('regex.editorRegexPlaceholder')}
                             className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm font-mono focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
                             rows={4}
                         />
                         <p className="text-xs text-gray-400 mt-1">
-                            💡 Utilisez des groupes de capture avec des parenthèses pour extraire les champs
+                            💡 {t('regex.editorCaptureHint')}
                         </p>
                     </div>
 
                     {/* Test Section */}
                     <div>
                         <label className="block text-sm font-medium text-white mb-2">
-                            Tester la regex
+                            {t('regex.editorTestRegex')}
                         </label>
                         <div className="flex gap-2">
                             <input
@@ -263,7 +265,7 @@ export const RegexEditorModal: React.FC<RegexEditorModalProps> = ({
                                     setTestLine(e.target.value);
                                     setTestResult(null);
                                 }}
-                                placeholder="Collez une ligne de log à tester ici"
+                                placeholder={t('regex.editorTestLinePlaceholder')}
                                 className="flex-1 px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm font-mono focus:outline-none focus:border-purple-500"
                             />
                             <button
@@ -271,7 +273,7 @@ export const RegexEditorModal: React.FC<RegexEditorModalProps> = ({
                                 disabled={!regex.trim() || !testLine.trim()}
                                 className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 disabled:opacity-50 text-white text-sm rounded-lg transition-colors"
                             >
-                                Tester
+                                {t('regex.editorTestButton')}
                             </button>
                         </div>
                         {testResult && (
@@ -289,7 +291,7 @@ export const RegexEditorModal: React.FC<RegexEditorModalProps> = ({
                                     <div className="flex-1">
                                         {testResult.success ? (
                                             <div>
-                                                <p className="font-medium mb-1">Correspondance trouvée !</p>
+                                                <p className="font-medium mb-1">{t('regex.editorMatchFound')}</p>
                                                 <ul className="list-disc list-inside space-y-1 text-xs">
                                                     {testResult.matches?.map((match, idx) => (
                                                         <li key={idx} className="font-mono">{match}</li>
@@ -297,7 +299,7 @@ export const RegexEditorModal: React.FC<RegexEditorModalProps> = ({
                                                 </ul>
                                             </div>
                                         ) : (
-                                            <p>{testResult.error || 'Aucune correspondance'}</p>
+                                            <p>{testResult.error || t('regex.editorNoMatch')}</p>
                                         )}
                                     </div>
                                 </div>
@@ -312,7 +314,7 @@ export const RegexEditorModal: React.FC<RegexEditorModalProps> = ({
                         onClick={onClose}
                         className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-lg transition-colors"
                     >
-                        Annuler
+                        {t('regex.editorCancel')}
                     </button>
                     <button
                         onClick={handleSave}
@@ -322,12 +324,12 @@ export const RegexEditorModal: React.FC<RegexEditorModalProps> = ({
                         {isSaving ? (
                             <>
                                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                Sauvegarde...
+                                {t('regex.editorSaving')}
                             </>
                         ) : (
                             <>
                                 <Save size={16} />
-                                Sauvegarder
+                                {t('regex.editorSave')}
                             </>
                         )}
                     </button>

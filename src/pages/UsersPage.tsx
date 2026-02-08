@@ -5,6 +5,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ArrowLeft, Plus, Trash2, Edit2, Shield, User as UserIcon, RefreshCw } from 'lucide-react';
 import { api } from '../api/client';
 import { useUserAuthStore, type User } from '../stores/userAuthStore';
@@ -16,6 +17,7 @@ interface UsersPageProps {
 }
 
 export const UsersPage: React.FC<UsersPageProps> = ({ onBack }) => {
+    const { t } = useTranslation();
     const { user: currentUser } = useUserAuthStore();
     const [users, setUsers] = useState<User[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -35,18 +37,18 @@ export const UsersPage: React.FC<UsersPageProps> = ({ onBack }) => {
             if (response.success && response.result) {
                 setUsers(response.result);
             } else {
-                const errorMsg = response.error?.message || 'Échec du chargement des utilisateurs';
+                const errorMsg = response.error?.message || t('admin.usersPage.loadError');
                 setError(errorMsg);
             }
         } catch (err: any) {
             // Handle network/socket errors
-            let errorMessage = 'Échec du chargement des utilisateurs';
+            let errorMessage = t('admin.usersPage.loadError');
             
             if (err.message) {
                 if (err.message.includes('socket') || err.message.includes('ended') || err.message.includes('ECONNRESET')) {
-                    errorMessage = 'Connexion interrompue. Veuillez réessayer.';
+                    errorMessage = t('admin.usersPage.connectionError');
                 } else if (err.message.includes('timeout') || err.message.includes('TIMEOUT')) {
-                    errorMessage = 'La requête a expiré. Veuillez réessayer.';
+                    errorMessage = t('admin.usersPage.timeoutError');
                 } else if (err.error?.message) {
                     errorMessage = err.error.message;
                 } else {
@@ -63,7 +65,7 @@ export const UsersPage: React.FC<UsersPageProps> = ({ onBack }) => {
     };
 
     const handleDelete = async (userId: number) => {
-        if (!confirm(`Voulez-vous vraiment supprimer cet utilisateur ?`)) {
+        if (!confirm(t('admin.usersPage.deleteConfirm'))) {
             return;
         }
 
@@ -72,18 +74,18 @@ export const UsersPage: React.FC<UsersPageProps> = ({ onBack }) => {
             if (response.success) {
                 await fetchUsers();
             } else {
-                const errorMsg = response.error?.message || 'Échec de la suppression';
+                const errorMsg = response.error?.message || t('admin.usersPage.deleteError');
                 alert(errorMsg);
             }
         } catch (err: any) {
             // Handle network/socket errors
-            let errorMessage = 'Échec de la suppression';
+            let errorMessage = t('admin.usersPage.deleteError');
             
             if (err.message) {
                 if (err.message.includes('socket') || err.message.includes('ended') || err.message.includes('ECONNRESET')) {
-                    errorMessage = 'Connexion interrompue. Veuillez réessayer.';
+                    errorMessage = t('admin.usersPage.connectionError');
                 } else if (err.message.includes('timeout') || err.message.includes('TIMEOUT')) {
-                    errorMessage = 'La requête a expiré. Veuillez réessayer.';
+                    errorMessage = t('admin.usersPage.timeoutError');
                 } else if (err.error?.message) {
                     errorMessage = err.error.message;
                 } else {
@@ -102,7 +104,7 @@ export const UsersPage: React.FC<UsersPageProps> = ({ onBack }) => {
             <div className="min-h-screen bg-[#050505] text-gray-300 flex items-center justify-center">
                 <div className="text-center">
                     <Shield size={48} className="mx-auto text-gray-600 mb-4" />
-                    <p className="text-gray-400">Accès administrateur requis</p>
+                    <p className="text-gray-400">{t('admin.usersPage.adminRequired')}</p>
                 </div>
             </div>
         );
@@ -119,11 +121,11 @@ export const UsersPage: React.FC<UsersPageProps> = ({ onBack }) => {
                     >
                         <ArrowLeft size={20} />
                     </button>
-                    <h1 className="text-2xl font-semibold">Gestion des Utilisateurs</h1>
+                    <h1 className="text-2xl font-semibold">{t('admin.usersPage.title')}</h1>
                     <button
                         onClick={fetchUsers}
                         className="ml-auto p-2 hover:bg-[#1a1a1a] rounded transition-colors"
-                        title="Actualiser"
+                        title={t('admin.usersPage.refresh')}
                     >
                         <RefreshCw size={20} />
                     </button>
@@ -137,7 +139,7 @@ export const UsersPage: React.FC<UsersPageProps> = ({ onBack }) => {
 
                 {/* Users List */}
                 {isLoading ? (
-                    <div className="text-center py-12 text-gray-500">Chargement...</div>
+                    <div className="text-center py-12 text-gray-500">{t('admin.usersPage.loading')}</div>
                 ) : (
                     <div className="grid gap-4">
                         {users.map((user) => (
@@ -149,13 +151,13 @@ export const UsersPage: React.FC<UsersPageProps> = ({ onBack }) => {
                                             <span className="font-medium">{user.username}</span>
                                             {user.role === 'admin' && (
                                                 <span className="px-2 py-0.5 bg-blue-900/30 border border-blue-700 rounded text-xs text-blue-400">
-                                                    Admin
+                                                    {t('admin.users.admin')}
                                                 </span>
                                             )}
                                         </div>
                                         <p className="text-sm text-gray-400">{user.email}</p>
                                         <p className="text-xs text-gray-500 mt-1">
-                                            Créé le {new Date(user.createdAt).toLocaleDateString('fr-FR')}
+                                            {t('admin.usersPage.createdOn', { date: new Date(user.createdAt).toLocaleDateString() })}
                                         </p>
                                     </div>
                                     <div className="flex items-center gap-2">
@@ -163,7 +165,7 @@ export const UsersPage: React.FC<UsersPageProps> = ({ onBack }) => {
                                             <button
                                                 onClick={() => handleDelete(user.id)}
                                                 className="p-2 hover:bg-red-900/20 rounded text-red-400 hover:text-red-300 transition-colors"
-                                                title="Supprimer"
+                                                title={t('admin.users.delete')}
                                             >
                                                 <Trash2 size={16} />
                                             </button>

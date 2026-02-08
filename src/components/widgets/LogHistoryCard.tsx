@@ -6,6 +6,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { History, FileText } from 'lucide-react';
 import { LOGFILE_HISTORY_KEY, type LogFileHistoryEntry } from '../modals/LogFileHistoryModal';
 import { getPluginIcon } from '../../utils/pluginIcons';
@@ -29,6 +30,7 @@ function loadHistoryFromStorage(): LogFileHistoryEntry[] {
 }
 
 export const LogHistoryCard: React.FC<LogHistoryCardProps> = ({ onOpenLog, osType }) => {
+    const { t } = useTranslation();
     const [entries, setEntries] = useState<LogFileHistoryEntry[]>(loadHistoryFromStorage);
 
     // Re-read when component mounts (e.g. user navigates back to dashboard)
@@ -55,16 +57,16 @@ export const LogHistoryCard: React.FC<LogHistoryCardProps> = ({ onOpenLog, osTyp
                     <History size={22} className="text-amber-400" />
                 </div>
                 <div>
-                    <h3 className="font-semibold text-theme-primary">Historique des logs</h3>
-                    <p className="text-xs text-gray-500">Fichiers déjà demandés</p>
+                    <h3 className="font-semibold text-theme-primary">{t('dashboard.logHistoryTitle')}</h3>
+                    <p className="text-xs text-gray-500">{t('dashboard.logHistorySubtitle')}</p>
                 </div>
             </div>
             <div className="p-4 flex-1 overflow-y-auto min-h-0">
                 {entries.length === 0 ? (
                     <div className="text-center py-8 text-gray-500">
                         <FileText size={40} className="mx-auto mb-3 text-gray-600" />
-                        <p className="text-sm">Aucun fichier dans l'historique</p>
-                        <p className="text-xs mt-1">Les fichiers ouverts apparaîtront ici</p>
+                        <p className="text-sm">{t('dashboard.noFilesInHistory')}</p>
+                        <p className="text-xs mt-1">{t('dashboard.filesWillAppearHere')}</p>
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">

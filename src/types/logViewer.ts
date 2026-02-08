@@ -66,6 +66,7 @@ export interface LogPluginStats {
     readableFiles: number;
     unreadableFiles: number;
     totalSize: number; // Total size of all log files in bytes
+    gzCount?: number; // Number of .gz files (for exporter stats)
     filesByType: {
         [type: string]: {
             total: number;

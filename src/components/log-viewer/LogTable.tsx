@@ -14,6 +14,7 @@ import { LogFilters } from './LogFilters.js';
 import { getTimestampColor, getIPBadgeColor, getHostnameBadgeColor, getIPBadgeStyle, getHostnameBadgeStyle, getTimestampStyle, getUserBadgeColor, getUserBadgeStyle } from '../../utils/badgeColors.js';
 import { getPluginIcon, getPluginName } from '../../utils/pluginIcons.js';
 import { Tooltip } from '../ui/Tooltip.js';
+import { useTranslation } from 'react-i18next';
 
 interface SortConfig {
     column: string;
@@ -199,6 +200,7 @@ export const LogTable: React.FC<LogTableProps> = ({
     selectedFilePath,
     fileSize
 }) => {
+    const { t } = useTranslation();
     // Filter out columns that are always empty (like pid for daemon.log)
     const visibleColumns = useMemo(() => {
         let filteredColumns = [...columns];
@@ -511,12 +513,12 @@ export const LogTable: React.FC<LogTableProps> = ({
             case 'number':
                 if (column === 'status' || column === 'statusCode' || column === 'httpCode') {
                     const statusCode = Number(value);
-                    const statusDesc = statusCode >= 200 && statusCode < 300 ? 'Succès' :
-                                     statusCode >= 300 && statusCode < 400 ? 'Redirection' :
-                                     statusCode >= 400 && statusCode < 500 ? 'Erreur client' :
-                                     statusCode >= 500 ? 'Erreur serveur' : 'Code HTTP';
+                    const statusDesc = statusCode >= 200 && statusCode < 300 ? t('logViewer.statusSuccess') :
+                                     statusCode >= 300 && statusCode < 400 ? t('logViewer.statusRedirect') :
+                                     statusCode >= 400 && statusCode < 500 ? t('logViewer.statusClientError') :
+                                     statusCode >= 500 ? t('logViewer.statusServerError') : t('logViewer.statusHttpCode');
                     return (
-                        <Tooltip content={`Code HTTP ${statusCode} : ${statusDesc}`}>
+                        <Tooltip content={t('logViewer.httpCodeTooltip', { code: statusCode, desc: statusDesc })}>
                             <span className="cursor-help">
                                 <LogBadge type="httpCode" value={statusCode} />
                             </span>
@@ -527,7 +529,7 @@ export const LogTable: React.FC<LogTableProps> = ({
                     const sizeBytes = Number(value);
                     const sizeFormatted = formatFileSize(sizeBytes);
                     return (
-                        <Tooltip content={`Taille : ${sizeFormatted} (${sizeBytes.toLocaleString('fr-FR')} octets)`}>
+                        <Tooltip content={t('logViewer.sizeTooltip', { formatted: sizeFormatted, bytes: sizeBytes.toLocaleString() })}>
                             <span className="cursor-help">
                                 <LogBadge type="size" value={sizeBytes} />
                             </span>
@@ -536,7 +538,7 @@ export const LogTable: React.FC<LogTableProps> = ({
                 }
                 if (column === 'gzip') {
                     const gzipValue = value === '-' || value === '' || value === null || value === undefined ? '-' : value;
-                    const gzipDesc = gzipValue === '-' ? 'Non compressé ou non applicable' : `Ratio GZIP : ${gzipValue}`;
+                    const gzipDesc = gzipValue === '-' ? t('logViewer.gzipNotApplicable') : t('logViewer.gzipRatio', { value: gzipValue });
                     return (
                         <Tooltip content={gzipDesc}>
                             <span className="cursor-help">
@@ -548,8 +550,8 @@ export const LogTable: React.FC<LogTableProps> = ({
                 if (column === 'upstreamStatus' || column.toLowerCase() === 'upstreamstatus') {
                     const code = value === '-' || value === '' ? null : Number(value);
                     const codeDesc = code != null && !isNaN(code)
-                        ? (code >= 200 && code < 300 ? 'Succès upstream' : code >= 400 ? 'Erreur upstream' : 'Statut upstream')
-                        : 'Statut upstream non disponible';
+                        ? (code >= 200 && code < 300 ? t('logViewer.upstreamSuccess') : code >= 400 ? t('logViewer.upstreamError') : t('logViewer.upstreamStatus'))
+                        : t('logViewer.upstreamNotAvailable');
                     return (
                         <Tooltip content={codeDesc}>
                             <span className="cursor-help">
@@ -560,11 +562,11 @@ export const LogTable: React.FC<LogTableProps> = ({
                 }
                 if (column === 'responseTime' || column === 'time' || column === 'duration') {
                     const rt = Number(value);
-                    const rtDesc = rt < 100 ? 'Temps de réponse excellent' :
-                                 rt < 500 ? 'Temps de réponse acceptable' :
-                                 'Temps de réponse élevé';
+                    const rtDesc = rt < 100 ? t('logViewer.rtExcellent') :
+                                 rt < 500 ? t('logViewer.rtAcceptable') :
+                                 t('logViewer.rtHigh');
                     return (
-                        <Tooltip content={`Temps de réponse : ${rt}ms - ${rtDesc}`}>
+                        <Tooltip content={t('logViewer.responseTimeLabel', { ms: rt, desc: rtDesc })}>
                             <span className="cursor-help">
                                 <LogBadge type="responseTime" value={rt} />
                             </span>
@@ -576,12 +578,12 @@ export const LogTable: React.FC<LogTableProps> = ({
             case 'badge':
                 if (column === 'level' || column === 'severity') {
                     const level = String(value).toLowerCase();
-                    const levelDesc = level === 'error' || level === 'err' ? 'Erreur' :
-                                    level === 'warn' || level === 'warning' ? 'Avertissement' :
-                                    level === 'info' ? 'Information' :
-                                    level === 'debug' ? 'Debug' : 'Niveau de log';
+                    const levelDesc = level === 'error' || level === 'err' ? t('logViewer.levelError') :
+                                    level === 'warn' || level === 'warning' ? t('logViewer.levelWarn') :
+                                    level === 'info' ? t('logViewer.levelInfo') :
+                                    level === 'debug' ? t('logViewer.levelDebug') : t('logViewer.levelLog');
                     return (
-                        <Tooltip content={`Niveau de log : ${levelDesc} (${value})`}>
+                        <Tooltip content={t('logViewer.levelTooltip', { desc: levelDesc, value })}>
                             <span className="cursor-help">
                                 <LogBadge type="level" value={String(value)} />
                             </span>
@@ -590,13 +592,13 @@ export const LogTable: React.FC<LogTableProps> = ({
                 }
                 if (column === 'method' || column === 'httpMethod') {
                     const method = String(value).toUpperCase();
-                    const methodDesc = method === 'GET' ? 'Récupération de ressource' :
-                                     method === 'POST' ? 'Création de ressource' :
-                                     method === 'PUT' ? 'Mise à jour complète' :
-                                     method === 'PATCH' ? 'Mise à jour partielle' :
-                                     method === 'DELETE' ? 'Suppression de ressource' : 'Méthode HTTP';
+                    const methodDesc = method === 'GET' ? t('logViewer.methodGet') :
+                                     method === 'POST' ? t('logViewer.methodPost') :
+                                     method === 'PUT' ? t('logViewer.methodPut') :
+                                     method === 'PATCH' ? t('logViewer.methodPatch') :
+                                     method === 'DELETE' ? t('logViewer.methodDelete') : t('logViewer.methodHttp');
                     return (
-                        <Tooltip content={`Méthode HTTP : ${method} - ${methodDesc}`}>
+                        <Tooltip content={t('logViewer.methodTooltip', { method, desc: methodDesc })}>
                             <span className="cursor-help">
                                 <LogBadge type="httpMethod" value={method} />
                             </span>
@@ -827,7 +829,7 @@ export const LogTable: React.FC<LogTableProps> = ({
                                     />
                                 </Tooltip>
                             )}
-                            <Tooltip content="Fichier de log">
+                            <Tooltip content={t('logViewer.logFileTooltip')}>
                                 <FileText size={14} className="text-cyan-400 flex-shrink-0 cursor-help" />
                             </Tooltip>
                             <Tooltip content={selectedFilePath}>
@@ -837,7 +839,7 @@ export const LogTable: React.FC<LogTableProps> = ({
                             </Tooltip>
                             {/* Compression Icon */}
                             {selectedFilePath.toLowerCase().endsWith('.gz') && (
-                                <Tooltip content="Fichier compressé (.gz) - Format gzip">
+                                <Tooltip content={t('logViewer.compressedFileTooltip')}>
                                     <Archive size={14} className="text-red-400 flex-shrink-0 cursor-help" />
                                 </Tooltip>
                             )}
@@ -847,33 +849,33 @@ export const LogTable: React.FC<LogTableProps> = ({
                     {/* Statistics */}
                     <div className="flex items-center gap-3 flex-wrap">
                         {fileSize !== undefined && fileSize > 0 && (
-                            <Tooltip content="Taille du fichier de log">
+                            <Tooltip content={t('logViewer.fileSizeTooltip')}>
                                 <span className="bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded border border-purple-500/30 cursor-help">
                                     {formatFileSize(fileSize)}
                                 </span>
                             </Tooltip>
                         )}
-                        <Tooltip content="Nombre total de lignes dans le fichier (y compris les lignes vides)">
+                        <Tooltip content={t('logViewer.totalLinesTooltip')}>
                             <span className="bg-blue-500/20 text-blue-300 px-1.5 py-0.5 rounded border border-blue-500/30 cursor-help">
-                                {stats.total.toLocaleString('fr-FR')} lignes totales
+                                {t('logViewer.totalLines', { count: stats.total.toLocaleString() })}
                             </span>
                         </Tooltip>
-                        <Tooltip content="Nombre de lignes valides et parsées (lignes vides exclues)">
+                        <Tooltip content={t('logViewer.validLinesTooltip')}>
                             <span className="bg-green-500/20 text-green-300 px-1.5 py-0.5 rounded border border-green-500/30 cursor-help">
-                                {stats.valid.toLocaleString('fr-FR')} lignes valides
+                                {t('logViewer.validLines', { count: stats.valid.toLocaleString() })}
                             </span>
                         </Tooltip>
                         {stats.filtered > 0 && (
-                            <Tooltip content="Nombre de lignes filtrées par les critères de recherche">
+                            <Tooltip content={t('logViewer.filteredLinesTooltip')}>
                                 <span className="bg-yellow-500/20 text-yellow-300 px-1.5 py-0.5 rounded border border-yellow-500/30 cursor-help">
-                                    {stats.filtered.toLocaleString('fr-FR')} lignes filtrées
+                                    {t('logViewer.filteredLines', { count: stats.filtered.toLocaleString() })}
                                 </span>
                             </Tooltip>
                         )}
                         {stats.unreadable > 0 && (
-                            <Tooltip content="Nombre de lignes qui n'ont pas pu être parsées">
+                            <Tooltip content={t('logViewer.unreadableLinesTooltip')}>
                                 <span className="bg-red-500/20 text-red-300 px-1.5 py-0.5 rounded border border-red-500/30 cursor-help">
-                                    {stats.unreadable.toLocaleString('fr-FR')} lignes illisibles
+                                    {t('logViewer.unreadableLines', { count: stats.unreadable.toLocaleString() })}
                                 </span>
                             </Tooltip>
                         )}
@@ -915,16 +917,16 @@ export const LogTable: React.FC<LogTableProps> = ({
                         <option value={500}>500</option>
                         <option value={1000}>1000</option>
                     </select>
-                    <span>lignes par page / {nonEmptyLogs.length.toLocaleString('fr-FR')} lignes au total</span>
+                    <span>{t('logViewer.linesPerPage')} / {t('logViewer.linesTotal', { count: nonEmptyLogs.length.toLocaleString() })}</span>
                 </div>
 
                 <div className="flex items-center gap-2">
                     <span className="text-xs text-gray-400">
-                        Page {currentPage} sur {totalPages}
+                        {t('logViewer.pageOf', { current: currentPage, total: totalPages })}
                     </span>
                     
                     <div className="flex items-center gap-1">
-                        <Tooltip content="Première page">
+                        <Tooltip content={t('logViewer.firstPage')}>
                             <button
                                 onClick={() => onPageChange && onPageChange(1)}
                                 disabled={currentPage === 1}
@@ -933,7 +935,7 @@ export const LogTable: React.FC<LogTableProps> = ({
                                 <ChevronsLeft size={16} />
                             </button>
                         </Tooltip>
-                        <Tooltip content="Page précédente">
+                        <Tooltip content={t('logViewer.prevPage')}>
                             <button
                                 onClick={() => onPageChange && onPageChange(currentPage - 1)}
                                 disabled={currentPage === 1}
@@ -942,7 +944,7 @@ export const LogTable: React.FC<LogTableProps> = ({
                                 <ChevronLeft size={16} />
                             </button>
                         </Tooltip>
-                        <Tooltip content="Page suivante">
+                        <Tooltip content={t('logViewer.nextPage')}>
                             <button
                                 onClick={() => onPageChange && onPageChange(currentPage + 1)}
                                 disabled={currentPage >= totalPages}
@@ -951,7 +953,7 @@ export const LogTable: React.FC<LogTableProps> = ({
                                 <ChevronRight size={16} />
                             </button>
                         </Tooltip>
-                        <Tooltip content="Dernière page">
+                        <Tooltip content={t('logViewer.lastPage')}>
                             <button
                                 onClick={() => onPageChange && onPageChange(totalPages)}
                                 disabled={currentPage >= totalPages}
@@ -1142,7 +1144,7 @@ export const LogTable: React.FC<LogTableProps> = ({
             {/* Pagination */}
             <div className="px-4 py-3 bg-[#0a0a0a] border-t border-gray-800 flex items-center justify-between flex-wrap gap-4">
                 <div className="flex items-center gap-2 text-xs text-gray-400">
-                    <span>Affichage de</span>
+                    <span>{t('logViewer.displaying')}</span>
                     <select
                         value={pageSize}
                         onChange={(e) => {
@@ -1159,17 +1161,17 @@ export const LogTable: React.FC<LogTableProps> = ({
                         <option value={500}>500</option>
                         <option value={1000}>1000</option>
                     </select>
-                    <span>lignes par page</span>
+                    <span>{t('logViewer.linesPerPageShort')}</span>
                 </div>
 
                 <div className="flex items-center gap-2">
                     <span className="text-xs text-gray-400">
-                        Page {currentPage} sur {totalPages}
-                        {' '}({nonEmptyLogs.length} ligne{nonEmptyLogs.length > 1 ? 's' : ''} au total)
+                        {t('logViewer.pageOf', { current: currentPage, total: totalPages })}
+                        {' '}({t('logViewer.lineTotalCount', { count: nonEmptyLogs.length })})
                     </span>
                     
                     <div className="flex items-center gap-1">
-                        <Tooltip content="Première page">
+                        <Tooltip content={t('logViewer.firstPage')}>
                             <button
                                 onClick={() => onPageChange && onPageChange(1)}
                                 disabled={currentPage === 1}
@@ -1178,7 +1180,7 @@ export const LogTable: React.FC<LogTableProps> = ({
                                 <ChevronsLeft size={16} />
                             </button>
                         </Tooltip>
-                        <Tooltip content="Page précédente">
+                        <Tooltip content={t('logViewer.prevPage')}>
                             <button
                                 onClick={() => onPageChange && onPageChange(currentPage - 1)}
                                 disabled={currentPage === 1}
@@ -1187,7 +1189,7 @@ export const LogTable: React.FC<LogTableProps> = ({
                                 <ChevronLeft size={16} />
                             </button>
                         </Tooltip>
-                        <Tooltip content="Page suivante">
+                        <Tooltip content={t('logViewer.nextPage')}>
                             <button
                                 onClick={() => onPageChange && onPageChange(currentPage + 1)}
                                 disabled={currentPage >= totalPages}
@@ -1196,7 +1198,7 @@ export const LogTable: React.FC<LogTableProps> = ({
                                 <ChevronRight size={16} />
                             </button>
                         </Tooltip>
-                        <Tooltip content="Dernière page">
+                        <Tooltip content={t('logViewer.lastPage')}>
                             <button
                                 onClick={() => onPageChange && onPageChange(totalPages)}
                                 disabled={currentPage >= totalPages}

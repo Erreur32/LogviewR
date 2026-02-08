@@ -5,6 +5,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ArrowLeft, Settings, CheckCircle, XCircle, RefreshCw, AlertCircle, Code } from 'lucide-react';
 import { usePluginStore, type Plugin } from '../stores/pluginStore';
 import { Card } from '../components/widgets/Card';
@@ -19,6 +20,7 @@ interface PluginsPageProps {
 }
 
 export const PluginsPage: React.FC<PluginsPageProps> = ({ onBack, onNavigateToSettings }) => {
+    const { t } = useTranslation();
     const { plugins, isLoading, fetchPlugins, updatePluginConfig, testPluginConnection } = usePluginStore();
     const [testingPlugin, setTestingPlugin] = useState<string | null>(null);
     const [osType, setOsType] = useState<string | undefined>(undefined);
@@ -82,7 +84,7 @@ export const PluginsPage: React.FC<PluginsPageProps> = ({ onBack, onNavigateToSe
             setLastTestMessage(result.message);
         } else {
             setLastTestSuccess(false);
-            setLastTestMessage('Test de connexion impossible (voir logs backend)');
+            setLastTestMessage(t('plugins.testImpossible'));
         }
         setTimeout(() => setTestingPlugin(null), 2000);
         await fetchPlugins(); // Refresh to update connection status
@@ -99,11 +101,11 @@ export const PluginsPage: React.FC<PluginsPageProps> = ({ onBack, onNavigateToSe
                     >
                         <ArrowLeft size={20} />
                     </button>
-                    <h1 className="text-2xl font-semibold">Gestion des Plugins</h1>
+                    <h1 className="text-2xl font-semibold">{t('plugins.pageTitle')}</h1>
                     <button
                         onClick={() => fetchPlugins()}
                         className="ml-auto p-2 hover:bg-[#1a1a1a] rounded transition-colors"
-                        title="Actualiser"
+                        title={t('plugins.refresh')}
                     >
                         <RefreshCw size={20} />
                     </button>
@@ -111,7 +113,7 @@ export const PluginsPage: React.FC<PluginsPageProps> = ({ onBack, onNavigateToSe
 
                 {/* Plugins List */}
                 {isLoading ? (
-                    <div className="text-center py-12 text-gray-500">Chargement...</div>
+                    <div className="text-center py-12 text-gray-500">{t('plugins.loading')}</div>
                 ) : (
                     <div className="grid gap-4 md:grid-cols-2">
                         {lastTestMessage && (
@@ -129,7 +131,7 @@ export const PluginsPage: React.FC<PluginsPageProps> = ({ onBack, onNavigateToSe
                                 )}
                                 <div className="flex-1">
                                     <div className="font-semibold text-sm mb-0.5">
-                                        {lastTestSuccess ? 'Test de connexion réussi' : 'Test de connexion échoué'}
+                                        {lastTestSuccess ? t('plugins.testSuccess') : t('plugins.testFailed')}
                                     </div>
                                     <div className="text-xs opacity-90">{lastTestMessage}</div>
                                 </div>
@@ -156,17 +158,17 @@ export const PluginsPage: React.FC<PluginsPageProps> = ({ onBack, onNavigateToSe
                                         {plugin.connectionStatus ? (
                                             <span className="flex items-center gap-1 text-xs text-green-400 px-2 py-1 bg-emerald-500/20 border border-emerald-500/30 rounded">
                                                 <CheckCircle size={12} />
-                                                Connecté
+                                                {t('plugins.connected')}
                                             </span>
                                         ) : plugin.enabled ? (
                                             <span className="flex items-center gap-1 text-xs text-yellow-400 px-2 py-1 bg-yellow-500/20 border border-yellow-500/30 rounded">
                                                 <AlertCircle size={12} />
-                                                Non connecté
+                                                {t('plugins.notConnected')}
                                             </span>
                                         ) : (
                                             <span className="flex items-center gap-1 text-xs text-gray-400 px-2 py-1 bg-gray-500/20 border border-gray-500/30 rounded">
                                                 <XCircle size={12} />
-                                                Désactivé
+                                                {t('plugins.disabled')}
                                             </span>
                                         )}
                                     </div>
@@ -175,14 +177,14 @@ export const PluginsPage: React.FC<PluginsPageProps> = ({ onBack, onNavigateToSe
                                 <div className="space-y-4">
                                     <div className="flex items-center justify-between">
                                         <div>
-                                            <p className="text-sm text-gray-400">Version {plugin.version}</p>
+                                            <p className="text-sm text-gray-400">{t('plugins.version')} {plugin.version}</p>
                                         </div>
                                         <div className="flex items-center gap-2">
                                             <button
                                                 onClick={() => handleTest(plugin.id)}
                                                 disabled={testingPlugin === plugin.id}
                                                 className="p-2 hover:bg-[#1a1a1a] rounded transition-colors disabled:opacity-50"
-                                                title="Tester la connexion"
+                                                title={t('plugins.testConnection')}
                                             >
                                                 <RefreshCw 
                                                     size={16} 
@@ -193,7 +195,7 @@ export const PluginsPage: React.FC<PluginsPageProps> = ({ onBack, onNavigateToSe
                                     </div>
 
                                     <div className="flex items-center justify-between pt-2 border-t border-gray-700">
-                                        <span className="text-sm text-gray-400">Activer</span>
+                                        <span className="text-sm text-gray-400">{t('plugins.enable')}</span>
                                         <Toggle
                                             checked={plugin.enabled}
                                             onChange={(checked) => handleToggle(plugin.id, checked)}
@@ -217,7 +219,7 @@ export const PluginsPage: React.FC<PluginsPageProps> = ({ onBack, onNavigateToSe
                                             className="w-full mt-3 px-3 py-2 bg-[#1a1a1a] hover:bg-[#252525] border border-gray-700 rounded-lg text-sm text-gray-300 hover:text-white transition-colors flex items-center justify-center gap-2"
                                         >
                                             <Settings size={14} />
-                                            Configurer
+                                            {t('plugins.configure')}
                                         </button>
 
                                     {/* Custom Regex Badge - Centered at bottom */}
@@ -229,7 +231,7 @@ export const PluginsPage: React.FC<PluginsPageProps> = ({ onBack, onNavigateToSe
                                                 className="w-full max-w-fit flex items-center justify-center gap-2 px-4 py-2"
                                             >
                                                 <Code size={14} />
-                                                <span>{customRegexCounts[plugin.id]} regex personnalisée{customRegexCounts[plugin.id] > 1 ? 's' : ''}</span>
+                                                <span>{customRegexCounts[plugin.id]} {customRegexCounts[plugin.id] > 1 ? t('plugins.customRegexPlural') : t('plugins.customRegex')}</span>
                                             </Badge>
                                         </div>
                                     )}

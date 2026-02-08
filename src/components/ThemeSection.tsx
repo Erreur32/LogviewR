@@ -5,7 +5,8 @@
  */
 
 import React, { useState, useEffect, useContext } from 'react';
-import { Lightbulb, Palette, RefreshCw, Save, Eye, ChevronUp, ChevronDown, Check, Minus, Plus, RotateCcw } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { Lightbulb, Palette, RefreshCw, Save, ChevronUp, ChevronDown, Check, Minus, Plus, RotateCcw } from 'lucide-react';
 import { applyTheme, getCurrentTheme, getAvailableThemes, applyCardOpacity, type Theme } from '../utils/themeManager';
 import { api } from '../api/client';
 import { Section, SettingRow } from './SettingsSection';
@@ -21,7 +22,7 @@ import {
 } from '../hooks/useBackgroundAnimation';
 import { AnimationParametersContext, type AnimationParameter } from '../hooks/useAnimationParameters';
 
-/** French labels for full-animation options (no i18n in LogviewR) */
+/** Fallback labels for full-animation options when i18n key is missing */
 const FULL_ANIMATION_LABELS: Record<FullAnimationIdOrOff, string> = {
     off: 'Non (pas d\'animation)',
     'animation.all': 'Toutes (cycle)',
@@ -281,7 +282,11 @@ const CARD_OPACITY_STORAGE_KEY = 'logviewr_card_opacity';
 
 const VALID_THEMES_LIST: Theme[] = ['dark', 'glass', 'modern', 'nightly', 'neon', 'elegant', 'full-animation'];
 
+/** Maps animation id to i18n key (dots to underscores) */
+const animationLabelKey = (id: string): string => id.replace(/\./g, '_');
+
 export const ThemeSection: React.FC = () => {
+    const { t } = useTranslation();
     // Initialize with the currently active theme (from DOM or localStorage)
     const [currentTheme, setCurrentTheme] = useState<Theme>(() => {
         const htmlTheme = document.documentElement.getAttribute('data-theme');
@@ -519,11 +524,11 @@ export const ThemeSection: React.FC = () => {
             });
             
             await saveThemeConfig(currentTheme, onlyCustomColors, cardOpacity[currentTheme]);
-            alert('Thème sauvegardé avec succès');
+            alert(t('theme.themeSavedSuccess'));
             // Re-apply colors to ensure consistency after save
             applyCustomColors();
         } catch (error) {
-            alert(error instanceof Error ? error.message : 'Erreur lors de la sauvegarde');
+            alert(error instanceof Error ? error.message : t('theme.themeSaveError'));
         } finally {
             setIsSaving(false);
         }
@@ -548,18 +553,18 @@ export const ThemeSection: React.FC = () => {
     };
 
     return (
-        <Section title="Thème de l'interface" icon={Lightbulb} iconColor="yellow">
+        <Section title={t('theme.sectionTitle')} icon={Lightbulb} iconColor="yellow">
             <div className="space-y-8">
                 {/* Theme Selection - Professional Cards Layout */}
                 <div>
                     <div className="mb-4">
-                        <h3 className="text-base font-semibold text-theme-primary mb-1">Thème principal</h3>
-                        <p className="text-sm text-theme-secondary">Sélectionnez le thème de base pour l'interface</p>
+                        <h3 className="text-base font-semibold text-theme-primary mb-1">{t('theme.mainTheme')}</h3>
+                        <p className="text-sm text-theme-secondary">{t('theme.mainThemeDescription')}</p>
                     </div>
 
                     {/* Animation themes category (elegant + full-animation) - first for visibility */}
                     <div className="mb-8">
-                        <h4 className="text-sm font-semibold text-theme-primary mb-4 px-6">Animation</h4>
+                        <h4 className="text-sm font-semibold text-theme-primary mb-4 px-6">{t('theme.categoryAnimation')}</h4>
                         <div className="grid grid-cols-4 gap-8 px-6">
                             {availableThemes.filter(theme => ['elegant', 'full-animation'].includes(theme.id)).map((theme) => {
                                 const themeColors = DEFAULT_COLORS[theme.id];
@@ -623,22 +628,22 @@ export const ThemeSection: React.FC = () => {
                                                     <div
                                                         className="w-4 h-4 rounded-full border-2 border-white/30 shadow-sm elegant-icon-pulse"
                                                         style={{ backgroundColor: themeColors.accentPrimary }}
-                                                        title="Couleur principale"
+                                                        title={t('theme.colorPrimary')}
                                                     />
                                                     <div
                                                         className="w-4 h-4 rounded-full border-2 border-white/30 shadow-sm"
                                                         style={{ backgroundColor: themeColors.textPrimary }}
-                                                        title="Couleur texte"
+                                                        title={t('theme.colorText')}
                                                     />
                                                     <div
                                                         className="w-4 h-4 rounded-full border-2 border-white/30 shadow-sm elegant-icon-pulse"
                                                         style={{ backgroundColor: themeColors.accentSuccess }}
-                                                        title="Badge succès"
+                                                        title={t('theme.badgeSuccess')}
                                                     />
                                                     <div
                                                         className="w-4 h-4 rounded-full border-2 border-white/30 shadow-sm"
                                                         style={{ backgroundColor: themeColors.buttonBg }}
-                                                        title="Couleur bouton"
+                                                        title={t('theme.colorButton')}
                                                     />
                                                 </div>
                                             </div>
@@ -647,13 +652,13 @@ export const ThemeSection: React.FC = () => {
                                                 className="text-lg font-semibold mb-1"
                                                 style={{ color: themeColors.textPrimary }}
                                             >
-                                                {theme.name}
+                                                {t(`theme.themes.${theme.id}.name`)}
                                             </div>
                                             <div
                                                 className="text-xs"
                                                 style={{ color: themeColors.textSecondary }}
                                             >
-                                                {theme.description}
+                                                {t(`theme.themes.${theme.id}.description`)}
                                             </div>
                                         </div>
                                     </button>
@@ -664,7 +669,7 @@ export const ThemeSection: React.FC = () => {
 
                     {/* Black themes category */}
                     <div className="mb-8">
-                        <h4 className="text-sm font-semibold text-theme-primary mb-4 px-6">Black</h4>
+                        <h4 className="text-sm font-semibold text-theme-primary mb-4 px-6">{t('theme.categoryBlack')}</h4>
                         <div className="grid grid-cols-4 gap-8 px-6">
                             {availableThemes.filter(theme => ['dark', 'glass', 'nightly'].includes(theme.id)).map((theme) => {
                             const themeColors = DEFAULT_COLORS[theme.id];
@@ -825,22 +830,22 @@ export const ThemeSection: React.FC = () => {
                                                 <div 
                                                     className="w-4 h-4 rounded-full border-2 border-white/30 shadow-sm"
                                                     style={{ backgroundColor: themeColors.accentPrimary }}
-                                                    title="Couleur principale"
+                                                    title={t('theme.colorPrimary')}
                                                 />
                                                 <div 
                                                     className="w-4 h-4 rounded-full border-2 border-white/30 shadow-sm"
                                                     style={{ backgroundColor: themeColors.textPrimary }}
-                                                    title="Couleur texte"
+                                                    title={t('theme.colorText')}
                                                 />
                                                 <div 
                                                     className="w-4 h-4 rounded-full border-2 border-white/30 shadow-sm"
                                                     style={{ backgroundColor: themeColors.accentSuccess }}
-                                                    title="Badge succès"
+                                                    title={t('theme.badgeSuccess')}
                                                 />
                                                 <div 
                                                     className="w-4 h-4 rounded-full border-2 border-white/30 shadow-sm"
                                                     style={{ backgroundColor: themeColors.buttonBg }}
-                                                    title="Couleur bouton"
+                                                    title={t('theme.colorButton')}
                                                 />
                                             </div>
                                         </div>
@@ -849,13 +854,13 @@ export const ThemeSection: React.FC = () => {
                                             className="text-lg font-semibold mb-1"
                                             style={{ color: themeColors.textPrimary }}
                                         >
-                                            {theme.name}
+                                            {t(`theme.themes.${theme.id}.name`)}
                                         </div>
                                         <div 
                                             className="text-xs"
                                             style={{ color: themeColors.textSecondary }}
                                         >
-                                            {theme.description}
+                                            {t(`theme.themes.${theme.id}.description`)}
                                         </div>
                                     </div>
                                 </button>
@@ -866,7 +871,7 @@ export const ThemeSection: React.FC = () => {
                     
                     {/* Color themes category */}
                     <div className="mb-8">
-                        <h4 className="text-sm font-semibold text-theme-primary mb-4 px-6">Couleur</h4>
+                        <h4 className="text-sm font-semibold text-theme-primary mb-4 px-6">{t('theme.categoryColor')}</h4>
                         <div className="grid grid-cols-4 gap-8 px-6">
                             {availableThemes.filter(theme => ['modern', 'neon'].includes(theme.id)).map((theme) => {
                                 const themeColors = DEFAULT_COLORS[theme.id];
@@ -962,22 +967,22 @@ export const ThemeSection: React.FC = () => {
                                                     <div 
                                                         className="w-4 h-4 rounded-full border-2 border-white/30 shadow-sm"
                                                         style={{ backgroundColor: themeColors.accentPrimary }}
-                                                        title="Couleur principale"
+                                                        title={t('theme.colorPrimary')}
                                                     />
                                                     <div 
                                                         className="w-4 h-4 rounded-full border-2 border-white/30 shadow-sm"
                                                         style={{ backgroundColor: themeColors.textPrimary }}
-                                                        title="Couleur texte"
+                                                        title={t('theme.colorText')}
                                                     />
                                                     <div 
                                                         className="w-4 h-4 rounded-full border-2 border-white/30 shadow-sm"
                                                         style={{ backgroundColor: themeColors.accentSuccess }}
-                                                        title="Badge succès"
+                                                        title={t('theme.badgeSuccess')}
                                                     />
                                                     <div 
                                                         className="w-4 h-4 rounded-full border-2 border-white/30 shadow-sm"
                                                         style={{ backgroundColor: themeColors.buttonBg }}
-                                                        title="Couleur bouton"
+                                                        title={t('theme.colorButton')}
                                                     />
                                                 </div>
                                             </div>
@@ -986,13 +991,13 @@ export const ThemeSection: React.FC = () => {
                                                 className="text-lg font-semibold mb-1"
                                                 style={{ color: themeColors.textPrimary }}
                                             >
-                                                {theme.name}
+                                                {t(`theme.themes.${theme.id}.name`)}
                                             </div>
                                             <div 
                                                 className="text-xs"
                                                 style={{ color: themeColors.textSecondary }}
                                             >
-                                                {theme.description}
+                                                {t(`theme.themes.${theme.id}.description`)}
                                             </div>
                                         </div>
                                     </button>
@@ -1006,12 +1011,12 @@ export const ThemeSection: React.FC = () => {
                 {/* Card: Sélection d'animation (always visible, like MynetworK) */}
                 <div className="rounded-xl border border-theme bg-theme-secondary/40 p-6 shadow-sm space-y-6">
                     <div>
-                        <h3 className="text-base font-semibold text-theme-primary mb-1">Sélection d&apos;animation</h3>
-                        <p className="text-sm text-theme-secondary mb-4">Choisissez l&apos;animation d&apos;arrière-plan.</p>
+                        <h3 className="text-base font-semibold text-theme-primary mb-1">{t('theme.animationSelection')}</h3>
+                        <p className="text-sm text-theme-secondary mb-4">{t('theme.animationSelectionDescription')}</p>
                         <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
                             {ANIMATION_GRID_OPTIONS.map((optionId) => {
                                 const isSelected = fullAnimationId === optionId;
-                                const label = FULL_ANIMATION_LABELS[optionId] ?? optionId;
+                                const label = t(`theme.animations.${animationLabelKey(optionId)}`) || (FULL_ANIMATION_LABELS[optionId] ?? optionId);
                                 const isOff = optionId === 'off';
                                 return (
                                     <button
@@ -1051,15 +1056,15 @@ export const ThemeSection: React.FC = () => {
                             {(!animationParamsContext || !animationParamsContext.parameterDefinitions.some((p: AnimationParameter) => p.name === 'speed')) && (
                                 <div>
                                     <label className="block text-sm font-medium text-theme-primary mb-2">
-                                        Vitesse (curseur à gauche = lent, à droite = rapide) — multiplicateur 0.3× à 3.0×
+                                        {t('theme.speedLabel')}
                                     </label>
                                     <div className="flex items-center gap-2">
                                         <button
                                             type="button"
                                             onClick={() => setAnimationSpeed((prev) => Math.min(MAX_SPEED, prev + 0.05))}
                                             className="flex-shrink-0 w-8 h-8 rounded-lg border border-theme bg-theme-secondary hover:border-yellow-500/50 flex items-center justify-center text-theme-primary"
-                                            title="Ralentir"
-                                            aria-label="Ralentir"
+                                            title={t('theme.slowDown')}
+                                            aria-label={t('theme.slowDown')}
                                         >
                                             <Minus className="w-4 h-4" />
                                         </button>
@@ -1076,12 +1081,12 @@ export const ThemeSection: React.FC = () => {
                                             type="button"
                                             onClick={() => setAnimationSpeed((prev) => Math.max(MIN_SPEED, prev - 0.05))}
                                             className="flex-shrink-0 w-8 h-8 rounded-lg border border-theme bg-theme-secondary hover:border-yellow-500/50 flex items-center justify-center text-theme-primary"
-                                            title="Accélérer"
-                                            aria-label="Accélérer"
+                                            title={t('theme.speedUp')}
+                                            aria-label={t('theme.speedUp')}
                                         >
                                             <Plus className="w-4 h-4" />
                                         </button>
-                                        <span className="text-sm font-medium text-theme-primary tabular-nums min-w-[4rem] text-right" title="Multiplicateur de vitesse (0.3 = lent, 3.0 = rapide)">
+                                        <span className="text-sm font-medium text-theme-primary tabular-nums min-w-[4rem] text-right" title={t('theme.speedLabel')}>
                                             {speedToMultiplier(animationSpeed).toFixed(1)}×
                                         </span>
                                     </div>
@@ -1090,16 +1095,16 @@ export const ThemeSection: React.FC = () => {
                             {animationParamsContext && animationParamsContext.parameterDefinitions.length > 0 && (
                                 <div className="space-y-4 pt-2">
                                     <div className="flex items-center justify-between gap-2">
-                                        <h5 className="text-xs font-semibold text-theme-primary">Paramètres de l&apos;animation</h5>
+                                        <h5 className="text-xs font-semibold text-theme-primary">{t('theme.animationParams')}</h5>
                                         <button
                                             type="button"
                                             onClick={() => animationParamsContext.resetParameters()}
                                             className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-theme bg-theme-secondary hover:border-yellow-500/50 hover:bg-theme-tertiary text-theme-secondary hover:text-theme-primary text-xs font-medium transition-colors"
-                                            title="Remettre les réglages par défaut pour cette animation"
-                                            aria-label="Réinitialiser les paramètres"
+                                            title={t('theme.resetParamsTitle')}
+                                            aria-label={t('theme.resetParams')}
                                         >
                                             <RotateCcw size={14} aria-hidden />
-                                            Réinitialiser
+                                            {t('theme.resetParams')}
                                         </button>
                                     </div>
                                     {animationParamsContext.parameterDefinitions.map((param: AnimationParameter) => {
@@ -1117,11 +1122,11 @@ export const ThemeSection: React.FC = () => {
                                             return (
                                                 <div key={param.name} className="space-y-2">
                                                     <label className="block text-sm font-medium text-theme-primary">{label}</label>
-                                                    <p className="text-xs text-theme-secondary mb-2">{selectedIds.length} animation(s) sélectionnée(s)</p>
+                                                    <p className="text-xs text-theme-secondary mb-2">{t('theme.animationsSelected', { count: selectedIds.length })}</p>
                                                     <div className="flex flex-wrap gap-1.5">
                                                         {CYCLEABLE_ANIMATION_IDS.map((animId) => {
                                                             const isChecked = selectedIds.includes(animId);
-                                                            const animLabel = FULL_ANIMATION_LABELS[animId] ?? animId;
+                                                            const animLabel = t(`theme.animations.${animationLabelKey(animId)}`) || (FULL_ANIMATION_LABELS[animId] ?? animId);
                                                             return (
                                                                 <label
                                                                     key={animId}
@@ -1163,8 +1168,8 @@ export const ThemeSection: React.FC = () => {
                                                             type="button"
                                                             onClick={() => animationParamsContext.setParameter(param.name, Math.max(param.min, rangeValue - step))}
                                                             className="flex-shrink-0 w-8 h-8 rounded-lg border border-theme bg-theme-secondary hover:border-yellow-500/50 flex items-center justify-center text-theme-primary"
-                                                            title="Diminuer"
-                                                            aria-label="Diminuer"
+                                                            title={t('theme.decrease')}
+                                                            aria-label={t('theme.decrease')}
                                                         >
                                                             <Minus className="w-4 h-4" />
                                                         </button>
@@ -1181,8 +1186,8 @@ export const ThemeSection: React.FC = () => {
                                                             type="button"
                                                             onClick={() => animationParamsContext.setParameter(param.name, Math.min(param.max, rangeValue + step))}
                                                             className="flex-shrink-0 w-8 h-8 rounded-lg border border-theme bg-theme-secondary hover:border-yellow-500/50 flex items-center justify-center text-theme-primary"
-                                                            title="Augmenter"
-                                                            aria-label="Augmenter"
+                                                            title={t('theme.increase')}
+                                                            aria-label={t('theme.increase')}
                                                         >
                                                             <Plus className="w-4 h-4" />
                                                         </button>
@@ -1234,8 +1239,8 @@ export const ThemeSection: React.FC = () => {
                 {/* Card: Opacité des cartes */}
                 <div className="rounded-xl border border-theme bg-theme-secondary/40 p-6 shadow-sm space-y-4">
                     <SettingRow
-                        label="Opacité des cartes"
-                        description={`Réglez l'opacité des cartes et blocs. Valeur actuelle : ${Math.round((cardOpacity[currentTheme] ?? 1) * 100)}%`}
+                        label={t('theme.cardOpacity')}
+                        description={t('theme.cardOpacityDescription', { percent: Math.round((cardOpacity[currentTheme] ?? 1) * 100) })}
                     >
                         <div className="flex items-center gap-2 w-full">
                             <button
@@ -1253,8 +1258,8 @@ export const ThemeSection: React.FC = () => {
                                     saveThemeConfig(currentTheme, customColors, v);
                                 }}
                                 className="flex-shrink-0 w-8 h-8 rounded-lg border border-theme bg-theme-secondary hover:border-yellow-500/50 flex items-center justify-center text-theme-primary"
-                                title="Diminuer"
-                                aria-label="Diminuer"
+                                title={t('theme.decrease')}
+                                aria-label={t('theme.decrease')}
                             >
                                 <Minus className="w-4 h-4" />
                             </button>
@@ -1293,8 +1298,8 @@ export const ThemeSection: React.FC = () => {
                                     saveThemeConfig(currentTheme, customColors, v);
                                 }}
                                 className="flex-shrink-0 w-8 h-8 rounded-lg border border-theme bg-theme-secondary hover:border-yellow-500/50 flex items-center justify-center text-theme-primary"
-                                title="Augmenter"
-                                aria-label="Augmenter"
+                                title={t('theme.increase')}
+                                aria-label={t('theme.increase')}
                             >
                                 <Plus className="w-4 h-4" />
                             </button>
@@ -1311,9 +1316,9 @@ export const ThemeSection: React.FC = () => {
                         <div>
                             <h3 className="text-base font-semibold text-theme-primary mb-1 flex items-center gap-2">
                                 <Palette size={18} className="text-yellow-400" />
-                                Personnalisation des couleurs
+                                {t('theme.colorCustomization')}
                             </h3>
-                            <p className="text-sm text-theme-secondary">Ajustez les couleurs selon vos préférences</p>
+                            <p className="text-sm text-theme-secondary">{t('theme.colorCustomizationDescription')}</p>
                         </div>
                         <button
                             onClick={() => setIsColorEditorOpen(!isColorEditorOpen)}
@@ -1322,12 +1327,12 @@ export const ThemeSection: React.FC = () => {
                             {isColorEditorOpen ? (
                                 <>
                                     <ChevronUp size={16} />
-                                    <span>Masquer</span>
+                                    <span>{t('theme.hide')}</span>
                                 </>
                             ) : (
                                 <>
                                     <ChevronDown size={16} />
-                                    <span>Afficher</span>
+                                    <span>{t('theme.show')}</span>
                                 </>
                             )}
                         </button>
@@ -1342,7 +1347,7 @@ export const ThemeSection: React.FC = () => {
                                     className="px-4 py-2 bg-theme-secondary border border-theme hover:border-red-500/50 rounded-lg transition-all flex items-center gap-2 text-sm text-theme-primary hover:bg-theme-primary"
                                 >
                                     <RefreshCw size={14} />
-                                    Réinitialiser
+                                    {t('theme.reset')}
                                 </button>
                                 <button
                                     onClick={handleSave}
@@ -1352,12 +1357,12 @@ export const ThemeSection: React.FC = () => {
                                     {isSaving ? (
                                         <>
                                             <RefreshCw size={14} className="animate-spin" />
-                                            <span>Sauvegarde...</span>
+                                            <span>{t('theme.saving')}</span>
                                         </>
                                     ) : (
                                         <>
                                             <Save size={14} />
-                                            <span>Sauvegarder</span>
+                                            <span>{t('theme.save')}</span>
                                         </>
                                     )}
                                 </button>
@@ -1370,12 +1375,12 @@ export const ThemeSection: React.FC = () => {
                             <div className="bg-theme-secondary rounded-xl border border-theme p-4">
                                 <h5 className="text-xs font-semibold text-theme-primary mb-3 flex items-center gap-2">
                                     <div className="w-1 h-4 bg-blue-500 rounded-full" />
-                                    Couleurs principales
+                                    {t('theme.primaryColors')}
                                 </h5>
                                 <div className="space-y-3">
                                     <div>
                                         <label className="block text-[10px] font-medium text-theme-secondary mb-1.5">
-                                            Couleur primaire
+                                            {t('theme.primaryColor')}
                                         </label>
                                         <div className="flex items-center gap-1.5">
                                             <input
@@ -1401,7 +1406,7 @@ export const ThemeSection: React.FC = () => {
                                     </div>
                                     <div>
                                         <label className="block text-[10px] font-medium text-theme-secondary mb-1.5">
-                                            Couleur primaire (hover)
+                                            {t('theme.primaryColorHover')}
                                         </label>
                                         <div className="flex items-center gap-1.5">
                                             <input
@@ -1432,13 +1437,13 @@ export const ThemeSection: React.FC = () => {
                             <div className="bg-theme-secondary rounded-xl border border-theme p-4">
                                 <h5 className="text-xs font-semibold text-theme-primary mb-3 flex items-center gap-2">
                                     <div className="w-1 h-4 bg-emerald-500 rounded-full" />
-                                    Couleurs de statut
+                                    {t('theme.statusColors')}
                                 </h5>
                                 <div className="grid grid-cols-2 gap-3">
                                     <div>
                                         <label className="block text-[10px] font-medium text-theme-secondary mb-1.5 flex items-center gap-1.5">
                                             <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                                            Succès
+                                            {t('theme.success')}
                                         </label>
                                         <div className="flex items-center gap-1.5">
                                             <input
@@ -1464,7 +1469,7 @@ export const ThemeSection: React.FC = () => {
                                     <div>
                                         <label className="block text-[10px] font-medium text-theme-secondary mb-1.5 flex items-center gap-1.5">
                                             <div className="w-2.5 h-2.5 rounded-full bg-yellow-500" />
-                                            Avertissement
+                                            {t('theme.warning')}
                                         </label>
                                         <div className="flex items-center gap-1.5">
                                             <input
@@ -1490,7 +1495,7 @@ export const ThemeSection: React.FC = () => {
                                     <div>
                                         <label className="block text-[10px] font-medium text-theme-secondary mb-1.5 flex items-center gap-1.5">
                                             <div className="w-2.5 h-2.5 rounded-full bg-red-500" />
-                                            Erreur
+                                            {t('theme.error')}
                                         </label>
                                         <div className="flex items-center gap-1.5">
                                             <input
@@ -1516,7 +1521,7 @@ export const ThemeSection: React.FC = () => {
                                     <div>
                                         <label className="block text-[10px] font-medium text-theme-secondary mb-1.5 flex items-center gap-1.5">
                                             <div className="w-2.5 h-2.5 rounded-full bg-cyan-500" />
-                                            Information
+                                            {t('theme.info')}
                                         </label>
                                         <div className="flex items-center gap-1.5">
                                             <input

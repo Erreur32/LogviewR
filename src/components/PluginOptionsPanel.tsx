@@ -6,6 +6,7 @@
  */
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Settings, CheckCircle, XCircle, RefreshCw, AlertCircle, Save, Eye, EyeOff, Plus, Trash2, FileText, Code, ChevronUp, ChevronDown, RotateCw } from 'lucide-react';
 import { usePluginStore, type Plugin } from '../stores/pluginStore';
 import { Button } from './ui/Button';
@@ -17,6 +18,7 @@ interface PluginOptionsPanelProps {
 }
 
 export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId, onClose }) => {
+    const { t } = useTranslation();
     const { plugins, updatePluginConfig, testPluginConnection, fetchPlugins } = usePluginStore();
     const [isTesting, setIsTesting] = useState(false);
     const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
@@ -578,7 +580,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
         setNewLogFile({ path: '', type: 'custom' });
         
         // Show notification
-        showInlineNotification(`Fichier "${file.path.split('/').pop()}" ajouté`, elementRef);
+        showInlineNotification(t('pluginOptions.fileAdded', { name: file.path.split('/').pop() }), elementRef);
         
         // Auto-save with new logFiles
         if (autoSaveTimeoutRef.current) {
@@ -610,7 +612,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
         setLogFiles(newLogFiles);
         
         // Show notification
-        showInlineNotification(`Fichier "${path.split('/').pop()}" supprimé`, elementRef);
+        showInlineNotification(t('pluginOptions.fileRemoved', { name: path.split('/').pop() }), elementRef);
         
         // Auto-save with new logFiles
         if (autoSaveTimeoutRef.current) {
@@ -647,7 +649,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
         
         // Show notification
         const fileName = path.split('/').pop() || path;
-        showInlineNotification(`Fichier "${fileName}" ${newEnabled ? 'activé' : 'désactivé'}`, elementRef);
+        showInlineNotification(newEnabled ? t('pluginOptions.fileEnabled', { name: fileName }) : t('pluginOptions.fileDisabled', { name: fileName }), elementRef);
         
         // Auto-save with new logFiles
         if (autoSaveTimeoutRef.current) {
@@ -732,14 +734,14 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
         if (field === 'readCompressed' || field === 'maxLines') {
             // Auto-save for toggles and number inputs
             const fieldLabels: Record<string, string> = {
-                maxLines: 'Limite de lignes',
-                readCompressed: 'Lire les fichiers compressés'
+                maxLines: t('pluginOptions.maxLinesLabel'),
+                readCompressed: t('pluginOptions.readCompressedLabel')
             };
             
             // Use updated formData in autoSave
             await autoSave();
             const fieldLabel = fieldLabels[field] || field;
-            showInlineNotification(`${fieldLabel} sauvegardé`, elementRef);
+            showInlineNotification(`${fieldLabel} ${t('pluginOptions.saved')}`, elementRef);
         }
         // For basePath, accessLogPattern, errorLogPattern: no auto-save, wait for manual save
     };
@@ -747,24 +749,24 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
     const validateForm = (): { valid: boolean; error?: string } => {
         if (isLogSourcePlugin) {
             if (!formData.basePath || typeof formData.basePath !== 'string' || !formData.basePath.trim()) {
-                return { valid: false, error: 'Le chemin de base est requis' };
+                return { valid: false, error: t('pluginConfig.basePathRequired') };
             }
             
             if (pluginId === 'nginx' || pluginId === 'apache') {
                 if (!formData.accessLogPattern || typeof formData.accessLogPattern !== 'string' || !formData.accessLogPattern.trim()) {
-                    return { valid: false, error: 'Le pattern pour les logs d\'accès est requis' };
+                    return { valid: false, error: t('pluginConfig.accessPatternRequired') };
                 }
                 if (!formData.errorLogPattern || typeof formData.errorLogPattern !== 'string' || !formData.errorLogPattern.trim()) {
-                    return { valid: false, error: 'Le pattern pour les logs d\'erreur est requis' };
+                    return { valid: false, error: t('pluginConfig.errorPatternRequired') };
                 }
             } else if (pluginId === 'npm') {
                 if (!formData.accessLogPattern || typeof formData.accessLogPattern !== 'string' || !formData.accessLogPattern.trim()) {
-                    return { valid: false, error: 'Le pattern pour les logs d\'accès est requis' };
+                    return { valid: false, error: t('pluginConfig.accessPatternRequired') };
                 }
             }
             
             if (typeof formData.maxLines !== 'number' || formData.maxLines < 0) {
-                return { valid: false, error: 'Le nombre maximum de lignes doit être un nombre positif ou zéro (0 = illimité)' };
+                return { valid: false, error: t('pluginConfig.maxLinesInvalid') };
             }
             
             return { valid: true };
@@ -777,7 +779,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
         if (!validation.valid) {
             setTestResult({
                 success: false,
-                message: validation.error || 'Veuillez remplir tous les champs requis'
+                message: validation.error || t('pluginConfig.fillRequired')
             });
             return;
         }
@@ -832,7 +834,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
         if (!validation.valid) {
             setTestResult({
                 success: false,
-                message: validation.error || 'Veuillez remplir tous les champs requis'
+                message: validation.error || t('pluginConfig.fillRequired')
             });
             setIsTesting(false);
             return;
@@ -951,7 +953,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                     </div>
                     <div>
                         <h3 className="text-base font-semibold text-white">Configuration {plugin.name}</h3>
-                        <p className="text-xs text-gray-500">Paramètres de connexion</p>
+                        <p className="text-xs text-gray-500">{t('pluginConfig.subtitle')}</p>
                     </div>
                 </div>
                 {onClose && (
@@ -992,13 +994,13 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                             <div className="bg-gradient-to-r from-cyan-500/10 to-blue-500/10 rounded-lg border border-cyan-500/30 p-4 space-y-4">
                                 <h4 className="text-base font-bold text-cyan-400 flex items-center gap-2 pb-3 mb-4 border-b border-cyan-500/20">
                                     <Settings size={18} />
-                                    Configuration de base
+                                    {t('pluginConfig.baseConfiguration')}
                                 </h4>
                                 
                                 {/* Base Path */}
                                 <div>
                                     <label htmlFor={`base-path-${pluginId}`} className="block text-sm font-medium text-gray-300 mb-2">
-                                        Chemin de base <span className="text-red-500">*</span>
+                                        {t('pluginConfig.basePath')} <span className="text-red-500">*</span>
                                     </label>
                                     <input
                                         id={`base-path-${pluginId}`}
@@ -1010,7 +1012,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                         required
                                     />
                                     <p className="text-xs text-gray-500 mt-1">
-                                        Chemin du répertoire contenant les fichiers de logs
+                                        {t('pluginConfig.basePathHelp')}
                                     </p>
                                 </div>
 
@@ -1018,7 +1020,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                 {(pluginId === 'nginx' || pluginId === 'apache' || pluginId === 'npm') && (
                                     <div>
                                         <label htmlFor={`access-pattern-${pluginId}`} className="block text-sm font-medium text-gray-300 mb-2">
-                                            Pattern logs d'accès <span className="text-red-500">*</span>
+                                            {t('pluginConfig.accessPattern')} <span className="text-red-500">*</span>
                                         </label>
                                         <input
                                             id={`access-pattern-${pluginId}`}
@@ -1030,7 +1032,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                             required
                                         />
                                         <p className="text-xs text-gray-500 mt-1">
-                                            Pattern pour détecter les fichiers de logs d'accès
+                                            {t('pluginConfig.accessPatternHelp')}
                                         </p>
                                     </div>
                                 )}
@@ -1039,7 +1041,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                 {(pluginId === 'nginx' || pluginId === 'apache') && (
                                     <div>
                                         <label htmlFor={`error-pattern-${pluginId}`} className="block text-sm font-medium text-gray-300 mb-2">
-                                            Pattern logs d'erreur <span className="text-red-500">*</span>
+                                            {t('pluginConfig.errorPattern')} <span className="text-red-500">*</span>
                                         </label>
                                         <input
                                             id={`error-pattern-${pluginId}`}
@@ -1051,7 +1053,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                             required
                                         />
                                         <p className="text-xs text-gray-500 mt-1">
-                                            Pattern pour détecter les fichiers de logs d'erreur
+                                            {t('pluginConfig.errorPatternHelp')}
                                         </p>
                                     </div>
                                 )}
@@ -1061,7 +1063,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                             <div className="bg-gradient-to-r from-orange-500/10 to-purple-500/10 rounded-lg border border-orange-500/30 p-4 space-y-4">
                                 <h4 className="text-sm font-semibold text-white flex items-center gap-2 pb-2 mb-4 border-b border-orange-500/20">
                                     <AlertCircle size={14} />
-                                    Options avancées
+                                    {t('pluginOptions.advancedOptions')}
                                 </h4>
 
                                 {/* Read Compressed Files */}
@@ -1075,10 +1077,10 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                             }}
                                             className="w-4 h-4 rounded border-gray-600 bg-[#1a1a1a] text-purple-500 focus:ring-purple-500"
                                         />
-                                        <span className="text-sm text-gray-300">Lire les fichiers compressés (.gz)</span>
+                                        <span className="text-sm text-gray-300">{t('pluginOptions.readCompressedLabel')}</span>
                                     </label>
                                     <p className="text-xs text-gray-500 mt-1 ml-6">
-                                        Active la lecture des fichiers de logs compressés en .gz (gzip uniquement pour l'instant)
+                                        {t('pluginOptions.readCompressedHelp')}
                                     </p>
                                 </div>
 
@@ -1086,7 +1088,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                 <div>
                                     <div className="flex items-center justify-between mb-2">
                                         <label htmlFor={`max-lines-${pluginId}`} className="block text-sm font-medium text-gray-300">
-                                            Limite de lignes
+                                            {t('pluginOptions.maxLinesLabel')}
                                         </label>
                                         <label className="flex items-center gap-2 cursor-pointer">
                                             <input
@@ -1099,7 +1101,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                                 className="w-4 h-4 rounded border-gray-600 bg-[#1a1a1a] text-purple-500 focus:ring-purple-500"
                                             />
                                             <span className="text-xs text-gray-400">
-                                                {Number(formData.maxLines ?? 0) > 0 ? 'Activée' : 'Désactivée (illimité)'}
+                                                {Number(formData.maxLines ?? 0) > 0 ? t('pluginOptions.maxLinesEnabled') : t('pluginOptions.maxLinesDisabled')}
                                             </span>
                                         </label>
                                     </div>
@@ -1114,12 +1116,12 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                                 className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                                             />
                                             <p className="text-xs text-gray-500 mt-1">
-                                                Nombre maximum de lignes à charger depuis chaque fichier de log
+                                                {t('pluginConfig.maxLinesHelp')}
                                             </p>
                                         </>
                                     ) : (
                                         <div className="px-3 py-2 bg-[#0a0a0a] border border-gray-800 rounded-lg text-sm text-gray-500">
-                                            Aucune limite - tous les logs seront chargés
+                                            {t('pluginOptions.noLimit')}
                                         </div>
                                     )}
                                 </div>
@@ -1136,7 +1138,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                 >
                                     <h4 className="text-base font-bold text-orange-400 flex items-center gap-2">
                                         <AlertCircle size={18} />
-                                        Filtres d'exclusion
+                                        {t('pluginOptions.exclusionFilters')}
                                     </h4>
                                     {isExclusionFiltersExpanded ? (
                                         <ChevronUp size={18} className="text-gray-400" />
@@ -1148,15 +1150,14 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                 {isExclusionFiltersExpanded && (
                                     <div className="bg-[#0f0f0f] rounded-lg border border-gray-800 p-4">
                                         <p className="text-xs text-gray-400 mb-4">
-                                            Configurez les patterns pour exclure automatiquement des fichiers ou dossiers lors du scan.
-                                            Les patterns supportent la syntaxe glob (*, ?, **).
+                                            {t('pluginOptions.exclusionFiltersHelp')}
                                         </p>
                                         
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                             {/* Exclude Files */}
                                             <div>
                                                 <label className="block text-xs font-medium text-gray-400 mb-2">
-                                                    Exclure fichiers
+                                                    {t('pluginOptions.excludeFiles')}
                                                 </label>
                                                 <div className="space-y-2">
                                             {(excludeFilters.files || []).map((pattern, idx) => (
@@ -1182,7 +1183,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                                             const newFilters = { ...excludeFilters, files: newFiles };
                                                             setExcludeFilters(newFilters);
                                                             autoSaveExcludeFilters(newFilters);
-                                                            showInlineNotification('Filtre d\'exclusion de fichier supprimé', e.currentTarget);
+                                                            showInlineNotification(t('pluginOptions.filterFileRemoved'), e.currentTarget);
                                                         }}
                                                         className="px-2 py-1 bg-red-900/30 hover:bg-red-900/50 text-red-400 rounded text-xs"
                                                     >
@@ -1202,7 +1203,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                                 }}
                                                 className="w-full px-2 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded text-xs flex items-center justify-center gap-1"
                                             >
-                                                + Ajouter
+                                                {t('pluginOptions.addButton')}
                                             </button>
                                         </div>
                                     </div>
@@ -1210,7 +1211,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                     {/* Exclude Directories */}
                                     <div>
                                         <label className="block text-xs font-medium text-gray-400 mb-2">
-                                            Exclure dossiers
+                                            {t('pluginOptions.excludeDirs')}
                                         </label>
                                         <div className="space-y-2">
                                             {(excludeFilters.directories || []).map((pattern, idx) => (
@@ -1224,7 +1225,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                                             const newFilters = { ...excludeFilters, directories: newDirs };
                                                             setExcludeFilters(newFilters);
                                                             autoSaveExcludeFilters(newFilters);
-                                                            showInlineNotification('Filtre d\'exclusion de dossier sauvegardé', e.currentTarget);
+                                                            showInlineNotification(t('pluginOptions.filterDirSaved'), e.currentTarget);
                                                         }}
                                                         placeholder="node_modules"
                                                         className="flex-1 px-2 py-1.5 bg-[#1a1a1a] border border-gray-700 rounded text-white text-xs focus:outline-none focus:ring-1 focus:ring-purple-500"
@@ -1237,7 +1238,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                                             const newFilters = { ...excludeFilters, directories: newDirs };
                                                             setExcludeFilters(newFilters);
                                                             autoSaveExcludeFilters(newFilters);
-                                                            showInlineNotification('Filtre d\'exclusion de dossier supprimé', e.currentTarget);
+                                                            showInlineNotification(t('pluginOptions.filterDirRemoved'), e.currentTarget);
                                                         }}
                                                         className="px-2 py-1 bg-red-900/30 hover:bg-red-900/50 text-red-400 rounded text-xs"
                                                     >
@@ -1257,7 +1258,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                                         }}
                                                         className="w-full px-2 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded text-xs flex items-center justify-center gap-1"
                                                     >
-                                                        + Ajouter
+                                                        {t('pluginOptions.addButton')}
                                                     </button>
                                                 </div>
                                             </div>
@@ -1265,7 +1266,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                             {/* Exclude Paths */}
                                             <div>
                                                 <label className="block text-xs font-medium text-gray-400 mb-2">
-                                                    Exclure chemins complets
+                                                    {t('pluginOptions.excludePaths')}
                                                 </label>
                                                 <div className="space-y-2">
                                             {(excludeFilters.paths || []).map((pattern, idx) => (
@@ -1279,7 +1280,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                                             const newFilters = { ...excludeFilters, paths: newPaths };
                                                             setExcludeFilters(newFilters);
                                                             autoSaveExcludeFilters(newFilters);
-                                                            showInlineNotification('Filtre d\'exclusion de chemin sauvegardé', e.currentTarget);
+                                                            showInlineNotification(t('pluginOptions.filterPathSaved'), e.currentTarget);
                                                         }}
                                                         placeholder="/var/log/old"
                                                         className="flex-1 px-2 py-1.5 bg-[#1a1a1a] border border-gray-700 rounded text-white text-xs focus:outline-none focus:ring-1 focus:ring-purple-500"
@@ -1292,7 +1293,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                                             const newFilters = { ...excludeFilters, paths: newPaths };
                                                             setExcludeFilters(newFilters);
                                                             autoSaveExcludeFilters(newFilters);
-                                                            showInlineNotification('Filtre d\'exclusion de chemin supprimé', e.currentTarget);
+                                                            showInlineNotification(t('pluginOptions.filterPathRemoved'), e.currentTarget);
                                                         }}
                                                         className="px-2 py-1 bg-red-900/30 hover:bg-red-900/50 text-red-400 rounded text-xs"
                                                     >
@@ -1312,7 +1313,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                                         }}
                                                         className="w-full px-2 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded text-xs flex items-center justify-center gap-1"
                                                     >
-                                                        + Ajouter
+                                                        {t('pluginOptions.addButton')}
                                                     </button>
                                                 </div>
                                             </div>
@@ -1339,7 +1340,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                 >
                                     <h4 className="text-base font-bold text-purple-400 flex items-center gap-2">
                                         <FileText size={18} />
-                                        {pluginId === 'host-system' ? 'Fichiers de logs système' : 'Fichiers de logs personnalisés'}
+                                        {pluginId === 'host-system' ? t('pluginOptions.logFilesSystem') : t('pluginOptions.logFilesCustom')}
                                     </h4>
                                     <div className="flex items-center gap-2">
                                     {pluginId === 'host-system' && (
@@ -1350,10 +1351,10 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                                     loadLogFiles(true);
                                                 }}
                                                 className="text-xs px-2 py-1 bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 rounded transition-colors flex items-center gap-1"
-                                                title="Rescanner les services de logging (journalctl, syslog-ng, rsyslog)"
+                                                title={t('pluginOptions.refreshScanServices')}
                                         >
                                             <RefreshCw size={12} />
-                                            Actualiser
+                                            {t('pluginOptions.refresh')}
                                         </button>
                                     )}
                                         {isLogFilesExpanded ? (
@@ -1367,7 +1368,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                 {isLogFilesExpanded && (
                                     <div className="bg-[#0f0f0f] rounded-lg border border-gray-800 p-4">
                                 {isLoadingLogFiles && pluginId === 'host-system' ? (
-                                    <div className="text-center py-4 text-gray-500 text-xs">Chargement...</div>
+                                    <div className="text-center py-4 text-gray-500 text-xs">{t('pluginOptions.loading')}</div>
                                 ) : (
                                     <>
                                         {pluginId === 'host-system' ? (
@@ -1382,7 +1383,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                                             className="w-full flex items-center justify-between p-2 bg-[#1a1a1a] rounded border border-gray-700 hover:bg-[#252525] transition-colors mb-2"
                                                         >
                                                             <span className="text-xs font-medium text-gray-300">
-                                                                Fichiers par défaut ({defaultLogFiles.length})
+                                                                {t('pluginOptions.defaultFiles', { count: defaultLogFiles.length })}
                                                             </span>
                                                             {isDefaultLogFilesExpanded ? (
                                                                 <ChevronUp size={14} className="text-gray-400" />
@@ -1420,7 +1421,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                                         className="w-full flex items-center justify-between p-2 bg-[#1a1a1a] rounded border border-gray-700 hover:bg-[#252525] transition-colors mb-2"
                                                     >
                                                         <span className="text-xs font-medium text-gray-300">
-                                                        Fichiers configurés ({logFiles.length})
+                                                        {t('pluginOptions.configuredFiles', { count: logFiles.length })}
                                                         </span>
                                                         {isConfiguredLogFilesExpanded ? (
                                                             <ChevronUp size={14} className="text-gray-400" />
@@ -1431,7 +1432,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                                     {isConfiguredLogFilesExpanded && (
                                                     <div className="space-y-1">
                                                         {logFiles.length === 0 ? (
-                                                            <div className="text-center py-2 text-gray-500 text-xs">Aucun fichier configuré</div>
+                                                            <div className="text-center py-2 text-gray-500 text-xs">{t('pluginOptions.noFilesConfigured')}</div>
                                                         ) : (
                                                             logFiles.map((file, idx) => (
                                                                 <div key={idx} className="flex items-center gap-2 p-1.5 bg-[#1a1a1a] rounded border border-gray-700">
@@ -1461,11 +1462,11 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                             /* Other plugins: single column */
                                             <div>
                                                 <label className="block text-xs font-medium text-gray-400 mb-2">
-                                                    Fichiers configurés ({logFiles.length})
+                                                    {t('pluginOptions.configuredFiles', { count: logFiles.length })}
                                                 </label>
                                                 <div className="space-y-1">
                                                     {logFiles.length === 0 ? (
-                                                        <div className="text-center py-2 text-gray-500 text-xs">Aucun fichier configuré</div>
+                                                        <div className="text-center py-2 text-gray-500 text-xs">{t('pluginOptions.noFilesConfigured')}</div>
                                                     ) : (
                                                         logFiles.map((file, idx) => (
                                                             <div key={idx} className="flex items-center gap-2 p-1.5 bg-[#1a1a1a] rounded border border-gray-700">
@@ -1494,7 +1495,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                         {/* Add Custom Log File */}
                                         <div className="mt-3 pt-3 border-t border-gray-800">
                                             <label className="block text-xs font-medium text-gray-400 mb-2">
-                                                Ajouter un fichier personnalisé
+                                                {t('pluginOptions.addCustomFile')}
                                             </label>
                                             <div className="flex gap-2">
                                                 <input
@@ -1552,7 +1553,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                 >
                                     <h4 className="text-base font-bold text-yellow-400 flex items-center gap-2">
                                         <RotateCw size={18} />
-                                        Système de rotation des logs
+                                        {t('pluginOptions.logRotation')}
                                     </h4>
                                     {isLogRotationExpanded ? (
                                         <ChevronUp size={18} className="text-gray-400" />
@@ -1568,7 +1569,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                         {/* System Detected */}
                                         <div className="p-3 bg-[#1a1a1a] rounded border border-gray-700">
-                                            <div className="text-xs font-medium text-gray-400 mb-2">Système détecté</div>
+                                            <div className="text-xs font-medium text-gray-400 mb-2">{t('pluginOptions.detectedSystem')}</div>
                                             <div className={`text-xs px-2 py-1 rounded inline-block ${
                                                 logRotationInfo.active 
                                                     ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
@@ -1576,14 +1577,14 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                             }`}>
                                                 {logRotationInfo.rotationSystem === 'logrotate' ? 'logrotate' :
                                                  logRotationInfo.rotationSystem === 'systemd' ? 'systemd (journald)' :
-                                                 logRotationInfo.rotationSystem === 'none' ? 'Aucun' : 'Inconnu'}
+                                                 logRotationInfo.rotationSystem === 'none' ? t('pluginOptions.none') : t('pluginOptions.unknown')}
                                             </div>
                                         </div>
                                         
                                         {/* Config Path */}
                                         {logRotationInfo.configPath && (
                                             <div className="p-3 bg-[#1a1a1a] rounded border border-gray-700">
-                                                <div className="text-xs font-medium text-gray-400 mb-2">Fichier de config</div>
+                                                <div className="text-xs font-medium text-gray-400 mb-2">{t('pluginOptions.configFile')}</div>
                                                 <div className="text-xs text-gray-300 font-mono truncate" title={logRotationInfo.configPath}>
                                                     {logRotationInfo.configPath}
                                                 </div>
@@ -1593,7 +1594,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                         {/* Config Files Count */}
                                         {logRotationInfo.configFiles && logRotationInfo.configFiles.length > 0 && (
                                             <div className="p-3 bg-[#1a1a1a] rounded border border-gray-700">
-                                                <div className="text-xs font-medium text-gray-400 mb-2">Fichiers de config</div>
+                                                <div className="text-xs font-medium text-gray-400 mb-2">{t('pluginOptions.configFiles')}</div>
                                                 <div className="text-xs text-gray-300">{logRotationInfo.configFiles.length}</div>
                                             </div>
                                         )}
@@ -1608,7 +1609,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                                 className="w-full flex items-center justify-between p-2 bg-[#1a1a1a] rounded border border-gray-700 hover:bg-[#252525] transition-colors mb-2"
                                             >
                                                 <span className="text-xs font-medium text-gray-300">
-                                                    Fichiers configurés dans logrotate ({logRotationInfo.configuredLogFiles.length})
+                                                    {t('pluginOptions.configuredInLogrotate', { count: logRotationInfo.configuredLogFiles.length })}
                                                 </span>
                                                 {isRotationFilesExpanded ? (
                                                     <ChevronUp size={16} className="text-gray-400" />
@@ -1642,7 +1643,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                                                 )}
                                                                 {file.compress && (
                                                                     <span className="px-1.5 py-0.5 bg-orange-500/20 text-orange-400 rounded">
-                                                                        Comp
+                                                                        {t('pluginOptions.compress')}
                                                                     </span>
                                                                 )}
                                                             </div>
@@ -1676,7 +1677,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                 >
                                     <h4 className="text-base font-bold text-cyan-400 flex items-center gap-2">
                                         <FileText size={18} />
-                                        Fichiers détectés avec regex
+                                        {t('pluginOptions.detectedWithRegex')}
                                     </h4>
                                     <div className="flex items-center gap-2">
                                         <button
@@ -1686,10 +1687,10 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                                 loadDetectedFiles();
                                             }}
                                             className="text-xs px-2 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded transition-colors flex items-center gap-1"
-                                            title="Actualiser la liste des fichiers"
+                                            title={t('pluginOptions.refreshList')}
                                         >
                                             <RefreshCw size={12} className={isLoadingDetectedFiles ? 'animate-spin' : ''} />
-                                            Actualiser
+                                            {t('pluginOptions.refresh')}
                                         </button>
                                         {isDetectedFilesExpanded ? (
                                             <ChevronUp size={18} className="text-gray-400" />
@@ -1704,7 +1705,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                 {isLoadingDetectedFiles ? (
                                     <div className="text-center py-4 text-gray-500 text-xs">
                                         <RefreshCw size={16} className="animate-spin mx-auto mb-2" />
-                                        Scan en cours...
+                                        {t('pluginOptions.scanInProgress')}
                                     </div>
                                 ) : (() => {
                                     // Helper to check if a file is rotated or compressed
@@ -1884,7 +1885,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                                         ) : (
                                                             <div className="space-y-1">
                                                                 <div className="text-xs text-gray-500 font-mono break-all bg-[#0a0a0a] px-2 py-1.5 rounded border border-gray-800" title={currentRegex}>
-                                                                    {currentRegex || '(Aucune regex)'}
+                                                                    {currentRegex || t('pluginOptions.noRegex')}
                                                                 </div>
                                                                 <button
                                                                     type="button"
@@ -1990,7 +1991,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                                 
                                                 {systemFiles.length === 0 && rotationFiles.length === 0 && supplementaryFiles.length === 0 && (
                                                     <div className="text-center py-4 text-gray-500 text-xs">
-                                                        Aucun fichier détecté. Vérifiez le chemin de base et les patterns.
+                                                        {t('pluginOptions.noDetectedFiles')}
                                                     </div>
                                                 )}
                                             </div>
@@ -1999,7 +2000,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                         // For other plugins, use the original display
                                         return baseFilesOnly.length === 0 ? (
                                             <div className="text-center py-4 text-gray-500 text-xs">
-                                                Aucun fichier détecté. Vérifiez le chemin de base et les patterns.
+                                                {t('pluginOptions.noDetectedFiles')}
                                             </div>
                                         ) : (
                                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
@@ -2098,7 +2099,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                                                 ) : (
                                                                     <div className="space-y-1">
                                                                         <div className="text-xs text-gray-500 font-mono break-all bg-[#0a0a0a] px-2 py-1.5 rounded border border-gray-800" title={currentRegex}>
-                                                                            {currentRegex || '(Aucune regex)'}
+                                                                            {currentRegex || t('pluginOptions.noRegex')}
                                                                     </div>
                                                                         <button
                                                                             type="button"
@@ -2134,7 +2135,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                         className="px-6 py-3 rounded-lg font-semibold text-base transition-all duration-200 flex items-center gap-2 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95"
                     >
                         <Save size={18} />
-                        <span>Enregistrer</span>
+                        <span>{t('pluginConfig.saveButton')}</span>
                     </button>
                     <button
                         type="button"
@@ -2149,12 +2150,12 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                         {isTesting ? (
                             <>
                                 <RefreshCw size={18} className="animate-spin" />
-                                <span>Test en cours...</span>
+                                <span>{t('pluginConfig.testRunning')}</span>
                             </>
                         ) : (
                             <>
                                 <RefreshCw size={18} />
-                                <span>Valider</span>
+                                <span>{t('pluginConfig.testButton')}</span>
                             </>
                         )}
                     </button>

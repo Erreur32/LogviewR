@@ -37,6 +37,7 @@ import type { LogPluginStats } from '../types/logViewer';
 import { Badge } from '../components/ui/Badge';
 import { getPluginIcon } from '../utils/pluginIcons';
 import { Tooltip } from '../components/ui/Tooltip';
+import { useTranslation } from 'react-i18next';
 
 interface AnalyticsPageProps {
   onBack: () => void;
@@ -51,6 +52,7 @@ interface DatabaseStats {
 }
 
 export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onBack }) => {
+  const { t } = useTranslation();
   const { user } = useUserAuthStore();
   const { plugins, fetchPlugins } = usePluginStore();
   const [databaseStats, setDatabaseStats] = useState<DatabaseStats | null>(null);
@@ -240,18 +242,11 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onBack }) => {
     }
   };
 
-  // Get role label
+  // Get role label (translated)
   const getRoleLabel = (role: string): string => {
-    switch (role) {
-      case 'admin':
-        return 'Administrateur';
-      case 'user':
-        return 'Utilisateur';
-      case 'viewer':
-        return 'Lecteur';
-      default:
-        return role;
-    }
+    const key = `analytics.roles.${role}` as const;
+    const translated = t(key);
+    return translated !== key ? translated : role;
   };
 
   // Get enabled log source plugins
@@ -310,8 +305,8 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onBack }) => {
                   <BarChart2 size={24} className="text-purple-400" />
                 </div>
                 <div>
-                  <h1 className="text-xl font-bold text-white">Analytique</h1>
-                  <p className="text-sm text-gray-500">Statistiques et informations détaillées</p>
+                  <h1 className="text-xl font-bold text-white">{t('analytics.title')}</h1>
+                  <p className="text-sm text-gray-500">{t('analytics.subtitle')}</p>
                 </div>
               </div>
             </div>
@@ -331,8 +326,8 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onBack }) => {
                 <Plug size={24} className="text-purple-400" />
               </div>
               <div className="text-left">
-                <h2 className="text-lg font-semibold text-white">Statistiques Rapides des Plugins</h2>
-                <p className="text-sm text-gray-500">État et statistiques des plugins de logs actifs</p>
+                <h2 className="text-lg font-semibold text-white">{t('analytics.pluginStatsTitle')}</h2>
+                <p className="text-sm text-gray-500">{t('analytics.pluginStatsDesc')}</p>
               </div>
             </div>
             {isPluginStatsExpanded ? (
@@ -351,21 +346,21 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onBack }) => {
               <div className="bg-[#0a0a0a] rounded-lg p-4 border border-gray-700">
                 <div className="flex items-center gap-2 text-gray-500 text-sm mb-2">
                   <Plug size={16} className="text-purple-400" />
-                  Plugins actifs
+                  {t('analytics.activePlugins')}
                 </div>
                 <div className="text-2xl font-bold text-white">{totalStats.totalPlugins}</div>
               </div>
               <div className="bg-[#0a0a0a] rounded-lg p-4 border border-gray-700">
                 <div className="flex items-center gap-2 text-gray-500 text-sm mb-2">
                   <FileText size={16} className="text-blue-400" />
-                  Fichiers totaux
+                  {t('analytics.totalFiles')}
                 </div>
                 <div className="text-2xl font-bold text-white">{totalStats.totalFiles}</div>
               </div>
               <div className="bg-[#0a0a0a] rounded-lg p-4 border border-gray-700">
                 <div className="flex items-center gap-2 text-gray-500 text-sm mb-2">
                   <HardDrive size={16} className="text-yellow-400" />
-                  Taille totale
+                  {t('analytics.totalSize')}
                   {/* TODO: Add alert indicator when size limit is configured and exceeded */}
                 </div>
                 <div className="text-2xl font-bold text-yellow-200">
@@ -379,14 +374,14 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onBack }) => {
               <div className="bg-[#0a0a0a] rounded-lg p-4 border border-gray-700">
                 <div className="flex items-center gap-2 text-gray-500 text-sm mb-2">
                   <CheckCircle size={16} className="text-green-400" />
-                  Fichiers lisibles
+                  {t('analytics.readableFiles')}
                 </div>
                 <div className="text-2xl font-bold text-green-400">{totalStats.totalReadable}</div>
               </div>
               <div className="bg-[#0a0a0a] rounded-lg p-4 border border-gray-700">
                 <div className="flex items-center gap-2 text-gray-500 text-sm mb-2">
                   <XCircle size={16} className="text-red-400" />
-                  Fichiers illisibles
+                  {t('analytics.unreadableFiles')}
                 </div>
                 <div className="text-2xl font-bold text-red-400">{totalStats.totalUnreadable}</div>
               </div>
@@ -399,21 +394,21 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onBack }) => {
               <div className="bg-[#0a0a0a] rounded-lg p-4 border border-green-500/30">
                 <div className="flex items-center gap-2 text-gray-500 text-sm mb-2">
                   <CheckCircle size={16} className="text-green-400" />
-                  Plugins OK
+                  {t('analytics.pluginsOk')}
                 </div>
                 <div className="text-2xl font-bold text-green-400">{totalStats.pluginsOk}</div>
               </div>
               <div className="bg-[#0a0a0a] rounded-lg p-4 border border-yellow-500/30">
                 <div className="flex items-center gap-2 text-gray-500 text-sm mb-2">
                   <AlertCircle size={16} className="text-yellow-400" />
-                  Plugins en avertissement
+                  {t('analytics.pluginsWarning')}
                 </div>
                 <div className="text-2xl font-bold text-yellow-400">{totalStats.pluginsWarning}</div>
               </div>
               <div className="bg-[#0a0a0a] rounded-lg p-4 border border-red-500/30">
                 <div className="flex items-center gap-2 text-gray-500 text-sm mb-2">
                   <XCircle size={16} className="text-red-400" />
-                  Plugins en erreur
+                  {t('analytics.pluginsError')}
                 </div>
                 <div className="text-2xl font-bold text-red-400">{totalStats.pluginsWithErrors}</div>
               </div>
@@ -424,16 +419,16 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onBack }) => {
           {isLoadingPluginStats ? (
             <div className="flex items-center justify-center py-8">
               <RefreshCw className="w-6 h-6 text-gray-500 animate-spin" />
-              <span className="ml-2 text-gray-500">Chargement des statistiques...</span>
+              <span className="ml-2 text-gray-500">{t('analytics.loadingStats')}</span>
             </div>
           ) : enabledLogPlugins.length === 0 ? (
             <div className="bg-[#0a0a0a] rounded-lg p-4 border border-gray-700">
               <div className="flex items-center gap-2 text-yellow-400">
                 <AlertCircle size={20} />
-                <span className="text-sm">Aucun plugin de logs activé</span>
+                <span className="text-sm">{t('analytics.noPluginEnabled')}</span>
               </div>
               <p className="text-sm text-gray-500 mt-2">
-                Activez au moins un plugin de logs pour voir les statistiques.
+                {t('analytics.enablePluginHint')}
               </p>
             </div>
           ) : (
@@ -463,8 +458,8 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onBack }) => {
                 <HardDrive size={24} className="text-orange-400" />
               </div>
               <div className="text-left">
-                <h2 className="text-lg font-semibold text-white">Plus gros fichiers de logs</h2>
-                <p className="text-sm text-gray-500">Top 10 des fichiers les plus volumineux</p>
+                <h2 className="text-lg font-semibold text-white">{t('analytics.largestFilesTitle')}</h2>
+                <p className="text-sm text-gray-500">{t('analytics.largestFilesDesc')}</p>
               </div>
             </div>
             {isLargestFilesExpanded ? (
@@ -479,11 +474,11 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onBack }) => {
               {isLoadingLargestFiles ? (
                 <div className="flex items-center justify-center py-8">
                   <RefreshCw className="w-6 h-6 text-gray-500 animate-spin" />
-                  <span className="ml-2 text-gray-500">Chargement...</span>
+                  <span className="ml-2 text-gray-500">{t('analytics.loading')}</span>
                 </div>
               ) : largestFiles.length === 0 ? (
                 <div className="bg-[#0a0a0a] rounded-lg p-4 border border-gray-700">
-                  <div className="text-sm text-gray-500">Aucun fichier trouvé</div>
+                  <div className="text-sm text-gray-500">{t('analytics.noFilesFound')}</div>
                 </div>
               ) : (
                 <div className="bg-[#0a0a0a] rounded-lg border border-gray-700 overflow-hidden">
@@ -492,10 +487,10 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onBack }) => {
                       <thead className="bg-[#0f0f0f] border-b border-gray-800">
                         <tr>
                           <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase">#</th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase">Plugin</th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase">Chemin</th>
-                          <th className="px-4 py-3 text-right text-xs font-semibold text-gray-400 uppercase">Taille</th>
-                          <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400 uppercase">Type</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase">{t('analytics.tablePlugin')}</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase">{t('analytics.tablePath')}</th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold text-gray-400 uppercase">{t('analytics.tableSize')}</th>
+                          <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400 uppercase">{t('analytics.tableType')}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-800">
@@ -513,7 +508,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onBack }) => {
                                 />
                                 <span className="text-sm text-gray-300">{file.pluginName}</span>
                                 {file.isCompressed && (
-                                  <Tooltip content="Fichier compressé (.gz)">
+                                  <Tooltip content={t('analytics.compressedFileTooltip')}>
                                     <Archive size={14} className="text-red-400 cursor-help" />
                                   </Tooltip>
                                 )}
@@ -558,8 +553,8 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onBack }) => {
                 <Database size={24} className="text-blue-400" />
               </div>
               <div className="text-left">
-                <h2 className="text-lg font-semibold text-white">Statistiques Base de Données</h2>
-                <p className="text-sm text-gray-500">Informations sur la base de données (à venir)</p>
+                <h2 className="text-lg font-semibold text-white">{t('analytics.dbStatsTitle')}</h2>
+                <p className="text-sm text-gray-500">{t('analytics.dbStatsDesc')}</p>
               </div>
             </div>
             {isDatabaseExpanded ? (
@@ -574,16 +569,16 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onBack }) => {
               {isLoadingDbStats ? (
                 <div className="flex items-center justify-center py-8">
                   <RefreshCw className="w-6 h-6 text-gray-500 animate-spin" />
-                  <span className="ml-2 text-gray-500">Chargement...</span>
+                  <span className="ml-2 text-gray-500">{t('analytics.loading')}</span>
                 </div>
               ) : (
                 <div className="bg-[#0a0a0a] rounded-lg p-4 border border-gray-700">
                   <div className="flex items-center gap-2 text-yellow-400">
                     <AlertCircle size={20} />
-                    <span className="text-sm font-medium">Fonctionnalité en cours de développement</span>
+                    <span className="text-sm font-medium">{t('analytics.featureInDev')}</span>
                   </div>
                   <p className="text-sm text-gray-500 mt-2">
-                    Les statistiques détaillées de la base de données seront disponibles prochainement.
+                    {t('analytics.dbStatsComingSoon')}
                   </p>
                 </div>
               )}
@@ -602,8 +597,8 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onBack }) => {
                 <User size={24} className="text-green-400" />
               </div>
               <div className="text-left">
-                <h2 className="text-lg font-semibold text-white">Informations Utilisateur</h2>
-                <p className="text-sm text-gray-500">Détails de votre compte</p>
+                <h2 className="text-lg font-semibold text-white">{t('analytics.userInfoTitle')}</h2>
+                <p className="text-sm text-gray-500">{t('analytics.userInfoDesc')}</p>
               </div>
             </div>
             {isUserExpanded ? (
@@ -635,7 +630,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onBack }) => {
                   <div className="flex items-center gap-3">
                     <Mail size={18} className="text-gray-500" />
                     <div>
-                      <div className="text-xs text-gray-500">Email</div>
+                      <div className="text-xs text-gray-500">{t('analytics.email')}</div>
                       <div className="text-white">{user.email || 'N/A'}</div>
                     </div>
                   </div>
@@ -643,17 +638,17 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onBack }) => {
                   <div className="flex items-center gap-3">
                     <Shield size={18} className="text-gray-500" />
                     <div>
-                      <div className="text-xs text-gray-500">Statut</div>
+                      <div className="text-xs text-gray-500">{t('analytics.status')}</div>
                       <div className="flex items-center gap-2">
                         {user.enabled ? (
                           <>
                             <CheckCircle size={16} className="text-green-400" />
-                            <span className="text-green-400">Actif</span>
+                            <span className="text-green-400">{t('analytics.active')}</span>
                           </>
                         ) : (
                           <>
                             <XCircle size={16} className="text-red-400" />
-                            <span className="text-red-400">Désactivé</span>
+                            <span className="text-red-400">{t('analytics.disabled')}</span>
                           </>
                         )}
                       </div>
@@ -663,7 +658,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onBack }) => {
                   <div className="flex items-center gap-3">
                     <Calendar size={18} className="text-gray-500" />
                     <div>
-                      <div className="text-xs text-gray-500">Compte créé le</div>
+                      <div className="text-xs text-gray-500">{t('analytics.accountCreated')}</div>
                       <div className="text-white">{formatDate(user.createdAt)}</div>
                     </div>
                   </div>
@@ -672,10 +667,10 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onBack }) => {
                     <div className="flex items-center gap-3">
                       <Clock size={18} className="text-gray-500" />
                       <div>
-                        <div className="text-xs text-gray-500">Dernière connexion</div>
+                        <div className="text-xs text-gray-500">{t('analytics.lastLogin')}</div>
                         <div className="text-white">{formatDate(user.lastLogin)}</div>
                         {user.lastLoginIp && (
-                          <div className="text-xs text-gray-500 mt-1">IP: {user.lastLoginIp}</div>
+                          <div className="text-xs text-gray-500 mt-1">{t('analytics.lastLoginIp', { ip: user.lastLoginIp })}</div>
                         )}
                       </div>
                     </div>
@@ -685,30 +680,30 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onBack }) => {
 
               {/* User Stats Card */}
               <div className="bg-[#0a0a0a] rounded-lg p-6 border border-gray-700">
-                <h3 className="text-lg font-semibold text-white mb-4">Statistiques</h3>
+                <h3 className="text-lg font-semibold text-white mb-4">{t('analytics.statistics')}</h3>
                 <div className="space-y-4">
                   <div className="flex items-center justify-between p-3 bg-[#121212] rounded-lg">
-                    <span className="text-gray-400">ID Utilisateur</span>
+                    <span className="text-gray-400">{t('analytics.userId')}</span>
                     <span className="text-white font-mono">#{user.id}</span>
                   </div>
                   <div className="flex items-center justify-between p-3 bg-[#121212] rounded-lg">
-                    <span className="text-gray-400">Rôle</span>
+                    <span className="text-gray-400">{t('analytics.role')}</span>
                     <Badge variant={getRoleBadgeVariant(user.role)}>
                       {getRoleLabel(user.role)}
                     </Badge>
                   </div>
                   <div className="flex items-center justify-between p-3 bg-[#121212] rounded-lg">
-                    <span className="text-gray-400">Statut</span>
+                    <span className="text-gray-400">{t('analytics.status')}</span>
                     <div className="flex items-center gap-2">
                       {user.enabled ? (
                         <>
                           <CheckCircle size={16} className="text-green-400" />
-                          <span className="text-green-400">Actif</span>
+                          <span className="text-green-400">{t('analytics.active')}</span>
                         </>
                       ) : (
                         <>
                           <XCircle size={16} className="text-red-400" />
-                          <span className="text-red-400">Désactivé</span>
+                          <span className="text-red-400">{t('analytics.disabled')}</span>
                         </>
                       )}
                     </div>
@@ -720,7 +715,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onBack }) => {
             <div className="bg-[#0a0a0a] rounded-lg p-4 border border-gray-700">
               <div className="flex items-center gap-2 text-yellow-400">
                 <AlertCircle size={20} />
-                <span className="text-sm">Aucune information utilisateur disponible</span>
+                <span className="text-sm">{t('analytics.noUserInfo')}</span>
               </div>
             </div>
           )}

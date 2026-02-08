@@ -1047,6 +1047,7 @@ router.get('/plugins/:pluginId/stats', async (req, res) => {
             readableFiles: 0,
             unreadableFiles: 0,
             totalSize: 0, // Total size of all log files in bytes
+            gzCount: 0, // Number of .gz files (for exporter/stats display)
             filesByType: {} as Record<string, { total: number; readable: number; unreadable: number }>,
             errors: [] as string[]
         };
@@ -1054,13 +1055,14 @@ router.get('/plugins/:pluginId/stats', async (req, res) => {
         // Test each file
         for (const file of files) {
             const logType = file.type || 'unknown';
-            
+            if (/\.gz$/i.test(file.path)) stats.gzCount++;
+
             // Initialize type stats if needed
             if (!stats.filesByType[logType]) {
                 stats.filesByType[logType] = { total: 0, readable: 0, unreadable: 0 };
             }
             stats.filesByType[logType].total++;
-            
+
             // Add file size to total
             stats.totalSize += file.size;
 
@@ -1130,6 +1132,7 @@ router.get('/plugins/:pluginId/stats', async (req, res) => {
                 readableFiles: stats.readableFiles,
                 unreadableFiles: stats.unreadableFiles,
                 totalSize: stats.totalSize,
+                gzCount: stats.gzCount,
                 filesByType: stats.filesByType,
                 errors: stats.errors.slice(0, 10) // Limit errors to first 10
             }

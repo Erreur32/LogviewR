@@ -5,6 +5,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Code, Edit2, Trash2, Play, Copy, CheckCircle2, AlertCircle, Loader2, Sparkles } from 'lucide-react';
 import { Section, SettingRow } from './SettingsSection';
 import { api } from '../api/client';
@@ -26,6 +27,7 @@ interface GeneratedRegex {
 }
 
 export const RegexManagementSection: React.FC = () => {
+    const { t, i18n } = useTranslation();
     const { plugins } = usePluginStore();
     const [customRegexes, setCustomRegexes] = useState<Record<string, CustomRegex[]>>({});
     const [isLoading, setIsLoading] = useState(false);
@@ -77,7 +79,7 @@ export const RegexManagementSection: React.FC = () => {
             }
         } catch (err) {
             console.error('Failed to load custom regexes:', err);
-            setError(err instanceof Error ? err.message : 'Failed to load custom regexes');
+            setError(err instanceof Error ? err.message : t('regex.loadError'));
         } finally {
             setIsLoading(false);
         }
@@ -85,7 +87,7 @@ export const RegexManagementSection: React.FC = () => {
 
     const handleGenerateRegex = async () => {
         if (!logLine.trim()) {
-            setGenerateError('Veuillez coller une ligne de log');
+            setGenerateError(t('regex.pleasePasteLogLine'));
             return;
         }
 
@@ -101,11 +103,11 @@ export const RegexManagementSection: React.FC = () => {
             if (response.success && response.result) {
                 setGeneratedRegex(response.result);
             } else {
-                setGenerateError(response.error?.message || 'Failed to generate regex');
+                setGenerateError(response.error?.message || t('regex.generateError'));
             }
         } catch (err) {
             console.error('Failed to generate regex:', err);
-            setGenerateError(err instanceof Error ? err.message : 'Failed to generate regex');
+            setGenerateError(err instanceof Error ? err.message : t('regex.generateError'));
         } finally {
             setIsGenerating(false);
         }
@@ -130,7 +132,7 @@ export const RegexManagementSection: React.FC = () => {
     };
 
     const handleDelete = async (pluginId: string, filePath: string) => {
-        if (!confirm(`Êtes-vous sûr de vouloir supprimer la regex pour "${filePath}" ?`)) {
+        if (!confirm(t('regex.deleteConfirm', { path: filePath }))) {
             return;
         }
 
@@ -141,11 +143,11 @@ export const RegexManagementSection: React.FC = () => {
                 // Reload regexes
                 await loadCustomRegexes();
             } else {
-                alert(response.error?.message || 'Failed to delete regex');
+                alert(response.error?.message || t('regex.deleteError'));
             }
         } catch (err) {
             console.error('Failed to delete regex:', err);
-            alert(err instanceof Error ? err.message : 'Failed to delete regex');
+            alert(err instanceof Error ? err.message : t('regex.deleteError'));
         }
     };
 
@@ -156,13 +158,13 @@ export const RegexManagementSection: React.FC = () => {
         }
         switch (pluginId) {
             case 'host-system':
-                return 'System';
+                return t('regex.pluginSystem');
             case 'nginx':
-                return 'Nginx';
+                return t('regex.pluginNginx');
             case 'apache':
-                return 'Apache';
+                return t('regex.pluginApache');
             case 'npm':
-                return 'NPM';
+                return t('regex.pluginNpm');
             default:
                 return pluginId;
         }
@@ -173,7 +175,7 @@ export const RegexManagementSection: React.FC = () => {
     return (
         <>
             {/* Liste des regex custom */}
-            <Section title="Regex personnalisées" icon={Code} iconColor="purple">
+            <Section title={t('regex.customTitle')} icon={Code} iconColor="purple">
                 {isLoading ? (
                     <div className="flex items-center justify-center py-8">
                         <Loader2 size={24} className="text-gray-400 animate-spin" />
@@ -186,7 +188,7 @@ export const RegexManagementSection: React.FC = () => {
                 ) : totalRegexCount === 0 ? (
                     <div className="text-center py-8 text-gray-400">
                         <Code size={32} className="mx-auto mb-3 opacity-50" />
-                        <p>Aucune regex personnalisée configurée</p>
+                        <p>{t('regex.noCustomConfigured')}</p>
                     </div>
                 ) : (
                     <div className="space-y-6">
@@ -198,7 +200,7 @@ export const RegexManagementSection: React.FC = () => {
                                         {getPluginName(pluginId)}
                                     </h4>
                                     <span className="text-xs text-gray-400">
-                                        {regexes.filter(r => !r.filePath.endsWith('.gz') && !r.filePath.endsWith('.bz2') && !r.filePath.endsWith('.xz')).length} regex{regexes.filter(r => !r.filePath.endsWith('.gz') && !r.filePath.endsWith('.bz2') && !r.filePath.endsWith('.xz')).length > 1 ? 'es' : ''}
+                                        {t('regex.regexCount', { count: regexes.filter(r => !r.filePath.endsWith('.gz') && !r.filePath.endsWith('.bz2') && !r.filePath.endsWith('.xz')).length })}
                                     </span>
                                 </div>
                                 
@@ -214,10 +216,10 @@ export const RegexManagementSection: React.FC = () => {
                                                         {regex.filePath}
                                                     </div>
                                                     <div className="text-xs text-gray-400 mb-2">
-                                                        Type: {regex.logType}
+                                                        {t('regex.type')}: {regex.logType}
                                                         {regex.updatedAt && (
                                                             <span className="ml-2">
-                                                                • {new Date(regex.updatedAt).toLocaleDateString('fr-FR')}
+                                                                • {new Date(regex.updatedAt).toLocaleDateString(i18n.language === 'fr' ? 'fr-FR' : 'en-GB')}
                                                             </span>
                                                         )}
                                                     </div>
@@ -230,21 +232,21 @@ export const RegexManagementSection: React.FC = () => {
                                                     <button
                                                         onClick={() => handleTest(regex)}
                                                         className="p-2 hover:bg-theme-primary rounded-lg transition-colors"
-                                                        title="Tester la regex"
+                                                        title={t('regex.testRegex')}
                                                     >
                                                         <Play size={16} className="text-blue-400" />
                                                     </button>
                                                     <button
                                                         onClick={() => handleEdit(regex)}
                                                         className="p-2 hover:bg-theme-primary rounded-lg transition-colors"
-                                                        title="Éditer la regex"
+                                                        title={t('regex.editRegex')}
                                                     >
                                                         <Edit2 size={16} className="text-yellow-400" />
                                                     </button>
                                                     <button
                                                         onClick={() => handleDelete(regex.pluginId, regex.filePath)}
                                                         className="p-2 hover:bg-theme-primary rounded-lg transition-colors"
-                                                        title="Supprimer la regex"
+                                                        title={t('regex.deleteRegex')}
                                                     >
                                                         <Trash2 size={16} className="text-red-400" />
                                                     </button>
@@ -260,16 +262,16 @@ export const RegexManagementSection: React.FC = () => {
             </Section>
 
             {/* Générateur de regex */}
-            <Section title="Générateur de regex" icon={Sparkles} iconColor="purple">
+            <Section title={t('regex.generatorTitle')} icon={Sparkles} iconColor="purple">
                 <div className="space-y-4">
                     <div>
                         <label className="block text-sm font-medium text-theme-primary mb-2">
-                            Collez une ligne de log
+                            {t('regex.pasteLogLine')}
                         </label>
                         <textarea
                             value={logLine}
                             onChange={(e) => setLogLine(e.target.value)}
-                            placeholder="Exemple: 192.168.1.1 - - [01/Jan/2024:12:00:00 +0000] &quot;GET / HTTP/1.1&quot; 200 1234 &quot;-&quot; &quot;Mozilla/5.0&quot;"
+                            placeholder={t('regex.pasteLogLinePlaceholder')}
                             className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm font-mono focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
                             rows={3}
                         />
@@ -283,12 +285,12 @@ export const RegexManagementSection: React.FC = () => {
                         {isGenerating ? (
                             <>
                                 <Loader2 size={16} className="animate-spin" />
-                                <span>Génération...</span>
+                                <span>{t('regex.generating')}</span>
                             </>
                         ) : (
                             <>
                                 <Sparkles size={16} />
-                                <span>Générer la regex</span>
+                                <span>{t('regex.generateButton')}</span>
                             </>
                         )}
                     </button>
@@ -303,7 +305,7 @@ export const RegexManagementSection: React.FC = () => {
                     {generatedRegex && (
                         <div className="space-y-4 p-4 bg-theme-secondary rounded-lg border border-theme">
                             <div className="flex items-center justify-between">
-                                <h4 className="font-medium text-theme-primary">Regex générée</h4>
+                                <h4 className="font-medium text-theme-primary">{t('regex.generatedRegex')}</h4>
                                 <button
                                     onClick={handleCopyRegex}
                                     className="flex items-center gap-2 px-3 py-1.5 bg-theme-primary hover:bg-theme-tertiary rounded-lg transition-colors text-sm"
@@ -311,12 +313,12 @@ export const RegexManagementSection: React.FC = () => {
                                     {copied ? (
                                         <>
                                             <CheckCircle2 size={14} className="text-green-400" />
-                                            <span className="text-green-400">Copié !</span>
+                                            <span className="text-green-400">{t('regex.copied')}</span>
                                         </>
                                     ) : (
                                         <>
                                             <Copy size={14} />
-                                            <span>Copier</span>
+                                            <span>{t('regex.copy')}</span>
                                         </>
                                     )}
                                 </button>
@@ -324,7 +326,7 @@ export const RegexManagementSection: React.FC = () => {
 
                             <div className="space-y-2">
                                 <div>
-                                    <label className="block text-xs text-gray-400 mb-1">Regex</label>
+                                    <label className="block text-xs text-gray-400 mb-1">{t('regex.regexLabel')}</label>
                                     <div className="text-xs font-mono text-gray-300 bg-[#1a1a1a] p-3 rounded border border-gray-800 break-all">
                                         {generatedRegex.regex}
                                     </div>
@@ -332,7 +334,7 @@ export const RegexManagementSection: React.FC = () => {
 
                                 {generatedRegex.groups.length > 0 && (
                                     <div>
-                                        <label className="block text-xs text-gray-400 mb-1">Groupes capturés</label>
+                                        <label className="block text-xs text-gray-400 mb-1">{t('regex.capturedGroups')}</label>
                                         <div className="flex flex-wrap gap-2">
                                             {generatedRegex.groups.map((group, idx) => (
                                                 <span
@@ -348,12 +350,12 @@ export const RegexManagementSection: React.FC = () => {
 
                                 {Object.keys(generatedRegex.testResult).length > 0 && (
                                     <div>
-                                        <label className="block text-xs text-gray-400 mb-1">Résultat du test</label>
+                                        <label className="block text-xs text-gray-400 mb-1">{t('regex.testResult')}</label>
                                         <div className="space-y-1">
                                             {Object.entries(generatedRegex.testResult).map(([key, value]) => (
                                                 <div key={key} className="text-xs font-mono">
                                                     <span className="text-purple-400">{key}:</span>{' '}
-                                                    <span className="text-gray-300">{value || '(vide)'}</span>
+                                                    <span className="text-gray-300">{value || t('regex.empty')}</span>
                                                 </div>
                                             ))}
                                         </div>
