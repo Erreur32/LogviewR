@@ -17,7 +17,7 @@ dist-ssr
 !.vscode/extensions.json
 .idea
 .cursor
-.cursor/plans
+ 
 *.code-workspace
 .DS_Store
 *.suo
@@ -58,18 +58,14 @@ config/*.conf
 
 # Local comparison / archives that must never be committed
 # Private development folder (contains tokens, internal docs, secrets)
-Doc_dev/
+Doc_dev
 Doc_Dev/
 Aide*
 
 # Scripts with hardcoded credentials (development only)
 # These scripts contain sensitive credentials and should not be committed
 test-backend.sh
-unifi.sh
-unifi_script.sh
-unifi_token.sh
-unifi_token_interactif.sh
-unitfi_test.sh
+ 
 
 # Backup files
 *.backup
