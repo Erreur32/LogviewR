@@ -8,7 +8,7 @@ import React, { useEffect, useState } from 'react';
 import { Filter, RefreshCw, AlertCircle, Info, AlertTriangle, Trash2, Loader2 } from 'lucide-react';
 import { api } from '../api/client';
 import { useUserAuthStore } from '../stores/userAuthStore';
-import { Section, SettingRow } from '../pages/SettingsPage';
+import { Section, SettingRow } from './SettingsSection';
 
 interface Log {
     id: number;

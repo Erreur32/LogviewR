@@ -6,7 +6,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Code, Edit2, Trash2, Play, Copy, CheckCircle2, AlertCircle, Loader2, Sparkles } from 'lucide-react';
-import { Section, SettingRow } from '../pages/SettingsPage';
+import { Section, SettingRow } from './SettingsSection';
 import { api } from '../api/client';
 import { RegexEditorModal } from './modals/RegexEditorModal';
 import { usePluginStore } from '../stores/pluginStore';

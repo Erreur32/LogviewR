@@ -37,6 +37,9 @@ import {
 import { initTheme } from './utils/themeManager';
 import { usePolling } from './hooks/usePolling';
 import { POLLING_INTERVALS } from './utils/constants';
+import { useBackgroundAnimation } from './hooks/useBackgroundAnimation';
+import { useAnimationParameters, AnimationParametersContext } from './hooks/useAnimationParameters';
+import { AnimatedBackground } from './components/AnimatedBackground';
 
 // Loading component for lazy-loaded pages
 const PageLoader = () => (
@@ -51,6 +54,10 @@ const PageLoader = () => (
 const App: React.FC = () => {
   // User authentication (JWT)
   const { isAuthenticated: isUserAuthenticated, isLoading: userAuthLoading, checkAuth: checkUserAuth, logout: userLogout, user } = useUserAuthStore();
+
+  // Background animation (for full-animation theme and AnimatedBackground)
+  const { variant: bgVariant, theme: themeId, fullAnimationId, prefersReducedMotion, animationSpeed } = useBackgroundAnimation();
+  const animationParameters = useAnimationParameters(fullAnimationId === 'off' ? 'animation.80.particle-waves' : fullAnimationId);
   
   // Plugin store
   const { plugins, pluginStats, fetchPlugins, fetchAllStats } = usePluginStore();
@@ -308,11 +315,35 @@ const App: React.FC = () => {
   }
 
 
+  // When animation is active on dark/glass/nightly, use semi-transparent main background so the animation shows through
+  const isBlackThemeWithActiveAnimation =
+    (themeId === 'dark' || themeId === 'glass' || themeId === 'nightly') && bgVariant !== 'off';
+  const mainContentBgClass = isBlackThemeWithActiveAnimation
+    ? 'min-h-screen pb-20 bg-black/20 text-theme-primary font-sans selection:bg-accent-primary/30'
+    : 'min-h-screen pb-20 bg-theme-primary text-theme-primary font-sans selection:bg-accent-primary/30';
+
+  // Helper: wrap content with animated background and animation params provider (ThemeSection needs the provider)
+  const wrapWithBackground = (content: React.ReactNode) => (
+    <AnimationParametersContext.Provider value={animationParameters}>
+      <div className="relative min-h-screen">
+        <AnimatedBackground
+          variant={bgVariant}
+          disabled={prefersReducedMotion}
+          animationSpeed={animationSpeed}
+          animationParameters={animationParameters.parameters}
+        />
+        <div className={`relative z-0 ${mainContentBgClass}`}>
+          {content}
+        </div>
+      </div>
+    </AnimationParametersContext.Provider>
+  );
+
   // Helper component to render page with footer
   const renderPageWithFooter = (pageContent: React.ReactNode) => (
-    <div className="min-h-screen pb-20 bg-theme-primary text-theme-primary font-sans selection:bg-accent-primary/30">
+    <>
       <Suspense fallback={<PageLoader />}>
-      {pageContent}
+        {pageContent}
       </Suspense>
       <Footer
         currentPage={currentPage}
@@ -320,12 +351,12 @@ const App: React.FC = () => {
         onLogout={handleLogout}
         userRole={user?.role}
       />
-    </div>
+    </>
   );
 
   // Render Analytics page
   if (currentPage === 'analytics') {
-    return renderPageWithFooter(
+    return wrapWithBackground(renderPageWithFooter(
       <>
         <Header 
           pageType="analytics"
@@ -342,7 +373,7 @@ const App: React.FC = () => {
         />
         <AnalyticsPage onBack={() => setCurrentPage('dashboard')} />
       </>
-    );
+    ));
   }
 
   // Render Settings page
@@ -358,7 +389,7 @@ const App: React.FC = () => {
     const adminTab = sessionStorage.getItem('adminTab') as 'general' | 'users' | 'plugins' | 'security' | 'exporter' | 'theme' | 'debug' | 'info' | 'backup' | undefined;
     // Only clear if we're actually using it (to avoid clearing it before SettingsPage reads it)
     // We'll let SettingsPage handle clearing it via useEffect
-    return renderPageWithFooter(
+    return wrapWithBackground(renderPageWithFooter(
       <SettingsPage 
         onBack={() => setCurrentPage('dashboard')} 
         mode={showAdmin ? 'administration' : 'settings'}
@@ -370,12 +401,12 @@ const App: React.FC = () => {
         onProfileClick={handleProfileClick}
         onLogout={handleLogout}
       />
-    );
+    ));
   }
 
   // Render Plugins page
   if (currentPage === 'plugins') {
-    return renderPageWithFooter(
+    return wrapWithBackground(renderPageWithFooter(
       <PluginsPage 
         onBack={() => setCurrentPage('dashboard')}
         onNavigateToSettings={() => {
@@ -384,35 +415,35 @@ const App: React.FC = () => {
           setCurrentPage('settings');
         }}
       />
-    );
+    ));
   }
 
   // Render Users page (admin only)
   if (currentPage === 'users') {
-    return renderPageWithFooter(
+    return wrapWithBackground(renderPageWithFooter(
       <UsersPage onBack={() => setCurrentPage('dashboard')} />
-    );
+    ));
   }
 
   // Render Logs page (admin only)
   if (currentPage === 'logs') {
-    return renderPageWithFooter(
+    return wrapWithBackground(renderPageWithFooter(
       <LogsPage onBack={() => setCurrentPage('dashboard')} />
-    );
+    ));
   }
 
   // Render Log Viewer Test page
   if (currentPage === 'log-viewer-test') {
-    return renderPageWithFooter(
+    return wrapWithBackground(renderPageWithFooter(
       <Suspense fallback={<PageLoader />}>
         <LogViewerTestPage />
       </Suspense>
-    );
+    ));
   }
 
   // Render Log Viewer page
   if (currentPage === 'log-viewer') {
-    return (
+    return wrapWithBackground(
       <div className="min-h-screen bg-theme-primary flex flex-col">
         <Header 
           pageType="log-viewer"
@@ -477,7 +508,7 @@ const App: React.FC = () => {
 
   // Render Dashboard (default)
   if (currentPage === 'dashboard') {
-    return renderPageWithFooter(
+    return wrapWithBackground(renderPageWithFooter(
       <>
         <Header 
           pageType="dashboard"
@@ -552,12 +583,12 @@ const App: React.FC = () => {
           )}
         </main>
       </>
-  );
+    ));
   }
 
   // Default return - fallback to dashboard if currentPage is invalid
   console.warn('[App] Invalid currentPage, falling back to dashboard:', currentPage);
-  return renderPageWithFooter(
+  return wrapWithBackground(renderPageWithFooter(
     <>
       <Header 
         systemInfo={systemInfo} 
@@ -576,7 +607,7 @@ const App: React.FC = () => {
         </div>
       </main>
     </>
-  );
+  ));
 };
 
 export default App;

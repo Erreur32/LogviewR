@@ -7,7 +7,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Shield, Lock, AlertTriangle, Save, Loader2, CheckCircle, XCircle, Info, Trash2, RefreshCw, Plus, Globe } from 'lucide-react';
-import { Section, SettingRow } from '../pages/SettingsPage';
+import { Section, SettingRow } from './SettingsSection';
 import { api } from '../api/client';
 import { useUserAuthStore } from '../stores/userAuthStore';
 

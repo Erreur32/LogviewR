@@ -6,7 +6,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Share2, Server, Database, Save, Loader2, ExternalLink, AlertCircle, CheckCircle, Download, Upload, FileText } from 'lucide-react';
-import { Section, SettingRow } from '../pages/SettingsPage';
+import { Section, SettingRow } from './SettingsSection';
 import { api } from '../api/client';
 
 interface MetricsConfig {

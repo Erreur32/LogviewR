@@ -32,7 +32,8 @@ router.get('/theme', requireAuth, asyncHandler(async (req: AuthenticatedRequest,
                 success: true,
                 result: {
                     theme: 'dark',
-                    customColors: undefined
+                    customColors: undefined,
+                    cardOpacity: undefined
                 }
             });
         }
@@ -48,27 +49,33 @@ router.get('/theme', requireAuth, asyncHandler(async (req: AuthenticatedRequest,
  */
 router.post('/theme', requireAuth, asyncHandler(async (req: AuthenticatedRequest, res) => {
     try {
-        const { theme, customColors } = req.body;
-        
+        const { theme, customColors, cardOpacity } = req.body;
+
         // Validate theme
-        const validThemes = ['dark', 'glass', 'modern', 'nightly', 'neon', 'elegant'];
+        const validThemes = ['dark', 'glass', 'modern', 'nightly', 'neon', 'elegant', 'full-animation'];
         if (theme && !validThemes.includes(theme)) {
             throw createError(`Invalid theme: ${theme}. Must be one of: ${validThemes.join(', ')}`, 400, 'INVALID_THEME');
         }
-        
+
         // Build theme config object
         const themeConfig: {
             theme: string;
             customColors?: Record<string, string>;
+            cardOpacity?: number;
         } = {
             theme: theme || 'dark'
         };
-        
+
         // Add custom colors if provided and not empty
         if (customColors && Object.keys(customColors).length > 0) {
             themeConfig.customColors = customColors;
         }
-        
+
+        // Add card opacity if provided (0.1-1)
+        if (typeof cardOpacity === 'number') {
+            themeConfig.cardOpacity = Math.max(0.1, Math.min(1, cardOpacity));
+        }
+
         // Save to database
         AppConfigRepository.set('theme_config', JSON.stringify(themeConfig));
         

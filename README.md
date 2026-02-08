@@ -10,7 +10,7 @@
 
 <img src="LogviewR_banner.svg" alt="LogviewR" width="512" height="256" />
 
-![LogviewR](https://img.shields.io/badge/LogviewR-0.1.13-111827?style=for-the-badge)
+![LogviewR](https://img.shields.io/badge/LogviewR-0.1.15-111827?style=for-the-badge)
 ![Status](https://img.shields.io/badge/Status-DEVELOPMENT-374151?style=for-the-badge)
 ![Docker](https://img.shields.io/badge/Docker-Ready-1f2937?style=for-the-badge&logo=docker&logoColor=38bdf8)
 ![React](https://img.shields.io/badge/React-19-111827?style=for-the-badge&logo=react&logoColor=38bdf8)
@@ -368,7 +368,10 @@ Chaque plugin peut être configuré depuis l'interface d'administration :
 - **[NPM Parser Help](server/plugins/npm/NPM_PARSER_HELP.md)** : Formats et regex pour NPM
 - **[Nginx Parser Help](server/plugins/nginx/NGINX_PARSER_HELP.md)** : Formats et regex pour Nginx
 
- 
+### Animations et thème (sync MynetworK)
+
+- **[Animations et thème](Docs/ANIMATIONS_AND_THEME_SYNC.md)** : Synchronisation du code des animations (AnimatedBackground) et schéma de la base thème (`theme_config`). Pour mettre à jour les animations depuis MynetworK : `node scripts/copy-animated-bg.js` (nécessite le dossier `mynetwork_app`).
+
 ---
 
 ## 🤝 Contribution

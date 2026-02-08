@@ -38,6 +38,28 @@ function normalizeLogFilePath(filePath: string): string {
 }
 
 /**
+ * Resolve the base path to use for scanning log files.
+ * Priority: 1) value from request (query/body), 2) plugin saved config (DB), 3) plugin default.
+ * This ensures that when the frontend does not send basePath (e.g. LogViewer page calling
+ * files-direct), we use the path configured in Settings (e.g. /home/docker/nginx_proxy/data/logs for NPM).
+ */
+function getEffectiveBasePath(
+    pluginId: string,
+    plugin: LogSourcePlugin,
+    fromRequest: string | undefined
+): string {
+    if (fromRequest && typeof fromRequest === 'string' && fromRequest.trim()) {
+        return fromRequest.trim();
+    }
+    const pluginConfig = PluginConfigRepository.findByPluginId(pluginId);
+    const configured = pluginConfig?.settings?.basePath;
+    if (configured && typeof configured === 'string' && configured.trim()) {
+        return configured.trim();
+    }
+    return plugin.getDefaultBasePath();
+}
+
+/**
  * GET /api/log-viewer/plugins/:pluginId/files
  * List available log files for a plugin
  * 
@@ -64,8 +86,8 @@ router.get('/plugins/:pluginId/files', async (req, res) => {
         const pluginConfig = PluginConfigRepository.findByPluginId(pluginId);
         const readCompressed = (pluginConfig?.settings?.readCompressed as boolean) ?? false;
 
-        // Use plugin's default base path if not provided
-        const actualBasePath = (basePath as string) || plugin.getDefaultBasePath();
+        // Use base path from query, then from saved plugin config, then plugin default
+        const actualBasePath = getEffectiveBasePath(pluginId, plugin, basePath as string);
         const actualPatterns = patterns 
             ? (Array.isArray(patterns) ? patterns as string[] : [patterns as string])
             : plugin.getDefaultFilePatterns();
@@ -132,8 +154,8 @@ router.post('/plugins/:pluginId/scan', async (req, res) => {
             return res.status(400).json({ error: `Plugin ${pluginId} does not implement LogSourcePlugin` });
         }
 
-        // Use plugin's default base path if not provided
-        const actualBasePath = basePath || plugin.getDefaultBasePath();
+        // Use base path from body, then from saved plugin config, then plugin default
+        const actualBasePath = getEffectiveBasePath(pluginId, plugin, basePath);
         const actualPatterns = patterns || plugin.getDefaultFilePatterns();
 
         // Scan for log files
@@ -613,9 +635,9 @@ router.get('/plugins/:pluginId/files-direct', async (req, res) => {
         const pluginConfig = PluginConfigRepository.findByPluginId(pluginId);
         const readCompressed = (pluginConfig?.settings?.readCompressed as boolean) ?? false;
 
-        // Use plugin's default base path if not provided
-        const actualBasePath = (basePath as string) || plugin.getDefaultBasePath();
-        const actualPatterns = patterns 
+        // Use base path from query, then from saved plugin config, then plugin default (fixes Docker: LogViewer page does not send basePath)
+        const actualBasePath = getEffectiveBasePath(pluginId, plugin, basePath as string);
+        const actualPatterns = patterns
             ? (Array.isArray(patterns) ? patterns as string[] : [patterns as string])
             : plugin.getDefaultFilePatterns();
 
@@ -2001,8 +2023,8 @@ router.get('/plugins/:pluginId/detected-files', async (req, res) => {
         const pluginConfig = PluginConfigRepository.findByPluginId(pluginId);
         const readCompressed = (pluginConfig?.settings?.readCompressed as boolean) ?? false;
 
-        // Use plugin's default base path if not provided
-        const actualBasePath = (basePath as string) || plugin.getDefaultBasePath();
+        // Use base path from query, then from saved plugin config, then plugin default
+        const actualBasePath = getEffectiveBasePath(pluginId, plugin, basePath as string);
         const actualPatterns = plugin.getDefaultFilePatterns();
 
         // Get plugin config to check for manually added files

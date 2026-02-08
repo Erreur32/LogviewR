@@ -45,7 +45,7 @@ data/
 .env.test
 .env.*
 commit-message.txt
-
+mynetwork_app/
 # Configuration files (contains sensitive data: passwords, tokens, API keys)
 config/logviewr.conf
 config/*.conf

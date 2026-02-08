@@ -89,6 +89,11 @@ services:
       # - /var/log/nginx:/var/log/nginx:ro        # Nginx logs (accessible at /var/log/nginx)
       # - /var/log/npm:/var/log/npm:ro            # NPM logs (accessible at /var/log/npm)
       # Note: Without these mounts, plugins must use /host/var/log/... paths in configuration
+      #
+      # NPM (Nginx Proxy Manager) custom data path: NO need to add a volume.
+      # The mount "/: /host:ro" already exposes the whole host. In the plugin config,
+      # use the path AS ON THE HOST, e.g. /home/docker/nginx_proxy/data/logs —
+      # the app resolves it to /host/home/docker/nginx_proxy/data/logs inside the container.
 
     # Health check: verify container is responding to API requests
     # Uses wget (available in Alpine base image) to check /api/health endpoint

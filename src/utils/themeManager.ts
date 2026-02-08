@@ -4,38 +4,64 @@
  * Gère le changement de thème et la persistance dans localStorage
  */
 
-export type Theme = 'dark' | 'glass' | 'modern' | 'nightly' | 'neon' | 'elegant';
+export type Theme = 'dark' | 'glass' | 'modern' | 'nightly' | 'neon' | 'elegant' | 'full-animation';
 
 const THEME_STORAGE_KEY = 'logviewr_theme';
+const CARD_OPACITY_STORAGE_KEY = 'logviewr_card_opacity';
 const DEFAULT_THEME: Theme = 'dark';
+const VALID_THEMES: Theme[] = ['dark', 'glass', 'modern', 'nightly', 'neon', 'elegant', 'full-animation'];
 
 /**
  * Applique un thème au document
  */
 export const applyTheme = (theme: Theme): void => {
   const html = document.documentElement;
-  
+
   // Validate theme
-  if (!['dark', 'glass', 'modern', 'nightly', 'neon', 'elegant'].includes(theme)) {
+  if (!VALID_THEMES.includes(theme)) {
     console.warn(`Invalid theme: ${theme}, using default: ${DEFAULT_THEME}`);
     theme = DEFAULT_THEME;
   }
-  
+
   // Retirer tous les thèmes existants
   html.removeAttribute('data-theme');
-  
+
   // Appliquer le nouveau thème
   html.setAttribute('data-theme', theme);
-  
+
   // Sauvegarder dans localStorage
   try {
     localStorage.setItem(THEME_STORAGE_KEY, theme);
   } catch (error) {
     console.warn('Failed to save theme to localStorage:', error);
   }
-  
+
+  // Apply card opacity for this theme so all pages get correct opacity
+  applyCardOpacity(theme);
+
   // Debug log (disabled to reduce console spam)
   // console.log(`[Theme] Applied theme: ${theme}`);
+};
+
+/**
+ * Apply card opacity from localStorage for the given theme.
+ * Used at init and ensures --card-opacity is set on root so all pages get the correct opacity.
+ */
+export const applyCardOpacity = (theme: Theme): void => {
+  const root = document.documentElement;
+  let opacity = 1;
+  try {
+    const raw = localStorage.getItem(CARD_OPACITY_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as Record<string, number>;
+      if (parsed && typeof parsed[theme] === 'number') {
+        opacity = Math.max(0.1, Math.min(1, parsed[theme]));
+      }
+    }
+  } catch {
+    // ignore
+  }
+  root.style.setProperty('--card-opacity', String(opacity));
 };
 
 /**
@@ -45,19 +71,19 @@ export const getCurrentTheme = (): Theme => {
   // Vérifier d'abord dans localStorage
   try {
     const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
-    if (savedTheme && ['dark', 'glass', 'modern', 'nightly', 'neon', 'elegant'].includes(savedTheme)) {
+    if (savedTheme && VALID_THEMES.includes(savedTheme as Theme)) {
       return savedTheme as Theme;
     }
   } catch (error) {
     console.warn('Failed to read theme from localStorage:', error);
   }
-  
+
   // Vérifier l'attribut data-theme sur le HTML
   const htmlTheme = document.documentElement.getAttribute('data-theme');
-  if (htmlTheme && ['dark', 'glass', 'modern', 'nightly', 'neon', 'elegant'].includes(htmlTheme)) {
+  if (htmlTheme && VALID_THEMES.includes(htmlTheme as Theme)) {
     return htmlTheme as Theme;
   }
-  
+
   // Retourner le thème par défaut
   return DEFAULT_THEME;
 };
@@ -69,7 +95,8 @@ export const getCurrentTheme = (): Theme => {
 export const initTheme = async (): Promise<void> => {
   const theme = getCurrentTheme();
   applyTheme(theme);
-  
+  applyCardOpacity(theme);
+
   // Check if user is authenticated before making API call
   // This prevents 401 errors in console when user is not logged in yet
   let token: string | null = null;
@@ -99,8 +126,14 @@ export const initTheme = async (): Promise<void> => {
     
     if (response.ok) {
       const data = await response.json();
-      if (data.success && data.result?.customColors) {
-        applyCustomColors(data.result.customColors);
+      if (data.success && data.result) {
+        if (data.result.customColors) {
+          applyCustomColors(data.result.customColors);
+        }
+        if (typeof data.result.cardOpacity === 'number') {
+          const opacity = Math.max(0.1, Math.min(1, data.result.cardOpacity));
+          document.documentElement.style.setProperty('--card-opacity', String(opacity));
+        }
       }
     } else if (response.status === 404) {
       // Route not found - silently ignore (theme will use defaults)
@@ -161,6 +194,11 @@ export const getAvailableThemes = (): Array<{ id: Theme; name: string; descripti
       id: 'elegant',
       name: 'Élégant',
       description: 'Thème animé avec dégradés élégants et animations subtiles'
+    },
+    {
+      id: 'full-animation',
+      name: 'Full animation',
+      description: 'Arrière-plan animé avec choix d\'animation (étoiles, circuit, rubans, vagues)'
     }
   ];
 };

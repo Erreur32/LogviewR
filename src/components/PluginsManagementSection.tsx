@@ -7,7 +7,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Settings, Power, CheckCircle, XCircle, AlertCircle, ExternalLink, Archive } from 'lucide-react';
 import { usePluginStore, type Plugin } from '../stores/pluginStore';
-import { Section, SettingRow } from '../pages/SettingsPage';
+import { Section, SettingRow } from './SettingsSection';
 import { PluginOptionsPanel } from './PluginOptionsPanel';
 import { getPluginIcon } from '../utils/pluginIcons';
 import { api } from '../api/client';

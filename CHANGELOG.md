@@ -5,6 +5,23 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.15] - 2026-02-08
+
+### Fixed
+
+#### Docker – Plugin NPM et chemin personnalisé
+- **Liste de fichiers vide en Docker** : lorsque la page Log Viewer appelle l’API sans envoyer le paramètre `basePath` (route `files-direct`), le backend utilisait toujours le chemin par défaut du plugin (`/var/log/npm`) au lieu du chemin enregistré en base (ex. `/home/docker/nginx_proxy/data/logs`). Une fonction `getEffectiveBasePath()` a été ajoutée : priorité 1) valeur de la requête, 2) chemin sauvegardé en base (config du plugin), 3) défaut du plugin. Les routes `files`, `files-direct`, `scan` et `detected-files` utilisent désormais ce chemin effectif. Le chemin configuré dans Réglages → plugin NPM est ainsi respecté en Docker sans avoir à déclarer de volume supplémentaire.
+
+### Changed
+
+#### Thème – Animation de fond
+- **Slider « Vitesse » (cycle Toutes)** : affichage de la valeur avec unité multiplicateur (×), plage 0,3× à 3,0× ; libellé et tooltip explicatifs (lent/rapide) ; utilisation de `speedToMultiplier` depuis `useBackgroundAnimation`.
+
+#### Docker
+- **docker-compose.yml** : commentaire ajouté précisant que le chemin personnalisé NPM (ex. `/home/docker/nginx_proxy/data/logs`) n’a pas besoin d’être déclaré en volume : le montage `/: /host:ro` expose déjà tout l’hôte, l’app résout le chemin automatiquement.
+
+---
+
 ## [0.1.10] - 2026-02-08
 
 ### Fixed
