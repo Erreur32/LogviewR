@@ -6,9 +6,11 @@
 #          ./scripts/update-version.sh 0.1.7 --tag-push   # bump + create tag + push branch & tag
 #
 # Updated files:
-#   1. package.json              — "version" field
-#   2. src/constants/version.ts   — APP_VERSION constant
-#   3. README.md                  — LogviewR badge, release link (if any), version text
+#   1. package.json               — "version" field
+#   2. package-lock.json          — root "version" + packages."".version (first two occurrences)
+#   3. src/constants/version.ts   — APP_VERSION constant
+#   4. server/index.ts            — fallback appVersion (when package.json cannot be read)
+#   5. README.md                  — LogviewR badge, release link (if any), version text
 #
 # Options:
 #   --tag-push   After bump, create annotated tag v<version> and push current branch + tag to origin.
@@ -39,7 +41,9 @@ cd "$REPO_ROOT"
 
 # ── Target files ─────────────────────────────────────────────────────────────
 PACKAGE_JSON="$REPO_ROOT/package.json"
+PACKAGE_LOCK="$REPO_ROOT/package-lock.json"
 VERSION_TS="$REPO_ROOT/src/constants/version.ts"
+SERVER_INDEX="$REPO_ROOT/server/index.ts"
 ROOT_README="$REPO_ROOT/README.md"
 
 # ── Read current version from package.json ────────────────────────────────────
@@ -77,16 +81,28 @@ fi
 # ── Sanity check: new != current (unless --tag-push only) ────────────────────
 if [ "$NEW" = "$CURRENT" ]; then
   if [ -n "$TAG_PUSH" ]; then
-    # Tag + push only (e.g. after user already bumped and committed)
+    # Tag + push: commit any uncommitted version files first so the tag points to a commit that has this version
     echo ""
     echo -e "${M}${B}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${R}"
-    echo -e "${M}${B}  Tag and push v$NEW (version unchanged)${R}"
+    echo -e "${M}${B}  Tag and push v$NEW${R}"
     echo -e "${M}${B}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${R}"
     echo ""
     branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)
     if [ -z "$branch" ]; then
       echo -e "${RED}Error:${R} not a git repository or no branch."
       exit 1
+    fi
+    # If there are uncommitted changes (e.g. version bump not yet committed), commit them so the tag points to the right version
+    if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
+      echo -e "  ${B}Uncommitted changes found; committing so tag v$NEW points to commit with version $NEW.${R}"
+      git add -A
+      if [ -f "$REPO_ROOT/commit-message.txt" ]; then
+        git commit -F "$REPO_ROOT/commit-message.txt" || { echo -e "${RED}Commit failed.${R}"; exit 1; }
+      else
+        git commit -m "release: v$NEW" || { echo -e "${RED}Commit failed.${R}"; exit 1; }
+      fi
+      echo -e "  ${G}✓${R} Changes committed."
+      echo ""
     fi
     tag_name="v$NEW"
     if git rev-parse "$tag_name" >/dev/null 2>&1; then
@@ -124,7 +140,7 @@ sedi() {
 SEMVER_PATTERN='[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*'
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  VERSION UPDATES (steps 1–3)
+#  VERSION UPDATES (steps 1–5)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 echo -e "  ${B}── Version bump ──${R}"
@@ -132,20 +148,38 @@ echo -e "  ${B}── Version bump ──${R}"
 # ── 1. package.json — version field ─────────────────────────────────────────
 if [ -f "$PACKAGE_JSON" ]; then
   sedi "$PACKAGE_JSON" "s/\"version\": \"$CURRENT_ESC\"/\"version\": \"$NEW\"/"
-  echo -e "  ${G}✓${R} package.json           ${C}(\"version\": \"$NEW\")${R}"
+  echo -e "  ${G}✓${R} package.json             ${C}(\"version\": \"$NEW\")${R}"
 else
-  echo -e "  ${RED}✗${R} package.json           ${RED}(file not found)${R}"
+  echo -e "  ${RED}✗${R} package.json             ${RED}(file not found)${R}"
 fi
 
-# ── 2. src/constants/version.ts — APP_VERSION ───────────────────────────────
+# ── 2. package-lock.json — root version + packages."".version ─────────────
+if [ -f "$PACKAGE_LOCK" ]; then
+  # First occurrence (root "version"); then second (packages."".version)
+  sedi "$PACKAGE_LOCK" "0,/\"version\": \"$CURRENT_ESC\"/s/\"version\": \"$CURRENT_ESC\"/\"version\": \"$NEW\"/"
+  sedi "$PACKAGE_LOCK" "s/\"version\": \"$CURRENT_ESC\"/\"version\": \"$NEW\"/"
+  echo -e "  ${G}✓${R} package-lock.json        ${C}(root + packages.\"\".version)${R}"
+else
+  echo -e "  ${Y}○${R} package-lock.json        ${Y}(not found, run npm install later)${R}"
+fi
+
+# ── 3. src/constants/version.ts — APP_VERSION ──────────────────────────────
 if [ -f "$VERSION_TS" ]; then
   sedi "$VERSION_TS" "s/APP_VERSION = '$CURRENT_ESC'/APP_VERSION = '$NEW'/"
-  echo -e "  ${G}✓${R} src/constants/version.ts  ${C}(APP_VERSION = '$NEW')${R}"
+  echo -e "  ${G}✓${R} src/constants/version.ts ${C}(APP_VERSION = '$NEW')${R}"
 else
-  echo -e "  ${RED}✗${R} src/constants/version.ts  ${RED}(file not found)${R}"
+  echo -e "  ${RED}✗${R} src/constants/version.ts ${RED}(file not found)${R}"
 fi
 
-# ── 3. README.md — badge, release link, version text ────────────────────────
+# ── 4. server/index.ts — fallback appVersion (default when package.json missing) ─
+if [ -f "$SERVER_INDEX" ]; then
+  sedi "$SERVER_INDEX" "s/appVersion = '$CURRENT_ESC'/appVersion = '$NEW'/"
+  echo -e "  ${G}✓${R} server/index.ts          ${C}(fallback appVersion = '$NEW')${R}"
+else
+  echo -e "  ${RED}✗${R} server/index.ts          ${RED}(file not found)${R}"
+fi
+
+# ── 5. README.md — badge, release link, version text ────────────────────────
 if [ -f "$ROOT_README" ]; then
   # Badge: LogviewR-X.Y.Z → LogviewR-<NEW> (match any existing version in badge)
   sedi "$ROOT_README" "s/LogviewR-${SEMVER_PATTERN}/LogviewR-$NEW/g"
@@ -153,9 +187,9 @@ if [ -f "$ROOT_README" ]; then
   sedi "$ROOT_README" "s|releases/tag/v${SEMVER_PATTERN}|releases/tag/v$NEW|g"
   # Inline version: `X.Y.Z` → `<NEW>` (backtick-quoted semver, current only to avoid wide replace)
   sedi "$ROOT_README" "s/\`$CURRENT_ESC\`/\`$NEW\`/g"
-  echo -e "  ${G}✓${R} README.md               ${C}(badge + release link + version text)${R}"
+  echo -e "  ${G}✓${R} README.md                ${C}(badge + release link + version text)${R}"
 else
-  echo -e "  ${RED}✗${R} README.md               ${RED}(file not found)${R}"
+  echo -e "  ${RED}✗${R} README.md                ${RED}(file not found)${R}"
 fi
 
 # ── Summary ──────────────────────────────────────────────────────────────────
