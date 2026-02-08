@@ -57,7 +57,16 @@ const App: React.FC = () => {
 
   // Background animation (for full-animation theme and AnimatedBackground)
   const { variant: bgVariant, theme: themeId, fullAnimationId, prefersReducedMotion, animationSpeed } = useBackgroundAnimation();
+  // Context: params for the *selected* animation (so ThemeSection shows cycle params for "Toutes" or that animation's params)
   const animationParameters = useAnimationParameters(fullAnimationId === 'off' ? 'animation.80.particle-waves' : fullAnimationId);
+  // Params for the *displayed* animation: when cycling ("Toutes"), bgVariant changes so we need that animation's stored params
+  const effectiveParamsId = bgVariant === 'off' ? 'animation.80.particle-waves' : bgVariant;
+  const animationParametersForBackground = useAnimationParameters(effectiveParamsId);
+  // When the user has one animation selected (not "Toutes"), use the SAME params for display as for editing, so sliders update in real time
+  const backgroundParams =
+    fullAnimationId !== 'off' && fullAnimationId === effectiveParamsId
+      ? animationParameters.parameters
+      : animationParametersForBackground.parameters;
   
   // Plugin store
   const { plugins, pluginStats, fetchPlugins, fetchAllStats } = usePluginStore();
@@ -330,7 +339,7 @@ const App: React.FC = () => {
           variant={bgVariant}
           disabled={prefersReducedMotion}
           animationSpeed={animationSpeed}
-          animationParameters={animationParameters.parameters}
+          animationParameters={backgroundParams}
         />
         <div className={`relative z-0 ${mainContentBgClass}`}>
           {content}

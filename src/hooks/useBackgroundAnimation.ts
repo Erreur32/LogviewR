@@ -55,6 +55,10 @@ const BG_ANIMATION_KEY = 'logviewr_bg_animation';
 const FULL_ANIMATION_ID_KEY = 'logviewr_full_animation_id';
 const ANIMATION_SPEED_KEY = 'logviewr_animation_speed';
 
+/** Custom events for same-tab sync (StorageEvent does not fire in the tab that changed storage) */
+const ANIMATION_SPEED_SYNC_EVENT = 'logviewr_animation_speed_sync';
+const FULL_ANIMATION_ID_SYNC_EVENT = 'logviewr_full_animation_id_sync';
+
 const DEFAULT_BG: BgAnimationVariant = 'animation.80.particle-waves';
 const DEFAULT_FULL: FullAnimationId = 'animation.80.particle-waves';
 const DEFAULT_SPEED: AnimationSpeed = 0.75;
@@ -217,12 +221,14 @@ export function useBackgroundAnimation(): {
     setStoredFullAnimationId(id);
     setFullState(id);
     window.dispatchEvent(new StorageEvent('storage', { key: FULL_ANIMATION_ID_KEY, newValue: id }));
+    window.dispatchEvent(new CustomEvent(FULL_ANIMATION_ID_SYNC_EVENT, { detail: { fullAnimationId: id } }));
   }, []);
 
   const setAnimationSpeed = useCallback((s: AnimationSpeed) => {
     setStoredAnimationSpeed(s);
     setSpeedState(s);
     window.dispatchEvent(new StorageEvent('storage', { key: ANIMATION_SPEED_KEY, newValue: String(s) }));
+    window.dispatchEvent(new CustomEvent(ANIMATION_SPEED_SYNC_EVENT, { detail: { speed: s } }));
   }, []);
 
   useEffect(() => {
@@ -243,8 +249,26 @@ export function useBackgroundAnimation(): {
         }
       }
     };
+    const onSpeedSync = (e: Event) => {
+      const detail = (e as CustomEvent<{ speed: number }>).detail;
+      if (detail && typeof detail.speed === 'number' && detail.speed >= MIN_SPEED && detail.speed <= MAX_SPEED) {
+        setSpeedState(detail.speed);
+      }
+    };
+    const onFullIdSync = (e: Event) => {
+      const detail = (e as CustomEvent<{ fullAnimationId: FullAnimationIdOrOff }>).detail;
+      if (detail && (detail.fullAnimationId === 'off' || VALID_FULL_ANIMATION_IDS.includes(detail.fullAnimationId as FullAnimationId))) {
+        setFullState(detail.fullAnimationId);
+      }
+    };
     window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
+    window.addEventListener(ANIMATION_SPEED_SYNC_EVENT, onSpeedSync);
+    window.addEventListener(FULL_ANIMATION_ID_SYNC_EVENT, onFullIdSync);
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener(ANIMATION_SPEED_SYNC_EVENT, onSpeedSync);
+      window.removeEventListener(FULL_ANIMATION_ID_SYNC_EVENT, onFullIdSync);
+    };
   }, []);
 
   useEffect(() => {

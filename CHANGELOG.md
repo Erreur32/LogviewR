@@ -5,6 +5,31 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.16] - 2026-02-08
+
+### Fixed
+
+#### Dashboard / Footer – Stats des plugins en Docker
+- **Stats à 0 en Docker** : les routes `GET /plugins/:pluginId/stats` et l’agrégation « tous les plugins » utilisaient `getDefaultBasePath()` au lieu du chemin sauvegardé en base. Elles utilisent désormais `getEffectiveBasePath()` : les statistiques (Total, Lisibles, Taille) du dashboard et du footer reflètent le chemin configuré (ex. `/home/docker/nginx_proxy/data/logs` pour NPM).
+
+#### Thème – Réglages d’animation en direct
+- **Curseurs sans effet** : en passant au fond une seconde instance des paramètres (`animationParametersForBackground`), les sliders (vitesse, couleurs, etc.) ne mettaient à jour que le contexte, pas l’animation affichée. Quand une seule animation est sélectionnée, le fond reçoit maintenant les mêmes paramètres que le panneau Réglages (`backgroundParams` = paramètres du contexte), donc les réglages s’appliquent en direct.
+- **Vitesse et animation non synchronisées (même onglet)** : `StorageEvent` ne se déclenche pas dans l’onglet qui modifie le `localStorage`. Événements personnalisés ajoutés (`logviewr_animation_speed_sync`, `logviewr_full_animation_id_sync`) pour que toutes les instances du hook `useBackgroundAnimation` (App + Réglages) reçoivent les changements de vitesse et de sélection d’animation en temps réel.
+
+### Added
+
+#### Thème – Animations
+- **Bouton « Réinitialiser »** : à côté du titre « Paramètres de l’animation », un bouton remet tous les paramètres de l’animation courante aux valeurs par défaut (idéales).
+- **Animation Étoiles** : paramètre **Couleur des étoiles (palette)** (`starColor`, type color, défaut `#6eb5ff`) ; si défini, dégradé et fond utilisent cette couleur (avec helper `hexToDarkHsl` pour les tons sombres).
+- **Animation Sidelined** : paramètre **Couleur des lignes (palette)** (`lineColor`, type color, défaut `#a78bfa`) ; si défini, traits et glow utilisent cette couleur.
+
+### Changed
+
+#### Thème – Vagues de particules
+- **Vitesse max et réactivité** : paramètre Vitesse étendu (max 8 → 15, défaut 0.5 → 0.8) ; diviseur de temps 5000 ms → 1500 ms ; phase des vagues amplifiée (`phaseSpeed = waveSpeed * 2.5`) pour un effet visible à vitesse max. Le curseur Vitesse (et le multiplicateur global) ont un impact net sur l’animation.
+
+---
+
 ## [0.1.15] - 2026-02-08
 
 ### Fixed

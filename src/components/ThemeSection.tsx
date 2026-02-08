@@ -5,7 +5,7 @@
  */
 
 import React, { useState, useEffect, useContext } from 'react';
-import { Lightbulb, Palette, RefreshCw, Save, Eye, ChevronUp, ChevronDown, Check, Minus, Plus } from 'lucide-react';
+import { Lightbulb, Palette, RefreshCw, Save, Eye, ChevronUp, ChevronDown, Check, Minus, Plus, RotateCcw } from 'lucide-react';
 import { applyTheme, getCurrentTheme, getAvailableThemes, applyCardOpacity, type Theme } from '../utils/themeManager';
 import { api } from '../api/client';
 import { Section, SettingRow } from './SettingsSection';
@@ -1089,7 +1089,19 @@ export const ThemeSection: React.FC = () => {
                             )}
                             {animationParamsContext && animationParamsContext.parameterDefinitions.length > 0 && (
                                 <div className="space-y-4 pt-2">
-                                    <h5 className="text-xs font-semibold text-theme-primary">Paramètres de l&apos;animation</h5>
+                                    <div className="flex items-center justify-between gap-2">
+                                        <h5 className="text-xs font-semibold text-theme-primary">Paramètres de l&apos;animation</h5>
+                                        <button
+                                            type="button"
+                                            onClick={() => animationParamsContext.resetParameters()}
+                                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-theme bg-theme-secondary hover:border-yellow-500/50 hover:bg-theme-tertiary text-theme-secondary hover:text-theme-primary text-xs font-medium transition-colors"
+                                            title="Remettre les réglages par défaut pour cette animation"
+                                            aria-label="Réinitialiser les paramètres"
+                                        >
+                                            <RotateCcw size={14} aria-hidden />
+                                            Réinitialiser
+                                        </button>
+                                    </div>
                                     {animationParamsContext.parameterDefinitions.map((param: AnimationParameter) => {
                                         const value = animationParamsContext.parameters[param.name];
                                         const label = param.description ?? param.name;

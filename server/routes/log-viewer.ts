@@ -1013,8 +1013,8 @@ router.get('/plugins/:pluginId/stats', async (req, res) => {
         const pluginConfig = PluginConfigRepository.findByPluginId(pluginId);
         const readCompressed = (pluginConfig?.settings?.readCompressed as boolean) ?? false;
 
-        // Get default base path and patterns
-        const basePath = plugin.getDefaultBasePath();
+        // Use saved plugin config basePath (same as files-direct) so dashboard/footer stats match configured path
+        const basePath = getEffectiveBasePath(pluginId, plugin, undefined);
         const patterns = plugin.getDefaultFilePatterns();
 
         // Scan for log files
@@ -1184,7 +1184,7 @@ router.get('/largest-files', async (req, res) => {
             const readCompressed = (pluginConfig?.settings?.readCompressed as boolean) ?? false;
 
             try {
-                const basePath = plugin.getDefaultBasePath();
+                const basePath = getEffectiveBasePath(pluginId, plugin, undefined);
                 const patterns = plugin.getDefaultFilePatterns();
                 const scannedFiles = await plugin.scanLogFiles(basePath, patterns);
 

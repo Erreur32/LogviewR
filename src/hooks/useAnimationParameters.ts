@@ -48,7 +48,7 @@ export const ANIMATION_PARAMETERS: Record<FullAnimationId, AnimationParameter[]>
     { name: 'loop', type: 'boolean', default: true, description: 'Boucler en continu (désactiver = une passe puis pause)' },
   ],
   'animation.80.particle-waves': [
-    { name: 'speed', type: 'range', default: 0.2, min: 0.1, max: 2.0, step: 0.1, description: 'Vitesse d\'animation (0.1-2.0)' },
+    { name: 'speed', type: 'range', default: 0.8, min: 0.1, max: 15.0, step: 0.1, description: 'Vitesse des vagues (0.1=lent, 15=très rapide)' },
     { name: 'particleSize', type: 'range', default: 1.2, min: 0.5, max: 3.0, step: 0.1, description: 'Taille des particules' },
     { name: 'waveHeight', type: 'range', default: 3, min: 1, max: 8, step: 0.5, description: 'Hauteur des vagues' },
     { name: 'loop', type: 'boolean', default: true, description: 'Boucler en continu (désactiver = une passe puis pause)' },
@@ -108,7 +108,8 @@ export const ANIMATION_PARAMETERS: Record<FullAnimationId, AnimationParameter[]>
   'animation.96.stars': [
     { name: 'speed', type: 'range', default: 0.1, min: 0.1, max: 2.0, step: 0.1, description: 'Vitesse d\'animation (0.1-2.0)' },
     { name: 'starCount', type: 'range', default: 1200, min: 300, max: 3000, step: 100, description: 'Nombre d\'étoiles (300-3000)' },
-    { name: 'hue', type: 'range', default: 217, min: 0, max: 360, step: 1, description: 'Teinte des étoiles (0-360)' },
+    { name: 'starColor', type: 'color', default: '#6eb5ff', description: 'Couleur des étoiles (palette)' },
+    { name: 'hue', type: 'range', default: 217, min: 0, max: 360, step: 1, description: 'Teinte des étoiles (0-360) — utilisé si pas de couleur choisie' },
     { name: 'loop', type: 'boolean', default: true, description: 'Boucler en continu (désactiver = une passe puis pause)' },
   ],
   'animation.97.space': [
@@ -122,7 +123,8 @@ export const ANIMATION_PARAMETERS: Record<FullAnimationId, AnimationParameter[]>
   'animation.98.sidelined': [
     { name: 'speed', type: 'range', default: 0.5, min: 0.1, max: 2.0, step: 0.1, description: 'Vitesse d\'animation (0.1-2.0)' },
     { name: 'lineCount', type: 'range', default: 3, min: 2, max: 10, step: 1, description: 'Nombre de lignes (2-10)' },
-    { name: 'hue', type: 'range', default: 260, min: 0, max: 360, step: 1, description: 'Teinte des lignes (0-360)' },
+    { name: 'lineColor', type: 'color', default: '#a78bfa', description: 'Couleur des lignes (palette)' },
+    { name: 'hue', type: 'range', default: 260, min: 0, max: 360, step: 1, description: 'Teinte des lignes (0-360) — utilisé si pas de couleur choisie' },
     { name: 'loop', type: 'boolean', default: true, description: 'Boucler en continu (désactiver = une passe puis pause)' },
   ],
 };

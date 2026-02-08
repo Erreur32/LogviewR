@@ -43,6 +43,33 @@ function getVisualKey(variant: EffectiveVariant): string | null {
   return FULL_ID_TO_VISUAL[variant] ?? null;
 }
 
+/** Parse hex color to HSL and return a darkened hsl() string (e.g. for star background) */
+function hexToDarkHsl(hex: string, lightnessFactor: number = 0.15): string {
+  const m = hex.replace(/^#/, '').match(/^([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i);
+  if (!m) return 'hsl(217, 64%, 6%)';
+  const r = parseInt(m[1], 16) / 255;
+  const g = parseInt(m[2], 16) / 255;
+  const b = parseInt(m[3], 16) / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  let h = 0;
+  let s = 0;
+  const l = (max + min) / 2;
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
+      case g: h = ((b - r) / d + 2) / 6; break;
+      default: h = ((r - g) / d + 4) / 6; break;
+    }
+  }
+  const hDeg = Math.round(h * 360);
+  const sPct = Math.round(s * 100);
+  const darkL = Math.round(Math.min(100, l * 100 * lightnessFactor));
+  return `hsl(${hDeg}, ${sPct}%, ${darkL}%)`;
+}
+
 export const AnimatedBackground: React.FC<AnimatedBackgroundProps> = ({
   variant,
   disabled,
@@ -272,6 +299,7 @@ export const AnimatedBackground: React.FC<AnimatedBackgroundProps> = ({
           animationSpeed={animationSpeed}
           speed={animationParameters?.speed as number | undefined}
           starCount={animationParameters?.starCount as number | undefined}
+          starColor={animationParameters?.starColor as string | undefined}
           hue={animationParameters?.hue as number | undefined}
         />
       </div>
@@ -310,6 +338,7 @@ export const AnimatedBackground: React.FC<AnimatedBackgroundProps> = ({
           animationSpeed={animationSpeed}
           speed={animationParameters?.speed as number | undefined}
           lineCount={animationParameters?.lineCount as number | undefined}
+          lineColor={animationParameters?.lineColor as string | undefined}
           hue={animationParameters?.hue as number | undefined}
         />
       </div>
@@ -573,8 +602,8 @@ const ParticleWavesCanvas: React.FC<{
   const startTimeRef = useRef<number | null>(null);
   const speedMult = speedToMultiplier(animationSpeed);
   const defaultSpeed = customSpeed === undefined
-    ? Math.max(0.1, Math.min(2.0, 0.1 + ((speedMult - 0.3) / (3.0 - 0.3)) * 1.9))
-    : Math.max(0.1, Math.min(2.0, customSpeed));
+    ? Math.max(0.1, Math.min(15.0, 0.1 + ((speedMult - 0.3) / (3.0 - 0.3)) * 14.9))
+    : Math.max(0.1, Math.min(15.0, customSpeed));
   const baseSpeedValue = defaultSpeed;
 
   useEffect(() => {
@@ -588,7 +617,7 @@ const ParticleWavesCanvas: React.FC<{
     const pointSize = particleSize;
     const distance = 5;
     const height = waveHeight;
-    const speed = 5;
+    const waveSpeed = baseSpeedValue;
     
     let particles: { x3d: number; y3d: number; z3d: number; color: [number, number, number, number] }[] = [];
     let fieldX = 0;
@@ -671,8 +700,9 @@ const ParticleWavesCanvas: React.FC<{
         startTimeRef.current = now;
       }
       
-      // Temps exact comme l'original : elapsed = (now - start) / 5000
-      const elapsed = ((now - startTimeRef.current) / 5000) * speedMult;
+      // Time scale: 1500 ms base (faster than original 5000) so waves are visibly responsive; speedMult and waveSpeed amplify
+      const elapsed = ((now - startTimeRef.current) / 1500) * speedMult;
+      const phaseSpeed = waveSpeed * 2.5;
       const w = canvas.width;
       const h = canvas.height;
       const dpi = window.devicePixelRatio || 1;
@@ -680,14 +710,13 @@ const ParticleWavesCanvas: React.FC<{
       ctx.fillStyle = 'rgb(0, 0, 0)';
       ctx.fillRect(0, 0, w, h);
 
-      // Calculer les positions 3D avec vagues (formule exacte du shader)
+      // Calculer les positions 3D avec vagues (formule shader + phaseSpeed pour réactivité du curseur vitesse)
       const M_PI = Math.PI;
       
       const projected: { x: number; y: number; w: number; color: [number, number, number, number]; z3d: number }[] = particles.map((p) => {
-        // Formule exacte : pos.y += (cos(pos.x / u_field.x * M_PI * 8.0 + u_time * u_speed) + sin(pos.z / u_field.z * M_PI * 8.0 + u_time * u_speed)) * u_field.y
         const waveY = (
-          Math.cos((p.x3d / fieldX) * M_PI * 8.0 + elapsed * speed) +
-          Math.sin((p.z3d / fieldZ) * M_PI * 8.0 + elapsed * speed)
+          Math.cos((p.x3d / fieldX) * M_PI * 8.0 + elapsed * phaseSpeed) +
+          Math.sin((p.z3d / fieldZ) * M_PI * 8.0 + elapsed * phaseSpeed)
         ) * height;
         
         const y3d = p.y3d + waveY;
@@ -748,7 +777,7 @@ const ParticleWavesCanvas: React.FC<{
       if (animRef.current) cancelAnimationFrame(animRef.current);
       startTimeRef.current = null;
     };
-  }, [speedMult, particleSize, waveHeight]);
+  }, [speedMult, particleSize, waveHeight, baseSpeedValue]);
 
   return (
     <canvas
@@ -2526,11 +2555,13 @@ const StarsCanvas: React.FC<{
   animationSpeed?: AnimationSpeed;
   speed?: number;
   starCount?: number;
+  starColor?: string;
   hue?: number;
 }> = ({
   animationSpeed = 0.75,
   speed: customSpeed,
   starCount: customStarCount,
+  starColor: customStarColor,
   hue: customHue
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -2542,6 +2573,7 @@ const StarsCanvas: React.FC<{
     : Math.max(0.1, Math.min(2.0, customSpeed));
   const baseSpeedValue = defaultSpeed;
   const starCount = customStarCount !== undefined ? customStarCount : 1200;
+  const starColor = customStarColor && /^#[0-9a-f]{6}$/i.test(customStarColor) ? customStarColor : null;
   const hue = customHue !== undefined ? customHue : 217;
   const starsRef = useRef<Array<{
     orbitRadius: number;
@@ -2551,7 +2583,11 @@ const StarsCanvas: React.FC<{
     alpha: number;
   }>>([]);
 
-  // Créer le canvas de gradient en cache
+  const fillColor = starColor ? hexToDarkHsl(starColor, 0.08) : `hsla(${hue}, 64%, 6%, 1)`;
+  const midColor = starColor ? starColor : `hsl(${hue}, 61%, 33%)`;
+  const outerColor = starColor ? hexToDarkHsl(starColor, 0.25) : `hsl(${hue}, 64%, 6%)`;
+
+  // Créer le canvas de gradient en cache (blanc -> couleur étoile -> sombre -> transparent)
   useEffect(() => {
     const gradientCanvas = document.createElement('canvas');
     gradientCanvas.width = 100;
@@ -2561,8 +2597,8 @@ const StarsCanvas: React.FC<{
 
     const gradient = ctx2.createRadialGradient(50, 50, 0, 50, 50, 50);
     gradient.addColorStop(0.025, '#fff');
-    gradient.addColorStop(0.1, `hsl(${hue}, 61%, 33%)`);
-    gradient.addColorStop(0.25, `hsl(${hue}, 64%, 6%)`);
+    gradient.addColorStop(0.1, midColor);
+    gradient.addColorStop(0.25, outerColor);
     gradient.addColorStop(1, 'transparent');
 
     ctx2.fillStyle = gradient;
@@ -2571,7 +2607,7 @@ const StarsCanvas: React.FC<{
     ctx2.fill();
 
     gradientCanvasRef.current = gradientCanvas;
-  }, [hue]);
+  }, [midColor, outerColor]);
 
   const maxOrbit = (x: number, y: number): number => {
     const max = Math.max(x, y);
@@ -2623,10 +2659,10 @@ const StarsCanvas: React.FC<{
       const centerX = w / 2;
       const centerY = h / 2;
 
-      // Fond avec fade
+      // Fond avec fade (couleur selon starColor ou hue)
       ctx.globalCompositeOperation = 'source-over';
       ctx.globalAlpha = 0.8;
-      ctx.fillStyle = `hsla(${hue}, 64%, 6%, 1)`;
+      ctx.fillStyle = fillColor;
       ctx.fillRect(0, 0, w, h);
 
       // Dessiner les étoiles
@@ -2673,7 +2709,7 @@ const StarsCanvas: React.FC<{
       window.removeEventListener('resize', resize);
       if (animRef.current) cancelAnimationFrame(animRef.current);
     };
-  }, [baseSpeedValue, generateStars, hue]);
+  }, [baseSpeedValue, generateStars, fillColor]);
 
   return (
     <canvas
@@ -2871,11 +2907,13 @@ const SidelinedCanvas: React.FC<{
   animationSpeed?: AnimationSpeed;
   speed?: number;
   lineCount?: number;
+  lineColor?: string;
   hue?: number;
 }> = ({
   animationSpeed = 0.75,
   speed: customSpeed,
   lineCount: customLineCount,
+  lineColor: customLineColor,
   hue: customHue
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -2887,6 +2925,7 @@ const SidelinedCanvas: React.FC<{
     : Math.max(0.1, Math.min(2.0, customSpeed));
   const baseSpeedValue = defaultSpeed;
   const lineCount = customLineCount !== undefined ? customLineCount : 3;
+  const lineColor = customLineColor && /^#[0-9a-f]{6}$/i.test(customLineColor) ? customLineColor : null;
   const hue = customHue !== undefined ? customHue : 260;
 
   useEffect(() => {
@@ -2941,13 +2980,18 @@ const SidelinedCanvas: React.FC<{
         ctx.lineTo(0, h - y);
         
         ctx.lineWidth = lineWidth;
-        ctx.strokeStyle = `hsla(${hue}, 70%, 60%, ${progress})`;
-        
-        // Ombre/glow autour des lignes
-        ctx.shadowBlur = lineWidth * 2;
-        ctx.shadowColor = `hsla(${hue}, 100%, 60%, ${progress})`;
-        
+        if (lineColor) {
+          ctx.globalAlpha = progress;
+          ctx.strokeStyle = lineColor;
+          ctx.shadowBlur = lineWidth * 2;
+          ctx.shadowColor = lineColor;
+        } else {
+          ctx.strokeStyle = `hsla(${hue}, 70%, 60%, ${progress})`;
+          ctx.shadowBlur = lineWidth * 2;
+          ctx.shadowColor = `hsla(${hue}, 100%, 60%, ${progress})`;
+        }
         ctx.stroke();
+        ctx.globalAlpha = 1;
       }
 
       // Réinitialiser l'ombre pour éviter les effets indésirables
@@ -2962,7 +3006,7 @@ const SidelinedCanvas: React.FC<{
       window.removeEventListener('resize', resize);
       if (animRef.current) cancelAnimationFrame(animRef.current);
     };
-  }, [baseSpeedValue, lineCount, hue]);
+  }, [baseSpeedValue, lineCount, hue, lineColor]);
 
   return (
     <canvas
