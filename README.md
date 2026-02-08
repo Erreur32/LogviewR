@@ -1,11 +1,11 @@
 # LogviewR - Log Viewer Application
+> [!IMPORTANT]
+>  PRE-REALEASE BETA , NOT FINISH !
+
 
 <div align="center">
 
 ‼️ En cour de developpement ACTIF , Version BETA ‼️
-
-> [!IMPORTANT]
->  NOT WORKING , NOT FINISH , DO NOT INSTALL
 
 <img src="LogviewR_banner.svg" alt="LogviewR" width="512" height="256" />
 
