@@ -5,6 +5,25 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.9] - 2026-02-08
+
+### Added
+
+#### Docker
+- **Indication HOST_IP au démarrage** : en Docker, si `HOST_IP` n’est pas défini, un message dans les logs rappelle de définir `HOST_IP` dans le `.env` (ex. `HOST_IP=192.168.32.150`) pour afficher l’IP de la machine hôte dans le bandeau au lieu de la passerelle Docker
+
+### Fixed
+
+#### Plugin NPM (Docker)
+- **Fichiers NPM visibles en Docker** : le plugin NPM applique désormais `convertToDockerPath()` sur le `basePath` (comme Apache et Nginx), afin que `/var/log/npm` soit converti en `/host/logs/npm` ou `/host/var/log/npm` et que les fichiers de logs NPM s’affichent correctement
+
+### Changed
+
+#### Docker
+- **docker-compose.yml** : commentaires renforcés pour `HOST_IP` (recommandation et exemple 192.168.32.150)
+
+---
+
 ## [0.1.8] - 2026-02-08
 
 ### Added

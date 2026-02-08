@@ -38,9 +38,8 @@ export class NpmLogPlugin extends BasePlugin implements LogSourcePlugin {
         try {
             const config = this.config?.settings as NpmPluginConfig | undefined;
             const basePath = config?.basePath || this.getDefaultBasePath();
-            
-            // Test if base path exists and is readable
-            await fs.access(basePath);
+            const actualBasePath = this.convertToDockerPath(basePath);
+            await fs.access(actualBasePath);
             return true;
         } catch {
             return false;
@@ -102,9 +101,8 @@ export class NpmLogPlugin extends BasePlugin implements LogSourcePlugin {
 
     async scanLogFiles(basePath: string, patterns: string[]): Promise<LogFileInfo[]> {
         const results: LogFileInfo[] = [];
-        
+        const actualBasePath = this.convertToDockerPath(basePath);
         try {
-            // Convert glob patterns to regex patterns
             const regexPatterns = patterns.map(p => {
                 const regexStr = p
                     .replace(/\./g, '\\.')
@@ -157,7 +155,7 @@ export class NpmLogPlugin extends BasePlugin implements LogSourcePlugin {
                 }
             };
 
-            await scanDirectory(basePath);
+            await scanDirectory(actualBasePath);
         } catch (error) {
             console.error(`[NpmLogPlugin] Error scanning files:`, error);
         }

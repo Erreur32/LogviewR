@@ -453,10 +453,18 @@ server.listen(port, host, () => {
     containerName = 'NPM DEV';
   }
   
-  // Get host machine IP (for Docker) or container IP (for dev)
+  // Get host machine IP (for Docker): use HOST_IP env so the banner shows the real host IP (e.g. 192.168.32.150).
+  // Without HOST_IP, getHostMachineIP() may return the Docker gateway (e.g. 192.168.48.1), which is not the URL to open in a browser.
   const hostIP = isDockerEnv ? getHostMachineIP() : null;
   const containerIP = getNetworkIP();
   const displayIP = hostIP || containerIP || 'localhost';
+
+  if (isDockerEnv && !hostIP) {
+    logger.info(
+      'Server',
+      'Pour afficher l\'IP de la machine host dans le bandeau (ex: 192.168.32.150), définissez HOST_IP dans votre fichier .env (ex: HOST_IP=192.168.32.150).'
+    );
+  }
   
   let frontendWebUrl: string;
   let frontendLocalUrl: string;
