@@ -35,13 +35,18 @@ export class NpmLogPlugin extends BasePlugin implements LogSourcePlugin {
     }
 
     async testConnection(): Promise<boolean> {
+        const config = this.config?.settings as NpmPluginConfig | undefined;
+        const basePath = config?.basePath || this.getDefaultBasePath();
+        const actualBasePath = this.resolveDockerPathSync(basePath);
         try {
-            const config = this.config?.settings as NpmPluginConfig | undefined;
-            const basePath = config?.basePath || this.getDefaultBasePath();
-            const actualBasePath = this.convertToDockerPath(basePath);
             await fs.access(actualBasePath);
             return true;
-        } catch {
+        } catch (err: unknown) {
+            const code = err && typeof err === 'object' && 'code' in err ? (err as NodeJS.ErrnoException).code : 'unknown';
+            console.warn(
+                `[Plugin:npm] testConnection failed. Path checked: ${actualBasePath} (from basePath: ${basePath}). Error: ${code}. ` +
+                `To verify in container run: docker exec <container> ls -la ${actualBasePath}`
+            );
             return false;
         }
     }
@@ -101,14 +106,18 @@ export class NpmLogPlugin extends BasePlugin implements LogSourcePlugin {
 
     async scanLogFiles(basePath: string, patterns: string[]): Promise<LogFileInfo[]> {
         const results: LogFileInfo[] = [];
-        const actualBasePath = this.convertToDockerPath(basePath);
+        const actualBasePath = this.resolveDockerPathSync(basePath);
         try {
+            // Same glob-to-regex as Apache: optional rotation (.1, .2) and compression (.gz, .bz2, .xz) after .log
             const regexPatterns = patterns.map(p => {
-                const regexStr = p
+                let regexStr = p
                     .replace(/\./g, '\\.')
                     .replace(/\*\*/g, '.*')
                     .replace(/\*/g, '[^/]*')
                     .replace(/\?/g, '.');
+                if (regexStr.endsWith('\\.log')) {
+                    regexStr = regexStr + '(?:\\.\\d+)?(?:\\.(?:gz|bz2|xz))?';
+                }
                 return new RegExp(`^${regexStr}$`);
             });
 
@@ -157,7 +166,11 @@ export class NpmLogPlugin extends BasePlugin implements LogSourcePlugin {
 
             await scanDirectory(actualBasePath);
         } catch (error) {
-            console.error(`[NpmLogPlugin] Error scanning files:`, error);
+            console.error(
+                `[NpmLogPlugin] Error scanning files at ${actualBasePath} (basePath: ${basePath}). ` +
+                `Verify access in container: docker exec <container> ls -la ${actualBasePath}`,
+                error
+            );
         }
         
         return results;

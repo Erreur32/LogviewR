@@ -114,6 +114,41 @@ export abstract class BasePlugin implements IPlugin {
         return filePath;
     }
 
+    /**
+     * Resolve the path to use in Docker.
+     * - Paths under /var/log: try both /host/logs and /host/var/log (first that exists).
+     * - Any other absolute host path (e.g. /home/docker/nginx_proxy/data/logs): prefix with HOST_ROOT_PATH
+     *   so the container sees /host/home/docker/nginx_proxy/data/logs (host root is mounted at /host).
+     * - Paths already under /host: returned as-is.
+     */
+    protected resolveDockerPathSync(filePath: string): string {
+        if (!this.isDocker()) {
+            return this.convertToDockerPath(filePath);
+        }
+        const HOST_ROOT_PATH = process.env.HOST_ROOT_PATH || '/host';
+        // Already a container path (under /host): use as-is
+        if (filePath.startsWith(HOST_ROOT_PATH + '/') || filePath === HOST_ROOT_PATH) {
+            return filePath;
+        }
+        // Host path under /var/log: try both /host/logs and /host/var/log
+        if (filePath.startsWith('/var/log')) {
+            const candidate1 = filePath.replace('/var/log', '/host/logs');
+            const candidate2 = filePath.replace('/var/log', `${HOST_ROOT_PATH}/var/log`);
+            if (fsSync.existsSync(candidate1)) {
+                return candidate1;
+            }
+            if (fsSync.existsSync(candidate2)) {
+                return candidate2;
+            }
+            return candidate2;
+        }
+        // Any other absolute host path: prefix with /host so container can read it (e.g. /home/... -> /host/home/...)
+        if (filePath.startsWith('/')) {
+            return HOST_ROOT_PATH + filePath;
+        }
+        return filePath;
+    }
+
     abstract getStats(): Promise<PluginStats>;
     abstract testConnection(): Promise<boolean>;
 }

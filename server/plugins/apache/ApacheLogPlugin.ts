@@ -36,17 +36,18 @@ export class ApacheLogPlugin extends BasePlugin implements LogSourcePlugin {
     }
 
     async testConnection(): Promise<boolean> {
+        const config = this.config?.settings as ApachePluginConfig | undefined;
+        const basePath = config?.basePath || this.getDefaultBasePath();
+        const actualBasePath = this.resolveDockerPathSync(basePath);
         try {
-            const config = this.config?.settings as ApachePluginConfig | undefined;
-            const basePath = config?.basePath || this.getDefaultBasePath();
-            
-            // Convert to Docker path if needed
-            const actualBasePath = this.convertToDockerPath(basePath);
-            
-            // Test if base path exists and is readable
             await fs.access(actualBasePath);
             return true;
-        } catch {
+        } catch (err: unknown) {
+            const code = err && typeof err === 'object' && 'code' in err ? (err as NodeJS.ErrnoException).code : 'unknown';
+            console.warn(
+                `[Plugin:apache] testConnection failed. Path checked: ${actualBasePath} (from basePath: ${basePath}). Error: ${code}. ` +
+                `To verify in container run: docker exec <container> ls -la ${actualBasePath}`
+            );
             return false;
         }
     }
@@ -106,27 +107,18 @@ export class ApacheLogPlugin extends BasePlugin implements LogSourcePlugin {
 
     async scanLogFiles(basePath: string, patterns: string[]): Promise<LogFileInfo[]> {
         const results: LogFileInfo[] = [];
-        
+        const actualBasePath = this.resolveDockerPathSync(basePath);
         try {
-            // Convert basePath to Docker path if needed (handles /var/log/apache2, etc.)
-            const actualBasePath = this.convertToDockerPath(basePath);
-            
-            // Convert glob patterns to regex patterns
-            // Handle compressed files (.gz, .bz2, .xz) by allowing optional extensions after .log
+            // Convert glob patterns to regex; allow optional rotation (.1, .2) and compression (.gz, .bz2, .xz) after .log
             const regexPatterns = patterns.map(p => {
                 let regexStr = p
                     .replace(/\./g, '\\.')
                     .replace(/\*\*/g, '.*')
                     .replace(/\*/g, '[^/]*')
                     .replace(/\?/g, '.');
-                
-                // If pattern ends with .log, allow optional rotation numbers (.1, .2, etc.) and compression extensions (.gz, .bz2, .xz)
-                // This handles: access.log, access.log.1, access.log.1.gz, access.log.gz, etc.
                 if (regexStr.endsWith('\\.log')) {
-                    // Allow optional rotation number (.1, .2, .20240101, etc.) followed by optional compression
                     regexStr = regexStr + '(?:\\.\\d+)?(?:\\.(?:gz|bz2|xz))?';
                 }
-                
                 return new RegExp(`^${regexStr}$`);
             });
 
@@ -175,7 +167,11 @@ export class ApacheLogPlugin extends BasePlugin implements LogSourcePlugin {
 
             await scanDirectory(actualBasePath);
         } catch (error) {
-            console.error(`[ApacheLogPlugin] Error scanning files:`, error);
+            console.error(
+                `[ApacheLogPlugin] Error scanning files at ${actualBasePath} (basePath: ${basePath}). ` +
+                `Verify access in container: docker exec <container> ls -la ${actualBasePath}`,
+                error
+            );
         }
         
         return results;

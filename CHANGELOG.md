@@ -5,6 +5,22 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.10] - 2026-02-08
+
+### Fixed
+
+#### Docker – Chemins des plugins
+- **Chemins absolus hôte dans les options** : en Docker, tout chemin absolu saisi dans les options d’un plugin (ex. `/home/docker/nginx_proxy/data/logs`) est désormais préfixé par `HOST_ROOT_PATH` (`/host` par défaut). Le conteneur accède ainsi au bon répertoire (ex. `/host/home/docker/nginx_proxy/data/logs`), notamment quand `/var/log/npm` sur l’hôte est un symlink vers un autre répertoire.
+- **Plugin NPM** : utilisation de `resolveDockerPathSync` (test des deux variantes `/host/logs/npm` et `/host/var/log/npm`) et logs de diagnostic en cas d’échec de `testConnection` ou de `scanLogFiles` (chemin testé + commande `docker exec` pour vérifier).
+
+### Changed
+
+#### Plugins Apache et NPM
+- **Alignement Apache / NPM** : Apache utilise désormais `resolveDockerPathSync` et les mêmes messages de diagnostic que NPM en cas d’échec de connexion ou de scan. Les deux plugins partagent la même logique de résolution de chemin et de regex pour les fichiers (rotation `.log.1`, compression `.gz`/`.bz2`/`.xz`).
+- **BasePlugin** : `resolveDockerPathSync` étendu pour gérer tout chemin absolu de l’hôte (pas seulement `/var/log`) en le préfixant par `/host` lorsque l’app tourne en Docker.
+
+---
+
 ## [0.1.9] - 2026-02-08
 
 ### Added

@@ -128,12 +128,12 @@ fi
 
 # ── Summary ──────────────────────────────────────────────────────────────────
 echo ""
-echo -e "${G}${B}Done.${R} LogviewR version is now ${B}$NEW${R}."
-echo -e "${Y}→${R} Add a new section in ${B}CHANGELOG.md${R} for this version."
+echo -e "${G}${B}  Done.${R} LogviewR version is now ${B}$NEW${R}."
+echo -e "${Y}   →${R} Add a new section in ${B}CHANGELOG.md${R} for this version."
 echo ""
 echo -e "${C}${B}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${R}"
 echo -e "${C}${B}  Suggested commands (copy / paste)${R}"
 echo -e "${C}${B}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${R}"
 echo ""
-echo -e "  ${B}git add -A && git commit -m \"release: v$NEW\" && git push${R}"
+echo -e "${B}git add -A && git commit -m \"release: v$NEW\" && git push${R}"
 echo ""
