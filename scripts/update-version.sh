@@ -1,16 +1,21 @@
 #!/usr/bin/env bash
 # ──────────────────────────────────────────────────────────────────────────────
 # Bump LogviewR version across the repo (run from project root or anywhere).
-# Usage:   ./scripts/update-version.sh <new_version>
+# Usage:   ./scripts/update-version.sh <new_version> [--tag-push]
 # Example: ./scripts/update-version.sh 0.1.7
+#          ./scripts/update-version.sh 0.1.7 --tag-push   # bump + create tag + push branch & tag
 #
 # Updated files:
 #   1. package.json              — "version" field
 #   2. src/constants/version.ts   — APP_VERSION constant
 #   3. README.md                  — LogviewR badge, release link (if any), version text
 #
-# After running, add a new entry in CHANGELOG.md for this version.
-# ──────────────────────────────────────────────────────────────────────────────
+# Options:
+#   --tag-push   After bump, create annotated tag v<version> and push current branch + tag to origin.
+#
+# After running (without --tag-push), add a new entry in CHANGELOG.md, then commit. Use --tag-push
+# after commit to tag and push in one go, or run the suggested git commands manually.
+# ──────────────────────────────────────────────────────────────
 
 set -e
 
@@ -49,24 +54,51 @@ if [ -z "$CURRENT" ]; then
   exit 1
 fi
 
-# ── Argument: new version ────────────────────────────────────────────────────
+# ── Argument: new version + optional --tag-push ───────────────────────────────
 NEW="$1"
+TAG_PUSH=""
+[ "$2" = "--tag-push" ] && TAG_PUSH="1"
+
 if [ -z "$NEW" ]; then
   # Suggest next patch version (e.g. 0.1.6 -> 0.1.7)
   SUGGESTED=$(echo "$CURRENT" | awk -F. '{$NF=$NF+1; print $0}' OFS=.)
   echo ""
   echo -e "  ${B}Current version:${R} ${C}${CURRENT}${R}"
   echo ""
-  echo "  Usage: $0 <new_version>"
+  echo "  Usage: $0 <new_version> [--tag-push]"
   echo ""
   echo "  Example (next patch):"
   echo -e "    ${C}$0 ${SUGGESTED}${R}"
+  echo -e "    ${C}$0 ${SUGGESTED} --tag-push${R}   # bump + tag v${SUGGESTED} + push branch & tag"
   echo ""
   exit 0
 fi
 
-# ── Sanity check: new != current ─────────────────────────────────────────────
+# ── Sanity check: new != current (unless --tag-push only) ────────────────────
 if [ "$NEW" = "$CURRENT" ]; then
+  if [ -n "$TAG_PUSH" ]; then
+    # Tag + push only (e.g. after user already bumped and committed)
+    echo ""
+    echo -e "${M}${B}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${R}"
+    echo -e "${M}${B}  Tag and push v$NEW (version unchanged)${R}"
+    echo -e "${M}${B}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${R}"
+    echo ""
+    branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)
+    if [ -z "$branch" ]; then
+      echo -e "${RED}Error:${R} not a git repository or no branch."
+      exit 1
+    fi
+    tag_name="v$NEW"
+    if git rev-parse "$tag_name" >/dev/null 2>&1; then
+      echo -e "${Y}Tag $tag_name already exists. Pushing branch and tag.${R}"
+    else
+      git tag -a "$tag_name" -m "Release $tag_name" || { echo -e "${RED}Tag creation failed.${R}"; exit 1; }
+      echo -e "  ${G}✓${R} Tag $tag_name created."
+    fi
+    git push origin "$branch" && git push origin "$tag_name" || { echo -e "${RED}Push failed.${R}"; exit 1; }
+    echo -e "${G}✓${R} Branch and tag pushed to origin."
+    exit 0
+  fi
   echo -e "${Y}Warning:${R} new version ($NEW) is the same as current ($CURRENT). Nothing to do."
   exit 0
 fi
@@ -128,12 +160,59 @@ fi
 
 # ── Summary ──────────────────────────────────────────────────────────────────
 echo ""
-echo -e "${G}${B}  Done.${R} LogviewR version is now ${B}$NEW${R}."
-echo -e "${Y}   →${R} Add a new section in ${B}CHANGELOG.md${R} for this version."
+echo -e "${G}${B}Done.${R} LogviewR version is now ${B}$NEW${R}."
+echo -e "${Y}→${R} Add a new section in ${B}CHANGELOG.md${R} for this version."
 echo ""
+
+# ── Tag + push (optional: --tag-push) ───────────────────────────────────────
+do_tag_push() {
+  local branch
+  branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)
+  if [ -z "$branch" ]; then
+    echo -e "${RED}Error:${R} not a git repository or no branch. Cannot tag/push."
+    return 1
+  fi
+  local tag_name="v$NEW"
+  if git rev-parse "$tag_name" >/dev/null 2>&1; then
+    echo -e "${Y}Tag ${tag_name} already exists. Pushing branch and tag.${R}"
+  else
+    echo -e "  ${B}Creating tag ${C}${tag_name}${R} ..."
+    git tag -a "$tag_name" -m "Release $tag_name" || { echo -e "${RED}Tag creation failed.${R}"; return 1; }
+    echo -e "  ${G}✓${R} Tag ${tag_name} created."
+  fi
+  echo -e "  ${B}Pushing ${C}origin $branch${R} and ${C}origin $tag_name${R} ..."
+  git push origin "$branch" && git push origin "$tag_name" || { echo -e "${RED}Push failed.${R}"; return 1; }
+  echo -e "${G}✓${R} Branch and tag pushed to origin."
+  return 0
+}
+
+if [ -n "$TAG_PUSH" ]; then
+  echo -e "${C}${B}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${R}"
+  echo -e "${C}${B}  Tag and push (--tag-push)${R}"
+  echo -e "${C}${B}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${R}"
+  echo ""
+  # If there are uncommitted changes (e.g. we just bumped version), commit first so main and tag point to the new release
+  if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
+    echo -e "  ${B}Committing version bump (so main and tag point to v$NEW) ...${R}"
+    git add -A
+    if [ -f "$REPO_ROOT/commit-message.txt" ]; then
+      git commit -F "$REPO_ROOT/commit-message.txt" || { echo -e "${RED}Commit failed.${R}"; exit 1; }
+    else
+      git commit -m "release: v$NEW" || { echo -e "${RED}Commit failed.${R}"; exit 1; }
+    fi
+    echo -e "  ${G}✓${R} Version bump committed."
+    echo ""
+  fi
+  do_tag_push || exit 1
+  echo ""
+  exit 0
+fi
+
 echo -e "${C}${B}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${R}"
-echo -e "${C}${B}  Suggested commands (copy / paste)${R}"
+echo -e "${C}${B}  One-liner: add, commit (message file), tag, push branch + tag${R}"
 echo -e "${C}${B}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${R}"
 echo ""
-echo -e "${B}git add -A && git commit -m \"release: v$NEW\" && git push${R}"
+echo -e "  ${G}git add -A && git commit -F commit-message.txt && git tag -a v$NEW -m \"Release v$NEW\" && git push origin \$(git rev-parse --abbrev-ref HEAD) v$NEW${R}"
+echo ""
+echo -e "  ${Y}(Update commit-message.txt before running. Or run: $0 $NEW --tag-push after commit.)${R}"
 echo ""
