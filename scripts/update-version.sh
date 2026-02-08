@@ -96,11 +96,8 @@ if [ "$NEW" = "$CURRENT" ]; then
     if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
       echo -e "  ${B}Uncommitted changes found; committing so tag v$NEW points to commit with version $NEW.${R}"
       git add -A
-      if [ -f "$REPO_ROOT/commit-message.txt" ]; then
-        git commit -F "$REPO_ROOT/commit-message.txt" || { echo -e "${RED}Commit failed.${R}"; exit 1; }
-      else
-        git commit -m "release: v$NEW" || { echo -e "${RED}Commit failed.${R}"; exit 1; }
-      fi
+      # Always use version in commit message so GitHub / Actions show the correct release (do not use commit-message.txt here)
+      git commit -m "release: v$NEW" || { echo -e "${RED}Commit failed.${R}"; exit 1; }
       echo -e "  ${G}✓${R} Changes committed."
       echo ""
     fi
@@ -229,11 +226,8 @@ if [ -n "$TAG_PUSH" ]; then
   if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
     echo -e "  ${B}Committing version bump (so main and tag point to v$NEW) ...${R}"
     git add -A
-    if [ -f "$REPO_ROOT/commit-message.txt" ]; then
-      git commit -F "$REPO_ROOT/commit-message.txt" || { echo -e "${RED}Commit failed.${R}"; exit 1; }
-    else
-      git commit -m "release: v$NEW" || { echo -e "${RED}Commit failed.${R}"; exit 1; }
-    fi
+    # Always use version in commit message so GitHub / Actions show the correct release (do not use commit-message.txt here)
+    git commit -m "release: v$NEW" || { echo -e "${RED}Commit failed.${R}"; exit 1; }
     echo -e "  ${G}✓${R} Version bump committed."
     echo ""
   fi
