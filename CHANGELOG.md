@@ -5,6 +5,19 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] - 2026-02-10
+
+### Changed
+
+#### Script update-version.sh
+- **Intégration de `commit-message.txt` dans `--tag-push`** : le mode `--tag-push` utilise désormais `git commit -F commit-message.txt` au lieu du message générique `"release: v$NEW"`. Si le fichier est absent ou ne mentionne pas la version, fallback automatique avec avertissement.
+- **Ajout de `server/routes/system.ts`** (step 5) : le fallback `appVersion` dans `system.ts` est maintenant mis à jour automatiquement par le script (il était oublié auparavant).
+- **Détection intelligente du commit-message.txt** : après le bump, le script vérifie si `commit-message.txt` existe et mentionne la bonne version (check vert / avertissement jaune / génération de template).
+- **Sortie améliorée** : commandes numérotées 1-2-3 en fin de script, option "re-run with --tag-push", all-in-one avec `git commit -F commit-message.txt`.
+- **Parsing d'arguments flexible** : l'ordre `--tag-push` / version n'a plus d'importance.
+
+---
+
 ## [0.2.1] - 2026-02-10
 
 ### Fixed
@@ -530,6 +543,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+[0.2.2]: https://github.com/Erreur32/LogviewR/releases/tag/v0.2.2
 [0.2.1]: https://github.com/Erreur32/LogviewR/releases/tag/v0.2.1
 [0.2.0]: https://github.com/Erreur32/LogviewR/releases/tag/v0.2.0
 [0.1.0]: https://github.com/Erreur32/LogviewR/releases/tag/v0.1.0
