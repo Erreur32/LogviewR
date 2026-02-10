@@ -12,6 +12,7 @@ import { logReaderService, type LogLine } from './logReaderService.js';
 import { logger } from '../utils/logger.js';
 import { PluginConfigRepository } from '../database/models/PluginConfig.js';
 import { CustomLogParser, type CustomParserConfig } from '../plugins/host-system/CustomLogParser.js';
+import { ApacheParser } from '../plugins/apache/ApacheParser.js';
 
 export interface ParsedLogResult {
     parsed: ParsedLogEntry;
@@ -40,6 +41,76 @@ function normalizeLogFilePath(filePath: string): string {
         .replace(/\.\d+(\.(gz|bz2|xz))?$/, '') // Remove .1, .2, etc. optionally followed by compression
         .replace(/\.\d{8}(\.(gz|bz2|xz))?$/, '') // Remove .20240101, etc. optionally followed by compression
         .replace(/\.(gz|bz2|xz)$/, ''); // Remove compression extension if still present
+}
+
+/** Apache generic regex keys for "Files detected with regex" (one regex per category) */
+export const APACHE_REGEX_KEYS = {
+    ACCESS: 'access.log',
+    ERROR: 'error.log',
+    ACCESS_VHOST: 'access_*.log'
+} as const;
+
+/**
+ * Get Apache generic regex key for a file path (for resolving stored regex by pattern).
+ * Returns 'access.log', 'error.log', 'access_*.log' or null if not an Apache generic pattern.
+ * Covers: access.log, error.log, access_<name>.log, access.<domain>.log (e.g. access.home32.myoueb.fr.log).
+ */
+export function getApacheRegexKeyForPath(filePath: string): string | null {
+    const base = normalizeLogFilePath(filePath);
+    const basename = base.split('/').pop() || base;
+    if (basename === 'access.log') return APACHE_REGEX_KEYS.ACCESS;
+    if (basename === 'error.log') return APACHE_REGEX_KEYS.ERROR;
+    // access_*.log (access_vhost.log) or access.<domain>.log (access.home32.myoueb.fr.log, access.ip.myoueb.fr.log)
+    if (/^access_.*\.log$/.test(basename) || /^access\..+\.log$/.test(basename)) return APACHE_REGEX_KEYS.ACCESS_VHOST;
+    return null;
+}
+
+/** NPM generic regex keys for "Files detected with regex" (one regex per pattern) */
+export const NPM_REGEX_KEYS = [
+    'proxy-host-*_access.log',
+    'proxy-host-*_error.log',
+    'dead-host-*_access.log',
+    'dead-host-*_error.log',
+    'default-host_access.log',
+    'default-host_error.log',
+    'fallback_access.log',
+    'fallback_error.log',
+    'letsencrypt-requests_access.log',
+    'letsencrypt-requests_error.log'
+] as const;
+
+/**
+ * Get NPM generic regex key for a file path (for resolving stored regex by pattern).
+ * Returns one of NPM_REGEX_KEYS or null.
+ */
+export function getNpmRegexKeyForPath(filePath: string): (typeof NPM_REGEX_KEYS)[number] | null {
+    const base = normalizeLogFilePath(filePath);
+    const basename = base.split('/').pop() || base;
+    if (/^proxy-host-[^_]+_access\.log$/.test(basename)) return 'proxy-host-*_access.log';
+    if (/^proxy-host-[^_]+_error\.log$/.test(basename)) return 'proxy-host-*_error.log';
+    if (/^dead-host-[^_]+_access\.log$/.test(basename)) return 'dead-host-*_access.log';
+    if (/^dead-host-[^_]+_error\.log$/.test(basename)) return 'dead-host-*_error.log';
+    if (basename === 'default-host_access.log') return 'default-host_access.log';
+    if (basename === 'default-host_error.log') return 'default-host_error.log';
+    if (basename === 'fallback_access.log') return 'fallback_access.log';
+    if (basename === 'fallback_error.log') return 'fallback_error.log';
+    if (basename === 'letsencrypt-requests_access.log') return 'letsencrypt-requests_access.log';
+    if (basename === 'letsencrypt-requests_error.log') return 'letsencrypt-requests_error.log';
+    return null;
+}
+
+/** Nginx generic regex keys: one for access, one for error */
+export const NGINX_REGEX_KEYS = ['access.log', 'error.log'] as const;
+
+/**
+ * Get Nginx generic regex key for a file path (access vs error by filename).
+ */
+export function getNginxRegexKeyForPath(filePath: string): (typeof NGINX_REGEX_KEYS)[number] | null {
+    const base = normalizeLogFilePath(filePath);
+    const basename = (base.split('/').pop() || base).toLowerCase();
+    if (basename.includes('error')) return 'error.log';
+    if (basename.includes('access')) return 'access.log';
+    return null;
 }
 
 /**
@@ -79,6 +150,39 @@ function getCustomRegexConfig(pluginId: string, filePath: string): { regex: stri
                 regex: customRegex[baseFilePath].regex,
                 logType: customRegex[baseFilePath].logType || 'custom'
             };
+        }
+
+        // Apache: resolve by generic pattern (access.log, error.log, access_*.log)
+        if (pluginId === 'apache') {
+            const apacheKey = getApacheRegexKeyForPath(filePath);
+            if (apacheKey && customRegex[apacheKey]) {
+                return {
+                    regex: customRegex[apacheKey].regex,
+                    logType: customRegex[apacheKey].logType || 'access'
+                };
+            }
+        }
+
+        // NPM: resolve by generic pattern (proxy-host-*_access.log, etc.)
+        if (pluginId === 'npm') {
+            const npmKey = getNpmRegexKeyForPath(filePath);
+            if (npmKey && customRegex[npmKey]) {
+                return {
+                    regex: customRegex[npmKey].regex,
+                    logType: customRegex[npmKey].logType || 'access'
+                };
+            }
+        }
+
+        // Nginx: resolve by type (access.log or error.log)
+        if (pluginId === 'nginx') {
+            const nginxKey = getNginxRegexKeyForPath(filePath);
+            if (nginxKey && customRegex[nginxKey]) {
+                return {
+                    regex: customRegex[nginxKey].regex,
+                    logType: customRegex[nginxKey].logType || 'access'
+                };
+            }
         }
 
         return null;
@@ -129,13 +233,15 @@ export class LogParserService {
                 let parsed: ParsedLogEntry | null = null;
 
                 if (useCustomParser && customRegexConfig) {
-                    // Use CustomLogParser with custom regex
-                    const customParserConfig: CustomParserConfig = {
-                        regex: customRegexConfig.regex
-                    };
-                    parsed = CustomLogParser.parseCustomLine(logLine.line, customParserConfig);
+                    // Apache access: use ApacheParser with custom regex so columns (ip, vhost, method, url, status, etc.) are filled
+                    const isApacheAccess = pluginId === 'apache' && (customRegexConfig.logType === 'access' || logType === 'access');
+                    if (isApacheAccess) {
+                        parsed = ApacheParser.parseAccessLineWithCustomRegex(logLine.line, customRegexConfig.regex);
+                    } else {
+                        const customParserConfig: CustomParserConfig = { regex: customRegexConfig.regex };
+                        parsed = CustomLogParser.parseCustomLine(logLine.line, customParserConfig);
+                    }
                 } else {
-                    // Use default plugin parser
                     parsed = plugin.parseLogLine(logLine.line, logType);
                 }
 
@@ -210,13 +316,14 @@ export class LogParserService {
                     let parsed: ParsedLogEntry | null = null;
 
                     if (useCustomParser && customRegexConfig) {
-                        // Use CustomLogParser with custom regex
-                        const customParserConfig: CustomParserConfig = {
-                            regex: customRegexConfig.regex
-                        };
-                        parsed = CustomLogParser.parseCustomLine(logLine.line, customParserConfig);
+                        const isApacheAccess = pluginId === 'apache' && (customRegexConfig.logType === 'access' || logType === 'access');
+                        if (isApacheAccess) {
+                            parsed = ApacheParser.parseAccessLineWithCustomRegex(logLine.line, customRegexConfig.regex);
+                        } else {
+                            const customParserConfig: CustomParserConfig = { regex: customRegexConfig.regex };
+                            parsed = CustomLogParser.parseCustomLine(logLine.line, customParserConfig);
+                        }
                     } else {
-                        // Use default plugin parser
                         parsed = plugin.parseLogLine(logLine.line, logType);
                     }
 
@@ -279,10 +386,11 @@ export class LogParserService {
             if (filePath) {
                 const customRegexConfig = getCustomRegexConfig(pluginId, filePath);
                 if (customRegexConfig) {
-                    // Use CustomLogParser with custom regex
-                    const customParserConfig: CustomParserConfig = {
-                        regex: customRegexConfig.regex
-                    };
+                    const isApacheAccess = pluginId === 'apache' && (customRegexConfig.logType === 'access' || logType === 'access');
+                    if (isApacheAccess) {
+                        return ApacheParser.parseAccessLineWithCustomRegex(line, customRegexConfig.regex);
+                    }
+                    const customParserConfig: CustomParserConfig = { regex: customRegexConfig.regex };
                     return CustomLogParser.parseCustomLine(line, customParserConfig);
                 }
             }

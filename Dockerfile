@@ -65,6 +65,9 @@ COPY --chown=node:node --from=builder /app/dist ./dist
 COPY --chown=node:node --from=builder /app/server ./server
 COPY --chown=node:node --from=builder /app/tsconfig.json ./
 
+# CHANGELOG.md for Administration > Info tab (GET /api/info/changelog)
+COPY --chown=node:node --from=builder /app/CHANGELOG.md ./
+
 ENV NODE_ENV=production
 ENV PORT=3000
 

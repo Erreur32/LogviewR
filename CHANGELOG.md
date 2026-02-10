@@ -5,6 +5,41 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3] - 2026-02-10
+
+### Fixed
+
+#### Header – Flickering des icônes de choix de logs
+- **Tremblement au survol** : les boutons (Fichiers, Historique, Regex, Play, Stop, Actualiser, Mode parsé/brut) étaient enveloppés dans un composant `Tooltip` (span inline-flex), provoquant des entrées/sorties de survol et un flickering. Remplacement par l’attribut natif `title` sur les boutons. Suppression de l’animation `fadeInDown` du menu déroulant plugin et de la `transition-transform` du chevron.
+
+#### Changelog en version Docker
+- **Changelog non disponible dans Admin > Info** : `CHANGELOG.md` n’était pas copié dans l’image Docker finale. Ajout d’un `COPY` dans le Dockerfile pour inclure `CHANGELOG.md` à la racine du conteneur (`/app/CHANGELOG.md`), afin que la route `GET /api/info/changelog` renvoie le contenu en Docker.
+
+#### Vue logs bruts – Hauteur du cadre
+- **Cadre trop petit** : la zone scrollable des logs bruts avait une hauteur fixe `max-h-[600px]`. Remplacement par `min-h-[400px] h-[calc(100vh-15rem)]` pour adapter la hauteur au viewport tout en conservant le choix « Lignes par page » et la pagination.
+
+### Changed
+
+#### Admin > Info – Texte « À propos »
+- **Tagline et description (EN/FR)** : formulation mise à jour pour préciser que LogviewR **lit les fichiers de logs locaux** (machine ou conteneur) et qu’**aucune connexion sortante** vers les serveurs n’est nécessaire, ce qui est préférable pour la sécurité. Les clés `tagline` et `aboutDescription` ont été modifiées dans `en.json` et `fr.json`.
+
+#### Apache – Regex personnalisées et affichage des options
+- **Regex custom utilisée pour le parsing** : lorsqu’une regex personnalisée est enregistrée pour un fichier Apache (access), le backend utilisait `CustomLogParser` sans mapping des colonnes. Désormais, pour le plugin Apache et le type access, la regex custom est passée à `ApacheParser.parseAccessLineWithCustomRegex()` : les colonnes (ip, vhost, method, url, status, size, referer, userAgent) sont correctement remplies.
+- **Default regex access** : la regex par défaut pour Apache access (éditeur et API default-regex) est désormais `APACHE_ACCESS_VHOST_COMBINED_REGEX` (format vhost_combined avec `%t` en premier).
+- **Options regex : 3 entrées génériques + Custom** : dans « Fichiers détectés avec regex » (Réglages > Plugins > Apache), affichage de seulement **access.log**, **error.log** et **access_*.log** (édition générique). Les fichiers dont la regex a été éditée via le header du visualiseur apparaissent en **Custom** ; une entrée Custom remplace l’entrée générique correspondante (pas de doublon). Bouton **Réinitialiser** affiché pour toute entrée Custom ou lorsque la regex diffère du défaut.
+- **Reconnaissance access.\*.log** : les fichiers du type `access.home32.myoueb.fr.log` ou `access.ip.myoueb.fr.log` sont désormais rattachés au slot **access_*.log** pour l’application de la regex vhost_combined (correction de l’affichage VIRTUAL HOST / STATUS / METHOD / URL).
+
+#### NPM – Regroupement des options regex
+- **Options regex : 10 entrées génériques + Custom** : dans « Fichiers détectés avec regex » pour NPM, affichage de **proxy-host-*_access.log**, **proxy-host-*_error.log**, **dead-host-*_access/error**, **default-host_access/error**, **fallback_access/error**, **letsencrypt-requests_access/error**. Une regex enregistrée pour une entrée s’applique à tous les fichiers correspondants. Même logique Custom que pour Apache (remplacement du générique, pas de doublon). Résolution de la regex par clé via `getNpmRegexKeyForPath()`.
+
+#### Nginx – Regroupement des options regex
+- **Options regex : 2 entrées génériques + Custom** : pour Nginx, affichage de **access.log** et **error.log** uniquement ; une regex par type s’applique à tous les fichiers access/error. Résolution par `getNginxRegexKeyForPath()`.
+
+#### i18n
+- **Hints options regex** : ajout de `apacheRegexHint`, `npmRegexHint` et `nginxRegexHint` dans les locales (fr/en), affichés au-dessus de la liste dans la section « Fichiers détectés avec regex » pour Apache, NPM et Nginx.
+
+---
+
 ## [0.2.2] - 2026-02-10
 
 ### Changed

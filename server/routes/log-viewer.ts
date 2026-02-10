@@ -18,6 +18,8 @@ import type { LogSourcePlugin } from '../plugins/base/LogSourcePluginInterface.j
 import { logger } from '../utils/logger.js';
 import { requireAuth } from '../middleware/authMiddleware.js';
 import { generateRegexFromLogLine } from '../services/regexGeneratorService.js';
+import { APACHE_ACCESS_VHOST_COMBINED_REGEX } from '../plugins/apache/ApacheParser.js';
+import { APACHE_REGEX_KEYS, getApacheRegexKeyForPath, NPM_REGEX_KEYS, getNpmRegexKeyForPath, NGINX_REGEX_KEYS, getNginxRegexKeyForPath } from '../services/logParserService.js';
 
 const router = Router();
 
@@ -1580,7 +1582,8 @@ router.get('/plugins/:pluginId/default-regex', async (req, res) => {
             }
         } else if (pluginId === 'apache') {
             if (logType === 'access') {
-                defaultRegex = '^(\\S+)\\s+-\\s+-\\s+\\[([^\\]]+)\\]\\s+"(\\S+)\\s+(\\S+)\\s+([^"]+)"\\s+(\\d+)\\s+(\\S+)\\s+"([^"]*)"\\s+"([^"]*)"';
+                // vhost_combined: %t %h %a %l %u %v "%r" %>s %O "%{Referer}i" "%{User-Agent}i" (timestamp first, then vhost)
+                defaultRegex = APACHE_ACCESS_VHOST_COMBINED_REGEX;
             } else if (logType === 'error') {
                 defaultRegex = '^\\[([^\\]]+)\\]\\s+\\[(\\w+)\\]\\s+(?:\\[([^\\]]+)\\]\\s+)?(.+)$';
             }
@@ -2001,8 +2004,14 @@ router.post('/generate-regex', async (req, res) => {
 
 /**
  * GET /api/log-viewer/plugins/:pluginId/detected-files
- * Scan and detect log files with their default regex patterns
- * 
+ * Used ONLY by the "Files detected with regex" section in Settings > Plugins (regex options).
+ * Returns files + regex info for editing. Does NOT affect the log file selector (header/dropdown),
+ * which uses GET /plugins/:pluginId/files-direct and shows the full list of scanned files.
+ *
+ * For Apache: returns 3 generic entries (access.log, error.log, access_*.log) + custom per-file.
+ * For NPM: returns 10 generic entries (proxy-host-*_access/error, default-host, fallback, dead-host, letsencrypt) + custom.
+ * For Nginx: returns 2 generic entries (access.log, error.log) + custom per-file.
+ *
  * Query params:
  * - quick=true: Only return non-compressed files for fast initial display
  */
@@ -2157,6 +2166,223 @@ router.get('/plugins/:pluginId/detected-files', async (req, res) => {
         let filesToProcess = files;
         if (pluginId === 'host-system' && manuallyAddedFiles.length > 0) {
             filesToProcess = files.filter(file => !manuallyAddedFiles.includes(file.path));
+        }
+
+        // Apache: return only 3 generic regex entries (access.log, error.log, access_*.log) + custom per-file entries
+        if (pluginId === 'apache') {
+            const { getApacheDefaultRegex } = await import('../plugins/apache/ApacheParser.js');
+            const defaultAccessRegex = APACHE_ACCESS_VHOST_COMBINED_REGEX;
+            const defaultErrorRegex = getApacheDefaultRegex('error');
+            const apacheVirtualKeys = [
+                { path: APACHE_REGEX_KEYS.ACCESS, type: 'access' as const, defaultRegex: defaultAccessRegex },
+                { path: APACHE_REGEX_KEYS.ERROR, type: 'error' as const, defaultRegex: defaultErrorRegex },
+                { path: APACHE_REGEX_KEYS.ACCESS_VHOST, type: 'access' as const, defaultRegex: defaultAccessRegex }
+            ];
+            const result: Array<{
+                path: string;
+                type: string;
+                size: number;
+                modified: string;
+                regex: string;
+                isCustom: boolean;
+                isDefaultOverride: boolean;
+                defaultRegex: string;
+            }> = [];
+            const genericKeys: string[] = [APACHE_REGEX_KEYS.ACCESS, APACHE_REGEX_KEYS.ERROR, APACHE_REGEX_KEYS.ACCESS_VHOST];
+            // Custom keys (e.g. full path from header editor): replace the generic row for the same slot
+            const customKeysOnly = (Object.keys(customRegexes) as string[]).filter(k => !genericKeys.includes(k));
+            const genericKeysReplacedByCustom = new Set<string>();
+            for (const customPath of customKeysOnly) {
+                const slot = getApacheRegexKeyForPath(customPath);
+                if (slot) genericKeysReplacedByCustom.add(slot);
+            }
+            // Add generic row only if no custom entry replaces this slot
+            for (const { path: virtualPath, type: virtualType, defaultRegex: defRegex } of apacheVirtualKeys) {
+                if (genericKeysReplacedByCustom.has(virtualPath)) continue;
+                const customRegex = customRegexes[virtualPath];
+                const defaultRegexOverride = defaultRegexOverrides[virtualType];
+                let regex: string;
+                let isDefaultOverride = false;
+                if (customRegex) {
+                    regex = customRegex.regex;
+                } else if (defaultRegexOverride) {
+                    regex = defaultRegexOverride;
+                    isDefaultOverride = true;
+                } else {
+                    regex = defRegex;
+                }
+                result.push({
+                    path: virtualPath,
+                    type: virtualType,
+                    size: 0,
+                    modified: new Date().toISOString(),
+                    regex,
+                    isCustom: !!customRegex,
+                    isDefaultOverride,
+                    defaultRegex: defRegex
+                });
+            }
+            // Custom entries: replace generic row (no duplicate slot)
+            for (const [customPath, config] of Object.entries(customRegexes) as [string, any][]) {
+                if (genericKeys.includes(customPath)) continue;
+                result.push({
+                    path: customPath,
+                    type: config.logType || 'access',
+                    size: 0,
+                    modified: config.updatedAt || new Date().toISOString(),
+                    regex: config.regex || '',
+                    isCustom: true,
+                    isDefaultOverride: false,
+                    defaultRegex: customPath.includes('error') ? defaultErrorRegex : defaultAccessRegex
+                });
+            }
+            return res.json({
+                success: true,
+                result: {
+                    pluginId,
+                    basePath: actualBasePath,
+                    patterns: actualPatterns,
+                    files: result
+                }
+            });
+        }
+
+        // NPM: return only virtual regex entries (one per pattern) + custom per-file entries (like Apache)
+        if (pluginId === 'npm') {
+            const defaultNpmAccessRegex = '^(\\S+)\\s+-\\s+-\\s+\\[([^\\]]+)\\]\\s+"(\\S+)\\s+(\\S+)\\s+([^"]+)"\\s+(\\d+)\\s+(\\S+)\\s+"([^"]*)"\\s+"([^"]*)"(?:\\s+"([^"]*)")?(?:\\s+"([^"]*)")?(?:\\s+"([^"]*)")?';
+            const defaultNpmErrorRegex = '^(\\d{4}\\/\\d{2}\\/\\d{2}\\s+\\d{2}:\\d{2}:\\d{2})\\s+\\[(\\w+)\\]\\s+(.+)$';
+            const npmVirtualKeysWithType: { path: (typeof NPM_REGEX_KEYS)[number]; type: 'access' | 'error'; defaultRegex: string }[] = [
+                { path: 'proxy-host-*_access.log', type: 'access', defaultRegex: defaultNpmAccessRegex },
+                { path: 'proxy-host-*_error.log', type: 'error', defaultRegex: defaultNpmErrorRegex },
+                { path: 'dead-host-*_access.log', type: 'access', defaultRegex: defaultNpmAccessRegex },
+                { path: 'dead-host-*_error.log', type: 'error', defaultRegex: defaultNpmErrorRegex },
+                { path: 'default-host_access.log', type: 'access', defaultRegex: defaultNpmAccessRegex },
+                { path: 'default-host_error.log', type: 'error', defaultRegex: defaultNpmErrorRegex },
+                { path: 'fallback_access.log', type: 'access', defaultRegex: defaultNpmAccessRegex },
+                { path: 'fallback_error.log', type: 'error', defaultRegex: defaultNpmErrorRegex },
+                { path: 'letsencrypt-requests_access.log', type: 'access', defaultRegex: defaultNpmAccessRegex },
+                { path: 'letsencrypt-requests_error.log', type: 'error', defaultRegex: defaultNpmErrorRegex }
+            ];
+            const result: Array<{ path: string; type: string; size: number; modified: string; regex: string; isCustom: boolean; isDefaultOverride: boolean; defaultRegex: string }> = [];
+            const npmGenericKeysList: string[] = [...NPM_REGEX_KEYS];
+            const npmCustomKeysOnly = (Object.keys(customRegexes) as string[]).filter(k => !npmGenericKeysList.includes(k));
+            const npmKeysReplacedByCustom = new Set<string>();
+            for (const customPath of npmCustomKeysOnly) {
+                const slot = getNpmRegexKeyForPath(customPath);
+                if (slot) npmKeysReplacedByCustom.add(slot);
+            }
+            for (const { path: virtualPath, type: virtualType, defaultRegex: defRegex } of npmVirtualKeysWithType) {
+                if (npmKeysReplacedByCustom.has(virtualPath)) continue;
+                const customRegex = customRegexes[virtualPath];
+                const defaultRegexOverride = defaultRegexOverrides[virtualType];
+                let regex: string;
+                let isDefaultOverride = false;
+                if (customRegex) {
+                    regex = customRegex.regex;
+                } else if (defaultRegexOverride) {
+                    regex = defaultRegexOverride;
+                    isDefaultOverride = true;
+                } else {
+                    regex = defRegex;
+                }
+                result.push({
+                    path: virtualPath,
+                    type: virtualType,
+                    size: 0,
+                    modified: new Date().toISOString(),
+                    regex,
+                    isCustom: !!customRegex,
+                    isDefaultOverride,
+                    defaultRegex: defRegex
+                });
+            }
+            for (const [customPath, config] of Object.entries(customRegexes) as [string, any][]) {
+                if (npmGenericKeysList.includes(customPath)) continue;
+                result.push({
+                    path: customPath,
+                    type: config.logType || 'access',
+                    size: 0,
+                    modified: config.updatedAt || new Date().toISOString(),
+                    regex: config.regex || '',
+                    isCustom: true,
+                    isDefaultOverride: false,
+                    defaultRegex: customPath.includes('error') ? defaultNpmErrorRegex : defaultNpmAccessRegex
+                });
+            }
+            return res.json({
+                success: true,
+                result: {
+                    pluginId,
+                    basePath: actualBasePath,
+                    patterns: actualPatterns,
+                    files: result
+                }
+            });
+        }
+
+        // Nginx: return only 2 virtual entries (access.log, error.log) + custom per-file entries
+        if (pluginId === 'nginx') {
+            const defaultNginxAccessRegex = '^(\\S+)\\s+-\\s+-\\s+\\[([^\\]]+)\\]\\s+"(\\S+)\\s+(\\S+)\\s+([^"]+)"\\s+(\\d+)\\s+(\\S+)\\s+"([^"]*)"\\s+"([^"]*)"(?:\\s+"([^"]*)")?';
+            const defaultNginxErrorRegex = '^(\\d{4}\\/\\d{2}\\/\\d{2}\\s+\\d{2}:\\d{2}:\\d{2})\\s+\\[(\\w+)\\]\\s+(.+)$';
+            const nginxVirtualKeysWithType: { path: string; type: 'access' | 'error'; defaultRegex: string }[] = [
+                { path: 'access.log', type: 'access', defaultRegex: defaultNginxAccessRegex },
+                { path: 'error.log', type: 'error', defaultRegex: defaultNginxErrorRegex }
+            ];
+            const result: Array<{ path: string; type: string; size: number; modified: string; regex: string; isCustom: boolean; isDefaultOverride: boolean; defaultRegex: string }> = [];
+            const nginxGenericKeysList: string[] = [...NGINX_REGEX_KEYS];
+            const nginxCustomKeysOnly = (Object.keys(customRegexes) as string[]).filter(k => !nginxGenericKeysList.includes(k));
+            const nginxKeysReplacedByCustom = new Set<string>();
+            for (const customPath of nginxCustomKeysOnly) {
+                const slot = getNginxRegexKeyForPath(customPath);
+                if (slot) nginxKeysReplacedByCustom.add(slot);
+            }
+            for (const { path: virtualPath, type: virtualType, defaultRegex: defRegex } of nginxVirtualKeysWithType) {
+                if (nginxKeysReplacedByCustom.has(virtualPath)) continue;
+                const customRegex = customRegexes[virtualPath];
+                const defaultRegexOverride = defaultRegexOverrides[virtualType];
+                let regex: string;
+                let isDefaultOverride = false;
+                if (customRegex) {
+                    regex = customRegex.regex;
+                } else if (defaultRegexOverride) {
+                    regex = defaultRegexOverride;
+                    isDefaultOverride = true;
+                } else {
+                    regex = defRegex;
+                }
+                result.push({
+                    path: virtualPath,
+                    type: virtualType,
+                    size: 0,
+                    modified: new Date().toISOString(),
+                    regex,
+                    isCustom: !!customRegex,
+                    isDefaultOverride,
+                    defaultRegex: defRegex
+                });
+            }
+            for (const [customPath, config] of Object.entries(customRegexes) as [string, any][]) {
+                if (nginxGenericKeysList.includes(customPath)) continue;
+                result.push({
+                    path: customPath,
+                    type: config.logType || 'access',
+                    size: 0,
+                    modified: config.updatedAt || new Date().toISOString(),
+                    regex: config.regex || '',
+                    isCustom: true,
+                    isDefaultOverride: false,
+                    defaultRegex: customPath.includes('error') ? defaultNginxErrorRegex : defaultNginxAccessRegex
+                });
+            }
+            return res.json({
+                success: true,
+                result: {
+                    pluginId,
+                    basePath: actualBasePath,
+                    patterns: actualPatterns,
+                    files: result
+                }
+            });
         }
 
         // Build result with files and their regex info (only OS-detected files for host-system)

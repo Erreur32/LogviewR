@@ -762,7 +762,8 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
                                                             </select>
                                                         </div>
                                                     </div>
-                                                    <div className="max-h-[600px] overflow-y-auto">
+                                                    {/* Scroll area: viewport minus margin (header + padding + bars ~15rem), min 400px for small screens */}
+                                                    <div className="min-h-[400px] h-[calc(100vh-15rem)] overflow-y-auto">
                                                         <pre className="p-4 text-xs font-mono text-gray-300 whitespace-pre-wrap break-words">
                                                             {rawLogs.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((line, index) => (
                                                                 <div key={index} className="mb-1">

@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import { FileText, RefreshCw, Code, ChevronDown, History, Play, Square } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import logviewrLogo from '../../icons/logviewr.svg';
-import { UserMenu, Clock, Tooltip } from '../ui';
+import { UserMenu, Clock } from '../ui';
 import { useFavicon } from '../../hooks/useFavicon';
 import { useUpdateStore } from '../../stores/updateStore';
 import { usePluginStore } from '../../stores/pluginStore';
@@ -334,7 +334,7 @@ export const Header: React.FC<HeaderProps> = ({
                     {availableFiles.length}
                   </span>
                 )}
-                <ChevronDown size={14} className={`text-theme-primary transition-transform ${isPluginMenuOpen ? 'rotate-180' : ''}`} />
+                <ChevronDown size={14} className={`text-theme-primary ${isPluginMenuOpen ? 'rotate-180' : ''}`} />
               </button>
 
               {/* Plugin Switcher Menu */}
@@ -344,8 +344,7 @@ export const Header: React.FC<HeaderProps> = ({
                   className="fixed bg-[#1a1a1a] border border-gray-700 rounded-lg shadow-xl z-[9999] overflow-hidden min-w-[200px]"
                   style={{ 
                     top: `${pluginMenuPosition.top}px`, 
-                    left: `${pluginMenuPosition.left}px`,
-                    animation: 'fadeInDown 0.2s ease-out'
+                    left: `${pluginMenuPosition.left}px`
                   }}
                   onClick={(e) => e.stopPropagation()}
                 >
@@ -387,37 +386,37 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           )}
 
-          {/* Log File Selector Button + History Button */}
+          {/* Log File Selector Button + History Button - use native title to avoid Tooltip wrapper flickering */}
           <div className="flex items-center gap-2">
-            <Tooltip content="Choisir un fichier de log à afficher">
+            <button
+              type="button"
+              onClick={() => setIsFileSelectorModalOpen(true)}
+              title="Choisir un fichier de log à afficher"
+              className="flex items-center gap-2 px-4 py-2 bg-theme-secondary hover:bg-theme-primary border border-theme-border rounded-lg text-theme-primary text-sm transition-colors"
+            >
+              <FileText size={18} />
+              <span className="hidden sm:inline">
+                {selectedFilePath ? selectedFilePath.split('/').pop() : 'Fichiers de logs'}
+              </span>
+              <span className="sm:hidden">Fichiers</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsHistoryModalOpen(true)}
+              title="Historique des fichiers de logs déjà demandés"
+              className="p-2 bg-theme-secondary hover:bg-theme-primary border border-theme-border rounded-lg text-theme-primary transition-colors"
+            >
+              <History size={18} />
+            </button>
+            {selectedFilePath && pluginId && (
               <button
-                onClick={() => setIsFileSelectorModalOpen(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-theme-secondary hover:bg-theme-primary border border-theme-border rounded-lg text-theme-primary text-sm transition-colors"
-              >
-                <FileText size={18} />
-                <span className="hidden sm:inline">
-                  {selectedFilePath ? selectedFilePath.split('/').pop() : 'Fichiers de logs'}
-                </span>
-                <span className="sm:hidden">Fichiers</span>
-              </button>
-            </Tooltip>
-            <Tooltip content="Historique des fichiers de logs déjà demandés">
-              <button
-                onClick={() => setIsHistoryModalOpen(true)}
+                type="button"
+                onClick={() => setIsRegexEditorOpen(true)}
+                title="Éditer la regex personnalisée"
                 className="p-2 bg-theme-secondary hover:bg-theme-primary border border-theme-border rounded-lg text-theme-primary transition-colors"
               >
-                <History size={18} />
+                <Code size={18} />
               </button>
-            </Tooltip>
-            {selectedFilePath && pluginId && (
-              <Tooltip content="Éditer la regex personnalisée">
-                <button
-                  onClick={() => setIsRegexEditorOpen(true)}
-                  className="p-2 bg-theme-secondary hover:bg-theme-primary border border-theme-border rounded-lg text-theme-primary transition-colors"
-                >
-                  <Code size={18} />
-                </button>
-              </Tooltip>
             )}
           </div>
 
@@ -427,17 +426,16 @@ export const Header: React.FC<HeaderProps> = ({
               {/* Play / Stop - only when a file is selected */}
               {selectedFilePath && (liveMode === 'off' ? (
                 <div className="relative" ref={playMenuRef}>
-                  <Tooltip content="Démarrer le suivi des logs (Live ou Refresh auto)">
-                    <button
-                      type="button"
-                      onClick={() => setIsPlayMenuOpen((open) => !open)}
-                      className="p-2 bg-theme-secondary hover:bg-theme-primary border border-theme-border rounded-lg text-theme-primary transition-colors flex items-center justify-center"
-                      aria-expanded={isPlayMenuOpen}
-                      aria-haspopup="true"
-                    >
-                      <Play size={16} />
-                    </button>
-                  </Tooltip>
+                  <button
+                    type="button"
+                    onClick={() => setIsPlayMenuOpen((open) => !open)}
+                    title="Démarrer le suivi des logs (Live ou Refresh auto)"
+                    className="p-2 bg-theme-secondary hover:bg-theme-primary border border-theme-border rounded-lg text-theme-primary transition-colors flex items-center justify-center"
+                    aria-expanded={isPlayMenuOpen}
+                    aria-haspopup="true"
+                  >
+                    <Play size={16} />
+                  </button>
                   {isPlayMenuOpen && (
                     <>
                       <div
@@ -484,43 +482,42 @@ export const Header: React.FC<HeaderProps> = ({
                   )}
                 </div>
               ) : (
-                <Tooltip content={liveMode === 'live' ? 'Arrêter le suivi Live' : `Arrêter le refresh auto (${autoRefreshIntervalMs / 1000}s)`}>
-                  <button
-                    type="button"
-                    onClick={onStop}
-                    className="p-2 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/50 rounded-lg text-emerald-400 transition-colors flex items-center justify-center"
-                  >
-                    <Square size={16} />
-                  </button>
-                </Tooltip>
+                <button
+                  type="button"
+                  onClick={onStop}
+                  title={liveMode === 'live' ? 'Arrêter le suivi Live' : `Arrêter le refresh auto (${autoRefreshIntervalMs / 1000}s)`}
+                  className="p-2 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/50 rounded-lg text-emerald-400 transition-colors flex items-center justify-center"
+                >
+                  <Square size={16} />
+                </button>
               ))}
 
               {/* Refresh Button */}
               {onRefresh && (
-                <Tooltip content="Recharger les logs du fichier affiché">
-                  <button
-                    onClick={onRefresh}
-                    className="p-2 bg-theme-secondary hover:bg-theme-primary border border-theme-border rounded-lg text-theme-primary transition-colors flex items-center justify-center"
-                  >
-                    <RefreshCw size={16} />
-                  </button>
-                </Tooltip>
+                <button
+                  type="button"
+                  onClick={onRefresh}
+                  title="Recharger les logs du fichier affiché"
+                  className="p-2 bg-theme-secondary hover:bg-theme-primary border border-theme-border rounded-lg text-theme-primary transition-colors flex items-center justify-center"
+                >
+                  <RefreshCw size={16} />
+                </button>
               )}
 
               {/* View Mode Toggle (parsed / raw) */}
               {onToggleViewMode && (
-                <Tooltip content={viewMode === 'raw' ? 'Passer en mode parsé (colonnes structurées)' : 'Passer en mode brut (texte brut)'}>
-                  <button
-                    onClick={onToggleViewMode}
-                    className={`p-2 border rounded-lg transition-colors flex items-center justify-center ${
-                      viewMode === 'raw'
-                        ? 'bg-purple-500/20 border-purple-500/50 text-purple-400'
-                        : 'bg-theme-secondary hover:bg-theme-primary border-theme-border text-theme-primary'
-                    }`}
-                  >
-                    <FileText size={16} />
-                  </button>
-                </Tooltip>
+                <button
+                  type="button"
+                  onClick={onToggleViewMode}
+                  title={viewMode === 'raw' ? 'Passer en mode parsé (colonnes structurées)' : 'Passer en mode brut (texte brut)'}
+                  className={`p-2 border rounded-lg transition-colors flex items-center justify-center ${
+                    viewMode === 'raw'
+                      ? 'bg-purple-500/20 border-purple-500/50 text-purple-400'
+                      : 'bg-theme-secondary hover:bg-theme-primary border-theme-border text-theme-primary'
+                  }`}
+                >
+                  <FileText size={16} />
+                </button>
               )}
             </div>
           )}

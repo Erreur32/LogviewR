@@ -44,6 +44,14 @@ export const APACHE_DEFAULT_REGEX = {
 };
 
 /**
+ * Recommended regex for access.log / access_vhost.*.log when using LogFormat:
+ *   "%t %h %a %l %u %v \"%r\" %>s %O \"%{Referer}i\" \"%{User-Agent}i\"" (vhost_combined, timestamp first)
+ * Groups: 1=timestamp, 2=clientIp, 3=forwardedFor, 4=ident, 5=user, 6=vhost, 7=request, 8=status, 9=size, 10=referer, 11=userAgent
+ */
+export const APACHE_ACCESS_VHOST_COMBINED_REGEX =
+    '^\\[([^\\]]+)\\]\\s+(\\S+)\\s+(\\S+)\\s+(\\S+)\\s+(\\S+)\\s+(\\S+)\\s+"([^"]+)"\\s+(\\d{3})\\s+(\\d+)\\s+"([^"]*)"\\s+"([^"]*)"$';
+
+/**
  * Get default regex pattern for Apache logs
  * Returns the most common format as default (common for access, standard for error)
  */
@@ -248,6 +256,43 @@ export class ApacheParser {
         }
 
         return null;
+    }
+
+    /**
+     * Parse Apache access log line using a custom regex (e.g. from Admin > Regex).
+     * Expects 11 capture groups in order: timestamp, clientIp, forwardedFor, userId, user, vhost, request, status, size, referer, userAgent.
+     * Same mapping as the built-in "custom format" (vhost_combined with %t first).
+     * Used when user sets a custom regex for access.log or access_vhost.*.log so columns (ip, vhost, method, url, status, etc.) are filled.
+     */
+    static parseAccessLineWithCustomRegex(line: string, regex: string): ParsedLogEntry | null {
+        if (!line || line.trim().length === 0 || !regex || regex.trim().length === 0) {
+            return null;
+        }
+        try {
+            const re = new RegExp(regex);
+            const m = line.match(re);
+            if (!m || m.length < 12) {
+                return null;
+            }
+            const [, timestamp, clientIp, forwardedFor, userId, user, vhost, request, status, size, referer, userAgent] = m;
+            const requestParts = this.parseRequest(request || '');
+            return {
+                timestamp: this.parseTimestamp(timestamp || ''),
+                ip: clientIp,
+                vhost: vhost && vhost !== '-' ? vhost : undefined,
+                method: requestParts.method,
+                url: requestParts.url,
+                protocol: requestParts.protocol,
+                status: parseInt(status || '0', 10),
+                size: parseInt(size || '0', 10),
+                referer: referer && referer !== '-' ? referer : undefined,
+                userAgent: userAgent && userAgent !== '-' ? userAgent : undefined,
+                level: this.getLevelFromStatus(parseInt(status || '0', 10)),
+                message: line
+            };
+        } catch {
+            return null;
+        }
     }
 
     /**

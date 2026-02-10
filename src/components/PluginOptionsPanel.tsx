@@ -1862,7 +1862,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                                                     >
                                                                         Annuler
                                                                     </button>
-                                                                    {file.regex !== file.defaultRegex && (
+                                                                    {(file.isCustom || file.regex !== file.defaultRegex) && (
                                                                         <button
                                                                             type="button"
                                                                             onClick={async () => {
@@ -1997,13 +1997,29 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                             </div>
                                         );
                                     } else {
-                                        // For other plugins, use the original display
+                                        // For other plugins (Apache, Nginx, NPM), use the grid display
                                         return baseFilesOnly.length === 0 ? (
                                             <div className="text-center py-4 text-gray-500 text-xs">
                                                 {t('pluginOptions.noDetectedFiles')}
                                             </div>
                                         ) : (
-                                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                                            <div className="space-y-3">
+                                                {pluginId === 'apache' && (
+                                                    <p className="text-xs text-gray-400 bg-gray-800/50 border border-gray-700 rounded px-3 py-2">
+                                                        {t('pluginOptions.apacheRegexHint')}
+                                                    </p>
+                                                )}
+                                                {pluginId === 'npm' && (
+                                                    <p className="text-xs text-gray-400 bg-gray-800/50 border border-gray-700 rounded px-3 py-2">
+                                                        {t('pluginOptions.npmRegexHint')}
+                                                    </p>
+                                                )}
+                                                {pluginId === 'nginx' && (
+                                                    <p className="text-xs text-gray-400 bg-gray-800/50 border border-gray-700 rounded px-3 py-2">
+                                                        {t('pluginOptions.nginxRegexHint')}
+                                                    </p>
+                                                )}
+                                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                                                 {baseFilesOnly.map((file, idx) => {
                                                     const isEditing = editingRegex?.filePath === file.path;
                                                     const currentRegex = isEditing ? editingRegex.regex : file.regex;
@@ -2076,7 +2092,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                                                             >
                                                                                 Annuler
                                                                             </button>
-                                                                            {file.regex !== file.defaultRegex && (
+                                                                            {(file.isCustom || file.regex !== file.defaultRegex) && (
                                                                                 <button
                                                                                     type="button"
                                                                                     onClick={async () => {
@@ -2115,6 +2131,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                                     </div>
                                                     );
                                                 })}
+                                                </div>
                                             </div>
                                         );
                                     }
