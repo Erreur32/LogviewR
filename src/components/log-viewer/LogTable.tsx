@@ -60,10 +60,12 @@ const getColumnDisplayName = (columnName: string): string => {
         'hostname': 'Hostname',
         'tag': 'Tag',
         'level': 'Level',
+        'severity': 'Level',
         'message': 'Message',
         'service': 'Service',
         'component': 'Component',
         'pid': 'PID',
+        'tid': 'TID',
         'action': 'Action',
         'ipaddress': 'IP Address',
         'queueid': 'Queue ID',
@@ -73,14 +75,19 @@ const getColumnDisplayName = (columnName: string): string => {
         'ip': 'IP',
         'method': 'METHOD',
         'url': 'URL',
+        'urlpath': 'URL',
         'status': 'STATUS',
+        'statuscode': 'STATUS',
+        'httpcode': 'STATUS',
         'size': 'SIZE',
         'referer': 'REFERER',
         'useragent': 'USER AGENT',
+        'user-agent': 'USER AGENT',
         'module': 'Module',
         'clientip': 'Client IP',
         'remoteip': 'Remote IP',
         'host': 'HOST',
+        'protocol': 'Protocol',
         'upstream': 'UPSTREAM',
         'upstreamstatus': 'UPSTREAM STATUS',
         'responsetime': 'RESPONSE TIME',
@@ -89,6 +96,61 @@ const getColumnDisplayName = (columnName: string): string => {
     };
     
     return displayNames[col] || columnName;
+};
+
+/**
+ * Centralized column widths — single source of truth for every column across all plugins and logTypes.
+ * Timestamp is sized to fit the fr-FR formatted badge "08/02/2026 13:30:06" (19 chars, mono xs)
+ * without overflow, accounting for badge padding (px-1.5 = 12px) and cell padding (px-4 = 32px).
+ * Minimum badge width ~149px + cell padding 32px → 181px minimum → 185px with margin.
+ */
+const COLUMN_WIDTHS: Record<string, string> = {
+    // Date / time columns
+    timestamp: '185px',
+    date: '185px',
+    time: '185px',
+    // Host-system columns
+    hostname: '108px',
+    host: '108px',
+    tag: '200px',
+    service: '200px',
+    component: '120px',
+    module: '96px',
+    // Badge columns
+    level: '56px',
+    severity: '56px',          // Alias for level (used by some parsers)
+    method: '52px',
+    action: '90px',
+    // IP columns
+    ip: '114px',
+    ipaddress: '114px',
+    clientip: '114px',
+    remoteip: '114px',
+    // Numeric columns
+    status: '48px',
+    statuscode: '48px',        // Alias for status
+    httpcode: '48px',          // Alias for status
+    size: '66px',
+    pid: '52px',
+    tid: '52px',
+    port: '52px',
+    responsetime: '44px',
+    upstreamstatus: '44px',
+    cache: '38px',
+    gzip: '40px',
+    // Text / truncated columns
+    vhost: '128px',
+    protocol: '72px',
+    url: '200px',
+    urlpath: '200px',          // Alias for url
+    referer: '180px',
+    useragent: '220px',
+    'user-agent': '220px',     // Alias for useragent (hyphenated variant)
+    upstream: '100px',
+    user: '90px',
+    queueid: '100px',
+    // Flex column (takes remaining space)
+    message: 'auto',
 };
 
 // Detect column type for sorting
@@ -101,7 +163,7 @@ const getColumnType = (columnName: string): 'date' | 'number' | 'ip' | 'text' | 
     }
     
     // Numeric columns
-    if (['status', 'statuscode', 'httpcode', 'size', 'responsetime', 'pid', 'tid', 'gzip', 'upstreamstatus'].includes(col)) {
+    if (['status', 'statuscode', 'httpcode', 'size', 'responsetime', 'pid', 'tid', 'port', 'gzip', 'upstreamstatus'].includes(col)) {
         return 'number';
     }
 
@@ -110,8 +172,8 @@ const getColumnType = (columnName: string): 'date' | 'number' | 'ip' | 'text' | 
         return 'ip';
     }
 
-    // Badge columns (level, severity, HTTP method)
-    if (['level', 'severity', 'method', 'httpmethod'].includes(col)) {
+    // Badge columns (level, severity, HTTP method, action)
+    if (['level', 'severity', 'method', 'httpmethod', 'action'].includes(col)) {
         return 'badge';
     }
     
@@ -152,7 +214,8 @@ interface SortableHeaderProps {
 const SortableHeader: React.FC<SortableHeaderProps> = ({ column, sortConfig, onSort, logType }) => {
     const isSorted = sortConfig.column === column;
     const direction = isSorted ? sortConfig.direction : null;
-    const headerPadding = logType === 'error' ? 'px-5 py-3' : 'px-4 py-3';
+    // Unified padding for all logTypes — no more special case for error logs
+    const headerPadding = 'px-4 py-3';
 
     const handleClick = () => {
         if (isSorted && sortConfig.direction === 'desc') {
@@ -969,113 +1032,10 @@ export const LogTable: React.FC<LogTableProps> = ({
             <table className="w-full border-collapse table-fixed" data-log-type={logType}>
                 <colgroup>
                     {orderedColumns.map((col) => {
-                        const colLower = col.toLowerCase();
-                        let width: string;
-                        const isErrorLog = logType === 'error';
-
-                        // --- NPM error.log: TIME, LEVEL, MESSAGE — compact columns ---
-                        if (isErrorLog) {
-                            if (['timestamp', 'date', 'time'].includes(colLower)) {
-                                width = '158px';
-                            } else if (['level', 'severity'].includes(colLower)) {
-                                width = '56px';
-                            } else if (colLower === 'message') {
-                                width = 'auto';
-                            } else {
-                                width = '100px';
-                            }
-                            return <col key={col} style={{ width }} />;
-                        }
-
-                        // --- NPM access.log & autres: largeur = contenu badge uniquement, pas d'espace vide à droite ---
-                        // Timestamp/date/time: largeur au plus juste (ex. "08/02/2026 13:30:06")
-                        if (['timestamp', 'date', 'time'].includes(colLower)) {
-                            width = '146px';
-                        }
-                        // Tag column: wider width to prevent overflow
-                        else if (colLower === 'tag') {
-                            width = '200px';
-                        }
-                        // Hostname/host: largeur au plus juste (ex. "st3ve.eu", "v32.myoueb.fr")
-                        else if (colLower === 'hostname' || colLower === 'host') {
-                            width = '108px';
-                        }
-                        // Service column: badge + optional PID
-                        else if (colLower === 'service') {
-                            width = '200px';
-                        }
-                        // Level/Severity: badge compact
-                        else if (['level', 'severity'].includes(colLower)) {
-                            width = '56px';
-                        }
-                        // Module: badge width
-                        else if (colLower === 'module') {
-                            width = '96px';
-                        }
-                        // IP columns: badge compact
-                        else if (['ip', 'ipaddress', 'clientip', 'remoteip'].includes(colLower)) {
-                            width = '114px';
-                        }
-                        // Status/HTTP code: badge compact
-                        else if (['status', 'statuscode', 'httpcode'].includes(colLower)) {
-                            width = '48px';
-                        }
-                        // Size: badge compact
-                        else if (colLower === 'size') {
-                            width = '66px';
-                        }
-                        // Columns often "-" (response time, cache, gzip): minimal width
-                        else if (colLower === 'responsetime') {
-                            width = '44px';
-                        }
-                        else if (colLower === 'cache') {
-                            width = '38px';
-                        }
-                        else if (colLower === 'gzip') {
-                            width = '40px';
-                        }
-                        // PID, TID, Port
-                        else if (['pid', 'tid', 'port'].includes(colLower)) {
-                            width = '52px';
-                        }
-                        // Method: badge
-                        else if (colLower === 'method') {
-                            width = '52px';
-                        }
-                        // Protocol
-                        else if (colLower === 'protocol') {
-                            width = '72px';
-                        }
-                        // VHost
-                        else if (colLower === 'vhost') {
-                            width = '128px';
-                        }
-                        // URL: fixed, truncated
-                        else if (['url', 'urlpath'].includes(colLower)) {
-                            width = '200px';
-                        }
-                        // Referer / User-Agent: fixed, no overlap
-                        else if (colLower === 'referer') {
-                            width = '180px';
-                        }
-                        else if (['useragent', 'user-agent'].includes(colLower)) {
-                            width = '220px';
-                        }
-                        // NPM: upstream (often "-"), upstreamStatus (often "-" or code)
-                        else if (colLower === 'upstream') {
-                            width = '100px';
-                        }
-                        else if (colLower === 'upstreamstatus') {
-                            width = '44px';
-                        }
-                        // Message: remaining space
-                        else if (colLower === 'message') {
-                            width = 'auto';
-                        }
-                        else {
-                            width = '120px';
-                        }
-
+                        // Use the centralized COLUMN_WIDTHS map for all plugins and logTypes.
+                        // This guarantees consistent widths for common columns (timestamp, level, etc.)
+                        // regardless of which plugin or logType is being displayed.
+                        const width = COLUMN_WIDTHS[col.toLowerCase()] || '120px';
                         return <col key={col} style={{ width }} />;
                     })}
                 </colgroup>
@@ -1105,8 +1065,8 @@ export const LogTable: React.FC<LogTableProps> = ({
                                 }`}
                             >
                                 {orderedColumns.map((col) => {
-                                    const isErrorLog = logType === 'error';
-                                    const cellPadding = isErrorLog ? 'px-5 py-3' : 'px-4 py-3';
+                                    // Unified padding for all logTypes
+                                    const cellPadding = 'px-4 py-3';
                                     return (
                                     <td
                                         key={col}

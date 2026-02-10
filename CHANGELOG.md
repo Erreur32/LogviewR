@@ -5,6 +5,29 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-02-10
+
+### Fixed
+
+#### Plugin NPM – Parsing des fichiers error.log
+- **Fichiers `proxy-host-*_error.log` non affichés dans le tableau** : la méthode `determineLogType()` dans `NpmLogPlugin.ts` vérifiait `proxy-host` avant `error` dans le nom du fichier. Un fichier `proxy-host-12_error.log` était classifié comme `access` au lieu de `error`, le parser access échouait sur les lignes d'erreur Nginx, et toutes les lignes restaient non parsées. L'ordre de vérification est maintenant inversé : `error` est testé en premier.
+- **Parser error NPM sans support PID/TID** : `NpmParser.parseErrorLine()` n'avait qu'une seule regex basique qui ne gérait pas le format `497#497:` (PID/TID) omniprésent dans les logs d'erreur Nginx. Ajout du format PID/TID comme dans `NginxParser`, avec extraction de `pid` et `tid`.
+- **Colonnes `pid`/`tid` manquantes pour les error logs NPM** : `getColumns('error')` retournait `['timestamp', 'level', 'message']`. Aligné sur Nginx avec `['timestamp', 'level', 'pid', 'tid', 'message']`.
+
+#### LogTable – Débordement du badge timestamp
+- **Badge timestamp qui déborde de la colonne** : la largeur timestamp était de 146px (access) et 158px (error), insuffisante pour le badge mono fr-FR "08/02/2026 13:30:06" (~149px de badge + 32px de padding cellule = 181px minimum). Largeur unifiée à 185px pour tous les plugins et logTypes.
+
+### Changed
+
+#### LogTable – Unification des colonnes
+- **Largeurs de colonnes centralisées** : remplacement des ~110 lignes de `if/else` dupliquées (branche error vs non-error) dans le `colgroup` par un objet unique `COLUMN_WIDTHS` (source de vérité unique pour les 30+ colonnes). Toute colonne commune a désormais la même largeur quel que soit le plugin ou le logType.
+- **Padding cellule unifié** : suppression du padding spécial `px-5` pour les error logs. Toutes les cellules et headers utilisent `px-4 py-3` uniformément.
+- **`getColumnType` complété** : ajout de `port` dans les colonnes numériques, `action` dans les colonnes badge.
+- **`getColumnDisplayName` complété** : ajout des noms d'affichage manquants (`tid` → TID, `protocol` → Protocol) et des alias défensifs (`severity`, `statuscode`, `httpcode`, `urlpath`, `user-agent`).
+- **`COLUMN_WIDTHS` avec alias défensifs** : ajout des variantes de noms de colonnes (`severity`, `statuscode`, `httpcode`, `urlpath`, `user-agent`) pour garantir des largeurs correctes même avec des parsers custom.
+
+---
+
 ## [0.2.0] - 2026-02-08
 
 ### Added
@@ -507,5 +530,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+[0.2.1]: https://github.com/Erreur32/LogviewR/releases/tag/v0.2.1
 [0.2.0]: https://github.com/Erreur32/LogviewR/releases/tag/v0.2.0
 [0.1.0]: https://github.com/Erreur32/LogviewR/releases/tag/v0.1.0

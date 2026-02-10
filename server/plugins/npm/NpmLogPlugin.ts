@@ -198,7 +198,8 @@ export class NpmLogPlugin extends BasePlugin implements LogSourcePlugin {
                 // Include all possible columns (cache, upstreamStatus, gzip may be present in NPM formats)
                 return ['timestamp', 'ip', 'method', 'url', 'status', 'size', 'referer', 'userAgent', 'host', 'upstream', 'responseTime', 'cache', 'upstreamStatus', 'gzip'];
             case 'error':
-                return ['timestamp', 'level', 'message'];
+                // Aligned with Nginx error columns — NpmParser.parseErrorLine extracts pid/tid
+                return ['timestamp', 'level', 'pid', 'tid', 'message'];
             default:
                 return ['timestamp', 'level', 'message'];
         }
@@ -263,15 +264,21 @@ export class NpmLogPlugin extends BasePlugin implements LogSourcePlugin {
 
     /**
      * Determine log type from file path
+     * 
+     * IMPORTANT: We must check for 'error' BEFORE 'proxy-host' because files
+     * like 'proxy-host-12_error.log' contain both substrings.
+     * If we checked 'proxy-host' first, error logs would be misclassified
+     * as access logs, causing the access parser to fail on error log lines.
      */
     private determineLogType(filePath: string): string {
         const filename = path.basename(filePath).toLowerCase();
         
-        if (filename.includes('access') || filename.includes('proxy-host')) {
-            return 'access';
-        }
+        // Check for 'error' first — proxy-host-*_error.log must be typed as 'error'
         if (filename.includes('error')) {
             return 'error';
+        }
+        if (filename.includes('access') || filename.includes('proxy-host')) {
+            return 'access';
         }
         
         return 'access'; // Default to access

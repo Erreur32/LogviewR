@@ -163,17 +163,41 @@ export class NpmParser {
     }
 
     /**
-     * Parse NPM error log line (same as Nginx)
+     * Parse NPM error log line (same format as Nginx error logs)
+     * 
+     * Supports two sub-formats:
+     * 1. With PID/TID: "2026/02/08 12:50:46 [warn] 497#497: *555753 a client request body..."
+     *    - Extracts pid, tid and the connection-specific message
+     * 2. Standard:      "2026/02/08 12:50:46 [error] some generic error message"
+     *    - Basic timestamp + level + message extraction
+     * 
+     * The PID/TID format is the most common in proxy_host_*_error.log files
+     * because Nginx worker processes always log their pid#tid pair.
      */
     static parseErrorLine(line: string): ParsedLogEntry | null {
         if (!line || line.trim().length === 0) {
             return null;
         }
 
-        // NPM error log format is same as Nginx
+        // 1. Try format with PID/TID first (most common in NPM error logs):
+        //    "2026/02/08 12:50:46 [warn] 497#497: *555753 a client request body..."
+        const pidRegex = /^(\d{4}\/\d{2}\/\d{2}\s+\d{2}:\d{2}:\d{2})\s+\[(\w+)\]\s+(\d+)#(\d+):\s+(.+)$/;
+        const pidMatch = line.match(pidRegex);
+        if (pidMatch) {
+            const [, timestamp, level, pid, tid, message] = pidMatch;
+
+            return {
+                timestamp: this.parseTimestamp(timestamp),
+                level: level.toLowerCase(),
+                pid: parseInt(pid, 10),
+                tid: parseInt(tid, 10),
+                message: message.trim()
+            };
+        }
+
+        // 2. Standard format (fallback): "2026/02/08 12:50:46 [error] some message"
         const errorRegex = /^(\d{4}\/\d{2}\/\d{2}\s+\d{2}:\d{2}:\d{2})\s+\[(\w+)\]\s+(.+)$/;
         const match = line.match(errorRegex);
-
         if (match) {
             const [, timestamp, level, message] = match;
 
