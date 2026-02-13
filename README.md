@@ -10,7 +10,7 @@
 
 <img src="LogviewR_banner.svg" alt="LogviewR" width="512" height="256" />
 
-![LogviewR](https://img.shields.io/badge/LogviewR-0.2.3-111827?style=for-the-badge)
+![LogviewR](https://img.shields.io/badge/LogviewR-0.2.4-111827?style=for-the-badge)
 ![Status](https://img.shields.io/badge/Status-DEVELOPMENT-374151?style=for-the-badge)
 ![Docker](https://img.shields.io/badge/Docker-Ready-1f2937?style=for-the-badge&logo=docker&logoColor=38bdf8)
 ![React](https://img.shields.io/badge/React-19-111827?style=for-the-badge&logo=react&logoColor=38bdf8)
@@ -82,6 +82,7 @@
 - **Plus gros fichiers** : Top 10 des fichiers les plus volumineux
 - **Statistiques en temps réel** : Mise à jour automatique des statistiques
 - **Tableaux de bord** : Vue d'ensemble de tous les plugins actifs
+- **Stats Logs (style GoAccess)** : Page plein écran avec graphiques (KPI, Stats KPI, timeline, Time Distribution, Unique Visitors, HTTP Status Codes, Referring Sites, Virtual Hosts, Referrer URLs, Requested Files, top panels), accessible via le bouton dans le footer à côté d'Analytique. Filtre plugin NPM/Apache. Courbes duales requêtes + visiteurs (sans dépendance graphique externe).
 
 ---
 

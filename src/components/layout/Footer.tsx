@@ -5,7 +5,8 @@ import {
   Home,
   FileText,
   HardDrive,
-  Archive
+  Archive,
+  LineChart
 } from 'lucide-react';
 import { usePluginStore } from '../../stores/pluginStore';
 import { getPluginIcon } from '../../utils/pluginIcons';
@@ -14,7 +15,7 @@ import { Tooltip } from '../ui/Tooltip';
 import { useTranslation } from 'react-i18next';
 import type { LogPluginStats } from '../../types/logViewer';
 
-export type PageType = 'dashboard' | 'analytics' | 'settings' | 'plugins' | 'users' | 'logs' | 'log-viewer';
+export type PageType = 'dashboard' | 'analytics' | 'goaccess-stats' | 'settings' | 'plugins' | 'users' | 'logs' | 'log-viewer';
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
@@ -35,7 +36,8 @@ interface FooterProps {
 // Only tabs that are actually displayed in the footer
 const allTabs: { id: PageType; label: string; icon: React.ElementType; adminOnly?: boolean }[] = [
   { id: 'dashboard', label: 'LogviewR', icon: Home },
-  { id: 'analytics', label: 'Analytique', icon: BarChart2 }
+  { id: 'analytics', label: 'Analytique', icon: BarChart2 },
+  { id: 'goaccess-stats', label: 'Stats Logs', icon: LineChart }
 ];
 
 export const Footer: React.FC<FooterProps> = ({
@@ -176,10 +178,10 @@ export const Footer: React.FC<FooterProps> = ({
           {visibleTabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = currentPage === tab.id;
-            const iconOnly = tab.id === 'analytics';
+            const iconOnly = tab.id === 'analytics' || tab.id === 'goaccess-stats';
 
             return (
-              <Tooltip key={tab.id} content={iconOnly ? t('footer.analyticsTooltip') : tab.label} position="top">
+              <Tooltip key={tab.id} content={iconOnly ? (tab.id === 'goaccess-stats' ? t('footer.goaccessStatsTooltip') : t('footer.analyticsTooltip')) : tab.label} position="top">
                 <button
                   onClick={() => handleTabClick(tab.id)}
                   className={`flex items-center gap-3 rounded-lg border transition-all duration-150 active:brightness-90 ${

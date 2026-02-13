@@ -20,6 +20,7 @@ import { requireAuth } from '../middleware/authMiddleware.js';
 import { generateRegexFromLogLine } from '../services/regexGeneratorService.js';
 import { APACHE_ACCESS_VHOST_COMBINED_REGEX } from '../plugins/apache/ApacheParser.js';
 import { APACHE_REGEX_KEYS, getApacheRegexKeyForPath, NPM_REGEX_KEYS, getNpmRegexKeyForPath, NGINX_REGEX_KEYS, getNginxRegexKeyForPath } from '../services/logParserService.js';
+import { getAllAnalytics } from '../services/logAnalyticsService.js';
 
 const router = Router();
 
@@ -1248,6 +1249,50 @@ router.get('/largest-files', async (req, res) => {
         logger.error('LogViewer', 'Error getting largest files:', error);
         res.status(500).json({ 
             error: 'Failed to get largest files',
+            message: error instanceof Error ? error.message : String(error)
+        });
+    }
+});
+
+/**
+ * GET /api/log-viewer/analytics
+ * Get aggregated log analytics (overview, timeseries, top metrics) for GoAccess-style stats page.
+ *
+ * Query params:
+ * - pluginId: optional, filter by plugin (npm, apache, all) or omit for all
+ * - from: optional ISO date string
+ * - to: optional ISO date string
+ * - bucket: optional, 'minute' | 'hour' | 'day' (default: hour)
+ * - topLimit: optional, max items per top list (default: 10, max: 50)
+ * - fileScope: optional, 'latest' | 'all' (default: all) - latest = only most recent file per plugin
+ * - includeCompressed: optional, 'true' | 'false' - include .gz/.bz2/.xz when plugin has readCompressed enabled
+ */
+router.get('/analytics', async (req, res) => {
+    try {
+        const { pluginId, from, to, bucket, topLimit, fileScope, includeCompressed } = req.query;
+
+        const fromDate = from && typeof from === 'string' ? new Date(from) : undefined;
+        const toDate = to && typeof to === 'string' ? new Date(to) : undefined;
+        const bucketVal = (bucket === 'minute' || bucket === 'hour' || bucket === 'day' ? bucket : 'hour') as 'minute' | 'hour' | 'day';
+        const limit = topLimit ? Math.min(parseInt(String(topLimit), 10) || 10, 50) : 10;
+        const fileScopeVal = (fileScope === 'latest' || fileScope === 'all' ? fileScope : 'all') as 'latest' | 'all';
+        const includeCompressedVal = includeCompressed === 'true' || includeCompressed === '1';
+
+        const result = await getAllAnalytics(
+            pluginId && typeof pluginId === 'string' ? pluginId : undefined,
+            fromDate && !isNaN(fromDate.getTime()) ? fromDate : undefined,
+            toDate && !isNaN(toDate.getTime()) ? toDate : undefined,
+            { bucket: bucketVal, topLimit: limit, fileScope: fileScopeVal, includeCompressed: includeCompressedVal }
+        );
+
+        res.json({
+            success: true,
+            result
+        });
+    } catch (error) {
+        logger.error('LogViewer', 'Error getting analytics:', error);
+        res.status(500).json({
+            error: 'Failed to get analytics',
             message: error instanceof Error ? error.message : String(error)
         });
     }

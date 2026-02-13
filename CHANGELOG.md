@@ -5,6 +5,33 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+---
+
+## [0.2.4] - 2026-02-13
+
+### Added
+
+#### Stats Logs (style GoAccess)
+- **Page plein écran** : Statistiques graphiques des logs (KPI, Stats KPI, timeline, Time Distribution, Unique Visitors, HTTP Status Codes, Referring Sites, Virtual Hosts, Referrer URLs, Requested Files, top panels), inspirée de [GoAccess for Nginx Proxy Manager](https://github.com/xavier-hernandez/goaccess-for-nginxproxymanager).
+- **Bouton footer** : Accès à la page Stats Logs à côté d'Analytique.
+- **API analytics** : Endpoint `GET /api/log-viewer/analytics` avec `pluginId`, `from`, `to`, `bucket`, `topLimit`, `fileScope`, `includeCompressed`.
+- **Filtre plugin** : Tous (NPM + Apache), NPM ou Apache.
+- **Plage temporelle** : 1h, 24h, 7j, 30j + personnalisé (datetime-local).
+- **Scope fichiers** : Dernier fichier uniquement ou tous les fichiers (access.log, .1, .2, etc.).
+- **Option .gz** : Inclusion des fichiers compressés (si activé dans Réglages > Plugins).
+- **Requêtes dans le temps** : Bascule Barres / Courbe + axe X avec labels date/heure espacés.
+- **Axes X lisibles** : Repères temporels (6 graduations) et grille verticale sur Distribution temporelle et Visiteurs uniques.
+- **Courbes duales** : Time Distribution et Unique Visitors (DualLineChart).
+- **Panels tableau** : HTTP Status Codes, Referring Sites, Virtual Hosts, Referrer URLs (label gauche, barres droite).
+- **Codes HTTP par domaine** : Panel détaillé host + status.
+- **Stats KPI étendus** : valid requests, failed requests, not found, static files.
+- **Infos et tooltips** : Section « Comprendre les chiffres » + tooltips sur les badges.
+- **Documentation** : `Doc_Dev/LOG_ANALYTICS_GRAPHS_GOACCESS.md`.
+
+---
+
 ## [0.2.3] - 2026-02-10
 
 ### Fixed

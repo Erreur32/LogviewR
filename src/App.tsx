@@ -14,6 +14,7 @@ import { UserLoginModal, UserRegistrationModal } from './components/modals';
 // Lazy load pages for code splitting
 // Use default exports when available, otherwise use named exports
 const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage').then(m => ({ default: m.AnalyticsPage })));
+const GoAccessStyleStatsPage = lazy(() => import('./pages/GoAccessStyleStatsPage').then(m => ({ default: m.GoAccessStyleStatsPage })));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const PluginsPage = lazy(() => import('./pages/PluginsPage').then(m => ({ default: m.PluginsPage })));
 const UsersPage = lazy(() => import('./pages/UsersPage').then(m => ({ default: m.UsersPage })));
@@ -362,6 +363,28 @@ const App: React.FC = () => {
       />
     </>
   );
+
+  // Render GoAccess-style stats page
+  if (currentPage === 'goaccess-stats') {
+    return wrapWithBackground(renderPageWithFooter(
+      <>
+        <Header 
+          pageType="goaccess-stats"
+          user={user || undefined}
+          onSettingsClick={handleSettingsClick}
+          onAdminClick={handleAdminClick}
+          onProfileClick={handleProfileClick}
+          onUsersClick={handleUsersClick}
+          onLogout={handleLogout}
+          onPluginClick={(pluginId) => {
+            setSelectedPluginId(pluginId);
+            setCurrentPage('log-viewer');
+          }}
+        />
+        <GoAccessStyleStatsPage onBack={() => setCurrentPage('dashboard')} />
+      </>
+    ));
+  }
 
   // Render Analytics page
   if (currentPage === 'analytics') {
