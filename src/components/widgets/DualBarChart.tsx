@@ -7,6 +7,7 @@
  */
 
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 
 export interface DualBarItem {
     key: string;
@@ -17,7 +18,10 @@ export interface DualBarItem {
 
 interface DualBarChartProps {
     data: DualBarItem[];
+    /** Max chars before truncation (fallback); use labelWidth for URL/domain panels to maximize visibility. */
     maxKeyLength?: number;
+    /** Min width in px for label column (tableLayout); use 400-600 for URLs/domains. */
+    labelWidth?: number;
     hitsColor?: string;
     visitorsColor?: string;
     /** Optional color by key (e.g. for HTTP status codes). */
@@ -33,8 +37,9 @@ interface DualBarChartProps {
 export const DualBarChart: React.FC<DualBarChartProps> = ({
     data,
     maxKeyLength = 50,
-    hitsColor = '#3b82f6',
-    visitorsColor = '#10b981',
+    labelWidth,
+    hitsColor = '#2563eb',
+    visitorsColor = '#059669',
     colorByKey,
     hitsLabel = 'Hits',
     visitorsLabel = 'Visitors',
@@ -46,6 +51,7 @@ export const DualBarChart: React.FC<DualBarChartProps> = ({
     const totalHits = data.reduce((s, d) => s + d.count, 0);
     const totalVisitors = data.reduce((s, d) => s + d.uniqueVisitors, 0);
     const [hoveredKey, setHoveredKey] = useState<string | null>(null);
+    const [tooltipRect, setTooltipRect] = useState<DOMRect | null>(null);
 
     const getColor = (key: string) => {
         if (colorByKey) return colorByKey(key);
@@ -61,7 +67,7 @@ export const DualBarChart: React.FC<DualBarChartProps> = ({
     }
 
     return (
-        <div className="space-y-2">
+        <div className="space-y-4">
             {/* Legend with totals */}
             <div className="flex gap-4 text-xs mb-2">
                 <div className="flex items-center gap-2" title={`${hitsLabel}: total ${totalHits}`}>
@@ -72,7 +78,7 @@ export const DualBarChart: React.FC<DualBarChartProps> = ({
                 <div className="flex items-center gap-2" title={`${visitorsLabel}: total ${totalVisitors}`}>
                     <div className="w-3 h-3 rounded" style={{ backgroundColor: visitorsColor }} />
                     <span className="text-gray-400">{visitorsLabel}</span>
-                    <span className="text-emerald-400 font-medium">({totalVisitors})</span>
+                    <span className="text-emerald-600 font-medium">({totalVisitors})</span>
                 </div>
             </div>
             {/* Y-axis hint */}
@@ -80,56 +86,88 @@ export const DualBarChart: React.FC<DualBarChartProps> = ({
                 0 ← → {scaleMax}
             </div>
             <div className={tableLayout ? 'overflow-x-auto' : ''}>
-            {data.slice(0, 15).map((item) => {
+            {data.slice(0, 15).map((item, idx) => {
                 const isHovered = hoveredKey === item.key;
+                const countPct = (item.count / scaleMax) * 100;
+                const visitorsPct = (item.uniqueVisitors / scaleMax) * 100;
                 return (
                     <div
                         key={item.key}
-                        className={`flex items-center gap-3 group relative ${tableLayout ? 'table-row-like' : ''}`}
-                        onMouseEnter={() => setHoveredKey(item.key)}
-                        onMouseLeave={() => setHoveredKey(null)}
+                        className={`flex items-center gap-4 group relative ${tableLayout ? 'table-row-like' : ''}`}
+                        onMouseEnter={(e) => {
+                            setHoveredKey(item.key);
+                            setTooltipRect(e.currentTarget.getBoundingClientRect());
+                        }}
+                        onMouseLeave={() => {
+                            setHoveredKey(null);
+                            setTooltipRect(null);
+                        }}
                     >
                         <span
-                            className={`text-sm text-gray-400 truncate text-left shrink-0`}
-                            style={tableLayout ? { width: `${Math.min(maxKeyLength * 7, 220)}px` } : { maxWidth: maxKeyLength * 6 }}
+                            className="text-sm text-gray-400 truncate text-left shrink-0"
+                            style={
+                                tableLayout
+                                    ? { width: labelWidth ?? Math.min(maxKeyLength * 7, 220) }
+                                    : { maxWidth: labelWidth ?? maxKeyLength * 6 }
+                            }
                             title={item.key}
                         >
-                            {item.key.length > maxKeyLength
-                                ? item.key.slice(0, maxKeyLength) + '…'
-                                : item.key}
+                            {item.key}
                         </span>
-                        <div className={`flex gap-2 flex-1 min-w-0 ${tableLayout ? 'justify-end min-w-[120px]' : ''}`}>
+                        <div className={`flex gap-3 flex-1 min-w-0 ${tableLayout ? 'justify-end min-w-[120px]' : ''}`}>
                             <div
-                                className="h-5 rounded flex items-center justify-end pr-1 text-xs font-medium text-white transition-opacity"
-                                style={{
-                                    width: `${(item.count / scaleMax) * 100}%`,
-                                    minWidth: item.count > 0 ? 24 : 0,
-                                    backgroundColor: getColor(item.key),
-                                    opacity: isHovered ? 1 : 0.9
-                                }}
-                                title={`${hitsLabel}: ${item.count}`}
+                                className="h-6 rounded overflow-hidden border border-gray-600/40 flex-1 min-w-0 flex items-center justify-end pr-2"
+                                style={{ minWidth: 48 }}
                             >
-                                {item.count > 0 ? item.count : ''}
+                                <div
+                                    className="h-full rounded-l flex items-center justify-end pr-1 text-xs font-medium text-white/95 transition-opacity origin-left"
+                                    style={{
+                                        width: `${countPct}%`,
+                                        minWidth: item.count > 0 ? 28 : 0,
+                                        backgroundColor: getColor(item.key),
+                                        opacity: isHovered ? 1 : 0.92,
+                                        animation: 'barGrow 0.5s ease-out forwards',
+                                        animationDelay: `${idx * 40}ms`
+                                    }}
+                                    title={`${hitsLabel}: ${item.count}`}
+                                >
+                                    {item.count > 0 ? item.count : ''}
+                                </div>
                             </div>
                             <div
-                                className="h-5 rounded flex items-center justify-end pr-1 text-xs font-medium text-white transition-opacity"
-                                style={{
-                                    width: `${(item.uniqueVisitors / scaleMax) * 100}%`,
-                                    minWidth: item.uniqueVisitors > 0 ? 24 : 0,
-                                    backgroundColor: visitorsColor,
-                                    opacity: isHovered ? 1 : 0.9
-                                }}
-                                title={`${visitorsLabel}: ${item.uniqueVisitors}`}
+                                className="h-6 rounded overflow-hidden border border-gray-600/40 flex-1 min-w-0 flex items-center justify-end pr-2"
+                                style={{ minWidth: 48 }}
                             >
-                                {item.uniqueVisitors > 0 ? item.uniqueVisitors : ''}
+                                <div
+                                    className="h-full rounded-l flex items-center justify-end pr-1 text-xs font-medium text-white/95 transition-opacity origin-left"
+                                    style={{
+                                        width: `${visitorsPct}%`,
+                                        minWidth: item.uniqueVisitors > 0 ? 28 : 0,
+                                        backgroundColor: visitorsColor,
+                                        opacity: isHovered ? 1 : 0.92,
+                                        animation: 'barGrow 0.5s ease-out forwards',
+                                        animationDelay: `${idx * 40}ms`
+                                    }}
+                                    title={`${visitorsLabel}: ${item.uniqueVisitors}`}
+                                >
+                                    {item.uniqueVisitors > 0 ? item.uniqueVisitors : ''}
+                                </div>
                             </div>
                         </div>
-                        {isHovered && (
-                            <div className="absolute left-0 top-full mt-1 px-2 py-1.5 bg-gray-900/95 border border-gray-700 rounded shadow-xl text-xs z-50 pointer-events-none whitespace-pre-line">
-                                <div className="font-medium text-white">{item.key}</div>
+                        {isHovered && tooltipRect && createPortal(
+                            <div
+                                className="fixed z-[99999] px-3 py-2.5 border border-gray-700 rounded-lg shadow-xl text-sm pointer-events-none"
+                                style={{
+                                    left: tooltipRect.left,
+                                    top: tooltipRect.bottom + 4,
+                                    backgroundColor: 'rgb(17, 24, 39)'
+                                }}
+                            >
+                                <div className="font-medium text-white break-all mb-1.5">{item.key}</div>
                                 <div className="text-gray-300">{hitsLabel}: {item.count}</div>
-                                <div className="text-emerald-400">{visitorsLabel}: {item.uniqueVisitors}</div>
-                            </div>
+                                <div className="text-emerald-600">{visitorsLabel}: {item.uniqueVisitors}</div>
+                            </div>,
+                            document.body
                         )}
                     </div>
                 );

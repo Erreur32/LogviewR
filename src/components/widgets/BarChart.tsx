@@ -282,7 +282,7 @@ export const MiniBarChart: React.FC<MiniBarChartProps> = ({
             </div>
             
             {showTooltip && (
-              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded shadow-lg whitespace-nowrap z-50 pointer-events-none" style={{ 
+              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900/95 border border-gray-700 text-white text-sm rounded-lg shadow-lg whitespace-nowrap z-50 pointer-events-none" style={{ 
                 left: idx === 0 ? '0' : idx === data.length - 1 ? 'auto' : '50%',
                 right: idx === data.length - 1 ? '0' : 'auto',
                 transform: idx === 0 ? 'translateX(0)' : idx === data.length - 1 ? 'translateX(0)' : 'translateX(-50%)'

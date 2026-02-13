@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.2.5] - 2026-02-13
+
+### Added
+
+#### Stats Logs – Tooltips et panneaux
+- **Tooltips via portail** : tous les tooltips (Top URLs, Top Referrers, Top IPs, Top HTTP codes, Top Browsers, Top User-Agents, Referrer URLs, HTTP Status Codes, Requested Files) sont rendus via `createPortal` dans `document.body` pour éviter tout masquage par overflow ou z-index.
+- **Tooltips toujours visibles** : z-index 99999, position fixe, fond opaque (`rgb(17, 24, 39)`) pour éviter la transparence imposée par le thème (`themes.css` remplace `bg-gray-900` par `var(--bg-tertiary)`).
+- **Bouton bascule vue** : icône Maximize2/Minimize2 dans chaque panneau Top pour afficher 5 résultats ou la liste complète.
+- **Traductions** : `showAllItems` (Tout afficher), `showLimitedItems` (Vue limitée (5)).
+
+### Changed
+
+#### Stats Logs – Layout et affichage
+- **Distribution HTTP Status / Methods** : barres plus fines (`h-3`), count et pourcentage sur une seule ligne (`whitespace-nowrap`), alignement des barres avec colonne count fixe (`min-w-[5.5rem] text-right`), label adapté (4rem pour codes, 7rem pour méthodes).
+- **Top panels** : Top URLs et Top Referrers sur la première ligne (2 colonnes) ; Top IPs, Top Status, Top Browsers sur la deuxième ligne ; Top User-Agents sur une ligne dédiée (même largeur que Top Referrers).
+- **TopPanel par défaut** : affichage de 5 résultats sans scroll ; clic sur l’icône pour afficher tout.
+- **TopPanel extrait** : composant déplacé au niveau du module pour éviter la réinitialisation de l’état (`showAll`) à chaque rendu du parent.
+- **Tooltips enrichis** : contenu (Hits, Total %), séparateur, padding et bordures améliorés.
+
+---
+
 ## [0.2.4] - 2026-02-13
 
 ### Added
@@ -605,6 +626,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+[0.2.5]: https://github.com/Erreur32/LogviewR/releases/tag/v0.2.5
 [0.2.2]: https://github.com/Erreur32/LogviewR/releases/tag/v0.2.2
 [0.2.1]: https://github.com/Erreur32/LogviewR/releases/tag/v0.2.1
 [0.2.0]: https://github.com/Erreur32/LogviewR/releases/tag/v0.2.0

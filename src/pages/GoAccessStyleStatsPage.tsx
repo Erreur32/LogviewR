@@ -7,8 +7,11 @@
  */
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import {
     ChevronLeft,
+    ChevronUp,
+    ChevronDown,
     Activity,
     Globe,
     AlertTriangle,
@@ -17,7 +20,9 @@ import {
     FileText,
     RefreshCw,
     BarChart2,
-    Info
+    Info,
+    Maximize2,
+    Minimize2
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../api/client';
@@ -35,6 +40,7 @@ import type {
     AnalyticsStatusByHostItem
 } from '../types/analytics';
 import { usePluginStore } from '../stores/pluginStore';
+import { useUserAuthStore } from '../stores/userAuthStore';
 
 interface GoAccessStyleStatsPageProps {
     onBack: () => void;
@@ -45,6 +51,9 @@ const LOG_SOURCE_PLUGINS = ['npm', 'apache'] as const;
 const PLUGIN_OPTIONS = ['all', ...LOG_SOURCE_PLUGINS] as const;
 const DEFAULT_PLUGIN = 'all';
 
+/** localStorage key for help section visibility (used when not authenticated or API unavailable) */
+const STATS_HELP_SECTION_STORAGE_KEY = 'logviewr_stats_help_section_visible';
+
 function formatBytes(bytes: number): string {
     if (bytes === 0) return '0 B';
     const k = 1024;
@@ -53,9 +62,119 @@ function formatBytes(bytes: number): string {
     return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
 }
 
+/** TopPanel - extracted to module level so state (showAll) persists across parent re-renders. */
+const TopPanel: React.FC<{
+    title: string;
+    items: AnalyticsTopItem[];
+    maxKeyLength?: number;
+    showBar?: boolean;
+    maxVisibleWithoutScroll?: number;
+    scrollWhenCollapsed?: boolean;
+    /** Display items in 2 columns (e.g. for User-Agents). */
+    twoColumns?: boolean;
+}> = ({ title, items, maxKeyLength = 40, showBar = true, maxVisibleWithoutScroll, scrollWhenCollapsed = true, twoColumns = false }) => {
+    const { t } = useTranslation();
+    const [hoveredItem, setHoveredItem] = useState<AnalyticsTopItem | null>(null);
+    const [tooltipRect, setTooltipRect] = useState<DOMRect | null>(null);
+    const [showAll, setShowAll] = useState(false);
+    const maxPct = Math.max(...items.map((i) => i.percent ?? 0), 1);
+    const limit = maxVisibleWithoutScroll ?? 5;
+    const displayItems = showAll ? items : (maxVisibleWithoutScroll != null ? items.slice(0, limit) : items);
+    const listMaxHeight = scrollWhenCollapsed && !showAll ? 'max-h-56' : '';
+    const canToggle = maxVisibleWithoutScroll != null;
+    return (
+        <div className="bg-[#0a0a0a] rounded-lg border border-gray-800 overflow-hidden relative">
+            <div className="flex items-center justify-between gap-2 px-4 py-2 text-sm font-semibold text-gray-300 border-b border-gray-800 bg-[#0f0f0f]">
+                <h4 className="truncate min-w-0">{title}</h4>
+                {canToggle && (
+                    <button
+                        type="button"
+                        onClick={() => setShowAll((v) => !v)}
+                        className="p-1 rounded hover:bg-gray-700/50 text-gray-400 hover:text-emerald-400 transition-colors shrink-0"
+                        title={showAll ? t('goaccessStats.showLimitedItems') : t('goaccessStats.showAllItems')}
+                        aria-label={showAll ? t('goaccessStats.showLimitedItems') : t('goaccessStats.showAllItems')}
+                    >
+                        {showAll ? (
+                            <Minimize2 size={16} />
+                        ) : (
+                            <Maximize2 size={16} />
+                        )}
+                    </button>
+                )}
+            </div>
+            <div className="flex flex-col min-h-0">
+                <div className={listMaxHeight ? `${listMaxHeight} overflow-y-auto` : ''}>
+                    {items.length === 0 ? (
+                        <div className="px-4 py-6 text-sm text-gray-500 text-center">
+                            {t('goaccessStats.noData')}
+                        </div>
+                    ) : (
+                        <ul className={twoColumns ? 'grid grid-cols-2 gap-x-6' : 'divide-y divide-gray-800/50'}>
+                            {displayItems.map((item, idx) => (
+                                <li
+                                    key={`${item.key}-${idx}`}
+                                    className={`px-4 py-2.5 hover:bg-[#121212] relative ${twoColumns ? 'border-b border-gray-800/50' : ''}`}
+                                    onMouseEnter={(e) => {
+                                        setHoveredItem(item);
+                                        setTooltipRect(e.currentTarget.getBoundingClientRect());
+                                    }}
+                                    onMouseLeave={() => {
+                                        setHoveredItem(null);
+                                        setTooltipRect(null);
+                                    }}
+                                >
+                                    <div className="flex items-center justify-between gap-2">
+                                        <span className="text-sm text-gray-300 truncate flex-1 min-w-0">
+                                            {item.key}
+                                        </span>
+                                        <span className="text-sm font-medium text-white shrink-0">
+                                            {item.count}
+                                            {item.percent != null && (
+                                                <span className="text-gray-500 ml-1">({item.percent}%)</span>
+                                            )}
+                                        </span>
+                                    </div>
+                                    {showBar && item.percent != null && (
+                                        <div className="mt-1.5 h-2 bg-gray-800/80 rounded overflow-hidden border border-gray-700/30">
+                                            <div
+                                                className="h-full bg-emerald-700/80 rounded-l origin-left"
+                                                style={{
+                                                    width: `${(item.percent / maxPct) * 100}%`,
+                                                    animation: 'barGrow 0.4s ease-out forwards',
+                                                    animationDelay: `${idx * 30}ms`
+                                                }}
+                                            />
+                                        </div>
+                                    )}
+                                    {hoveredItem?.key === item.key && tooltipRect && createPortal(
+                                        <div
+                                            className="fixed z-[99999] px-4 py-3 border border-gray-600 rounded-lg shadow-2xl text-sm pointer-events-none max-w-[min(90vw,480px)]"
+                                            style={{ left: tooltipRect.left, top: tooltipRect.bottom + 6, backgroundColor: 'rgb(17, 24, 39)' }}
+                                        >
+                                            <div className="font-medium text-white break-all leading-relaxed">{item.key}</div>
+                                            <div className="mt-2 pt-2 border-t border-gray-600/50 flex gap-4 text-gray-300">
+                                                <span>{t('goaccessStats.hits')}: <strong className="text-white">{item.count}</strong></span>
+                                                {item.percent != null && (
+                                                    <span>{t('goaccessStats.total')}: <strong className="text-emerald-400">{item.percent}%</strong></span>
+                                                )}
+                                            </div>
+                                        </div>,
+                                        document.body
+                                    )}
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
 export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ onBack }) => {
     const { t, i18n } = useTranslation();
     const { plugins } = usePluginStore();
+    const { token } = useUserAuthStore();
 
     const [pluginId, setPluginId] = useState<string>(DEFAULT_PLUGIN);
     const [timeRange, setTimeRange] = useState<'1h' | '24h' | '7d' | '30d' | 'custom'>('24h');
@@ -69,7 +188,6 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
     const [includeCompressed, setIncludeCompressed] = useState(false);
     const [overview, setOverview] = useState<AnalyticsOverview | null>(null);
     const [timeseries, setTimeseries] = useState<AnalyticsTimeseriesBucket[]>([]);
-    const [timeseriesDay, setTimeseriesDay] = useState<AnalyticsTimeseriesBucket[]>([]);
     const [topUrls, setTopUrls] = useState<AnalyticsTopItem[]>([]);
     const [topIps, setTopIps] = useState<AnalyticsTopItem[]>([]);
     const [topStatus, setTopStatus] = useState<AnalyticsTopItem[]>([]);
@@ -87,6 +205,43 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
 
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    /** Help section "Comprendre les chiffres": persisted in localStorage and DB; when hidden, a small icon is shown to expand again. */
+    const [helpSectionVisible, setHelpSectionVisible] = useState(() => {
+        if (typeof window === 'undefined') return true;
+        const stored = localStorage.getItem(STATS_HELP_SECTION_STORAGE_KEY);
+        return stored !== 'false';
+    });
+
+    /** Load help section preference on mount: from API if authenticated (overrides localStorage), else keep localStorage value. */
+    useEffect(() => {
+        const loadPreference = async () => {
+            if (token) {
+                try {
+                    const res = await api.get<{ statsHelpSectionVisible: boolean }>('/api/settings/stats-ui');
+                    if (res.success && res.result) {
+                        setHelpSectionVisible(res.result.statsHelpSectionVisible);
+                        return;
+                    }
+                } catch {
+                    /* fallback to localStorage */
+                }
+            }
+            const stored = localStorage.getItem(STATS_HELP_SECTION_STORAGE_KEY);
+            if (stored === 'false') setHelpSectionVisible(false);
+        };
+        loadPreference();
+    }, [token]);
+
+    /** Persist help section visibility: localStorage always, API if authenticated. */
+    const persistHelpSectionVisible = useCallback((visible: boolean) => {
+        localStorage.setItem(STATS_HELP_SECTION_STORAGE_KEY, String(visible));
+        if (token) {
+            api.post('/api/settings/stats-ui', { statsHelpSectionVisible: visible }).catch(() => {});
+        }
+    }, [token]);
+
+    /** Stats KPI block: collapsible, visible by default. */
+    const [statsKpiVisible, setStatsKpiVisible] = useState(true);
 
     const enabledLogPlugins = useMemo(
         () =>
@@ -104,7 +259,6 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
         if (!isPluginEnabled) {
             setOverview(null);
             setTimeseries([]);
-            setTimeseriesDay([]);
             setTopUrls([]);
             setTopIps([]);
             setTopStatus([]);
@@ -159,42 +313,35 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
         const compressedParam = includeCompressed ? '&includeCompressed=true' : '';
 
         try {
-            const [resHour, resDay] = await Promise.all([
-                api.get<{
-                    overview: AnalyticsOverview;
-                    timeseries: { buckets: AnalyticsTimeseriesBucket[] };
-                    distribution?: {
-                        methods: AnalyticsDistribution[];
-                        status: AnalyticsDistribution[];
-                        statusWithVisitors?: AnalyticsDistributionWithVisitors[];
-                    };
-                    top: {
-                        urls: AnalyticsTopItem[];
-                        ips: AnalyticsTopItem[];
-                        status: AnalyticsTopItem[];
-                        ua: AnalyticsTopItem[];
-                        referrer: AnalyticsTopItem[];
-                        browser?: AnalyticsTopItem[];
-                        host?: AnalyticsTopItem[];
-                        referringSites?: AnalyticsTopItemWithVisitors[];
-                        referrerWithVisitors?: AnalyticsTopItemWithVisitors[];
-                        hostWithVisitors?: AnalyticsTopItemWithVisitors[];
-                        urlsWithExtras?: AnalyticsTopUrlItem[];
-                        statusByHost?: AnalyticsStatusByHostItem[];
-                    };
-                }>(
-                    `/api/log-viewer/analytics?from=${encodeURIComponent(fromStr)}&to=${encodeURIComponent(toStr)}&bucket=${bucketHour}&topLimit=15${pluginParam}${fileScopeParam}${compressedParam}`
-                ),
-                api.get<{ timeseries: { buckets: AnalyticsTimeseriesBucket[] } }>(
-                    `/api/log-viewer/analytics?from=${encodeURIComponent(fromStr)}&to=${encodeURIComponent(toStr)}&bucket=day&topLimit=15${pluginParam}${fileScopeParam}${compressedParam}`
-                )
-            ]);
+            const res = await api.get<{
+                overview: AnalyticsOverview;
+                timeseries: { buckets: AnalyticsTimeseriesBucket[] };
+                distribution?: {
+                    methods: AnalyticsDistribution[];
+                    status: AnalyticsDistribution[];
+                    statusWithVisitors?: AnalyticsDistributionWithVisitors[];
+                };
+                top: {
+                    urls: AnalyticsTopItem[];
+                    ips: AnalyticsTopItem[];
+                    status: AnalyticsTopItem[];
+                    ua: AnalyticsTopItem[];
+                    referrer: AnalyticsTopItem[];
+                    browser?: AnalyticsTopItem[];
+                    host?: AnalyticsTopItem[];
+                    referringSites?: AnalyticsTopItemWithVisitors[];
+                    referrerWithVisitors?: AnalyticsTopItemWithVisitors[];
+                    hostWithVisitors?: AnalyticsTopItemWithVisitors[];
+                    urlsWithExtras?: AnalyticsTopUrlItem[];
+                    statusByHost?: AnalyticsStatusByHostItem[];
+                };
+            }>(
+                `/api/log-viewer/analytics?from=${encodeURIComponent(fromStr)}&to=${encodeURIComponent(toStr)}&bucket=${bucketHour}&topLimit=15${pluginParam}${fileScopeParam}${compressedParam}`
+            );
 
-            const res = resHour;
             if (res.success && res.result) {
                 setOverview(res.result.overview);
                 setTimeseries(res.result.timeseries?.buckets ?? []);
-                setTimeseriesDay(resDay.success && resDay.result ? (resDay.result.timeseries?.buckets ?? []) : []);
                 setTopUrls(res.result.top?.urls ?? []);
                 setTopIps(res.result.top?.ips ?? []);
                 setTopStatus(res.result.top?.status ?? []);
@@ -212,7 +359,6 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
             } else {
                 setOverview(null);
                 setTimeseries([]);
-                setTimeseriesDay([]);
                 setTopUrls([]);
                 setTopIps([]);
                 setTopStatus([]);
@@ -240,7 +386,6 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
             setError(err instanceof Error ? err.message : t('goaccessStats.loadError'));
             setOverview(null);
             setTimeseries([]);
-            setTimeseriesDay([]);
             setTopUrls([]);
             setTopIps([]);
             setTopStatus([]);
@@ -273,28 +418,61 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
         return names[id] || id;
     };
 
+    /**
+     * Format timeseries axis labels: no year, "h" for hour (instead of "T").
+     * Compact format to avoid overflow. Handles ISO-like strings (2026-02-12T18, 2026-02-12T18:00, etc.).
+     */
     const formatTsLabel = useCallback((raw: string, bucket: 'minute' | 'hour' | 'day') => {
         try {
-            const d = new Date(raw);
-            if (isNaN(d.getTime())) return raw;
-            const locale = i18n.language?.startsWith('fr') ? 'fr-FR' : 'en-GB';
-            if (bucket === 'minute') {
-                return d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+            let d = new Date(raw);
+            if (isNaN(d.getTime())) {
+                const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{1,2})(?::(\d{2}))?(?::(\d{2}))?/);
+                if (m) d = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +(m[5] ?? 0), +(m[6] ?? 0));
+                else return raw;
             }
-            if (bucket === 'hour') {
-                return d.toLocaleTimeString(locale, { hour: '2-digit' }) + 'h';
-            }
-            return d.toLocaleDateString(locale, { day: '2-digit', month: '2-digit' });
+            const day = String(d.getDate()).padStart(2, '0');
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const hour = String(d.getHours()).padStart(2, '0');
+            const min = String(d.getMinutes()).padStart(2, '0');
+            if (bucket === 'minute') return `${day}/${month} ${hour}:${min}`;
+            if (bucket === 'hour') return `${day}/${month} ${hour}h`;
+            return `${day}/${month}`;
         } catch {
             return raw;
         }
-    }, [i18n.language]);
+    }, []);
 
     const getCurrentBucket = (): 'minute' | 'hour' | 'day' => {
         if (timeRange === '1h') return 'minute';
         if (timeRange === '24h') return 'hour';
         return 'day';
     };
+
+    /**
+     * Trim leading and trailing empty buckets so curves fill the full chart width.
+     * Removes buckets where both count and uniqueVisitors are 0.
+     */
+    const trimmedTimeseries = useMemo(() => {
+        if (!timeseries.length) return [];
+        let first = 0;
+        let last = timeseries.length - 1;
+        for (let i = 0; i < timeseries.length; i++) {
+            const b = timeseries[i];
+            if ((b.count > 0) || ((b.uniqueVisitors ?? 0) > 0)) {
+                first = i;
+                break;
+            }
+        }
+        for (let i = timeseries.length - 1; i >= 0; i--) {
+            const b = timeseries[i];
+            if ((b.count > 0) || ((b.uniqueVisitors ?? 0) > 0)) {
+                last = i;
+                break;
+            }
+        }
+        if (first > last) return timeseries;
+        return timeseries.slice(first, last + 1);
+    }, [timeseries]);
 
     const formatDateRange = (from?: string, to?: string): string => {
         if (!from || !to) return '—';
@@ -307,88 +485,78 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
         }
     };
 
-    const TopPanel: React.FC<{
-        title: string;
-        items: AnalyticsTopItem[];
-        maxKeyLength?: number;
-        showBar?: boolean;
-    }> = ({ title, items, maxKeyLength = 40, showBar = true }) => {
-        const maxPct = Math.max(...items.map((i) => i.percent ?? 0), 1);
+    const RequestedFileTableRow: React.FC<{
+        item: AnalyticsTopUrlItem;
+        formatBytes: (bytes: number) => string;
+    }> = ({ item, formatBytes }) => {
+        const [hovered, setHovered] = useState(false);
+        const [tooltipRect, setTooltipRect] = useState<DOMRect | null>(null);
         return (
-            <div className="bg-[#0a0a0a] rounded-lg border border-gray-800 overflow-hidden">
-                <h4 className="px-4 py-2 text-sm font-semibold text-gray-300 border-b border-gray-800 bg-[#0f0f0f]">
-                    {title}
-                </h4>
-                <div className="max-h-56 overflow-y-auto">
-                    {items.length === 0 ? (
-                        <div className="px-4 py-6 text-sm text-gray-500 text-center">
-                            {t('goaccessStats.noData')}
-                        </div>
-                    ) : (
-                        <ul className="divide-y divide-gray-800/50">
-                            {items.map((item, idx) => (
-                                <li
-                                    key={`${item.key}-${idx}`}
-                                    className="px-4 py-2 hover:bg-[#121212]"
-                                >
-                                    <div className="flex items-center justify-between gap-2">
-                                        <span
-                                            className="text-sm text-gray-300 truncate flex-1 min-w-0"
-                                            title={item.key}
-                                        >
-                                            {item.key.length > maxKeyLength
-                                                ? item.key.slice(0, maxKeyLength) + '…'
-                                                : item.key}
-                                        </span>
-                                        <span className="text-sm font-medium text-white shrink-0">
-                                            {item.count}
-                                            {item.percent != null && (
-                                                <span className="text-gray-500 ml-1">
-                                                    ({item.percent}%)
-                                                </span>
-                                            )}
-                                        </span>
-                                    </div>
-                                    {showBar && item.percent != null && (
-                                        <div className="mt-1 h-1.5 bg-gray-800 rounded-full overflow-hidden">
-                                            <div
-                                                className="h-full bg-emerald-500/70 rounded-full transition-all"
-                                                style={{
-                                                    width: `${(item.percent / maxPct) * 100}%`
-                                                }}
-                                            />
-                                        </div>
-                                    )}
-                                </li>
-                            ))}
-                        </ul>
+            <tr
+                className="border-b border-gray-800/50"
+                onMouseEnter={(e) => {
+                    setHovered(true);
+                    setTooltipRect(e.currentTarget.getBoundingClientRect());
+                }}
+                onMouseLeave={() => {
+                    setHovered(false);
+                    setTooltipRect(null);
+                }}
+            >
+                <td className="py-1.5 min-w-[200px] max-w-[500px] relative">
+                    <div className="text-gray-300 truncate">{item.key}</div>
+                    {hovered && tooltipRect && createPortal(
+                        <div
+                            className="fixed z-[99999] px-3 py-2.5 border border-gray-700 rounded-lg shadow-xl text-sm pointer-events-none"
+                            style={{
+                                left: tooltipRect.left,
+                                top: tooltipRect.bottom + 4,
+                                backgroundColor: 'rgb(17, 24, 39)'
+                            }}
+                        >
+                            <div className="font-medium text-white break-all mb-1.5">{item.key}</div>
+                            <div className="text-gray-300">Hits: {item.count}</div>
+                            <div className="text-emerald-600">Visitors: {item.uniqueVisitors}</div>
+                            {item.txAmount != null && item.txAmount > 0 && (
+                                <div className="text-purple-300 mt-0.5">Traffic: {formatBytes(item.txAmount)}</div>
+                            )}
+                        </div>,
+                        document.body
                     )}
-                </div>
-            </div>
+                </td>
+                <td className="py-1.5 text-right text-white">{item.count}</td>
+                <td className="py-1.5 text-right text-emerald-400">{item.uniqueVisitors}</td>
+                <td className="py-1.5 text-right text-purple-300">{formatBytes(item.txAmount ?? 0)}</td>
+                <td className="py-1.5 text-center text-gray-400">{item.method ?? '-'}</td>
+                <td className="py-1.5 text-center text-gray-400">{item.protocol ?? '-'}</td>
+            </tr>
         );
     };
 
+    /** Softer, less vivid colors for HTTP status bars. */
     const getStatusColor = (key: string): string => {
-        if (/^2\d{2}$/.test(key)) return '#10b981';
-        if (/^3\d{2}$/.test(key)) return '#3b82f6';
-        if (/^4\d{2}$/.test(key)) return '#f59e0b';
-        if (/^5\d{2}$/.test(key)) return '#ef4444';
-        return '#6b7280';
+        if (/^2\d{2}$/.test(key)) return '#047857';
+        if (/^3\d{2}$/.test(key)) return '#1d4ed8';
+        if (/^4\d{2}$/.test(key)) return '#b45309';
+        if (/^5\d{2}$/.test(key)) return '#b91c1c';
+        return '#4b5563';
     };
 
     const DistributionChart: React.FC<{
         title: string;
         items: AnalyticsDistribution[];
         colorByKey?: (key: string) => string;
-    }> = ({ title, items, colorByKey }) => {
+        /** Min width for label column (e.g. 5rem for status codes, 6rem for method names like PROPFIND/UNKNOWN). */
+        labelMinWidth?: string;
+    }> = ({ title, items, colorByKey, labelMinWidth = '6rem' }) => {
         const maxCount = Math.max(...items.map((i) => i.count), 1);
         const getColor = (key: string) => {
             if (colorByKey) return colorByKey(key);
-            if (/^2\d{2}$/.test(key)) return '#10b981';
-            if (/^3\d{2}$/.test(key)) return '#3b82f6';
-            if (/^4\d{2}$/.test(key)) return '#f59e0b';
-            if (/^5\d{2}$/.test(key)) return '#ef4444';
-            return '#6b7280';
+            if (/^2\d{2}$/.test(key)) return '#047857';
+            if (/^3\d{2}$/.test(key)) return '#1d4ed8';
+            if (/^4\d{2}$/.test(key)) return '#b45309';
+            if (/^5\d{2}$/.test(key)) return '#b91c1c';
+            return '#4b5563';
         };
         return (
             <div className="bg-[#121212] rounded-xl border border-gray-800 p-6">
@@ -398,20 +566,22 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                         {t('goaccessStats.noData')}
                     </div>
                 ) : (
-                    <div className="space-y-3">
-                        {items.slice(0, 12).map((item) => (
-                            <div key={item.key} className="flex items-center gap-3">
-                                <span className="text-sm text-gray-400 w-16 shrink-0">{item.key}</span>
-                                <div className="flex-1 h-6 bg-gray-800 rounded overflow-hidden">
+                    <div className="space-y-2">
+                        {items.slice(0, 12).map((item, idx) => (
+                            <div key={item.key} className="flex items-center gap-3 min-h-0">
+                                <span className="text-sm text-gray-400 shrink-0 whitespace-nowrap" style={{ minWidth: labelMinWidth }}>{item.key}</span>
+                                <div className="flex-1 min-w-0 h-3 bg-gray-800/80 rounded overflow-hidden border border-gray-600/40">
                                     <div
-                                        className="h-full rounded transition-all"
+                                        className="h-full rounded-l origin-left"
                                         style={{
                                             width: `${(item.count / maxCount) * 100}%`,
-                                            backgroundColor: getColor(item.key)
+                                            backgroundColor: getColor(item.key),
+                                            animation: 'barGrow 0.5s ease-out forwards',
+                                            animationDelay: `${idx * 40}ms`
                                         }}
                                     />
                                 </div>
-                                <span className="text-sm font-medium text-white w-16 text-right">
+                                <span className="text-sm font-medium text-white shrink-0 whitespace-nowrap min-w-[5.5rem] text-right">
                                     {item.count} ({item.percent}%)
                                 </span>
                             </div>
@@ -423,7 +593,7 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
     };
 
     return (
-        <div className="min-h-screen bg-[#050505] text-gray-300">
+        <div className="min-h-screen bg-[#050505] text-gray-300 overflow-x-hidden">
             <header className="sticky top-0 z-40 bg-[#0a0a0a]/95 backdrop-blur-sm border-b border-gray-800">
                 <div className="max-w-[1920px] mx-auto px-4 py-4">
                     <div className="flex items-center justify-between flex-wrap gap-4">
@@ -541,18 +711,48 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                     </div>
                 ) : (
                     <>
-                        {/* Help section - understand the numbers */}
-                        <div className="bg-[#0f0f0f] rounded-xl border border-gray-800 p-4 flex items-start gap-3">
-                            <Info size={20} className="text-emerald-500 shrink-0 mt-0.5" />
-                            <div>
-                                <h4 className="text-sm font-semibold text-white mb-1">
-                                    {t('goaccessStats.helpSectionTitle')}
-                                </h4>
-                                <p className="text-sm text-gray-400">
-                                    {t('goaccessStats.helpSectionDesc')}
-                                </p>
+                        {/* Help section - understand the numbers: visible by default, click on frame to hide; when hidden, show small icon to expand */}
+                        {helpSectionVisible ? (
+                            <div
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => {
+                                    setHelpSectionVisible(false);
+                                    persistHelpSectionVisible(false);
+                                }}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        setHelpSectionVisible(false);
+                                        persistHelpSectionVisible(false);
+                                    }
+                                }}
+                                className="bg-[#0f0f0f] rounded-xl border border-gray-800 p-4 flex items-start gap-3 cursor-pointer hover:border-gray-600 transition-colors"
+                                title={t('goaccessStats.helpSectionHide')}
+                            >
+                                <Info size={20} className="text-emerald-500 shrink-0 mt-0.5" />
+                                <div className="flex-1 min-w-0">
+                                    <h4 className="text-sm font-semibold text-white mb-1">
+                                        {t('goaccessStats.helpSectionTitle')}
+                                    </h4>
+                                    <p className="text-sm text-gray-400">
+                                        {t('goaccessStats.helpSectionDesc')}
+                                    </p>
+                                </div>
+                                <ChevronUp size={18} className="text-gray-500 shrink-0 mt-0.5" aria-hidden />
                             </div>
-                        </div>
+                        ) : (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setHelpSectionVisible(true);
+                                    persistHelpSectionVisible(true);
+                                }}
+                                className="flex items-center justify-center w-10 h-10 rounded-xl border border-gray-800 bg-[#0f0f0f] text-emerald-500 hover:border-gray-600 hover:bg-[#141414] transition-colors"
+                                title={t('goaccessStats.helpSectionShow')}
+                            >
+                                <Info size={20} />
+                            </button>
+                        )}
 
                         {/* KPI row */}
                         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
@@ -636,18 +836,30 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                             </div>
                         </div>
 
-                        {/* Stats KPI (extended overview) */}
+                        {/* Stats KPI (extended overview) - collapsible with chevron */}
                         {overview && (
-                            <div className="bg-[#121212] rounded-xl border border-gray-800 p-6">
-                                <h3 className="text-lg font-semibold text-white mb-4">
-                                    {t('goaccessStats.statsKpi')}
-                                </h3>
-                                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 text-sm">
-                                    <div title={t('goaccessStats.tipTotalRequests')}>
-                                        <span className="text-gray-500">{t('goaccessStats.totalRequests')}</span>
-                                        <div className="font-semibold text-white">{overview.totalRequests}</div>
+                            statsKpiVisible ? (
+                                <div className="bg-[#121212] rounded-xl border border-gray-800 overflow-hidden">
+                                    <div
+                                        role="button"
+                                        tabIndex={0}
+                                        onClick={() => setStatsKpiVisible(false)}
+                                        onKeyDown={(e) => e.key === 'Enter' && setStatsKpiVisible(false)}
+                                        className="flex items-center justify-between px-6 py-4 cursor-pointer hover:bg-[#1a1a1a] transition-colors"
+                                        title={t('goaccessStats.statsKpiHide')}
+                                    >
+                                        <h3 className="text-lg font-semibold text-white">
+                                            {t('goaccessStats.statsKpi')}
+                                        </h3>
+                                        <ChevronUp size={20} className="text-gray-500 shrink-0" aria-hidden />
                                     </div>
-                                    <div title={t('goaccessStats.tipValidRequests')}>
+                                    <div className="px-6 pb-6 pt-0">
+                                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 text-sm">
+                                            <div title={t('goaccessStats.tipTotalRequests')}>
+                                                <span className="text-gray-500">{t('goaccessStats.totalRequests')}</span>
+                                                <div className="font-semibold text-white">{overview.totalRequests}</div>
+                                            </div>
+                                            <div title={t('goaccessStats.tipValidRequests')}>
                                         <span className="text-gray-500">{t('goaccessStats.validRequests')}</span>
                                         <div className="font-semibold text-emerald-400">{overview.validRequests ?? 0}</div>
                                     </div>
@@ -683,8 +895,20 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                                             {formatDateRange(overview.dateFrom, overview.dateTo)}
                                         </div>
                                     </div>
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
+                            ) : (
+                                <button
+                                    type="button"
+                                    onClick={() => setStatsKpiVisible(true)}
+                                    className="flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-800 bg-[#121212] text-gray-400 hover:border-gray-600 hover:bg-[#1a1a1a] transition-colors"
+                                    title={t('goaccessStats.statsKpiShow')}
+                                >
+                                    <ChevronDown size={18} />
+                                    <span className="text-sm font-medium">{t('goaccessStats.statsKpi')}</span>
+                                </button>
+                            )
                         )}
 
                         {/* Timeline - Requêtes dans le temps (bar/curve + date/time axis) */}
@@ -692,10 +916,10 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                             <h3 className="text-lg font-semibold text-white mb-4">
                                 {t('goaccessStats.requestsOverTime')}
                             </h3>
-                            {timeseries.length > 0 ? (
+                            {trimmedTimeseries.length > 0 ? (
                                 <div className="w-full min-w-0">
                                     <TimelineChart
-                                        data={timeseries.map((b) => ({ label: b.label, count: b.count }))}
+                                        data={trimmedTimeseries.map((b) => ({ label: b.label, count: b.count }))}
                                         color="#10b981"
                                         height={140}
                                         formatLabel={(l) => formatTsLabel(l, getCurrentBucket())}
@@ -718,9 +942,9 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                                 <h3 className="text-lg font-semibold text-white mb-4">
                                     {t('goaccessStats.timeDistribution')}
                                 </h3>
-                                {timeseries.length > 0 ? (
+                                {trimmedTimeseries.length > 0 ? (
                                     <DualLineChart
-                                        data={timeseries.map((b) => ({
+                                        data={trimmedTimeseries.map((b) => ({
                                             label: b.label,
                                             count: b.count,
                                             uniqueVisitors: b.uniqueVisitors ?? 0
@@ -742,9 +966,9 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                                 <h3 className="text-lg font-semibold text-white mb-4">
                                     {t('goaccessStats.uniqueVisitorsChart')}
                                 </h3>
-                                {timeseriesDay.length > 0 ? (
+                                {trimmedTimeseries.length > 0 ? (
                                     <DualLineChart
-                                        data={timeseriesDay.map((b) => ({
+                                        data={trimmedTimeseries.map((b) => ({
                                             label: b.label,
                                             count: b.count,
                                             uniqueVisitors: b.uniqueVisitors ?? 0
@@ -752,7 +976,7 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                                         requestsLabel={t('goaccessStats.hits')}
                                         visitorsLabel={t('goaccessStats.visitors')}
                                         height={140}
-                                        formatLabel={(l) => formatTsLabel(l, 'day')}
+                                        formatLabel={(l) => formatTsLabel(l, getCurrentBucket())}
                                         xAxisTicks={6}
                                         showGrid
                                     />
@@ -827,7 +1051,7 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                                         const status = key.split(' | ')[1] ?? '';
                                         return getStatusColor(status);
                                     }}
-                                    maxKeyLength={45}
+                                    labelWidth={450}
                                     hitsLabel={t('goaccessStats.hits')}
                                     visitorsLabel={t('goaccessStats.visitors')}
                                     tableLayout
@@ -844,7 +1068,7 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                                 {referringSites.length > 0 ? (
                                     <DualBarChart
                                         data={referringSites}
-                                        maxKeyLength={35}
+                                        labelWidth={500}
                                         hitsLabel={t('goaccessStats.hits')}
                                         visitorsLabel={t('goaccessStats.visitors')}
                                         tableLayout
@@ -862,7 +1086,7 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                                 {hostWithVisitors.length > 0 ? (
                                     <DualBarChart
                                         data={hostWithVisitors}
-                                        maxKeyLength={35}
+                                        labelWidth={500}
                                         hitsLabel={t('goaccessStats.hits')}
                                         visitorsLabel={t('goaccessStats.visitors')}
                                         tableLayout
@@ -883,7 +1107,7 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                             {referrerWithVisitors.length > 0 ? (
                                 <DualBarChart
                                     data={referrerWithVisitors}
-                                    maxKeyLength={50}
+                                    labelWidth={600}
                                     hitsLabel={t('goaccessStats.hits')}
                                     visitorsLabel={t('goaccessStats.visitors')}
                                     tableLayout
@@ -915,16 +1139,11 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                                         </thead>
                                         <tbody>
                                             {urlsWithExtras.slice(0, 15).map((item, idx) => (
-                                                <tr key={`${item.key}-${idx}`} className="border-b border-gray-800/50">
-                                                    <td className="py-1.5 text-gray-300 truncate max-w-[200px]" title={item.key}>
-                                                        {item.key}
-                                                    </td>
-                                                    <td className="py-1.5 text-right text-white">{item.count}</td>
-                                                    <td className="py-1.5 text-right text-emerald-400">{item.uniqueVisitors}</td>
-                                                    <td className="py-1.5 text-right text-purple-300">{formatBytes(item.txAmount ?? 0)}</td>
-                                                    <td className="py-1.5 text-center text-gray-400">{item.method ?? '-'}</td>
-                                                    <td className="py-1.5 text-center text-gray-400">{item.protocol ?? '-'}</td>
-                                                </tr>
+                                                <RequestedFileTableRow
+                                                    key={`${item.key}-${idx}`}
+                                                    item={item}
+                                                    formatBytes={formatBytes}
+                                                />
                                             ))}
                                         </tbody>
                                     </table>
@@ -941,33 +1160,63 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                             <DistributionChart
                                 title={t('goaccessStats.httpStatusDistribution')}
                                 items={distStatus}
+                                labelMinWidth="4rem"
                             />
                             <DistributionChart
                                 title={t('goaccessStats.httpMethodsDistribution')}
                                 items={distMethods}
+                                labelMinWidth="7rem"
                             />
                         </div>
 
-                        {/* Top panels grid */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-                            <TopPanel title={t('goaccessStats.topUrls')} items={topUrls} />
-                            <TopPanel title={t('goaccessStats.topIps')} items={topIps} />
-                            <TopPanel title={t('goaccessStats.topStatus')} items={topStatus} />
-                            <TopPanel
-                                title={t('goaccessStats.topBrowsers')}
-                                items={topBrowsers}
-                                maxKeyLength={25}
-                            />
-                            <TopPanel
-                                title={t('goaccessStats.topUserAgents')}
-                                items={topUserAgents}
-                                maxKeyLength={35}
-                            />
-                            <TopPanel
-                                title={t('goaccessStats.topReferrers')}
-                                items={topReferrers}
-                                maxKeyLength={35}
-                            />
+                        {/* Top panels: URLs and Referrers on first row (2 cols), rest below */}
+                        <div className="space-y-4">
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                <TopPanel
+                                    title={t('goaccessStats.topUrls')}
+                                    items={topUrls}
+                                    maxKeyLength={80}
+                                    maxVisibleWithoutScroll={5}
+                                    scrollWhenCollapsed={false}
+                                />
+                                <TopPanel
+                                    title={t('goaccessStats.topReferrers')}
+                                    items={topReferrers}
+                                    maxKeyLength={80}
+                                    maxVisibleWithoutScroll={5}
+                                    scrollWhenCollapsed={false}
+                                />
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                <TopPanel
+                                    title={t('goaccessStats.topIps')}
+                                    items={topIps}
+                                    maxVisibleWithoutScroll={5}
+                                    scrollWhenCollapsed={false}
+                                />
+                                <TopPanel
+                                    title={t('goaccessStats.topStatus')}
+                                    items={topStatus}
+                                    maxVisibleWithoutScroll={5}
+                                    scrollWhenCollapsed={false}
+                                />
+                                <TopPanel
+                                    title={t('goaccessStats.topBrowsers')}
+                                    items={topBrowsers}
+                                    maxKeyLength={25}
+                                    maxVisibleWithoutScroll={5}
+                                    scrollWhenCollapsed={false}
+                                />
+                            </div>
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                <TopPanel
+                                    title={t('goaccessStats.topUserAgents')}
+                                    items={topUserAgents}
+                                    maxKeyLength={50}
+                                    maxVisibleWithoutScroll={5}
+                                    scrollWhenCollapsed={false}
+                                />
+                            </div>
                         </div>
                     </>
                 )}

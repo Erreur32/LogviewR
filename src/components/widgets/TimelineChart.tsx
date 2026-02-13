@@ -26,6 +26,128 @@ interface TimelineChartProps {
     curveLabel?: string;
 }
 
+interface CurveChartWithTooltipProps {
+    data: TimelineChartPoint[];
+    values: number[];
+    width: number;
+    padding: number;
+    curvePath: string;
+    areaPath: string;
+    gradientId: string;
+    color: string;
+    formatLabel?: (raw: string) => string;
+    valueLabel: string;
+    chartHeight: number;
+    xAxisLabels: { idx: number; label: string }[];
+}
+
+/** Curve mode with hover tooltips showing date/time and value. */
+const CurveChartWithTooltip: React.FC<CurveChartWithTooltipProps> = ({
+    data,
+    values,
+    width,
+    padding,
+    curvePath,
+    areaPath,
+    gradientId,
+    color,
+    formatLabel,
+    valueLabel,
+    chartHeight,
+    xAxisLabels
+}) => {
+    const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+    const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
+    const hoveredPoint = hoveredIdx != null ? data[hoveredIdx] : null;
+
+    const handleMouseLeave = () => {
+        setHoveredIdx(null);
+        setMousePos(null);
+    };
+
+    return (
+        <div className="relative">
+            <svg
+                viewBox={`0 0 ${width} 100`}
+                preserveAspectRatio="none"
+                className="w-full"
+                style={{ height: chartHeight }}
+                onMouseMove={(e) => hoveredIdx != null && setMousePos({ x: e.clientX, y: e.clientY })}
+                onMouseLeave={handleMouseLeave}
+            >
+                <defs>
+                    <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor={color} stopOpacity="0.3" />
+                        <stop offset="100%" stopColor={color} stopOpacity="0" />
+                    </linearGradient>
+                </defs>
+                <path d={areaPath} fill={`url(#${gradientId})`} />
+                <path
+                    d={curvePath}
+                    fill="none"
+                    stroke={color}
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    vectorEffect="non-scaling-stroke"
+                />
+                {/* Vertical grid lines */}
+                {data.length > 1 && xAxisLabels.slice(1, -1).map((x, i) => {
+                    const xPos = padding + (x.idx / (data.length - 1)) * (width - padding * 2);
+                    return (
+                        <line
+                            key={i}
+                            x1={xPos}
+                            y1={padding}
+                            x2={xPos}
+                            y2={100 - padding}
+                            stroke="rgba(255,255,255,0.08)"
+                            strokeWidth="0.5"
+                            strokeDasharray="2,2"
+                        />
+                    );
+                })}
+                {/* Invisible hover zones for tooltips */}
+                {data.length > 1 && data.map((_, idx) => {
+                    const x = padding + (idx / (data.length - 1)) * (width - padding * 2);
+                    const zoneWidth = (width - padding * 2) / Math.max(data.length - 1, 1) * 0.8;
+                    return (
+                        <rect
+                            key={idx}
+                            x={x - zoneWidth / 2}
+                            y={0}
+                            width={zoneWidth}
+                            height={100}
+                            fill="transparent"
+                            onMouseEnter={(e) => {
+                                setHoveredIdx(idx);
+                                setMousePos({ x: e.clientX, y: e.clientY });
+                            }}
+                        />
+                    );
+                })}
+            </svg>
+            {/* Hover tooltip - follows mouse cursor */}
+            {hoveredPoint && mousePos && (
+                <div
+                    className="fixed px-3 py-2.5 bg-gray-900/95 border border-gray-700 rounded-lg shadow-xl text-sm z-[9999] pointer-events-none max-w-[calc(100vw-2rem)] max-h-[50vh] overflow-y-auto"
+                    style={{
+                        minWidth: 160,
+                        left: Math.max(80, Math.min(mousePos.x, (typeof window !== 'undefined' ? window.innerWidth : 1920) - 80)),
+                        top: mousePos.y,
+                        transform: 'translate(-50%, -100%) translateY(-8px)'
+                    }}
+                >
+                    <div className="font-medium text-white mb-1 break-all">
+                        {formatLabel ? formatLabel(hoveredPoint.label) : hoveredPoint.label}
+                    </div>
+                    <div className="text-gray-300">{valueLabel}: {values[hoveredIdx]}</div>
+                </div>
+            )}
+        </div>
+    );
+};
+
 function generateCurvePath(values: number[], width: number, height: number, padding: number): string {
     if (values.length < 2) return '';
     const maxVal = Math.max(...values, 1);
@@ -126,47 +248,20 @@ export const TimelineChart: React.FC<TimelineChartProps> = ({
                         fadeFromBottom
                     />
                 ) : (
-                    <div className="relative">
-                        <svg
-                            viewBox={`0 0 ${width} 100`}
-                            preserveAspectRatio="none"
-                            className="w-full"
-                            style={{ height: height - 28 }}
-                        >
-                            <defs>
-                                <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="0%" stopColor={color} stopOpacity="0.3" />
-                                    <stop offset="100%" stopColor={color} stopOpacity="0" />
-                                </linearGradient>
-                            </defs>
-                            <path d={areaPath} fill={`url(#${gradientId})`} />
-                            <path
-                                d={curvePath}
-                                fill="none"
-                                stroke={color}
-                                strokeWidth="1.5"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                vectorEffect="non-scaling-stroke"
-                            />
-                            {/* Vertical grid lines */}
-                            {xAxisLabels.slice(1, -1).map((x, i) => {
-                                const xPos = padding + (x.idx / (data.length - 1)) * (width - padding * 2);
-                                return (
-                                    <line
-                                        key={i}
-                                        x1={xPos}
-                                        y1={padding}
-                                        x2={xPos}
-                                        y2={100 - padding}
-                                        stroke="rgba(255,255,255,0.08)"
-                                        strokeWidth="0.5"
-                                        strokeDasharray="2,2"
-                                    />
-                                );
-                            })}
-                        </svg>
-                    </div>
+                    <CurveChartWithTooltip
+                        data={data}
+                        values={values}
+                        width={width}
+                        padding={padding}
+                        curvePath={curvePath}
+                        areaPath={areaPath}
+                        gradientId={gradientId}
+                        color={color}
+                        formatLabel={formatLabel}
+                        valueLabel={valueLabel}
+                        chartHeight={height - 28}
+                        xAxisLabels={xAxisLabels}
+                    />
                 )}
 
                 {/* X-axis date/time labels */}
@@ -177,7 +272,7 @@ export const TimelineChart: React.FC<TimelineChartProps> = ({
                         return (
                             <span
                                 key={i}
-                                className="absolute text-[10px] text-gray-500 -translate-x-1/2"
+                                className="absolute text-[10px] text-gray-500 -translate-x-1/2 whitespace-nowrap max-w-[4rem] truncate"
                                 style={{ left: `${pct}%` }}
                                 title={x.label}
                             >

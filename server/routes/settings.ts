@@ -93,4 +93,53 @@ router.post('/theme', requireAuth, asyncHandler(async (req: AuthenticatedRequest
     }
 }));
 
+/**
+ * GET /api/settings/stats-ui
+ * Get Stats Logs page UI preferences (e.g. help section visibility)
+ */
+router.get('/stats-ui', requireAuth, asyncHandler(async (req: AuthenticatedRequest, res) => {
+    try {
+        const json = AppConfigRepository.get('stats_ui_config');
+        if (json) {
+            const config = JSON.parse(json);
+            res.json({
+                success: true,
+                result: {
+                    statsHelpSectionVisible: config.statsHelpSectionVisible !== false
+                }
+            });
+        } else {
+            res.json({
+                success: true,
+                result: { statsHelpSectionVisible: true }
+            });
+        }
+    } catch (error) {
+        logger.error('Settings', 'Failed to get stats-ui config:', error);
+        throw createError('Failed to get stats UI configuration', 500, 'STATS_UI_CONFIG_ERROR');
+    }
+}));
+
+/**
+ * POST /api/settings/stats-ui
+ * Update Stats Logs page UI preferences
+ */
+router.post('/stats-ui', requireAuth, asyncHandler(async (req: AuthenticatedRequest, res) => {
+    try {
+        const { statsHelpSectionVisible } = req.body;
+        const config = {
+            statsHelpSectionVisible: statsHelpSectionVisible !== false
+        };
+        AppConfigRepository.set('stats_ui_config', JSON.stringify(config));
+        res.json({
+            success: true,
+            result: config,
+            message: 'Stats UI preferences saved'
+        });
+    } catch (error) {
+        logger.error('Settings', 'Failed to save stats-ui config:', error);
+        throw createError('Failed to save stats UI configuration', 500, 'STATS_UI_CONFIG_ERROR');
+    }
+}));
+
 export default router;

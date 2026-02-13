@@ -2,6 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Prevent horizontal scrollbar when tooltips overflow viewport */
+html, body {
+  overflow-x: hidden;
+}
+
 @keyframes fadeInDown {
   from {
     opacity: 0;
@@ -10,6 +15,16 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/* Bar chart: grow from left on load */
+@keyframes barGrow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
   }
 }
 

@@ -7,6 +7,7 @@
  */
 
 import React, { useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 export interface DualLineChartPoint {
     label: string;
@@ -40,12 +41,14 @@ interface DualLineChartProps {
 /**
  * Generate smooth SVG path from points using quadratic bezier curves.
  * Uses shared maxVal so both series share the same Y scale.
+ * paddingX=0 so curves fill full width; paddingY for vertical margins.
  */
 function generatePath(
     values: number[],
     width: number,
     height: number,
-    padding: number,
+    paddingX: number,
+    paddingY: number,
     sharedMax: number
 ): string {
     if (values.length < 2) return '';
@@ -53,8 +56,8 @@ function generatePath(
     const range = sharedMax || 1;
 
     const points = values.map((value, index) => {
-        const x = padding + (index / (values.length - 1)) * (width - padding * 2);
-        const y = height - padding - ((value / range) * (height - padding * 2));
+        const x = paddingX + (index / (values.length - 1)) * (width - paddingX * 2);
+        const y = height - paddingY - ((value / range) * (height - paddingY * 2));
         return { x, y };
     });
 
@@ -76,10 +79,11 @@ function generateAreaPath(
     linePath: string,
     width: number,
     height: number,
-    padding: number
+    paddingX: number,
+    paddingY: number
 ): string {
     if (!linePath) return '';
-    return `${linePath} L ${width - padding} ${height - padding} L ${padding} ${height - padding} Z`;
+    return `${linePath} L ${width - paddingX} ${height - paddingY} L ${paddingX} ${height - paddingY} Z`;
 }
 
 export const DualLineChart: React.FC<DualLineChartProps> = ({
@@ -95,7 +99,8 @@ export const DualLineChart: React.FC<DualLineChartProps> = ({
     showGrid = true
 }) => {
     const width = 100; // viewBox width
-    const padding = 4;
+    const paddingX = 0; // no horizontal padding: curves fill full width
+    const paddingY = 4; // vertical padding for top/bottom margins
 
     const { requestsPath, visitorsPath, requestsAreaPath, visitorsAreaPath, maxVal } = useMemo(() => {
         if (!data || data.length < 2) {
@@ -112,14 +117,14 @@ export const DualLineChart: React.FC<DualLineChartProps> = ({
         const visitors = data.map((d) => d.uniqueVisitors ?? 0);
         const maxVal = Math.max(...requests, ...visitors, 1);
 
-        const reqPath = generatePath(requests, width, 100, padding, maxVal);
-        const visPath = generatePath(visitors, width, 100, padding, maxVal);
+        const reqPath = generatePath(requests, width, 100, paddingX, paddingY, maxVal);
+        const visPath = generatePath(visitors, width, 100, paddingX, paddingY, maxVal);
 
         return {
             requestsPath: reqPath,
             visitorsPath: visPath,
-            requestsAreaPath: generateAreaPath(reqPath, width, 100, padding),
-            visitorsAreaPath: generateAreaPath(visPath, width, 100, padding),
+            requestsAreaPath: generateAreaPath(reqPath, width, 100, paddingX, paddingY),
+            visitorsAreaPath: generateAreaPath(visPath, width, 100, paddingX, paddingY),
             maxVal
         };
     }, [data]);
@@ -153,7 +158,13 @@ export const DualLineChart: React.FC<DualLineChartProps> = ({
     }, [data, firstLabel, lastLabel, xAxisTicks]);
 
     const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+    const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
     const hoveredPoint = hoveredIdx != null ? data[hoveredIdx] : null;
+
+    const handleMouseLeave = () => {
+        setHoveredIdx(null);
+        setMousePos(null);
+    };
 
     return (
         <div className="rounded-lg border border-gray-800/50 bg-[#151515] overflow-hidden">
@@ -176,8 +187,8 @@ export const DualLineChart: React.FC<DualLineChartProps> = ({
                     <span className="text-xs font-medium text-emerald-400">({totalVisitors})</span>
                 </div>
             </div>
-            {/* Chart area with Y-axis and SVG */}
-            <div className="flex items-stretch gap-2">
+            {/* Chart area with Y-axis and SVG - gap-1 to keep Y-axis close to curves */}
+            <div className="flex items-stretch gap-1">
                 <div className="flex flex-col justify-between text-[10px] text-gray-500 shrink-0 py-1" style={{ height: height - 36 }}>
                     <span title="Maximum value">{maxVal}</span>
                     <span title="Zero">0</span>
@@ -188,7 +199,8 @@ export const DualLineChart: React.FC<DualLineChartProps> = ({
                 preserveAspectRatio="none"
                 className="w-full"
                 style={{ height: height - 32 }}
-                onMouseLeave={() => setHoveredIdx(null)}
+                onMouseMove={(e) => hoveredIdx != null && setMousePos({ x: e.clientX, y: e.clientY })}
+                onMouseLeave={handleMouseLeave}
             >
                 <defs>
                     <linearGradient id={gradientIdReq} x1="0" y1="0" x2="0" y2="1">
@@ -215,14 +227,14 @@ export const DualLineChart: React.FC<DualLineChartProps> = ({
                 )}
                 {/* Vertical grid lines for time reference */}
                 {showGrid && data.length > 1 && xAxisLabels.slice(1, -1).map((x, i) => {
-                    const xPos = padding + (x.idx / (data.length - 1)) * (width - padding * 2);
+                    const xPos = paddingX + (x.idx / (data.length - 1)) * (width - paddingX * 2);
                     return (
                         <line
                             key={i}
                             x1={xPos}
-                            y1={padding}
+                            y1={paddingY}
                             x2={xPos}
-                            y2={100 - padding}
+                            y2={100 - paddingY}
                             stroke="rgba(255,255,255,0.08)"
                             strokeWidth="0.5"
                             strokeDasharray="2,2"
@@ -251,10 +263,10 @@ export const DualLineChart: React.FC<DualLineChartProps> = ({
                         vectorEffect="non-scaling-stroke"
                     />
                 )}
-                {/* Invisible hover zones for tooltips */}
+                {/* Invisible hover zones for tooltips - overlap slightly for easier hover */}
                 {data.length > 1 && data.map((_, idx) => {
-                    const x = padding + (idx / (data.length - 1)) * (width - padding * 2);
-                    const zoneWidth = (width - padding * 2) / Math.max(data.length - 1, 1) * 0.8;
+                    const x = paddingX + (idx / (data.length - 1)) * (width - paddingX * 2);
+                    const zoneWidth = Math.max((width - paddingX * 2) / Math.max(data.length - 1, 1) * 1.2, 3);
                     return (
                         <rect
                             key={idx}
@@ -263,7 +275,11 @@ export const DualLineChart: React.FC<DualLineChartProps> = ({
                             width={zoneWidth}
                             height={100}
                             fill="transparent"
-                            onMouseEnter={() => setHoveredIdx(idx)}
+                            style={{ cursor: 'crosshair' }}
+                            onMouseEnter={(e) => {
+                                setHoveredIdx(idx);
+                                setMousePos({ x: e.clientX, y: e.clientY });
+                            }}
                         />
                     );
                 })}
@@ -276,7 +292,7 @@ export const DualLineChart: React.FC<DualLineChartProps> = ({
                     return (
                         <span
                             key={i}
-                            className="absolute text-[10px] text-gray-500 -translate-x-1/2"
+                            className="absolute text-[10px] text-gray-500 -translate-x-1/2 whitespace-nowrap max-w-[4rem] truncate"
                             style={{ left: `${pct}%` }}
                             title={x.label}
                         >
@@ -285,18 +301,24 @@ export const DualLineChart: React.FC<DualLineChartProps> = ({
                     );
                 })}
             </div>
-            {/* Hover tooltip */}
-            {hoveredPoint && (
+            {/* Hover tooltip - follows mouse cursor, rendered in body to avoid overflow clipping */}
+            {hoveredPoint && mousePos && createPortal(
                 <div
-                    className="absolute bottom-8 left-1/2 -translate-x-1/2 px-3 py-2 bg-gray-900/95 border border-gray-700 rounded-lg shadow-xl text-xs z-50 pointer-events-none"
-                    style={{ minWidth: 140 }}
+                    className="fixed px-3 py-2.5 bg-gray-900/95 border border-gray-700 rounded-lg shadow-xl text-sm z-[9999] pointer-events-none max-w-[calc(100vw-2rem)] max-h-[50vh] overflow-y-auto"
+                    style={{
+                        minWidth: 160,
+                        left: Math.max(80, Math.min(mousePos.x, (typeof window !== 'undefined' ? window.innerWidth : 1920) - 80)),
+                        top: mousePos.y,
+                        transform: 'translate(-50%, -100%) translateY(-8px)'
+                    }}
                 >
-                    <div className="font-medium text-white mb-1">
+                    <div className="font-medium text-white mb-1 break-all">
                         {formatLabel ? formatLabel(hoveredPoint.label) : hoveredPoint.label}
                     </div>
                     <div className="text-gray-300">{requestsLabel}: {hoveredPoint.count}</div>
-                    <div className="text-emerald-400">{visitorsLabel}: {hoveredPoint.uniqueVisitors ?? 0}</div>
-                </div>
+                    <div className="text-emerald-600">{visitorsLabel}: {hoveredPoint.uniqueVisitors ?? 0}</div>
+                </div>,
+                document.body
             )}
             </div>
             </div>
