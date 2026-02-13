@@ -28,6 +28,41 @@ html, body {
   }
 }
 
+/* Stats Logs header - modern select/input styling */
+.stats-header-select,
+.stats-header-input {
+  background-color: #161616;
+  border: 1px solid rgba(55, 65, 81, 0.8);
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  color: white;
+  transition: all 0.2s;
+}
+.stats-header-select:focus,
+.stats-header-input:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.4);
+  border-color: rgba(16, 185, 129, 0.6);
+}
+.stats-header-select:hover,
+.stats-header-input:hover {
+  border-color: rgb(75, 85, 99);
+}
+.stats-header-select {
+  min-width: 120px;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%239ca3af'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.5rem center;
+  background-size: 1rem;
+  padding-right: 2rem;
+}
+.stats-header-input::-webkit-calendar-picker-indicator {
+  filter: invert(0.7);
+  cursor: pointer;
+}
+
 /* Clock LED: soft breathing glow using theme accent */
 @keyframes clockLedGlow {
   0%, 100% {

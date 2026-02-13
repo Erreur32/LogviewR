@@ -177,7 +177,7 @@ export const TimelineChart: React.FC<TimelineChartProps> = ({
     barLabel = 'Barres',
     curveLabel = 'Courbe'
 }) => {
-    const [mode, setMode] = useState<'bar' | 'curve'>('bar');
+    const [mode, setMode] = useState<'bar' | 'curve'>('curve');
     const width = 100;
     const padding = 4;
 

@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.2.6] - 2026-02-13
+
+### Added
+
+#### Stats Logs – Stats KPI et modal explicatif
+- **Modal « Qu'est-ce qu'un KPI ? »** : bouton Info à côté du titre Stats KPI ouvre un modal explicatif (définition, contexte des logs HTTP, cas d'usage). Fermeture par clic extérieur, touche Escape ou bouton Fermer.
+- **Traductions** : `kpiModalTitle`, `kpiModalIntro`, `kpiModalLogs`, `kpiModalUse`, `kpiModalClose` (fr/en).
+
+### Changed
+
+#### Stats Logs – Affichage et UX
+- **Stats KPI améliorés** : chaque indicateur dans une carte avec bordure, icônes (Activity, Globe, AlertTriangle, FileText, HardDrive), grille 2/3/5 colonnes selon écran, valeurs en `text-lg`.
+- **Requêtes dans le temps** : affichage par défaut en mode **courbe** au lieu des barres (TimelineChart).
+
+---
+
 ## [0.2.5] - 2026-02-13
 
 ### Added
@@ -626,6 +642,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+[0.2.6]: https://github.com/Erreur32/LogviewR/releases/tag/v0.2.6
 [0.2.5]: https://github.com/Erreur32/LogviewR/releases/tag/v0.2.5
 [0.2.2]: https://github.com/Erreur32/LogviewR/releases/tag/v0.2.2
 [0.2.1]: https://github.com/Erreur32/LogviewR/releases/tag/v0.2.1
