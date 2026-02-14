@@ -52,6 +52,9 @@ export const AUTO_REFRESH_INTERVALS_MS = [2000, 5000, 10000, 15000, 30000] as co
 export const AUTO_REFRESH_DEFAULT_MS = 5000;
 export const AUTO_REFRESH_STORAGE_KEY = 'logviewer_auto_refresh_interval_ms';
 
+/** User preference: hide empty files in log file selector (default: true) */
+export const HIDE_EMPTY_FILES_STORAGE_KEY = 'logviewr_hide_empty_files';
+
 // API endpoints (relative to proxy)
 export const API_ROUTES = {
   // Auth
