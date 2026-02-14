@@ -9,6 +9,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.2.7] - 2026-02-13
+
+### Fixed
+
+#### Log Viewer – Fichiers volumineux
+- **Stack overflow sur gros fichiers** : avec des logs de 45 Mo ou plus, le calcul de la plage de dates (`logDateRange`) provoquait « Maximum call stack size exceeded » à cause de `Math.min(...timestamps)`. Remplacement par une boucle `for` pour éviter le dépassement de pile.
+
+### Added
+
+#### Log Viewer – Fichier par défaut à la première utilisation
+- **Sélection automatique** : pour NPM, Nginx et Apache, un fichier access log par défaut est sélectionné lorsque l’utilisateur ouvre le visualiseur pour la première fois (sans dernier fichier ni réglage personnalisé).
+- **Priorité par plugin** : NPM → `default-host_access.log` ou premier `proxy-host-*_access.log` ; Nginx/Apache → `access.log`.
+
+#### Sélecteur de fichiers – Option « Sans vides »
+- **Toggle « Sans vides »** : remplace la checkbox « Masquer fichiers vides » par un toggle moderne (style Stats Logs).
+- **Valeur par défaut** : activé par défaut (masque les fichiers .gz et 0 octets).
+- **Persistance** : préférence utilisateur enregistrée dans `localStorage` (`logviewr_hide_empty_files`).
+
+### Changed
+
+#### Log Viewer – UX
+- **Libellé raccourci** : « Sans vides » (FR) / « Hide empty » (EN) au lieu de « Masquer fichiers vides ».
+
+---
+
 ## [0.2.6] - 2026-02-13
 
 ### Added
@@ -642,6 +667,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+[0.2.7]: https://github.com/Erreur32/LogviewR/releases/tag/v0.2.7
 [0.2.6]: https://github.com/Erreur32/LogviewR/releases/tag/v0.2.6
 [0.2.5]: https://github.com/Erreur32/LogviewR/releases/tag/v0.2.5
 [0.2.2]: https://github.com/Erreur32/LogviewR/releases/tag/v0.2.2

@@ -663,7 +663,9 @@
     "methodPatch": "Partial update",
     "methodDelete": "Resource deletion",
     "methodHttp": "HTTP method",
-    "methodTooltip": "HTTP method: {{method}} - {{desc}}"
+    "methodTooltip": "HTTP method: {{method}} - {{desc}}",
+    "hideEmptyFiles": "Hide empty",
+    "hideEmptyFilesTooltip": "Hide .gz and empty files (0 bytes)"
   },
   "footer": {
     "analyticsTooltip": "Statistics and detailed info",

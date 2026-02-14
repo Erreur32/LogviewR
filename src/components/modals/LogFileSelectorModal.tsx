@@ -2,14 +2,17 @@
  * Log File Selector Modal
  *
  * Modal for selecting log files from available files.
- * Options: search by filename, show only non-.gz files with data (hide empty).
+ * Options: search by filename, hide empty files (.gz and 0-byte files).
+ * User preference for "hide empty" is persisted in localStorage.
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { X, FileText, Search, Filter } from 'lucide-react';
+import { X, FileText, Search, EyeOff } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { LogFileSelector } from '../log-viewer/LogFileSelector';
 import type { LogFileInfo } from '../../types/logViewer';
 import { usePluginStore } from '../../stores/pluginStore';
+import { HIDE_EMPTY_FILES_STORAGE_KEY } from '../../utils/constants';
 
 interface LogFileSelectorModalProps {
     isOpen: boolean;
@@ -30,21 +33,36 @@ export const LogFileSelectorModal: React.FC<LogFileSelectorModalProps> = ({
     pluginName,
     pluginId
 }) => {
+    const { t } = useTranslation();
     const { plugins } = usePluginStore();
     const [fileSearchQuery, setFileSearchQuery] = useState('');
-    const [showOnlyNonGzWithData, setShowOnlyNonGzWithData] = useState(false);
+    const [showOnlyNonGzWithData, setShowOnlyNonGzWithData] = useState(() => {
+        try {
+            const stored = localStorage.getItem(HIDE_EMPTY_FILES_STORAGE_KEY);
+            if (stored !== null) return stored === 'true';
+        } catch {
+            /* ignore */
+        }
+        return true; // Default: hide empty files
+    });
+
+    // Persist user preference when changed
+    useEffect(() => {
+        try {
+            localStorage.setItem(HIDE_EMPTY_FILES_STORAGE_KEY, String(showOnlyNonGzWithData));
+        } catch {
+            /* ignore */
+        }
+    }, [showOnlyNonGzWithData]);
 
     // Get readCompressed setting from plugin
     const readCompressed = pluginId
         ? (plugins.find(p => p.id === pluginId)?.settings?.readCompressed as boolean) ?? false
         : false;
 
-    // Reset options when modal closes
+    // Reset search when modal closes (keep hide-empty preference)
     useEffect(() => {
-        if (!isOpen) {
-            setFileSearchQuery('');
-            setShowOnlyNonGzWithData(false);
-        }
+        if (!isOpen) setFileSearchQuery('');
     }, [isOpen]);
 
     // Force re-render when files change (for plugin switching)
@@ -122,15 +140,23 @@ export const LogFileSelectorModal: React.FC<LogFileSelectorModalProps> = ({
                                 className="flex-1 px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
                             />
                         </div>
-                        <label className="flex items-center gap-2 cursor-pointer select-none text-sm text-gray-300 hover:text-gray-200">
-                            <input
-                                type="checkbox"
-                                checked={showOnlyNonGzWithData}
-                                onChange={(e) => setShowOnlyNonGzWithData(e.target.checked)}
-                                className="rounded border-gray-600 bg-[#1a1a1a] text-cyan-500 focus:ring-cyan-500 focus:ring-offset-0"
-                            />
-                            <Filter size={16} className="text-gray-500 flex-shrink-0" />
-                            <span>Masquer fichiers vides</span>
+                        <label
+                            className="flex items-center gap-2.5 cursor-pointer group"
+                            title={t('logViewer.hideEmptyFilesTooltip')}
+                        >
+                            <span className="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full bg-gray-700/80 transition-colors duration-200 ease-in-out focus-within:ring-2 focus-within:ring-cyan-500/50 focus-within:ring-offset-2 focus-within:ring-offset-[#0a0a0a] group-hover:bg-gray-600/80">
+                                <input
+                                    type="checkbox"
+                                    checked={showOnlyNonGzWithData}
+                                    onChange={(e) => setShowOnlyNonGzWithData(e.target.checked)}
+                                    className="peer sr-only"
+                                />
+                                <span className="pointer-events-none inline-block h-5 w-5 translate-x-0.5 rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out peer-checked:translate-x-5 peer-checked:bg-emerald-500" />
+                            </span>
+                            <EyeOff size={14} className="text-gray-500 group-hover:text-cyan-500/70 transition-colors flex-shrink-0" />
+                            <span className="text-sm text-gray-300 group-hover:text-gray-200 transition-colors">
+                                {t('logViewer.hideEmptyFiles')}
+                            </span>
                         </label>
                     </div>
                 )}

@@ -149,6 +149,31 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
         return null;
     };
 
+    /**
+     * Pick plugin-specific default access log for first-time use (when no last file, no settings default).
+     * NPM: default-host_access.log, else first proxy-host-*_access.log. Nginx/Apache: access.log.
+     */
+    const getPluginDefaultAccessLog = useCallback((pluginId: string, files: LogFileInfo[]): { path: string; type: string } | null => {
+        const valid = files.filter(f => f.readable !== false && (f.size ?? 0) > 0);
+        if (valid.length === 0) return null;
+        const basename = (p: string) => p.split('/').pop()?.toLowerCase() ?? '';
+        if (pluginId === 'npm') {
+            const defaultHost = valid.find(f => basename(f.path) === 'default-host_access.log');
+            if (defaultHost) return { path: defaultHost.path, type: defaultHost.type };
+            const proxyAccess = valid.filter(f => /^proxy-host-[^_]+_access\.log/.test(basename(f.path)));
+            if (proxyAccess.length > 0) return { path: proxyAccess[0].path, type: proxyAccess[0].type };
+            const anyAccess = valid.find(f => f.type === 'access' || basename(f.path).includes('access'));
+            return anyAccess ? { path: anyAccess.path, type: anyAccess.type } : null;
+        }
+        if (pluginId === 'nginx' || pluginId === 'apache') {
+            const exactAccess = valid.find(f => basename(f.path) === 'access.log');
+            if (exactAccess) return { path: exactAccess.path, type: exactAccess.type };
+            const accessLike = valid.find(f => basename(f.path).startsWith('access.log') || basename(f.path).includes('access'));
+            return accessLike ? { path: accessLike.path, type: accessLike.type } : null;
+        }
+        return null;
+    }, []);
+
     // Initialize plugin if provided or from sessionStorage
     // Force update when pluginId changes (from dashboard or footer)
     useEffect(() => {
@@ -295,6 +320,10 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
                                     }
                                 }
                             }
+                            // Fallback: plugin-specific default access log (first-time use)
+                            if (!fileToLoad && (selectedPluginId === 'npm' || selectedPluginId === 'nginx' || selectedPluginId === 'apache')) {
+                                fileToLoad = getPluginDefaultAccessLog(selectedPluginId, mappedFiles);
+                            }
                             
                             if (fileToLoad) {
                                 setSelectedFile(null, fileToLoad.path, fileToLoad.type);
@@ -341,7 +370,7 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
         return () => {
             isCancelled = true;
         };
-    }, [selectedPluginId, pluginName, setLoading, setError, setSelectedFile]);
+    }, [selectedPluginId, pluginName, setLoading, setError, setSelectedFile, initialDefaultLogFile, getPluginDefaultAccessLog]);
 
     // Load raw logs (without parsing)
     const loadRawLogs = useCallback(async (filePath: string) => {
@@ -569,8 +598,16 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
             return undefined;
         }
 
-        const min = new Date(Math.min(...timestamps.map(d => d.getTime())));
-        const max = new Date(Math.max(...timestamps.map(d => d.getTime())));
+        // Avoid Math.min/max with spread: stack overflow on huge logs (e.g. 45MB)
+        let minTime = Infinity;
+        let maxTime = -Infinity;
+        for (const d of timestamps) {
+            const t = d.getTime();
+            if (t < minTime) minTime = t;
+            if (t > maxTime) maxTime = t;
+        }
+        const min = new Date(minTime);
+        const max = new Date(maxTime);
 
         return { min, max };
     }, [logs]);

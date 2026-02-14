@@ -10,7 +10,7 @@
 
 <img src="LogviewR_banner.svg" alt="LogviewR" width="512" height="256" />
 
-![LogviewR](https://img.shields.io/badge/LogviewR-0.2.6-111827?style=for-the-badge)
+![LogviewR](https://img.shields.io/badge/LogviewR-0.2.7-111827?style=for-the-badge)
 ![Status](https://img.shields.io/badge/Status-DEVELOPMENT-374151?style=for-the-badge)
 ![Docker](https://img.shields.io/badge/Docker-Ready-1f2937?style=for-the-badge&logo=docker&logoColor=38bdf8)
 ![React](https://img.shields.io/badge/React-19-111827?style=for-the-badge&logo=react&logoColor=38bdf8)
@@ -52,7 +52,7 @@
 - 📊 **Statistiques** : Tableaux de bord avec statistiques détaillées par plugin
 - 🔐 **Sécurisé** : Authentification JWT, gestion des rôles, permissions par plugin
 - 🐳 **Docker-ready** : Déploiement simplifié avec Docker Compose
-- ⚡ **Performant** : Optimisations pour gérer des milliers de fichiers de logs
+- ⚡ **Performant** : Optimisations pour gérer des milliers de fichiers de logs (y compris fichiers volumineux 45 Mo+)
 
 ---
 
@@ -63,6 +63,8 @@
 - **Tableau interactif** : Colonnes dynamiques selon le type de log
 - **Tri adaptatif** : Tri automatique par type (date, nombre, IP, texte)
 - **Badges colorés** : Visualisation intuitive des niveaux, codes HTTP, IP, hostnames
+- **Fichier par défaut** : À la première utilisation, NPM/Nginx/Apache ouvrent automatiquement un access log par défaut (`default-host_access.log`, `access.log`)
+- **Option « Sans vides »** : Toggle pour masquer les fichiers vides et .gz dans le sélecteur (préférence mémorisée)
  
 ### Filtres et recherche
 
