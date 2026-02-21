@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.3.0] - 2026-02-13
+
+### Security
+
+- **Dépendances (npm overrides)** : Correction des vulnérabilités signalées par Dependabot et `npm audit`.
+  - **minimatch** : override `>=10.2.1` pour corriger le ReDoS (CVE, patterns avec wildcards répétés). Dépendance transitive via bcrypt → node-pre-gyp → rimraf → glob → minimatch.
+  - **tar** : override `>=7.5.9` pour corriger l’arbitrary file read/write via hardlink (CVE). Dépendance transitive via bcrypt → node-pre-gyp → tar.
+  - Après `npm install`, `npm audit` affiche 0 vulnérabilités.
+
+---
+
 ## [0.2.8] - 2026-02-13
 
 ### Added

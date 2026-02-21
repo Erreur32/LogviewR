@@ -62,7 +62,7 @@ router.get('/environment', asyncHandler(async (_req, res) => {
   }
   
   // Read app version
-  let appVersion = '0.2.8';
+  let appVersion = '0.3.0';
   try {
     const packageJsonPath = path.join(__dirname, '..', '..', 'package.json');
     const packageJson = JSON.parse(fsSync.readFileSync(packageJsonPath, 'utf8'));
