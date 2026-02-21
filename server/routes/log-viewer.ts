@@ -21,6 +21,8 @@ import { generateRegexFromLogLine } from '../services/regexGeneratorService.js';
 import { APACHE_ACCESS_VHOST_COMBINED_REGEX } from '../plugins/apache/ApacheParser.js';
 import { APACHE_REGEX_KEYS, getApacheRegexKeyForPath, NPM_REGEX_KEYS, getNpmRegexKeyForPath, NGINX_REGEX_KEYS, getNginxRegexKeyForPath } from '../services/logParserService.js';
 import { getAllAnalytics } from '../services/logAnalyticsService.js';
+import { getErrorSummaryWithMeta, getErrorSummaryProgress, invalidateErrorSummaryCache } from '../services/errorSummaryService.js';
+import { getErrorAnalysisConfig } from '../config/errorAnalysisConfig.js';
 
 const router = Router();
 
@@ -700,6 +702,68 @@ router.get('/plugins/:pluginId/files-direct', async (req, res) => {
         logger.error('LogViewer', 'Error listing files directly:', error);
         res.status(500).json({ 
             error: 'Failed to list log files',
+            message: error instanceof Error ? error.message : String(error)
+        });
+    }
+});
+
+/**
+ * POST /api/log-viewer/error-summary/invalidate
+ * Invalidates the error-summary cache so the next GET /error-summary will run a full rescan.
+ * Used by the dashboard card "Refresh" button to force a fresh scan.
+ */
+router.post('/error-summary/invalidate', (req, res) => {
+    try {
+        invalidateErrorSummaryCache();
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to invalidate cache' });
+    }
+});
+
+/**
+ * GET /api/log-viewer/error-summary/progress
+ * Returns current progress messages while error-summary is being computed (for live UI).
+ */
+router.get('/error-summary/progress', (req, res) => {
+    try {
+        const steps = getErrorSummaryProgress();
+        res.json({ success: true, result: { steps } });
+    } catch (error) {
+        res.json({ success: true, result: { steps: [] } });
+    }
+});
+
+/**
+ * GET /api/log-viewer/error-summary
+ * Returns error log files with error counts and unique samples by severity (for dashboard).
+ * When error summary is disabled in settings, returns { enabled: false, files: [] } without scanning.
+ */
+router.get('/error-summary', async (req, res) => {
+    logger.info('LogViewer', 'GET /error-summary requested');
+    try {
+        const config = getErrorAnalysisConfig();
+        if (!config.errorSummaryEnabled) {
+            res.json({ success: true, result: { enabled: false, files: [] } });
+            return;
+        }
+        const { result, fromCache, cacheAgeMs } = await getErrorSummaryWithMeta();
+        const fileCount = result?.files?.length ?? 0;
+        logger.info('LogViewer', `GET /error-summary OK, files: ${fileCount}, fromCache: ${fromCache}`);
+        res.json({
+            success: true,
+            result: {
+                enabled: true,
+                files: result.files,
+                analysisErrors: result.analysisErrors ?? [],
+                fromCache: !!fromCache,
+                cacheAgeMs: fromCache ? cacheAgeMs : 0
+            }
+        });
+    } catch (error) {
+        logger.error('LogViewer', 'Error summary failed:', error);
+        res.status(500).json({
+            error: 'Failed to get error summary',
             message: error instanceof Error ? error.message : String(error)
         });
     }

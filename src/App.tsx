@@ -5,8 +5,8 @@ import {
   BarChart,
   DevicesList,
   HistoryLog,
-  LogPluginStatsCard,
-  LogHistoryCard
+  LogHistoryCard,
+  ErrorFilesCard
 } from './components/widgets';
 import { ActionButton, UnsupportedFeature } from './components/ui';
 import { UserLoginModal, UserRegistrationModal } from './components/modals';
@@ -568,30 +568,15 @@ const App: React.FC = () => {
             </div>
           ) : (
             <>
-              {/* Groupe : cartes plugins (alignées sur la même ligne) */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-                {plugins
-                  .filter(p => p.enabled && (p.id === 'host-system' || p.id === 'nginx' || p.id === 'apache' || p.id === 'npm'))
-                  .sort((a, b) => {
-                    const order = ['host-system', 'apache', 'npm', 'nginx'];
-                    const aIndex = order.indexOf(a.id);
-                    const bIndex = order.indexOf(b.id);
-                    if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
-                    if (aIndex !== -1) return -1;
-                    if (bIndex !== -1) return 1;
-                    return 0;
-                  })
-                  .map(plugin => (
-                    <LogPluginStatsCard
-                      key={plugin.id}
-                      pluginId={plugin.id}
-                      pluginName={plugin.name}
-                      onViewLogs={() => {
-                        setSelectedPluginId(plugin.id);
-                        setCurrentPage('log-viewer');
-                      }}
-                    />
-                  ))}
+              {/* Fichiers avec erreurs (error logs) – remplace les cartes plugins sur le dashboard */}
+              <div className="mb-8">
+                <ErrorFilesCard
+                  onOpenFile={(pluginId, filePath, _logType) => {
+                    setSelectedPluginId(pluginId);
+                    setDefaultLogFile(filePath);
+                    setCurrentPage('log-viewer');
+                  }}
+                />
               </div>
 
               {/* Message si aucun plugin activé */}
@@ -603,7 +588,7 @@ const App: React.FC = () => {
                 </div>
               )}
 
-              {/* Groupe : historique des logs (entrées en plusieurs colonnes) */}
+              {/* Historique des logs */}
               <LogHistoryCard
                 onOpenLog={(entry) => {
                   setSelectedPluginId(entry.pluginId);

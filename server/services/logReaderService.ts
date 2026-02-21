@@ -217,29 +217,64 @@ export class LogReaderService {
         } catch (error: any) {
             // Handle specific errors gracefully
             if (error?.code === 'Z_DATA_ERROR') {
-                // Corrupted gzip file - return empty array instead of throwing
-                // Skip silently - we're not handling compressed files for now
-                return lines; // Return empty array - file is unreadable but that's OK
-            }
-            
-            // Handle permission errors gracefully
-            if (error?.code === 'EACCES' || error?.code === 'EPERM') {
-                // Permission denied - return empty array
-                // Log only in debug mode (permissions are a known constraint)
-                if (process.env.DEBUG === 'true' || process.env.NODE_ENV === 'development') {
-                    console.debug(`[LogReaderService] Permission denied for ${filePath}: ${error.message}`);
-                }
-                return lines; // Return empty array - file is not accessible
-            }
-            
-            // Handle file not found gracefully
-            if (error?.code === 'ENOENT') {
-                // File doesn't exist - return empty array
+                // Corrupted gzip - return empty array instead of throwing
                 return lines;
             }
-            
-            // Other errors should be logged and thrown (unexpected errors)
+            if (error?.code === 'EACCES' || error?.code === 'EPERM' || error?.code === 'ENOENT') {
+                return lines;
+            }
             console.error(`[LogReaderService] Unexpected error reading file ${filePath}:`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * Read the last N lines of a log file (tail). Uses a sliding window to avoid loading the whole file.
+     * @param filePath Path to log file
+     * @param maxLines Maximum number of lines to return (from the end)
+     * @param options Read options
+     * @returns Array of log lines (last maxLines)
+     */
+    async readLastLines(filePath: string, maxLines: number, options: ReadLogOptions = {}): Promise<LogLine[]> {
+        const { encoding = this.DEFAULT_ENCODING, readCompressed = false } = options;
+        const sliding: LogLine[] = [];
+        let lineNumber = 0;
+
+        try {
+            const fileInfo = await this.getFileInfo(filePath);
+            if (!fileInfo.exists || !fileInfo.readable) {
+                return [];
+            }
+
+            let stream: NodeJS.ReadableStream;
+            if (fileInfo.compressed) {
+                if (!readCompressed || !filePath.toLowerCase().endsWith('.gz')) {
+                    return [];
+                }
+                stream = createReadStream(filePath).pipe(zlib.createGunzip());
+            } else {
+                stream = createReadStream(filePath, { encoding });
+            }
+
+            const rl = createInterface({ input: stream, crlfDelay: Infinity });
+
+            for await (const line of rl) {
+                lineNumber++;
+                sliding.push({
+                    line,
+                    lineNumber,
+                    filePath
+                });
+                if (sliding.length > maxLines) {
+                    sliding.shift();
+                }
+            }
+
+            return sliding;
+        } catch (error: any) {
+            if (error?.code === 'EACCES' || error?.code === 'EPERM' || error?.code === 'ENOENT' || error?.code === 'Z_DATA_ERROR') {
+                return [];
+            }
             throw error;
         }
     }
@@ -511,56 +546,7 @@ export class LogReaderService {
         }
     }
 
-    /**
-     * Read last N lines of a file (efficient for large files)
-     */
-    async readLastLines(filePath: string, numLines: number = 100): Promise<LogLine[]> {
-        try {
-            const fileInfo = await this.getFileInfo(filePath);
-            if (!fileInfo.exists || !fileInfo.readable) {
-                return [];
-            }
-
-            // For large files, read from the end
-            const stats = await fs.stat(filePath);
-            const fileSize = stats.size;
-            const chunkSize = Math.min(8192, fileSize); // Read in 8KB chunks
-            const buffer = Buffer.alloc(chunkSize);
-
-            let position = Math.max(0, fileSize - chunkSize);
-            let lines: string[] = [];
-            let remainingBytes = '';
-
-            while (lines.length < numLines && position >= 0) {
-                const fd = await fs.open(filePath, 'r');
-                const { bytesRead } = await fd.read(buffer, 0, chunkSize, position);
-                await fd.close();
-
-                const chunk = buffer.toString('utf8', 0, bytesRead);
-                const allText = chunk + remainingBytes;
-                const chunkLines = allText.split(/\r?\n/);
-                
-                // First line might be incomplete, save it for next iteration
-                remainingBytes = chunkLines[0] || '';
-                
-                // Add complete lines (reverse order)
-                lines.unshift(...chunkLines.slice(1).reverse());
-
-                position -= chunkSize;
-            }
-
-            // Take only the last numLines
-            const lastLines = lines.slice(-numLines);
-            return lastLines.map((line, index) => ({
-                line: line,
-                lineNumber: lines.length - numLines + index + 1,
-                filePath: filePath
-            }));
-        } catch (error) {
-            console.error(`[LogReaderService] Error reading last lines from ${filePath}:`, error);
-            throw error;
-        }
-    }
+  
 
     /**
      * Detect log rotation (when a log file is rotated)

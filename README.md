@@ -10,7 +10,7 @@
 
 <img src="LogviewR_banner.svg" alt="LogviewR" width="512" height="256" />
 
-![LogviewR](https://img.shields.io/badge/LogviewR-0.2.7-111827?style=for-the-badge)
+![LogviewR](https://img.shields.io/badge/LogviewR-0.2.8-111827?style=for-the-badge)
 ![Status](https://img.shields.io/badge/Status-DEVELOPMENT-374151?style=for-the-badge)
 ![Docker](https://img.shields.io/badge/Docker-Ready-1f2937?style=for-the-badge&logo=docker&logoColor=38bdf8)
 ![React](https://img.shields.io/badge/React-19-111827?style=for-the-badge&logo=react&logoColor=38bdf8)
@@ -84,6 +84,7 @@
 - **Plus gros fichiers** : Top 10 des fichiers les plus volumineux
 - **Statistiques en temps réel** : Mise à jour automatique des statistiques
 - **Tableaux de bord** : Vue d'ensemble de tous les plugins actifs
+- **Analyse / Journaux d'erreur** : Carte dashboard qui scanne les fichiers d'erreur et access des plugins **Apache, Nginx, NPM** (tags [error]/[warn] + codes HTTP 3xx/4xx/5xx) et les **logs système (host-system)** (syslog, auth.log, kern.log, etc.) avec détection des tags error/warn au format syslog. Résultats par plugin, badges 4xx/5xx et error/warn, détail par fichier. Voir [Audit intégration host-system](Doc_Dev/AUDIT_ERROR_SUMMARY_HOST_SYSTEM.md).
 - **Stats Logs (style GoAccess)** : Page plein écran avec graphiques (KPI, Stats KPI, timeline, Time Distribution, Unique Visitors, HTTP Status Codes, Referring Sites, Virtual Hosts, Referrer URLs, Requested Files, top panels), accessible via le bouton dans le footer à côté d'Analytique. Filtre plugin NPM/Apache. Courbes duales requêtes + visiteurs (sans dépendance graphique externe).
 
 ---
@@ -303,6 +304,18 @@ Chaque plugin peut être configuré depuis l'interface d'administration :
    - Regex par défaut
    - Option de lecture des fichiers compressés
 
+#### Développement local (npm)
+
+Pour que le dashboard (ex. carte « Fichiers avec erreurs ») et toutes les API fonctionnent, il faut lancer **à la fois** le serveur et le client :
+
+```bash
+npm run dev
+```
+
+Cela démarre le serveur API (port 3004 par défaut) et le client Vite (port 5175). Le proxy Vite redirige `/api` vers le backend.
+
+Si vous lancez uniquement le client (`npm run dev:client`), les appels à `/api/*` échoueront (404 ou « Le serveur n'est pas disponible »). En cas de 404 sur `/api/log-viewer/error-summary`, vérifiez que le backend tourne et consultez les logs du terminal serveur ainsi que la console du navigateur (en dev, des messages `[ErrorFilesCard]` et `[API]` aident au diagnostic).
+
 </details>
 
 ---
@@ -370,6 +383,10 @@ Chaque plugin peut être configuré depuis l'interface d'administration :
 - **[Guides des parsers](server/plugins/PARSERS_HELP.md)** : Guide général des parsers et formats supportés
 - **[NPM Parser Help](server/plugins/npm/NPM_PARSER_HELP.md)** : Formats et regex pour NPM
 - **[Nginx Parser Help](server/plugins/nginx/NGINX_PARSER_HELP.md)** : Formats et regex pour Nginx
+
+### Audits et conception
+
+- **[Audit intégration logs système (error summary)](Doc_Dev/AUDIT_ERROR_SUMMARY_HOST_SYSTEM.md)** : Intégration du plugin host-system dans le scan « Analyse / Journaux d'erreur », recherche des tags error/warn (formats Apache/Nginx/NPM et syslog).
 
 ### Animations et thème (sync MynetworK)
 

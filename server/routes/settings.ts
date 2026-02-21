@@ -1,14 +1,22 @@
 /**
  * Settings Routes
  * 
- * API endpoints for application settings (theme, etc.)
+ * API endpoints for application settings (theme, analysis, etc.)
  */
 
 import { Router } from 'express';
-import { requireAuth, type AuthenticatedRequest } from '../middleware/authMiddleware.js';
+import { requireAuth, requireAdmin, type AuthenticatedRequest } from '../middleware/authMiddleware.js';
 import { asyncHandler, createError } from '../middleware/errorHandler.js';
 import { AppConfigRepository } from '../database/models/AppConfig.js';
 import { logger } from '../utils/logger.js';
+import {
+    getErrorAnalysisConfig,
+    setErrorAnalysisConfig,
+    ALLOWED_PLUGINS,
+    type ErrorAnalysisConfig,
+    type SecurityCheckDepth
+} from '../config/errorAnalysisConfig.js';
+import { invalidateErrorSummaryCache } from '../services/errorSummaryService.js';
 
 const router = Router();
 
@@ -139,6 +147,62 @@ router.post('/stats-ui', requireAuth, asyncHandler(async (req: AuthenticatedRequ
     } catch (error) {
         logger.error('Settings', 'Failed to save stats-ui config:', error);
         throw createError('Failed to save stats UI configuration', 500, 'STATS_UI_CONFIG_ERROR');
+    }
+}));
+
+/**
+ * GET /api/settings/analysis
+ * Get error analysis config (dashboard "Files with errors" + security check options)
+ */
+router.get('/analysis', requireAuth, asyncHandler(async (req: AuthenticatedRequest, res) => {
+    try {
+        const config = getErrorAnalysisConfig();
+        res.json({
+            success: true,
+            result: config
+        });
+    } catch (error) {
+        logger.error('Settings', 'Failed to get analysis config:', error);
+        throw createError('Failed to get analysis configuration', 500, 'ANALYSIS_CONFIG_ERROR');
+    }
+}));
+
+/**
+ * PUT /api/settings/analysis
+ * Update error analysis config (admin only)
+ */
+router.put('/analysis', requireAuth, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res) => {
+    try {
+        const body = req.body as Partial<ErrorAnalysisConfig>;
+        if (!body || typeof body !== 'object') {
+            throw createError('Invalid request body', 400, 'INVALID_BODY');
+        }
+        if (Array.isArray(body.enabledPlugins)) {
+            body.enabledPlugins = body.enabledPlugins.filter((id) =>
+                typeof id === 'string' && ALLOWED_PLUGINS.includes(id as typeof ALLOWED_PLUGINS[number])
+            );
+        }
+        if (typeof body.securityCheckDepth === 'string' &&
+            !(['light', 'normal', 'deep'] as SecurityCheckDepth[]).includes(body.securityCheckDepth)) {
+            body.securityCheckDepth = undefined;
+        }
+        const ok = setErrorAnalysisConfig(body);
+        if (!ok) {
+            throw createError('Failed to save analysis configuration', 500, 'ANALYSIS_CONFIG_SAVE_ERROR');
+        }
+        invalidateErrorSummaryCache();
+        const config = getErrorAnalysisConfig();
+        res.json({
+            success: true,
+            result: config,
+            message: 'Analysis configuration saved successfully'
+        });
+    } catch (error) {
+        logger.error('Settings', 'Failed to save analysis config:', error);
+        if (error instanceof Error && error.message.includes('Invalid')) {
+            throw error;
+        }
+        throw createError('Failed to save analysis configuration', 500, 'ANALYSIS_CONFIG_SAVE_ERROR');
     }
 }));
 

@@ -12,3 +12,4 @@ export { PluginSummaryCard } from './PluginSummaryCard';
 export { NetworkEventsWidget } from './NetworkEventsWidget';
 export { LogPluginStatsCard } from './LogPluginStatsCard';
 export { LogHistoryCard } from './LogHistoryCard';
+export { ErrorFilesCard } from './ErrorFilesCard';

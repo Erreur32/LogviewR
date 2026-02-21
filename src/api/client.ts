@@ -10,23 +10,25 @@ class ApiClient {
   private async request<T>(
     method: string,
     endpoint: string,
-    body?: unknown
+    body?: unknown,
+    init?: RequestInit
   ): Promise<ApiResponse<T>> {
     const url = `${this.baseUrl}${endpoint}`;
-    
+
     // Get JWT token from localStorage for user authentication
     let token: string | null = null;
     if (typeof window !== 'undefined') {
       token = localStorage.getItem('dashboard_user_token');
     }
-    
+
     const options: RequestInit = {
       method,
       headers: {
         'Content-Type': 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {})
       },
-      body: body ? JSON.stringify(body) : undefined
+      body: body ? JSON.stringify(body) : undefined,
+      ...init
     };
 
     try {
@@ -34,7 +36,7 @@ class ApiClient {
       if (import.meta.env.DEV) {
         // console.log(`[API] ${method} ${url}`, { body: body ? JSON.stringify(body).substring(0, 100) : 'none', hasToken: !!token }); // Debug only
       }
-      
+
       const response = await fetch(url, options);
       
       // Check if response is JSON before parsing
@@ -206,8 +208,8 @@ class ApiClient {
     }
   }
 
-  async get<T>(endpoint: string): Promise<ApiResponse<T>> {
-    return this.request<T>('GET', endpoint);
+  async get<T>(endpoint: string, init?: RequestInit): Promise<ApiResponse<T>> {
+    return this.request<T>('GET', endpoint, undefined, init);
   }
 
   async post<T>(endpoint: string, body?: unknown): Promise<ApiResponse<T>> {

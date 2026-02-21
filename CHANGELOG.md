@@ -9,6 +9,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.2.8] - 2026-02-13
+
+### Added
+
+#### Analyse / Journaux d'erreur – Intégration logs système (host-system)
+- **Inclusion host-system dans le scan** : Les fichiers du plugin host-system (syslog, auth.log, kern.log, daemon.log, mail.log, etc.) sont scannés lorsque le plugin est coché dans Paramètres > Analyse. Voir [Doc_Dev/AUDIT_ERROR_SUMMARY_HOST_SYSTEM.md](Doc_Dev/AUDIT_ERROR_SUMMARY_HOST_SYSTEM.md).
+- **Recherche error/warn pour les logs système** : Détection étendue aux formats syslog/journald (mots entiers `error`, `err`, `warn`, `warning`) en plus des tags `[error]`/`[warn]` (Apache/Nginx/NPM).
+
+#### Analyse / Journaux d'erreur – Fichiers access et codes HTTP
+- **Fichiers access inclus** : Pour Apache, Nginx et NPM, les fichiers access (en plus des error) sont scannés ; comptage des codes HTTP 3xx, 4xx, 5xx.
+- **Badges 4xx/5xx et error/warn** : Par colonne plugin (Apache/Nginx/NPM : 4xx, 5xx ; NPM/Nginx/Host : error, warn). Au clic sur un fichier, détail « Répartition pour ce fichier » (4xx, 5xx, 3xx, error, warn).
+
+#### Analyse / Journaux d'erreur – UX et rescan
+- **Résultats par plugin en colonnes** : Affichage en grille (host-system, apache, npm, nginx) avec section « Résultats du scan » pliable (repliée par défaut).
+- **Ordre des plugins** : Système, Apache, NPM, Nginx (résultats et options Paramètres > Analyse).
+- **Rescan explicite** : `POST /api/log-viewer/error-summary/invalidate` ; bouton Actualiser de la carte invalide le cache et relance un scan. Message après sauvegarde Analyse invitant à actualiser la carte.
+
+#### Paramètres > Analyse
+- **Texte explicatif** : « Recherche actuelle » (fichiers error + access, [error]/[warn] et 3xx/4xx/5xx) ; description sous « Vérification sécurité ». Mise en deux colonnes (Error summary | Security check).
+- **Plugins à inclure** : Icônes des plugins (host-system, apache, npm, nginx) à côté des toggles. Note sur Apache/Nginx (plugin activé + chemin contenant des error logs).
+
+#### Administration
+- **User management** : Cadre déplacé de l’onglet General vers l’onglet Security (affiché en premier, admin uniquement).
+- **Security** : Sections « Blocked IPs and accounts » et « CORS configuration » affichées en deux colonnes (grille `lg:grid-cols-2`).
+
+#### Documentation
+- **Audits** : [Doc_Dev/AUDIT_ERROR_SUMMARY_HOST_SYSTEM.md](Doc_Dev/AUDIT_ERROR_SUMMARY_HOST_SYSTEM.md), [Doc_Dev/AUDIT_ADMIN_OPTIONS.md](Doc_Dev/AUDIT_ADMIN_OPTIONS.md). README : section Analyse / Journaux d’erreur, lien audit host-system ; Documentation > Audits et conception.
+
+### Changed
+
+#### Analyse / Journaux d'erreur
+- **Backend** : Comptages par fichier avec détail `count4xx`, `count5xx`, `count3xx`, `countErrorTag`, `countWarnTag` ; `countLevelFromRawLineBreakdown()` pour tags et codes HTTP.
+
+---
+
 ## [0.2.7] - 2026-02-13
 
 ### Fixed

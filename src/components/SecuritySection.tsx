@@ -563,69 +563,71 @@ export const SecuritySection: React.FC = () => {
                 </div>
             </div>
 
-            {/* Blocked IPs Section - Full Width */}
-            <Section title={t('security.blockedTitle')} icon={Shield} iconColor="red">
-                <div className="space-y-4">
-                    <div className="flex items-center justify-between mb-2">
-                        <p className="text-sm text-gray-400">
-                            {t('security.blockedListDesc')}
-                        </p>
-                        <button
-                            onClick={loadBlockedIPs}
-                            disabled={isLoadingBlockedIPs}
-                            className="flex items-center gap-2 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            <RefreshCw size={14} className={isLoadingBlockedIPs ? 'animate-spin' : ''} />
-                            <span>{t('security.refresh')}</span>
-                        </button>
-                    </div>
+            {/* Blocked IPs and CORS - Two columns */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Left: Blocked IPs and accounts */}
+                <Section title={t('security.blockedTitle')} icon={Shield} iconColor="red">
+                    <div className="space-y-4">
+                        <div className="flex items-center justify-between mb-2">
+                            <p className="text-sm text-gray-400">
+                                {t('security.blockedListDesc')}
+                            </p>
+                            <button
+                                onClick={loadBlockedIPs}
+                                disabled={isLoadingBlockedIPs}
+                                className="flex items-center gap-2 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                <RefreshCw size={14} className={isLoadingBlockedIPs ? 'animate-spin' : ''} />
+                                <span>{t('security.refresh')}</span>
+                            </button>
+                        </div>
 
-                    {isLoadingBlockedIPs ? (
-                        <div className="flex items-center justify-center py-8">
-                            <Loader2 className="animate-spin text-blue-400" size={20} />
-                        </div>
-                    ) : blockedIPs.length === 0 ? (
-                        <div className="py-8 text-center">
-                            <CheckCircle size={32} className="text-green-400 mx-auto mb-2" />
-                            <p className="text-sm text-gray-400">{t('security.noBlocked')}</p>
-                        </div>
-                    ) : (
-                        <div className="space-y-2">
-                            {blockedIPs.map((item) => (
-                                <div
-                                    key={item.identifier}
-                                    className="flex items-center justify-between p-3 bg-[#1a1a1a] rounded-lg border border-gray-800 hover:border-red-700/50 transition-colors"
-                                >
-                                    <div className="flex-1">
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <span className="text-sm font-medium text-white font-mono">
-                                                {item.identifier}
-                                            </span>
-                                            <span className="px-2 py-0.5 bg-red-900/30 text-red-400 text-xs rounded">
-                                                {t('security.attempt', { count: item.count })}
-                                            </span>
-                                        </div>
-                                        <div className="text-xs text-gray-500">
-                                            {t('security.blockedFor')} <span className="text-orange-400 font-medium">{formatRemainingTime(item.remainingTime)}</span>
-                                        </div>
-                                    </div>
-                                    <button
-                                        onClick={() => handleUnblock(item.identifier)}
-                                        className="flex items-center gap-2 px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white text-sm rounded-lg transition-colors"
-                                        title={t('security.unblockTitle')}
+                        {isLoadingBlockedIPs ? (
+                            <div className="flex items-center justify-center py-8">
+                                <Loader2 className="animate-spin text-blue-400" size={20} />
+                            </div>
+                        ) : blockedIPs.length === 0 ? (
+                            <div className="py-8 text-center">
+                                <CheckCircle size={32} className="text-green-400 mx-auto mb-2" />
+                                <p className="text-sm text-gray-400">{t('security.noBlocked')}</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-2 max-h-80 overflow-y-auto">
+                                {blockedIPs.map((item) => (
+                                    <div
+                                        key={item.identifier}
+                                        className="flex items-center justify-between p-3 bg-[#1a1a1a] rounded-lg border border-gray-800 hover:border-red-700/50 transition-colors"
                                     >
-                                        <Trash2 size={14} />
-                                        <span>{t('security.unblock')}</span>
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-            </Section>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <span className="text-sm font-medium text-white font-mono truncate">
+                                                    {item.identifier}
+                                                </span>
+                                                <span className="px-2 py-0.5 bg-red-900/30 text-red-400 text-xs rounded shrink-0">
+                                                    {t('security.attempt', { count: item.count })}
+                                                </span>
+                                            </div>
+                                            <div className="text-xs text-gray-500">
+                                                {t('security.blockedFor')} <span className="text-orange-400 font-medium">{formatRemainingTime(item.remainingTime)}</span>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={() => handleUnblock(item.identifier)}
+                                            className="flex items-center gap-2 px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white text-sm rounded-lg transition-colors shrink-0"
+                                            title={t('security.unblockTitle')}
+                                        >
+                                            <Trash2 size={14} />
+                                            <span>{t('security.unblock')}</span>
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </Section>
 
-            {/* CORS Configuration Section - Full Width */}
-            <Section title={t('security.corsTitle')} icon={Globe} iconColor="cyan">
+                {/* Right: CORS configuration */}
+                <Section title={t('security.corsTitle')} icon={Globe} iconColor="cyan">
                 <div className="space-y-4">
                     <div className="p-3 bg-blue-900/10 border border-blue-700/30 rounded-lg">
                         <div className="flex items-start gap-2">
@@ -816,6 +818,7 @@ export const SecuritySection: React.FC = () => {
                     </div>
                 </div>
             </Section>
+            </div>
 
             {/* Status Summary - Full Width */}
             <div className="p-4 bg-blue-900/10 border border-blue-700/30 rounded-lg">

@@ -56,6 +56,7 @@ import { APP_VERSION, getVersionString } from '../constants/version';
 import { SecuritySection } from '../components/SecuritySection';
 import { ThemeSection } from '../components/ThemeSection';
 import { Section, SettingRow } from '../components/SettingsSection';
+import { getPluginIcon } from '../utils/pluginIcons';
 import { useUpdateStore } from '../stores/updateStore';
 import { UserMenu, Clock } from '../components/ui';
 import { useTranslation } from 'react-i18next';
@@ -75,23 +76,38 @@ interface SettingsPageProps {
 
 type AdminTab = 'general' | 'plugins' | 'security' | 'exporter' | 'theme' | 'debug' | 'info' | 'database' | 'regex' | 'analysis' | 'notifications';
 
-// Toggle component
+const ADMIN_TAB_IDS: AdminTab[] = ['general', 'plugins', 'security', 'exporter', 'theme', 'debug', 'info', 'database', 'regex', 'analysis', 'notifications'];
+
+function toAdminTab(value: string | null | undefined): AdminTab {
+  if (value && ADMIN_TAB_IDS.includes(value as AdminTab)) return value as AdminTab;
+  return 'general';
+}
+
+// Modern toggle switch (used in Analysis and other sections)
 const Toggle: React.FC<{
   enabled: boolean;
   onChange: (enabled: boolean) => void;
   disabled?: boolean;
 }> = ({ enabled, onChange, disabled }) => (
   <button
+    type="button"
+    role="switch"
+    aria-checked={enabled}
     onClick={() => !disabled && onChange(!enabled)}
     disabled={disabled}
-    className={`relative w-11 h-6 rounded-full transition-colors ${
-      disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
-    } ${enabled ? 'bg-emerald-500' : 'bg-gray-600'}`}
+    className={`
+      relative inline-flex h-6 w-11 shrink-0 rounded-full border border-transparent
+      transition-all duration-200 ease-out focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:ring-offset-2 focus:ring-offset-theme-bg
+      ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:opacity-90'}
+      ${enabled ? 'bg-emerald-500' : 'bg-gray-600'}
+    `}
   >
     <span
-      className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${
-        enabled ? 'translate-x-5' : 'translate-x-0'
-      }`}
+      className={`
+        pointer-events-none absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow-sm
+        transition-transform duration-200 ease-out
+        ${enabled ? 'translate-x-5' : 'translate-x-0'}
+      `}
     />
   </button>
 );
@@ -119,11 +135,17 @@ interface DatabaseStatsResponse {
 }
 
 // Plugin Priority Configuration Section Component
+type PluginPriorityConfig = {
+  hostnamePriority: string[];
+  vendorPriority: string[];
+  overwriteExisting: { hostname: boolean; vendor: boolean };
+};
+
 const PluginPrioritySection: React.FC = () => {
   const { plugins } = usePluginStore();
-  const [config, setConfig] = useState({
-    hostnamePriority: [] as string[],
-    vendorPriority: [] as string[],
+  const [config, setConfig] = useState<PluginPriorityConfig>({
+    hostnamePriority: [],
+    vendorPriority: [],
     overwriteExisting: {
       hostname: true,
       vendor: true
@@ -140,7 +162,7 @@ const PluginPrioritySection: React.FC = () => {
   const loadConfig = async () => {
     setIsLoading(true);
     try {
-      const response = await api.get('/api/network-scan/plugin-priority-config');
+      const response = await api.get<PluginPriorityConfig>('/api/network-scan/plugin-priority-config');
       if (response.success && response.result) {
         setConfig(response.result);
         setMessage(null);
@@ -362,15 +384,26 @@ const PluginPrioritySection: React.FC = () => {
 };
 
 // Database Performance Section Component
+type DatabaseConfig = {
+  walMode: 'WAL' | 'DELETE' | 'TRUNCATE' | 'PERSIST' | 'MEMORY' | 'OFF';
+  walCheckpointInterval: number;
+  walAutoCheckpoint: boolean;
+  synchronous: 0 | 1 | 2;
+  cacheSize: number;
+  busyTimeout: number;
+  tempStore: 0 | 1 | 2;
+  optimizeForDocker: boolean;
+};
+
 const DatabasePerformanceSection: React.FC = () => {
-  const [dbConfig, setDbConfig] = useState({
-    walMode: 'WAL' as 'WAL' | 'DELETE' | 'TRUNCATE' | 'PERSIST' | 'MEMORY' | 'OFF',
+  const [dbConfig, setDbConfig] = useState<DatabaseConfig>({
+    walMode: 'WAL',
     walCheckpointInterval: 1000,
     walAutoCheckpoint: true,
-    synchronous: 1 as 0 | 1 | 2,
+    synchronous: 1,
     cacheSize: -64000,
     busyTimeout: 5000,
-    tempStore: 0 as 0 | 1 | 2,
+    tempStore: 0,
     optimizeForDocker: true
   });
   const [isLoading, setIsLoading] = useState(false);
@@ -384,7 +417,7 @@ const DatabasePerformanceSection: React.FC = () => {
   const loadDbConfig = async () => {
     setIsLoading(true);
     try {
-      const response = await api.get('/api/database/config');
+      const response = await api.get<DatabaseConfig>('/api/database/config');
       if (response.success && response.result) {
         setDbConfig(response.result);
       } else {
@@ -402,7 +435,7 @@ const DatabasePerformanceSection: React.FC = () => {
     setIsSaving(true);
     setMessage(null);
     try {
-      const response = await api.post('/api/database/config', dbConfig);
+      const response = await api.post<DatabaseConfig>('/api/database/config', dbConfig);
       if (response.success && response.result) {
         setDbConfig(response.result);
         setMessage({ type: 'success', text: 'Configuration de performance sauvegardée' });
@@ -777,7 +810,7 @@ const AppLogsSection: React.FC = () => {
           <div className="flex items-center gap-2 text-yellow-400 text-sm">
             <AlertCircle size={16} />
             <span>
-              {t('debug.warningManyLogs', { count: filteredLogs.length.toLocaleString() })}
+              {t('debug.warningManyLogs', { count: filteredLogs.length })}
             </span>
           </div>
         </div>
@@ -2443,18 +2476,18 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   const { t } = useTranslation();
   const { user: currentUser } = useUserAuthStore();
   // Check sessionStorage on mount in case initialAdminTab wasn't passed correctly
-  const storedAdminTab = sessionStorage.getItem('adminTab') as AdminTab | null;
-  const [activeAdminTab, setActiveAdminTab] = useState<AdminTab>(storedAdminTab || initialAdminTab);
+  const storedAdminTab = sessionStorage.getItem('adminTab');
+  const [activeAdminTab, setActiveAdminTab] = useState<AdminTab>(() => toAdminTab(storedAdminTab || initialAdminTab));
 
   // Update activeAdminTab when initialAdminTab changes (e.g., from navigation)
   // Also check sessionStorage on mount
   useEffect(() => {
-    const tabFromStorage = sessionStorage.getItem('adminTab') as AdminTab | null;
+    const tabFromStorage = sessionStorage.getItem('adminTab');
     if (tabFromStorage) {
-      setActiveAdminTab(tabFromStorage);
+      setActiveAdminTab(toAdminTab(tabFromStorage));
       sessionStorage.removeItem('adminTab'); // Clear after reading
     } else if (initialAdminTab && initialAdminTab !== 'general') {
-      setActiveAdminTab(initialAdminTab);
+      setActiveAdminTab(toAdminTab(initialAdminTab));
     }
     // Clean URL hash if present
     if (window.location.hash === '#admin') {
@@ -2465,6 +2498,90 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
+  // Analysis tab: error summary + security check config
+  const [analysisConfig, setAnalysisConfig] = useState<{
+    errorSummaryEnabled: boolean;
+    enabledPlugins: string[];
+    maxFilesPerPlugin: number;
+    linesPerFile: number;
+    maxFileSizeBytes: number;
+    securityCheckEnabled: boolean;
+    securityCheckDepth: 'light' | 'normal' | 'deep';
+    useExternalSecurityBases: boolean;
+    analyzeArchives: boolean;
+  }>({
+    errorSummaryEnabled: false,
+    enabledPlugins: ['apache', 'nginx', 'npm'],
+    maxFilesPerPlugin: 20,
+    linesPerFile: 1000,
+    maxFileSizeBytes: 10 * 1024 * 1024,
+    securityCheckEnabled: true,
+    securityCheckDepth: 'normal',
+    useExternalSecurityBases: false,
+    analyzeArchives: false
+  });
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisSaving, setAnalysisSaving] = useState(false);
+  const [analysisMessage, setAnalysisMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const analysisJustLoadedRef = useRef(false);
+  const analysisSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (activeAdminTab !== 'analysis') return;
+    let cancelled = false;
+    setAnalysisLoading(true);
+    api.get<typeof analysisConfig>('/api/settings/analysis')
+      .then((res) => {
+        if (cancelled || !res.success || !res.result) return;
+        setAnalysisConfig({
+          errorSummaryEnabled: res.result.errorSummaryEnabled === true,
+          enabledPlugins: res.result.enabledPlugins ?? ['apache', 'nginx', 'npm'],
+          maxFilesPerPlugin: res.result.maxFilesPerPlugin ?? 20,
+          linesPerFile: res.result.linesPerFile ?? 1000,
+          maxFileSizeBytes: res.result.maxFileSizeBytes ?? 10 * 1024 * 1024,
+          securityCheckEnabled: res.result.securityCheckEnabled !== false,
+          securityCheckDepth: res.result.securityCheckDepth ?? 'normal',
+          useExternalSecurityBases: res.result.useExternalSecurityBases === true,
+          analyzeArchives: res.result.analyzeArchives === true
+        });
+        analysisJustLoadedRef.current = true;
+      })
+      .catch(() => { if (!cancelled) setAnalysisMessage({ type: 'error', text: 'Failed to load analysis config' }); })
+      .finally(() => { if (!cancelled) setAnalysisLoading(false); });
+    return () => { cancelled = true; };
+  }, [activeAdminTab]);
+
+  // Auto-save analysis config on change (debounced), with notification
+  useEffect(() => {
+    if (activeAdminTab !== 'analysis' || analysisLoading) return;
+    if (analysisJustLoadedRef.current) {
+      analysisJustLoadedRef.current = false;
+      return;
+    }
+    if (analysisSaveTimeoutRef.current) clearTimeout(analysisSaveTimeoutRef.current);
+    analysisSaveTimeoutRef.current = setTimeout(() => {
+      analysisSaveTimeoutRef.current = null;
+      setAnalysisSaving(true);
+      setAnalysisMessage(null);
+      api.put('/api/settings/analysis', analysisConfig)
+        .then((res) => {
+          if (res.success) {
+            setAnalysisMessage({ type: 'success', text: t('analysis.savedRefreshDashboard') });
+            setTimeout(() => setAnalysisMessage(null), 5000);
+          } else {
+            setAnalysisMessage({ type: 'error', text: res.error?.message ?? 'Save failed' });
+          }
+        })
+        .catch((err) => setAnalysisMessage({ type: 'error', text: err?.message ?? 'Save failed' }))
+        .finally(() => setAnalysisSaving(false));
+    }, 500);
+    return () => {
+      if (analysisSaveTimeoutRef.current) {
+        clearTimeout(analysisSaveTimeoutRef.current);
+        analysisSaveTimeoutRef.current = null;
+      }
+    };
+  }, [analysisConfig, activeAdminTab, analysisLoading, t]);
 
   // Devices and permissions removed - not available in LogviewR
   const devices: any[] = [];
@@ -2681,12 +2798,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 
                 {/* Colonne 3 */}
                 <div className="space-y-6">
-                  {/* Gestion des utilisateurs (Admin only) — anciennement en colonne 1, à la place du cadre Mises à jour */}
-                  {currentUser?.role === 'admin' && (
-                    <Section title={t('admin.general.userManagement')} icon={Users} iconColor="purple">
-                      <UsersManagementSection />
-                    </Section>
-                  )}
                   <Section title={t('admin.general.informations')} icon={Key} iconColor="purple">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                       <div className="p-3 bg-[#1a1a1a] rounded-lg border border-gray-800">
@@ -2768,6 +2879,11 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             {/* Security Section */}
             {activeAdminTab === 'security' && (
               <div className="space-y-6">
+                {currentUser?.role === 'admin' && (
+                  <Section title={t('admin.general.userManagement')} icon={Users} iconColor="purple">
+                    <UsersManagementSection />
+                  </Section>
+                )}
                 <SecuritySection />
                 <LogsManagementSection />
               </div>
@@ -2792,33 +2908,134 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             {activeAdminTab === 'analysis' && (
               <div className="space-y-6">
                 <Section title={t('analysis.title')} icon={BarChart3} iconColor="cyan">
-                  <div className="space-y-4">
-                    <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-lg">
-                      <div className="flex items-start gap-3">
-                        <AlertCircle size={20} className="text-amber-400 flex-shrink-0 mt-0.5" />
-                        <div className="flex-1">
-                          <h4 className="text-sm font-semibold text-amber-400 mb-1">{t('analysis.inDevTitle')}</h4>
-                          <p className="text-xs text-gray-400">
-                            {t('analysis.inDevDesc')}
-                          </p>
+                  {analysisLoading ? (
+                    <div className="flex items-center gap-2 py-4 text-gray-400">
+                      <Loader2 size={20} className="animate-spin" />
+                      <span>{t('admin.loading') || 'Chargement...'}</span>
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      {analysisMessage && (
+                        <div className={`p-3 rounded-lg text-sm ${analysisMessage.type === 'success' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
+                          {analysisMessage.text}
+                        </div>
+                      )}
+
+                      {/* Explanatory text: what the current scan does (warn/error only) */}
+                      <p className="text-xs text-cyan-400/90 bg-cyan-500/10 border border-cyan-500/30 rounded-lg px-3 py-2">
+                        {t('analysis.currentSearchWhatIsSearched')}
+                      </p>
+
+                      {/* Two-column layout: Error summary | Security check */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Error summary (dashboard) */}
+                        <div className="space-y-3">
+                          <h4 className="text-sm font-semibold text-theme-primary">{t('analysis.errorSummarySection')}</h4>
+                          <p className="text-xs text-gray-400">{t('analysis.errorSummaryDesc')}</p>
+                          <SettingRow label={t('analysis.enableErrorSummary')} description={t('analysis.enableErrorSummaryDesc')}>
+                            <Toggle
+                              enabled={analysisConfig.errorSummaryEnabled}
+                              onChange={(enabled) => setAnalysisConfig((prev) => ({ ...prev, errorSummaryEnabled: enabled }))}
+                            />
+                          </SettingRow>
+                          <SettingRow label={t('analysis.pluginsToInclude')} description="">
+                            <p className="text-xs text-gray-500 mb-2">{t('analysis.pluginsMustBeEnabled')}</p>
+                            <div className="flex flex-wrap gap-6">
+                              {['host-system', 'apache', 'npm', 'nginx'].map((id) => (
+                                <label key={id} className="flex items-center gap-3 cursor-pointer group">
+                                  <Toggle
+                                    enabled={analysisConfig.enabledPlugins.includes(id)}
+                                    onChange={(checked) => {
+                                      setAnalysisConfig((prev) => ({
+                                        ...prev,
+                                        enabledPlugins: checked
+                                          ? [...prev.enabledPlugins, id]
+                                          : prev.enabledPlugins.filter((p) => p !== id)
+                                      }));
+                                    }}
+                                  />
+                                  <img
+                                    src={getPluginIcon(id)}
+                                    alt=""
+                                    className="w-5 h-5 opacity-90 shrink-0"
+                                  />
+                                  <span className="text-sm text-theme-primary capitalize select-none group-hover:text-theme-secondary transition-colors">{id === 'host-system' ? 'Host System' : id}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </SettingRow>
+                          <SettingRow label={t('analysis.maxFilesPerPlugin')} description="">
+                            <input
+                              type="number"
+                              min={1}
+                              max={100}
+                              value={analysisConfig.maxFilesPerPlugin}
+                              onChange={(e) => setAnalysisConfig((prev) => ({ ...prev, maxFilesPerPlugin: Math.max(1, Math.min(100, parseInt(e.target.value, 10) || 1)) }))}
+                              className="w-24 px-2 py-1.5 rounded-lg bg-theme-tertiary border border-theme-border text-theme-primary text-sm"
+                            />
+                          </SettingRow>
+                          <SettingRow label={t('analysis.maxFileSizeMb')} description="">
+                            <input
+                              type="number"
+                              min={1}
+                              max={100}
+                              value={Math.round(analysisConfig.maxFileSizeBytes / 1024 / 1024)}
+                              onChange={(e) => setAnalysisConfig((prev) => ({ ...prev, maxFileSizeBytes: Math.max(1, Math.min(100, parseInt(e.target.value, 10) || 1)) * 1024 * 1024 }))}
+                              className="w-24 px-2 py-1.5 rounded-lg bg-theme-tertiary border border-theme-border text-theme-primary text-sm"
+                            />
+                          </SettingRow>
+                          <SettingRow label={t('analysis.analyzeArchives')} description={t('analysis.analyzeArchivesDesc')}>
+                            <Toggle enabled={analysisConfig.analyzeArchives} onChange={() => {}} disabled />
+                          </SettingRow>
+                        </div>
+
+                        {/* Security check */}
+                        <div className="space-y-3 md:border-l md:border-theme-border md:pl-6">
+                          <h4 className="text-sm font-semibold text-theme-primary">{t('analysis.securityCheckSection')}</h4>
+                          <p className="text-xs text-gray-400">{t('analysis.securityCheckSectionDesc')}</p>
+                          <p className="text-xs text-gray-400">{t('analysis.webPluginsErrorsAlways')}</p>
+                          <SettingRow label={t('analysis.suspiciousEnabled')} description={t('analysis.suspiciousEnabledDesc')}>
+                            <Toggle
+                              enabled={analysisConfig.securityCheckEnabled}
+                              onChange={(enabled) => setAnalysisConfig((prev) => ({ ...prev, securityCheckEnabled: enabled }))}
+                            />
+                          </SettingRow>
+                          <p className="text-xs text-amber-400/90 pl-1">{t('analysis.suspiciousOptionsComingSoon')}</p>
+                          <SettingRow label={t('analysis.suspiciousOption403')} description="">
+                            <Toggle enabled={false} onChange={() => {}} disabled />
+                          </SettingRow>
+                          <SettingRow label={t('analysis.suspiciousOptionInjection')} description="">
+                            <Toggle enabled={false} onChange={() => {}} disabled />
+                          </SettingRow>
+                          <SettingRow label={t('analysis.suspiciousOptionBruteforce')} description="">
+                            <Toggle enabled={false} onChange={() => {}} disabled />
+                          </SettingRow>
+                          <SettingRow label={t('analysis.securityCheckDepth')} description={t('analysis.securityCheckDepthDesc')}>
+                            <select
+                              value={analysisConfig.securityCheckDepth}
+                              onChange={(e) => setAnalysisConfig((prev) => ({ ...prev, securityCheckDepth: e.target.value as 'light' | 'normal' | 'deep' }))}
+                              className="px-3 py-1.5 rounded-lg bg-theme-tertiary border border-theme-border text-theme-primary text-sm"
+                            >
+                              <option value="light">{t('analysis.depthLight')}</option>
+                              <option value="normal">{t('analysis.depthNormal')}</option>
+                              <option value="deep">{t('analysis.depthDeep')}</option>
+                            </select>
+                          </SettingRow>
+                          <p className="text-xs text-gray-500 pt-1">{t('analysis.systemLogsLater')}</p>
+                          <SettingRow label={t('analysis.useExternalBases')} description={t('analysis.useExternalBasesComingSoon')}>
+                            <Toggle enabled={false} onChange={() => {}} disabled />
+                          </SettingRow>
                         </div>
                       </div>
+
+                      {analysisSaving && (
+                        <p className="text-xs text-cyan-500 mt-2 flex items-center gap-2">
+                          <Loader2 size={14} className="animate-spin" />
+                          {t('analysis.saving')}
+                        </p>
+                      )}
                     </div>
-                    
-                    <div className="space-y-3">
-                      <SettingRow label={t('analysis.autoAnalysis')} description={t('analysis.autoAnalysisDesc')}>
-                        <Toggle enabled={false} onChange={() => {}} disabled />
-                      </SettingRow>
-                      
-                      <SettingRow label={t('analysis.anomalyDetection')} description={t('analysis.anomalyDetectionDesc')}>
-                        <Toggle enabled={false} onChange={() => {}} disabled />
-                      </SettingRow>
-                      
-                      <SettingRow label={t('analysis.smartAlerts')} description={t('analysis.smartAlertsDesc')}>
-                        <Toggle enabled={false} onChange={() => {}} disabled />
-                      </SettingRow>
-                    </div>
-                  </div>
+                  )}
                 </Section>
               </div>
             )}
