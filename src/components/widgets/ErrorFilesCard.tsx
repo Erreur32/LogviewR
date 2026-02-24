@@ -8,7 +8,7 @@
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { AlertTriangle, FileText, RefreshCw, ChevronDown, ChevronRight, ExternalLink, Info } from 'lucide-react';
+import { AlertTriangle, FileText, RefreshCw, ChevronDown, ChevronRight, ExternalLink, Info, X, Settings, Search } from 'lucide-react';
 import { api } from '../../api/client';
 import { getPluginIcon } from '../../utils/pluginIcons';
 import { getErrorExplanation } from '../../utils/errorExplanations';
@@ -49,16 +49,27 @@ export interface AnalysisErrorEntry {
     errorMessage: string;
 }
 
+/** File excluded from batch analysis because too large (user can analyze individually). */
+export interface SkippedLargeFile {
+    pluginId: string;
+    filePath: string;
+    fileName: string;
+    sizeBytes: number;
+}
+
 export interface ErrorSummaryResult {
     enabled: boolean;
     files: ErrorFileSummary[];
     analysisErrors?: AnalysisErrorEntry[];
+    skippedLargeFiles?: SkippedLargeFile[];
+    enabledPlugins?: string[];
     fromCache?: boolean;
     cacheAgeMs?: number;
 }
 
 interface ErrorFilesCardProps {
     onOpenFile: (pluginId: string, filePath: string, logType: string) => void;
+    onNavigateToAnalysis?: () => void;
     osType?: string;
 }
 
@@ -68,7 +79,7 @@ const PLUGIN_ORDER = ['host-system', 'apache', 'npm', 'nginx'];
 /** When progress list has more than this many steps, show collapsed with expand toggle (no scroll). */
 const PROGRESS_COLLAPSE_THRESHOLD = 5;
 
-export const ErrorFilesCard: React.FC<ErrorFilesCardProps> = ({ onOpenFile, osType }) => {
+export const ErrorFilesCard: React.FC<ErrorFilesCardProps> = ({ onOpenFile, onNavigateToAnalysis, osType }) => {
     const { t } = useTranslation();
     const [data, setData] = useState<ErrorSummaryResult | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -78,6 +89,11 @@ export const ErrorFilesCard: React.FC<ErrorFilesCardProps> = ({ onOpenFile, osTy
     const [progressSteps, setProgressSteps] = useState<{ message: string; pluginId?: string; filePath?: string }[]>([]);
     const [progressListCollapsed, setProgressListCollapsed] = useState(true);
     const [resultsCollapsed, setResultsCollapsed] = useState(true);
+    const [enableMorePluginsDismissed, setEnableMorePluginsDismissed] = useState(() => !!sessionStorage.getItem('dashboard.enableMorePluginsDismissed'));
+    const [analyzingFilePath, setAnalyzingFilePath] = useState<string | null>(null);
+    const [manuallyAnalyzedFiles, setManuallyAnalyzedFiles] = useState<ErrorFileSummary[]>([]);
+    const [skippedLargeCollapsed, setSkippedLargeCollapsed] = useState(true);
+    const [analyzeFeedback, setAnalyzeFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
     const ERROR_SUMMARY_TIMEOUT_MS = 170000; // 2m50, under proxy 3min
 
@@ -104,6 +120,8 @@ export const ErrorFilesCard: React.FC<ErrorFilesCardProps> = ({ onOpenFile, osTy
                 enabled: res.enabled !== false,
                 files: res.files ?? [],
                 analysisErrors: res.analysisErrors ?? [],
+                skippedLargeFiles: res.skippedLargeFiles ?? [],
+                enabledPlugins: res.enabledPlugins ?? [],
                 fromCache: res.fromCache,
                 cacheAgeMs: res.cacheAgeMs ?? 0
             });
@@ -121,6 +139,32 @@ export const ErrorFilesCard: React.FC<ErrorFilesCardProps> = ({ onOpenFile, osTy
         } finally {
             clearTimeout(timeoutId);
             setIsLoading(false);
+        }
+    }, [t]);
+
+    const analyzeSingleFile = useCallback(async (pluginId: string, filePath: string) => {
+        setAnalyzingFilePath(filePath);
+        setAnalyzeFeedback(null);
+        try {
+            const res = await api.post<ErrorFileSummary>('/api/log-viewer/error-summary/analyze-file', { pluginId, filePath });
+            if (res.success && res.result) {
+                setManuallyAnalyzedFiles((prev) => {
+                    const filtered = prev.filter((f) => f.filePath !== filePath);
+                    return [...filtered, res.result!];
+                });
+                setResultsCollapsed(false);
+                setAnalyzeFeedback({ type: 'success', message: t('dashboard.errorSummaryAnalyzeSuccess') });
+            } else {
+                const raw = (res as { error?: string | { message?: string } }).error;
+                const errMsg = typeof raw === 'string' ? raw : raw?.message ?? 'Unknown error';
+                setAnalyzeFeedback({ type: 'error', message: t('dashboard.errorSummaryAnalyzeError', { message: errMsg }) });
+            }
+        } catch (err) {
+            const errMsg = err instanceof Error ? err.message : String(err ?? 'Unknown error');
+            setAnalyzeFeedback({ type: 'error', message: t('dashboard.errorSummaryAnalyzeError', { message: errMsg }) });
+        } finally {
+            setAnalyzingFilePath(null);
+            setTimeout(() => setAnalyzeFeedback(null), 4500);
         }
     }, [t]);
 
@@ -270,10 +314,52 @@ export const ErrorFilesCard: React.FC<ErrorFilesCardProps> = ({ onOpenFile, osTy
                     <RefreshCw size={18} className={isLoading ? 'animate-spin' : ''} />
                 </button>
             </div>
+            {/* Dismissible message: only system logs by default, link to enable Apache/Nginx/NPM */}
+            {!enableMorePluginsDismissed && onNavigateToAnalysis && data?.enabledPlugins && (
+                (() => {
+                    const hasWebPlugins = data.enabledPlugins.some((id) => WEB_PLUGINS.includes(id));
+                    if (hasWebPlugins) return null;
+                    return (
+                        <div className="mx-4 mb-4 relative text-xs text-cyan-400/90 bg-cyan-500/10 border border-cyan-500/30 rounded-lg px-3 py-2 pr-10">
+                            <p>{t('dashboard.errorSummaryEnableMorePlugins')}</p>
+                            <button
+                                type="button"
+                                onClick={onNavigateToAnalysis}
+                                className="mt-2 flex items-center gap-1.5 text-cyan-400 hover:text-cyan-300 font-medium"
+                            >
+                                <Settings size={14} />
+                                {t('dashboard.errorSummaryEnableMorePluginsLink')}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    sessionStorage.setItem('dashboard.enableMorePluginsDismissed', '1');
+                                    setEnableMorePluginsDismissed(true);
+                                }}
+                                className="absolute right-2 top-2 p-1 rounded hover:bg-cyan-500/20 text-cyan-400/80 hover:text-cyan-300 transition-colors"
+                                title={t('common.close') || 'Fermer'}
+                            >
+                                <X size={16} />
+                            </button>
+                        </div>
+                    );
+                })()
+            )}
             <div className="p-4 flex-1 overflow-y-auto min-h-0">
                 {error && (
                     <div className="mb-4 py-2 px-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
                         {error}
+                    </div>
+                )}
+                {analyzeFeedback && (
+                    <div
+                        className={`mb-4 py-2 px-3 rounded-lg text-sm ${
+                            analyzeFeedback.type === 'success'
+                                ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400'
+                                : 'bg-red-500/10 border border-red-500/30 text-red-400'
+                        }`}
+                    >
+                        {analyzeFeedback.message}
                     </div>
                 )}
                 {data?.analysisErrors && data.analysisErrors.length > 0 && (
@@ -289,18 +375,25 @@ export const ErrorFilesCard: React.FC<ErrorFilesCardProps> = ({ onOpenFile, osTy
                         </ul>
                     </div>
                 )}
-                {data?.files.length === 0 && !error && (
+                {data && data.files.length === 0 && manuallyAnalyzedFiles.length === 0 && !error && (
                     <div className="text-center py-8 text-gray-500">
                         <FileText size={40} className="mx-auto mb-3 text-gray-600" />
                         <p className="text-sm">{t('dashboard.errorSummaryEmpty')}</p>
                     </div>
                 )}
-                {data && data.files.length > 0 && (() => {
+                {data && (data.files.length > 0 || manuallyAnalyzedFiles.length > 0) && (() => {
                     const byPlugin = new Map<string, ErrorFileSummary[]>();
                     for (const f of data.files) {
                         const list = byPlugin.get(f.pluginId) ?? [];
                         list.push(f);
                         byPlugin.set(f.pluginId, list);
+                    }
+                    for (const f of manuallyAnalyzedFiles) {
+                        if (!byPlugin.has(f.pluginId) || !byPlugin.get(f.pluginId)!.some((x) => x.filePath === f.filePath)) {
+                            const list = byPlugin.get(f.pluginId) ?? [];
+                            list.push(f);
+                            byPlugin.set(f.pluginId, list);
+                        }
                     }
                     const pluginsWithFiles = PLUGIN_ORDER.filter((id) => byPlugin.has(id));
                     return (
@@ -500,6 +593,102 @@ export const ErrorFilesCard: React.FC<ErrorFilesCardProps> = ({ onOpenFile, osTy
                         </div>
                     );
                 })()}
+                {/* Fichiers non analysés (trop volumineux) - groupés par plugin, collapsible, replié par défaut */}
+                {data?.skippedLargeFiles && data.skippedLargeFiles.length > 0 && (
+                    <div className="mt-4 rounded-lg border border-amber-500/40 bg-amber-500/10 overflow-hidden">
+                        <button
+                            type="button"
+                            onClick={() => setSkippedLargeCollapsed((c) => !c)}
+                            className="w-full flex items-center justify-between gap-2 p-2 text-left hover:bg-amber-500/10 transition-colors"
+                            aria-expanded={!skippedLargeCollapsed}
+                        >
+                            <span className="text-xs font-semibold text-amber-400 flex items-center gap-2">
+                                {skippedLargeCollapsed ? (
+                                    <ChevronRight size={16} className="shrink-0" />
+                                ) : (
+                                    <ChevronDown size={16} className="shrink-0" />
+                                )}
+                                {t('dashboard.errorSummarySkippedLargeTitle')}
+                                <span className="text-amber-400/70 font-normal">({data.skippedLargeFiles.length})</span>
+                            </span>
+                        </button>
+                        {!skippedLargeCollapsed && (
+                            <div className="p-3 pt-0 border-t border-amber-500/20 space-y-4">
+                                {(() => {
+                                    const analyzedPaths = new Set(manuallyAnalyzedFiles.map((f) => `${f.pluginId}:${f.filePath}`));
+                                    const skippedFiltered = data.skippedLargeFiles.filter((f) => !analyzedPaths.has(`${f.pluginId}:${f.filePath}`));
+                                    const byPlugin = new Map<string, SkippedLargeFile[]>();
+                                    for (const f of skippedFiltered) {
+                                        const list = byPlugin.get(f.pluginId) ?? [];
+                                        list.push(f);
+                                        byPlugin.set(f.pluginId, list);
+                                    }
+                                    const pluginsWithSkipped = PLUGIN_ORDER.filter((id) => byPlugin.has(id));
+                                    if (skippedFiltered.length === 0) {
+                                        return (
+                                            <p key="all-analyzed" className="text-sm text-amber-400/80 py-2">
+                                                {t('dashboard.errorSummaryAllAnalyzed')}
+                                            </p>
+                                        );
+                                    }
+                                    return pluginsWithSkipped.map((pluginId) => {
+                                        const files = byPlugin.get(pluginId) ?? [];
+                                        const pluginLabel = pluginId === 'host-system' ? 'Host System' : pluginId;
+                                        return (
+                                            <div key={pluginId} className="rounded border border-amber-500/20 bg-amber-500/5 overflow-hidden">
+                                                <div className="p-2 border-b border-amber-500/20 flex items-center gap-2">
+                                                    <img
+                                                        src={getPluginIcon(pluginId, pluginId === 'host-system' ? osType : undefined)}
+                                                        alt=""
+                                                        className="w-4 h-4 opacity-80"
+                                                    />
+                                                    <span className="text-xs font-semibold text-amber-300 capitalize">{pluginLabel}</span>
+                                                    <span className="text-amber-400/60 text-xs">
+                                                        ({t('dashboard.errorSummaryFileCount', { count: files.length })})
+                                                    </span>
+                                                </div>
+                                                <ul className="space-y-2 p-2">
+                                                    {files.map((f) => (
+                                                        <li key={`${f.pluginId}:${f.filePath}`} className="flex flex-col gap-1 rounded border border-amber-500/10 bg-theme-primary/20 p-2">
+                                                            <div className="flex items-center justify-between gap-2">
+                                                                <span className="text-sm font-medium text-amber-300/90 truncate" title={f.filePath}>
+                                                                    {f.fileName}
+                                                                </span>
+                                                                <span className="text-amber-400/80 text-xs shrink-0">{formatBytes(f.sizeBytes)}</span>
+                                                            </div>
+                                                            <p className="text-xs text-gray-500 truncate font-mono" title={f.filePath}>
+                                                                {f.filePath}
+                                                            </p>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => analyzeSingleFile(f.pluginId, f.filePath)}
+                                                                disabled={analyzingFilePath === f.filePath}
+                                                                title={t('dashboard.errorSummaryAnalyzeFileTooltip')}
+                                                                className="self-start flex items-center gap-1 px-2 py-1 rounded border border-cyan-500/50 bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 text-xs disabled:opacity-50"
+                                                            >
+                                                                {analyzingFilePath === f.filePath ? (
+                                                                    <>
+                                                                        <RefreshCw size={12} className="animate-spin" />
+                                                                        {t('dashboard.errorSummaryAnalyzing')}
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        <Search size={12} />
+                                                                        {t('dashboard.errorSummaryAnalyzeFile')}
+                                                                    </>
+                                                                )}
+                                                            </button>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        );
+                                    });
+                                })()}
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
         </div>
     );

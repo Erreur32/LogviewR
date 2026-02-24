@@ -870,6 +870,7 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
                                                     logType={selectedLogType || 'syslog'}
                                                     isLoading={isLoading}
                                                     filteredCount={logs.length - filteredLogs.length}
+                                                    totalLogsCount={logs.length}
                                                     currentPage={currentPage}
                                                     selectedFilePath={selectedFilePath}
                                                     pageSize={pageSize}

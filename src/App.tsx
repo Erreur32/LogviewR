@@ -6,7 +6,8 @@ import {
   DevicesList,
   HistoryLog,
   LogHistoryCard,
-  ErrorFilesCard
+  ErrorFilesCard,
+  DashboardSearchCard
 } from './components/widgets';
 import { ActionButton, UnsupportedFeature } from './components/ui';
 import { UserLoginModal, UserRegistrationModal } from './components/modals';
@@ -568,6 +569,18 @@ const App: React.FC = () => {
             </div>
           ) : (
             <>
+              {/* Recherche globale dans tous les logs actifs */}
+              <div className="mb-8">
+                <DashboardSearchCard
+                  onOpenFile={(pluginId, filePath, logType) => {
+                    setSelectedPluginId(pluginId);
+                    setDefaultLogFile(filePath);
+                    setCurrentPage('log-viewer');
+                  }}
+                  osType={pluginHeaderData?.osType}
+                />
+              </div>
+
               {/* Fichiers avec erreurs (error logs) – remplace les cartes plugins sur le dashboard */}
               <div className="mb-8">
                 <ErrorFilesCard
@@ -575,6 +588,11 @@ const App: React.FC = () => {
                     setSelectedPluginId(pluginId);
                     setDefaultLogFile(filePath);
                     setCurrentPage('log-viewer');
+                  }}
+                  onNavigateToAnalysis={() => {
+                    sessionStorage.setItem('adminMode', 'true');
+                    sessionStorage.setItem('adminTab', 'analysis');
+                    setCurrentPage('settings');
                   }}
                 />
               </div>

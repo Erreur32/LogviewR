@@ -61,6 +61,14 @@ export const LogFilters: React.FC<LogFiltersProps> = ({
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [showDatePicker]);
 
+    // Sync searchValue when filters.search is cleared from outside (e.g. "Effacer la recherche" in empty state)
+    // Only clear - never overwrite user typing with a non-empty value
+    useEffect(() => {
+        if (!filters.search && searchValue) {
+            setSearchValue('');
+        }
+    }, [filters.search]);
+
     // Debounce search
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -314,7 +322,7 @@ export const LogFilters: React.FC<LogFiltersProps> = ({
         <div className={isCompact ? `flex items-center gap-2 ${className}` : `bg-[#121212] border border-gray-800 rounded-xl p-4 ${className}`}>
             {/* Single Row: Search + Date Button */}
             <div className={`flex items-center gap-3 flex-wrap ${isCompact ? 'flex-nowrap' : ''}`}>
-                {/* Search Input */}
+                {/* Search Input with clear (X) button */}
                 <div className={`relative ${isCompact ? 'w-64' : 'flex-1 min-w-[200px]'}`}>
                     <Search className={`absolute left-3 top-1/2 transform -translate-y-1/2 ${filters.search ? 'text-cyan-400' : 'text-gray-500'}`} size={18} />
                     <input
@@ -322,7 +330,9 @@ export const LogFilters: React.FC<LogFiltersProps> = ({
                         value={searchValue}
                         onChange={(e) => setSearchValue(e.target.value)}
                         placeholder="Rechercher dans les logs..."
-                        className={`w-full pl-10 pr-4 py-2 rounded-lg border text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 text-sm ${
+                        className={`w-full pl-10 py-2 rounded-lg border text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 text-sm ${
+                            filters.search ? 'pr-10' : 'pr-4'
+                        } ${
                             filters.search
                                 ? 'border-cyan-500/50 bg-cyan-500/10 ring-2 ring-cyan-400/30'
                                 : isCompact 
@@ -330,6 +340,19 @@ export const LogFilters: React.FC<LogFiltersProps> = ({
                                     : 'border-gray-700 bg-[#0a0a0a]'
                         }`}
                     />
+                    {filters.search && (
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setSearchValue('');
+                                onFiltersChange({ search: undefined });
+                            }}
+                            className="absolute right-2 top-1/2 transform -translate-y-1/2 p-1 rounded hover:bg-gray-600/50 text-gray-400 hover:text-gray-200 transition-colors"
+                            title="Effacer la recherche"
+                        >
+                            <X size={16} />
+                        </button>
+                    )}
                 </div>
 
                 {/* Date Button - Opens date picker, no automatic filter */}

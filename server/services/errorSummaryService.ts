@@ -103,10 +103,20 @@ export interface AnalysisErrorEntry {
     errorMessage: string;
 }
 
+/** File skipped because it exceeds maxFileSizeBytes (too large for batch analysis). */
+export interface SkippedLargeFile {
+    pluginId: string;
+    filePath: string;
+    fileName: string;
+    sizeBytes: number;
+}
+
 export interface ErrorSummaryResult {
     files: ErrorFileSummary[];
     /** Files that failed to read or parse (separate from errors detected in log content). */
     analysisErrors: AnalysisErrorEntry[];
+    /** Files excluded because too large (user can analyze individually). */
+    skippedLargeFiles?: SkippedLargeFile[];
 }
 
 /**
@@ -221,11 +231,90 @@ export async function getErrorSummary(onProgress?: ErrorSummaryProgressCallback)
     return result;
 }
 
+const PARALLEL_FILE_LIMIT = 6;
+
+async function processOneFile(
+    file: { path: string; type: string; size: number },
+    pluginId: string,
+    linesPerFile: number,
+    readCompressed: boolean,
+    onProgress?: ErrorSummaryProgressCallback
+): Promise<{ summary: ErrorFileSummary | null; error: AnalysisErrorEntry | null }> {
+    const fileName = file.path.split('/').pop() ?? file.path;
+    onProgress?.(file.size > 0 ? `Lecture: ${fileName} (${formatFileSize(file.size)})` : `Lecture: ${fileName}`, { pluginId, filePath: file.path });
+    try {
+        const logLines = await logReaderService.readLastLines(file.path, linesPerFile, {
+            encoding: 'utf8',
+            readCompressed
+        });
+
+        if (logLines.length === 0) {
+            onProgress?.(`Ignoré (vide): ${fileName}`, { pluginId, filePath: file.path });
+            return { summary: null, error: null };
+        }
+
+        onProgress?.(`Comptage: ${fileName} (${logLines.length} lignes)`, { pluginId, filePath: file.path });
+
+        let count4xx = 0;
+        let count5xx = 0;
+        let count3xx = 0;
+        let countErrorTag = 0;
+        let countWarnTag = 0;
+        for (const logLine of logLines) {
+            const r = countLevelFromRawLineBreakdown(logLine.line);
+            if (!r) continue;
+            if (r.source === '4xx') count4xx++;
+            else if (r.source === '5xx') count5xx++;
+            else if (r.source === '3xx') count3xx++;
+            else if (r.source === 'tag' && r.level === 'error') countErrorTag++;
+            else if (r.source === 'tag' && r.level === 'warn') countWarnTag++;
+        }
+        const errorCount = count4xx + count5xx + count3xx + countErrorTag + countWarnTag;
+
+        if (errorCount === 0) {
+            onProgress?.(`Ignoré (0 erreur): ${fileName}`, { pluginId, filePath: file.path });
+            return { summary: null, error: null };
+        }
+
+        const summary: ErrorFileSummary = {
+            pluginId,
+            filePath: file.path,
+            fileName,
+            logType: file.type,
+            fileSizeBytes: file.size,
+            errorCount,
+            count4xx: count4xx || undefined,
+            count5xx: count5xx || undefined,
+            count3xx: count3xx || undefined,
+            countErrorTag: countErrorTag || undefined,
+            countWarnTag: countWarnTag || undefined,
+            uniqueErrorsBySeverity: { error: [], warn: [], info: [], debug: [] },
+            topErrors: []
+        };
+        onProgress?.(`Lu et validé: ${fileName} (${formatFileSize(file.size)}, ${errorCount} erreurs)`, { pluginId, filePath: file.path });
+        return { summary, error: null };
+    } catch (e) {
+        const errMsg = e instanceof Error ? e.message : String(e);
+        logger.warn('ErrorSummaryService', `Error processing ${file.path}: ${errMsg}`);
+        onProgress?.(`Erreur lecture/analyse: ${fileName}`, { pluginId, filePath: file.path });
+        return {
+            summary: null,
+            error: {
+                pluginId,
+                filePath: file.path,
+                fileName: file.path.split('/').pop() ?? file.path,
+                errorMessage: errMsg
+            }
+        };
+    }
+}
+
 async function computeErrorSummary(onProgress?: ErrorSummaryProgressCallback): Promise<ErrorSummaryResult> {
     const config = getErrorAnalysisConfig();
     const linesPerFile = DEPTH_TO_LINES[config.securityCheckDepth];
     const files: ErrorFileSummary[] = [];
     const analysisErrors: AnalysisErrorEntry[] = [];
+    const skippedLargeFiles: SkippedLargeFile[] = [];
 
     for (const pluginId of config.enabledPlugins) {
         const plugin = pluginManager.getPlugin(pluginId);
@@ -266,13 +355,21 @@ async function computeErrorSummary(onProgress?: ErrorSummaryProgressCallback): P
             .filter((f) => f.size <= config.maxFileSizeBytes)
             .sort((a, b) => (isErrorLogFile(a) ? 0 : 1) - (isErrorLogFile(b) ? 0 : 1)) // Prefer error logs over access when trimming
             .slice(0, config.maxFilesPerPlugin);
+
+        for (const f of skippedLarge) {
+            skippedLargeFiles.push({
+                pluginId,
+                filePath: f.path,
+                fileName: f.path.split('/').pop() ?? f.path,
+                sizeBytes: f.size
+            });
+        }
         if (skippedLarge.length > 0) {
             const msg = `Ignorés (trop volumineux): ${skippedLarge.length} fichier(s) pour ${pluginId}`;
             logger.info('ErrorSummaryService', msg);
             onProgress?.(msg, { pluginId });
         }
 
-        // Emit list of files that will be scanned (before reading); skip 0 B so we don't show " (0 B)".
         for (const file of errorFiles) {
             if (file.size === 0) continue;
             const plannedName = file.path.split('/').pop() ?? file.path;
@@ -281,78 +378,84 @@ async function computeErrorSummary(onProgress?: ErrorSummaryProgressCallback): P
 
         const readCompressed = (pluginConfig.settings?.readCompressed as boolean) ?? false;
 
-        for (const file of errorFiles) {
-            const fileName = file.path.split('/').pop() ?? file.path;
-            onProgress?.(file.size > 0 ? `Lecture: ${fileName} (${formatFileSize(file.size)})` : `Lecture: ${fileName}`, { pluginId, filePath: file.path });
-            try {
-                const logLines = await logReaderService.readLastLines(file.path, linesPerFile, {
-                    encoding: 'utf8',
-                    readCompressed
-                });
-
-                if (logLines.length === 0) {
-                    onProgress?.(`Ignoré (vide): ${fileName}`, { pluginId, filePath: file.path });
-                    continue;
-                }
-
-                onProgress?.(`Comptage: ${fileName} (${logLines.length} lignes)`, { pluginId, filePath: file.path });
-
-                let count4xx = 0;
-                let count5xx = 0;
-                let count3xx = 0;
-                let countErrorTag = 0;
-                let countWarnTag = 0;
-                for (const logLine of logLines) {
-                    const r = countLevelFromRawLineBreakdown(logLine.line);
-                    if (!r) continue;
-                    if (r.source === '4xx') count4xx++;
-                    else if (r.source === '5xx') count5xx++;
-                    else if (r.source === '3xx') count3xx++;
-                    else if (r.source === 'tag' && r.level === 'error') countErrorTag++;
-                    else if (r.source === 'tag' && r.level === 'warn') countWarnTag++;
-                }
-                const errorCount = count4xx + count5xx + count3xx + countErrorTag + countWarnTag;
-
-                if (errorCount === 0) {
-                    onProgress?.(`Ignoré (0 erreur): ${fileName}`, { pluginId, filePath: file.path });
-                    continue;
-                }
-
-                files.push({
-                    pluginId,
-                    filePath: file.path,
-                    fileName,
-                    logType: file.type,
-                    fileSizeBytes: file.size,
-                    errorCount,
-                    count4xx: count4xx || undefined,
-                    count5xx: count5xx || undefined,
-                    count3xx: count3xx || undefined,
-                    countErrorTag: countErrorTag || undefined,
-                    countWarnTag: countWarnTag || undefined,
-                    uniqueErrorsBySeverity: {
-                        error: [],
-                        warn: [],
-                        info: [],
-                        debug: []
-                    },
-                    topErrors: []
-                });
-                onProgress?.(`Lu et validé: ${fileName} (${formatFileSize(file.size)}, ${errorCount} erreurs)`, { pluginId, filePath: file.path });
-            } catch (e) {
-                const errMsg = e instanceof Error ? e.message : String(e);
-                logger.warn('ErrorSummaryService', `Error processing ${file.path}: ${errMsg}`);
-                analysisErrors.push({
-                    pluginId,
-                    filePath: file.path,
-                    fileName: file.path.split('/').pop() ?? file.path,
-                    errorMessage: errMsg
-                });
-                onProgress?.(`Erreur lecture/analyse: ${fileName}`, { pluginId, filePath: file.path });
+        // Process files in parallel (batches of PARALLEL_FILE_LIMIT)
+        for (let i = 0; i < errorFiles.length; i += PARALLEL_FILE_LIMIT) {
+            const batch = errorFiles.slice(i, i + PARALLEL_FILE_LIMIT);
+            const results = await Promise.all(
+                batch.map((file) => processOneFile(file, pluginId, linesPerFile, readCompressed, onProgress))
+            );
+            for (const { summary, error } of results) {
+                if (summary) files.push(summary);
+                if (error) analysisErrors.push(error);
             }
         }
     }
 
     files.sort((a, b) => b.errorCount - a.errorCount);
-    return { files, analysisErrors };
+    return { files, analysisErrors, skippedLargeFiles };
+}
+
+/**
+ * Analyze a single file completely (full file read, for large files excluded from batch).
+ * Uses streaming to avoid loading the whole file into memory.
+ */
+export async function analyzeSingleFile(
+    pluginId: string,
+    filePath: string,
+    readCompressed: boolean
+): Promise<{ summary: ErrorFileSummary | null; error: string | null }> {
+    const fileName = filePath.split('/').pop() ?? filePath;
+    let count4xx = 0;
+    let count5xx = 0;
+    let count3xx = 0;
+    let countErrorTag = 0;
+    let countWarnTag = 0;
+    let fileSize = 0;
+    let logType = 'error';
+
+    try {
+        const fileInfo = await logReaderService.getFileInfo(filePath);
+        if (!fileInfo.exists || !fileInfo.readable) {
+            return { summary: null, error: 'File not found or not readable' };
+        }
+        fileSize = fileInfo.size;
+
+        const lines = await logReaderService.readLogFile(filePath, {
+            maxLines: 0,
+            encoding: 'utf8',
+            readCompressed
+        });
+
+        for (const logLine of lines) {
+            const r = countLevelFromRawLineBreakdown(logLine.line);
+            if (!r) continue;
+            if (r.source === '4xx') count4xx++;
+            else if (r.source === '5xx') count5xx++;
+            else if (r.source === '3xx') count3xx++;
+            else if (r.source === 'tag' && r.level === 'error') countErrorTag++;
+            else if (r.source === 'tag' && r.level === 'warn') countWarnTag++;
+        }
+        const errorCount = count4xx + count5xx + count3xx + countErrorTag + countWarnTag;
+
+        const summary: ErrorFileSummary = {
+            pluginId,
+            filePath,
+            fileName,
+            logType,
+            fileSizeBytes: fileSize,
+            errorCount,
+            count4xx: count4xx || undefined,
+            count5xx: count5xx || undefined,
+            count3xx: count3xx || undefined,
+            countErrorTag: countErrorTag || undefined,
+            countWarnTag: countWarnTag || undefined,
+            uniqueErrorsBySeverity: { error: [], warn: [], info: [], debug: [] },
+            topErrors: []
+        };
+        return { summary, error: null };
+    } catch (e) {
+        const errMsg = e instanceof Error ? e.message : String(e);
+        logger.warn('ErrorSummaryService', `analyzeSingleFile ${filePath}: ${errMsg}`);
+        return { summary: null, error: errMsg };
+    }
 }

@@ -229,7 +229,9 @@ export class LogReaderService {
     }
 
     /**
-     * Read the last N lines of a log file (tail). Uses a sliding window to avoid loading the whole file.
+     * Read the last N lines of a log file (tail).
+     * For uncompressed files: reads from the end of the file in chunks (O(1) memory for large files).
+     * For compressed files (.gz): must decompress from start (no random access in gzip).
      * @param filePath Path to log file
      * @param maxLines Maximum number of lines to return (from the end)
      * @param options Read options
@@ -237,8 +239,6 @@ export class LogReaderService {
      */
     async readLastLines(filePath: string, maxLines: number, options: ReadLogOptions = {}): Promise<LogLine[]> {
         const { encoding = this.DEFAULT_ENCODING, readCompressed = false } = options;
-        const sliding: LogLine[] = [];
-        let lineNumber = 0;
 
         try {
             const fileInfo = await this.getFileInfo(filePath);
@@ -246,36 +246,89 @@ export class LogReaderService {
                 return [];
             }
 
-            let stream: NodeJS.ReadableStream;
+            // Compressed files: no random access, must stream from start (keep original behavior)
             if (fileInfo.compressed) {
-                if (!readCompressed || !filePath.toLowerCase().endsWith('.gz')) {
-                    return [];
-                }
-                stream = createReadStream(filePath).pipe(zlib.createGunzip());
-            } else {
-                stream = createReadStream(filePath, { encoding });
+                return this.readLastLinesStreaming(filePath, maxLines, options);
             }
 
-            const rl = createInterface({ input: stream, crlfDelay: Infinity });
-
-            for await (const line of rl) {
-                lineNumber++;
-                sliding.push({
-                    line,
-                    lineNumber,
-                    filePath
-                });
-                if (sliding.length > maxLines) {
-                    sliding.shift();
-                }
-            }
-
-            return sliding;
+            // Uncompressed: read from end efficiently (O(chunk size) memory, not O(file size))
+            return this.readLastLinesFromEnd(filePath, fileInfo.size, maxLines, encoding);
         } catch (error: any) {
             if (error?.code === 'EACCES' || error?.code === 'EPERM' || error?.code === 'ENOENT' || error?.code === 'Z_DATA_ERROR') {
                 return [];
             }
             throw error;
+        }
+    }
+
+    /**
+     * Read last N lines by streaming from start (used for compressed files, no random access).
+     */
+    private async readLastLinesStreaming(filePath: string, maxLines: number, options: ReadLogOptions): Promise<LogLine[]> {
+        const { encoding = this.DEFAULT_ENCODING, readCompressed = false } = options;
+        const sliding: LogLine[] = [];
+        let lineNumber = 0;
+
+        const fileInfo = await this.getFileInfo(filePath);
+        if (!fileInfo.exists || !fileInfo.readable) return [];
+
+        let stream: NodeJS.ReadableStream;
+        if (fileInfo.compressed) {
+            if (!readCompressed || !filePath.toLowerCase().endsWith('.gz')) return [];
+            stream = createReadStream(filePath).pipe(zlib.createGunzip());
+        } else {
+            stream = createReadStream(filePath, { encoding });
+        }
+
+        const rl = createInterface({ input: stream, crlfDelay: Infinity });
+        for await (const line of rl) {
+            lineNumber++;
+            sliding.push({ line, lineNumber, filePath });
+            if (sliding.length > maxLines) sliding.shift();
+        }
+        return sliding;
+    }
+
+    /**
+     * Read last N lines from end of file (uncompressed only). Reads backwards in chunks to avoid loading whole file.
+     */
+    private async readLastLinesFromEnd(filePath: string, fileSize: number, maxLines: number, encoding: BufferEncoding): Promise<LogLine[]> {
+        if (fileSize === 0) return [];
+
+        const CHUNK_SIZE = 65536; // 64 KB
+        const fd = await fs.open(filePath, 'r');
+        let carryOver = '';
+        const lines: string[] = [];
+
+        try {
+            let offset = Math.max(0, fileSize - CHUNK_SIZE);
+
+            while (offset < fileSize) {
+                const toRead = Math.min(CHUNK_SIZE, fileSize - offset);
+                const chunk = Buffer.alloc(toRead);
+                const { bytesRead } = await fd.read(chunk, 0, toRead, offset);
+                const text = chunk.subarray(0, bytesRead).toString(encoding);
+                // We read from end first: text is from earlier in file, carryOver is partial from next chunk (toward end)
+                const combined = text + carryOver;
+
+                const parts = combined.split(/\r?\n/);
+                carryOver = parts.pop() || '';
+
+                for (let i = parts.length - 1; i >= 0 && lines.length < maxLines; i--) {
+                    lines.unshift(parts[i]);
+                }
+                if (lines.length >= maxLines) break;
+                if (offset === 0) {
+                    if (carryOver) lines.unshift(carryOver);
+                    break;
+                }
+                offset = Math.max(0, offset - CHUNK_SIZE);
+            }
+
+            const result = lines.slice(-maxLines);
+            return result.map((line, i) => ({ line, lineNumber: i + 1, filePath }));
+        } finally {
+            await fd.close();
         }
     }
 

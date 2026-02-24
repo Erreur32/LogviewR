@@ -9,6 +9,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.3.1] - 2026-02-13
+
+### Added
+
+#### Dashboard – Recherche globale
+- **Cadre Recherche** : Nouveau bloc « Recherche » en haut du dashboard pour rechercher dans tous les logs des plugins actifs.
+- **Filtres plugins** : Boutons pour limiter la recherche à des plugins spécifiques (Host System, Apache, NPM, Nginx) ou tous.
+- **Options** : Sensible à la casse, expression régulière (regex).
+- **Résultats** : Affichage des correspondances avec plugin, fichier, numéro de ligne et extrait ; clic pour ouvrir dans le visualiseur de logs.
+- **API** : `POST /api/log-viewer/search-all` (query, pluginIds, caseSensitive, useRegex, maxResults).
+- **UX compacte** : Barre de recherche seule visible par défaut (pas de cadre vide) ; icône recherche à gauche ; contenu (filtres, résultats) affiché uniquement quand pertinent.
+
+### Changed
+
+#### Administration – Réorganisation des onglets
+- **Onglet Regex** : déplacé dans l’onglet Plugins comme catégorie séparée (section « Regex »).
+- **Onglet Debug** : déplacé dans l’onglet Info comme catégorie séparée (sections Logs app, Niveaux de log, Diagnostics).
+- **Nouvel ordre des onglets** : General, Plugins, Analyse, Notification, Theme, Security, Exporter, Database, Info.
+- **Redirection** : les anciennes URLs/liens vers `adminTab=regex` ou `adminTab=debug` redirigent automatiquement vers Plugins ou Info.
+
+#### Dashboard – Fichiers non analysés (trop volumineux)
+- **Affichage enrichi** : Plugin (Host System, Apache, NPM, Nginx), taille, chemin complet ; regroupement par catégorie plugin distincte.
+- **Bouton Analyser** : Notification succès/erreur ; indication « Analyse en cours… » pendant l'exécution ; tooltip explicatif ; expansion automatique des résultats ; fichier retiré de la liste une fois analysé.
+
+---
+
 ## [0.3.0] - 2026-02-13
 
 ### Security

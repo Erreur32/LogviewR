@@ -34,8 +34,8 @@ const CONFIG_KEY = 'error_analysis_config';
 export const ALLOWED_PLUGINS = ['apache', 'nginx', 'npm', 'host-system'] as const;
 
 export const DEFAULT_ERROR_ANALYSIS_CONFIG: ErrorAnalysisConfig = {
-    errorSummaryEnabled: false,
-    enabledPlugins: ['apache', 'nginx', 'npm'],
+    errorSummaryEnabled: true,
+    enabledPlugins: ['host-system'],
     maxFilesPerPlugin: 20,
     linesPerFile: 1000,
     maxFileSizeBytes: 10 * 1024 * 1024, // 10 MB

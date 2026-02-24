@@ -13,3 +13,4 @@ export { NetworkEventsWidget } from './NetworkEventsWidget';
 export { LogPluginStatsCard } from './LogPluginStatsCard';
 export { LogHistoryCard } from './LogHistoryCard';
 export { ErrorFilesCard } from './ErrorFilesCard';
+export { DashboardSearchCard } from './DashboardSearchCard';

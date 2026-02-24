@@ -40,7 +40,8 @@ import {
   BarChart3,
   Bell,
   Star,
-  GitFork
+  GitFork,
+  X
 } from 'lucide-react';
 import { api } from '../api/client';
 import { API_ROUTES, formatBytes } from '../utils/constants';
@@ -65,7 +66,7 @@ import { setAppLanguage, getAppLanguage } from '../i18n';
 interface SettingsPageProps {
   onBack: () => void;
   mode?: 'administration';
-  initialAdminTab?: 'general' | 'users' | 'plugins' | 'security' | 'exporter' | 'theme' | 'debug' | 'info' | 'analysis' | 'notifications';
+  initialAdminTab?: 'general' | 'users' | 'plugins' | 'security' | 'exporter' | 'theme' | 'info' | 'analysis' | 'notifications' | 'database';
   onNavigateToPage?: (page: 'plugins' | 'users') => void;
   onUsersClick?: () => void;
   onSettingsClick?: () => void;
@@ -74,12 +75,15 @@ interface SettingsPageProps {
   onLogout?: () => void;
 }
 
-type AdminTab = 'general' | 'plugins' | 'security' | 'exporter' | 'theme' | 'debug' | 'info' | 'database' | 'regex' | 'analysis' | 'notifications';
+type AdminTab = 'general' | 'plugins' | 'security' | 'exporter' | 'theme' | 'info' | 'database' | 'analysis' | 'notifications';
 
-const ADMIN_TAB_IDS: AdminTab[] = ['general', 'plugins', 'security', 'exporter', 'theme', 'debug', 'info', 'database', 'regex', 'analysis', 'notifications'];
+const ADMIN_TAB_IDS: AdminTab[] = ['general', 'plugins', 'analysis', 'notifications', 'theme', 'security', 'exporter', 'database', 'info'];
 
 function toAdminTab(value: string | null | undefined): AdminTab {
-  if (value && ADMIN_TAB_IDS.includes(value as AdminTab)) return value as AdminTab;
+  if (!value) return 'general';
+  if (value === 'regex') return 'plugins';
+  if (value === 'debug') return 'info';
+  if (ADMIN_TAB_IDS.includes(value as AdminTab)) return value as AdminTab;
   return 'general';
 }
 
@@ -2511,7 +2515,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     analyzeArchives: boolean;
   }>({
     errorSummaryEnabled: false,
-    enabledPlugins: ['apache', 'nginx', 'npm'],
+    enabledPlugins: ['host-system'],
     maxFilesPerPlugin: 20,
     linesPerFile: 1000,
     maxFileSizeBytes: 10 * 1024 * 1024,
@@ -2523,6 +2527,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisSaving, setAnalysisSaving] = useState(false);
   const [analysisMessage, setAnalysisMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [searchInfoDismissed, setSearchInfoDismissed] = useState(() => !!sessionStorage.getItem('analysis.searchInfoDismissed'));
   const analysisJustLoadedRef = useRef(false);
   const analysisSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -2535,7 +2540,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         if (cancelled || !res.success || !res.result) return;
         setAnalysisConfig({
           errorSummaryEnabled: res.result.errorSummaryEnabled === true,
-          enabledPlugins: res.result.enabledPlugins ?? ['apache', 'nginx', 'npm'],
+          enabledPlugins: res.result.enabledPlugins ?? ['host-system'],
           maxFilesPerPlugin: res.result.maxFilesPerPlugin ?? 20,
           linesPerFile: res.result.linesPerFile ?? 1000,
           maxFileSizeBytes: res.result.maxFileSizeBytes ?? 10 * 1024 * 1024,
@@ -2604,14 +2609,12 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   const adminTabs: { id: AdminTab; label: string; icon: React.ElementType; color: string }[] = [
     { id: 'general', label: t('admin.tabs.general'), icon: Settings, color: 'blue' },
     { id: 'plugins', label: t('admin.tabs.plugins'), icon: Plug, color: 'emerald' },
-    { id: 'regex', label: t('admin.tabs.regex'), icon: Code, color: 'purple' },
+    { id: 'analysis', label: t('admin.tabs.analysis'), icon: BarChart3, color: 'cyan' },
+    { id: 'notifications', label: t('admin.tabs.notifications'), icon: Bell, color: 'amber' },
     { id: 'theme', label: t('admin.tabs.theme'), icon: Lightbulb, color: 'yellow' },
     { id: 'security', label: t('admin.tabs.security'), icon: Shield, color: 'red' },
     { id: 'exporter', label: t('admin.tabs.exporter'), icon: Share2, color: 'amber' },
     { id: 'database', label: t('admin.tabs.database'), icon: Database, color: 'purple' },
-    { id: 'analysis', label: t('admin.tabs.analysis'), icon: BarChart3, color: 'cyan' },
-    { id: 'notifications', label: t('admin.tabs.notifications'), icon: Bell, color: 'amber' },
-    { id: 'debug', label: t('admin.tabs.debug'), icon: Monitor, color: 'violet' },
     { id: 'info', label: t('admin.tabs.info'), icon: Info, color: 'teal' }
   ];
 
@@ -2860,18 +2863,13 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             )}
 
 
-            {/* Plugins Management Section */}
+            {/* Plugins Management Section (includes Regex as a sub-category) */}
             {activeAdminTab === 'plugins' && (
               <div className="space-y-6">
                 <PluginsManagementSection />
-              </div>
-            )}
-
-
-            {/* Regex Management Section */}
-            {activeAdminTab === 'regex' && (
-              <div className="space-y-6">
-                <RegexManagementSection />
+                <Section title={t('admin.tabs.regex')} icon={Code} iconColor="purple">
+                  <RegexManagementSection />
+                </Section>
               </div>
             )}
           
@@ -2899,9 +2897,28 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
               <DatabaseSection />
             )}
 
-            {/* Info Section */}
+            {/* Info Section (includes Debug as a sub-category) */}
             {activeAdminTab === 'info' && (
-              <InfoSection />
+              <div className="space-y-6">
+                <InfoSection />
+                <Section title={t('debug.appLogsTitle')} icon={FileText} iconColor="cyan">
+                  <AppLogsSection />
+                </Section>
+                <Section title={t('debug.logLevelsTitle')} icon={Monitor} iconColor="violet">
+                  <DebugLogSection />
+                </Section>
+                <Section title={t('debug.debugDiagnosticsTitle')} icon={Monitor} iconColor="violet">
+                  <div className="py-4 space-y-2 text-xs text-gray-400">
+                    <p>{t('debug.debugIntro')}</p>
+                    <ul className="list-disc list-inside space-y-1">
+                      <li>{t('debug.debugBullet1')}</li>
+                      <li>{t('debug.debugBullet2')}</li>
+                      <li>{t('debug.debugBullet3')}</li>
+                      <li>{t('debug.debugBullet4')}</li>
+                    </ul>
+                  </div>
+                </Section>
+              </div>
             )}
 
             {/* Analysis Section */}
@@ -2921,10 +2938,23 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                         </div>
                       )}
 
-                      {/* Explanatory text: what the current scan does (warn/error only) */}
-                      <p className="text-xs text-cyan-400/90 bg-cyan-500/10 border border-cyan-500/30 rounded-lg px-3 py-2">
-                        {t('analysis.currentSearchWhatIsSearched')}
-                      </p>
+                      {/* Explanatory text: what the current scan does (warn/error only) - dismissible */}
+                      {!searchInfoDismissed && (
+                        <div className="relative text-xs text-cyan-400/90 bg-cyan-500/10 border border-cyan-500/30 rounded-lg px-3 py-2 pr-10">
+                          <p>{t('analysis.currentSearchWhatIsSearched')}</p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              sessionStorage.setItem('analysis.searchInfoDismissed', '1');
+                              setSearchInfoDismissed(true);
+                            }}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-cyan-500/20 text-cyan-400/80 hover:text-cyan-300 transition-colors"
+                            title={t('common.close') || 'Fermer'}
+                          >
+                            <X size={16} />
+                          </button>
+                        </div>
+                      )}
 
                       {/* Two-column layout: Error summary | Security check */}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -3090,34 +3120,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                         </div>
                       </div>
                     </div>
-                  </div>
-                </Section>
-              </div>
-            )}
-
-            {/* Debug Section */}
-            {activeAdminTab === 'debug' && (
-              <div className="space-y-6">
-
-                <Section title={t('debug.appLogsTitle')} icon={FileText} iconColor="cyan">
-                  <AppLogsSection />
-                </Section>
-                <Section title={t('debug.logLevelsTitle')} icon={Monitor} iconColor="violet">
-                  <DebugLogSection />
-                </Section>
-
-                <Section title={t('debug.debugDiagnosticsTitle')} icon={Monitor} iconColor="violet">
-                  <div className="py-4 space-y-2 text-xs text-gray-400">
-                    <p>
-                      {t('debug.debugIntro')}
-                    </p>
-                    <ul className="list-disc list-inside space-y-1">
-                      <li>{t('debug.debugBullet1')}</li>
-                      <li>{t('debug.debugBullet2')}</li>
-                      <li>{t('debug.debugBullet3')}</li>
-                      <li>{t('debug.debugBullet4')}</li>
-                    </ul>
- 
                   </div>
                 </Section>
               </div>

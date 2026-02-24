@@ -21,8 +21,9 @@ import { generateRegexFromLogLine } from '../services/regexGeneratorService.js';
 import { APACHE_ACCESS_VHOST_COMBINED_REGEX } from '../plugins/apache/ApacheParser.js';
 import { APACHE_REGEX_KEYS, getApacheRegexKeyForPath, NPM_REGEX_KEYS, getNpmRegexKeyForPath, NGINX_REGEX_KEYS, getNginxRegexKeyForPath } from '../services/logParserService.js';
 import { getAllAnalytics } from '../services/logAnalyticsService.js';
-import { getErrorSummaryWithMeta, getErrorSummaryProgress, invalidateErrorSummaryCache } from '../services/errorSummaryService.js';
+import { getErrorSummaryWithMeta, getErrorSummaryProgress, invalidateErrorSummaryCache, analyzeSingleFile } from '../services/errorSummaryService.js';
 import { getErrorAnalysisConfig } from '../config/errorAnalysisConfig.js';
+import { searchAllLogs } from '../services/logSearchService.js';
 
 const router = Router();
 
@@ -722,6 +723,67 @@ router.post('/error-summary/invalidate', (req, res) => {
 });
 
 /**
+ * POST /api/log-viewer/error-summary/analyze-file
+ * Analyze a single (large) file completely. Used for files excluded from batch because too large.
+ */
+router.post('/error-summary/analyze-file', async (req, res) => {
+    try {
+        const { pluginId, filePath } = req.body as { pluginId?: string; filePath?: string };
+        if (!pluginId || !filePath || typeof pluginId !== 'string' || typeof filePath !== 'string') {
+            res.status(400).json({ success: false, error: 'pluginId and filePath required' });
+            return;
+        }
+        const pluginConfig = PluginConfigRepository.findByPluginId(pluginId);
+        const readCompressed = (pluginConfig?.settings?.readCompressed as boolean) ?? false;
+        const { summary, error } = await analyzeSingleFile(pluginId, filePath, readCompressed);
+        if (error) {
+            res.json({ success: false, error });
+            return;
+        }
+        res.json({ success: true, result: summary });
+    } catch (err) {
+        logger.error('LogViewer', 'analyze-file failed:', err);
+        res.status(500).json({
+            success: false,
+            error: err instanceof Error ? err.message : 'Analysis failed'
+        });
+    }
+});
+
+/**
+ * POST /api/log-viewer/search-all
+ * Search across all active log files from enabled plugins.
+ * Body: { query, pluginIds?, caseSensitive?, useRegex?, maxResults?, maxLinesPerFile? }
+ */
+router.post('/search-all', async (req, res) => {
+    try {
+        const { query, pluginIds, caseSensitive, useRegex, maxResults, maxLinesPerFile } = req.body as {
+            query?: string;
+            pluginIds?: string[];
+            caseSensitive?: boolean;
+            useRegex?: boolean;
+            maxResults?: number;
+            maxLinesPerFile?: number;
+        };
+        const result = await searchAllLogs({
+            query: query ?? '',
+            pluginIds: Array.isArray(pluginIds) ? pluginIds : undefined,
+            caseSensitive: !!caseSensitive,
+            useRegex: !!useRegex,
+            maxResults: typeof maxResults === 'number' ? Math.min(500, Math.max(10, maxResults)) : 100,
+            maxLinesPerFile: typeof maxLinesPerFile === 'number' ? Math.min(10000, Math.max(500, maxLinesPerFile)) : 5000
+        });
+        res.json({ success: true, result });
+    } catch (err) {
+        logger.error('LogViewer', 'search-all failed:', err);
+        res.status(500).json({
+            success: false,
+            error: err instanceof Error ? err.message : 'Search failed'
+        });
+    }
+});
+
+/**
  * GET /api/log-viewer/error-summary/progress
  * Returns current progress messages while error-summary is being computed (for live UI).
  */
@@ -756,6 +818,8 @@ router.get('/error-summary', async (req, res) => {
                 enabled: true,
                 files: result.files,
                 analysisErrors: result.analysisErrors ?? [],
+                skippedLargeFiles: result.skippedLargeFiles ?? [],
+                enabledPlugins: config.enabledPlugins,
                 fromCache: !!fromCache,
                 cacheAgeMs: fromCache ? cacheAgeMs : 0
             }

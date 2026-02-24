@@ -28,6 +28,7 @@ interface LogTableProps {
     isLoading?: boolean;
     className?: string;
     filteredCount?: number; // Number of logs filtered out by filters
+    totalLogsCount?: number; // Unfiltered total (for stats when logs empty, e.g. search returned nothing)
     currentPage?: number;
     pageSize?: number;
     onPageChange?: (page: number) => void;
@@ -252,6 +253,7 @@ export const LogTable: React.FC<LogTableProps> = ({
     isLoading = false,
     className = '',
     filteredCount = 0,
+    totalLogsCount,
     currentPage = 1,
     pageSize = 100,
     onPageChange,
@@ -406,14 +408,14 @@ export const LogTable: React.FC<LogTableProps> = ({
     const endIndex = startIndex + pageSize;
     const paginatedLogs = nonEmptyLogs.slice(startIndex, endIndex);
     
-    // Statistics (using non-empty logs for valid count)
+    // Statistics (use totalLogsCount when logs empty, e.g. search returned nothing)
     const stats = useMemo(() => {
-        const total = logs.length;
+        const total = totalLogsCount ?? logs.length;
         const valid = nonEmptyLogs.length;
         const filtered = filteredCount;
         const unreadable = logs.filter(l => l.isParsed === false).length;
         return { total, valid, filtered, unreadable };
-    }, [logs, nonEmptyLogs, filteredCount]);
+    }, [logs, nonEmptyLogs, filteredCount, totalLogsCount]);
     
     // Format cell value based on column type and plugin
     const formatCellValue = (log: LogEntry, column: string): React.ReactNode => {
@@ -852,6 +854,10 @@ export const LogTable: React.FC<LogTableProps> = ({
         }
     };
     
+    // Empty state: no early return - we always render header + filters so user can clear search
+    const isEmpty = logs.length === 0;
+    const isSearchNoResults = isEmpty && (totalLogsCount ?? 0) > 0;
+
     if (isLoading) {
         return (
             <div className={`flex items-center justify-center p-12 ${className}`}>
@@ -862,18 +868,7 @@ export const LogTable: React.FC<LogTableProps> = ({
             </div>
         );
     }
-    
-    if (logs.length === 0) {
-        return (
-            <div className={`flex items-center justify-center p-12 ${className}`}>
-                <div className="text-center">
-                    <div className="text-gray-500 text-lg mb-2">Aucun log disponible</div>
-                    <div className="text-gray-600 text-sm">Les logs correspondant aux filtres sélectionnés seront affichés ici</div>
-                </div>
-            </div>
-        );
-    }
-    
+
     return (
         <div className={`overflow-x-auto ${className}`}>
             {/* Statistics bar with filters - All on same line */}
@@ -1029,6 +1024,33 @@ export const LogTable: React.FC<LogTableProps> = ({
                 </div>
             </div>
             
+            {isEmpty ? (
+                /* Empty state: message in table area only - header/filters stay visible so user can clear search */
+                <div className="border-t border-gray-800 bg-[#121212] min-h-[200px] flex items-center justify-center p-8">
+                    <div className="text-center max-w-md">
+                        <div className="text-amber-400/90 text-lg font-medium mb-2">
+                            {isSearchNoResults
+                                ? (filters?.search
+                                    ? `Aucun résultat pour « ${filters.search} »`
+                                    : 'Aucun résultat pour les filtres sélectionnés')
+                                : 'Aucun log disponible'}
+                        </div>
+                        <div className="text-gray-500 text-sm">
+                            {isSearchNoResults
+                                ? 'Modifiez la recherche ou les filtres pour afficher des logs.'
+                                : 'Les logs correspondant aux filtres sélectionnés seront affichés ici.'}
+                        </div>
+                        {isSearchNoResults && filters && onFiltersChange && (
+                            <button
+                                onClick={() => onFiltersChange({ search: undefined })}
+                                className="mt-4 px-4 py-2 rounded-lg border border-cyan-500/50 bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 transition-colors text-sm"
+                            >
+                                Effacer la recherche
+                            </button>
+                        )}
+                    </div>
+                </div>
+            ) : (
             <table className="w-full border-collapse table-fixed" data-log-type={logType}>
                 <colgroup>
                     {orderedColumns.map((col) => {
@@ -1101,6 +1123,7 @@ export const LogTable: React.FC<LogTableProps> = ({
                     })}
                 </tbody>
             </table>
+            )}
             {/* Pagination */}
             <div className="px-4 py-3 bg-[#0a0a0a] border-t border-gray-800 flex items-center justify-between flex-wrap gap-4">
                 <div className="flex items-center gap-2 text-xs text-gray-400">
