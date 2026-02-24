@@ -250,19 +250,35 @@ do_commit_tag_push() {
     echo ""
   fi
 
-  # ── Create tag ─────────────────────────────────────────────────────────────
+  # ── Create tag (local only if not exists) ───────────────────────────────────
   if git rev-parse "$tag_name" >/dev/null 2>&1; then
-    echo -e "  ${Y}⚠${R} Tag ${C}${tag_name}${R} already exists. Pushing branch and tag."
+    echo -e "  ${Y}⚠${R} Tag ${C}${tag_name}${R} already exists locally."
   else
     git tag -a "$tag_name" -m "Release $tag_name" || { echo -e "${RED}Tag creation failed.${R}"; return 1; }
     echo -e "  ${G}✓${R} Tag ${C}${tag_name}${R} created."
   fi
 
-  # ── Push branch + tag ─────────────────────────────────────────────────────
-  echo -e "  ${B}Pushing ${C}origin ${branch}${R} and ${C}origin ${tag_name}${R} ...${R}"
-  git push origin "$branch" && git push origin "$tag_name" || { echo -e "${RED}Push failed.${R}"; return 1; }
+  # ── Push branch ───────────────────────────────────────────────────────────
+  echo -e "  ${B}Pushing ${C}origin ${branch}${R} ...${R}"
+  if ! git push origin "$branch"; then
+    echo -e "${RED}Push branch failed.${R}"
+    return 1
+  fi
+  echo -e "  ${G}✓${R} Branch ${C}${branch}${R} pushed."
+
+  # ── Push tag (skip if already on remote) ───────────────────────────────────
+  if git ls-remote origin "refs/tags/$tag_name" 2>/dev/null | grep -q .; then
+    echo -e "  ${Y}○${R} Tag ${C}${tag_name}${R} already exists on remote — skip."
+  else
+    echo -e "  ${B}Pushing tag ${C}${tag_name}${R} ...${R}"
+    if ! git push origin "$tag_name"; then
+      echo -e "${RED}Push tag failed.${R}"
+      return 1
+    fi
+    echo -e "  ${G}✓${R} Tag ${C}${tag_name}${R} pushed."
+  fi
   echo ""
-  echo -e "  ${G}✓${R} Branch ${C}${branch}${R} and tag ${C}${tag_name}${R} pushed to origin."
+  echo -e "  ${G}✓${R} Done."
   return 0
 }
 
@@ -289,18 +305,18 @@ echo -e "${C}${B}━━━━━━━━━━━━━━━━━━━━━
 echo -e "${C}${B}  Commands to run (copy / paste)${R}"
 echo -e "${C}${B}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${R}"
 echo ""
-echo -e "  ${B}1. Edit commit message:${R}"
-echo -e "     ${C}nano commit-message.txt${R}"
+echo -e "  ${B}1. Commit without custom message (generic):${R}"
+echo -e "     ${G}git add -A && git commit -m \"release: v$NEW\" && git push${R}"
 echo ""
-echo -e "  ${B}2. Commit and push:${R}"
+echo -e "  ${B}2. Commit with commit-message.txt:${R}"
 echo -e "     ${G}git add -A && git commit -F commit-message.txt && git push${R}"
 echo ""
 echo -e "  ${B}3. Create tag and push tag:${R}"
 echo -e "     ${G}git tag -a v$NEW -m \"Release v$NEW\" && git push origin v$NEW${R}"
 echo ""
-echo -e "  ${B}Or all-in-one:${R}"
+echo -e "  ${B}All-in-one (commit + tag + push):${R}"
 echo -e "     ${G}git add -A && git commit -F commit-message.txt && git tag -a v$NEW -m \"Release v$NEW\" && git push origin \$(git rev-parse --abbrev-ref HEAD) && git push origin v$NEW${R}"
 echo ""
-echo -e "  ${B}Or re-run with --tag-push (does commit + tag + push automatically):${R}"
+echo -e "  ${B}Or re-run with --tag-push (automatic):${R}"
 echo -e "     ${C}$0 $NEW --tag-push${R}"
 echo ""

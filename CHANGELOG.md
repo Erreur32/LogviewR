@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.3.2] - 2026-02-13
+
+### Changed
+
+#### Dashboard – Carte Analyse / Journaux d'erreur
+- **Collapse par défaut** : seule la ligne header visible (titre + nombre d'erreurs) ; clic pour déplier.
+- **Résultats du scan** : pliage supprimé, résultats toujours affichés quand la carte est dépliée.
+- **Fichiers non analysés (trop volumineux)** : pliage conservé.
+
+#### Log Viewer – IPv6 dans les tableaux
+- **Troncature IPv6** : affichage « début…fin » pour tenir dans les cellules (ex. `2001:0db8:85…0370:7334`).
+- **Tooltip** : IP complète au survol (colonnes ip, ipaddress, clientip, remoteip, upstream).
+- **Utilitaire** : `src/utils/ipUtils.ts` (isIPv6, truncateIPv6ForDisplay).
+
+---
+
 ## [0.3.1] - 2026-02-13
 
 ### Added

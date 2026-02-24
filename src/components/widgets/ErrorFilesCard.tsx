@@ -88,12 +88,12 @@ export const ErrorFilesCard: React.FC<ErrorFilesCardProps> = ({ onOpenFile, onNa
     const effectRunRef = useRef(0);
     const [progressSteps, setProgressSteps] = useState<{ message: string; pluginId?: string; filePath?: string }[]>([]);
     const [progressListCollapsed, setProgressListCollapsed] = useState(true);
-    const [resultsCollapsed, setResultsCollapsed] = useState(true);
     const [enableMorePluginsDismissed, setEnableMorePluginsDismissed] = useState(() => !!sessionStorage.getItem('dashboard.enableMorePluginsDismissed'));
     const [analyzingFilePath, setAnalyzingFilePath] = useState<string | null>(null);
     const [manuallyAnalyzedFiles, setManuallyAnalyzedFiles] = useState<ErrorFileSummary[]>([]);
     const [skippedLargeCollapsed, setSkippedLargeCollapsed] = useState(true);
     const [analyzeFeedback, setAnalyzeFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+    const [cardCollapsed, setCardCollapsed] = useState(true);
 
     const ERROR_SUMMARY_TIMEOUT_MS = 170000; // 2m50, under proxy 3min
 
@@ -152,7 +152,6 @@ export const ErrorFilesCard: React.FC<ErrorFilesCardProps> = ({ onOpenFile, onNa
                     const filtered = prev.filter((f) => f.filePath !== filePath);
                     return [...filtered, res.result!];
                 });
-                setResultsCollapsed(false);
                 setAnalyzeFeedback({ type: 'success', message: t('dashboard.errorSummaryAnalyzeSuccess') });
             } else {
                 const raw = (res as { error?: string | { message?: string } }).error;
@@ -283,18 +282,24 @@ export const ErrorFilesCard: React.FC<ErrorFilesCardProps> = ({ onOpenFile, onNa
         );
     }
 
+    const totalErrors = (data?.files ?? []).reduce((s, f) => s + f.errorCount, 0) + manuallyAnalyzedFiles.reduce((s, f) => s + f.errorCount, 0);
+
     return (
         <div className="bg-theme-tertiary rounded-xl border border-theme-border overflow-hidden flex flex-col">
-            <div className="p-4 border-b border-theme-border flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                    <div className="p-2 bg-red-500/20 rounded-lg">
+            <div className="p-4 flex items-center justify-between gap-3">
+                <button
+                    type="button"
+                    onClick={() => setCardCollapsed((c) => !c)}
+                    className="flex items-center gap-3 flex-1 text-left min-w-0"
+                >
+                    <div className="p-2 bg-red-500/20 rounded-lg shrink-0">
                         <AlertTriangle size={22} className="text-red-400" />
                     </div>
-                    <div>
+                    <div className="min-w-0">
                         <h3 className="font-semibold text-theme-primary">{t('dashboard.errorSummaryTitle')}</h3>
                         <p className="text-xs text-gray-500">
-                            {data?.files?.length
-                                ? t('dashboard.errorSummaryErrorsFound', { count: data.files.reduce((s, f) => s + f.errorCount, 0) })
+                            {data?.files?.length || manuallyAnalyzedFiles.length
+                                ? t('dashboard.errorSummaryErrorsFound', { count: totalErrors })
                                 : t('dashboard.errorSummarySubtitle')}
                             {data?.fromCache && data.cacheAgeMs != null && (
                                 <span className="ml-2 text-cyan-400/90" title={t('dashboard.errorSummaryCacheHint')}>
@@ -303,17 +308,22 @@ export const ErrorFilesCard: React.FC<ErrorFilesCardProps> = ({ onOpenFile, onNa
                             )}
                         </p>
                     </div>
-                </div>
+                    <div className="shrink-0 text-gray-400">
+                        {cardCollapsed ? <ChevronRight size={20} /> : <ChevronDown size={20} />}
+                    </div>
+                </button>
                 <button
                     type="button"
-                    onClick={() => fetchSummary(true)}
+                    onClick={(e) => { e.stopPropagation(); fetchSummary(true); }}
                     disabled={isLoading}
-                    className="p-2 rounded-lg hover:bg-theme-secondary text-gray-400 hover:text-theme-primary transition-colors disabled:opacity-50"
+                    className="p-2 rounded-lg hover:bg-theme-secondary text-gray-400 hover:text-theme-primary transition-colors disabled:opacity-50 shrink-0"
                     title={t('dashboard.refreshErrorSummary')}
                 >
                     <RefreshCw size={18} className={isLoading ? 'animate-spin' : ''} />
                 </button>
             </div>
+            {!cardCollapsed && (
+            <div className="border-t border-theme-border">
             {/* Dismissible message: only system logs by default, link to enable Apache/Nginx/NPM */}
             {!enableMorePluginsDismissed && onNavigateToAnalysis && data?.enabledPlugins && (
                 (() => {
@@ -398,36 +408,13 @@ export const ErrorFilesCard: React.FC<ErrorFilesCardProps> = ({ onOpenFile, onNa
                     const pluginsWithFiles = PLUGIN_ORDER.filter((id) => byPlugin.has(id));
                     return (
                         <div className="space-y-3">
-                            <button
-                                type="button"
-                                onClick={() => setResultsCollapsed((c) => !c)}
-                                className="w-full flex items-center justify-between gap-2 p-2 rounded-lg hover:bg-theme-secondary border border-theme-border text-left"
-                                aria-expanded={!resultsCollapsed}
-                            >
-                                <span className="text-sm font-semibold text-theme-primary flex items-center gap-2">
-                                    {resultsCollapsed ? (
-                                        <ChevronRight size={18} className="shrink-0" />
-                                    ) : (
-                                        <ChevronDown size={18} className="shrink-0" />
-                                    )}
-                                    {t('dashboard.errorSummaryResultsTitle')}
-                                    <span className="text-gray-500 font-normal">
-                                        ({t('dashboard.errorSummaryByPlugin')}: {pluginsWithFiles.map((id) => id === 'host-system' ? 'Host' : id).join(', ')})
-                                    </span>
+                            <p className="text-sm font-semibold text-theme-primary">
+                                {t('dashboard.errorSummaryResultsTitle')}
+                                <span className="text-gray-500 font-normal ml-1">
+                                    ({t('dashboard.errorSummaryByPlugin')}: {pluginsWithFiles.map((id) => id === 'host-system' ? 'Host' : id).join(', ')})
                                 </span>
-                                {resultsCollapsed && (
-                                    <span className="text-xs text-cyan-400">
-                                        {t('dashboard.errorSummaryResultsShow')}
-                                    </span>
-                                )}
-                                {!resultsCollapsed && (
-                                    <span className="text-xs text-gray-500">
-                                        {t('dashboard.errorSummaryResultsHide')}
-                                    </span>
-                                )}
-                            </button>
-                            {!resultsCollapsed && (
-                                <div className={`grid gap-4 ${pluginsWithFiles.length === 1 ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2'} ${pluginsWithFiles.length >= 3 ? 'lg:grid-cols-3' : ''} ${pluginsWithFiles.length >= 4 ? 'xl:grid-cols-4' : ''}`}>
+                            </p>
+                            <div className={`grid gap-4 ${pluginsWithFiles.length === 1 ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2'} ${pluginsWithFiles.length >= 3 ? 'lg:grid-cols-3' : ''} ${pluginsWithFiles.length >= 4 ? 'xl:grid-cols-4' : ''}`}>
                                     {pluginsWithFiles.map((pluginId) => {
                                         const files = byPlugin.get(pluginId) ?? [];
                                         const pluginLabel = pluginId === 'host-system' ? 'Host System' : pluginId;
@@ -589,7 +576,6 @@ export const ErrorFilesCard: React.FC<ErrorFilesCardProps> = ({ onOpenFile, onNa
                                         );
                                     })}
                                 </div>
-                            )}
                         </div>
                     );
                 })()}
@@ -690,6 +676,8 @@ export const ErrorFilesCard: React.FC<ErrorFilesCardProps> = ({ onOpenFile, onNa
                     </div>
                 )}
             </div>
+            </div>
+            )}
         </div>
     );
 };

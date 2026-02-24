@@ -12,6 +12,7 @@ import type { LogFilters as LogFiltersType } from '../../types/logViewer.js';
 import { LogBadge } from './LogBadge.js';
 import { LogFilters } from './LogFilters.js';
 import { getTimestampColor, getIPBadgeColor, getHostnameBadgeColor, getIPBadgeStyle, getHostnameBadgeStyle, getTimestampStyle, getUserBadgeColor, getUserBadgeStyle } from '../../utils/badgeColors.js';
+import { truncateIPv6ForDisplay } from '../../utils/ipUtils.js';
 import { getPluginIcon, getPluginName } from '../../utils/pluginIcons.js';
 import { Tooltip } from '../ui/Tooltip.js';
 import { useTranslation } from 'react-i18next';
@@ -561,16 +562,17 @@ export const LogTable: React.FC<LogTableProps> = ({
                 );
             
             case 'ip':
-                // IP with unified badge color
+                // IP with unified badge color; IPv6 truncated for display, full IP in tooltip
                 const ipValue = String(value);
+                const ipDisplay = truncateIPv6ForDisplay(ipValue);
                 const ipStyle = getIPBadgeStyle(ipValue);
                 return (
-                    <Tooltip content={`Adresse IP : ${ipValue}`}>
+                    <Tooltip content={ipValue} wrap>
                         <span 
-                            className="font-mono text-xs px-1.5 py-0.5 rounded cursor-help"
+                            className="font-mono text-xs px-1.5 py-0.5 rounded cursor-help truncate block max-w-full"
                             style={ipStyle}
                         >
-                            {ipValue}
+                            {ipDisplay}
                         </span>
                     </Tooltip>
                 );
@@ -810,14 +812,15 @@ export const LogTable: React.FC<LogTableProps> = ({
                     return <span className="text-gray-600 italic">-</span>;
                 }
                 
-                // Upstream (NPM): IP or hostname with distinct badge
+                // Upstream (NPM): IP or hostname with distinct badge; IPv6 truncated
                 if (column.toLowerCase() === 'upstream') {
                     const upstreamValue = String(value || '').trim();
                     if (upstreamValue && upstreamValue !== '-' && upstreamValue !== 'undefined' && upstreamValue !== 'null') {
+                        const upstreamDisplay = truncateIPv6ForDisplay(upstreamValue);
                         return (
-                            <Tooltip content={`Upstream : ${upstreamValue}`}>
-                                <span className="cursor-help">
-                                    <LogBadge type="upstream" value={upstreamValue} />
+                            <Tooltip content={upstreamValue} wrap>
+                                <span className="cursor-help truncate block max-w-full">
+                                    <LogBadge type="upstream" value={upstreamDisplay} />
                                 </span>
                             </Tooltip>
                         );
