@@ -7,7 +7,8 @@ import {
   HistoryLog,
   LogHistoryCard,
   ErrorFilesCard,
-  DashboardSearchCard
+  DashboardSearchCard,
+  LargestFilesCard
 } from './components/widgets';
 import { ActionButton, UnsupportedFeature } from './components/ui';
 import { UserLoginModal, UserRegistrationModal } from './components/modals';
@@ -579,6 +580,11 @@ const App: React.FC = () => {
                   }}
                   osType={pluginHeaderData?.osType}
                 />
+              </div>
+
+              {/* Plus gros fichiers de logs (top 10, tous plugins) */}
+              <div className="mb-8">
+                <LargestFilesCard />
               </div>
 
               {/* Fichiers avec erreurs (error logs) – remplace les cartes plugins sur le dashboard */}

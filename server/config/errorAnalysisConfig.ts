@@ -36,9 +36,9 @@ export const ALLOWED_PLUGINS = ['apache', 'nginx', 'npm', 'host-system'] as cons
 export const DEFAULT_ERROR_ANALYSIS_CONFIG: ErrorAnalysisConfig = {
     errorSummaryEnabled: true,
     enabledPlugins: ['host-system'],
-    maxFilesPerPlugin: 20,
+    maxFilesPerPlugin: 30,
     linesPerFile: 1000,
-    maxFileSizeBytes: 10 * 1024 * 1024, // 10 MB
+    maxFileSizeBytes: 200 * 1024 * 1024, // 200 MB
     securityCheckEnabled: true,
     securityCheckDepth: 'normal',
     useExternalSecurityBases: false,
@@ -89,7 +89,7 @@ function mergeWithDefaults(partial: Partial<ErrorAnalysisConfig>): ErrorAnalysis
         enabledPlugins,
         maxFilesPerPlugin: clamp(partial.maxFilesPerPlugin ?? def.maxFilesPerPlugin, 1, 100),
         linesPerFile: clamp(partial.linesPerFile ?? def.linesPerFile, 100, 10000),
-        maxFileSizeBytes: clamp(partial.maxFileSizeBytes ?? def.maxFileSizeBytes, 1024 * 1024, 100 * 1024 * 1024),
+        maxFileSizeBytes: clamp(partial.maxFileSizeBytes ?? def.maxFileSizeBytes, 1024 * 1024, 512 * 1024 * 1024),
         securityCheckEnabled: partial.securityCheckEnabled ?? def.securityCheckEnabled,
         securityCheckDepth: ['light', 'normal', 'deep'].includes(partial.securityCheckDepth ?? '')
             ? (partial.securityCheckDepth as SecurityCheckDepth)

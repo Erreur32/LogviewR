@@ -94,6 +94,7 @@ export const ErrorFilesCard: React.FC<ErrorFilesCardProps> = ({ onOpenFile, onNa
     const [skippedLargeCollapsed, setSkippedLargeCollapsed] = useState(true);
     const [analyzeFeedback, setAnalyzeFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
     const [cardCollapsed, setCardCollapsed] = useState(true);
+    const [analyzingAllLarge, setAnalyzingAllLarge] = useState(false);
 
     const ERROR_SUMMARY_TIMEOUT_MS = 170000; // 2m50, under proxy 3min
 
@@ -166,6 +167,65 @@ export const ErrorFilesCard: React.FC<ErrorFilesCardProps> = ({ onOpenFile, onNa
             setTimeout(() => setAnalyzeFeedback(null), 4500);
         }
     }, [t]);
+
+    const analyzeAllSkippedLarge = useCallback(async () => {
+        if (!data?.skippedLargeFiles || data.skippedLargeFiles.length === 0) {
+            return;
+        }
+        const analyzedPaths = new Set(manuallyAnalyzedFiles.map((f) => `${f.pluginId}:${f.filePath}`));
+        const targets = data.skippedLargeFiles.filter(
+            (f) => !analyzedPaths.has(`${f.pluginId}:${f.filePath}`)
+        );
+        if (targets.length === 0) {
+            return;
+        }
+        setAnalyzingAllLarge(true);
+        setAnalyzeFeedback(null);
+        let successCount = 0;
+        let errorCount = 0;
+        try {
+            for (const f of targets) {
+                setAnalyzingFilePath(f.filePath);
+                try {
+                    const res = await api.post<ErrorFileSummary>('/api/log-viewer/error-summary/analyze-file', {
+                        pluginId: f.pluginId,
+                        filePath: f.filePath
+                    });
+                    if (res.success && res.result) {
+                        successCount++;
+                        setManuallyAnalyzedFiles((prev) => {
+                            const filtered = prev.filter((x) => x.filePath !== f.filePath);
+                            return [...filtered, res.result!];
+                        });
+                    } else {
+                        errorCount++;
+                    }
+                } catch {
+                    errorCount++;
+                }
+            }
+        } finally {
+            setAnalyzingFilePath(null);
+            setAnalyzingAllLarge(false);
+        }
+        if (successCount > 0 && errorCount === 0) {
+            setAnalyzeFeedback({
+                type: 'success',
+                message: t('dashboard.errorSummaryAnalyzeAllLargeSuccess', { count: successCount })
+            });
+        } else if (successCount > 0 && errorCount > 0) {
+            setAnalyzeFeedback({
+                type: 'error',
+                message: t('dashboard.errorSummaryAnalyzeAllLargePartial', { success: successCount, failed: errorCount })
+            });
+        } else {
+            setAnalyzeFeedback({
+                type: 'error',
+                message: t('dashboard.errorSummaryAnalyzeAllLargeError')
+            });
+        }
+        setTimeout(() => setAnalyzeFeedback(null), 4500);
+    }, [data, manuallyAnalyzedFiles, t]);
 
     // Poll progress while loading so user sees which files are being scanned
     useEffect(() => {
@@ -600,6 +660,30 @@ export const ErrorFilesCard: React.FC<ErrorFilesCardProps> = ({ onOpenFile, onNa
                         </button>
                         {!skippedLargeCollapsed && (
                             <div className="p-3 pt-0 border-t border-amber-500/20 space-y-4">
+                                <div className="flex flex-wrap items-center justify-between gap-2 py-2">
+                                    <p className="text-xs text-amber-200">
+                                        {t('dashboard.errorSummarySkippedLargeHint')}
+                                    </p>
+                                    <button
+                                        type="button"
+                                        onClick={analyzeAllSkippedLarge}
+                                        disabled={analyzingAllLarge || analyzingFilePath !== null}
+                                        className="inline-flex items-center gap-1 px-2 py-1 rounded border border-cyan-500/50 bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 text-xs disabled:opacity-50"
+                                        title={t('dashboard.errorSummaryAnalyzeAllLargeTooltip')}
+                                    >
+                                        {analyzingAllLarge ? (
+                                            <>
+                                                <RefreshCw size={12} className="animate-spin" />
+                                                {t('dashboard.errorSummaryAnalyzing')}
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Search size={12} />
+                                                {t('dashboard.errorSummaryAnalyzeAllLarge')}
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
                                 {(() => {
                                     const analyzedPaths = new Set(manuallyAnalyzedFiles.map((f) => `${f.pluginId}:${f.filePath}`));
                                     const skippedFiltered = data.skippedLargeFiles.filter((f) => !analyzedPaths.has(`${f.pluginId}:${f.filePath}`));

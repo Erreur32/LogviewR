@@ -62,7 +62,7 @@ router.get('/environment', asyncHandler(async (_req, res) => {
   }
   
   // Read app version
-  let appVersion = '0.3.2';
+  let appVersion = '0.3.3';
   try {
     const packageJsonPath = path.join(__dirname, '..', '..', 'package.json');
     const packageJson = JSON.parse(fsSync.readFileSync(packageJsonPath, 'utf8'));
@@ -259,6 +259,11 @@ router.get('/general', requireAuth, requireAdmin, asyncHandler(async (_req, res)
   
   const defaultLogFileJson = AppConfigRepository.get('default_log_file');
   const defaultLogFile = defaultLogFileJson ? JSON.parse(defaultLogFileJson) : '';
+
+  // Get Log Viewer maximum lines setting (controls how many lines are read per request)
+  const logViewerMaxLinesJson = AppConfigRepository.get('log_viewer_max_lines');
+  const rawLogViewerMaxLines = logViewerMaxLinesJson ? JSON.parse(logViewerMaxLinesJson) : 50000;
+  const logViewerMaxLines = Math.max(1000, Math.min(100000, Number.isFinite(rawLogViewerMaxLines) ? rawLogViewerMaxLines : 50000));
   
   res.json({
     success: true,
@@ -268,14 +273,15 @@ router.get('/general', requireAuth, requireAdmin, asyncHandler(async (_req, res)
       rememberLastFile,
       defaultPage,
       defaultPluginId,
-      defaultLogFile
+      defaultLogFile,
+      logViewerMaxLines
     }
   });
 }));
 
 // PUT /api/system/general - Update general application settings
 router.put('/general', requireAuth, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res) => {
-  const { publicUrl, corsConfig, rememberLastFile, defaultPage, defaultPluginId, defaultLogFile } = req.body;
+  const { publicUrl, corsConfig, rememberLastFile, defaultPage, defaultPluginId, defaultLogFile, logViewerMaxLines } = req.body;
 
   // Validate publicUrl format if provided
   if (publicUrl !== undefined && publicUrl !== null && publicUrl !== '') {
@@ -319,6 +325,16 @@ router.put('/general', requireAuth, requireAdmin, asyncHandler(async (req: Authe
       throw createError('rememberLastFile must be a boolean', 400, 'INVALID_REMEMBER_LAST_FILE');
     }
     AppConfigRepository.set('remember_last_file', JSON.stringify(rememberLastFile));
+  }
+
+  // Handle Log Viewer maximum lines setting
+  if (logViewerMaxLines !== undefined) {
+    const parsed = Number(logViewerMaxLines);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      throw createError('logViewerMaxLines must be a positive number', 400, 'INVALID_LOG_VIEWER_MAX_LINES');
+    }
+    const clamped = Math.max(1000, Math.min(100000, Math.round(parsed)));
+    AppConfigRepository.set('log_viewer_max_lines', JSON.stringify(clamped));
   }
 
   // Handle CORS configuration
@@ -380,6 +396,14 @@ router.put('/general', requireAuth, requireAdmin, asyncHandler(async (req: Authe
   const rememberLastFileJson = AppConfigRepository.get('remember_last_file');
   const currentRememberLastFile = rememberLastFileJson ? JSON.parse(rememberLastFileJson) : true;
   
+  // Get current Log Viewer maximum lines setting
+  const currentLogViewerMaxLinesJson = AppConfigRepository.get('log_viewer_max_lines');
+  const rawCurrentLogViewerMaxLines = currentLogViewerMaxLinesJson ? JSON.parse(currentLogViewerMaxLinesJson) : 50000;
+  const currentLogViewerMaxLines = Math.max(
+    1000,
+    Math.min(100000, Number.isFinite(rawCurrentLogViewerMaxLines) ? rawCurrentLogViewerMaxLines : 20000)
+  );
+  
   // Get current default page settings
   const currentDefaultPageJson = AppConfigRepository.get('default_page');
   const currentDefaultPage = currentDefaultPageJson ? JSON.parse(currentDefaultPageJson) : 'dashboard';
@@ -399,6 +423,7 @@ router.put('/general', requireAuth, requireAdmin, asyncHandler(async (req: Authe
       defaultPage: currentDefaultPage,
       defaultPluginId: currentDefaultPluginId,
       defaultLogFile: currentDefaultLogFile,
+      logViewerMaxLines: currentLogViewerMaxLines,
       message: 'General settings updated. Note: CORS changes require a server restart to take full effect.'
     }
   });

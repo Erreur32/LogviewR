@@ -2516,9 +2516,9 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   }>({
     errorSummaryEnabled: false,
     enabledPlugins: ['host-system'],
-    maxFilesPerPlugin: 20,
+    maxFilesPerPlugin: 30,
     linesPerFile: 1000,
-    maxFileSizeBytes: 10 * 1024 * 1024,
+    maxFileSizeBytes: 200 * 1024 * 1024,
     securityCheckEnabled: true,
     securityCheckDepth: 'normal',
     useExternalSecurityBases: false,
@@ -2530,28 +2530,41 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   const [searchInfoDismissed, setSearchInfoDismissed] = useState(() => !!sessionStorage.getItem('analysis.searchInfoDismissed'));
   const analysisJustLoadedRef = useRef(false);
   const analysisSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [logViewerMaxLines, setLogViewerMaxLines] = useState<number>(50000);
 
   useEffect(() => {
     if (activeAdminTab !== 'analysis') return;
     let cancelled = false;
     setAnalysisLoading(true);
-    api.get<typeof analysisConfig>('/api/settings/analysis')
-      .then((res) => {
-        if (cancelled || !res.success || !res.result) return;
-        setAnalysisConfig({
-          errorSummaryEnabled: res.result.errorSummaryEnabled === true,
-          enabledPlugins: res.result.enabledPlugins ?? ['host-system'],
-          maxFilesPerPlugin: res.result.maxFilesPerPlugin ?? 20,
-          linesPerFile: res.result.linesPerFile ?? 1000,
-          maxFileSizeBytes: res.result.maxFileSizeBytes ?? 10 * 1024 * 1024,
-          securityCheckEnabled: res.result.securityCheckEnabled !== false,
-          securityCheckDepth: res.result.securityCheckDepth ?? 'normal',
-          useExternalSecurityBases: res.result.useExternalSecurityBases === true,
-          analyzeArchives: res.result.analyzeArchives === true
-        });
-        analysisJustLoadedRef.current = true;
+    Promise.all([
+      api.get<typeof analysisConfig>('/api/settings/analysis'),
+      api.get<{ logViewerMaxLines?: number }>('/api/system/general')
+    ])
+      .then(([analysisRes, generalRes]) => {
+        if (cancelled) return;
+        if (analysisRes.success && analysisRes.result) {
+          setAnalysisConfig({
+            errorSummaryEnabled: analysisRes.result.errorSummaryEnabled === true,
+            enabledPlugins: analysisRes.result.enabledPlugins ?? ['host-system'],
+            maxFilesPerPlugin: analysisRes.result.maxFilesPerPlugin ?? 30,
+            linesPerFile: analysisRes.result.linesPerFile ?? 1000,
+            maxFileSizeBytes: analysisRes.result.maxFileSizeBytes ?? 200 * 1024 * 1024,
+            securityCheckEnabled: analysisRes.result.securityCheckEnabled !== false,
+            securityCheckDepth: analysisRes.result.securityCheckDepth ?? 'normal',
+            useExternalSecurityBases: analysisRes.result.useExternalSecurityBases === true,
+            analyzeArchives: analysisRes.result.analyzeArchives === true
+          });
+          analysisJustLoadedRef.current = true;
+        } else if (!analysisRes.success && !cancelled) {
+          setAnalysisMessage({ type: 'error', text: 'Failed to load analysis config' });
+        }
+        if (generalRes.success && generalRes.result && typeof generalRes.result.logViewerMaxLines === 'number') {
+          setLogViewerMaxLines(generalRes.result.logViewerMaxLines);
+        }
       })
-      .catch(() => { if (!cancelled) setAnalysisMessage({ type: 'error', text: 'Failed to load analysis config' }); })
+      .catch(() => {
+        if (!cancelled) setAnalysisMessage({ type: 'error', text: 'Failed to load analysis config' });
+      })
       .finally(() => { if (!cancelled) setAnalysisLoading(false); });
     return () => { cancelled = true; };
   }, [activeAdminTab]);
@@ -2568,13 +2581,19 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       analysisSaveTimeoutRef.current = null;
       setAnalysisSaving(true);
       setAnalysisMessage(null);
-      api.put('/api/settings/analysis', analysisConfig)
-        .then((res) => {
-          if (res.success) {
+      Promise.all([
+        api.put('/api/settings/analysis', analysisConfig),
+        api.put('/api/system/general', { logViewerMaxLines })
+      ])
+        .then(([analysisRes, generalRes]) => {
+          if (analysisRes.success && generalRes.success) {
             setAnalysisMessage({ type: 'success', text: t('analysis.savedRefreshDashboard') });
             setTimeout(() => setAnalysisMessage(null), 5000);
           } else {
-            setAnalysisMessage({ type: 'error', text: res.error?.message ?? 'Save failed' });
+            setAnalysisMessage({
+              type: 'error',
+              text: analysisRes.error?.message ?? generalRes.error?.message ?? 'Save failed'
+            });
           }
         })
         .catch((err) => setAnalysisMessage({ type: 'error', text: err?.message ?? 'Save failed' }))
@@ -2586,7 +2605,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         analysisSaveTimeoutRef.current = null;
       }
     };
-  }, [analysisConfig, activeAdminTab, analysisLoading, t]);
+  }, [analysisConfig, logViewerMaxLines, activeAdminTab, analysisLoading, t]);
 
   // Devices and permissions removed - not available in LogviewR
   const devices: any[] = [];
@@ -2994,7 +3013,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                               ))}
                             </div>
                           </SettingRow>
-                          <SettingRow label={t('analysis.maxFilesPerPlugin')} description="">
+                          <SettingRow label={t('analysis.maxFilesPerPlugin')} description={t('analysis.maxFilesPerPluginDesc')}>
                             <input
                               type="number"
                               min={1}
@@ -3004,15 +3023,43 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                               className="w-24 px-2 py-1.5 rounded-lg bg-theme-tertiary border border-theme-border text-theme-primary text-sm"
                             />
                           </SettingRow>
-                          <SettingRow label={t('analysis.maxFileSizeMb')} description="">
+                          <SettingRow label={t('analysis.maxFileSizeMb')} description={t('analysis.maxFileSizeMbDesc')}>
                             <input
                               type="number"
                               min={1}
-                              max={100}
+                              max={512}
                               value={Math.round(analysisConfig.maxFileSizeBytes / 1024 / 1024)}
-                              onChange={(e) => setAnalysisConfig((prev) => ({ ...prev, maxFileSizeBytes: Math.max(1, Math.min(100, parseInt(e.target.value, 10) || 1)) * 1024 * 1024 }))}
+                              onChange={(e) =>
+                                setAnalysisConfig((prev) => ({
+                                  ...prev,
+                                  maxFileSizeBytes: Math.max(1, Math.min(512, parseInt(e.target.value, 10) || 1)) * 1024 * 1024
+                                }))
+                              }
                               className="w-24 px-2 py-1.5 rounded-lg bg-theme-tertiary border border-theme-border text-theme-primary text-sm"
                             />
+                          </SettingRow>
+                          <SettingRow
+                            label={t('admin.general.defaultPageSection.logViewerMaxLinesTitle')}
+                            description={t('admin.general.defaultPageSection.logViewerMaxLinesDescription')}
+                          >
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                min={1000}
+                                max={100000}
+                                step={1000}
+                                value={logViewerMaxLines}
+                                onChange={(e) => {
+                                  const parsed = parseInt(e.target.value, 10) || 0;
+                                  const clamped = Math.max(1000, Math.min(100000, parsed));
+                                  setLogViewerMaxLines(clamped);
+                                }}
+                                className="w-28 px-2 py-1.5 rounded-lg bg-theme-tertiary border border-theme-border text-theme-primary text-sm"
+                              />
+                              <span className="text-xs text-gray-400">
+                                {t('admin.general.defaultPageSection.logViewerMaxLinesUnit')}
+                              </span>
+                            </div>
                           </SettingRow>
                           <SettingRow label={t('analysis.analyzeArchives')} description={t('analysis.analyzeArchivesDesc')}>
                             <Toggle enabled={analysisConfig.analyzeArchives} onChange={() => {}} disabled />

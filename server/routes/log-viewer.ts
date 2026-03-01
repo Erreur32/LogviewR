@@ -16,6 +16,7 @@ import { LogFileRepository } from '../database/models/LogFile.js';
 import { PluginConfigRepository } from '../database/models/PluginConfig.js';
 import type { LogSourcePlugin } from '../plugins/base/LogSourcePluginInterface.js';
 import { logger } from '../utils/logger.js';
+import { AppConfigRepository } from '../database/models/AppConfig.js';
 import { requireAuth } from '../middleware/authMiddleware.js';
 import { generateRegexFromLogLine } from '../services/regexGeneratorService.js';
 import { APACHE_ACCESS_VHOST_COMBINED_REGEX } from '../plugins/apache/ApacheParser.js';
@@ -26,6 +27,20 @@ import { getErrorAnalysisConfig } from '../config/errorAnalysisConfig.js';
 import { searchAllLogs } from '../services/logSearchService.js';
 
 const router = Router();
+/**
+ * Get the configured maximum number of log lines the Log Viewer is allowed to read per request.
+ * This is used for both parsed and raw views to avoid loading millions of lines at once.
+ */
+function getLogViewerMaxLines(): number {
+    const json = AppConfigRepository.get('log_viewer_max_lines');
+    const raw = json ? JSON.parse(json) : 50000;
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n <= 0) {
+        return 50000;
+    }
+    return Math.max(1000, Math.min(100000, Math.round(n)));
+}
+
 
 // All routes require authentication
 router.use(requireAuth);
@@ -223,7 +238,7 @@ router.post('/plugins/:pluginId/scan', async (req, res) => {
 router.get('/files/:fileId/logs', async (req, res) => {
     try {
         const { fileId } = req.params;
-        const { maxLines = 0, fromLine = 0 } = req.query; // 0 = no limit (was 1000)
+        const { fromLine = 0 } = req.query;
 
         // Get log file from database
         const logFile = LogFileRepository.findById(parseInt(fileId, 10));
@@ -242,11 +257,12 @@ router.get('/files/:fileId/logs', async (req, res) => {
         const readCompressed = (pluginConfig?.settings?.readCompressed as boolean) ?? false;
 
         // Parse log file
+        const effectiveMaxLines = getLogViewerMaxLines();
         const results = await logParserService.parseLogFile({
             pluginId: source.pluginId,
             filePath: logFile.filePath,
             logType: logFile.logType,
-            maxLines: parseInt(maxLines as string, 10),
+            maxLines: effectiveMaxLines,
             fromLine: parseInt(fromLine as string, 10),
             readCompressed
         });
@@ -459,7 +475,7 @@ router.delete('/files/:id', async (req, res) => {
 router.post('/plugins/:pluginId/read-direct', async (req, res) => {
     try {
         const { pluginId } = req.params;
-        const { filePath, logType, maxLines = 0, fromLine = 0 } = req.body; // 0 = no limit (was 1000)
+        const { filePath, logType, maxLines = 0, fromLine = 0 } = req.body; // maxLines kept for backward compatibility but overridden by config
 
         logger.info('LogViewer', `[read-direct] Request received: pluginId=${pluginId}, filePath=${filePath}, logType=${logType}, maxLines=${maxLines}, fromLine=${fromLine}`);
 
@@ -492,11 +508,16 @@ router.post('/plugins/:pluginId/read-direct', async (req, res) => {
         const readCompressed = (pluginConfig?.settings?.readCompressed as boolean) ?? false;
 
         // Parse log file directly
+        const configuredMaxLines = getLogViewerMaxLines();
+        const requestedMaxLines = typeof maxLines === 'number' ? maxLines : parseInt(maxLines as string, 10);
+        const effectiveMaxLines = !requestedMaxLines || requestedMaxLines <= 0
+            ? configuredMaxLines
+            : Math.min(configuredMaxLines, requestedMaxLines);
         const results = await logParserService.parseLogFile({
             pluginId,
             filePath,
             logType,
-            maxLines: parseInt(maxLines as string, 10),
+            maxLines: effectiveMaxLines,
             fromLine: parseInt(fromLine as string, 10),
             readCompressed
         });
@@ -557,7 +578,7 @@ router.post('/plugins/:pluginId/read-direct', async (req, res) => {
 router.post('/plugins/:pluginId/read-raw', async (req, res) => {
     try {
         const { pluginId } = req.params;
-        const { filePath, maxLines = 0, fromLine = 0 } = req.body; // 0 = no limit (was 1000)
+        const { filePath, maxLines = 0, fromLine = 0 } = req.body; // maxLines kept for backward compatibility but overridden by config
 
         logger.info('LogViewer', `[read-raw] Request received: pluginId=${pluginId}, filePath=${filePath}, maxLines=${maxLines}, fromLine=${fromLine}`);
 
@@ -584,8 +605,13 @@ router.post('/plugins/:pluginId/read-raw', async (req, res) => {
         const readCompressed = (pluginConfig?.settings?.readCompressed as boolean) ?? false;
 
         // Read raw log lines
+        const configuredMaxLines = getLogViewerMaxLines();
+        const requestedMaxLines = typeof maxLines === 'number' ? maxLines : parseInt(maxLines as string, 10);
+        const effectiveMaxLines = !requestedMaxLines || requestedMaxLines <= 0
+            ? configuredMaxLines
+            : Math.min(configuredMaxLines, requestedMaxLines);
         const logLines = await logReaderService.readLogFile(filePath, {
-            maxLines: parseInt(maxLines as string, 10),
+            maxLines: effectiveMaxLines,
             fromLine: parseInt(fromLine as string, 10),
             encoding: 'utf8',
             readCompressed

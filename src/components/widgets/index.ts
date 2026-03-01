@@ -14,3 +14,4 @@ export { LogPluginStatsCard } from './LogPluginStatsCard';
 export { LogHistoryCard } from './LogHistoryCard';
 export { ErrorFilesCard } from './ErrorFilesCard';
 export { DashboardSearchCard } from './DashboardSearchCard';
+export { LargestFilesCard } from './LargestFilesCard';
