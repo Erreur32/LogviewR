@@ -9,6 +9,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.3.3] - 2026-02-13
+
+### Added
+
+#### Dashboard – Recherche globale
+- **Filtres plugins actifs** : Les boutons de filtre n'affichent que les plugins activés dans l'application.
+- **Résultats par catégorie** : Affichage groupé par plugin (Host System, Apache, NPM, Nginx).
+- **Chemins déclarés host-system** : Utilisation des fichiers configurés (systemBaseFiles, autoDetectedFiles, customFiles) en plus du scan, aligné avec le Log Viewer.
+- **Comptage par fichier** : Badge coloré (vert/orange/rouge) pour le nombre d'occurrences par fichier ; une seule ligne d'exemple par fichier.
+- **Option fichiers .gz** : Case « Inclure les fichiers .gz » (décochée par défaut) pour exclure ou inclure les fichiers compressés dans la recherche.
+- **API** : Paramètre `includeCompressed` pour `POST /api/log-viewer/search-all` ; réponse enrichie (`filesWithMatches`, `matchCountPerFile`, `matchesByPlugin`).
+
+### Changed
+
+#### Dashboard – Recherche globale
+- **Badges occurrences** : Seul le chiffre est coloré (vert ≤3, orange ≤10, rouge >10), le reste du badge reste neutre.
+- **Recherche par plugin explicite** : Lorsqu'un ou plusieurs plugins sont sélectionnés, la recherche s'exécute même si le plugin est désactivé en config.
+
+#### Build
+- **Chunks Vite** : Suppression des chunks `vendor-icons` et `vendor-state` pour éliminer les avertissements « Circular chunk » (fusion dans `vendor`).
+- **Dépendances** : `npm audit fix` – correction des vulnérabilités minimatch et rollup (0 vulnérabilités).
+
+### Fixed
+
+#### Dashboard – Recherche globale
+- **includeCompressed** : Variable manquante dans la destructuration des options du service de recherche.
+
+---
+
 ## [0.3.2] - 2026-02-13
 
 ### Changed

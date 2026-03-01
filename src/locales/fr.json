@@ -251,8 +251,11 @@
     "searchAllPlugins": "Tous",
     "searchCaseSensitive": "Sensible à la casse",
     "searchRegex": "Expression régulière",
+    "searchIncludeGz": "Inclure les fichiers .gz",
     "searchHint": "Entrez un terme et cliquez sur Rechercher pour parcourir tous les logs des plugins actifs.",
-    "searchResultsSummary": "{{count}} résultat(s) dans {{files}} fichier(s)"
+    "searchResultsSummary": "{{count}} résultat(s) dans {{files}} fichier(s)",
+    "searchFilesScanned": "{{count}} fichier(s) parcouru(s)",
+    "searchOccurrences": "{{count}} occurrence(s)"
   },
   "security": {
     "unsavedTitle": "Modifications non sauvegardées",

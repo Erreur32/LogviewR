@@ -779,15 +779,16 @@ router.post('/error-summary/analyze-file', async (req, res) => {
 /**
  * POST /api/log-viewer/search-all
  * Search across all active log files from enabled plugins.
- * Body: { query, pluginIds?, caseSensitive?, useRegex?, maxResults?, maxLinesPerFile? }
+ * Body: { query, pluginIds?, caseSensitive?, useRegex?, includeCompressed?, maxResults?, maxLinesPerFile? }
  */
 router.post('/search-all', async (req, res) => {
     try {
-        const { query, pluginIds, caseSensitive, useRegex, maxResults, maxLinesPerFile } = req.body as {
+        const { query, pluginIds, caseSensitive, useRegex, includeCompressed, maxResults, maxLinesPerFile } = req.body as {
             query?: string;
             pluginIds?: string[];
             caseSensitive?: boolean;
             useRegex?: boolean;
+            includeCompressed?: boolean;
             maxResults?: number;
             maxLinesPerFile?: number;
         };
@@ -796,6 +797,7 @@ router.post('/search-all', async (req, res) => {
             pluginIds: Array.isArray(pluginIds) ? pluginIds : undefined,
             caseSensitive: !!caseSensitive,
             useRegex: !!useRegex,
+            includeCompressed: !!includeCompressed,
             maxResults: typeof maxResults === 'number' ? Math.min(500, Math.max(10, maxResults)) : 100,
             maxLinesPerFile: typeof maxLinesPerFile === 'number' ? Math.min(10000, Math.max(500, maxLinesPerFile)) : 5000
         });
@@ -1330,18 +1332,21 @@ router.get('/largest-files', async (req, res) => {
             return /\.(gz|bz2|xz)$/i.test(path);
         };
 
-        // Get all log source plugins
-        const logSourcePlugins = ['host-system', 'nginx', 'apache', 'npm'];
-        
-        for (const pluginId of logSourcePlugins) {
+        // Only scan plugins that are enabled in settings (same as dashboard / error summary)
+        const logSourcePluginIds = ['host-system', 'nginx', 'apache', 'npm'];
+
+        for (const pluginId of logSourcePluginIds) {
             const plugin = pluginManager.getPlugin(pluginId);
             if (!plugin || !isLogSourcePlugin(plugin)) {
                 continue;
             }
 
-            // Get readCompressed setting
             const pluginConfig = PluginConfigRepository.findByPluginId(pluginId);
-            const readCompressed = (pluginConfig?.settings?.readCompressed as boolean) ?? false;
+            if (!pluginConfig?.enabled) {
+                continue; // Skip disabled plugins
+            }
+
+            const readCompressed = (pluginConfig.settings?.readCompressed as boolean) ?? false;
 
             try {
                 const basePath = getEffectiveBasePath(pluginId, plugin, undefined);

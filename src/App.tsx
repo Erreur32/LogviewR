@@ -579,6 +579,9 @@ const App: React.FC = () => {
                     setCurrentPage('log-viewer');
                   }}
                   osType={pluginHeaderData?.osType}
+                  enabledPluginIds={plugins
+                    .filter((p) => p.enabled && ['host-system', 'apache', 'npm', 'nginx'].includes(p.id))
+                    .map((p) => p.id)}
                 />
               </div>
 

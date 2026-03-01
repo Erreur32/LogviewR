@@ -251,8 +251,11 @@
     "searchAllPlugins": "All",
     "searchCaseSensitive": "Case sensitive",
     "searchRegex": "Regular expression",
+    "searchIncludeGz": "Include .gz files",
     "searchHint": "Enter a term and click Search to scan all logs from active plugins.",
-    "searchResultsSummary": "{{count}} result(s) in {{files}} file(s)"
+    "searchResultsSummary": "{{count}} result(s) in {{files}} file(s)",
+    "searchFilesScanned": "{{count}} file(s) scanned",
+    "searchOccurrences": "{{count}} occurrence(s)"
   },
   "security": {
     "unsavedTitle": "Unsaved changes",

@@ -11,8 +11,33 @@ import { PluginConfigRepository } from '../database/models/PluginConfig.js';
 import { logger } from '../utils/logger.js';
 import type { LogSourcePlugin } from '../plugins/base/LogSourcePluginInterface.js';
 import * as path from 'path';
+import * as fsSync from 'fs';
 
 const LOG_SOURCE_PLUGINS = ['host-system', 'apache', 'npm', 'nginx'] as const;
+
+/** Detect if running in Docker (same logic as BasePlugin). */
+function isDocker(): boolean {
+    try {
+        if (fsSync.readFileSync('/proc/self/cgroup', 'utf8').includes('docker')) return true;
+    } catch { /* ignore */ }
+    return process.env.DOCKER === 'true' || process.env.DOCKER_CONTAINER === 'true' || false;
+}
+
+/** Resolve host path to container path when running in Docker (same logic as BasePlugin). */
+function resolvePathForRead(filePath: string): string {
+    if (!isDocker()) return filePath;
+    const HOST_ROOT = process.env.HOST_ROOT_PATH || '/host';
+    const DOCKER_LOGS = '/host/logs';
+    const VAR_LOG = '/var/log';
+    if (filePath.startsWith(VAR_LOG)) {
+        if (fsSync.existsSync(DOCKER_LOGS)) return filePath.replace(VAR_LOG, DOCKER_LOGS);
+        return filePath.replace(VAR_LOG, `${HOST_ROOT}/var/log`);
+    }
+    if (!filePath.startsWith('/host') && filePath.startsWith('/')) {
+        return `${HOST_ROOT}${filePath}`;
+    }
+    return filePath;
+}
 
 function isLogSourcePlugin(plugin: unknown): plugin is LogSourcePlugin {
     return (
@@ -35,6 +60,30 @@ function isCompressedFile(filePath: string): boolean {
     return /\.(gz|bz2|xz)$/i.test(filePath);
 }
 
+/**
+ * Get declared log file paths for host-system from config (systemBaseFiles, autoDetectedFiles, customFiles).
+ * Same paths as used in Log Viewer. Returns empty if no config or no enabled files.
+ */
+function getHostSystemDeclaredFiles(config: { settings?: Record<string, unknown> } | null): Array<{ path: string; type: string }> {
+    if (!config?.settings || typeof config.settings !== 'object') return [];
+    const s = config.settings as Record<string, unknown>;
+    const result: Array<{ path: string; type: string }> = [];
+    const collect = (arr: unknown) => {
+        if (!Array.isArray(arr)) return;
+        for (const item of arr) {
+            if (item && typeof item === 'object' && 'path' in item && typeof (item as { path: unknown }).path === 'string' && (item as { enabled?: boolean }).enabled) {
+                const type = (item as { type?: string }).type ?? 'custom';
+                result.push({ path: (item as { path: string }).path, type });
+            }
+        }
+    };
+    collect(s.systemBaseFiles);
+    collect(s.autoDetectedFiles);
+    collect(s.customFiles);
+    collect(s.logFiles);
+    return result;
+}
+
 export interface LogSearchMatch {
     pluginId: string;
     filePath: string;
@@ -49,19 +98,44 @@ export interface LogSearchOptions {
     pluginIds?: string[];
     caseSensitive?: boolean;
     useRegex?: boolean;
+    /** When false (default), exclude .gz/.bz2/.xz files from search. When true, include them if plugin allows. */
+    includeCompressed?: boolean;
     maxResults?: number;
     maxLinesPerFile?: number;
+}
+
+export interface LogSearchMatchCount {
+    pluginId: string;
+    filePath: string;
+    fileName: string;
+    count: number;
 }
 
 export interface LogSearchResult {
     matches: LogSearchMatch[];
     totalMatches: number;
     filesSearched: number;
+    filesWithMatches: number;
+    matchCountPerFile: LogSearchMatchCount[];
+    matchesByPlugin: Record<string, LogSearchMatch[]>;
     pluginsSearched: string[];
+}
+
+function emptyResult(): LogSearchResult {
+    return {
+        matches: [],
+        totalMatches: 0,
+        filesSearched: 0,
+        filesWithMatches: 0,
+        matchCountPerFile: [],
+        matchesByPlugin: {},
+        pluginsSearched: []
+    };
 }
 
 /**
  * Search across all active log files from enabled plugins.
+ * Uses same logic as log-viewer: basePath + patterns for apache/npm/nginx; declared paths for host-system.
  */
 export async function searchAllLogs(options: LogSearchOptions): Promise<LogSearchResult> {
     const {
@@ -69,20 +143,23 @@ export async function searchAllLogs(options: LogSearchOptions): Promise<LogSearc
         pluginIds,
         caseSensitive = false,
         useRegex = false,
+        includeCompressed = false,
         maxResults = 100,
         maxLinesPerFile = 5000
     } = options;
 
     if (!query || typeof query !== 'string' || query.trim().length === 0) {
-        return { matches: [], totalMatches: 0, filesSearched: 0, pluginsSearched: [] };
+        return emptyResult();
     }
 
     const trimmedQuery = query.trim();
-    const targetPlugins = pluginIds && pluginIds.length > 0
-        ? pluginIds.filter((id) => LOG_SOURCE_PLUGINS.includes(id as typeof LOG_SOURCE_PLUGINS[number]))
+    const explicitPluginFilter = Boolean(pluginIds && pluginIds.length > 0);
+    const targetPlugins = explicitPluginFilter
+        ? pluginIds!.filter((id) => LOG_SOURCE_PLUGINS.includes(id as typeof LOG_SOURCE_PLUGINS[number]))
         : [...LOG_SOURCE_PLUGINS];
 
     const matches: LogSearchMatch[] = [];
+    const matchCountByFile = new Map<string, number>();
     let filesSearched = 0;
 
     let testFn: (line: string) => boolean;
@@ -103,27 +180,47 @@ export async function searchAllLogs(options: LogSearchOptions): Promise<LogSearc
 
     for (const pluginId of targetPlugins) {
         const config = PluginConfigRepository.findByPluginId(pluginId);
-        if (!config?.enabled) continue;
+        // When user selected "All": only search enabled plugins. When user selected specific plugin(s): search them even if disabled.
+        if (!explicitPluginFilter && !config?.enabled) continue;
 
         const plugin = pluginManager.getPlugin(pluginId);
         if (!plugin || !isLogSourcePlugin(plugin)) continue;
 
         const basePath = getEffectiveBasePath(pluginId, plugin);
         const patterns = plugin.getDefaultFilePatterns();
+        const pluginReadCompressed = (config?.settings?.readCompressed as boolean) ?? false;
+        const readCompressed = includeCompressed && pluginReadCompressed;
 
         let files: { path: string; type: string }[];
-        try {
-            files = await plugin.scanLogFiles(basePath, patterns);
-        } catch (err) {
-            logger.warn('LogSearch', `Failed to scan plugin ${pluginId}:`, err);
-            continue;
+
+        if (pluginId === 'host-system') {
+            const declared = getHostSystemDeclaredFiles(config);
+            const declaredResolved = declared.map((f) => ({ path: resolvePathForRead(f.path), type: f.type }));
+            const pathSet = new Set(declaredResolved.map((f) => f.path));
+            try {
+                const scanned = await plugin.scanLogFiles(basePath, patterns);
+                for (const f of scanned) {
+                    if (!pathSet.has(f.path)) {
+                        declaredResolved.push(f);
+                        pathSet.add(f.path);
+                    }
+                }
+            } catch (err) {
+                logger.warn('LogSearch', `Failed to scan host-system:`, err);
+            }
+            files = declaredResolved;
+        } else {
+            try {
+                files = await plugin.scanLogFiles(basePath, patterns);
+            } catch (err) {
+                logger.warn('LogSearch', `Failed to scan plugin ${pluginId}:`, err);
+                continue;
+            }
         }
 
-        const readCompressed = (config.settings?.readCompressed as boolean) ?? false;
-        const filteredFiles = files.filter((f) => {
-            if (!readCompressed && isCompressedFile(f.path)) return false;
-            return true;
-        }).slice(0, 30);
+        const filteredFiles = files
+            .filter((f) => readCompressed || !isCompressedFile(f.path))
+            .slice(0, 50);
 
         for (const file of filteredFiles) {
             if (matches.length >= maxResults) break;
@@ -140,6 +237,8 @@ export async function searchAllLogs(options: LogSearchOptions): Promise<LogSearc
                 for (const logLine of lines) {
                     if (matches.length >= maxResults) break;
                     if (testFn(logLine.line)) {
+                        const fileKey = `${pluginId}:${file.path}`;
+                        matchCountByFile.set(fileKey, (matchCountByFile.get(fileKey) ?? 0) + 1);
                         matches.push({
                             pluginId,
                             filePath: file.path,
@@ -156,10 +255,27 @@ export async function searchAllLogs(options: LogSearchOptions): Promise<LogSearc
         }
     }
 
+    const matchesByPlugin: Record<string, LogSearchMatch[]> = {};
+    for (const m of matches) {
+        if (!matchesByPlugin[m.pluginId]) matchesByPlugin[m.pluginId] = [];
+        matchesByPlugin[m.pluginId].push(m);
+    }
+
+    const matchCountPerFile: Array<{ pluginId: string; filePath: string; fileName: string; count: number }> = [];
+    for (const [key, count] of matchCountByFile) {
+        const sep = key.indexOf(':');
+        const pid = sep >= 0 ? key.slice(0, sep) : key;
+        const fp = sep >= 0 ? key.slice(sep + 1) : '';
+        matchCountPerFile.push({ pluginId: pid, filePath: fp, fileName: path.basename(fp), count });
+    }
+
     return {
         matches,
         totalMatches: matches.length,
         filesSearched,
+        filesWithMatches: matchCountByFile.size,
+        matchCountPerFile,
+        matchesByPlugin,
         pluginsSearched: targetPlugins.filter((id) => {
             const c = PluginConfigRepository.findByPluginId(id);
             return c?.enabled;
