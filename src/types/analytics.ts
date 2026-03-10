@@ -27,10 +27,19 @@ export interface AnalyticsDistributionWithVisitors extends AnalyticsDistribution
     uniqueVisitors: number;
 }
 
+export interface AnalyticsStatusGroups {
+    s2xx: number;
+    s3xx: number;
+    s4xx: number;
+    s5xx: number;
+}
+
 export interface AnalyticsTimeseriesBucket {
     label: string;
     count: number;
     uniqueVisitors?: number;
+    statusGroups?: AnalyticsStatusGroups;
+    totalBytes?: number;
 }
 
 export interface AnalyticsTopItem {
@@ -54,4 +63,26 @@ export interface AnalyticsStatusByHostItem {
     status: string;
     count: number;
     uniqueVisitors: number;
+}
+
+export interface AnalyticsBotVsHuman {
+    bots: number;
+    humans: number;
+    botPercent: number;
+    topBots: AnalyticsTopItem[];
+}
+
+export interface AnalyticsResponseTimeBucket {
+    range: string;
+    count: number;
+    percent: number;
+}
+
+export interface AnalyticsResponseTimeDistribution {
+    avg: number;
+    p50: number;
+    p95: number;
+    p99: number;
+    max: number;
+    buckets: AnalyticsResponseTimeBucket[];
 }

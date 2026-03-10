@@ -9,6 +9,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.3.4] - 2026-02-13
+
+### Added
+
+#### Stats Logs – Nouveaux graphiques et visualisations
+- **Heatmap mensuelle** : Composant `HeatmapChart` (style GitHub contributions) pour visualiser la densité de requêtes par jour sur le mois, affiché en granularité jour.
+- **Peak Hours** : Composant `PeakHoursChart` – distribution des requêtes par heure de la journée (barres, granularité heure/minute uniquement).
+- **Traffic by Day of Week** : Composant `DayOfWeekChart` – répartition du trafic par jour de la semaine.
+- **Hour × Day Heatmap** : Composant `HourDayHeatmap` – heatmap croisée heure/jour pour identifier les pics d'activité (granularité heure/minute).
+- **HTTP Status Trends** : Composant `StatusTrendsChart` – graphe stacked area avec interpolation spline monotone, dégradés SVG, axe X temps, axe Y valeurs, tooltip détaillé (temps, valeurs par code, pourcentage, total).
+- **Bandwidth Over Time** : Graphe timeline de la bande passante cumulée par bucket via `totalBytes` dans les timeseries.
+- **Bot vs Human Traffic** : Composant `DonutChart` + détection bot/humain côté backend (`computeBotVsHuman`), affiché en premier dans l'onglet HTTP.
+- **Top 404 URLs** : Fonction backend `computeTop404Urls` + panneau DualBarChart dans l'onglet HTTP.
+- **Response Time Distribution** : Composant `ResponseTimeChart` (avg, p50, p95, p99, max, buckets) + `computeResponseTimeDistribution` côté backend.
+
+#### Stats Logs – Organisation par onglets
+- **Tabs Graphiques / HTTP / Top & Rankings** : Navigation par onglets (icônes TrendingUp, Shield, Trophy) pour regrouper les contenus par catégorie.
+- **Menu de navigation flottant** : Mis à jour dynamiquement selon l'onglet actif.
+
+#### Stats Logs – Indicateur de source
+- **Badge source par section** : Chaque graphe, tableau et TopPanel affiche un badge coloré indiquant la source des données (Apache = rouge, NPM = vert, Tous = bleu).
+- **Composants `SourceBadge` et `SectionHeading`** : Composants réutilisables pour uniformiser l'affichage du badge source sur toutes les sections.
+
+#### Backend – Enrichissement analytics
+- **`statusGroups` par bucket** : `computeTimeseries` agrège les codes HTTP (s2xx, s3xx, s4xx, s5xx) par tranche de temps.
+- **`totalBytes` par bucket** : Bande passante cumulée par bucket dans les timeseries.
+- **`computeTop404Urls`** : Agrégation des URLs retournant un code 404.
+- **`computeBotVsHuman`** : Classification user-agent (bot/humain) avec pourcentage et top bots.
+- **`computeResponseTimeDistribution`** : Calcul avg, percentiles (p50, p95, p99), max et buckets de distribution des temps de réponse.
+- **Types** : Nouveaux types `AnalyticsStatusGroups`, `AnalyticsBotVsHuman`, `AnalyticsResponseTimeBucket`, `AnalyticsResponseTimeDistribution`.
+
+### Changed
+
+#### Stats Logs – KPI unifiés
+- **Bloc KPI unique** : Fusion des deux sections KPI en un seul bloc avec badge source, plage de dates colorée (bleu/ambre), et bouton hide/show intégré dans le header.
+- **Tooltip KPI** : Le titre « Stats KPI » affiche au survol l'explication de ce que sont les KPI (texte de `kpiModalIntro`).
+- **Suppression de la modale « Understanding the numbers »** et de la section help dépliable (état, localStorage, API).
+
+#### Stats Logs – Regroupement des sections
+- **HTTP Codes + Methods** : Les 3 anciennes sections HTTP consolidées en 2 panneaux (Codes HTTP avec table + distribution, Méthodes + Codes par domaine).
+- **Day of Week + Hour/Day Heatmap** : Regroupés dans un même cadre (grid 2 colonnes).
+- **Dates colorées** : Les dates de la plage (barre KPI) sont en bleu ciel (début) et ambre (fin).
+
+#### Stats Logs – HTTP Status Trends amélioré
+- **Couleurs modernes** : 2xx vert émeraude, 3xx bleu vif, 4xx ambre, 5xx rouge vif avec dégradés verticaux.
+- **Courbes spline** : Interpolation monotone cubique au lieu de lignes droites.
+- **Axes temps et valeurs** : Axe X avec labels formatés (6 ticks), axe Y avec échelle (K/M), grille horizontale et verticale.
+- **Tooltip enrichi** : Temps en bleu, total, valeur par code + pourcentage, point blanc et ligne pointillée au survol.
+
+#### Traductions (i18n)
+- Ajout de toutes les clés pour les nouveaux graphiques, onglets, jours de la semaine, métriques bot/humain, temps de réponse, navigation, et source.
+
+---
+
 ## [0.3.3] - 2026-02-13
 
 ### Added
@@ -784,6 +838,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+[0.3.4]: https://github.com/Erreur32/LogviewR/releases/tag/v0.3.4
+[0.3.3]: https://github.com/Erreur32/LogviewR/releases/tag/v0.3.3
 [0.2.7]: https://github.com/Erreur32/LogviewR/releases/tag/v0.2.7
 [0.2.6]: https://github.com/Erreur32/LogviewR/releases/tag/v0.2.6
 [0.2.5]: https://github.com/Erreur32/LogviewR/releases/tag/v0.2.5

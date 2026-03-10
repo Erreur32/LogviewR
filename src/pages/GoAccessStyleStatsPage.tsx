@@ -20,18 +20,27 @@ import {
     FileText,
     RefreshCw,
     BarChart2,
-    Info,
     Maximize2,
     Minimize2,
     Archive,
     List,
-    X
+    X,
+    TrendingUp,
+    Shield,
+    Trophy
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../api/client';
 import { TimelineChart } from '../components/widgets/TimelineChart';
 import { DualLineChart } from '../components/widgets/DualLineChart';
 import { DualBarChart } from '../components/widgets/DualBarChart';
+import { HeatmapChart } from '../components/widgets/HeatmapChart';
+import { PeakHoursChart } from '../components/widgets/PeakHoursChart';
+import { DayOfWeekChart } from '../components/widgets/DayOfWeekChart';
+import { HourDayHeatmap } from '../components/widgets/HourDayHeatmap';
+import { StatusTrendsChart } from '../components/widgets/StatusTrendsChart';
+import { DonutChart } from '../components/widgets/DonutChart';
+import { ResponseTimeChart } from '../components/widgets/ResponseTimeChart';
 import type {
     AnalyticsOverview,
     AnalyticsTimeseriesBucket,
@@ -40,7 +49,9 @@ import type {
     AnalyticsDistributionWithVisitors,
     AnalyticsTopItemWithVisitors,
     AnalyticsTopUrlItem,
-    AnalyticsStatusByHostItem
+    AnalyticsStatusByHostItem,
+    AnalyticsBotVsHuman,
+    AnalyticsResponseTimeDistribution
 } from '../types/analytics';
 import { usePluginStore } from '../stores/pluginStore';
 import { useUserAuthStore } from '../stores/userAuthStore';
@@ -53,9 +64,6 @@ interface GoAccessStyleStatsPageProps {
 const LOG_SOURCE_PLUGINS = ['npm', 'apache'] as const;
 const PLUGIN_OPTIONS = ['all', ...LOG_SOURCE_PLUGINS] as const;
 const DEFAULT_PLUGIN = 'all';
-
-/** localStorage key for help section visibility (used when not authenticated or API unavailable) */
-const STATS_HELP_SECTION_STORAGE_KEY = 'logviewr_stats_help_section_visible';
 
 function formatBytes(bytes: number): string {
     if (bytes === 0) return '0 B';
@@ -73,9 +81,9 @@ const TopPanel: React.FC<{
     showBar?: boolean;
     maxVisibleWithoutScroll?: number;
     scrollWhenCollapsed?: boolean;
-    /** Display items in 2 columns (e.g. for User-Agents). */
     twoColumns?: boolean;
-}> = ({ title, items, maxKeyLength = 40, showBar = true, maxVisibleWithoutScroll, scrollWhenCollapsed = true, twoColumns = false }) => {
+    sourceBadge?: React.ReactNode;
+}> = ({ title, items, maxKeyLength = 40, showBar = true, maxVisibleWithoutScroll, scrollWhenCollapsed = true, twoColumns = false, sourceBadge }) => {
     const { t } = useTranslation();
     const [hoveredItem, setHoveredItem] = useState<AnalyticsTopItem | null>(null);
     const [tooltipRect, setTooltipRect] = useState<DOMRect | null>(null);
@@ -88,7 +96,10 @@ const TopPanel: React.FC<{
     return (
         <div className="bg-[#0a0a0a] rounded-lg border border-gray-800 overflow-hidden relative">
             <div className="flex items-center justify-between gap-2 px-4 py-2 text-sm font-semibold text-gray-300 border-b border-gray-800 bg-[#0f0f0f]">
-                <h4 className="truncate min-w-0">{title}</h4>
+                <div className="flex items-center gap-2 min-w-0">
+                    <h4 className="truncate min-w-0">{title}</h4>
+                    {sourceBadge}
+                </div>
                 {canToggle && (
                     <button
                         type="button"
@@ -205,47 +216,15 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
     const [referrerWithVisitors, setReferrerWithVisitors] = useState<AnalyticsTopItemWithVisitors[]>([]);
     const [urlsWithExtras, setUrlsWithExtras] = useState<AnalyticsTopUrlItem[]>([]);
     const [statusByHost, setStatusByHost] = useState<AnalyticsStatusByHostItem[]>([]);
+    const [notFoundUrls, setNotFoundUrls] = useState<AnalyticsTopItemWithVisitors[]>([]);
+    const [botVsHuman, setBotVsHuman] = useState<AnalyticsBotVsHuman | null>(null);
+    const [responseTimeDist, setResponseTimeDist] = useState<AnalyticsResponseTimeDistribution | null>(null);
 
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    /** Help section "Comprendre les chiffres": persisted in localStorage and DB; when hidden, a small icon is shown to expand again. */
-    const [helpSectionVisible, setHelpSectionVisible] = useState(() => {
-        if (typeof window === 'undefined') return true;
-        const stored = localStorage.getItem(STATS_HELP_SECTION_STORAGE_KEY);
-        return stored !== 'false';
-    });
-
-    /** Load help section preference on mount: from API if authenticated (overrides localStorage), else keep localStorage value. */
-    useEffect(() => {
-        const loadPreference = async () => {
-            if (token) {
-                try {
-                    const res = await api.get<{ statsHelpSectionVisible: boolean }>('/api/settings/stats-ui');
-                    if (res.success && res.result) {
-                        setHelpSectionVisible(res.result.statsHelpSectionVisible);
-                        return;
-                    }
-                } catch {
-                    /* fallback to localStorage */
-                }
-            }
-            const stored = localStorage.getItem(STATS_HELP_SECTION_STORAGE_KEY);
-            if (stored === 'false') setHelpSectionVisible(false);
-        };
-        loadPreference();
-    }, [token]);
-
-    /** Persist help section visibility: localStorage always, API if authenticated. */
-    const persistHelpSectionVisible = useCallback((visible: boolean) => {
-        localStorage.setItem(STATS_HELP_SECTION_STORAGE_KEY, String(visible));
-        if (token) {
-            api.post('/api/settings/stats-ui', { statsHelpSectionVisible: visible }).catch(() => {});
-        }
-    }, [token]);
-
     /** Stats KPI block: collapsible, visible by default. */
     const [statsKpiVisible, setStatsKpiVisible] = useState(true);
-    const [kpiModalOpen, setKpiModalOpen] = useState(false);
+    const [activeTab, setActiveTab] = useState<'graphs' | 'http' | 'tops'>('graphs');
     const [navMenuOpen, setNavMenuOpen] = useState(false);
     const navButtonRef = useRef<HTMLButtonElement>(null);
     const [navMenuRect, setNavMenuRect] = useState<DOMRect | null>(null);
@@ -307,6 +286,9 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
             setReferrerWithVisitors([]);
             setUrlsWithExtras([]);
             setStatusByHost([]);
+            setNotFoundUrls([]);
+            setBotVsHuman(null);
+            setResponseTimeDist(null);
             setIsLoading(false);
             setError(null);
             return;
@@ -354,6 +336,8 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                     methods: AnalyticsDistribution[];
                     status: AnalyticsDistribution[];
                     statusWithVisitors?: AnalyticsDistributionWithVisitors[];
+                    botVsHuman?: AnalyticsBotVsHuman;
+                    responseTime?: AnalyticsResponseTimeDistribution | null;
                 };
                 top: {
                     urls: AnalyticsTopItem[];
@@ -368,6 +352,7 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                     hostWithVisitors?: AnalyticsTopItemWithVisitors[];
                     urlsWithExtras?: AnalyticsTopUrlItem[];
                     statusByHost?: AnalyticsStatusByHostItem[];
+                    notFoundUrls?: AnalyticsTopItemWithVisitors[];
                 };
             }>(
                 `/api/log-viewer/analytics?from=${encodeURIComponent(fromStr)}&to=${encodeURIComponent(toStr)}&bucket=${bucketHour}&topLimit=15${pluginParam}${fileScopeParam}${compressedParam}`
@@ -390,6 +375,9 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                 setReferrerWithVisitors(res.result.top?.referrerWithVisitors ?? []);
                 setUrlsWithExtras(res.result.top?.urlsWithExtras ?? []);
                 setStatusByHost(res.result.top?.statusByHost ?? []);
+                setNotFoundUrls(res.result.top?.notFoundUrls ?? []);
+                setBotVsHuman(res.result.distribution?.botVsHuman ?? null);
+                setResponseTimeDist(res.result.distribution?.responseTime ?? null);
             } else {
                 setOverview(null);
                 setTimeseries([]);
@@ -407,6 +395,9 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                 setReferrerWithVisitors([]);
                 setUrlsWithExtras([]);
                 setStatusByHost([]);
+                setNotFoundUrls([]);
+                setBotVsHuman(null);
+                setResponseTimeDist(null);
             }
 
             if (
@@ -434,6 +425,9 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
             setReferrerWithVisitors([]);
             setUrlsWithExtras([]);
             setStatusByHost([]);
+            setNotFoundUrls([]);
+            setBotVsHuman(null);
+            setResponseTimeDist(null);
         } finally {
             setIsLoading(false);
         }
@@ -443,14 +437,6 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
         fetchAnalytics();
     }, [fetchAnalytics]);
 
-    useEffect(() => {
-        if (!kpiModalOpen) return;
-        const onKey = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') setKpiModalOpen(false);
-        };
-        document.addEventListener('keydown', onKey);
-        return () => document.removeEventListener('keydown', onKey);
-    }, [kpiModalOpen]);
 
     const getPluginLabel = (id: string): string => {
         const names: Record<string, string> = {
@@ -460,6 +446,25 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
         };
         return names[id] || id;
     };
+
+    const pluginColorMap: Record<string, string> = {
+        apache: 'bg-red-500/15 text-red-400 border-red-500/30',
+        npm: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+        all: 'bg-sky-500/15 text-sky-400 border-sky-500/30'
+    };
+
+    const SourceBadge: React.FC = () => (
+        <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold border ${pluginColorMap[pluginId] ?? 'bg-gray-500/15 text-gray-400 border-gray-500/30'}`}>
+            {getPluginLabel(pluginId)}
+        </span>
+    );
+
+    const SectionHeading: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+        <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2.5">
+            <span>{children}</span>
+            <SourceBadge />
+        </h3>
+    );
 
     /**
      * Format timeseries axis labels: no year, "h" for hour (instead of "T").
@@ -779,293 +784,162 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                     </div>
                 ) : (
                     <>
-                        {/* Help section - understand the numbers: visible by default, click on frame to hide; when hidden, show small icon to expand */}
-                        {helpSectionVisible ? (
-                            <div
-                                role="button"
-                                tabIndex={0}
-                                onClick={() => {
-                                    setHelpSectionVisible(false);
-                                    persistHelpSectionVisible(false);
-                                }}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                        setHelpSectionVisible(false);
-                                        persistHelpSectionVisible(false);
-                                    }
-                                }}
-                                className="bg-[#0f0f0f] rounded-xl border border-gray-800 p-4 flex items-start gap-3 cursor-pointer hover:border-gray-600 transition-colors"
-                                title={t('goaccessStats.helpSectionHide')}
-                            >
-                                <Info size={20} className="text-emerald-500 shrink-0 mt-0.5" />
-                                <div className="flex-1 min-w-0">
-                                    <h4 className="text-sm font-semibold text-white mb-1">
-                                        {t('goaccessStats.helpSectionTitle')}
-                                    </h4>
-                                    <p className="text-sm text-gray-400">
-                                        {t('goaccessStats.helpSectionDesc')}
-                                    </p>
+                        {/* Unified KPI section with source badge */}
+                        <div id="section-kpi" className="bg-[#121212]/90 rounded-xl border border-gray-800 overflow-hidden backdrop-blur-sm scroll-mt-24">
+                            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-800/60">
+                                <div className="flex items-center gap-3">
+                                    <h3
+                                        className="text-base font-semibold text-white cursor-help"
+                                        title={t('goaccessStats.kpiModalIntro')}
+                                    >
+                                        {t('goaccessStats.statsKpi')}
+                                    </h3>
+                                    {overview && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setStatsKpiVisible((v) => !v)}
+                                            className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] text-gray-500 hover:text-gray-300 hover:bg-gray-800/50 transition-colors"
+                                        >
+                                            {statsKpiVisible ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                                            {statsKpiVisible ? t('goaccessStats.statsKpiHide') : t('goaccessStats.statsKpiShow')}
+                                        </button>
+                                    )}
                                 </div>
-                                <ChevronUp size={18} className="text-gray-500 shrink-0 mt-0.5" aria-hidden />
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[10px] text-gray-500 uppercase tracking-wider">{t('goaccessStats.source')}</span>
+                                    <span className={`px-2.5 py-1 rounded-md text-xs font-semibold border ${pluginColorMap[pluginId] ?? 'bg-gray-500/15 text-gray-400 border-gray-500/30'}`}>
+                                        {getPluginLabel(pluginId)}
+                                    </span>
+                                    {overview?.dateFrom && overview?.dateTo && (() => {
+                                        const fmt = (d: string) => {
+                                            try { return new Date(d).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }); }
+                                            catch { return '—'; }
+                                        };
+                                        return (
+                                            <>
+                                                <span className="w-px h-4 bg-gray-700/60" />
+                                                <span className="font-mono text-[11px] flex items-center gap-1.5">
+                                                    <span className="text-sky-400">{fmt(overview.dateFrom)}</span>
+                                                    <span className="text-gray-600">→</span>
+                                                    <span className="text-amber-400">{fmt(overview.dateTo)}</span>
+                                                </span>
+                                            </>
+                                        );
+                                    })()}
+                                </div>
                             </div>
-                        ) : (
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setHelpSectionVisible(true);
-                                    persistHelpSectionVisible(true);
-                                }}
-                                className="flex items-center justify-center w-10 h-10 rounded-xl border border-gray-800 bg-[#0f0f0f] text-emerald-500 hover:border-gray-600 hover:bg-[#141414] transition-colors"
-                                title={t('goaccessStats.helpSectionShow')}
-                            >
-                                <Info size={20} />
-                            </button>
-                        )}
+                            {statsKpiVisible && (
+                            <div className="px-5 py-4">
+                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                                    <div className="p-3 rounded-lg bg-[#0a0a0a] border border-gray-800/50" title={t('goaccessStats.tipTotalRequests')}>
+                                        <div className="flex items-center gap-2 text-gray-500 text-xs mb-1.5">
+                                            <Activity size={13} className="text-emerald-400" />
+                                            {t('goaccessStats.totalRequests')}
+                                        </div>
+                                        <div className="text-xl font-bold text-white">{overview?.totalRequests ?? 0}</div>
+                                    </div>
+                                    <div className="p-3 rounded-lg bg-[#0a0a0a] border border-gray-800/50" title={t('goaccessStats.tipUniqueVisitors')}>
+                                        <div className="flex items-center gap-2 text-gray-500 text-xs mb-1.5">
+                                            <Globe size={13} className="text-blue-400" />
+                                            {t('goaccessStats.uniqueVisitors')}
+                                        </div>
+                                        <div className="text-xl font-bold text-white">{overview?.uniqueIps ?? 0}</div>
+                                    </div>
+                                    <div className="p-3 rounded-lg bg-[#0a0a0a] border border-gray-800/50" title={t('goaccessStats.tipStatus4xx')}>
+                                        <div className="flex items-center gap-2 text-gray-500 text-xs mb-1.5">
+                                            <AlertTriangle size={13} className="text-amber-400" />
+                                            {t('goaccessStats.status4xx')}
+                                        </div>
+                                        <div className="text-xl font-bold text-amber-400">{overview?.status4xx ?? 0}</div>
+                                    </div>
+                                    <div className="p-3 rounded-lg bg-[#0a0a0a] border border-gray-800/50" title={t('goaccessStats.tipStatus5xx')}>
+                                        <div className="flex items-center gap-2 text-gray-500 text-xs mb-1.5">
+                                            <ServerCrash size={13} className="text-red-400" />
+                                            {t('goaccessStats.status5xx')}
+                                        </div>
+                                        <div className="text-xl font-bold text-red-400">{overview?.status5xx ?? 0}</div>
+                                    </div>
+                                    <div className="p-3 rounded-lg bg-[#0a0a0a] border border-gray-800/50" title={t('goaccessStats.tipTotalBytes')}>
+                                        <div className="flex items-center gap-2 text-gray-500 text-xs mb-1.5">
+                                            <HardDrive size={13} className="text-purple-400" />
+                                            {t('goaccessStats.totalBytes')}
+                                        </div>
+                                        <div className="text-xl font-bold text-purple-300">{overview ? formatBytes(overview.totalBytes) : '0 B'}</div>
+                                    </div>
+                                    <div className="p-3 rounded-lg bg-[#0a0a0a] border border-gray-800/50" title={t('goaccessStats.tipFilesAnalyzed')}>
+                                        <div className="flex items-center gap-2 text-gray-500 text-xs mb-1.5">
+                                            <FileText size={13} className="text-cyan-400" />
+                                            {t('goaccessStats.filesAnalyzed')}
+                                        </div>
+                                        <div className="text-xl font-bold text-cyan-300">{overview?.filesAnalyzed ?? 0}</div>
+                                    </div>
+                                </div>
 
-                        {/* KPI row */}
-                        <div id="section-kpi" className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 scroll-mt-24">
-                            <div
-                                className="bg-[#121212] rounded-xl border border-gray-800 p-4 group relative"
-                                title={t('goaccessStats.tipTotalRequests')}
-                            >
-                                <div className="flex items-center gap-2 text-gray-500 text-sm mb-2">
-                                    <Activity size={16} className="text-emerald-400" />
-                                    {t('goaccessStats.totalRequests')}
-                                    <Info size={12} className="text-gray-600 group-hover:text-gray-400" />
-                                </div>
-                                <div className="text-2xl font-bold text-white">
-                                    {overview?.totalRequests ?? 0}
-                                </div>
+                                {overview && (
+                                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mt-3 pt-3 border-t border-gray-800/40">
+                                        <div className="p-2.5 rounded-lg bg-[#0a0a0a] border border-gray-800/40" title={t('goaccessStats.tipValidRequests')}>
+                                            <div className="flex items-center gap-2 text-gray-500 text-xs mb-1">
+                                                <Activity size={12} className="text-emerald-500" />
+                                                {t('goaccessStats.validRequests')}
+                                            </div>
+                                            <div className="font-bold text-emerald-400">{overview.validRequests ?? 0}</div>
+                                        </div>
+                                        <div className="p-2.5 rounded-lg bg-[#0a0a0a] border border-gray-800/40" title={t('goaccessStats.tipFailedRequests')}>
+                                            <div className="flex items-center gap-2 text-gray-500 text-xs mb-1">
+                                                <AlertTriangle size={12} className="text-red-400" />
+                                                {t('goaccessStats.failedRequests')}
+                                            </div>
+                                            <div className="font-bold text-red-400">{overview.failedRequests ?? 0}</div>
+                                        </div>
+                                        <div className="p-2.5 rounded-lg bg-[#0a0a0a] border border-gray-800/40" title={t('goaccessStats.tipNotFound')}>
+                                            <div className="flex items-center gap-2 text-gray-500 text-xs mb-1">
+                                                <AlertTriangle size={12} className="text-amber-400" />
+                                                {t('goaccessStats.notFound')}
+                                            </div>
+                                            <div className="font-bold text-amber-400">{overview.notFound ?? 0}</div>
+                                        </div>
+                                        <div className="p-2.5 rounded-lg bg-[#0a0a0a] border border-gray-800/40" title={t('goaccessStats.tipStaticFiles')}>
+                                            <div className="flex items-center gap-2 text-gray-500 text-xs mb-1">
+                                                <FileText size={12} className="text-cyan-400" />
+                                                {t('goaccessStats.staticFiles')}
+                                            </div>
+                                            <div className="font-bold text-cyan-300">{overview.staticFiles ?? 0}</div>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
-                            <div
-                                className="bg-[#121212] rounded-xl border border-gray-800 p-4 group relative"
-                                title={t('goaccessStats.tipUniqueVisitors')}
-                            >
-                                <div className="flex items-center gap-2 text-gray-500 text-sm mb-2">
-                                    <Globe size={16} className="text-blue-400" />
-                                    {t('goaccessStats.uniqueVisitors')}
-                                    <Info size={12} className="text-gray-600 group-hover:text-gray-400" />
-                                </div>
-                                <div className="text-2xl font-bold text-white">
-                                    {overview?.uniqueIps ?? 0}
-                                </div>
-                            </div>
-                            <div
-                                className="bg-[#121212] rounded-xl border border-gray-800 p-4 group relative"
-                                title={t('goaccessStats.tipStatus4xx')}
-                            >
-                                <div className="flex items-center gap-2 text-gray-500 text-sm mb-2">
-                                    <AlertTriangle size={16} className="text-amber-400" />
-                                    {t('goaccessStats.status4xx')}
-                                    <Info size={12} className="text-gray-600 group-hover:text-gray-400" />
-                                </div>
-                                <div className="text-2xl font-bold text-amber-400">
-                                    {overview?.status4xx ?? 0}
-                                </div>
-                            </div>
-                            <div
-                                className="bg-[#121212] rounded-xl border border-gray-800 p-4 group relative"
-                                title={t('goaccessStats.tipStatus5xx')}
-                            >
-                                <div className="flex items-center gap-2 text-gray-500 text-sm mb-2">
-                                    <ServerCrash size={16} className="text-red-400" />
-                                    {t('goaccessStats.status5xx')}
-                                    <Info size={12} className="text-gray-600 group-hover:text-gray-400" />
-                                </div>
-                                <div className="text-2xl font-bold text-red-400">
-                                    {overview?.status5xx ?? 0}
-                                </div>
-                            </div>
-                            <div
-                                className="bg-[#121212] rounded-xl border border-gray-800 p-4 group relative"
-                                title={t('goaccessStats.tipTotalBytes')}
-                            >
-                                <div className="flex items-center gap-2 text-gray-500 text-sm mb-2">
-                                    <HardDrive size={16} className="text-purple-400" />
-                                    {t('goaccessStats.totalBytes')}
-                                    <Info size={12} className="text-gray-600 group-hover:text-gray-400" />
-                                </div>
-                                <div className="text-2xl font-bold text-purple-300">
-                                    {overview ? formatBytes(overview.totalBytes) : '0 B'}
-                                </div>
-                            </div>
-                            <div
-                                className="bg-[#121212] rounded-xl border border-gray-800 p-4 group relative"
-                                title={t('goaccessStats.tipFilesAnalyzed')}
-                            >
-                                <div className="flex items-center gap-2 text-gray-500 text-sm mb-2">
-                                    <FileText size={16} className="text-cyan-400" />
-                                    {t('goaccessStats.filesAnalyzed')}
-                                    <Info size={12} className="text-gray-600 group-hover:text-gray-400" />
-                                </div>
-                                <div className="text-2xl font-bold text-cyan-300">
-                                    {overview?.filesAnalyzed ?? 0}
-                                </div>
-                            </div>
+                            )}
                         </div>
 
-                        {/* Stats KPI (extended overview) - collapsible with chevron */}
-                        {overview && (
-                            statsKpiVisible ? (
-                                <div className="bg-[#121212]/90 rounded-xl border border-gray-800 overflow-hidden backdrop-blur-sm">
-                                    <div
-                                        role="button"
-                                        tabIndex={0}
-                                        onClick={() => setStatsKpiVisible(false)}
-                                        onKeyDown={(e) => e.key === 'Enter' && setStatsKpiVisible(false)}
-                                        className="flex items-center justify-between px-6 py-4 cursor-pointer hover:bg-[#1a1a1a]/80 transition-colors"
-                                        title={t('goaccessStats.statsKpiHide')}
-                                    >
-                                        <div className="flex items-center gap-2">
-                                            <h3 className="text-lg font-semibold text-white">
-                                                {t('goaccessStats.statsKpi')}
-                                            </h3>
-                                            <button
-                                                type="button"
-                                                onClick={(e) => { e.stopPropagation(); setKpiModalOpen(true); }}
-                                                className="p-1 rounded hover:bg-gray-700/50 text-gray-400 hover:text-emerald-400 transition-colors"
-                                                title={t('goaccessStats.kpiModalTitle')}
-                                                aria-label={t('goaccessStats.kpiModalTitle')}
-                                            >
-                                                <Info size={18} />
-                                            </button>
-                                        </div>
-                                        <ChevronUp size={20} className="text-gray-500 shrink-0" aria-hidden />
-                                    </div>
-                                    <div className="px-6 pb-6 pt-0">
-                                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 text-sm">
-                                            <div className="p-3 rounded-lg bg-[#0f0f0f]/80 border border-gray-800/60" title={t('goaccessStats.tipTotalRequests')}>
-                                                <div className="flex items-center gap-2 text-gray-500 mb-1">
-                                                    <Activity size={14} className="text-emerald-400" />
-                                                    {t('goaccessStats.totalRequests')}
-                                                </div>
-                                                <div className="font-bold text-white text-lg">{overview.totalRequests}</div>
-                                            </div>
-                                            <div className="p-3 rounded-lg bg-[#0f0f0f]/80 border border-gray-800/60" title={t('goaccessStats.tipValidRequests')}>
-                                                <div className="flex items-center gap-2 text-gray-500 mb-1">
-                                                    <Activity size={14} className="text-emerald-500" />
-                                                    {t('goaccessStats.validRequests')}
-                                                </div>
-                                                <div className="font-bold text-emerald-400 text-lg">{overview.validRequests ?? 0}</div>
-                                            </div>
-                                            <div className="p-3 rounded-lg bg-[#0f0f0f]/80 border border-gray-800/60" title={t('goaccessStats.tipFailedRequests')}>
-                                                <div className="flex items-center gap-2 text-gray-500 mb-1">
-                                                    <AlertTriangle size={14} className="text-red-400" />
-                                                    {t('goaccessStats.failedRequests')}
-                                                </div>
-                                                <div className="font-bold text-red-400 text-lg">{overview.failedRequests ?? 0}</div>
-                                            </div>
-                                            <div className="p-3 rounded-lg bg-[#0f0f0f]/80 border border-gray-800/60" title={t('goaccessStats.tipUniqueVisitors')}>
-                                                <div className="flex items-center gap-2 text-gray-500 mb-1">
-                                                    <Globe size={14} className="text-blue-400" />
-                                                    {t('goaccessStats.uniqueVisitors')}
-                                                </div>
-                                                <div className="font-bold text-white text-lg">{overview.uniqueIps}</div>
-                                            </div>
-                                            <div className="p-3 rounded-lg bg-[#0f0f0f]/80 border border-gray-800/60" title={t('goaccessStats.tipNotFound')}>
-                                                <div className="flex items-center gap-2 text-gray-500 mb-1">
-                                                    <AlertTriangle size={14} className="text-amber-400" />
-                                                    {t('goaccessStats.notFound')}
-                                                </div>
-                                                <div className="font-bold text-amber-400 text-lg">{overview.notFound ?? 0}</div>
-                                            </div>
-                                            <div className="p-3 rounded-lg bg-[#0f0f0f]/80 border border-gray-800/60" title={t('goaccessStats.tipStaticFiles')}>
-                                                <div className="flex items-center gap-2 text-gray-500 mb-1">
-                                                    <FileText size={14} className="text-cyan-400" />
-                                                    {t('goaccessStats.staticFiles')}
-                                                </div>
-                                                <div className="font-bold text-cyan-300 text-lg">{overview.staticFiles ?? 0}</div>
-                                            </div>
-                                            <div className="p-3 rounded-lg bg-[#0f0f0f]/80 border border-gray-800/60" title={t('goaccessStats.tipTotalBytes')}>
-                                                <div className="flex items-center gap-2 text-gray-500 mb-1">
-                                                    <HardDrive size={14} className="text-purple-400" />
-                                                    {t('goaccessStats.totalBytes')}
-                                                </div>
-                                                <div className="font-bold text-purple-300 text-lg">{formatBytes(overview.totalBytes)}</div>
-                                            </div>
-                                            <div className="p-3 rounded-lg bg-[#0f0f0f]/80 border border-gray-800/60" title={t('goaccessStats.tipFilesAnalyzed')}>
-                                                <div className="flex items-center gap-2 text-gray-500 mb-1">
-                                                    <FileText size={14} className="text-cyan-500" />
-                                                    {t('goaccessStats.filesAnalyzed')}
-                                                </div>
-                                                <div className="font-bold text-cyan-300 text-lg">{overview.filesAnalyzed}</div>
-                                            </div>
-                                            <div className="p-3 rounded-lg bg-[#0f0f0f]/80 border border-gray-800/60 col-span-2 lg:col-span-1">
-                                                <div className="flex items-center gap-2 text-gray-500 mb-1">
-                                                    <Activity size={14} className="text-gray-400" />
-                                                    {t('goaccessStats.dateRange')}
-                                                </div>
-                                                <div className="font-mono text-xs text-gray-300 truncate">
-                                                    {formatDateRange(overview.dateFrom, overview.dateTo)}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            ) : (
+                        {/* Tab navigation */}
+                        <div className="flex items-center gap-1 p-1 bg-[#0a0a0a] rounded-xl border border-gray-800">
+                            {([
+                                { id: 'graphs' as const, icon: TrendingUp, label: t('goaccessStats.tabGraphs') },
+                                { id: 'http' as const, icon: Shield, label: t('goaccessStats.tabHttp') },
+                                { id: 'tops' as const, icon: Trophy, label: t('goaccessStats.tabTops') }
+                            ]).map((tab) => (
                                 <button
+                                    key={tab.id}
                                     type="button"
-                                    onClick={() => setStatsKpiVisible(true)}
-                                    className="flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-800 bg-[#121212]/90 text-gray-400 hover:border-gray-600 hover:bg-[#1a1a1a] transition-colors backdrop-blur-sm"
-                                    title={t('goaccessStats.statsKpiShow')}
+                                    onClick={() => setActiveTab(tab.id)}
+                                    className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 flex-1 justify-center ${
+                                        activeTab === tab.id
+                                            ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/30'
+                                            : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/50'
+                                    }`}
                                 >
-                                    <ChevronDown size={18} />
-                                    <span className="text-sm font-medium">{t('goaccessStats.statsKpi')}</span>
+                                    <tab.icon size={16} />
+                                    {tab.label}
                                 </button>
-                            )
-                        )}
+                            ))}
+                        </div>
 
-                        {/* KPI explanatory modal */}
-                        {kpiModalOpen && createPortal(
-                            <div
-                                className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-                                onClick={() => setKpiModalOpen(false)}
-                                role="dialog"
-                                aria-modal="true"
-                                aria-labelledby="kpi-modal-title"
-                            >
-                                <div
-                                    className="bg-[#121212] border border-gray-700 rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden"
-                                    onClick={(e) => e.stopPropagation()}
-                                >
-                                    <div className="px-6 py-4 border-b border-gray-800 flex items-center justify-between">
-                                        <h2 id="kpi-modal-title" className="text-lg font-semibold text-white flex items-center gap-2">
-                                            <BarChart2 size={22} className="text-emerald-400" />
-                                            {t('goaccessStats.kpiModalTitle')}
-                                        </h2>
-                                        <button
-                                            type="button"
-                                            onClick={() => setKpiModalOpen(false)}
-                                            className="p-2 rounded-lg hover:bg-gray-700/50 text-gray-400 hover:text-white transition-colors"
-                                            aria-label={t('goaccessStats.kpiModalClose')}
-                                        >
-                                            <X size={20} />
-                                        </button>
-                                    </div>
-                                    <div className="p-6 space-y-4 text-sm text-gray-300">
-                                        <p className="leading-relaxed">{t('goaccessStats.kpiModalIntro')}</p>
-                                        <p className="leading-relaxed">{t('goaccessStats.kpiModalLogs')}</p>
-                                        <p className="leading-relaxed">{t('goaccessStats.kpiModalUse')}</p>
-                                    </div>
-                                    <div className="px-6 pb-6">
-                                        <button
-                                            type="button"
-                                            onClick={() => setKpiModalOpen(false)}
-                                            className="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium transition-colors"
-                                        >
-                                            {t('goaccessStats.kpiModalClose')}
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>,
-                            document.body
-                        )}
-
+                        {/* === TAB: Graphs === */}
+                        {activeTab === 'graphs' && (
+                        <>
                         {/* Timeline - Requêtes dans le temps (bar/curve + date/time axis) */}
                         <div id="section-timeline" className="bg-[#121212] rounded-xl border border-gray-800 p-6 w-full scroll-mt-24">
-                            <h3 className="text-lg font-semibold text-white mb-4">
-                                {t('goaccessStats.requestsOverTime')}
-                            </h3>
+                            <SectionHeading>{t('goaccessStats.requestsOverTime')}</SectionHeading>
                             {trimmedTimeseries.length > 0 ? (
                                 <div className="w-full min-w-0">
                                     <TimelineChart
@@ -1086,12 +960,25 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                             )}
                         </div>
 
+                        {/* Calendar Heatmap - only when bucket is day */}
+                        {getCurrentBucket() === 'day' && trimmedTimeseries.length > 0 && (
+                            <div id="section-heatmap" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
+                                <SectionHeading>{t('goaccessStats.heatmapTitle')}</SectionHeading>
+                                <HeatmapChart
+                                    data={trimmedTimeseries.map((b) => ({ label: b.label, count: b.count }))}
+                                    noDataText={t('goaccessStats.noData')}
+                                    dayLabels={[
+                                        t('goaccessStats.monday'), t('goaccessStats.tuesday'), t('goaccessStats.wednesday'),
+                                        t('goaccessStats.thursday'), t('goaccessStats.friday'), t('goaccessStats.saturday'), t('goaccessStats.sunday')
+                                    ]}
+                                />
+                            </div>
+                        )}
+
                         {/* Time Distribution & Unique Visitors (dual-line charts) */}
                         <div id="section-time-dist" className="grid grid-cols-1 lg:grid-cols-2 gap-6 scroll-mt-24">
                             <div className="bg-[#121212] rounded-xl border border-gray-800 p-6">
-                                <h3 className="text-lg font-semibold text-white mb-4">
-                                    {t('goaccessStats.timeDistribution')}
-                                </h3>
+                                <SectionHeading>{t('goaccessStats.timeDistribution')}</SectionHeading>
                                 {trimmedTimeseries.length > 0 ? (
                                     <DualLineChart
                                         data={trimmedTimeseries.map((b) => ({
@@ -1113,9 +1000,7 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                                 )}
                             </div>
                             <div id="section-unique-visitors" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
-                                <h3 className="text-lg font-semibold text-white mb-4">
-                                    {t('goaccessStats.uniqueVisitorsChart')}
-                                </h3>
+                                <SectionHeading>{t('goaccessStats.uniqueVisitorsChart')}</SectionHeading>
                                 {trimmedTimeseries.length > 0 ? (
                                     <DualLineChart
                                         data={trimmedTimeseries.map((b) => ({
@@ -1138,11 +1023,124 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                             </div>
                         </div>
 
-                        {/* HTTP Status Codes: dual bar + table min/max/avg/total */}
-                        <div id="section-http-status" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
-                            <h3 className="text-lg font-semibold text-white mb-4">
-                                {t('goaccessStats.httpStatusCodes')}
-                            </h3>
+                        {/* Peak Hours (needs hour/minute granularity) */}
+                        {trimmedTimeseries.length > 0 && getCurrentBucket() !== 'day' && (
+                            <div id="section-peak-hours" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
+                                <SectionHeading>{t('goaccessStats.peakHoursTitle')}</SectionHeading>
+                                <PeakHoursChart
+                                    data={timeseries.map((b) => ({ label: b.label, count: b.count }))}
+                                    noDataText={t('goaccessStats.noData')}
+                                    requestsLabel={t('goaccessStats.requests')}
+                                />
+                            </div>
+                        )}
+
+                        {/* Day of Week + Hour x Day Heatmap combined */}
+                        {trimmedTimeseries.length > 0 && (
+                            <div id="section-hour-day" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                    <div>
+                                        <SectionHeading>{t('goaccessStats.dayOfWeekTitle')}</SectionHeading>
+                                        <DayOfWeekChart
+                                            data={timeseries.map((b) => ({ label: b.label, count: b.count }))}
+                                            noDataText={t('goaccessStats.noData')}
+                                            dayLabels={[
+                                                t('goaccessStats.monday'), t('goaccessStats.tuesday'), t('goaccessStats.wednesday'),
+                                                t('goaccessStats.thursday'), t('goaccessStats.friday'), t('goaccessStats.saturday'), t('goaccessStats.sunday')
+                                            ]}
+                                            requestsLabel={t('goaccessStats.requests')}
+                                        />
+                                    </div>
+                                    {getCurrentBucket() !== 'day' && (
+                                        <div>
+                                            <SectionHeading>{t('goaccessStats.hourDayHeatmapTitle')}</SectionHeading>
+                                            <HourDayHeatmap
+                                                data={timeseries.map((b) => ({ label: b.label, count: b.count }))}
+                                                noDataText={t('goaccessStats.noData')}
+                                                dayLabels={[
+                                                    t('goaccessStats.monday'), t('goaccessStats.tuesday'), t('goaccessStats.wednesday'),
+                                                    t('goaccessStats.thursday'), t('goaccessStats.friday'), t('goaccessStats.saturday'), t('goaccessStats.sunday')
+                                                ]}
+                                                requestsLabel={t('goaccessStats.requests')}
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Status Trends over time */}
+                        {trimmedTimeseries.length > 0 && (
+                            <div id="section-status-trends" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
+                                <SectionHeading>{t('goaccessStats.statusTrendsTitle')}</SectionHeading>
+                                <StatusTrendsChart
+                                    data={trimmedTimeseries}
+                                    height={180}
+                                    formatLabel={(l) => formatTsLabel(l, getCurrentBucket())}
+                                    noDataText={t('goaccessStats.noData')}
+                                    xAxisTicks={6}
+                                />
+                            </div>
+                        )}
+
+                        {/* Bandwidth over time */}
+                        {trimmedTimeseries.length > 0 && trimmedTimeseries.some((b) => (b.totalBytes ?? 0) > 0) && (
+                            <div id="section-bandwidth" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
+                                <SectionHeading>{t('goaccessStats.bandwidthTitle')}</SectionHeading>
+                                <TimelineChart
+                                    data={trimmedTimeseries.map((b) => ({ label: b.label, count: b.totalBytes ?? 0 }))}
+                                    color="#a78bfa"
+                                    height={140}
+                                    formatLabel={(l) => formatTsLabel(l, getCurrentBucket())}
+                                    valueLabel="Bytes"
+                                    xAxisTicks={6}
+                                    barLabel={t('goaccessStats.viewBars')}
+                                    curveLabel={t('goaccessStats.viewCurve')}
+                                />
+                            </div>
+                        )}
+
+                        </>
+                        )}
+
+                        {/* === TAB: HTTP === */}
+                        {activeTab === 'http' && (
+                        <>
+                        {/* Bot vs Human */}
+                        {botVsHuman && (botVsHuman.bots > 0 || botVsHuman.humans > 0) && (
+                            <div id="section-bot-detection" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
+                                <SectionHeading>{t('goaccessStats.botDetectionTitle')}</SectionHeading>
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                    <DonutChart
+                                        segments={[
+                                            { label: t('goaccessStats.humanLabel'), value: botVsHuman.humans, color: '#059669' },
+                                            { label: t('goaccessStats.botLabel'), value: botVsHuman.bots, color: '#4b5563' }
+                                        ]}
+                                        centerValue={`${botVsHuman.botPercent}%`}
+                                        centerLabel={t('goaccessStats.botLabel')}
+                                    />
+                                    {botVsHuman.topBots.length > 0 && (
+                                        <div>
+                                            <h4 className="text-sm font-semibold text-gray-400 mb-3">
+                                                {t('goaccessStats.topBotsTitle')}
+                                            </h4>
+                                            <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                                                {botVsHuman.topBots.map((bot, idx) => (
+                                                    <div key={idx} className="flex items-center gap-2 text-sm">
+                                                        <span className="text-gray-400 truncate flex-1 min-w-0" title={bot.key}>{bot.key}</span>
+                                                        <span className="text-white font-medium shrink-0">{bot.count}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Panel 1: HTTP Codes (regrouped) */}
+                        <div id="section-http-codes" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
+                            <SectionHeading>{t('goaccessStats.httpCodesPanel')}</SectionHeading>
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                 <div>
                                     {statusWithVisitors.length > 0 ? (
@@ -1183,25 +1181,56 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                                     )}
                                 </div>
                             </div>
+                            {distStatus.length > 0 && (
+                                <div className="mt-6 pt-6 border-t border-gray-800">
+                                    <DistributionChart
+                                        title={t('goaccessStats.httpStatusDistribution')}
+                                        items={distStatus}
+                                        labelMinWidth="4rem"
+                                    />
+                                </div>
+                            )}
                         </div>
 
-                        {/* HTTP Status by Domain (host + status) */}
-                        {statusByHost.length > 0 && (
-                            <div id="section-status-by-host" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
-                                <h3 className="text-lg font-semibold text-white mb-4">
-                                    {t('goaccessStats.statusByHost')}
-                                </h3>
+                        {/* Panel 2: HTTP Methods & Codes by domain (regrouped) */}
+                        <div id="section-http-methods" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
+                            <SectionHeading>{t('goaccessStats.httpMethodsAndDomainPanel')}</SectionHeading>
+                            <DistributionChart
+                                title={t('goaccessStats.httpMethodsDistribution')}
+                                items={distMethods}
+                                labelMinWidth="7rem"
+                            />
+                            {statusByHost.length > 0 && (
+                                <div className="mt-6 pt-6 border-t border-gray-800">
+                                    <h4 className="text-base font-semibold text-white mb-4">
+                                        {t('goaccessStats.statusByHost')}
+                                    </h4>
+                                    <DualBarChart
+                                        data={statusByHost.map((item) => ({
+                                            key: `${item.host} | ${item.status}`,
+                                            count: item.count,
+                                            uniqueVisitors: item.uniqueVisitors
+                                        }))}
+                                        colorByKey={(key) => {
+                                            const status = key.split(' | ')[1] ?? '';
+                                            return getStatusColor(status);
+                                        }}
+                                        labelWidth={450}
+                                        hitsLabel={t('goaccessStats.hits')}
+                                        visitorsLabel={t('goaccessStats.visitors')}
+                                        tableLayout
+                                    />
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Top 404 URLs */}
+                        {notFoundUrls.length > 0 && (
+                            <div id="section-top404" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
+                                <SectionHeading>{t('goaccessStats.top404Title')}</SectionHeading>
                                 <DualBarChart
-                                    data={statusByHost.map((item) => ({
-                                        key: `${item.host} | ${item.status}`,
-                                        count: item.count,
-                                        uniqueVisitors: item.uniqueVisitors
-                                    }))}
-                                    colorByKey={(key) => {
-                                        const status = key.split(' | ')[1] ?? '';
-                                        return getStatusColor(status);
-                                    }}
-                                    labelWidth={450}
+                                    data={notFoundUrls}
+                                    labelWidth={500}
                                     hitsLabel={t('goaccessStats.hits')}
                                     visitorsLabel={t('goaccessStats.visitors')}
                                     tableLayout
@@ -1209,12 +1238,32 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                             </div>
                         )}
 
+                        {/* Response Time Distribution */}
+                        {responseTimeDist && (
+                            <div id="section-response-time" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
+                                <SectionHeading>{t('goaccessStats.responseTimeTitle')}</SectionHeading>
+                                <ResponseTimeChart
+                                    avg={responseTimeDist.avg}
+                                    p50={responseTimeDist.p50}
+                                    p95={responseTimeDist.p95}
+                                    p99={responseTimeDist.p99}
+                                    max={responseTimeDist.max}
+                                    buckets={responseTimeDist.buckets}
+                                    noDataText={t('goaccessStats.noData')}
+                                />
+                            </div>
+                        )}
+
+                        </>
+                        )}
+
+                        {/* === TAB: Tops === */}
+                        {activeTab === 'tops' && (
+                        <>
                         {/* Referring Sites & Virtual Hosts */}
                         <div id="section-referring" className="grid grid-cols-1 lg:grid-cols-2 gap-6 scroll-mt-24">
                             <div className="bg-[#121212] rounded-xl border border-gray-800 p-6">
-                                <h3 className="text-lg font-semibold text-white mb-4">
-                                    {t('goaccessStats.referringSites')}
-                                </h3>
+                                <SectionHeading>{t('goaccessStats.referringSites')}</SectionHeading>
                                 {referringSites.length > 0 ? (
                                     <DualBarChart
                                         data={referringSites}
@@ -1230,9 +1279,7 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                                 )}
                             </div>
                             <div id="section-virtual-hosts" className="bg-[#121212] rounded-xl border border-gray-800 p-6">
-                                <h3 className="text-lg font-semibold text-white mb-4">
-                                    {t('goaccessStats.virtualHosts')}
-                                </h3>
+                                <SectionHeading>{t('goaccessStats.virtualHosts')}</SectionHeading>
                                 {hostWithVisitors.length > 0 ? (
                                     <DualBarChart
                                         data={hostWithVisitors}
@@ -1251,9 +1298,7 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
 
                         {/* Referrer URLs (with visitors) */}
                         <div id="section-referrer-urls" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
-                            <h3 className="text-lg font-semibold text-white mb-4">
-                                {t('goaccessStats.referrerUrls')}
-                            </h3>
+                            <SectionHeading>{t('goaccessStats.referrerUrls')}</SectionHeading>
                             {referrerWithVisitors.length > 0 ? (
                                 <DualBarChart
                                     data={referrerWithVisitors}
@@ -1271,9 +1316,7 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
 
                         {/* Requested Files (URLs with extras) */}
                         <div id="section-requested-files" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
-                            <h3 className="text-lg font-semibold text-white mb-4">
-                                {t('goaccessStats.requestedFiles')}
-                            </h3>
+                            <SectionHeading>{t('goaccessStats.requestedFiles')}</SectionHeading>
                             {urlsWithExtras.length > 0 ? (
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-sm">
@@ -1305,20 +1348,6 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                             )}
                         </div>
 
-                        {/* Distribution charts: HTTP Status & Methods */}
-                        <div id="section-distribution" className="grid grid-cols-1 lg:grid-cols-2 gap-6 scroll-mt-24">
-                            <DistributionChart
-                                title={t('goaccessStats.httpStatusDistribution')}
-                                items={distStatus}
-                                labelMinWidth="4rem"
-                            />
-                            <DistributionChart
-                                title={t('goaccessStats.httpMethodsDistribution')}
-                                items={distMethods}
-                                labelMinWidth="7rem"
-                            />
-                        </div>
-
                         {/* Top panels: URLs and Referrers on first row (2 cols), rest below */}
                         <div id="section-top-panels" className="space-y-4 scroll-mt-24">
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -1328,6 +1357,7 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                                     maxKeyLength={80}
                                     maxVisibleWithoutScroll={5}
                                     scrollWhenCollapsed={false}
+                                    sourceBadge={<SourceBadge />}
                                 />
                                 <TopPanel
                                     title={t('goaccessStats.topReferrers')}
@@ -1335,6 +1365,7 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                                     maxKeyLength={80}
                                     maxVisibleWithoutScroll={5}
                                     scrollWhenCollapsed={false}
+                                    sourceBadge={<SourceBadge />}
                                 />
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1343,12 +1374,14 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                                     items={topIps}
                                     maxVisibleWithoutScroll={5}
                                     scrollWhenCollapsed={false}
+                                    sourceBadge={<SourceBadge />}
                                 />
                                 <TopPanel
                                     title={t('goaccessStats.topStatus')}
                                     items={topStatus}
                                     maxVisibleWithoutScroll={5}
                                     scrollWhenCollapsed={false}
+                                    sourceBadge={<SourceBadge />}
                                 />
                                 <TopPanel
                                     title={t('goaccessStats.topBrowsers')}
@@ -1356,6 +1389,7 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                                     maxKeyLength={25}
                                     maxVisibleWithoutScroll={5}
                                     scrollWhenCollapsed={false}
+                                    sourceBadge={<SourceBadge />}
                                 />
                             </div>
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -1365,9 +1399,12 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                                     maxKeyLength={50}
                                     maxVisibleWithoutScroll={5}
                                     scrollWhenCollapsed={false}
+                                    sourceBadge={<SourceBadge />}
                                 />
                             </div>
                         </div>
+                        </>
+                        )}
                     </>
                 )}
             </div>
@@ -1402,16 +1439,29 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                             <div className="max-h-[70vh] overflow-y-auto py-2">
                                 {[
                                     { id: 'section-kpi', label: t('goaccessStats.navMenuKpi') },
-                                    { id: 'section-timeline', label: t('goaccessStats.navMenuTimeline') },
-                                    { id: 'section-time-dist', label: t('goaccessStats.navMenuTimeDist') },
-                                    { id: 'section-unique-visitors', label: t('goaccessStats.navMenuUniqueVisitors') },
-                                    { id: 'section-http-status', label: t('goaccessStats.navMenuHttpStatus') },
-                                    ...(statusByHost.length > 0 ? [{ id: 'section-status-by-host', label: t('goaccessStats.navMenuStatusByHost') }] : []),
-                                    { id: 'section-referring', label: t('goaccessStats.navMenuReferringSites') },
-                                    { id: 'section-referrer-urls', label: t('goaccessStats.navMenuReferrerUrls') },
-                                    { id: 'section-requested-files', label: t('goaccessStats.navMenuRequestedFiles') },
-                                    { id: 'section-distribution', label: t('goaccessStats.navMenuDistribution') },
-                                    { id: 'section-top-panels', label: t('goaccessStats.navMenuTopPanels') }
+                                    ...(activeTab === 'graphs' ? [
+                                        { id: 'section-timeline', label: t('goaccessStats.navMenuTimeline') },
+                                        ...(getCurrentBucket() === 'day' ? [{ id: 'section-heatmap', label: t('goaccessStats.navMenuHeatmap') }] : []),
+                                        { id: 'section-time-dist', label: t('goaccessStats.navMenuTimeDist') },
+                                        { id: 'section-unique-visitors', label: t('goaccessStats.navMenuUniqueVisitors') },
+                                        ...(trimmedTimeseries.length > 0 && getCurrentBucket() !== 'day' ? [{ id: 'section-peak-hours', label: t('goaccessStats.navMenuPeakHours') }] : []),
+                                        ...(trimmedTimeseries.length > 0 ? [{ id: 'section-hour-day', label: t('goaccessStats.navMenuHourDay') }] : []),
+                                        ...(trimmedTimeseries.length > 0 ? [{ id: 'section-status-trends', label: t('goaccessStats.navMenuStatusTrends') }] : []),
+                                        ...(trimmedTimeseries.some((b) => (b.totalBytes ?? 0) > 0) ? [{ id: 'section-bandwidth', label: t('goaccessStats.navMenuBandwidth') }] : [])
+                                    ] : []),
+                                    ...(activeTab === 'http' ? [
+                                        ...(botVsHuman && (botVsHuman.bots > 0 || botVsHuman.humans > 0) ? [{ id: 'section-bot-detection', label: t('goaccessStats.navMenuBotDetection') }] : []),
+                                        { id: 'section-http-codes', label: t('goaccessStats.navMenuHttpCodes') },
+                                        { id: 'section-http-methods', label: t('goaccessStats.navMenuHttpMethods') },
+                                        ...(notFoundUrls.length > 0 ? [{ id: 'section-top404', label: t('goaccessStats.navMenuTop404') }] : []),
+                                        ...(responseTimeDist ? [{ id: 'section-response-time', label: t('goaccessStats.navMenuResponseTime') }] : [])
+                                    ] : []),
+                                    ...(activeTab === 'tops' ? [
+                                        { id: 'section-referring', label: t('goaccessStats.navMenuReferringSites') },
+                                        { id: 'section-referrer-urls', label: t('goaccessStats.navMenuReferrerUrls') },
+                                        { id: 'section-requested-files', label: t('goaccessStats.navMenuRequestedFiles') },
+                                        { id: 'section-top-panels', label: t('goaccessStats.navMenuTopPanels') }
+                                    ] : [])
                                 ].map(({ id, label }) => (
                                     <button
                                         key={id}
