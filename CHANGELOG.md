@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.3.5] - 2026-03-10
+
+### Security
+
+- **Dépendance `tar`** : Override mis à jour `>=7.5.9` → `>=7.5.10` pour corriger la vulnérabilité de path sanitization (Dependabot PR #6, `isaacs/node-tar@7bc755d`). Fermeture du PR #6 (corrigé directement via override).
+
+---
+
 ## [0.3.4] - 2026-02-13
 
 ### Added
@@ -838,6 +846,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+[0.3.5]: https://github.com/Erreur32/LogviewR/releases/tag/v0.3.5
 [0.3.4]: https://github.com/Erreur32/LogviewR/releases/tag/v0.3.4
 [0.3.3]: https://github.com/Erreur32/LogviewR/releases/tag/v0.3.3
 [0.2.7]: https://github.com/Erreur32/LogviewR/releases/tag/v0.2.7
