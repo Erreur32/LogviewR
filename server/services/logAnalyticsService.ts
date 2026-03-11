@@ -46,11 +46,22 @@ export interface AnalyticsDistributionWithVisitors extends AnalyticsDistribution
     uniqueVisitors: number;
 }
 
+export interface AnalyticsStatusGroups {
+    s2xx: number;
+    s3xx: number;
+    s4xx: number;
+    s5xx: number;
+}
+
 export interface AnalyticsTimeseriesBucket {
     label: string;
     count: number;
     /** Unique visitors (unique IPs) per bucket for dual-line charts. */
     uniqueVisitors?: number;
+    /** HTTP status code group counts per bucket. */
+    statusGroups?: AnalyticsStatusGroups;
+    /** Total bytes transferred in this bucket. */
+    totalBytes?: number;
 }
 
 export interface AnalyticsTopItem {
@@ -90,6 +101,7 @@ interface ParsedAccessEntry {
     host?: string;
     protocol?: string;
     timestamp?: Date | string;
+    responseTime?: number;
 }
 
 function isLogSourcePlugin(plugin: unknown): plugin is LogSourcePlugin {
@@ -191,7 +203,7 @@ async function collectParsedEntries(
                         if (dateFrom && ts && ts < dateFrom) continue;
                         if (dateTo && ts && ts > dateTo) continue;
 
-                        const ext = p as { host?: string; vhost?: string; protocol?: string };
+                        const ext = p as { host?: string; vhost?: string; protocol?: string; responseTime?: number };
                         allEntries.push({
                             ip: p.ip,
                             status: p.status,
@@ -202,7 +214,8 @@ async function collectParsedEntries(
                             method: p.method,
                             host: ext.host ?? ext.vhost,
                             protocol: ext.protocol,
-                            timestamp: p.timestamp
+                            timestamp: p.timestamp,
+                            responseTime: typeof ext.responseTime === 'number' ? ext.responseTime : undefined
                         });
                     }
 
@@ -272,7 +285,7 @@ export function computeOverview(
 
 /**
  * Compute timeseries buckets (per minute, hour, or day) from parsed entries.
- * Includes uniqueVisitors per bucket for dual-line charts (requests + visitors).
+ * Includes uniqueVisitors, statusGroups, and totalBytes per bucket.
  */
 export function computeTimeseries(
     entries: ParsedAccessEntry[],
@@ -283,6 +296,8 @@ export function computeTimeseries(
     const sliceLen = bucket === 'minute' ? 16 : bucket === 'hour' ? 13 : 10;
     const countMap = new Map<string, number>();
     const visitorsMap = new Map<string, Set<string>>();
+    const statusMap = new Map<string, AnalyticsStatusGroups>();
+    const bytesMap = new Map<string, number>();
 
     for (const e of entries) {
         const ts = toDate(e.timestamp);
@@ -298,6 +313,22 @@ export function computeTimeseries(
             }
             set.add(e.ip);
         }
+
+        if (typeof e.status === 'number') {
+            let sg = statusMap.get(label);
+            if (!sg) {
+                sg = { s2xx: 0, s3xx: 0, s4xx: 0, s5xx: 0 };
+                statusMap.set(label, sg);
+            }
+            if (e.status >= 200 && e.status < 300) sg.s2xx++;
+            else if (e.status >= 300 && e.status < 400) sg.s3xx++;
+            else if (e.status >= 400 && e.status < 500) sg.s4xx++;
+            else if (e.status >= 500) sg.s5xx++;
+        }
+
+        if (typeof e.size === 'number') {
+            bytesMap.set(label, (bytesMap.get(label) ?? 0) + e.size);
+        }
     }
 
     return Array.from(countMap.entries())
@@ -305,7 +336,9 @@ export function computeTimeseries(
         .map(([label, count]) => ({
             label,
             count,
-            uniqueVisitors: visitorsMap.get(label)?.size ?? 0
+            uniqueVisitors: visitorsMap.get(label)?.size ?? 0,
+            statusGroups: statusMap.get(label) ?? { s2xx: 0, s3xx: 0, s4xx: 0, s5xx: 0 },
+            totalBytes: bytesMap.get(label) ?? 0
         }));
 }
 
@@ -635,6 +668,150 @@ export function computeTop(
 }
 
 /**
+ * Compute top URLs returning 404 (broken links / not found).
+ */
+export function computeTop404Urls(
+    entries: ParsedAccessEntry[],
+    limit: number
+): AnalyticsTopItemWithVisitors[] {
+    const notFoundEntries = entries.filter((e) => e.status === 404);
+    const countMap = new Map<string, number>();
+    const visitorsMap = new Map<string, Set<string>>();
+    const total = notFoundEntries.length;
+
+    for (const e of notFoundEntries) {
+        const key = (e.url || '-').trim() || '-';
+        const urlKey = key.length > 80 ? key.slice(0, 77) + '...' : key;
+        countMap.set(urlKey, (countMap.get(urlKey) ?? 0) + 1);
+        if (e.ip) {
+            let set = visitorsMap.get(urlKey);
+            if (!set) {
+                set = new Set<string>();
+                visitorsMap.set(urlKey, set);
+            }
+            set.add(e.ip);
+        }
+    }
+
+    return Array.from(countMap.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, limit)
+        .map(([key, count]) => ({
+            key,
+            count,
+            percent: total > 0 ? Math.round((count / total) * 100) : 0,
+            uniqueVisitors: visitorsMap.get(key)?.size ?? 0
+        }));
+}
+
+/**
+ * Classify user-agent as bot or human.
+ */
+function isBot(ua: string | undefined): boolean {
+    if (!ua || ua === '-') return false;
+    const u = ua.toLowerCase();
+    return /bot|crawler|spider|curl|wget|python|go-http|java\/|libwww|scrapy|headless|phant|slurp|fetch|http-client|axios|node-fetch/.test(u);
+}
+
+/**
+ * Compute bot vs human traffic distribution.
+ */
+export interface AnalyticsBotVsHuman {
+    bots: number;
+    humans: number;
+    botPercent: number;
+    topBots: AnalyticsTopItem[];
+}
+
+export function computeBotVsHuman(entries: ParsedAccessEntry[]): AnalyticsBotVsHuman {
+    let bots = 0;
+    let humans = 0;
+    const botUaMap = new Map<string, number>();
+
+    for (const e of entries) {
+        if (isBot(e.userAgent)) {
+            bots++;
+            const ua = (e.userAgent || 'Unknown Bot').trim();
+            const key = ua.length > 60 ? ua.slice(0, 57) + '...' : ua;
+            botUaMap.set(key, (botUaMap.get(key) ?? 0) + 1);
+        } else {
+            humans++;
+        }
+    }
+
+    const total = bots + humans;
+    const topBots = Array.from(botUaMap.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([key, count]) => ({
+            key,
+            count,
+            percent: total > 0 ? Math.round((count / total) * 100) : 0
+        }));
+
+    return {
+        bots,
+        humans,
+        botPercent: total > 0 ? Math.round((bots / total) * 100) : 0,
+        topBots
+    };
+}
+
+/**
+ * Compute response time distribution with percentiles.
+ */
+export interface AnalyticsResponseTimeBucket {
+    range: string;
+    count: number;
+    percent: number;
+}
+
+export interface AnalyticsResponseTimeDistribution {
+    avg: number;
+    p50: number;
+    p95: number;
+    p99: number;
+    max: number;
+    buckets: AnalyticsResponseTimeBucket[];
+}
+
+export function computeResponseTimeDistribution(entries: ParsedAccessEntry[]): AnalyticsResponseTimeDistribution | null {
+    const times = entries
+        .filter((e) => typeof e.responseTime === 'number' && e.responseTime >= 0)
+        .map((e) => e.responseTime!);
+
+    if (times.length === 0) return null;
+
+    times.sort((a, b) => a - b);
+    const sum = times.reduce((s, t) => s + t, 0);
+    const avg = sum / times.length;
+    const p50 = times[Math.floor(times.length * 0.5)];
+    const p95 = times[Math.floor(times.length * 0.95)];
+    const p99 = times[Math.floor(times.length * 0.99)];
+    const max = times[times.length - 1];
+
+    const ranges: [string, number, number][] = [
+        ['0-100ms', 0, 100],
+        ['100-500ms', 100, 500],
+        ['500ms-1s', 500, 1000],
+        ['1-2s', 1000, 2000],
+        ['2-5s', 2000, 5000],
+        ['>5s', 5000, Infinity]
+    ];
+
+    const buckets: AnalyticsResponseTimeBucket[] = ranges.map(([range, lo, hi]) => {
+        const count = times.filter((t) => t >= lo && t < hi).length;
+        return {
+            range,
+            count,
+            percent: times.length > 0 ? Math.round((count / times.length) * 100) : 0
+        };
+    });
+
+    return { avg, p50, p95, p99, max, buckets };
+}
+
+/**
  * Main entry: fetch all analytics for the given plugin filter and time range.
  * Returns overview, timeseries, and top metrics in one pass (single parse).
  */
@@ -655,6 +832,8 @@ export async function getAllAnalytics(
         methods: AnalyticsDistribution[];
         status: AnalyticsDistribution[];
         statusWithVisitors: AnalyticsDistributionWithVisitors[];
+        botVsHuman: AnalyticsBotVsHuman;
+        responseTime: AnalyticsResponseTimeDistribution | null;
     };
     top: {
         urls: AnalyticsTopItem[];
@@ -669,6 +848,7 @@ export async function getAllAnalytics(
         hostWithVisitors: AnalyticsTopItemWithVisitors[];
         urlsWithExtras: AnalyticsTopUrlItem[];
         statusByHost: AnalyticsStatusByHostItem[];
+        notFoundUrls: AnalyticsTopItemWithVisitors[];
     };
 }> {
     const enabledPluginIds = LOG_SOURCE_PLUGINS.filter((id) => {
@@ -704,7 +884,9 @@ export async function getAllAnalytics(
         distribution: {
             methods: computeDistribution(entries, 'method'),
             status: computeDistribution(entries, 'status'),
-            statusWithVisitors: computeDistributionWithVisitors(entries, 'status')
+            statusWithVisitors: computeDistributionWithVisitors(entries, 'status'),
+            botVsHuman: computeBotVsHuman(entries),
+            responseTime: computeResponseTimeDistribution(entries)
         },
         top: {
             urls: computeTop(entries, 'urls', topLimit),
@@ -718,7 +900,8 @@ export async function getAllAnalytics(
             referrerWithVisitors: computeTopWithVisitors(entries, 'referrer', topLimit),
             hostWithVisitors: computeTopWithVisitors(entries, 'host', topLimit),
             urlsWithExtras: computeTopUrlsWithExtras(entries, topLimit),
-            statusByHost: computeStatusByHost(entries, topLimit * 2)
+            statusByHost: computeStatusByHost(entries, topLimit * 2),
+            notFoundUrls: computeTop404Urls(entries, topLimit)
         }
     };
 }

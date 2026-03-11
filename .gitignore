@@ -56,6 +56,8 @@ config/*.conf
 .claude
 .reboot_schedule.json
 
+Fail2ban-web/
+
 # Local comparison / archives that must never be committed
 # Private development folder (contains tokens, internal docs, secrets)
 Doc_dev
