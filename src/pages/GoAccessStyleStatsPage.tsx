@@ -6,7 +6,7 @@
  * and method/status distribution charts.
  */
 
-import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
     ChevronLeft,
@@ -23,7 +23,6 @@ import {
     Maximize2,
     Minimize2,
     Archive,
-    List,
     X,
     TrendingUp,
     Shield,
@@ -225,37 +224,6 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
     /** Stats KPI block: collapsible, visible by default. */
     const [statsKpiVisible, setStatsKpiVisible] = useState(true);
     const [activeTab, setActiveTab] = useState<'graphs' | 'http' | 'tops'>('graphs');
-    const [navMenuOpen, setNavMenuOpen] = useState(false);
-    const navButtonRef = useRef<HTMLButtonElement>(null);
-    const [navMenuRect, setNavMenuRect] = useState<DOMRect | null>(null);
-
-    const scrollToSection = useCallback((id: string) => {
-        setNavMenuOpen(false);
-        requestAnimationFrame(() => {
-            const el = document.getElementById(id);
-            if (!el) return;
-            el.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'nearest' });
-        });
-    }, []);
-
-    useEffect(() => {
-        if (navMenuOpen && navButtonRef.current) {
-            setNavMenuRect(navButtonRef.current.getBoundingClientRect());
-        } else {
-            setNavMenuRect(null);
-        }
-    }, [navMenuOpen]);
-
-    useEffect(() => {
-        if (!navMenuOpen) return;
-        const onDocClick = (e: MouseEvent) => {
-            const target = e.target as HTMLElement;
-            if (!target.closest('[data-stats-nav-menu]')) setNavMenuOpen(false);
-        };
-        document.addEventListener('click', onDocClick, { capture: true });
-        return () => document.removeEventListener('click', onDocClick, { capture: true });
-    }, [navMenuOpen]);
-
     const enabledLogPlugins = useMemo(
         () =>
             plugins.filter((p) =>
@@ -1409,76 +1377,6 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                 )}
             </div>
 
-            {/* Floating nav - left side, follows scroll; on small screens: top to avoid hiding content */}
-            {!isLoading && !error && (
-                <div data-stats-nav-menu className="fixed left-4 top-24 lg:top-1/2 lg:-translate-y-1/2 z-[99999]">
-                    <button
-                        ref={navButtonRef}
-                        type="button"
-                        onClick={() => setNavMenuOpen((v) => !v)}
-                        className="flex items-center justify-center w-12 h-12 rounded-xl bg-[#0f0f0f] border border-gray-700/80 shadow-xl text-emerald-400 hover:bg-[#161616] hover:border-emerald-500/50 hover:text-emerald-300 transition-all duration-200"
-                        title={t('goaccessStats.navMenuTitle')}
-                        aria-expanded={navMenuOpen}
-                    >
-                        <List size={22} />
-                    </button>
-                    {navMenuOpen && navMenuRect && createPortal(
-                        <div
-                            data-stats-nav-menu
-                            className="fixed z-[99999] w-72 rounded-2xl border border-gray-600/80 shadow-2xl overflow-hidden"
-                            style={{
-                                left: navMenuRect.right + 12,
-                                top: navMenuRect.top + navMenuRect.height / 2,
-                                transform: 'translateY(-50%)',
-                                backgroundColor: 'rgb(15, 15, 15)'
-                            }}
-                        >
-                            <div className="px-4 py-3 border-b border-gray-700/80">
-                                <h4 className="text-sm font-semibold text-white">{t('goaccessStats.navMenuTitle')}</h4>
-                            </div>
-                            <div className="max-h-[70vh] overflow-y-auto py-2">
-                                {[
-                                    { id: 'section-kpi', label: t('goaccessStats.navMenuKpi') },
-                                    ...(activeTab === 'graphs' ? [
-                                        { id: 'section-timeline', label: t('goaccessStats.navMenuTimeline') },
-                                        ...(getCurrentBucket() === 'day' ? [{ id: 'section-heatmap', label: t('goaccessStats.navMenuHeatmap') }] : []),
-                                        { id: 'section-time-dist', label: t('goaccessStats.navMenuTimeDist') },
-                                        { id: 'section-unique-visitors', label: t('goaccessStats.navMenuUniqueVisitors') },
-                                        ...(trimmedTimeseries.length > 0 && getCurrentBucket() !== 'day' ? [{ id: 'section-peak-hours', label: t('goaccessStats.navMenuPeakHours') }] : []),
-                                        ...(trimmedTimeseries.length > 0 ? [{ id: 'section-hour-day', label: t('goaccessStats.navMenuHourDay') }] : []),
-                                        ...(trimmedTimeseries.length > 0 ? [{ id: 'section-status-trends', label: t('goaccessStats.navMenuStatusTrends') }] : []),
-                                        ...(trimmedTimeseries.some((b) => (b.totalBytes ?? 0) > 0) ? [{ id: 'section-bandwidth', label: t('goaccessStats.navMenuBandwidth') }] : [])
-                                    ] : []),
-                                    ...(activeTab === 'http' ? [
-                                        ...(botVsHuman && (botVsHuman.bots > 0 || botVsHuman.humans > 0) ? [{ id: 'section-bot-detection', label: t('goaccessStats.navMenuBotDetection') }] : []),
-                                        { id: 'section-http-codes', label: t('goaccessStats.navMenuHttpCodes') },
-                                        { id: 'section-http-methods', label: t('goaccessStats.navMenuHttpMethods') },
-                                        ...(notFoundUrls.length > 0 ? [{ id: 'section-top404', label: t('goaccessStats.navMenuTop404') }] : []),
-                                        ...(responseTimeDist ? [{ id: 'section-response-time', label: t('goaccessStats.navMenuResponseTime') }] : [])
-                                    ] : []),
-                                    ...(activeTab === 'tops' ? [
-                                        { id: 'section-referring', label: t('goaccessStats.navMenuReferringSites') },
-                                        { id: 'section-referrer-urls', label: t('goaccessStats.navMenuReferrerUrls') },
-                                        { id: 'section-requested-files', label: t('goaccessStats.navMenuRequestedFiles') },
-                                        { id: 'section-top-panels', label: t('goaccessStats.navMenuTopPanels') }
-                                    ] : [])
-                                ].map(({ id, label }) => (
-                                    <button
-                                        key={id}
-                                        type="button"
-                                        onClick={() => scrollToSection(id)}
-                                        className="w-full px-4 py-2.5 text-left text-sm text-gray-300 hover:bg-emerald-500/15 hover:text-emerald-400 transition-colors flex items-center gap-2"
-                                    >
-                                        <span className="w-1.5 h-1.5 rounded-full bg-gray-600 shrink-0" />
-                                        {label}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>,
-                        document.body
-                    )}
-                </div>
-            )}
         </div>
     );
 };

@@ -8,7 +8,7 @@
  * Pure SVG + HTML, no external dependencies.
  */
 
-import React, { useMemo, useState, useRef } from 'react';
+import React, { useMemo, useState, useRef, useId } from 'react';
 import type { AnalyticsStatusGroups } from '../../types/analytics';
 
 export interface StatusTrendsBucket {
@@ -41,9 +41,14 @@ function buildSmoothPath(
     if (n === 1) return '';
 
     const topLine = monotoneCubicPath(points);
-    const bottomLine = monotoneCubicPath([...basePoints].reverse());
-
-    return `${topLine} L ${basePoints[basePoints.length - 1]?.x ?? points[n - 1].x} ${basePoints[basePoints.length - 1]?.y ?? points[n - 1].y} ${bottomLine.replace(/^M\s*[\d.]+\s+[\d.]+/, '')} Z`;
+    // Close with linear segments along the baseline (right → left).
+    // A reversed cubic spline through the same points produces different tangents,
+    // causing visible seams between stacked layers. Linear closure avoids this.
+    const baseClose = [...basePoints]
+        .reverse()
+        .map((p) => `L ${p.x} ${p.y}`)
+        .join(' ');
+    return `${topLine} ${baseClose} Z`;
 }
 
 function monotoneCubicPath(pts: { x: number; y: number }[]): string {
@@ -113,6 +118,7 @@ export const StatusTrendsChart: React.FC<StatusTrendsChartProps> = ({
     labels,
     xAxisTicks = 6
 }) => {
+    const uid = useId().replace(/:/g, '');
     const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
     const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
     const svgRef = useRef<SVGSVGElement>(null);
@@ -243,9 +249,9 @@ export const StatusTrendsChart: React.FC<StatusTrendsChartProps> = ({
                     >
                         <defs>
                             {SERIES_CONFIG.map((s) => (
-                                <linearGradient key={`grad-${s.key}`} id={`statusGrad-${s.key}`} x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="0%" stopColor={s.gradient[0]} stopOpacity={0.8} />
-                                    <stop offset="100%" stopColor={s.gradient[1]} stopOpacity={0.25} />
+                                <linearGradient key={`grad-${s.key}`} id={`statusGrad-${uid}-${s.key}`} x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stopColor={s.gradient[0]} stopOpacity={0.85} />
+                                    <stop offset="100%" stopColor={s.gradient[1]} stopOpacity={0.4} />
                                 </linearGradient>
                             ))}
                         </defs>
@@ -280,7 +286,7 @@ export const StatusTrendsChart: React.FC<StatusTrendsChartProps> = ({
                             <path
                                 key={a.key}
                                 d={a.d}
-                                fill={`url(#statusGrad-${a.key})`}
+                                fill={`url(#statusGrad-${uid}-${a.key})`}
                                 stroke={a.color}
                                 strokeWidth="1.5"
                                 strokeLinejoin="round"
