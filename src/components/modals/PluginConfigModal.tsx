@@ -60,21 +60,24 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
                     basePath: '/var/log/nginx',
                     accessLogPattern: 'access*.log',
                     errorLogPattern: 'error*.log',
-                    maxLines: 0 // 0 = no limit
+                    maxLines: 0,
+                    excludedIps: ''
                 };
             case 'apache':
                 return {
                     basePath: '/var/log/apache2',
                     accessLogPattern: 'access*.log',
                     errorLogPattern: 'error*.log',
-                    maxLines: 0 // 0 = no limit
+                    maxLines: 0,
+                    excludedIps: ''
                 };
             case 'npm':
                 return {
                     basePath: '/data/logs',
                     accessLogPattern: 'proxy-host-*.log',
                     errorLogPattern: '',
-                    maxLines: 0 // 0 = no limit
+                    maxLines: 0,
+                    excludedIps: ''
                 };
             default:
                 return {};
@@ -83,11 +86,11 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
 
     // Form state based on plugin type
     const [formData, setFormData] = useState<Record<string, string | number | boolean>>({
-        // Log source plugin fields
         basePath: '',
         accessLogPattern: '',
         errorLogPattern: '',
-        maxLines: 0 // 0 = no limit
+        maxLines: 0,
+        excludedIps: ''
     });
 
     // Initialize form with plugin settings or defaults
@@ -96,11 +99,16 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
             if (isLogSourcePlugin) {
                 // Log source plugin configuration
                 const defaults = getDefaultValues();
+                const excludedIpsRaw = plugin.settings.excludedIps;
+                const excludedIpsStr = Array.isArray(excludedIpsRaw)
+                    ? (excludedIpsRaw as string[]).join('\n')
+                    : (typeof excludedIpsRaw === 'string' ? excludedIpsRaw : (defaults as any).excludedIps ?? '');
                 setFormData({
                     basePath: (plugin.settings.basePath as string) || defaults.basePath || '',
                     accessLogPattern: (plugin.settings.accessLogPattern as string) || defaults.accessLogPattern || '',
                     errorLogPattern: (plugin.settings.errorLogPattern as string) || defaults.errorLogPattern || '',
-                    maxLines: (plugin.settings.maxLines as number) ?? defaults.maxLines ?? 0
+                    maxLines: (plugin.settings.maxLines as number) ?? defaults.maxLines ?? 0,
+                    excludedIps: excludedIpsStr
                 });
             }
         } else if (plugin && isLogSourcePlugin) {
@@ -110,7 +118,8 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
                 basePath: defaults.basePath || '',
                 accessLogPattern: defaults.accessLogPattern || '',
                 errorLogPattern: defaults.errorLogPattern || '',
-                maxLines: defaults.maxLines ?? 0
+                maxLines: defaults.maxLines ?? 0,
+                excludedIps: (defaults as any).excludedIps ?? ''
             });
         }
     }, [plugin, isLogSourcePlugin, pluginId]);
@@ -265,8 +274,11 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
         }
 
         try {
-            // Prepare settings with logFiles for host-system
-            const settings = { ...formData };
+            const settings = { ...formData } as Record<string, unknown>;
+            if (pluginId === 'nginx' || pluginId === 'apache' || pluginId === 'npm') {
+                const raw = String(formData.excludedIps ?? '').trim();
+                settings.excludedIps = raw ? raw.split(/[\n,;]+/).map((s) => s.trim()).filter(Boolean) : [];
+            }
             if (pluginId === 'host-system') {
                 // Use new 3-category structure if available, otherwise fallback to legacy logFiles
                 if ((settings as any).systemBaseFiles || (settings as any).autoDetectedFiles || (settings as any).customFiles) {
@@ -440,8 +452,11 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
             }
 
             // Save config and enable plugin if test was successful
-            // Prepare settings with logFiles for host-system
-            const settings = { ...formData };
+            const settings = { ...formData } as Record<string, unknown>;
+            if (pluginId === 'nginx' || pluginId === 'apache' || pluginId === 'npm') {
+                const raw = String(formData.excludedIps ?? '').trim();
+                settings.excludedIps = raw ? raw.split(/[\n,;]+/).map((s) => s.trim()).filter(Boolean) : [];
+            }
             if (pluginId === 'host-system') {
                 // Use new 3-category structure if available, otherwise fallback to legacy logFiles
                 if ((settings as any).systemBaseFiles || (settings as any).autoDetectedFiles || (settings as any).customFiles) {
@@ -696,6 +711,27 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
                                     {t('pluginConfig.maxLinesHelp')}
                                 </p>
                             </div>
+
+                            {/* Excluded IPs (Apache, NPM, Nginx only) */}
+                            {(pluginId === 'nginx' || pluginId === 'apache' || pluginId === 'npm') && (
+                                <div>
+                                    <label htmlFor="excluded-ips" className="block text-sm font-medium text-gray-300 mb-2">
+                                        {t('pluginConfig.excludedIpsLabel')}
+                                    </label>
+                                    <textarea
+                                        id="excluded-ips"
+                                        name="excluded-ips"
+                                        rows={4}
+                                        value={String(formData.excludedIps ?? '')}
+                                        onChange={(e) => handleInputChange('excludedIps', e.target.value)}
+                                        placeholder={t('pluginConfig.excludedIpsPlaceholder')}
+                                        className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono text-sm"
+                                    />
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        {t('pluginConfig.excludedIpsHelp')}
+                                    </p>
+                                </div>
+                            )}
 
                             {/* Log Files Management (host-system only) - New 3 Categories System */}
                             {pluginId === 'host-system' && (

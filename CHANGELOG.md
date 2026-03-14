@@ -5,7 +5,23 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+ 
+
+---
+
+## [0.3.8] - 2026-03-13
+
+### Added
+
+#### Log Viewer – Filtre IP (Apache, NPM, Nginx)
+- **IP ou plages à masquer** : Option dans la configuration des plugins (Réglages > Plugins et modal de config) pour définir des IP ou CIDR à exclure de l’affichage (une par ligne ou séparées par virgule/point-virgule).
+- **Masquage par défaut** : Les lignes dont l’IP (colonnes ip, ipaddress, clientip, remoteip) correspond à la liste sont masquées ; clic sur le badge « Filtrées: N » pour afficher ou masquer ces lignes.
+- **Badge dans la barre de stats** : Badge « Filtrées: {{count}} » (ou « Filtered: {{count}} ») à côté des indicateurs total/valides/filtrées/illisibles ; le chiffre indique le nombre de lignes actuellement masquées par le filtre IP (0 lorsque tout est affiché).
+- **Clic sur une IP → modale** : En cliquant sur une cellule IP dans le tableau, une modale propose d’ajouter cette IP à la liste des IP exclues ; confirmation enregistre la config du plugin et rafraîchit la liste.
+- **Utilitaire** : `src/utils/ipFilterUtils.ts` (parseExcludedIps, isIpInExcludedList, isLogExcludedByIp, prise en charge IPv4 et CIDR).
+
+#### Traductions (i18n)
+- Clés `excludedIpsLabel`, `excludedIpsPlaceholder`, `excludedIpsHelp` (pluginConfig) ; `ipFilterBadgeHidden`, `ipFilterBadgeAll`, `ipFilterTooltipShow`/`Hide`, `addIpToFilterTitle`/`Message`/`Confirm`/`Cancel` (logViewer).
 
 ---
 
@@ -846,9 +862,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+[0.3.8]: https://github.com/Erreur32/LogviewR/releases/tag/v0.3.8
 [0.3.5]: https://github.com/Erreur32/LogviewR/releases/tag/v0.3.5
 [0.3.4]: https://github.com/Erreur32/LogviewR/releases/tag/v0.3.4
 [0.3.3]: https://github.com/Erreur32/LogviewR/releases/tag/v0.3.3
+[0.3.2]: https://github.com/Erreur32/LogviewR/releases/tag/v0.3.2
+[0.3.1]: https://github.com/Erreur32/LogviewR/releases/tag/v0.3.1
+[0.3.0]: https://github.com/Erreur32/LogviewR/releases/tag/v0.3.0
 [0.2.7]: https://github.com/Erreur32/LogviewR/releases/tag/v0.2.7
 [0.2.6]: https://github.com/Erreur32/LogviewR/releases/tag/v0.2.6
 [0.2.5]: https://github.com/Erreur32/LogviewR/releases/tag/v0.2.5

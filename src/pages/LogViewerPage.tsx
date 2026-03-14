@@ -6,14 +6,18 @@
  */
 
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import { useLogViewerStore } from '../stores/logViewerStore.js';
+import { usePluginStore } from '../stores/pluginStore.js';
 import { api } from '../api/client.js';
 import { LogTable } from '../components/log-viewer/LogTable.js';
 import { LogFilters } from '../components/log-viewer/LogFilters.js';
 import { Button } from '../components/ui/Button.js';
 import { Badge } from '../components/ui/Badge.js';
 import { useLogViewerWebSocket } from '../hooks/useLogViewerWebSocket.js';
-import { Play, Square, RefreshCw, FileText } from 'lucide-react';
+import { parseExcludedIps, isLogExcludedByIp } from '../utils/ipFilterUtils.js';
+import { Play, Square, RefreshCw, FileText, X } from 'lucide-react';
 import { AUTO_REFRESH_DEFAULT_MS, AUTO_REFRESH_STORAGE_KEY } from '../utils/constants.js';
 import type { LogFileInfo, LogViewerResponse, LogEntry, LogFilters as LogFiltersType } from '../types/logViewer.js';
 
@@ -47,7 +51,11 @@ interface LogViewerPageProps {
     }) => void;
 }
 
+const LOG_PLUGINS_WITH_IP_FILTER = ['apache', 'npm', 'nginx'];
+
 export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initialDefaultLogFile, onBack, onPluginDataChange }: LogViewerPageProps) {
+    const { t } = useTranslation();
+    const { plugins, updatePluginConfig, fetchPlugins } = usePluginStore();
     const {
         selectedPluginId,
         selectedFilePath,
@@ -76,6 +84,8 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
 
     const [viewMode, setViewMode] = useState<'parsed' | 'raw'>('parsed');
     const [rawLogs, setRawLogs] = useState<string[]>([]);
+    const [showExcludedIps, setShowExcludedIps] = useState(false);
+    const [addIpModal, setAddIpModal] = useState<string | null>(null);
 
     // WebSocket hook
     const { subscribe, unsubscribe } = useLogViewerWebSocket();
@@ -687,13 +697,17 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
         });
     }, [selectedPluginId, pluginName, availableFiles, selectedFilePath, selectedLogType, filters, setFilters, osType, isFollowing, isAutoRefreshActive, isConnected, viewMode, logDateRange, setViewMode, liveMode, autoRefreshIntervalMs]);
 
-    // Filter logs based on active filters
-    const filteredLogs = useMemo(() => {
-        if (!filters || Object.keys(filters).length === 0) {
-            return logs;
-        }
+    const excludedIpsList = useMemo(() => {
+        if (!selectedPluginId || !LOG_PLUGINS_WITH_IP_FILTER.includes(selectedPluginId)) return [];
+        const plugin = plugins.find((p) => p.id === selectedPluginId);
+        return parseExcludedIps(plugin?.settings?.excludedIps);
+    }, [selectedPluginId, plugins]);
 
-        return logs.filter((log) => {
+    // Filter logs based on active filters and optional excluded IPs
+    const filteredLogs = useMemo(() => {
+        let result = logs;
+        if (filters && Object.keys(filters).length > 0) {
+            result = logs.filter((log) => {
             // Search filter
             if (filters.search) {
                 const searchLower = filters.search.toLowerCase();
@@ -738,15 +752,46 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
 
             // Unparsed logs filter (hide unparsed logs if showUnparsed is false)
             if (filters.showUnparsed === false) {
-                // Hide logs that were not successfully parsed
-                if (log.isParsed === false) {
-                    return false;
-                }
+                if (log.isParsed === false) return false;
             }
 
             return true;
         });
-    }, [logs, filters]);
+        }
+
+        if (excludedIpsList.length > 0 && !showExcludedIps) {
+            result = result.filter((log) => !isLogExcludedByIp(log as Record<string, unknown>, excludedIpsList));
+        }
+        return result;
+    }, [logs, filters, excludedIpsList, showExcludedIps]);
+
+    const hiddenByIpCount = useMemo(() => {
+        if (excludedIpsList.length === 0) return 0;
+        return logs.filter((log) => isLogExcludedByIp(log as Record<string, unknown>, excludedIpsList)).length;
+    }, [logs, excludedIpsList]);
+
+    const handleAddIpToFilter = useCallback((ip: string) => {
+        setAddIpModal(ip);
+    }, []);
+
+    const handleConfirmAddIpToFilter = useCallback(async () => {
+        if (!addIpModal || !selectedPluginId || !LOG_PLUGINS_WITH_IP_FILTER.includes(selectedPluginId)) {
+            setAddIpModal(null);
+            return;
+        }
+        const plugin = plugins.find((p) => p.id === selectedPluginId);
+        if (!plugin?.settings) {
+            setAddIpModal(null);
+            return;
+        }
+        const current = (plugin.settings as Record<string, unknown>).excludedIps;
+        const list = Array.isArray(current) ? [...(current as string[])] : [];
+        if (!list.includes(addIpModal)) list.push(addIpModal);
+        const newSettings = { ...plugin.settings, excludedIps: list } as Record<string, unknown>;
+        await updatePluginConfig(selectedPluginId, { settings: newSettings });
+        await fetchPlugins();
+        setAddIpModal(null);
+    }, [addIpModal, selectedPluginId, plugins, updatePluginConfig, fetchPlugins]);
 
     return (
         <div className="min-h-screen bg-[#050505] p-4 md:p-6 max-w-full">
@@ -881,6 +926,10 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
                                                     logDateRange={logDateRange}
                                                     pluginId={selectedPluginId || undefined}
                                                     fileSize={selectedFileSize}
+                                                    ipFilterHiddenCount={excludedIpsList.length > 0 ? hiddenByIpCount : 0}
+                                                    showExcludedIps={showExcludedIps}
+                                                    onToggleIpFilter={excludedIpsList.length > 0 ? () => setShowExcludedIps((v) => !v) : undefined}
+                                                    onAddIpToFilter={selectedPluginId && LOG_PLUGINS_WITH_IP_FILTER.includes(selectedPluginId) ? handleAddIpToFilter : undefined}
                                                 />
                                             </div>
                                         ) : (
@@ -956,6 +1005,58 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
                         Sélectionnez un plugin pour commencer à visualiser les logs
                     </p>
                 </div>
+            )}
+
+            {/* Modal: Add IP to excluded list */}
+            {addIpModal && createPortal(
+                <div
+                    className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+                    onClick={() => setAddIpModal(null)}
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="add-ip-modal-title"
+                >
+                    <div
+                        className="bg-[#121212] border border-gray-700 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="px-6 py-4 border-b border-gray-800 flex items-center justify-between">
+                            <h2 id="add-ip-modal-title" className="text-lg font-semibold text-white">
+                                {t('logViewer.addIpToFilterTitle')}
+                            </h2>
+                            <button
+                                type="button"
+                                onClick={() => setAddIpModal(null)}
+                                className="p-2 rounded-lg hover:bg-gray-700/50 text-gray-400 hover:text-white transition-colors"
+                                aria-label={t('logViewer.addIpToFilterCancel')}
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <div className="p-6">
+                            <p className="text-sm text-gray-300 leading-relaxed">
+                                {t('logViewer.addIpToFilterMessage', { ip: addIpModal })}
+                            </p>
+                        </div>
+                        <div className="px-6 pb-6 flex justify-end gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setAddIpModal(null)}
+                                className="px-4 py-2 rounded-lg border border-gray-600 text-gray-300 hover:bg-gray-800 transition-colors"
+                            >
+                                {t('logViewer.addIpToFilterCancel')}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleConfirmAddIpToFilter}
+                                className="px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-medium transition-colors"
+                            >
+                                {t('logViewer.addIpToFilterConfirm')}
+                            </button>
+                        </div>
+                    </div>
+                </div>,
+                document.body
             )}
         </div>
     );

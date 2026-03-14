@@ -131,24 +131,27 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                     basePath: '/var/log/nginx',
                     accessLogPattern: 'access*.log',
                     errorLogPattern: 'error*.log',
-                    maxLines: 0, // 0 = no limit
-                    readCompressed: false
+                    maxLines: 0,
+                    readCompressed: false,
+                    excludedIps: ''
                 };
             case 'apache':
                 return {
                     basePath: '/var/log/apache2',
                     accessLogPattern: 'access*.log',
                     errorLogPattern: 'error*.log',
-                    maxLines: 0, // 0 = no limit
-                    readCompressed: false
+                    maxLines: 0,
+                    readCompressed: false,
+                    excludedIps: ''
                 };
             case 'npm':
                 return {
                     basePath: '/data/logs',
                     accessLogPattern: 'proxy-host-*.log',
                     errorLogPattern: '',
-                    maxLines: 0, // 0 = no limit
-                    readCompressed: false
+                    maxLines: 0,
+                    readCompressed: false,
+                    excludedIps: ''
                 };
             default:
                 return {};
@@ -160,8 +163,9 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
         basePath: '',
         accessLogPattern: '',
         errorLogPattern: '',
-        maxLines: 0, // 0 = no limit
-        readCompressed: false
+        maxLines: 0,
+        readCompressed: false,
+        excludedIps: ''
     });
 
     // Initialize form with plugin settings or defaults
@@ -169,12 +173,17 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
         if (plugin && plugin.settings) {
             if (isLogSourcePlugin) {
                 const defaults = getDefaultValues();
+                const excludedIpsRaw = plugin.settings.excludedIps;
+                const excludedIpsStr = Array.isArray(excludedIpsRaw)
+                    ? (excludedIpsRaw as string[]).join('\n')
+                    : (typeof excludedIpsRaw === 'string' ? excludedIpsRaw : (defaults as any).excludedIps ?? '');
                 setFormData({
                     basePath: (plugin.settings.basePath as string) || defaults.basePath || '',
                     accessLogPattern: (plugin.settings.accessLogPattern as string) || defaults.accessLogPattern || '',
                     errorLogPattern: (plugin.settings.errorLogPattern as string) || defaults.errorLogPattern || '',
                     maxLines: (plugin.settings.maxLines as number) ?? defaults.maxLines ?? 0,
-                    readCompressed: (plugin.settings.readCompressed as boolean) ?? (defaults.readCompressed ?? false)
+                    readCompressed: (plugin.settings.readCompressed as boolean) ?? (defaults.readCompressed ?? false),
+                    excludedIps: excludedIpsStr
                 });
                 
                 // Initialize exclude filters
@@ -196,7 +205,8 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                 accessLogPattern: defaults.accessLogPattern || '',
                 errorLogPattern: defaults.errorLogPattern || '',
                 maxLines: defaults.maxLines ?? 0,
-                readCompressed: defaults.readCompressed ?? false
+                readCompressed: defaults.readCompressed ?? false,
+                excludedIps: (defaults as any).excludedIps ?? ''
             });
         }
     }, [plugin, isLogSourcePlugin, pluginId]);
@@ -556,7 +566,11 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
         }
         autoSaveTimeoutRef.current = setTimeout(async () => {
             try {
-                const settings = { ...formData };
+                const settings = { ...formData } as Record<string, unknown>;
+                if (pluginId === 'nginx' || pluginId === 'apache' || pluginId === 'npm') {
+                    const raw = String(formData.excludedIps ?? '').trim();
+                    settings.excludedIps = raw ? raw.split(/[\n,;]+/).map((s: string) => s.trim()).filter(Boolean) : [];
+                }
                 if (isLogSourcePlugin) {
                     (settings as any).logFiles = logFiles;
                     (settings as any).excludeFilters = newFilters;
@@ -588,7 +602,11 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
         }
         autoSaveTimeoutRef.current = setTimeout(async () => {
             try {
-                const settings = { ...formData };
+                const settings = { ...formData } as Record<string, unknown>;
+                if (pluginId === 'nginx' || pluginId === 'apache' || pluginId === 'npm') {
+                    const raw = String(formData.excludedIps ?? '').trim();
+                    settings.excludedIps = raw ? raw.split(/[\n,;]+/).map((s: string) => s.trim()).filter(Boolean) : [];
+                }
                 if (isLogSourcePlugin) {
                     (settings as any).logFiles = newLogFiles;
                     const hasFilters = excludeFilters.files?.length || excludeFilters.directories?.length || excludeFilters.paths?.length;
@@ -620,7 +638,11 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
         }
         autoSaveTimeoutRef.current = setTimeout(async () => {
             try {
-                const settings = { ...formData };
+                const settings = { ...formData } as Record<string, unknown>;
+                if (pluginId === 'nginx' || pluginId === 'apache' || pluginId === 'npm') {
+                    const raw = String(formData.excludedIps ?? '').trim();
+                    settings.excludedIps = raw ? raw.split(/[\n,;]+/).map((s: string) => s.trim()).filter(Boolean) : [];
+                }
                 if (isLogSourcePlugin) {
                     (settings as any).logFiles = newLogFiles;
                     const hasFilters = excludeFilters.files?.length || excludeFilters.directories?.length || excludeFilters.paths?.length;
@@ -657,7 +679,11 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
         }
         autoSaveTimeoutRef.current = setTimeout(async () => {
             try {
-                const settings = { ...formData };
+                const settings = { ...formData } as Record<string, unknown>;
+                if (pluginId === 'nginx' || pluginId === 'apache' || pluginId === 'npm') {
+                    const raw = String(formData.excludedIps ?? '').trim();
+                    settings.excludedIps = raw ? raw.split(/[\n,;]+/).map((s: string) => s.trim()).filter(Boolean) : [];
+                }
                 if (isLogSourcePlugin) {
                     (settings as any).logFiles = newLogFiles;
                     const hasFilters = excludeFilters.files?.length || excludeFilters.directories?.length || excludeFilters.paths?.length;
@@ -785,7 +811,11 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
         }
 
         try {
-            const settings = { ...formData };
+            const settings = { ...formData } as Record<string, unknown>;
+            if (pluginId === 'nginx' || pluginId === 'apache' || pluginId === 'npm') {
+                const raw = String(formData.excludedIps ?? '').trim();
+                settings.excludedIps = raw ? raw.split(/[\n,;]+/).map((s: string) => s.trim()).filter(Boolean) : [];
+            }
             if (isLogSourcePlugin) {
                 (settings as any).logFiles = logFiles;
                 const hasFilters = excludeFilters.files?.length || excludeFilters.directories?.length || excludeFilters.paths?.length;
@@ -842,7 +872,11 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
 
         // After successful validation, save automatically before testing
         try {
-            const settings = { ...formData };
+            const settings = { ...formData } as Record<string, unknown>;
+            if (pluginId === 'nginx' || pluginId === 'apache' || pluginId === 'npm') {
+                const raw = String(formData.excludedIps ?? '').trim();
+                settings.excludedIps = raw ? raw.split(/[\n,;]+/).map((s: string) => s.trim()).filter(Boolean) : [];
+            }
             if (isLogSourcePlugin) {
                 (settings as any).logFiles = logFiles;
                 const hasFilters = excludeFilters.files?.length || excludeFilters.directories?.length || excludeFilters.paths?.length;
@@ -1125,6 +1159,25 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                         </div>
                                     )}
                                 </div>
+
+                                {(pluginId === 'nginx' || pluginId === 'apache' || pluginId === 'npm') && (
+                                    <div>
+                                        <label htmlFor={`excluded-ips-${pluginId}`} className="block text-sm font-medium text-gray-300 mb-2">
+                                            {t('pluginConfig.excludedIpsLabel')}
+                                        </label>
+                                        <textarea
+                                            id={`excluded-ips-${pluginId}`}
+                                            rows={3}
+                                            value={String(formData.excludedIps ?? '')}
+                                            onChange={(e) => handleInputChange('excludedIps', e.target.value, e.currentTarget)}
+                                            placeholder={t('pluginConfig.excludedIpsPlaceholder')}
+                                            className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono text-sm"
+                                        />
+                                        <p className="text-xs text-gray-500 mt-1">
+                                            {t('pluginConfig.excludedIpsHelp')}
+                                        </p>
+                                    </div>
+                                )}
                             </div>
                         </div>
 

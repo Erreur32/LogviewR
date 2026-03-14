@@ -41,6 +41,12 @@ interface LogTableProps {
     pluginId?: string;
     selectedFilePath?: string; // Current log file path to display
     fileSize?: number; // File size in bytes
+    /** IP filter: number of lines hidden by excluded IPs; when > 0, badge is shown and click toggles visibility */
+    ipFilterHiddenCount?: number;
+    showExcludedIps?: boolean;
+    onToggleIpFilter?: () => void;
+    /** When provided, clicking an IP cell opens a modal to add that IP to the excluded list */
+    onAddIpToFilter?: (ip: string) => void;
 }
 
 // Helper function to format file size
@@ -264,7 +270,11 @@ export const LogTable: React.FC<LogTableProps> = ({
     logDateRange,
     pluginId,
     selectedFilePath,
-    fileSize
+    fileSize,
+    ipFilterHiddenCount = 0,
+    showExcludedIps = false,
+    onToggleIpFilter,
+    onAddIpToFilter
 }) => {
     const { t } = useTranslation();
     // Filter out columns that are always empty (like pid for daemon.log)
@@ -561,21 +571,27 @@ export const LogTable: React.FC<LogTableProps> = ({
                     </Tooltip>
                 );
             
-            case 'ip':
-                // IP with unified badge color; IPv6 truncated for display, full IP in tooltip
+            case 'ip': {
                 const ipValue = String(value);
                 const ipDisplay = truncateIPv6ForDisplay(ipValue);
                 const ipStyle = getIPBadgeStyle(ipValue);
+                const content = (
+                    <span
+                        className={`font-mono text-xs px-1.5 py-0.5 rounded truncate block max-w-full ${onAddIpToFilter ? 'cursor-pointer hover:ring-1 hover:ring-amber-500/50' : 'cursor-help'}`}
+                        style={ipStyle}
+                        onClick={onAddIpToFilter ? (e) => { e.stopPropagation(); onAddIpToFilter(ipValue); } : undefined}
+                        role={onAddIpToFilter ? 'button' : undefined}
+                        title={onAddIpToFilter ? t('logViewer.addIpToFilterTitle') : undefined}
+                    >
+                        {ipDisplay}
+                    </span>
+                );
                 return (
                     <Tooltip content={ipValue} wrap>
-                        <span 
-                            className="font-mono text-xs px-1.5 py-0.5 rounded cursor-help truncate block max-w-full"
-                            style={ipStyle}
-                        >
-                            {ipDisplay}
-                        </span>
+                        {content}
                     </Tooltip>
                 );
+            }
             
             case 'number':
                 if (column === 'status' || column === 'statusCode' || column === 'httpCode') {
@@ -938,6 +954,17 @@ export const LogTable: React.FC<LogTableProps> = ({
                                 <span className="bg-red-500/20 text-red-300 px-1.5 py-0.5 rounded border border-red-500/30 cursor-help">
                                     {t('logViewer.unreadableLines', { count: stats.unreadable.toLocaleString() })}
                                 </span>
+                            </Tooltip>
+                        )}
+                        {ipFilterHiddenCount > 0 && onToggleIpFilter && (
+                            <Tooltip content={showExcludedIps ? t('logViewer.ipFilterTooltipHide') : t('logViewer.ipFilterTooltipShow')}>
+                                <button
+                                    type="button"
+                                    onClick={onToggleIpFilter}
+                                    className="bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded border border-amber-500/30 hover:bg-amber-500/30 cursor-pointer text-xs"
+                                >
+                                    {showExcludedIps ? t('logViewer.ipFilterBadgeAll') : t('logViewer.ipFilterBadgeHidden', { count: ipFilterHiddenCount })}
+                                </button>
                             </Tooltip>
                         )}
                     </div>
