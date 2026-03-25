@@ -5,7 +5,54 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
- 
+
+
+---
+
+## [0.4.0] - 2026-03-25
+
+### Added
+
+#### Plugin Fail2ban — Intégration complète
+
+Nouveau plugin de surveillance Fail2ban avec une interface multi-onglets complète, alignée visuellement sur le projet de référence PHP `fail2ban-web`.
+
+**Backend (`server/plugins/fail2ban/`)**
+- `Fail2banPlugin.ts` — Plugin Express avec 20+ routes REST couvrant statut, historique, jails, bans, filtres, actions, tracker, carte, IPTables, IPSet, NFTables, configuration, audit.
+- `Fail2banSqliteReader.ts` — Lecture directe de la base SQLite fail2ban (`fail2ban.sqlite3`) en mode read-only ; stats actives, historique par jour, top IPs/jails, heatmap horaire, IPs uniques, bans expirés.
+- `Fail2banClientExec.ts` — Exécution des commandes `fail2ban-client` via socket Unix (ban, unban, reload, status) et des utilitaires système (iptables, ipset, nftables).
+- `fail2banSyncService.ts` — Service de synchronisation périodique SQLite → DB applicative.
+- Table `f2b_ip_geo` en base SQLite applicative : cache géolocalisation IP avec TTL 30 jours.
+
+**Frontend (`src/pages/Fail2banPage.tsx` + `src/pages/fail2ban/`)**
+- **TabJails** — Vue tableau/cartes/événements/fichiers log des jails actifs ; expansion inline avec config détaillée (bantime, findtime, maxretry, filtre, actions, IPs bannies) ; toggle Actifs/Tous pour afficher les jails configurés mais arrêtés (semi-transparents) ; filtre de recherche intégré ; actions ban/unban/reload par jail.
+- **TabStats** — Statistiques globales : top IPs, top jails, heatmap bans/tentatives par heure, répartition par jail, synthèse par jail, résumé période, types d'attaque, derniers événements, IPSets.
+- **TabTracker** — Tableau des IPs actuellement bannies enrichi : résolution DNS inverse (avec cache 10 min), appartenance IPSet par IP, géolocalisation à la demande (ip-api.com), modale de détail par IP avec historique de bans.
+- **TabMap** — Carte Leaflet (CDN, dark tile CartoCDN) avec clustering MarkerCluster ; géolocalisation progressive ; panneau latéral filtre pays/région avec heat-colors ; popup IP avec lien vers Tracker.
+- **TabBanManager** — Interface de ban/unban manuel avec sélection jail + saisie IP.
+- **TabFiltres / TabActions** — Vue des filtres et actions configurés par jail avec badges colorés.
+- **TabConfig** — Éditeur de configuration fail2ban (jail.conf, jail.local, jail.d/) avec diff visuel et rechargement.
+- **TabAudit** — Tail du fichier fail2ban.log en temps réel avec coloration syntaxique.
+- **TabNetworkRaw** — Affichage brut IPTables / IPSet / NFTables.
+- **TabAide** — Documentation intégrée.
+- **BanHistoryChart** — Graphique partagé (barres ou courbes) affiché une seule fois pour les onglets Jails et Stats ; période sélectionnable (24h, 7j, 30j, 6m, 1an, Tous).
+- **Topbar chips** — Badges en temps réel : jails actifs (bleu), bannis (rouge), échecs (orange), actifs (vert).
+- **Notifications toast** — Détection automatique des nouveaux bans à chaque poll (toutes les 30 s) avec toast animé.
+- **Badge refresh** — Heure exacte du dernier rafraîchissement + âge relatif dans la barre de titre.
+- **Sidebar rétractable** — Menu gauche réductible (icônes seules) avec toggle dans l'en-tête et en bas de menu.
+- **Mini stat cards** — 6 cartes (Jails actifs, Bans actifs, Échecs actifs, Total bans cumul, IPs uniques, Expirés 24h) avec sparklines et indicateurs de tendance ↑/↓.
+- **Interpolation de variables** — Résolution de `%(__name__)s` et `%(var)s` dans les badges filtre/banaction des jails inactifs.
+- **JailConfigModal** — Modale d'édition rapide des paramètres bantime / findtime / maxretry avec slider et boutons pas.
+
+**Design**
+- Palette PHP exacte : `bg0=#0d1117`, `bg1=#161b22`, `bg2=#21262d`, `border=#30363d`, `green=#3fb950`, `blue=#58a6ff`, `red=#e86a65`, `orange=#e3b341`, `purple=#bc8cff`, `cyan=#39c5cf`.
+- Pills style PHP `.jdp-pill` (`border-radius: 6px`) dans la vue expandée jail.
+- Chips style PHP `.chip` (`border-radius: 20px`, fond transparent) dans la topbar.
+
+**Infrastructure**
+- Socket Unix `/var/run/fail2ban/fail2ban.sock` monté en RW dans docker-compose.
+- `docker-entrypoint.sh` : `chmod 660` automatique sur le socket au démarrage.
+- Icône SVG Fail2ban (`src/icons/fail2ban.svg`).
 
 ---
 

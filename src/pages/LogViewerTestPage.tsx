@@ -5,7 +5,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { useLogViewerStore } from '../stores/logViewerStore.js';
+import { useLogViewerStore, type LogEntry as StoreLogEntry } from '../stores/logViewerStore.js';
 import { api } from '../api/client.js';
 
 export function LogViewerTestPage() {
@@ -43,11 +43,11 @@ export function LogViewerTestPage() {
                 setLoading(true);
                 setError(null);
 
-                const response = await api.get(`/api/log-viewer/plugins/${selectedPluginId}/files`);
-                const data = await response.json();
-
-                if (data.files) {
-                    setAvailableFiles(data.files);
+                const response = await api.get<{ files: Array<{ path: string; type: string; size: number; modified: string }> }>(
+                    `/api/log-viewer/plugins/${selectedPluginId}/files`
+                );
+                if (response.success && response.result?.files) {
+                    setAvailableFiles(response.result.files);
                 }
             } catch (err) {
                 setError(err instanceof Error ? err.message : 'Failed to load files');
@@ -70,14 +70,17 @@ export function LogViewerTestPage() {
                 setLoading(true);
                 setError(null);
 
-                const response = await api.get(`/api/log-viewer/files/${selectedFileId}/logs?maxLines=100`);
-                const data = await response.json();
-
-                if (data.logs) {
-                    setLogs(data.logs.map((log: any) => log.parsed));
-                }
-                if (data.columns) {
-                    setColumns(data.columns);
+                const response = await api.get<{ logs: Array<{ parsed: StoreLogEntry }>; columns: string[] }>(
+                    `/api/log-viewer/files/${selectedFileId}/logs?maxLines=100`
+                );
+                if (response.success && response.result) {
+                    const data = response.result;
+                    if (data.logs) {
+                        setLogs(data.logs.map((log) => log.parsed));
+                    }
+                    if (data.columns) {
+                        setColumns(data.columns);
+                    }
                 }
             } catch (err) {
                 setError(err instanceof Error ? err.message : 'Failed to load logs');

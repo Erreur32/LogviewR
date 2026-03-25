@@ -37,7 +37,7 @@ export class NginxLogPlugin extends BasePlugin implements LogSourcePlugin {
 
     async testConnection(): Promise<boolean> {
         try {
-            const config = this.config?.settings as NginxPluginConfig | undefined;
+            const config = this.config?.settings as unknown as NginxPluginConfig | undefined;
             const basePath = config?.basePath || this.getDefaultBasePath();
             
             // Convert to Docker path if needed
@@ -55,7 +55,7 @@ export class NginxLogPlugin extends BasePlugin implements LogSourcePlugin {
      * Check if a file or directory should be excluded based on configured filters
      */
     private shouldExclude(filePath: string, entryName: string, isDirectory: boolean): boolean {
-        const config = this.config?.settings as NginxPluginConfig | undefined;
+        const config = this.config?.settings as unknown as NginxPluginConfig | undefined;
         const excludeFilters = config?.excludeFilters;
         
         if (!excludeFilters) {

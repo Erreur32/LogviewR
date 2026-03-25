@@ -179,6 +179,8 @@ export const Header: React.FC<HeaderProps> = ({
       document.title = 'Utilisateurs - LogviewR';
     } else if (pageType === 'logs') {
       document.title = 'Logs - LogviewR';
+    } else if (pageType === 'fail2ban') {
+      document.title = 'Fail2ban - LogviewR';
     } else {
       document.title = 'LogviewR';
     }

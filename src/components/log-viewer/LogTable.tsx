@@ -620,7 +620,8 @@ export const LogTable: React.FC<LogTableProps> = ({
                     );
                 }
                 if (column === 'gzip') {
-                    const gzipValue = value === '-' || value === '' || value === null || value === undefined ? '-' : value;
+                    const gzipValue: string | number =
+                        value === '-' || value === '' || value === null || value === undefined ? '-' : typeof value === 'number' ? value : String(value);
                     const gzipDesc = gzipValue === '-' ? t('logViewer.gzipNotApplicable') : t('logViewer.gzipRatio', { value: gzipValue });
                     return (
                         <Tooltip content={gzipDesc}>
@@ -934,25 +935,25 @@ export const LogTable: React.FC<LogTableProps> = ({
                         )}
                         <Tooltip content={t('logViewer.totalLinesTooltip')}>
                             <span className="bg-blue-500/20 text-blue-300 px-1.5 py-0.5 rounded border border-blue-500/30 cursor-help">
-                                {t('logViewer.totalLines', { count: stats.total.toLocaleString() })}
+                                {t('logViewer.totalLines', { count: stats.total })}
                             </span>
                         </Tooltip>
                         <Tooltip content={t('logViewer.validLinesTooltip')}>
                             <span className="bg-green-500/20 text-green-300 px-1.5 py-0.5 rounded border border-green-500/30 cursor-help">
-                                {t('logViewer.validLines', { count: stats.valid.toLocaleString() })}
+                                {t('logViewer.validLines', { count: stats.valid })}
                             </span>
                         </Tooltip>
                         {stats.filtered > 0 && (
                             <Tooltip content={t('logViewer.filteredLinesTooltip')}>
                                 <span className="bg-yellow-500/20 text-yellow-300 px-1.5 py-0.5 rounded border border-yellow-500/30 cursor-help">
-                                    {t('logViewer.filteredLines', { count: stats.filtered.toLocaleString() })}
+                                    {t('logViewer.filteredLines', { count: stats.filtered })}
                                 </span>
                             </Tooltip>
                         )}
                         {stats.unreadable > 0 && (
                             <Tooltip content={t('logViewer.unreadableLinesTooltip')}>
                                 <span className="bg-red-500/20 text-red-300 px-1.5 py-0.5 rounded border border-red-500/30 cursor-help">
-                                    {t('logViewer.unreadableLines', { count: stats.unreadable.toLocaleString() })}
+                                    {t('logViewer.unreadableLines', { count: stats.unreadable })}
                                 </span>
                             </Tooltip>
                         )}
@@ -1005,7 +1006,7 @@ export const LogTable: React.FC<LogTableProps> = ({
                         <option value={500}>500</option>
                         <option value={1000}>1000</option>
                     </select>
-                    <span>{t('logViewer.linesPerPage')} / {t('logViewer.linesTotal', { count: nonEmptyLogs.length.toLocaleString() })}</span>
+                    <span>{t('logViewer.linesPerPage')} / {t('logViewer.linesTotal', { count: nonEmptyLogs.length })}</span>
                 </div>
 
                 <div className="flex items-center gap-2">

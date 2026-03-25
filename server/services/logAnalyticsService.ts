@@ -856,11 +856,13 @@ export async function getAllAnalytics(
         return cfg?.enabled === true;
     });
 
+    const isLogSourceId = (id: string): id is (typeof LOG_SOURCE_PLUGINS)[number] =>
+        (LOG_SOURCE_PLUGINS as readonly string[]).includes(id);
+
     const pluginIds =
         !pluginId || pluginId === 'all'
             ? enabledPluginIds
-            : LOG_SOURCE_PLUGINS.includes(pluginId as (typeof LOG_SOURCE_PLUGINS)[number]) &&
-                enabledPluginIds.includes(pluginId)
+            : isLogSourceId(pluginId) && enabledPluginIds.includes(pluginId)
               ? [pluginId]
               : [];
 

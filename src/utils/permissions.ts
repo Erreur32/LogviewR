@@ -28,3 +28,15 @@ export const getPermissionShortError = (permission: string): string => {
   const label = PERMISSION_LABELS[permission] || permission;
   return `Permission "${label}" requise`;
 };
+
+/** Base URL of the Freebox (e.g. http://mafreebox.freebox.fr) → link toward management UI */
+export function getFreeboxSettingsUrl(freeboxBaseUrl: string): string {
+  const trimmed = (freeboxBaseUrl || '').trim();
+  if (!trimmed) return 'http://mafreebox.freebox.fr';
+  try {
+    const u = new URL(trimmed.includes('://') ? trimmed : `http://${trimmed}`);
+    return u.toString().replace(/\/$/, '');
+  } catch {
+    return 'http://mafreebox.freebox.fr';
+  }
+}

@@ -11,6 +11,7 @@ import { HostSystemLogPlugin } from '../plugins/host-system/HostSystemLogPlugin.
 import { NginxLogPlugin } from '../plugins/nginx/NginxLogPlugin.js';
 import { ApacheLogPlugin } from '../plugins/apache/ApacheLogPlugin.js';
 import { NpmLogPlugin } from '../plugins/npm/NpmLogPlugin.js';
+import { Fail2banPlugin } from '../plugins/fail2ban/Fail2banPlugin.js';
 // Analysis and Notification are now options in Settings, not plugins
 // import { AnalysisPlugin } from '../plugins/analysis/AnalysisPlugin.js';
 // import { NotificationPlugin } from '../plugins/notification/NotificationPlugin.js';
@@ -24,6 +25,7 @@ export class PluginManager {
         this.registerPlugin(new NginxLogPlugin());
         this.registerPlugin(new ApacheLogPlugin());
         this.registerPlugin(new NpmLogPlugin());
+        this.registerPlugin(new Fail2banPlugin());
         
         // Analysis and Notification are now options in Settings, not plugins
         // They will be implemented as settings tabs later

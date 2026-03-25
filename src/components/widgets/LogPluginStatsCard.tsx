@@ -309,7 +309,7 @@ export const LogPluginStatsCard: React.FC<LogPluginStatsCardProps> = ({
                             return (
                                 <div key={type} className="flex items-center justify-between bg-[#0f0f0f] rounded-lg p-2 border border-gray-800">
                                     <div className="flex items-center gap-1.5">
-                                        <Badge variant="gray" size="sm">
+                                        <Badge variant="default" size="sm">
                                             {type}
                                         </Badge>
                                         <span className="text-xs text-gray-400">

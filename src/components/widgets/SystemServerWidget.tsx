@@ -12,6 +12,7 @@ import { Cpu, HardDrive, MemoryStick, Server, CheckCircle, XCircle, Activity, Lo
 import { api } from '../../api/client';
 import { usePolling } from '../../hooks/usePolling';
 import { POLLING_INTERVALS, formatSpeed } from '../../utils/constants';
+import type { NetworkStat as ChartNetworkStat } from '../../types';
 
 interface DiskInfo {
     mount: string;
@@ -486,8 +487,16 @@ export const SystemServerWidget: React.FC = () => {
                             <span>Trafic Réseau</span>
                         </div>
                         <div className="flex flex-col gap-3">
+                            {(() => {
+                                const netChartHistory: ChartNetworkStat[] = (networkData.history || []).map((h) => ({
+                                    time: new Date(h.timestamp).toISOString(),
+                                    download: h.download,
+                                    upload: h.upload,
+                                }));
+                                return (
+                                    <>
                             <BarChart
-                                data={networkData.history || []}
+                                data={netChartHistory}
                                 dataKey="download"
                                 color="#3b82f6"
                                 title="Descendant"
@@ -500,7 +509,7 @@ export const SystemServerWidget: React.FC = () => {
                                 trend="down"
                             />
                             <BarChart
-                                data={networkData.history || []}
+                                data={netChartHistory}
                                 dataKey="upload"
                                 color="#10b981"
                                 title="Montant"
@@ -512,6 +521,9 @@ export const SystemServerWidget: React.FC = () => {
                                     : 'kb/s'}
                                 trend="up"
                             />
+                                    </>
+                                );
+                            })()}
                         </div>
                     </div>
                 )}

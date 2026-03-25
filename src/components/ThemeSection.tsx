@@ -1061,7 +1061,7 @@ export const ThemeSection: React.FC = () => {
                                     <div className="flex items-center gap-2">
                                         <button
                                             type="button"
-                                            onClick={() => setAnimationSpeed((prev) => Math.min(MAX_SPEED, prev + 0.05))}
+                                            onClick={() => setAnimationSpeed(Math.min(MAX_SPEED, animationSpeed + 0.05))}
                                             className="flex-shrink-0 w-8 h-8 rounded-lg border border-theme bg-theme-secondary hover:border-yellow-500/50 flex items-center justify-center text-theme-primary"
                                             title={t('theme.slowDown')}
                                             aria-label={t('theme.slowDown')}
@@ -1079,7 +1079,7 @@ export const ThemeSection: React.FC = () => {
                                         />
                                         <button
                                             type="button"
-                                            onClick={() => setAnimationSpeed((prev) => Math.max(MIN_SPEED, prev - 0.05))}
+                                            onClick={() => setAnimationSpeed(Math.max(MIN_SPEED, animationSpeed - 0.05))}
                                             className="flex-shrink-0 w-8 h-8 rounded-lg border border-theme bg-theme-secondary hover:border-yellow-500/50 flex items-center justify-center text-theme-primary"
                                             title={t('theme.speedUp')}
                                             aria-label={t('theme.speedUp')}

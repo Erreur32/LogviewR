@@ -38,6 +38,7 @@ export class NginxParser {
             const requestParts = this.parseRequest(request);
             
             return {
+                message: line,
                 timestamp: this.parseTimestamp(timestamp),
                 ip,
                 method: requestParts.method,
@@ -64,6 +65,7 @@ export class NginxParser {
             const requestParts = this.parseRequest(request);
 
             return {
+                message: line,
                 timestamp: this.parseTimestamp(timestamp),
                 ip,
                 method: requestParts.method,
@@ -90,6 +92,7 @@ export class NginxParser {
             const requestParts = this.parseRequest(request);
 
             return {
+                message: line,
                 timestamp: this.parseTimestamp(timestamp),
                 ip,
                 method: requestParts.method,

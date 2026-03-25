@@ -11,6 +11,7 @@ import { Activity, RefreshCw } from 'lucide-react';
 import { api } from '../../api/client';
 import { usePolling } from '../../hooks/usePolling';
 import { POLLING_INTERVALS, formatSpeed } from '../../utils/constants';
+import type { NetworkStat as ChartNetworkStat } from '../../types';
 
 interface NetworkStat {
     timestamp: number;
@@ -122,8 +123,12 @@ export const SystemNetworkWidget: React.FC = () => {
         ? formatSpeed(networkData.current.upload) 
         : '0 kb/s';
 
-    // Convert history to format expected by BarChart
     const history = networkData.history || [];
+    const chartHistory: ChartNetworkStat[] = history.map((h) => ({
+        time: new Date(h.timestamp).toISOString(),
+        download: h.download,
+        upload: h.upload,
+    }));
 
     return (
         <Card
@@ -140,7 +145,7 @@ export const SystemNetworkWidget: React.FC = () => {
         >
             <div className="flex flex-col gap-4">
                 <BarChart
-                    data={history}
+                    data={chartHistory}
                     dataKey="download"
                     color="#3b82f6"
                     title="Descendant en temps réel"
@@ -149,7 +154,7 @@ export const SystemNetworkWidget: React.FC = () => {
                     trend="down"
                 />
                 <BarChart
-                    data={history}
+                    data={chartHistory}
                     dataKey="upload"
                     color="#10b981"
                     title="Montant en temps réel"

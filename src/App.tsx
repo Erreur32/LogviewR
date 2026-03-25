@@ -23,10 +23,10 @@ const UsersPage = lazy(() => import('./pages/UsersPage').then(m => ({ default: m
 const LogsPage = lazy(() => import('./pages/LogsPage').then(m => ({ default: m.LogsPage })));
 const LogViewerTestPage = lazy(() => import('./pages/LogViewerTestPage').then(m => ({ default: m.LogViewerTestPage })));
 const LogViewerPage = lazy(() => import('./pages/LogViewerPage').then(m => ({ default: m.LogViewerPage })));
+const Fail2banPage = lazy(() => import('./pages/Fail2banPage').then(m => ({ default: m.Fail2banPage })));
 import { fetchEnvironmentInfo } from './constants/version';
 import {
   useUserAuthStore,
-  useSystemStore,
   useConnectionStore,
   useHistoryStore
 } from './stores';
@@ -38,6 +38,8 @@ import {
   FileText
 } from 'lucide-react';
 import { initTheme } from './utils/themeManager';
+import type { SettingsPageProps } from './pages/SettingsPage';
+import type { LogFileInfo } from './types/logViewer';
 import { usePolling } from './hooks/usePolling';
 import { POLLING_INTERVALS } from './utils/constants';
 import { useBackgroundAnimation } from './hooks/useBackgroundAnimation';
@@ -74,9 +76,6 @@ const App: React.FC = () => {
   // Plugin store
   const { plugins, pluginStats, fetchPlugins, fetchAllStats } = usePluginStore();
 
-  // Data stores
-  const { info: systemInfo, fetchSystemInfo } = useSystemStore();
-
   // Local state
   const [currentPage, setCurrentPage] = useState<PageType>('dashboard');
   const [selectedPluginId, setSelectedPluginId] = useState<string | null>(null);
@@ -86,14 +85,7 @@ const App: React.FC = () => {
   const [pluginHeaderData, setPluginHeaderData] = useState<{
     pluginId: string;
     pluginName: string;
-    availableFiles: Array<{
-      path: string;
-      type: string;
-      size: number;
-      modified: Date | string;
-      enabled?: boolean;
-      readable?: boolean;
-    }>;
+    availableFiles: LogFileInfo[];
     selectedFilePath?: string;
     onFileSelect: (filePath: string, logType: string) => void;
     filters?: import('./types/logViewer').LogFilters;
@@ -426,8 +418,8 @@ const App: React.FC = () => {
     return wrapWithBackground(renderPageWithFooter(
       <SettingsPage 
         onBack={() => setCurrentPage('dashboard')} 
-        mode={showAdmin ? 'administration' : 'settings'}
-        initialAdminTab={adminTab || 'general'}
+        mode={showAdmin ? 'administration' : undefined}
+        initialAdminTab={adminTab ?? 'general'}
         onNavigateToPage={(page) => setCurrentPage(page)}
         onUsersClick={handleUsersClick}
         onSettingsClick={handleSettingsClick}
@@ -540,6 +532,38 @@ const App: React.FC = () => {
     );
   }
 
+  // Render Fail2ban page — full-screen flex column so sidebar fills remaining height
+  if (currentPage === 'fail2ban') {
+    return wrapWithBackground(
+      <div className="flex flex-col h-screen">
+        <Header
+          pageType="fail2ban"
+          user={user || undefined}
+          onSettingsClick={handleSettingsClick}
+          onAdminClick={handleAdminClick}
+          onProfileClick={handleProfileClick}
+          onUsersClick={handleUsersClick}
+          onLogout={handleLogout}
+          onPluginClick={(pluginId) => {
+            setSelectedPluginId(pluginId);
+            setCurrentPage('log-viewer');
+          }}
+        />
+        <div className="flex-1 overflow-hidden">
+          <Suspense fallback={<PageLoader />}>
+            <Fail2banPage onBack={() => setCurrentPage('dashboard')} />
+          </Suspense>
+        </div>
+        <Footer
+          currentPage={currentPage}
+          onPageChange={handlePageChange}
+          onLogout={handleLogout}
+          userRole={user?.role}
+        />
+      </div>
+    );
+  }
+
   // Render Dashboard (default)
   if (currentPage === 'dashboard') {
     return wrapWithBackground(renderPageWithFooter(
@@ -635,7 +659,6 @@ const App: React.FC = () => {
   return wrapWithBackground(renderPageWithFooter(
     <>
       <Header 
-        systemInfo={systemInfo} 
         pageType="dashboard"
         user={user || undefined}
         onSettingsClick={handleSettingsClick}

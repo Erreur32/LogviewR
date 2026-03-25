@@ -5,9 +5,9 @@
  * Displays plugin options directly under the plugin card
  */
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Settings, CheckCircle, XCircle, RefreshCw, AlertCircle, Save, Eye, EyeOff, Plus, Trash2, FileText, Code, ChevronUp, ChevronDown, RotateCw } from 'lucide-react';
+import { Settings, CheckCircle, XCircle, RefreshCw, AlertCircle, Save, Eye, EyeOff, Plus, Trash2, FileText, Code, ChevronUp, ChevronDown, RotateCw, Shield, ShieldAlert, Terminal, Database, Cpu } from 'lucide-react';
 import { usePluginStore, type Plugin } from '../stores/pluginStore';
 import { Button } from './ui/Button';
 import { api } from '../api/client';
@@ -207,6 +207,10 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                 maxLines: defaults.maxLines ?? 0,
                 readCompressed: defaults.readCompressed ?? false,
                 excludedIps: (defaults as any).excludedIps ?? ''
+            });
+        } else if (plugin && pluginId === 'fail2ban') {
+            setFormData({
+                sqliteDbPath: (plugin.settings?.sqliteDbPath as string) ?? ''
             });
         }
     }, [plugin, isLogSourcePlugin, pluginId]);
@@ -1017,6 +1021,14 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                         )}
                         <div className="flex-1 text-sm">{testResult.message}</div>
                     </div>
+                )}
+
+                {/* Fail2ban Plugin Configuration */}
+                {pluginId === 'fail2ban' && (
+                    <Fail2banConfigPanel
+                        sqliteDbPath={String(formData.sqliteDbPath ?? '')}
+                        onSqliteDbPathChange={(v) => handleInputChange('sqliteDbPath', v)}
+                    />
                 )}
 
                 {/* Log Source Plugin Configuration */}
@@ -2248,6 +2260,170 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                     </div>
                 </div>
             )}
+        </div>
+    );
+};
+
+// ── Fail2ban Config Panel ──────────────────────────────────────────────────────
+
+interface F2bCheck {
+    ok: boolean;
+    exists?: boolean;
+    readable?: boolean;
+    writable?: boolean;
+    perms?: string;
+    path?: string;
+    fix?: string | null;
+}
+
+interface F2bCheckResult {
+    ok: boolean;
+    checks: {
+        socket:  F2bCheck;
+        client:  F2bCheck;
+        daemon:  F2bCheck;
+        sqlite:  F2bCheck;
+        dropin:  F2bCheck;
+    };
+}
+
+interface Fail2banConfigPanelProps {
+    sqliteDbPath: string;
+    onSqliteDbPathChange: (v: string) => void;
+}
+
+const Fail2banConfigPanel: React.FC<Fail2banConfigPanelProps> = ({ sqliteDbPath, onSqliteDbPathChange }) => {
+    const [checkResult, setCheckResult] = useState<F2bCheckResult | null>(null);
+    const [checking, setChecking] = useState(false);
+    const [expandedFix, setExpandedFix] = useState<string | null>(null);
+
+    const runCheck = useCallback(async () => {
+        setChecking(true);
+        try {
+            const res = await fetch('/api/plugins/fail2ban/check', {
+                headers: { Authorization: `Bearer ${localStorage.getItem('dashboard_user_token') ?? ''}` }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setCheckResult(data.result ?? data);
+            }
+        } catch {
+            setCheckResult(null);
+        } finally {
+            setChecking(false);
+        }
+    }, []);
+
+    const checks: { key: keyof F2bCheckResult['checks']; label: string; icon: React.ElementType }[] = [
+        { key: 'socket',  label: 'Socket Unix',         icon: Shield      },
+        { key: 'client',  label: 'fail2ban-client',     icon: Terminal    },
+        { key: 'daemon',  label: 'Daemon fail2ban',      icon: Cpu         },
+        { key: 'sqlite',  label: 'Base SQLite',          icon: Database    },
+        { key: 'dropin',  label: 'Drop-in systemd host', icon: ShieldAlert },
+    ];
+
+    return (
+        <div className="space-y-4">
+            {/* SQLite path field */}
+            <div className="bg-gradient-to-r from-red-500/10 to-orange-500/10 rounded-lg border border-red-500/30 p-4 space-y-3">
+                <h4 className="text-base font-bold text-red-400 flex items-center gap-2 pb-3 border-b border-red-500/20">
+                    <Settings size={18} />
+                    Configuration Fail2ban
+                </h4>
+                <div>
+                    <label htmlFor="f2b-sqlite-path" className="block text-sm font-medium text-gray-300 mb-2">
+                        Chemin base SQLite <span className="text-gray-500 font-normal">(optionnel)</span>
+                    </label>
+                    <input
+                        id="f2b-sqlite-path"
+                        type="text"
+                        value={sqliteDbPath}
+                        onChange={(e) => onSqliteDbPathChange(e.target.value)}
+                        placeholder="/var/lib/fail2ban/fail2ban.sqlite3"
+                        className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500 text-sm font-mono"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                        Vide = chemin par défaut. Accessible via <code className="text-red-400">/host/var/lib/fail2ban/fail2ban.sqlite3</code>.
+                    </p>
+                </div>
+            </div>
+
+            {/* Diagnostic */}
+            <div className="rounded-lg border border-gray-700 overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-3 bg-gray-900/60 border-b border-gray-700">
+                    <h4 className="text-sm font-semibold text-gray-200 flex items-center gap-2">
+                        <Shield size={16} className="text-orange-400" />
+                        Diagnostic permissions
+                    </h4>
+                    <button
+                        type="button"
+                        onClick={runCheck}
+                        disabled={checking}
+                        className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-orange-500/20 text-orange-300 hover:bg-orange-500/30 transition-colors disabled:opacity-50"
+                    >
+                        <RefreshCw size={12} className={checking ? 'animate-spin' : ''} />
+                        {checking ? 'Vérification…' : checkResult ? 'Relancer' : 'Vérifier'}
+                    </button>
+                </div>
+
+                {!checkResult && !checking && (
+                    <div className="px-4 py-6 text-center text-xs text-gray-500">
+                        Cliquez sur <strong className="text-gray-300">Vérifier</strong> pour tester les permissions et la connectivité.
+                    </div>
+                )}
+
+                {checkResult && (
+                    <div className="divide-y divide-gray-800">
+                        {/* Global status */}
+                        <div className={`px-4 py-3 flex items-center gap-2 text-sm font-medium ${checkResult.ok ? 'bg-green-900/20 text-green-300' : 'bg-red-900/20 text-red-300'}`}>
+                            {checkResult.ok
+                                ? <><CheckCircle size={16} className="text-green-400" /> Tout est OK — fail2ban prêt depuis Docker</>
+                                : <><AlertCircle size={16} className="text-red-400" /> Des problèmes ont été détectés</>
+                            }
+                        </div>
+
+                        {/* Individual checks */}
+                        {checks.map(({ key, label, icon: Icon }) => {
+                            const c = checkResult.checks[key];
+                            const hasFix = !!c.fix;
+                            const isExpanded = expandedFix === key;
+                            return (
+                                <div key={key} className="px-4 py-3">
+                                    <div className="flex items-center gap-3">
+                                        <Icon size={15} className={c.ok ? 'text-green-400' : 'text-red-400'} />
+                                        <span className="text-sm flex-1">{label}</span>
+                                        {c.path && <code className="text-xs text-gray-500 hidden md:block truncate max-w-[200px]">{c.path}</code>}
+                                        {c.perms && <code className="text-xs text-gray-600 hidden lg:block">{c.perms}</code>}
+                                        {c.ok
+                                            ? <CheckCircle size={16} className="text-green-400 flex-shrink-0" />
+                                            : <XCircle    size={16} className="text-red-400 flex-shrink-0" />
+                                        }
+                                    </div>
+
+                                    {/* Fix instructions */}
+                                    {hasFix && (
+                                        <div className="mt-2 ml-6">
+                                            <button
+                                                type="button"
+                                                onClick={() => setExpandedFix(isExpanded ? null : key)}
+                                                className="text-xs text-orange-400 hover:text-orange-300 flex items-center gap-1"
+                                            >
+                                                <ChevronDown size={12} className={`transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                                                {isExpanded ? 'Masquer la solution' : 'Voir comment corriger'}
+                                            </button>
+                                            {isExpanded && (
+                                                <pre className="mt-2 p-3 bg-[#0a0a0a] border border-orange-900/50 rounded-lg text-xs text-orange-200 whitespace-pre-wrap break-all font-mono leading-relaxed">
+                                                    {c.fix}
+                                                </pre>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
         </div>
     );
 };

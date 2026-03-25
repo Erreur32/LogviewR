@@ -37,7 +37,7 @@ export class NotificationPlugin extends BasePlugin {
 
     async initialize(config: PluginConfig): Promise<void> {
         await super.initialize(config);
-        const settings = config.settings as NotificationPluginConfig;
+        const settings = config.settings as unknown as NotificationPluginConfig;
         
         // Initialize notification service with webhooks
         if (settings.webhooks) {
@@ -63,7 +63,7 @@ export class NotificationPlugin extends BasePlugin {
     }
 
     async getStats(): Promise<PluginStats> {
-        const settings = this.config?.settings as NotificationPluginConfig | undefined;
+        const settings = this.config?.settings as unknown as NotificationPluginConfig | undefined;
         const webhookCount = settings?.webhooks?.filter(w => w.enabled).length || 0;
         const ruleCount = settings?.alertRules?.filter(r => r.enabled).length || 0;
 
@@ -80,7 +80,7 @@ export class NotificationPlugin extends BasePlugin {
 
     async testConnection(): Promise<boolean> {
         // Test if at least one webhook is configured and valid
-        const settings = this.config?.settings as NotificationPluginConfig | undefined;
+        const settings = this.config?.settings as unknown as NotificationPluginConfig | undefined;
         if (!settings?.webhooks || settings.webhooks.length === 0) {
             return false;
         }

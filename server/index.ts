@@ -178,6 +178,15 @@ initializePurgeService();
 
 app.use('/api/users', usersRoutes);
 app.use('/api/plugins', pluginsRoutes);
+
+// Mount plugin-specific routes (plugins that implement getRoutes())
+// Each plugin's routes are mounted at /api/plugins/{pluginId}/
+for (const plugin of pluginManager.getAllPlugins()) {
+    if (typeof plugin.getRoutes === 'function') {
+        app.use(`/api/plugins/${plugin.getId()}`, plugin.getRoutes());
+        logger.debug('Server', `Mounted routes for plugin: ${plugin.getId()}`);
+    }
+}
 app.use('/api/logs', logsRoutes);
 app.use('/api/config', configRoutes);
 app.use('/api/metrics', metricsRoutes);
@@ -566,7 +575,7 @@ server.listen(port, host, () => {
   };
 
   // Read app version from package.json
-  let appVersion = '0.3.8'; // Default fallback
+  let appVersion = '0.4.0'; // Default fallback
   try {
     const packageJsonPath = path.join(__dirname, '..', 'package.json');
     const packageJson = JSON.parse(fsSync.readFileSync(packageJsonPath, 'utf8'));

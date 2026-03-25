@@ -32,9 +32,12 @@ FROM node:22-alpine
 WORKDIR /app
 
 # 🎯 Outils RUNTIME uniquement (pas d'outils de build)
-# su-exec: nécessaire pour l'entrypoint script (switch root → node)
-# wget: utilisé pour le healthcheck (déjà présent dans Alpine de base)
-RUN apk add --no-cache su-exec
+# su-exec    : nécessaire pour l'entrypoint script (switch root → node)
+# fail2ban   : fournit fail2ban-client pour communiquer avec le daemon via socket
+# iptables   : lecture des règles pare-feu (onglet IPTables — nécessite cap_add: NET_ADMIN)
+# ipset      : lecture des sets d'IPs (onglet IPSet — nécessite cap_add: NET_ADMIN)
+# nftables   : lecture des règles nftables (onglet NFTables — nécessite cap_add: NET_ADMIN)
+RUN apk add --no-cache su-exec fail2ban iptables ipset nftables
 
 # Créer le répertoire data avec les bonnes permissions
 RUN mkdir -p /app/data && chown -R node:node /app

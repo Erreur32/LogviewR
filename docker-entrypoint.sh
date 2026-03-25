@@ -31,6 +31,38 @@ fi
 # Add node user to adm group
 addgroup node adm 2>/dev/null || true
 
+# ── Fail2ban socket access ────────────────────────────────────────────────────
+# The fail2ban socket (/var/run/fail2ban/fail2ban.sock) is root:root 0700 by default.
+# We chmod 660 so the node user (running the app) can communicate with fail2ban-client.
+# This is a safety net — the host systemd drop-in should already do this persistently.
+# See: /etc/systemd/system/fail2ban.service.d/docker-access.conf
+if [ -S "/var/run/fail2ban/fail2ban.sock" ]; then
+    chmod 660 /var/run/fail2ban/fail2ban.sock 2>/dev/null || true
+    echo "fail2ban socket: permissions set to 660"
+else
+    echo "fail2ban socket: not found at /var/run/fail2ban/fail2ban.sock (plugin will be unavailable)"
+fi
+
+# ── Fail2ban SQLite database access ──────────────────────────────────────────
+# fail2ban.sqlite3 is typically owned by root:root with mode 600.
+# The node user needs read access. Fix on host via systemd drop-in:
+#   ExecStartPost=/bin/chmod 644 /var/lib/fail2ban/fail2ban.sqlite3
+DB_HOST_PATH="/host/var/lib/fail2ban/fail2ban.sqlite3"
+if [ -f "${DB_HOST_PATH}" ]; then
+    # Test read access as the node user (not as root)
+    if su-exec node test -r "${DB_HOST_PATH}" 2>/dev/null; then
+        echo "fail2ban SQLite: readable ✓ (${DB_HOST_PATH})"
+    else
+        echo "WARNING: fail2ban SQLite exists but is NOT readable by node user!"
+        echo "  Host fix: chmod o+r /var/lib/fail2ban/fail2ban.sqlite3"
+        echo "  Persistent fix (systemd drop-in):"
+        echo "    ExecStartPost=/bin/chmod 644 /var/lib/fail2ban/fail2ban.sqlite3"
+        echo "  Ban history and stats will be unavailable until this is fixed."
+    fi
+else
+    echo "fail2ban SQLite: not found at ${DB_HOST_PATH} (fail2ban may not be installed, or different path)"
+fi
+
 # Create symlink /host/logs -> /host/var/log for backward compatibility
 # The plugin expects /host/logs but /host/var/log is already available via /:/host:ro mount
 # This avoids Docker mount issues with read-only filesystem

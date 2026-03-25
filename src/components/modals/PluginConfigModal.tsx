@@ -93,6 +93,14 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
         excludedIps: ''
     });
 
+    /** Coerce form values to string for controlled inputs (value may be number/boolean from settings JSON). */
+    const fieldStr = (key: string): string => {
+        const v = formData[key];
+        if (v === undefined || v === null) return '';
+        if (typeof v === 'boolean') return '';
+        return String(v);
+    };
+
     // Initialize form with plugin settings or defaults
     useEffect(() => {
         if (plugin && plugin.settings) {
@@ -978,7 +986,7 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
                             <select
                                 id="api-mode"
                                 name="api-mode"
-                                value={formData.apiMode || 'controller'}
+                                value={fieldStr('apiMode') || 'controller'}
                                 onChange={(e) => handleInputChange('apiMode', e.target.value)}
                                 className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
                             >
@@ -1004,11 +1012,11 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
                                     id="api-key"
                                     name="api-key"
                                     type={showPassword ? 'text' : 'password'}
-                                    value={formData.apiKey || ''}
+                                    value={fieldStr('apiKey')}
                                     onChange={(e) => handleInputChange('apiKey', e.target.value)}
                                     placeholder={t('pluginConfig.apiKeyPlaceholder')}
                                     className={`w-full px-3 py-2 bg-[#1a1a1a] border rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 pr-10 ${
-                                        !formData.apiKey || !formData.apiKey.trim() 
+                                        !fieldStr('apiKey').trim()
                                             ? 'border-red-600 focus:ring-red-500' 
                                             : 'border-gray-700'
                                     }`}
@@ -1021,7 +1029,7 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
                                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                                 </button>
                             </div>
-                            {(!formData.apiKey || !formData.apiKey.trim()) && (
+                            {(!fieldStr('apiKey').trim()) && (
                                 <div className="mt-2 p-2 bg-red-500/10 border border-red-500/30 rounded-lg">
                                     <div className="flex items-center gap-2 text-red-400 text-xs">
                                         <AlertCircle size={14} />
@@ -1065,7 +1073,7 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
                                     id="unifi-url"
                                     name="unifi-url"
                                     type="url"
-                                    value={formData.url}
+                                    value={fieldStr('url')}
                                     onChange={(e) => handleInputChange('url', e.target.value)}
                                     placeholder="https://unifi.example.com:8443"
                                     className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:outline-none transition-colors"
@@ -1097,7 +1105,7 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
                                     id="unifi-username"
                                     name="unifi-username"
                                     type="text"
-                                    value={formData.username}
+                                    value={fieldStr('username')}
                                     onChange={(e) => handleInputChange('username', e.target.value)}
                                     placeholder="admin"
                                     className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:outline-none transition-colors"
@@ -1115,7 +1123,7 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
                                         id="unifi-password"
                                         name="unifi-password"
                                         type={showPassword ? 'text' : 'password'}
-                                        value={formData.password}
+                                        value={fieldStr('password')}
                                         onChange={(e) => handleInputChange('password', e.target.value)}
                                         placeholder="••••••••"
                                         className="w-full px-3 py-2 pr-10 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:outline-none transition-colors"
@@ -1140,7 +1148,7 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
                                     id="unifi-site"
                                     name="unifi-site"
                                     type="text"
-                                    value={formData.site}
+                                    value={fieldStr('site')}
                                     onChange={(e) => handleInputChange('site', e.target.value)}
                                     placeholder="default"
                                     className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:outline-none transition-colors"

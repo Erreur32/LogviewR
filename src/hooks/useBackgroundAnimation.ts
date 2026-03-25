@@ -194,7 +194,8 @@ export function useBackgroundAnimation(): {
   }, []);
 
   const lastSwitchTimeRef = useRef<number>(Date.now());
-  const cycleTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  /** Browser `setInterval` returns `number`; Node typings use `Timeout` — use `number` for DOM builds. */
+  const cycleTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     const media = window.matchMedia('(prefers-reduced-motion: reduce)');

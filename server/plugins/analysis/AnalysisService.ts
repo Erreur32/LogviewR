@@ -15,29 +15,48 @@ export interface AnalysisResult {
     timestamp: Date;
 }
 
+function parsedTimestamp(entry: ParsedLogEntry): Date {
+    const t = entry.timestamp;
+    if (t instanceof Date) return t;
+    if (typeof t === 'string' || typeof t === 'number') return new Date(t);
+    return new Date();
+}
+
+function numericStatus(entry: ParsedLogEntry): number | undefined {
+    const s = entry.status;
+    if (typeof s === 'number' && !Number.isNaN(s)) return s;
+    if (typeof s === 'string') {
+        const n = parseInt(s, 10);
+        return Number.isNaN(n) ? undefined : n;
+    }
+    return undefined;
+}
+
 export class AnalysisService {
     /**
      * Analyze a log entry for common issues
      * Basic implementation - will be enhanced later
      */
     analyzeLogEntry(entry: ParsedLogEntry): AnalysisResult | null {
+        const status = numericStatus(entry);
         // Basic error detection (5xx status codes)
-        if (entry.status && entry.status >= 500) {
+        if (status !== undefined && status >= 500) {
             return {
                 type: 'error',
-                severity: entry.status >= 500 ? 'high' : 'medium',
-                message: `Erreur serveur détectée: ${entry.status}`,
+                severity: status >= 500 ? 'high' : 'medium',
+                message: `Erreur serveur détectée: ${status}`,
                 details: {
-                    status: entry.status,
+                    status,
                     url: entry.url,
                     ip: entry.ip
                 },
-                timestamp: entry.timestamp || new Date()
+                timestamp: parsedTimestamp(entry)
             };
         }
 
         // Basic attack pattern detection (common attack patterns)
-        if (entry.url) {
+        const urlStr = typeof entry.url === 'string' ? entry.url : entry.url != null ? String(entry.url) : '';
+        if (urlStr) {
             const suspiciousPatterns = [
                 /\.\./, // Path traversal
                 /<script/i, // XSS attempts
@@ -50,7 +69,7 @@ export class AnalysisService {
             ];
 
             for (const pattern of suspiciousPatterns) {
-                if (pattern.test(entry.url)) {
+                if (pattern.test(urlStr)) {
                     return {
                         type: 'attack',
                         severity: 'high',
@@ -61,24 +80,26 @@ export class AnalysisService {
                             ip: entry.ip,
                             userAgent: entry.userAgent
                         },
-                        timestamp: entry.timestamp || new Date()
+                        timestamp: parsedTimestamp(entry)
                     };
                 }
             }
         }
 
         // Basic timeout detection (if response time is available)
-        if ((entry as any).responseTime && (entry as any).responseTime > 5000) {
+        const rt = (entry as { responseTime?: unknown }).responseTime;
+        const responseMs = typeof rt === 'number' ? rt : typeof rt === 'string' ? parseFloat(rt) : NaN;
+        if (!Number.isNaN(responseMs) && responseMs > 5000) {
             return {
                 type: 'performance',
                 severity: 'medium',
-                message: `Temps de réponse élevé: ${(entry as any).responseTime}ms`,
+                message: `Temps de réponse élevé: ${responseMs}ms`,
                 details: {
-                    responseTime: (entry as any).responseTime,
+                    responseTime: responseMs,
                     url: entry.url,
                     ip: entry.ip
                 },
-                timestamp: entry.timestamp || new Date()
+                timestamp: parsedTimestamp(entry)
             };
         }
 

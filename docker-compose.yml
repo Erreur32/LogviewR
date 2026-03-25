@@ -63,11 +63,26 @@ services:
     group_add:
       - "${ADM_GID:-4}"  # Default GID 4 for adm group
 
+    # Optional: allow iptables/ipset/nftables commands inside the container (onglets Pare-feu)
+    # ⚠️ Security: only enable if you use the IPTables/IPSet/NFTables tabs
+    # cap_add:
+    #   - NET_ADMIN
+
     volumes:
       # Persistent storage for:
       # - SQLite database (dashboard.db)
       # - Application configuration
       - ./data:/app/data
+      # Fail2ban Unix socket (read-write — needed for fail2ban-client commands: ban, unban, status)
+      # PREREQUISITE on host: systemd drop-in for socket permissions + SQLite read access:
+      #   mkdir -p /etc/systemd/system/fail2ban.service.d/
+      #   cat > /etc/systemd/system/fail2ban.service.d/docker-access.conf << 'EOF'
+      #   [Service]
+      #   ExecStartPost=/bin/sh -c 'i=0; while [ $i -lt 15 ] && [ ! -S /var/run/fail2ban/fail2ban.sock ]; do sleep 1; i=$((i+1)); done; chmod 660 /var/run/fail2ban/fail2ban.sock 2>/dev/null; chmod 644 /var/lib/fail2ban/fail2ban.sqlite3 2>/dev/null; exit 0'
+      #   EOF
+      #   systemctl daemon-reload && systemctl restart fail2ban
+      # NOTE: Use sh -c with a wait loop — ExecStartPost runs before the socket is created!
+      - /var/run/fail2ban/fail2ban.sock:/var/run/fail2ban/fail2ban.sock
       # Mount host filesystem (read-only) to access real host metrics
       # This allows the app to read hostname, disk usage, and other system info from the host
       # NOTE: This mount creates /host directory and mounts everything including /var/log

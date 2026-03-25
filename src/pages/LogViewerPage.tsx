@@ -765,6 +765,17 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
         return result;
     }, [logs, filters, excludedIpsList, showExcludedIps]);
 
+    const logsForLogTable = useMemo(() => filteredLogs as LogEntry[], [filteredLogs]);
+
+    const logTableFilters = useMemo((): LogFiltersType | undefined => {
+        if (!filters) return undefined;
+        const level = filters.level;
+        return {
+            ...filters,
+            level: level === undefined ? undefined : Array.isArray(level) ? level : [level],
+        };
+    }, [filters]);
+
     const hiddenByIpCount = useMemo(() => {
         if (excludedIpsList.length === 0) return 0;
         return logs.filter((log) => isLogExcludedByIp(log as Record<string, unknown>, excludedIpsList)).length;
@@ -910,7 +921,7 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
                                         columns.length > 0 ? (
                                             <div className="bg-[#121212] border border-gray-800 rounded-xl overflow-hidden">
                                                 <LogTable
-                                                    logs={filteredLogs}
+                                                    logs={logsForLogTable}
                                                     columns={columns}
                                                     logType={selectedLogType || 'syslog'}
                                                     isLoading={isLoading}
@@ -921,7 +932,7 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
                                                     pageSize={pageSize}
                                                     onPageChange={setPage}
                                                     onPageSizeChange={setPageSize}
-                                                    filters={filters}
+                                                    filters={logTableFilters}
                                                     onFiltersChange={setFilters}
                                                     logDateRange={logDateRange}
                                                     pluginId={selectedPluginId || undefined}

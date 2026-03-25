@@ -63,10 +63,11 @@ import { UserMenu, Clock } from '../components/ui';
 import { useTranslation } from 'react-i18next';
 import { setAppLanguage, getAppLanguage } from '../i18n';
 
-interface SettingsPageProps {
+export interface SettingsPageProps {
   onBack: () => void;
   mode?: 'administration';
-  initialAdminTab?: 'general' | 'users' | 'plugins' | 'security' | 'exporter' | 'theme' | 'info' | 'analysis' | 'notifications' | 'database';
+  /** Legacy `debug` is mapped to `info` via toAdminTab */
+  initialAdminTab?: 'general' | 'users' | 'plugins' | 'security' | 'exporter' | 'theme' | 'info' | 'analysis' | 'notifications' | 'database' | 'debug';
   onNavigateToPage?: (page: 'plugins' | 'users') => void;
   onUsersClick?: () => void;
   onSettingsClick?: () => void;
@@ -2468,7 +2469,7 @@ const UsersManagementSection: React.FC = () => {
 
 export const SettingsPage: React.FC<SettingsPageProps> = ({ 
   onBack, 
-  mode = 'administration',
+  mode,
   initialAdminTab = 'general',
   onNavigateToPage,
   onUsersClick,

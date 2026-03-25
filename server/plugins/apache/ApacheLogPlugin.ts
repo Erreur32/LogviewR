@@ -36,7 +36,7 @@ export class ApacheLogPlugin extends BasePlugin implements LogSourcePlugin {
     }
 
     async testConnection(): Promise<boolean> {
-        const config = this.config?.settings as ApachePluginConfig | undefined;
+        const config = this.config?.settings as unknown as ApachePluginConfig | undefined;
         const basePath = config?.basePath || this.getDefaultBasePath();
         const actualBasePath = this.resolveDockerPathSync(basePath);
         try {
@@ -56,7 +56,7 @@ export class ApacheLogPlugin extends BasePlugin implements LogSourcePlugin {
      * Check if a file or directory should be excluded based on configured filters
      */
     private shouldExclude(filePath: string, entryName: string, isDirectory: boolean): boolean {
-        const config = this.config?.settings as ApachePluginConfig | undefined;
+        const config = this.config?.settings as unknown as ApachePluginConfig | undefined;
         const excludeFilters = config?.excludeFilters;
         
         if (!excludeFilters) {

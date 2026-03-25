@@ -5,6 +5,7 @@
  */
 
 import apacheIcon from '../icons/apache.svg';
+import fail2banIcon from '../icons/fail2ban.svg';
 import nginxIcon from '../icons/nginx.svg';
 import npmIcon from '../icons/npm.svg';
 import debianIcon from '../icons/debian.svg';
@@ -27,6 +28,8 @@ export interface PluginIconInfo {
  */
 export function getPluginIcon(pluginId: string, osType?: string): string {
   switch (pluginId) {
+    case 'fail2ban':
+      return fail2banIcon;
     case 'apache':
       return apacheIcon;
     case 'nginx':
@@ -67,6 +70,8 @@ export function getPluginIcon(pluginId: string, osType?: string): string {
  */
 export function getPluginName(pluginId: string): string {
   switch (pluginId) {
+    case 'fail2ban':
+      return 'Fail2ban';
     case 'apache':
       return 'Apache';
     case 'nginx':

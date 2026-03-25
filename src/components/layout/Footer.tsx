@@ -6,7 +6,8 @@ import {
   FileText,
   HardDrive,
   Archive,
-  LineChart
+  LineChart,
+  Shield
 } from 'lucide-react';
 import { usePluginStore } from '../../stores/pluginStore';
 import { getPluginIcon } from '../../utils/pluginIcons';
@@ -15,7 +16,7 @@ import { Tooltip } from '../ui/Tooltip';
 import { useTranslation } from 'react-i18next';
 import type { LogPluginStats } from '../../types/logViewer';
 
-export type PageType = 'dashboard' | 'analytics' | 'goaccess-stats' | 'settings' | 'plugins' | 'users' | 'logs' | 'log-viewer';
+export type PageType = 'dashboard' | 'analytics' | 'goaccess-stats' | 'settings' | 'plugins' | 'users' | 'logs' | 'log-viewer' | 'log-viewer-test' | 'fail2ban';
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
@@ -199,6 +200,22 @@ export const Footer: React.FC<FooterProps> = ({
             );
           })}
           
+          {/* Fail2ban tab — shown only when fail2ban plugin is enabled */}
+          {plugins.find(p => p.id === 'fail2ban' && p.enabled) && (
+            <Tooltip content="Fail2ban" position="top">
+              <button
+                onClick={() => onPageChange?.('fail2ban')}
+                className={`flex items-center p-3 rounded-lg border transition-all duration-150 active:brightness-90 ${
+                  currentPage === 'fail2ban'
+                    ? 'btn-theme-active border-theme-hover text-theme-primary'
+                    : 'btn-theme border-transparent text-theme-secondary hover:bg-theme-tertiary hover:text-theme-primary'
+                }`}
+              >
+                <Shield size={18} />
+              </button>
+            </Tooltip>
+          )}
+
           {/* Show "Administration" button if settings tab is hidden (icon only) */}
           {!visibleTabs.find(tab => tab.id === 'settings') && (
             <Tooltip content={t('footer.administrationTooltip')} position="top">

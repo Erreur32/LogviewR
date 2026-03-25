@@ -35,6 +35,7 @@ export class NpmParser {
             const request = `${method} ${scheme}://${host}${uri}`;
             
             return {
+                message: line,
                 timestamp: this.parseTimestamp(time),
                 ip,
                 method,
@@ -62,6 +63,7 @@ export class NpmParser {
             const [, time, status, method, scheme, host, uri, ip, bytes, gzip, ua, ref] = npmStandardMatch;
             
             return {
+                message: line,
                 timestamp: this.parseTimestamp(time),
                 ip,
                 method,
@@ -92,6 +94,7 @@ export class NpmParser {
             const protocol = requestMatch ? requestMatch[3] : 'HTTP/1.1';
             
             return {
+                message: line,
                 timestamp: this.parseTimestamp(time),
                 ip,
                 method,
@@ -117,6 +120,7 @@ export class NpmParser {
             const requestParts = this.parseRequest(request);
 
             return {
+                message: line,
                 timestamp: this.parseTimestamp(timestamp),
                 ip,
                 method: requestParts.method,
@@ -144,6 +148,7 @@ export class NpmParser {
             const requestParts = this.parseRequest(request);
 
             return {
+                message: line,
                 timestamp: this.parseTimestamp(timestamp),
                 ip,
                 method: requestParts.method,

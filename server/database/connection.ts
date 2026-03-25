@@ -273,6 +273,50 @@ export function initializeDatabase(): void {
 
     // Latency monitoring tables removed - Latency monitoring system removed
 
+    // ── Fail2ban internal event store ────────────────────────────────────────
+    // Persists ban/unban history from fail2ban.sqlite3 for long-term retention.
+    // Fail2ban purges its own DB according to dbpurgeage; our copy keeps history forever.
+    database.exec(`
+        CREATE TABLE IF NOT EXISTS f2b_events (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            f2b_rowid   INTEGER NOT NULL,
+            ip          TEXT    NOT NULL,
+            jail        TEXT    NOT NULL,
+            event_type  TEXT    NOT NULL DEFAULT 'ban',
+            timeofban   INTEGER NOT NULL,
+            bantime     INTEGER,
+            failures    INTEGER,
+            created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+    database.exec(`
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_f2b_events_rowid   ON f2b_events(f2b_rowid);
+        CREATE INDEX       IF NOT EXISTS idx_f2b_events_ip        ON f2b_events(ip);
+        CREATE INDEX       IF NOT EXISTS idx_f2b_events_jail      ON f2b_events(jail);
+        CREATE INDEX       IF NOT EXISTS idx_f2b_events_timeofban ON f2b_events(timeofban)
+    `);
+    database.exec(`
+        CREATE TABLE IF NOT EXISTS f2b_sync_state (
+            id           INTEGER PRIMARY KEY CHECK(id = 1),
+            last_rowid   INTEGER NOT NULL DEFAULT 0,
+            last_sync_at DATETIME
+        )
+    `);
+    database.exec(`INSERT OR IGNORE INTO f2b_sync_state(id, last_rowid) VALUES(1, 0)`);
+
+    // Geo-cache for fail2ban map tab (TTL 30 days, populated on demand via ip-api.com)
+    database.exec(`CREATE TABLE IF NOT EXISTS f2b_ip_geo (
+        ip          TEXT    PRIMARY KEY,
+        lat         REAL    NOT NULL,
+        lng         REAL    NOT NULL,
+        country     TEXT    NOT NULL DEFAULT '',
+        countryCode TEXT    NOT NULL DEFAULT '',
+        region      TEXT    NOT NULL DEFAULT '',
+        city        TEXT    NOT NULL DEFAULT '',
+        org         TEXT    NOT NULL DEFAULT '',
+        ts          INTEGER NOT NULL
+    )`);
+
     // Log sources table (configuration for log sources: Apache, Nginx, System, etc.)
     database.exec(`
         CREATE TABLE IF NOT EXISTS log_sources (

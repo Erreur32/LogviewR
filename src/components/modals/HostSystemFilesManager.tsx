@@ -87,7 +87,7 @@ export const HostSystemFilesManager: React.FC<HostSystemFilesManagerProps> = ({
             }
 
             // Scan files first
-            const scanResponse = await api.post<{ result: { files: Array<{ path: string; type: string; size: number; modified: string }> } }>(
+            const scanResponse = await api.post<{ files: Array<{ path: string; type: string; size: number; modified: string }> }>(
                 `/api/log-viewer/plugins/${pluginId}/scan`,
                 {
                     basePath: '/var/log',
@@ -194,7 +194,7 @@ export const HostSystemFilesManager: React.FC<HostSystemFilesManagerProps> = ({
     const detectFormat = async (filePath: string) => {
         setIsDetecting(filePath);
         try {
-            const response = await api.post<{ result: { format: string; confidence: number; parserType: string; validated: boolean } }>(
+            const response = await api.post<{ format: string; confidence: number; parserType: string; validated: boolean }>(
                 `/api/log-viewer/plugins/${pluginId}/detect-format`,
                 { filePath, sampleSize: 50 }
             );
@@ -286,7 +286,7 @@ export const HostSystemFilesManager: React.FC<HostSystemFilesManagerProps> = ({
                                 </span>
                                 <span className="text-xs text-gray-500 px-2 py-0.5 bg-gray-800 rounded">{file.type}</span>
                                 {file.validated && (
-                                    <CheckCircle size={14} className="text-green-400" title={t('hostSystemFiles.regexValidated')} />
+                                    <CheckCircle size={14} className="text-green-400" aria-label={t('hostSystemFiles.regexValidated')} />
                                 )}
                                 {file.isSystemCritical && (
                                     <span className="text-xs text-green-400 bg-green-500/20 px-1.5 py-0.5 rounded border border-green-500/30">
@@ -330,7 +330,7 @@ export const HostSystemFilesManager: React.FC<HostSystemFilesManagerProps> = ({
                                 </span>
                                 <span className="text-xs text-gray-500 px-2 py-0.5 bg-gray-800 rounded">{file.parserType}</span>
                                 {file.validated && (
-                                    <CheckCircle size={14} className="text-blue-400" title={t('hostSystemFiles.regexValidated')} />
+                                    <CheckCircle size={14} className="text-blue-400" aria-label={t('hostSystemFiles.regexValidated')} />
                                 )}
                                 <button
                                     type="button"

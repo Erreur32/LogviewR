@@ -527,7 +527,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onBack }) => {
                               </span>
                             </td>
                             <td className="px-4 py-3 text-center">
-                              <Badge variant="gray" size="sm">
+                              <Badge variant="default" size="sm">
                                 {file.type}
                               </Badge>
                             </td>
