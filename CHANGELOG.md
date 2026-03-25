@@ -9,6 +9,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.4.1] - 2026-03-25
+
+### Fixed
+
+- **BanHistoryChart** — Suppression de `overflow: hidden` sur le wrapper carte qui masquait le graphe SVG lors des changements de vue.
+- **BanHistoryChart** — Le clic sur l'en-tête de carte ne replie plus le graphe accidentellement ; le toggle collapse est désormais uniquement sur le bouton `▾/▸` dédié.
+- **Fail2ban — Défilement** — Changement d'onglet principal (Fail2banPage) et changement de vue dans TabJails (Cartes/Tableau/Événements) remontent automatiquement en haut de page ; le graphe était invisible car masqué au-dessus du viewport.
+- **Barres de recherche** — Centrage correct dans les toolbars de TabJails, TabJailsEvents, TabFiltres, TabActions, TabTracker, TabStats (pattern `flex:1; justify-content:center`).
+- **Tableaux Jails** — Suppression des `overflowX: auto` et des `minWidth` excessifs sur les tableaux Événements et Tableau pour éviter le scroll horizontal non voulu.
+
+### Added
+
+- **IpModal partagé** (`src/pages/fail2ban/IpModal.tsx`) — Nouvelle modale de détail IP commune à tous les onglets :
+  - En-tête : IP (monospace rouge), badge récidiviste si présent dans jail `recidive`, drapeau + ville/pays + organisation.
+  - Bloc 2 colonnes : Statistiques (total bans, jail(s), dernier ban, 1er ban, tentatives) | Whois/Réseau (pays, organisation, ASN, ISP, ville).
+  - Bouton **Bannir dans recidive** (masqué si déjà récidiviste), avec retour visuel succès/erreur.
+  - Tableau historique scrollable (date, jail, durée, tentatives) avec en-têtes sticky.
+  - Auto-fetch géolocalisation si non fournie par le contexte appelant.
+  - Exports : `IpModal`, `GeoInfo`, `toFlag`, `fmtBantime`.
+- **IPs cliquables — TabTracker** — Mise à jour pour utiliser le nouveau `IpModal` partagé (suppression du composant local) ; passage des jails connus à la modale.
+- **IPs cliquables — TabJailsEvents** — Les IPs dans le tableau Événements ouvrent désormais la modale de détail.
+- **IPs cliquables — JailCard (vue Cartes)** — Les IPs bannies dans le tableau de la carte jail ouvrent la modale de détail.
+- **IPs cliquables — JailExpandedGrid (vue Tableau)** — Les IPs dans les colonnes « Bans < 5 min » et « IPs bannies actives » ouvrent la modale de détail.
+
+---
+
 ## [0.4.0] - 2026-03-25
 
 ### Added

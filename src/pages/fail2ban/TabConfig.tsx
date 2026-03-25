@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
     Settings, Database, RefreshCw, RotateCcw, Save, Play,
     Info, Shield, FileText, AlertTriangle, CheckCircle, XCircle,
-    ChevronRight, HardDrive,
+    ChevronRight, HardDrive, Stethoscope,
 } from 'lucide-react';
 import { api } from '../../api/client';
 import { card, cardH, cardB } from './helpers';
@@ -52,6 +52,27 @@ interface RawFiles {
     'fail2ban.local': string | null;
     'jail.conf': string | null;
     'jail.local': string | null;
+}
+
+interface CheckItem {
+    ok: boolean;
+    fix?: string | null;
+    path?: string;
+    exists?: boolean;
+    readable?: boolean;
+    writable?: boolean;
+    perms?: string;
+}
+
+interface CheckResult {
+    ok: boolean;
+    checks: {
+        socket: CheckItem;
+        client: CheckItem;
+        daemon: CheckItem;
+        sqlite: CheckItem;
+        dropin: CheckItem;
+    };
 }
 
 // ── Color palette ─────────────────────────────────────────────────────────────
@@ -131,10 +152,12 @@ const Btn: React.FC<{
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export const TabConfig: React.FC = () => {
-    const [parsed, setParsed]     = useState<ParsedConfigResult | null>(null);
-    const [rawFiles, setRawFiles] = useState<RawFiles | null>(null);
-    const [loading, setLoading]   = useState(true);
-    const [rawTab, setRawTab]     = useState<string | null>(null);
+    const [parsed, setParsed]       = useState<ParsedConfigResult | null>(null);
+    const [rawFiles, setRawFiles]   = useState<RawFiles | null>(null);
+    const [loading, setLoading]     = useState(true);
+    const [rawTab, setRawTab]       = useState<string | null>(null);
+    const [checkResult, setCheckResult] = useState<CheckResult | null>(null);
+    const [checkLoading, setCheckLoading] = useState(true);
 
     // Form state (runtime & persist)
     const [fmLoglevel, setFmLoglevel]   = useState('');
@@ -164,9 +187,17 @@ export const TabConfig: React.FC = () => {
         setLoading(false);
     }, []);
 
+    const runChecks = useCallback(async () => {
+        setCheckLoading(true);
+        const res = await api.get<CheckResult>('/api/plugins/fail2ban/check');
+        if (res.success && res.result) setCheckResult(res.result);
+        setCheckLoading(false);
+    }, []);
+
     useEffect(() => {
         loadParsed();
-    }, [loadParsed]);
+        runChecks();
+    }, [loadParsed, runChecks]);
 
     const loadRaw = useCallback(async () => {
         const res = await api.get<{ files: RawFiles }>('/api/plugins/fail2ban/config');
@@ -282,6 +313,64 @@ export const TabConfig: React.FC = () => {
                     sub="Configuration du démon, service, et base de données officielle"
                 />
                 <div style={{ border: `1px solid ${C.border}`, borderTop: 'none', borderRadius: '0 0 8px 8px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem', background: C.bg0 }}>
+
+                    {/* ── Card: Diagnostic système (auto-run) ── */}
+                    <div style={card}>
+                        <div style={{ ...cardH }}>
+                            <Stethoscope style={{ width: 14, height: 14, color: C.cyan }} />
+                            <span style={{ fontWeight: 600, fontSize: '.9rem' }}>Diagnostic système</span>
+                            <span style={{ marginLeft: 'auto' }}>
+                                {checkLoading ? (
+                                    <span style={{ fontSize: '.72rem', color: C.muted, display: 'flex', alignItems: 'center', gap: '.3rem' }}>
+                                        <RefreshCw style={{ width: 11, height: 11, animation: 'spin 1s linear infinite' }} /> Analyse…
+                                    </span>
+                                ) : checkResult?.ok ? (
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '.75rem', padding: '2px 8px', borderRadius: 4, background: 'rgba(63,185,80,.12)', color: C.green, border: '1px solid rgba(63,185,80,.3)' }}>
+                                        <CheckCircle style={{ width: 10, height: 10 }} /> Tout OK
+                                    </span>
+                                ) : (
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '.75rem', padding: '2px 8px', borderRadius: 4, background: 'rgba(232,106,101,.12)', color: C.red, border: '1px solid rgba(232,106,101,.3)' }}>
+                                        <AlertTriangle style={{ width: 10, height: 10 }} /> Erreurs détectées
+                                    </span>
+                                )}
+                            </span>
+                            <button onClick={runChecks} disabled={checkLoading}
+                                style={{ marginLeft: '.5rem', padding: '.2rem .5rem', borderRadius: 4, background: 'transparent', border: `1px solid ${C.border}`, color: C.muted, cursor: 'pointer', fontSize: '.72rem', display: 'inline-flex', alignItems: 'center', gap: '.25rem', opacity: checkLoading ? .5 : 1 }}>
+                                <RefreshCw style={{ width: 10, height: 10 }} /> Relancer
+                            </button>
+                        </div>
+                        {!checkLoading && checkResult && !checkResult.ok && (
+                            <div style={{ ...cardB, display: 'flex', flexDirection: 'column', gap: '.6rem' }}>
+                                {(Object.entries(checkResult.checks) as [string, CheckItem][])
+                                    .filter(([, c]) => !c.ok)
+                                    .map(([key, c]) => {
+                                        const labels: Record<string, string> = {
+                                            socket: 'Socket fail2ban',
+                                            client: 'fail2ban-client',
+                                            daemon: 'Démon fail2ban',
+                                            sqlite: 'Base SQLite',
+                                            dropin: 'Drop-in systemd',
+                                        };
+                                        return (
+                                            <div key={key} style={{ borderRadius: 6, border: '1px solid rgba(232,106,101,.3)', background: 'rgba(232,106,101,.06)', overflow: 'hidden' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.5rem .75rem', borderBottom: c.fix ? '1px solid rgba(232,106,101,.2)' : undefined, background: 'rgba(232,106,101,.08)' }}>
+                                                    <XCircle style={{ width: 13, height: 13, color: C.red, flexShrink: 0 }} />
+                                                    <span style={{ fontWeight: 600, fontSize: '.82rem', color: C.red }}>{labels[key] ?? key}</span>
+                                                    {c.path && <code style={{ marginLeft: 'auto', fontSize: '.7rem', color: C.muted, fontFamily: 'monospace' }}>{c.path}</code>}
+                                                </div>
+                                                {c.fix && (
+                                                    <div style={{ padding: '.6rem .75rem' }}>
+                                                        <pre style={{ margin: 0, fontSize: '.75rem', fontFamily: 'monospace', color: C.text, lineHeight: 1.55, whiteSpace: 'pre-wrap', background: C.bg3, borderRadius: 5, padding: '.5rem .7rem', border: `1px solid ${C.border}` }}>
+                                                            {c.fix}
+                                                        </pre>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                            </div>
+                        )}
+                    </div>
 
                     {loading ? (
                         <div style={{ color: C.muted, fontSize: '.85rem', textAlign: 'center', padding: '2rem' }}>Chargement…</div>

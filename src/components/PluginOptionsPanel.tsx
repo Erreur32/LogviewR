@@ -2314,6 +2314,9 @@ const Fail2banConfigPanel: React.FC<Fail2banConfigPanelProps> = ({ sqliteDbPath,
         }
     }, []);
 
+    // Auto-run on mount
+    useEffect(() => { runCheck(); }, [runCheck]);
+
     const checks: { key: keyof F2bCheckResult['checks']; label: string; icon: React.ElementType }[] = [
         { key: 'socket',  label: 'Socket Unix',         icon: Shield      },
         { key: 'client',  label: 'fail2ban-client',     icon: Terminal    },
@@ -2366,9 +2369,9 @@ const Fail2banConfigPanel: React.FC<Fail2banConfigPanelProps> = ({ sqliteDbPath,
                     </button>
                 </div>
 
-                {!checkResult && !checking && (
-                    <div className="px-4 py-6 text-center text-xs text-gray-500">
-                        Cliquez sur <strong className="text-gray-300">Vérifier</strong> pour tester les permissions et la connectivité.
+                {!checkResult && checking && (
+                    <div className="px-4 py-6 text-center text-xs text-gray-500 flex items-center justify-center gap-2">
+                        <RefreshCw size={12} className="animate-spin" /> Analyse en cours…
                     </div>
                 )}
 

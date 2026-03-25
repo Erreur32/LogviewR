@@ -264,6 +264,33 @@ export class Fail2banSqliteReader {
     /**
      * Ban history for charts: ban counts per day over the last N days.
      */
+    getBanHistoryByJail(days = 30): { jailNames: string[]; data: Record<string, Record<string, number>> } {
+        if (!this.isReadable()) return { jailNames: [], data: {} };
+        let db: Database.Database | null = null;
+        try {
+            db = new Database(this.dbPath, { readonly: true, fileMustExist: true });
+            const allTime = days <= 0 || days > 3650;
+            const since = Math.floor(Date.now() / 1000) - Math.min(days, 3650) * 86400;
+            const rows = allTime
+                ? (db.prepare(`SELECT jail, date(timeofban,'unixepoch') as date, COUNT(*) as cnt FROM bans GROUP BY jail, date ORDER BY date ASC`).all() as { jail: string; date: string; cnt: number }[])
+                : (db.prepare(`SELECT jail, date(timeofban,'unixepoch') as date, COUNT(*) as cnt FROM bans WHERE timeofban >= ? GROUP BY jail, date ORDER BY date ASC`).all(since) as { jail: string; date: string; cnt: number }[]);
+            const data: Record<string, Record<string, number>> = {};
+            const jailSet = new Set<string>();
+            for (const r of rows) {
+                jailSet.add(r.jail);
+                if (!data[r.jail]) data[r.jail] = {};
+                data[r.jail][r.date] = r.cnt;
+            }
+            // Sort jails by total desc
+            const jailNames = [...jailSet].sort((a, b) =>
+                Object.values(data[b] ?? {}).reduce((s, v) => s + v, 0) -
+                Object.values(data[a] ?? {}).reduce((s, v) => s + v, 0)
+            );
+            return { jailNames, data };
+        } catch { return { jailNames: [], data: {} }; }
+        finally { db?.close(); }
+    }
+
     getBanHistory(days = 30): { date: string; count: number }[] {
         if (!this.isReadable()) return [];
 

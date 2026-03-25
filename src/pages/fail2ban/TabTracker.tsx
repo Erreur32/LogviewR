@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { api } from '../../api/client';
 import { card, cardH } from './helpers';
-import { List, MapPin, X, Clock } from 'lucide-react';
+import { List, MapPin } from 'lucide-react';
 import type { TrackerEntry } from './types';
+import { IpModal, GeoInfo, toFlag } from './IpModal';
 
 type SortCol = 'ip' | 'bans' | 'unbans' | 'failures' | 'jails' | 'last';
 type SortDir = 'asc' | 'desc';
@@ -16,40 +17,6 @@ const PERIODS = [
     { label: 'Tous', days: -1 },
 ];
 
-interface GeoInfo {
-    country: string;
-    countryCode: string;
-    city: string;
-    org: string;
-    isp: string;
-    as: string;
-}
-
-interface IpHistoryEntry {
-    ip: string;
-    jail: string;
-    timeofban: number;
-    bantime: number | null;
-    failures: number | null;
-}
-
-const toFlag = (cc: string) =>
-    cc.toUpperCase().split('').map(c => String.fromCodePoint(0x1F1E6 + c.charCodeAt(0) - 65)).join('');
-
-const fmtDate = (ts: number) => {
-    const d = new Date(ts * 1000);
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-};
-
-const fmtBantime = (s: number | null) => {
-    if (s === null) return '—';
-    if (s === -1) return '∞ permanent';
-    if (s < 60) return `${s}s`;
-    if (s < 3600) return `${Math.round(s / 60)}m`;
-    if (s < 86400) return `${Math.round(s / 3600)}h`;
-    return `${Math.round(s / 86400)}j`;
-};
 
 // ── "Dernier vu" badge ─────────────────────────────────────────────────────────
 
@@ -87,100 +54,6 @@ const SortTh: React.FC<{
         </span>
     </th>
 );
-
-// ── IP Details Modal ───────────────────────────────────────────────────────────
-
-const IpModal: React.FC<{ ip: string; geo: GeoInfo | null; onClose: () => void }> = ({ ip, geo, onClose }) => {
-    const [history, setHistory] = useState<IpHistoryEntry[]>([]);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        api.get<{ ok: boolean; bans: IpHistoryEntry[] }>(`/api/plugins/fail2ban/audit/internal?ip=${encodeURIComponent(ip)}&limit=50`).then(res => {
-            if (res.success && res.result?.ok) setHistory(res.result.bans);
-            setLoading(false);
-        });
-    }, [ip]);
-
-    const jails = useMemo(() => [...new Set(history.map(h => h.jail))], [history]);
-
-    return (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
-            onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-            <div style={{ background: '#161b22', border: '1px solid #30363d', borderRadius: 10, width: '100%', maxWidth: 680, maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                {/* Header */}
-                <div style={{ background: '#21262d', padding: '.75rem 1rem', borderBottom: '1px solid #30363d', display: 'flex', alignItems: 'center', gap: '.75rem' }}>
-                    <span style={{ fontFamily: 'monospace', fontSize: '1rem', fontWeight: 700, color: '#e86a65' }}>{ip}</span>
-                    {geo && (
-                        <span style={{ fontSize: '.85rem', color: '#8b949e', flex: 1 }}>
-                            {toFlag(geo.countryCode)} {geo.city}, {geo.country}
-                            {geo.org && <span style={{ marginLeft: '.5rem', fontSize: '.75rem', color: '#8b949e' }}>· {geo.org}</span>}
-                        </span>
-                    )}
-                    <button onClick={onClose} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: '#8b949e', padding: '.2rem', borderRadius: 4, display: 'flex' }}>
-                        <X style={{ width: 16, height: 16 }} />
-                    </button>
-                </div>
-                {/* Stats bar */}
-                {!loading && history.length > 0 && (
-                    <div style={{ padding: '.6rem 1rem', borderBottom: '1px solid #30363d', display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: '.8rem' }}>
-                            <span style={{ color: '#8b949e' }}>Bans total: </span>
-                            <span style={{ color: '#e86a65', fontWeight: 700 }}>{history.length}</span>
-                        </span>
-                        <span style={{ fontSize: '.8rem' }}>
-                            <span style={{ color: '#8b949e' }}>Jail(s): </span>
-                            {jails.map(j => (
-                                <span key={j} style={{ marginRight: '.3rem', padding: '.08rem .4rem', borderRadius: 4, fontSize: '.72rem', fontWeight: 600, background: 'rgba(63,185,80,.1)', color: '#3fb950', border: '1px solid rgba(63,185,80,.25)' }}>{j}</span>
-                            ))}
-                        </span>
-                        <span style={{ fontSize: '.8rem' }}>
-                            <span style={{ color: '#8b949e' }}>Dernière vue: </span>
-                            <span style={{ color: '#58a6ff' }}>{fmtDate(history[0].timeofban)}</span>
-                        </span>
-                    </div>
-                )}
-                {/* History table */}
-                <div style={{ overflowY: 'auto', flex: 1 }}>
-                    {loading
-                        ? <div style={{ textAlign: 'center', padding: '3rem', color: '#8b949e' }}>Chargement…</div>
-                        : history.length === 0
-                        ? <div style={{ textAlign: 'center', padding: '3rem', color: '#3fb950' }}>Aucun historique interne trouvé</div>
-                        : (
-                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                                <thead>
-                                    <tr style={{ position: 'sticky', top: 0, background: '#21262d' }}>
-                                        {['Date du ban', 'Jail', 'Durée', 'Tentatives'].map(h => (
-                                            <th key={h} style={{ padding: '.4rem .75rem', borderBottom: '1px solid #30363d', fontSize: '.67rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: '#8b949e', textAlign: 'left', whiteSpace: 'nowrap' }}>{h}</th>
-                                        ))}
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {history.map((h, i) => (
-                                        <tr key={i} style={{ borderBottom: '1px solid rgba(48,54,61,.5)' }}
-                                            onMouseEnter={ev => (ev.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,.02)'}
-                                            onMouseLeave={ev => (ev.currentTarget as HTMLElement).style.background = 'transparent'}>
-                                            <td style={{ padding: '.4rem .75rem', fontSize: '.78rem', whiteSpace: 'nowrap' }}>
-                                                <Clock style={{ width: 11, height: 11, color: '#8b949e', marginRight: '.3rem', verticalAlign: 'middle' }} />
-                                                <span style={{ color: '#e6edf3' }}>{fmtDate(h.timeofban)}</span>
-                                            </td>
-                                            <td style={{ padding: '.4rem .75rem' }}>
-                                                <span style={{ padding: '.1rem .4rem', borderRadius: 4, fontSize: '.73rem', fontWeight: 600, background: 'rgba(63,185,80,.1)', color: '#3fb950', border: '1px solid rgba(63,185,80,.25)' }}>{h.jail}</span>
-                                            </td>
-                                            <td style={{ padding: '.4rem .75rem', fontSize: '.78rem', color: '#58a6ff', fontFamily: 'monospace' }}>{fmtBantime(h.bantime)}</td>
-                                            <td style={{ padding: '.4rem .75rem', fontSize: '.78rem', color: '#e3b341', fontWeight: 600 }}>{h.failures ?? '—'}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        )}
-                </div>
-                <div style={{ padding: '.5rem 1rem', borderTop: '1px solid #30363d', fontSize: '.72rem', color: '#8b949e', textAlign: 'right' }}>
-                    Historique long terme (base interne — conservé au-delà de dbpurgeage)
-                </div>
-            </div>
-        </div>
-    );
-};
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
@@ -298,12 +171,14 @@ export const TabTracker: React.FC = () => {
                         </button>
                     ))}
                 </div>
-                {/* Search */}
-                <div style={{ position: 'relative', minWidth: 180 }}>
-                    <span style={{ position: 'absolute', left: '.6rem', top: '50%', transform: 'translateY(-50%)', color: '#8b949e', fontSize: '.72rem', pointerEvents: 'none' }}>🔍</span>
-                    <input type="search" value={filter} onChange={e => { setFilter(e.target.value); setPage(1); }}
-                        placeholder="Rechercher…"
-                        style={{ width: '100%', padding: '.38rem .75rem .38rem 1.8rem', fontSize: '.82rem', background: '#0d1117', border: '1px solid #30363d', borderRadius: 6, color: '#e6edf3', outline: 'none' }} />
+                {/* Search — centré */}
+                <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+                    <div style={{ position: 'relative', width: 220 }}>
+                        <span style={{ position: 'absolute', left: '.6rem', top: '50%', transform: 'translateY(-50%)', color: '#8b949e', fontSize: '.72rem', pointerEvents: 'none' }}>🔍</span>
+                        <input type="search" value={filter} onChange={e => { setFilter(e.target.value); setPage(1); }}
+                            placeholder="Rechercher…"
+                            style={{ width: '100%', padding: '.38rem .75rem .38rem 1.8rem', fontSize: '.82rem', background: '#0d1117', border: '1px solid #30363d', borderRadius: 6, color: '#e6edf3', outline: 'none', boxSizing: 'border-box' }} />
+                    </div>
                 </div>
                 {/* Pagination + per-page */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', marginLeft: 'auto', flexWrap: 'wrap' }}>
@@ -436,6 +311,7 @@ export const TabTracker: React.FC = () => {
             <IpModal
                 ip={modalIp}
                 geo={modalGeo}
+                jails={modalEntry?.jails}
                 onClose={() => setModalIp(null)}
             />
         )}

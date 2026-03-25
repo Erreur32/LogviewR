@@ -457,10 +457,12 @@ const DerniersEventsSection: React.FC<{ days: number; onDaysChange: (d: number) 
             collapsible>
             {/* Toolbar */}
             <div style={{ padding: '.6rem 1rem', borderBottom: `1px solid ${C.border}`, display: 'flex', gap: '.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                <div style={{ position: 'relative', flex: 1, minWidth: 160 }}>
-                    <Search style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', width: 12, height: 12, color: C.muted, pointerEvents: 'none' }} />
-                    <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Filtrer IP ou jail…"
-                        style={{ width: '100%', padding: '.3rem .5rem .3rem 1.75rem', background: C.bg3, border: `1px solid ${C.border}`, borderRadius: 5, color: C.text, fontSize: '.8rem', outline: 'none', boxSizing: 'border-box' }} />
+                <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+                    <div style={{ position: 'relative', width: 220 }}>
+                        <Search style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', width: 12, height: 12, color: C.muted, pointerEvents: 'none' }} />
+                        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Filtrer IP ou jail…"
+                            style={{ width: '100%', padding: '.3rem .5rem .3rem 1.75rem', background: C.bg3, border: `1px solid ${C.border}`, borderRadius: 5, color: C.text, fontSize: '.8rem', outline: 'none', boxSizing: 'border-box' }} />
+                    </div>
                 </div>
                 <div style={{ display: 'flex', gap: '.2rem', alignItems: 'center', fontSize: '.68rem', color: C.muted }}>
                     <span>Limite :</span>

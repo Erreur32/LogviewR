@@ -42,6 +42,7 @@ interface JailMeta {
     maxretry?: number;
     enabled?: boolean;
     ignoreip?: string;
+    logpath?: string;
 }
 
 /** Parse a simple fail2ban INI file, accumulating sections into result. */
@@ -138,6 +139,7 @@ function parseJailConfigs(confBase: string): Record<string, JailMeta> {
             findtime:  parseNum(get('findtime')),
             maxretry:  get('maxretry') !== undefined ? parseInt(get('maxretry')!, 10) : undefined,
             enabled:   enabledRaw !== undefined ? (enabledRaw.toLowerCase() !== 'false' && enabledRaw !== '0') : true,
+            logpath:   resolveVars(get('logpath')),
         };
     }
     return result;
@@ -582,7 +584,8 @@ export class Fail2banPlugin extends BasePlugin {
             // Frontend sends -1 for « Tous » → all-time aggregation in reader
             const days = Number.isNaN(raw) ? 30 : raw;
             const history = this.reader?.getBanHistory(days) ?? [];
-            res.json({ success: true, result: { ok: true, days, history } });
+            const { jailNames, data: byJail } = this.reader?.getBanHistoryByJail(days) ?? { jailNames: [], data: {} };
+            res.json({ success: true, result: { ok: true, days, history, byJail, jailNames } });
         }));
 
         // POST /api/plugins/fail2ban/ban   { jail, ip }
@@ -1056,12 +1059,65 @@ export class Fail2banPlugin extends BasePlugin {
             res.json({ success: true, result: { ok: true, topIps, topJails, topRecidivists, heatmap, heatmapFailed, summary } });
         }));
 
-        // GET /audit  — historique bans (fail2ban SQLite)
+        // GET /audit  — historique bans (fail2ban SQLite) + enrichissements jail/IP
         router.get('/audit', requireAuth, asyncHandler(async (req, res) => {
             if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
-            const limit = Math.min(parseInt(String(req.query.limit ?? '200'), 10), 1000);
-            const stats = this.reader?.getStats();
-            res.json({ success: true, result: { ok: true, bans: stats?.recentBans?.slice(0, limit) ?? [] } });
+            const limit     = Math.min(parseInt(String(req.query.limit ?? '200'), 10), 1000);
+            const jailFilter = req.query.jail ? String(req.query.jail) : null;
+            const stats     = this.reader?.getStats();
+            let bans        = stats?.recentBans?.slice(0, limit) ?? [];
+            if (jailFilter) bans = bans.filter((b: { jail: string }) => b.jail === jailFilter);
+
+            // ── Enrichissements ──────────────────────────────────────────────
+            const confBase  = this.resolveDockerPathSync('/etc/fail2ban');
+            const jailMeta  = parseJailConfigs(confBase);
+
+            // jail_actions + jail_logs + jail_servers (déduit du logpath / nom jail)
+            const jail_actions: Record<string, string> = {};
+            const jail_logs:    Record<string, string> = {};
+            const jail_servers: Record<string, string> = {};
+            const detectServer = (jailName: string, logpath: string): string => {
+                const p = logpath.toLowerCase();
+                const j = jailName.toLowerCase();
+                if (p.includes('nginx-proxy-manager') || p.includes('nginx_proxy') || p.includes('/npm/')) return 'npm';
+                if (p.includes('apache'))  return 'apache2';
+                if (p.includes('nginx'))   return 'nginx';
+                if (p.includes('traefik')) return 'traefik';
+                if (p.includes('haproxy')) return 'haproxy';
+                if (p.includes('lighttpd'))return 'lighttpd';
+                if (j.includes('npm') || j.includes('nginx-proxy-manager')) return 'npm';
+                if (j.includes('apache'))  return 'apache2';
+                if (j.includes('nginx'))   return 'nginx';
+                if (j.includes('traefik')) return 'traefik';
+                if (j.includes('haproxy')) return 'haproxy';
+                if (j.includes('lighttpd'))return 'lighttpd';
+                return '';
+            };
+            for (const [jailName, meta] of Object.entries(jailMeta)) {
+                if (meta.banaction) jail_actions[jailName] = meta.banaction;
+                if (meta.logpath)   jail_logs[jailName]    = meta.logpath;
+                const srv = detectServer(jailName, meta.logpath ?? '');
+                if (srv) jail_servers[jailName] = srv;
+            }
+
+            // ip_domains: domain of the targeted site (extracted from jail log filename, like PHP fail2ban-web)
+            // e.g. /var/log/nginx/example.com_access.log → "example.com"
+            const domainFromLogpath = (logpath: string): string => {
+                const fname = logpath.replace(/.*\//, '');
+                const stripped = fname
+                    .replace(/[._-]?(ssl_access|ssl_error|other_vhosts_access|access|error)\.log$/i, '')
+                    .replace(/\.log$/i, '');
+                return /^[a-zA-Z0-9][a-zA-Z0-9._-]+\.[a-zA-Z]{2,}$/.test(stripped) ? stripped.toLowerCase() : '';
+            };
+            const ip_domains: Record<string, string> = {};
+            for (const ban of bans as { ip: string; jail: string }[]) {
+                if (ip_domains[ban.ip]) continue;
+                const lp = jail_logs[ban.jail] ?? '';
+                const dom = lp ? domainFromLogpath(lp) : '';
+                if (dom) ip_domains[ban.ip] = dom;
+            }
+
+            res.json({ success: true, result: { ok: true, bans, jail_actions, jail_logs, jail_servers, ip_domains } });
         }));
 
         // GET /audit/internal  — historique bans depuis la DB interne (dashboard.db)
@@ -1145,6 +1201,17 @@ export class Fail2banPlugin extends BasePlugin {
             if (!safeSet || !safeEntry) return res.json({ success: true, result: { ok: false, error: 'Valeurs invalides' } });
             const r = await this.client?.ipsetDel(safeSet, safeEntry) ?? { ok: false, output: '', error: 'client not initialized' };
             res.json({ success: true, result: r });
+        }));
+
+        // GET /dns/batch?ips=1.2.3.4,5.6.7.8 — reverse DNS pour une liste d'IPs (max 50)
+        router.get('/dns/batch', requireAuth, asyncHandler(async (req, res) => {
+            const raw = (req.query.ips as string) ?? '';
+            const ips = raw.split(',').map(s => s.trim()).filter(Boolean).slice(0, 50);
+            if (!ips.length) return res.json({ success: true, result: {} });
+            const resolved = await Promise.all(ips.map(ip => reverseDns(ip).then(h => [ip, h ?? ''] as [string, string])));
+            const result: Record<string, string> = {};
+            for (const [ip, h] of resolved) result[ip] = h;
+            res.json({ success: true, result });
         }));
 
         router.get('/nftables', requireAuth, asyncHandler(async (_req, res) => {

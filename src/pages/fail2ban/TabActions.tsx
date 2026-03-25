@@ -247,11 +247,13 @@ export const TabActions: React.FC<TabActionsProps> = ({ jails }) => {
                     <strong style={{ color: '#e3b341' }}>{activeCount}</strong>/{rows.length}
                 </span>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', background: '#21262d', border: '1px solid #30363d', borderRadius: 6, padding: '.3rem .65rem', flex: 1, minWidth: 160, maxWidth: 320 }}>
-                    <span style={{ color: '#8b949e', fontSize: '.8rem' }}>⌕</span>
-                    <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Filtrer les actions…"
-                        style={{ background: 'none', border: 'none', outline: 'none', color: '#e6edf3', fontSize: '.82rem', flex: 1, minWidth: 0 }} />
-                    {search && <button onClick={() => setSearch('')} style={{ background: 'none', border: 'none', color: '#8b949e', cursor: 'pointer', padding: 0, lineHeight: 1 }}>✕</button>}
+                <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', background: '#21262d', border: '1px solid #30363d', borderRadius: 6, padding: '.3rem .65rem', width: 260 }}>
+                        <span style={{ color: '#8b949e', fontSize: '.8rem' }}>⌕</span>
+                        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Filtrer les actions…"
+                            style={{ background: 'none', border: 'none', outline: 'none', color: '#e6edf3', fontSize: '.82rem', flex: 1, minWidth: 0 }} />
+                        {search && <button onClick={() => setSearch('')} style={{ background: 'none', border: 'none', color: '#8b949e', cursor: 'pointer', padding: 0, lineHeight: 1 }}>✕</button>}
+                    </div>
                 </div>
             </div>
 

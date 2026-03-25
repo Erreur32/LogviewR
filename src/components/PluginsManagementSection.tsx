@@ -14,11 +14,16 @@ import { getPluginIcon } from '../utils/pluginIcons';
 import { api } from '../api/client';
 import { Tooltip } from './ui/Tooltip';
 
+interface F2bWarnState {
+    errors: { label: string; fix: string | null }[];
+}
+
 export const PluginsManagementSection: React.FC = () => {
     const { t } = useTranslation();
     const { plugins, pluginStats, isLoading, fetchPlugins, updatePluginConfig } = usePluginStore();
     const [expandedPluginId, setExpandedPluginId] = useState<string | null>(null);
     const [osType, setOsType] = useState<string | undefined>(undefined);
+    const [f2bWarn, setF2bWarn] = useState<F2bWarnState | null>(null);
 
     // Load OS type for host-system plugin
     useEffect(() => {
@@ -60,7 +65,30 @@ export const PluginsManagementSection: React.FC = () => {
     }, [plugins]);
 
     const handleToggle = async (pluginId: string, enabled: boolean) => {
-        // updatePluginConfig already refreshes plugins internally, no need to call fetchPlugins again
+        if (pluginId === 'fail2ban' && enabled) {
+            // Check permissions before enabling
+            try {
+                const token = localStorage.getItem('dashboard_user_token') ?? '';
+                const res = await fetch('/api/plugins/fail2ban/check', {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    const result = data.result ?? data;
+                    if (!result.ok && result.checks) {
+                        const CHECK_LABELS: Record<string, string> = {
+                            socket: 'Socket Unix', client: 'fail2ban-client',
+                            daemon: 'Daemon fail2ban', sqlite: 'Base SQLite', dropin: 'Drop-in systemd',
+                        };
+                        const errors = Object.entries(result.checks as Record<string, { ok: boolean; fix?: string | null }>)
+                            .filter(([, c]) => !c.ok)
+                            .map(([key, c]) => ({ label: CHECK_LABELS[key] ?? key, fix: c.fix ?? null }));
+                        setF2bWarn({ errors });
+                        return; // Block enable
+                    }
+                }
+            } catch { /* ignore — let user enable anyway */ }
+        }
         await updatePluginConfig(pluginId, { enabled });
     };
 
@@ -106,6 +134,46 @@ export const PluginsManagementSection: React.FC = () => {
 
     return (
         <>
+            {/* ── Fail2ban enable warning modal ── */}
+            {f2bWarn && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+                    <div style={{ background: '#161b22', border: '1px solid rgba(232,106,101,.4)', borderRadius: 10, maxWidth: 520, width: '100%', overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,.6)' }}>
+                        <div style={{ background: 'rgba(232,106,101,.12)', padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '.75rem', borderBottom: '1px solid rgba(232,106,101,.25)' }}>
+                            <AlertCircle size={20} style={{ color: '#e86a65', flexShrink: 0 }} />
+                            <div>
+                                <div style={{ fontWeight: 700, color: '#e86a65', fontSize: '.95rem' }}>Fail2ban — erreurs de configuration</div>
+                                <div style={{ fontSize: '.75rem', color: '#8b949e', marginTop: 2 }}>Le plugin ne fonctionnera pas correctement tant que ces problèmes ne sont pas résolus.</div>
+                            </div>
+                        </div>
+                        <div style={{ padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '.6rem' }}>
+                            {f2bWarn.errors.map((e, i) => (
+                                <div key={i} style={{ borderRadius: 6, border: '1px solid rgba(232,106,101,.25)', overflow: 'hidden' }}>
+                                    <div style={{ padding: '.4rem .75rem', background: 'rgba(232,106,101,.08)', display: 'flex', alignItems: 'center', gap: '.4rem' }}>
+                                        <XCircle size={13} style={{ color: '#e86a65', flexShrink: 0 }} />
+                                        <span style={{ fontWeight: 600, fontSize: '.82rem', color: '#e86a65' }}>{e.label}</span>
+                                    </div>
+                                    {e.fix && (
+                                        <pre style={{ margin: 0, padding: '.5rem .75rem', fontSize: '.72rem', fontFamily: 'monospace', color: '#e6edf3', lineHeight: 1.55, whiteSpace: 'pre-wrap', background: '#0d1117' }}>
+                                            {e.fix}
+                                        </pre>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                        <div style={{ padding: '.75rem 1.25rem', borderTop: '1px solid #30363d', display: 'flex', gap: '.5rem', justifyContent: 'flex-end' }}>
+                            <button onClick={() => setF2bWarn(null)}
+                                style={{ padding: '.35rem .85rem', borderRadius: 6, border: '1px solid #30363d', background: 'transparent', color: '#8b949e', cursor: 'pointer', fontSize: '.82rem' }}>
+                                Annuler
+                            </button>
+                            <button onClick={async () => { setF2bWarn(null); await updatePluginConfig('fail2ban', { enabled: true }); }}
+                                style={{ padding: '.35rem .85rem', borderRadius: 6, border: '1px solid rgba(232,106,101,.4)', background: 'rgba(232,106,101,.15)', color: '#e86a65', cursor: 'pointer', fontSize: '.82rem', fontWeight: 600 }}>
+                                Activer quand même
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <Section title={t('admin.pluginsSection.title')} icon={Settings} iconColor="emerald">
                 <div className="space-y-3">
                     {sortedPlugins.map((plugin) => (

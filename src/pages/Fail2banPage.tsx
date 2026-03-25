@@ -24,6 +24,7 @@ import { TabActions }    from './fail2ban/TabActions';
 import { TabMap }        from './fail2ban/TabMap';
 import { TabConfig }     from './fail2ban/TabConfig';
 import { TabAudit }      from './fail2ban/TabAudit';
+import { PERIODS }       from './fail2ban/helpers';
 import { TabAide }           from './fail2ban/TabAide';
 import { TabNetworkRaw }     from './fail2ban/TabNetworkRaw';
 import { TabFileList }       from './fail2ban/TabFileList';
@@ -111,10 +112,13 @@ const Sparkline: React.FC<{ data: number[]; color: string }> = ({ data, color })
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export const Fail2banPage: React.FC<{ onBack?: () => void }> = () => {
+    const contentRef = useRef<HTMLDivElement>(null);
     const [tab, setTab]           = useState<TabId>('jails');
     const [collapsed, setCollapsed] = useState(false);
     const [status, setStatus]     = useState<StatusResponse | null>(null);
     const [history, setHistory]   = useState<HistoryEntry[]>([]);
+    const [byJail, setByJail]     = useState<Record<string, Record<string, number>>>({});
+    const [jailNames, setJailNames] = useState<string[]>([]);
     const [loading, setLoading]   = useState(true);
     const hasDataRef = useRef(false);
     const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -138,7 +142,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = () => {
         try {
             const [sRes, hRes] = await Promise.all([
                 api.get<StatusResponse>(`/api/plugins/fail2ban/status?days=${statsDays}`),
-                api.get<{ ok?: boolean; history?: HistoryEntry[] }>(`/api/plugins/fail2ban/history?days=${statsDays}`),
+                api.get<{ ok?: boolean; history?: HistoryEntry[]; byJail?: Record<string, Record<string, number>>; jailNames?: string[] }>(`/api/plugins/fail2ban/history?days=${statsDays}`),
             ]);
             if (sRes.success && sRes.result) {
                 setStatus(sRes.result);
@@ -162,8 +166,10 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = () => {
             }
             if (hRes.success && hRes.result?.history && Array.isArray(hRes.result.history)) {
                 setHistory(hRes.result.history);
+                setByJail(hRes.result.byJail ?? {});
+                setJailNames(hRes.result.jailNames ?? []);
             } else {
-                setHistory([]);
+                setHistory([]); setByJail({}); setJailNames([]);
             }
         } finally {
             hasDataRef.current = true;
@@ -173,6 +179,9 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = () => {
     }, [statsDays]);
 
     useEffect(() => { fetchStatus(); }, [fetchStatus]);
+
+    // Scroll to top of content area on tab change so BanHistoryChart stays visible
+    useEffect(() => { if (contentRef.current) contentRef.current.scrollTop = 0; }, [tab]);
 
     // Auto-refresh every 30s — pauses when tab is hidden (handled by usePolling)
     usePolling(fetchStatus, { interval: 30_000, immediate: false });
@@ -216,24 +225,27 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = () => {
         }
     }, [status, totalBanned, uniqueIpsTotal, expiredLast24h]);
 
+    const periodBans = history.reduce((s, h) => s + h.count, 0);
+    const periodLabel = PERIODS.find(p => p.days === statsDays)?.label ?? `${statsDays}j`;
+
     const miniStatCards = (
-        <div style={{ padding: '1rem 1rem .5rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(130px,1fr))', gap: '.65rem', borderBottom: '1px solid #30363d' }}>
+        <div style={{ padding: '.85rem 1rem .65rem', display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '.6rem', borderBottom: '1px solid #30363d', width: '100%', boxSizing: 'border-box' }}>
             {([
-                { label: 'Jails actifs',     value: jails.length,   icon: <Shield style={{ width: 14, height: 14 }} />,       color: '#58a6ff', spark: false, trendVal: null },
-                { label: 'Bans actifs',      value: totalBanned,    icon: <Ban style={{ width: 14, height: 14 }} />,           color: '#e86a65', spark: true,  trendVal: trend(totalBanned, prevStats?.totalBanned), trendCol: trendColor(totalBanned, prevStats?.totalBanned, true) },
-                { label: 'Échecs actifs',    value: totalFailed,    icon: <AlertTriangle style={{ width: 14, height: 14 }} />, color: '#e3b341', spark: false, trendVal: null },
-                { label: 'Total bans cumul', value: totalAllTime,   icon: <Shield style={{ width: 14, height: 14 }} />,        color: '#bc8cff', spark: true,  trendVal: null },
-                { label: 'IPs uniques',      value: uniqueIpsTotal, icon: <Activity style={{ width: 14, height: 14 }} />,      color: '#39c5cf', spark: false, trendVal: trend(uniqueIpsTotal, prevStats?.uniqueIpsTotal), trendCol: trendColor(uniqueIpsTotal, prevStats?.uniqueIpsTotal, true) },
-                { label: 'Expirés (24h)',    value: expiredLast24h, icon: <CheckCircle style={{ width: 14, height: 14 }} />,   color: '#3fb950', spark: false, trendVal: trend(expiredLast24h, prevStats?.expiredLast24h), trendCol: trendColor(expiredLast24h, prevStats?.expiredLast24h, false) },
+                { label: 'Jails actifs',            value: jails.length,   icon: <Shield style={{ width: 14, height: 14 }} />,       color: '#58a6ff', spark: false, trendVal: null },
+                { label: 'Bans actifs',             value: totalBanned,    icon: <Ban style={{ width: 14, height: 14 }} />,           color: '#e86a65', spark: true,  trendVal: trend(totalBanned, prevStats?.totalBanned), trendCol: trendColor(totalBanned, prevStats?.totalBanned, true) },
+                { label: `Bans (${periodLabel})`,   value: periodBans,     icon: <Activity style={{ width: 14, height: 14 }} />,      color: '#39c5cf', spark: false, trendVal: null },
+                { label: 'Échecs actifs',           value: totalFailed,    icon: <AlertTriangle style={{ width: 14, height: 14 }} />, color: '#e3b341', spark: false, trendVal: null },
+                { label: 'Total bans cumul',        value: totalAllTime,   icon: <Shield style={{ width: 14, height: 14 }} />,        color: '#bc8cff', spark: true,  trendVal: null },
+                { label: 'Expirés (24h)',           value: expiredLast24h, icon: <CheckCircle style={{ width: 14, height: 14 }} />,   color: '#3fb950', spark: false, trendVal: trend(expiredLast24h, prevStats?.expiredLast24h), trendCol: trendColor(expiredLast24h, prevStats?.expiredLast24h, false) },
             ] as { label: string; value: number; icon: React.ReactNode; color: string; spark: boolean; trendVal: string | null; trendCol?: string }[]).map(({ label, value, icon, color, spark, trendVal, trendCol }) => (
-                <div key={label} style={{ background: '#0d1117', border: '1px solid #30363d', borderRadius: 7, padding: '.75rem .85rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '.7rem', color: '#8b949e' }}>
-                        <span>{label}</span>
-                        <span style={{ color }}>{icon}</span>
+                <div key={label} style={{ background: '#0d1117', border: '1px solid #30363d', borderRadius: 7, padding: '.65rem .8rem', minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '.68rem', color: '#8b949e' }}>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+                        <span style={{ color, flexShrink: 0 }}>{icon}</span>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'flex-end', gap: '.3rem', marginTop: '.15rem' }}>
-                        <span style={{ fontSize: '1.55rem', fontWeight: 700, color, lineHeight: 1.15 }}>{value}</span>
-                        {trendVal && <span style={{ fontSize: '.82rem', fontWeight: 700, color: trendCol, marginBottom: '.1rem' }}>{trendVal}</span>}
+                        <span style={{ fontSize: '1.45rem', fontWeight: 700, color, lineHeight: 1.15 }}>{value}</span>
+                        {trendVal && <span style={{ fontSize: '.78rem', fontWeight: 700, color: trendCol, marginBottom: '.1rem' }}>{trendVal}</span>}
                     </div>
                     {spark && <Sparkline data={sparkData} color={color} />}
                 </div>
@@ -380,11 +392,12 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = () => {
                 )}
 
                 {/* Content */}
-                <div style={{ flex: 1, overflowY: 'auto', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div ref={contentRef} style={{ flex: 1, overflowY: 'auto', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     {/* Shared stats card: shown for jails + stats tabs */}
                     {(tab === 'jails' || tab === 'stats') && (
                         <BanHistoryChart history={history} histMax={histMax} days={statsDays} onDaysChange={setStatsDays}
-                            loading={loading} card headerExtra={miniStatCards} />
+                            loading={loading} card headerExtra={miniStatCards}
+                            byJail={byJail} jailNames={jailNames} />
                     )}
                     {tab === 'jails' && (
                         <TabJails jails={jails} inactiveJails={inactiveJails} loading={loading} statusOk={status?.ok} statusError={status?.error}
