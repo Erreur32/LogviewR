@@ -409,16 +409,19 @@ export class Fail2banPlugin extends BasePlugin {
             const F2B_CLIENT = clientBinPath || '/usr/bin/fail2ban-client';
 
             // ── 3. fail2ban-client ping (daemon alive?) ───────────────────────
+            // Use a fresh instance so the check works even when the plugin is not yet enabled.
             let daemonAlive = false;
             if (clientBinExists && socketExists && socketReadable && socketWritable) {
-                daemonAlive = await this.client?.ping() ?? false;
+                try {
+                    const tmpClient = new Fail2banClientExec();
+                    daemonAlive = await tmpClient.ping();
+                } catch { daemonAlive = false; }
             }
 
             // ── 4. SQLite DB ──────────────────────────────────────────────────
-            const dbPath = this.resolveDockerPathSync(
-                (this.config?.settings as unknown as { sqliteDbPath?: string })?.sqliteDbPath
-                || '/var/lib/fail2ban/fail2ban.sqlite3'
-            );
+            const rawDbPath = (this.config?.settings as unknown as { sqliteDbPath?: string })?.sqliteDbPath
+                || '/var/lib/fail2ban/fail2ban.sqlite3';
+            const dbPath = this.resolveDockerPathSync(rawDbPath);
             let dbExists   = false;
             let dbReadable = false;
             try { fs.accessSync(dbPath); dbExists = true; } catch {}
@@ -442,18 +445,19 @@ export class Fail2banPlugin extends BasePlugin {
             const dropinOk = dropinExists && dropinContent.includes('chmod') && dropinContent.includes('fail2ban.sock');
 
             // ── Bilan ─────────────────────────────────────────────────────────
+            const socketAccessible = socketExists && socketReadable && socketWritable;
             const checks = {
                 socket: {
-                    ok: socketExists && socketReadable && socketWritable,
+                    ok: socketAccessible,
                     exists: socketExists,
                     readable: socketReadable,
                     writable: socketWritable,
                     perms: socketPerms,
                     path: SOCKET_PATH,
                     fix: !socketExists
-                        ? 'Docker: ajoutez le volume dans docker-compose.yml :\n  - /var/run/fail2ban/fail2ban.sock:/var/run/fail2ban/fail2ban.sock\nDev: le socket doit exister sur la machine locale.'
+                        ? 'Docker: add the volume in docker-compose.yml:\n  - /var/run/fail2ban/fail2ban.sock:/var/run/fail2ban/fail2ban.sock\nDev: the socket must exist on the local machine.'
                         : (!socketReadable || !socketWritable)
-                            ? 'Socket non accessible (probablement 0700 root:root).\nDev: sudo chmod 660 /var/run/fail2ban/fail2ban.sock\nDocker: vérifiez le drop-in systemd sur le host :\n  ExecStartPost=-/usr/bin/chmod 660 /var/run/fail2ban/fail2ban.sock\n  systemctl daemon-reload && systemctl restart fail2ban'
+                            ? 'Socket inaccessible (permissions insuffisantes — souvent root:root 660).\n\nDev:\n  sudo chmod 666 /var/run/fail2ban/fail2ban.sock\n\nDocker — mettez à jour le drop-in systemd sur le host :\n  Fichier : /etc/systemd/system/fail2ban.service.d/docker-access.conf\n  Contenu :\n    [Service]\n    ExecStartPost=/bin/sh -c \'i=0; while [ $i -lt 20 ] && ! [ -S /var/run/fail2ban/fail2ban.sock ]; do sleep 0.5; i=$((i+1)); done; chmod 666 /var/run/fail2ban/fail2ban.sock\'\n\n  Puis :\n    sudo systemctl daemon-reload && sudo systemctl restart fail2ban\n\nNote : chmod 666 rend le socket accessible sans changer le groupe (recommandé pour Docker).'
                             : null,
                 },
                 client: {
@@ -465,19 +469,23 @@ export class Fail2banPlugin extends BasePlugin {
                 },
                 daemon: {
                     ok: daemonAlive,
-                    fix: !daemonAlive && clientBinExists && socketExists && socketReadable && socketWritable
-                        ? 'fail2ban-client ping échoue. Vérifiez que fail2ban tourne sur le host : systemctl status fail2ban'
+                    fix: !daemonAlive
+                        ? !socketAccessible
+                            ? 'Impossible de vérifier — socket non accessible (voir Socket Unix ci-dessus).\nUne fois le socket corrigé, relancez la vérification.'
+                            : !clientBinExists
+                                ? 'fail2ban-client introuvable — impossible de pinguer le daemon.'
+                                : 'fail2ban-client ping échoue. Vérifiez que fail2ban tourne sur le host :\n  sudo systemctl status fail2ban'
                         : null,
                 },
                 sqlite: {
                     ok: dbExists && dbReadable,
                     exists: dbExists,
                     readable: dbReadable,
-                    path: dbPath,
+                    path: rawDbPath,
                     fix: !dbExists
-                        ? `SQLite introuvable à ${dbPath}. fail2ban utilise-t-il bien SQLite ? (dbpurgeage ≥ 0.8)`
+                        ? `SQLite introuvable à ${rawDbPath}. fail2ban utilise-t-il bien SQLite ? (backend ≥ 0.8)`
                         : !dbReadable
-                            ? `Permissions insuffisantes sur ${dbPath}. Sur le host : chmod o+r /var/lib/fail2ban/fail2ban.sqlite3`
+                            ? `Permissions insuffisantes sur ${rawDbPath}.\nSur le host : sudo chmod o+r /var/lib/fail2ban/fail2ban.sqlite3`
                             : null,
                 },
                 dropin: {
@@ -485,12 +493,10 @@ export class Fail2banPlugin extends BasePlugin {
                     exists: dropinExists,
                     path: dropinFoundPath || dropinRelPath,
                     fix: !dropinExists
-                        ? 'Drop-in introuvable. Créez-le :\n  sudo mkdir -p /etc/systemd/system/fail2ban.service.d/\n  sudo tee /etc/systemd/system/fail2ban.service.d/docker-access.conf << \'EOF\'\n[Service]\nExecStartPost=/bin/sh -c \'i=0; while [ $i -lt 20 ] && ! [ -S /var/run/fail2ban/fail2ban.sock ]; do sleep 0.5; i=$((i+1)); done; chmod 660 /var/run/fail2ban/fail2ban.sock\'\nEOF\n  sudo systemctl daemon-reload && sudo systemctl restart fail2ban'
+                        ? 'Drop-in introuvable. Créez-le sur le host :\n\n  sudo mkdir -p /etc/systemd/system/fail2ban.service.d/\n  sudo tee /etc/systemd/system/fail2ban.service.d/docker-access.conf << \'EOF\'\n[Service]\nExecStartPost=/bin/sh -c \'i=0; while [ $i -lt 20 ] && ! [ -S /var/run/fail2ban/fail2ban.sock ]; do sleep 0.5; i=$((i+1)); done; chmod 666 /var/run/fail2ban/fail2ban.sock\'\nEOF\n\n  sudo systemctl daemon-reload && sudo systemctl restart fail2ban'
                         : !dropinOk
-                            ? 'Drop-in trouvé mais contenu invalide. Vérifiez qu\'il contient le bon ExecStartPost avec attente du socket.'
-                            : !socketReadable || !socketWritable
-                                ? 'Drop-in OK mais socket inaccessible.\nSoit fail2ban n\'a pas été redémarré avec le nouveau drop-in (race condition sur l\'ancien).\nAppliquez le nouveau drop-in avec boucle d\'attente :\n  sudo systemctl restart fail2ban\nOu immédiatement : sudo chmod 660 /var/run/fail2ban/fail2ban.sock'
-                                : null,
+                            ? 'Drop-in trouvé mais contenu invalide (chmod ou fail2ban.sock absent).\nVérifiez le fichier :\n  sudo cat /etc/systemd/system/fail2ban.service.d/docker-access.conf'
+                            : null,
                 },
             };
 

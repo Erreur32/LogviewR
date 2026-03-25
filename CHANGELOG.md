@@ -9,6 +9,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.4.3] - 2026-03-25
+
+### What's new for users
+
+> Fail2ban plugin configuration check: clearer diagnostics and accurate status indicators.
+
+- **Fail2ban check panel** — All status indicators (socket, daemon, SQLite, drop-in) now reflect the real state correctly. The daemon was previously shown as red even when Fail2ban was running — this is fixed.
+- **Fix instructions hidden when OK** — The "See how to fix" button is now hidden for checks that pass. Only failed checks show repair instructions.
+- **Paths displayed in full** — File paths (socket, SQLite database) are now shown on their own line, never truncated.
+- **README** — Added Fail2ban plugin documentation section.
+
+---
+
+### Technical
+
+#### Backend — `server/plugins/fail2ban/Fail2banPlugin.ts`
+
+- **Daemon check**: was using `this.client?.ping()` which is only initialized when the plugin is already enabled → always null/false before first enable. Now creates a temporary `new Fail2banClientExec()` instance so the check works before the plugin is enabled.
+- **Socket fix message**: updated to recommend `chmod 666` (instead of 660) to ensure Docker container access regardless of group. Includes drop-in file path and corrected content.
+- **Drop-in fix**: removed the spurious `fix` message that appeared when `dropin.ok=true` but socket was inaccessible — that case now only appears in `socket.fix`.
+- **SQLite path in response**: now returns `rawDbPath` (user-facing path, e.g. `/var/lib/fail2ban/fail2ban.sqlite3`) instead of the Docker-resolved internal path (`/host/var/lib/...`).
+- **Daemon fix message**: now shows a clear "cannot check — socket inaccessible" message instead of silently returning red with no explanation.
+
+#### Frontend — `src/components/PluginOptionsPanel.tsx`
+
+- **"Voir comment corriger" hidden when `c.ok=true`**: changed `{hasFix && ...}` to `{hasFix && !c.ok && ...}`.
+- **Path display**: moved from inline truncated `max-w-[200px]` to a dedicated sub-line with `break-all` so full paths are always visible.
+- **Hardcoded helper text**: fixed `/host/var/lib/fail2ban/fail2ban.sqlite3` → `/var/lib/fail2ban/fail2ban.sqlite3`.
+
+#### Documentation — `README.md`
+
+- Added Fail2ban plugin entry in the Plugins section (features, tabs, requirements, configuration).
+
+---
+
 ## [0.4.2] - 2026-03-25
 
 ### What's new for users

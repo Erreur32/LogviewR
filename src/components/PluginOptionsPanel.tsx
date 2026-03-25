@@ -2346,7 +2346,7 @@ const Fail2banConfigPanel: React.FC<Fail2banConfigPanelProps> = ({ sqliteDbPath,
                         className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500 text-sm font-mono"
                     />
                     <p className="text-xs text-gray-500 mt-1">
-                        Vide = chemin par défaut. Accessible via <code className="text-red-400">/host/var/lib/fail2ban/fail2ban.sqlite3</code>.
+                        Vide = chemin par défaut. Accessible via <code className="text-red-400">/var/lib/fail2ban/fail2ban.sqlite3</code>.
                     </p>
                 </div>
             </div>
@@ -2395,16 +2395,20 @@ const Fail2banConfigPanel: React.FC<Fail2banConfigPanelProps> = ({ sqliteDbPath,
                                     <div className="flex items-center gap-3">
                                         <Icon size={15} className={c.ok ? 'text-green-400' : 'text-red-400'} />
                                         <span className="text-sm flex-1">{label}</span>
-                                        {c.path && <code className="text-xs text-gray-500 hidden md:block truncate max-w-[200px]">{c.path}</code>}
-                                        {c.perms && <code className="text-xs text-gray-600 hidden lg:block">{c.perms}</code>}
+                                        {c.perms && <code className="text-xs text-gray-600 flex-shrink-0">{c.perms}</code>}
                                         {c.ok
                                             ? <CheckCircle size={16} className="text-green-400 flex-shrink-0" />
                                             : <XCircle    size={16} className="text-red-400 flex-shrink-0" />
                                         }
                                     </div>
+                                    {c.path && (
+                                        <div className="mt-1 ml-6">
+                                            <code className="text-xs text-gray-500 break-all">{c.path}</code>
+                                        </div>
+                                    )}
 
-                                    {/* Fix instructions */}
-                                    {hasFix && (
+                                    {/* Fix instructions — only shown when check failed */}
+                                    {hasFix && !c.ok && (
                                         <div className="mt-2 ml-6">
                                             <button
                                                 type="button"

@@ -10,7 +10,7 @@
 
 <img src="LogviewR_banner.svg" alt="LogviewR" width="512" height="256" />
 
-![LogviewR](https://img.shields.io/badge/LogviewR-0.4.2-111827?style=for-the-badge)
+![LogviewR](https://img.shields.io/badge/LogviewR-0.4.3-111827?style=for-the-badge)
 ![Status](https://img.shields.io/badge/Status-DEVELOPMENT-374151?style=for-the-badge)
 ![Docker](https://img.shields.io/badge/Docker-Ready-1f2937?style=for-the-badge&logo=docker&logoColor=38bdf8)
 ![React](https://img.shields.io/badge/React-19-111827?style=for-the-badge&logo=react&logoColor=38bdf8)
@@ -179,6 +179,37 @@ LogviewR supporte plusieurs plugins pour différents types de logs :
   - Fichiers de logs personnalisés configurables
   - Regex par défaut modifiables
   - Support des fichiers compressés (.gz)
+
+</details>
+
+<details>
+<summary><strong>🛡️ Fail2ban</strong> - Plugin for Fail2ban intrusion prevention monitoring</summary>
+
+- **Features** :
+  - Real-time jail monitoring (currently banned IPs, failed attempts, total bans)
+  - Banned IP list per jail with unban action
+  - IP tracker — full ban/unban/failure history with geolocation and hostname
+  - IPTables and IPSet chain viewer
+  - Ban history charts with configurable time periods (24h, 7d, 30d, 6m, 1y, all)
+  - Recidivism detection with visual warnings
+
+- **Tabs** :
+  - **Jails** — status and stats for each active jail
+  - **Tracker** — per-IP history across all jails
+  - **History** — ban timeline with period selector
+  - **IPTables** — active iptables chains
+  - **IPSet** — ipset entries with fill rate bars
+  - **Stats** — aggregate statistics
+
+- **Requirements** :
+  - Fail2ban installed and running on the host
+  - Socket access: `/var/run/fail2ban/fail2ban.sock` (or host path in Docker)
+  - SQLite database: `/var/lib/fail2ban/fail2ban.sqlite3`
+
+- **Configuration** :
+  - Configurable socket and database paths
+  - Docker-aware path mapping (host paths via `/host/...`)
+  - Sync interval configurable
 
 </details>
 
