@@ -3004,9 +3004,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             {activeAdminTab === 'plugins' && (
               <div className="space-y-6">
                 <PluginsManagementSection />
-                <Section title={t('admin.tabs.regex')} icon={Code} iconColor="purple">
-                  <RegexManagementSection />
-                </Section>
+                <RegexManagementSection />
               </div>
             )}
           

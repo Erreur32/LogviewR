@@ -1,24 +1,30 @@
-feat: update checker + default page fix + log cleanup (v0.4.2)
+feat: Fail2ban UI polish + bantime fix + hourly chart + map crash fix (v0.4.8)
 
-## Mises à jour automatiques
-- server/routes/updates.ts : vérification GitHub Tags API + GHCR manifest HEAD (dockerReady)
-- updateStore.ts : store Zustand avec checkForUpdates / loadConfig / setConfig
-- SettingsPage : UpdateCheckSection (toggle + fréquence + statut version/docker)
-- App.tsx : bandeau sticky dismissable (amber), dismissal par version en localStorage, polling configurable
+## Pour les utilisateurs
+- Header plus compact, badges Horloge/Utilisateur réduits
+- Menu Fail2ban élargi (220px), flèche réduction toujours à droite
+- Notifications de ban centrées en haut de l'écran
+- Graphique 24h : axe X par heure (00h–23h), autres périodes adaptent les labels
+- Légende graphique : masque réellement la série et recalcule l'échelle Y
+- Badge bantime coloré selon la durée (vert/bleu/orange/rouge)
+- Bantime exact pour recidive/apache-shellshock via socket fail2ban-client
+- Sections Regex pliées par défaut + badge compteur dans les Paramètres
+- Carte Leaflet : crash au premier chargement corrigé (React Strict Mode)
 
-## Page par défaut
-- Ajout option "fail2ban" + sélecteur de tab (12 tabs) dans DefaultPageSection
-- server/routes/system.ts : correction bug — defaultPage/defaultPluginId/defaultLogFile jamais écrits dans PUT
-- Ajout defaultFail2banTab, validation VALID_PAGES
-- App.tsx : navigation effective vers page par défaut au login
-- Fail2banPage : prop initialTab
-- Fix blink : display:none au lieu de && sur tab Général, cache module-level, spinner inline
+## Backend — Fail2ban
+- Fail2banPlugin.ts : parseNum gère bantime négatif (-1 permanent), unité semaines
+- Fail2banPlugin.ts : getJailParam fallback via socket pour bantime/findtime/maxretry manquants
+- Fail2banClientExec.ts : nouvelle méthode getJailParam(jail, param)
+- Fail2banSqliteReader.ts : granularité horaire (strftime('%H')) quand days=1
 
-## Interface administration
-- Onglet "Notifications" renommé "Webhooks" (en.json + fr.json)
-- Exporter : suppression cadre "Aperçu des logs" (stats fichiers/plugins/erreurs)
+## Frontend — Fail2ban
+- BanHistoryChart.tsx : isHourly prop, effectiveMax visible jails, labelCountForDays
+- Fail2banPage.tsx : granularity state, toasts centre-haut, sidebar 220px
+- TabJails.tsx : bantime badge coloré par durée
+- TabMap.tsx : loadScript race condition fix (_loaded flag)
 
-## Nettoyage logs serveur
-- console.log → logger.debug (gated) dans BasePlugin, Fail2banPlugin, NotificationPlugin,
-  AnalysisPlugin, HostSystemLogPlugin, fail2banSyncService, configService, routes/updates.ts
-- console.error → logger.error partout, aucune donnée sensible dans les logs
+## Frontend — Global
+- Header.tsx, Clock.tsx, UserMenu.tsx : padding/tailles réduits
+- SettingsSection.tsx : props collapsible/defaultCollapsed/badge
+- RegexManagementSection.tsx : collapsible par défaut + badge compteur
+- README.md : simplifié, commande curl fail2ban en un bloc

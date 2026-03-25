@@ -2,7 +2,7 @@
  * BanHistoryChart — shared between TabJails stats strip and TabStats.
  * Multi-series per jail with toggle legend, matching PHP fail2ban-web style.
  */
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Activity } from 'lucide-react';
 import { PERIODS } from './helpers';
 import type { HistoryEntry } from './types';
@@ -24,7 +24,17 @@ function yTicks(max: number): { val: number; frac: number }[] {
 function xLabelIndices(len: number, count: number): number[] {
     if (len <= 0) return [];
     const c = Math.min(count, len);
-    return [...new Set(Array.from({ length: c }, (_, k) => Math.round(k * (len - 1) / Math.max(c - 1, 1))))];
+    if (c === 1) return [0];
+    return [...new Set(Array.from({ length: c }, (_, k) => Math.round(k * (len - 1) / (c - 1))))];
+}
+
+function labelCountForDays(days: number, isHourly: boolean): number {
+    if (isHourly) return 24;
+    if (days === 7)   return 7;
+    if (days === 30)  return 10;
+    if (days === 180) return 12;
+    if (days === 365) return 13;
+    return 8;  // Tous / fallback
 }
 
 // ── Collect all dates from history ───────────────────────────────────────────
@@ -39,7 +49,9 @@ const LineChart: React.FC<{
     byJail: Record<string, Record<string, number>>;
     jailNames: string[];
     hidden: Set<string>;
-}> = ({ history, histMax, byJail, jailNames, hidden }) => {
+    isHourly?: boolean;
+    days?: number;
+}> = ({ history, histMax, byJail, jailNames, hidden, isHourly = false, days = 30 }) => {
     if (history.length === 0) return null;
     const W = 700; const H = 170;
     const padL = 32; const padR = 8; const padT = 8; const padB = 20;
@@ -56,7 +68,7 @@ const LineChart: React.FC<{
     const yOf = (v: number) => padT + innerH - Math.min((v / maxVal) * innerH, innerH);
 
     const ticks = yTicks(maxVal);
-    const xIdxs = xLabelIndices(dates.length, 7);
+    const xIdxs = xLabelIndices(dates.length, labelCountForDays(days, isHourly));
 
     return (
         <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: H, display: 'block' }} preserveAspectRatio="none">
@@ -102,9 +114,10 @@ const LineChart: React.FC<{
             {/* X-axis labels */}
             {xIdxs.map(i => {
                 const anchor = i === 0 ? 'start' : i === dates.length - 1 ? 'end' : 'middle';
+                const label = isHourly ? `${dates[i]}h` : (dates[i]?.slice(5) ?? '');
                 return (
                     <text key={i} x={xOf(i)} y={H - 3} fontSize={8} fill="rgba(128,128,128,.55)" textAnchor={anchor}>
-                        {dates[i]?.slice(5) ?? ''}
+                        {label}
                     </text>
                 );
             })}
@@ -119,7 +132,9 @@ const BarChart: React.FC<{
     byJail: Record<string, Record<string, number>>;
     jailNames: string[];
     hidden: Set<string>;
-}> = ({ history, histMax, byJail, jailNames, hidden }) => {
+    isHourly?: boolean;
+    days?: number;
+}> = ({ history, histMax, byJail, jailNames, hidden, isHourly = false, days = 30 }) => {
     const dates = allDates(history.slice(-60));
     const W = 700; const H = 170;
     const padL = 32; const padR = 8; const padT = 8; const padB = 20;
@@ -131,7 +146,7 @@ const BarChart: React.FC<{
     const barW = Math.max(2, (innerW - (nDates - 1) * barGap) / nDates - barGap);
     const visibleJails = jailNames.filter(j => !hidden.has(j));
     const ticks = yTicks(max);
-    const xIdxs = xLabelIndices(dates.length, 7);
+    const xIdxs = xLabelIndices(dates.length, labelCountForDays(days, isHourly));
 
     return (
         <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: H, display: 'block' }} preserveAspectRatio="none">
@@ -185,9 +200,10 @@ const BarChart: React.FC<{
 
             {xIdxs.map(i => {
                 const x = padL + i * (barW + barGap) + barW / 2;
+                const label = isHourly ? `${dates[i]}h` : (dates[i]?.slice(5) ?? '');
                 return (
                     <text key={i} x={x} y={H - 3} fontSize={8} fill="rgba(128,128,128,.55)" textAnchor="middle">
-                        {dates[i]?.slice(5) ?? ''}
+                        {label}
                     </text>
                 );
             })}
@@ -214,21 +230,53 @@ interface BanHistoryChartProps {
     /** Per-jail data from /history endpoint */
     byJail?: Record<string, Record<string, number>>;
     jailNames?: string[];
+    granularity?: 'hour' | 'day';
     card?: boolean;
     loading?: boolean;
 }
 
+// Build 24 hourly slots "00".."23", filling from history data
+function buildHourlySlots(history: HistoryEntry[]): HistoryEntry[] {
+    const map: Record<string, number> = {};
+    for (const h of history) map[h.date] = h.count;
+    return Array.from({ length: 24 }, (_, i) => {
+        const slot = String(i).padStart(2, '0');
+        return { date: slot, count: map[slot] ?? 0 };
+    });
+}
+
 export const BanHistoryChart: React.FC<BanHistoryChartProps> = ({
     history, histMax, days, onDaysChange, headerExtra,
-    byJail = {}, jailNames = [],
+    byJail = {}, jailNames = [], granularity = 'day',
     card: showCard = true, loading = false,
 }) => {
     const [mode, setMode]       = useState<'bar' | 'line'>('line');
     const [collapsed, setCollapsed] = useState(false);
     const [hidden, setHidden]   = useState<Set<string>>(new Set());
 
+    const isHourly    = granularity === 'hour';
     const periodLabel = PERIODS.find(p => p.days === days)?.label ?? `${days}j`;
-    const histSlice   = history.slice(-60);
+    // For 24h mode: always 24 slots; otherwise last 60 days
+    const histSlice   = isHourly ? buildHourlySlots(history) : history.slice(-60);
+
+    // Recompute max from visible jails only so Y-axis adapts when a jail is hidden
+    const effectiveMax = useMemo(() => {
+        const visibleJails = jailNames.filter(j => !hidden.has(j));
+        if (visibleJails.length === 0) return Math.max(histMax, 1);
+        // For stacked bars: max of per-day sum; for lines: max of any single value
+        const dates = histSlice.map(h => h.date);
+        let max = 0;
+        for (const dt of dates) {
+            let daySum = 0;
+            for (const jail of visibleJails) {
+                const v = byJail[jail]?.[dt] ?? 0;
+                max = Math.max(max, v);
+                daySum += v;
+            }
+            max = Math.max(max, daySum);
+        }
+        return Math.max(max, 1);
+    }, [jailNames, hidden, byJail, histMax, histSlice]);
 
     const toggleJail = (jail: string) => {
         setHidden(prev => {
@@ -286,9 +334,9 @@ export const BanHistoryChart: React.FC<BanHistoryChartProps> = ({
                     Aucun ban enregistré sur la période
                 </div>
             ) : mode === 'bar' ? (
-                <BarChart history={histSlice} histMax={histMax} byJail={byJail} jailNames={jailNames} hidden={hidden} />
+                <BarChart history={histSlice} histMax={effectiveMax} byJail={byJail} jailNames={jailNames} hidden={hidden} isHourly={isHourly} days={days} />
             ) : (
-                <LineChart history={histSlice} histMax={histMax} byJail={byJail} jailNames={jailNames} hidden={hidden} />
+                <LineChart history={histSlice} histMax={effectiveMax} byJail={byJail} jailNames={jailNames} hidden={hidden} isHourly={isHourly} days={days} />
             )}
         </div>
     );

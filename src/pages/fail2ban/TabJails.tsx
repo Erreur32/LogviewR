@@ -687,7 +687,7 @@ const JailsTableView: React.FC<{
                                         </td>
                                         <td style={{ padding: '.5rem .5rem', textAlign: 'center', whiteSpace: 'nowrap', color: '#58a6ff' }}>{totalDisplay || '—'}</td>
                                         <td style={{ padding: '.5rem .5rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                                            {j.bantime !== undefined ? <Badge color="muted">{fmtSecs(j.bantime)}</Badge> : <span style={{ color: '#8b949e' }}>—</span>}
+                                            {j.bantime !== undefined ? <Badge color={j.bantime < 0 || j.bantime >= 86400 * 30 ? 'red' : j.bantime >= 86400 ? 'orange' : j.bantime >= 3600 ? 'blue' : 'green'}>{fmtSecs(j.bantime)}</Badge> : <span style={{ color: '#8b949e' }}>—</span>}
                                         </td>
                                         <td style={{ padding: '.5rem .5rem', whiteSpace: 'nowrap' }}>
                                             {j.filter

@@ -49,9 +49,17 @@ function loadLink(href: string): HTMLLinkElement {
 
 function loadScript(src: string): Promise<void> {
     return new Promise((resolve, reject) => {
-        if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
-        const s = Object.assign(document.createElement('script'), { src });
-        s.onload = () => resolve();
+        const existing = document.querySelector<HTMLScriptElement>(`script[src="${src}"]`);
+        if (existing) {
+            // Script tag already in DOM — wait for it if still loading, resolve if already done
+            if ((existing as any)._loaded) { resolve(); return; }
+            existing.addEventListener('load',  () => resolve(), { once: true });
+            existing.addEventListener('error', () => reject(new Error(`Failed to load ${src}`)), { once: true });
+            return;
+        }
+        const s = document.createElement('script');
+        s.src = src;
+        s.onload  = () => { (s as any)._loaded = true; resolve(); };
         s.onerror = () => reject(new Error(`Failed to load ${src}`));
         document.head.appendChild(s);
     });

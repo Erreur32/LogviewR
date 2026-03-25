@@ -9,6 +9,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.4.8] - 2026-03-25
+
+### Pour les utilisateurs
+
+> Interface Fail2ban affinée : header plus compact, graphique 24h par heure, correctifs bantime et carte.
+
+- **Header plus compact** — La barre de navigation principale est plus fine ; les badges Horloge et Utilisateur prennent moins de place pour laisser plus de surface aux contenus.
+- **Menu Fail2ban élargi** — La barre latérale gauche du plugin Fail2ban est légèrement plus large pour afficher les infobulles en entier ; la flèche de réduction est toujours positionnée à droite.
+- **Notifications de ban au centre** — Les alertes de ban apparaissent maintenant en haut au centre de l'écran, bien visibles sans gêner la navigation.
+- **Graphique 24h : axe par heure** — En mode filtre « 24h », l'axe X affiche les 24 heures (00h–23h) pour voir précisément à quelle heure les bans ont eu lieu. Les autres périodes adaptent automatiquement le nombre d'étiquettes (7j → 7 labels, 1an → ~13 labels…).
+- **Légende du graphique corrigée** — Cliquer sur le nom d'une jail dans la légende masque réellement sa courbe/barre et recalcule l'échelle Y en conséquence.
+- **Bantime coloré** — La colonne Bantime de l'onglet Jails affiche une couleur selon la durée : vert (< 1h), bleu (1h–24h), orange (1j–30j), rouge (≥ 30j ou permanent).
+- **Bantime exact pour toutes les jails** — Les jails dont la durée de ban ne figurait pas dans les fichiers de config (ex. `recidive`, `apache-shellshock`) récupèrent désormais la valeur réelle via le socket Fail2ban.
+- **Sections Regex repliées par défaut** — Les deux sections de gestion des regex dans les Paramètres sont maintenant fermées au chargement pour alléger la page ; un badge affiche le nombre de regex configurées.
+- **Carte : crash au premier chargement corrigé** — La carte Leaflet ne plante plus au premier affichage en mode développement (race condition Leaflet/MarkerCluster résolue).
+
+---
+
+### Technique
+
+#### Frontend — Fail2ban
+
+- **`BanHistoryChart.tsx`** — Prop `isHourly` passée aux sous-composants `BarChart`/`LineChart` ; `effectiveMax` recalculé depuis les jails visibles uniquement (fix légende) ; `labelCountForDays()` adapte le nombre de labels selon la période ; `buildHourlySlots()` génère 24 slots "00"–"23" pour `days=1`.
+- **`Fail2banPage.tsx`** — État `granularity` transmis à `BanHistoryChart` ; toasts de ban recentrés (`position:fixed, top:5rem, left:50%, transform:translateX(-50%)`) ; sidebar élargie à 220px ; bouton `›`/`‹` toujours aligné à droite.
+- **`TabJails.tsx`** — Badge bantime coloré : `bantime < 0 || >= 2592000` → rouge, `>= 86400` → orange, `>= 3600` → bleu, sinon vert.
+- **`TabMap.tsx`** — `loadScript()` corrigé pour React Strict Mode : si le `<script>` est déjà dans le DOM, attend l'événement `load` (via `_loaded` flag) au lieu de résoudre immédiatement → fix `L.markerClusterGroup is not a function`.
+
+#### Backend — Fail2ban
+
+- **`Fail2banPlugin.ts`** — `parseNum()` : regex `^(-?\d+...)` gère les bantimes négatifs (`-1` = permanent) et l'unité `w` (semaines) ; pour les jails dont `bantime/findtime/maxretry` est absent des fichiers de config, `getJailParam()` est appelé en fallback via le socket.
+- **`Fail2banClientExec.ts`** — Nouvelle méthode `getJailParam(jail, param)` : exécute `fail2ban-client get <jail> <param>` et parse la valeur numérique retournée.
+- **`Fail2banSqliteReader.ts`** — `getBanHistoryByJail()` et `getBanHistory()` : quand `days=1`, requête SQL utilise `strftime('%H', timeofban, 'unixepoch')` pour un regroupement horaire ; retourne `granularity: 'hour' | 'day'`.
+
+#### Frontend — Global
+
+- **`Header.tsx`** — Padding réduit (`p-4` → `px-4 py-2`), logo `w-8 h-8` → `w-6 h-6`, icônes plugins `w-5 h-5` → `w-4 h-4`.
+- **`Clock.tsx`** — Conteneur `px-4 py-2` → `px-2.5 py-1.5`, dot LED `w-2 h-2` → `w-1.5 h-1.5`, texte heure `text-sm` → `text-xs`.
+- **`UserMenu.tsx`** — Bouton `px-3 py-2` → `px-2 py-1.5`, avatar `w-10 h-10` → `w-6 h-6`.
+- **`SettingsSection.tsx`** — Props `collapsible`, `defaultCollapsed`, `badge` ajoutées à `<Section>` avec animation chevron.
+- **`RegexManagementSection.tsx`** — Les deux sections (`customTitle`, `generatorTitle`) passent `collapsible defaultCollapsed` ; badge compteur sur la section custom.
+- **`SettingsPage.tsx`** — Suppression du `<Section>` wrapper redondant autour de `<RegexManagementSection />`.
+
+#### Documentation
+
+- **`README.md`** — Simplifié : section installation rapide en tête, section Fail2ban avec une seule commande curl, tableau env nettoyé.
+
+---
+
 ## [0.4.7] - 2026-03-25
 
 ### Pour les utilisateurs

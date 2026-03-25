@@ -172,10 +172,16 @@ export const RegexManagementSection: React.FC = () => {
 
     const totalRegexCount = Object.values(customRegexes).reduce((sum, regexes) => sum + regexes.length, 0);
 
+    const countBadge = totalRegexCount > 0 ? (
+        <span className="ml-1 px-2 py-0.5 rounded-full text-xs bg-purple-500/20 text-purple-300 font-mono">
+            {totalRegexCount}
+        </span>
+    ) : null;
+
     return (
         <>
             {/* Liste des regex custom */}
-            <Section title={t('regex.customTitle')} icon={Code} iconColor="purple">
+            <Section title={t('regex.customTitle')} icon={Code} iconColor="purple" collapsible defaultCollapsed badge={countBadge}>
                 {isLoading ? (
                     <div className="flex items-center justify-center py-8">
                         <Loader2 size={24} className="text-gray-400 animate-spin" />
@@ -262,7 +268,7 @@ export const RegexManagementSection: React.FC = () => {
             </Section>
 
             {/* Générateur de regex */}
-            <Section title={t('regex.generatorTitle')} icon={Sparkles} iconColor="purple">
+            <Section title={t('regex.generatorTitle')} icon={Sparkles} iconColor="purple" collapsible defaultCollapsed>
                 <div className="space-y-4">
                     <div>
                         <label className="block text-sm font-medium text-theme-primary mb-2">

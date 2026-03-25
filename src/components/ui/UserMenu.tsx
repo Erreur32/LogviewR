@@ -107,16 +107,16 @@ export const UserMenu: React.FC<UserMenuProps> = ({
                         e.stopPropagation();
                         setIsOpen(!isOpen);
                     }}
-                    className="flex items-center gap-2 px-3 py-2 bg-[#1a1a1a] hover:bg-[#252525] border border-gray-700 rounded-lg transition-colors"
+                    className="flex items-center gap-1.5 px-2 py-1.5 bg-[#1a1a1a] hover:bg-[#252525] border border-gray-700 rounded-lg transition-colors"
                 >
                     {user.avatar ? (
-                        <img 
-                            src={user.avatar} 
+                        <img
+                            src={user.avatar}
                             alt={user.username}
-                            className="w-10 h-10 rounded-full object-cover border-2 border-gray-600"
+                            className="w-6 h-6 rounded-full object-cover border border-gray-600"
                         />
                     ) : (
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold text-base">
+                        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold text-[10px]">
                             {initials}
                         </div>
                     )}

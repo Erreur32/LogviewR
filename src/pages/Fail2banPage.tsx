@@ -119,6 +119,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
     const [history, setHistory]   = useState<HistoryEntry[]>([]);
     const [byJail, setByJail]     = useState<Record<string, Record<string, number>>>({});
     const [jailNames, setJailNames] = useState<string[]>([]);
+    const [granularity, setGranularity] = useState<'hour' | 'day'>('day');
     const [loading, setLoading]   = useState(true);
     const hasDataRef = useRef(false);
     const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -168,8 +169,9 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
                 setHistory(hRes.result.history);
                 setByJail(hRes.result.byJail ?? {});
                 setJailNames(hRes.result.jailNames ?? []);
+                setGranularity((hRes.result as { granularity?: 'hour' | 'day' }).granularity ?? 'day');
             } else {
-                setHistory([]); setByJail({}); setJailNames([]);
+                setHistory([]); setByJail({}); setJailNames([]); setGranularity('day');
             }
         } finally {
             hasDataRef.current = true;
@@ -262,9 +264,9 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
         <div className="flex h-full overflow-hidden" style={{ background: '#0d1117', color: '#e6edf3' }}>
 
             {/* ── Left sidebar ── */}
-            <aside style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', background: '#161b22', borderRight: '1px solid #30363d', transition: 'width .2s ease', overflow: 'hidden', width: collapsed ? 46 : 196 }}>
+            <aside style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', background: '#161b22', borderRight: '1px solid #30363d', transition: 'width .2s ease', overflow: 'hidden', width: collapsed ? 46 : 220 }}>
                 {/* Brand */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', padding: collapsed ? '.75rem 0' : '.75rem .75rem', borderBottom: '1px solid #30363d', flexShrink: 0, justifyContent: collapsed ? 'center' : undefined }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', padding: '.75rem .75rem', borderBottom: '1px solid #30363d', flexShrink: 0 }}>
                     <img src={fail2banIcon} alt="fail2ban" style={{ width: 18, height: 18, flexShrink: 0 }} />
                     {!collapsed && <span style={{ fontWeight: 700, fontSize: '.9rem', color: '#e6edf3', whiteSpace: 'nowrap' }}>Fail2ban</span>}
                     {!collapsed && status && (
@@ -273,7 +275,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
                         </span>
                     )}
                     <button onClick={() => setCollapsed(c => !c)} title={collapsed ? 'Développer' : 'Réduire'}
-                        style={{ marginLeft: collapsed ? undefined : 'auto', flexShrink: 0, background: 'transparent', border: '1px solid #30363d', borderRadius: 4, color: '#8b949e', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, fontSize: '.8rem', transition: 'background .12s, color .12s' }}
+                        style={{ marginLeft: 'auto', flexShrink: 0, background: 'transparent', border: '1px solid #30363d', borderRadius: 4, color: '#8b949e', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, fontSize: '.8rem', transition: 'background .12s, color .12s' }}
                         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#30363d'; (e.currentTarget as HTMLElement).style.color = '#e6edf3'; }}
                         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = '#8b949e'; }}>
                         {collapsed ? '›' : '‹'}
@@ -365,7 +367,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
                 </div>
                 {/* Toast notifications */}
                 {toasts.length > 0 && (
-                    <div style={{ position: 'fixed', bottom: '1.25rem', right: '1.25rem', display: 'flex', flexDirection: 'column', gap: '.5rem', zIndex: 9999, pointerEvents: 'none' }}>
+                    <div style={{ position: 'fixed', top: '5rem', left: '50%', transform: 'translateX(-50%)', display: 'flex', flexDirection: 'column', gap: '.5rem', zIndex: 9999, pointerEvents: 'none', alignItems: 'center' }}>
                         {toasts.map(t => (
                             <div key={t.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '.6rem', padding: '.65rem .85rem', background: '#161b22', border: '1px solid rgba(232,106,101,.4)', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,.5)', minWidth: 240, maxWidth: 340, pointerEvents: 'all' }}>
                                 <Ban style={{ width: 14, height: 14, color: '#e86a65', flexShrink: 0, marginTop: 2 }} />
@@ -397,7 +399,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
                     {(tab === 'jails' || tab === 'stats') && (
                         <BanHistoryChart history={history} histMax={histMax} days={statsDays} onDaysChange={setStatsDays}
                             loading={loading} card headerExtra={miniStatCards}
-                            byJail={byJail} jailNames={jailNames} />
+                            byJail={byJail} jailNames={jailNames} granularity={granularity} />
                     )}
                     {tab === 'jails' && (
                         <TabJails jails={jails} inactiveJails={inactiveJails} loading={loading} statusOk={status?.ok} statusError={status?.error}

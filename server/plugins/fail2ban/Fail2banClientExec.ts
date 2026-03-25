@@ -134,6 +134,13 @@ export class Fail2banClientExec {
         return this.run(['restart']);
     }
 
+    async getJailParam(jail: string, param: string): Promise<number | undefined> {
+        const res = await this.run(['get', jail, param]);
+        if (!res.ok) return undefined;
+        const n = parseInt(res.output.trim(), 10);
+        return isNaN(n) ? undefined : n;
+    }
+
     async getVersion(): Promise<string> {
         const res = await this.run(['--version']);
         if (!res.ok) return '';

@@ -244,18 +244,18 @@ export const Header: React.FC<HeaderProps> = ({
   }, [isPluginMenuOpen]);
 
   return (
-    <header className="flex flex-col md:flex-row items-center justify-between p-4 bg-theme-header border-b border-theme gap-4 relative z-40" style={{ backdropFilter: 'var(--backdrop-blur)' }}>
+    <header className="flex flex-col md:flex-row items-center justify-between px-4 py-2 bg-theme-header border-b border-theme gap-3 relative z-40" style={{ backdropFilter: 'var(--backdrop-blur)' }}>
       {/* Logo / Box identifier with Search icon */}
       <div className="flex items-center gap-2">
         {/* Logo badge - cliquable pour retour dashboard */}
         {onHomeClick && pageType !== 'dashboard' ? (
           <button
             onClick={onHomeClick}
-            className="flex items-center gap-3 bg-theme-secondary px-3 py-2 rounded-lg border border-theme hover:bg-theme-primary transition-colors"
+            className="flex items-center gap-2 bg-theme-secondary px-2.5 py-1.5 rounded-lg border border-theme hover:bg-theme-primary transition-colors"
           >
-            <img src={logviewrLogo} alt="LogviewR" className="w-8 h-8 flex-shrink-0" />
+            <img src={logviewrLogo} alt="LogviewR" className="w-6 h-6 flex-shrink-0" />
             <div className="flex flex-col leading-tight relative">
-              <span className="font-semibold text-theme-primary">LogviewR</span>
+              <span className="font-semibold text-sm text-theme-primary">LogviewR</span>
               <div className="flex items-center gap-1.5">
                 <span className="text-[10px] text-gray-400 font-normal">{getVersionString()}</span>
                 {updateInfo?.updateAvailable && updateInfo.enabled && (
@@ -267,18 +267,18 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           </button>
         ) : (
-          <div className="flex items-center gap-3 bg-theme-secondary px-3 py-2 rounded-lg border border-theme">
-            <img src={logviewrLogo} alt="LogviewR" className="w-8 h-8 flex-shrink-0" />
-                <div className="flex flex-col leading-tight relative">
-              <span className="font-semibold text-theme-primary">LogviewR</span>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] text-gray-400 font-normal">{getVersionString()}</span>
-                    {updateInfo?.updateAvailable && updateInfo.enabled && (
-                      <span className="text-[9px] font-semibold text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-400/30">
-                        Nouvelle version disponible
-                      </span>
-                    )}
-                  </div>
+          <div className="flex items-center gap-2 bg-theme-secondary px-2.5 py-1.5 rounded-lg border border-theme">
+            <img src={logviewrLogo} alt="LogviewR" className="w-6 h-6 flex-shrink-0" />
+            <div className="flex flex-col leading-tight relative">
+              <span className="font-semibold text-sm text-theme-primary">LogviewR</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] text-gray-400 font-normal">{getVersionString()}</span>
+                {updateInfo?.updateAvailable && updateInfo.enabled && (
+                  <span className="text-[9px] font-semibold text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-400/30">
+                    Nouvelle version disponible
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -301,13 +301,13 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 key={plugin.id}
                 onClick={() => onPluginClick?.(plugin.id)}
-                className="p-2 bg-theme-secondary hover:bg-theme-primary border border-theme-border rounded-lg transition-colors"
+                className="p-1.5 bg-theme-secondary hover:bg-theme-primary border border-theme-border rounded-lg transition-colors"
                 title={plugin.name}
               >
-                <img 
-                  src={getPluginIcon(plugin.id, osType)} 
+                <img
+                  src={getPluginIcon(plugin.id, osType)}
                   alt={plugin.name}
-                  className="w-5 h-5 flex-shrink-0"
+                  className="w-4 h-4 flex-shrink-0"
                 />
               </button>
             ))}

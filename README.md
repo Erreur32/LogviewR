@@ -10,7 +10,7 @@
 
 <img src="LogviewR_banner.svg" alt="LogviewR" width="512" height="256" />
 
-![LogviewR](https://img.shields.io/badge/LogviewR-0.4.7-111827?style=for-the-badge)
+![LogviewR](https://img.shields.io/badge/LogviewR-0.4.8-111827?style=for-the-badge)
 ![Status](https://img.shields.io/badge/Status-DEVELOPMENT-374151?style=for-the-badge)
 ![Docker](https://img.shields.io/badge/Docker-Ready-1f2937?style=for-the-badge&logo=docker&logoColor=38bdf8)
 ![React](https://img.shields.io/badge/React-19-111827?style=for-the-badge&logo=react&logoColor=38bdf8)
@@ -25,34 +25,38 @@
 
 ---
 
+## 🚀 Installation rapide (Docker)
+
+```bash
+# 1. Créer le fichier .env
+echo "JWT_SECRET=$(openssl rand -base64 32)" > .env
+
+# 2. Lancer
+docker compose up -d
+```
+
+Dashboard disponible sur `http://your-ip:7500`
+
+---
+
 ## 📋 Table des matières
 
-- [À propos](#-à-propos)
 - [Fonctionnalités](#-fonctionnalités)
 - [Plugins](#-plugins)
-- [Installation](#-installation)
 - [Configuration](#-configuration)
-- [Options avancées](#-options-avancées)
-- [Atouts](#-atouts)
 - [Documentation](#-documentation)
-- [Contribution](#-contribution)
-- [Licence](#-licence)
 
 ---
 
 ## 🎯 À propos
 
-**LogviewR** est une application web moderne et performante pour visualiser et analyser les logs en temps réel. Conçue pour les administrateurs système et les développeurs, elle offre une interface intuitive pour surveiller les logs de vos serveurs web et systèmes.
+**LogviewR** — visualisation de logs en temps réel pour Apache, Nginx, NPM, logs système et Fail2ban.
 
-### Caractéristiques principales
-
-- 🚀 **Temps réel** : Streaming WebSocket pour un suivi en direct des logs
-- 🎨 **Interface moderne** : Design épuré avec thèmes personnalisables
-- 🔍 **Recherche avancée** : Filtres multiples (niveau, date, IP, méthode HTTP, etc.)
-- 📊 **Statistiques** : Tableaux de bord avec statistiques détaillées par plugin
-- 🔐 **Sécurisé** : Authentification JWT, gestion des rôles, permissions par plugin
-- 🐳 **Docker-ready** : Déploiement simplifié avec Docker Compose
-- ⚡ **Performant** : Optimisations pour gérer des milliers de fichiers de logs (y compris fichiers volumineux 45 Mo+)
+- 🚀 **Temps réel** via WebSocket
+- 🔍 **Filtres** : niveau, date, IP, méthode HTTP…
+- 📊 **Statistiques** et tableaux de bord par plugin
+- 🔐 **Auth JWT**, gestion des rôles
+- 🐳 **Docker-ready**
 
 ---
 
@@ -183,42 +187,21 @@ LogviewR supporte plusieurs plugins pour différents types de logs :
 </details>
 
 <details>
-<summary><strong>🛡️ Fail2ban</strong> - Plugin for Fail2ban intrusion prevention monitoring</summary>
+<summary><strong>🛡️ Fail2ban</strong> - Surveillance des jails, IPs bannies, historique, statistiques</summary>
 
-- **Features** :
-  - Real-time jail monitoring (currently banned IPs, failed attempts, total bans)
-  - Banned IP list per jail with unban action
-  - IP tracker — full ban/unban/failure history with geolocation and hostname
-  - IPTables and IPSet chain viewer
-  - Ban history charts with configurable time periods (24h, 7d, 30d, 6m, 1y, all)
-  - Recidivism detection with visual warnings
+**Onglets** : Jails · Tracker · Historique · IPTables · IPSet · Stats
 
-- **Tabs** :
-  - **Jails** — status and stats for each active jail
-  - **Tracker** — per-IP history across all jails
-  - **History** — ban timeline with period selector
-  - **IPTables** — active iptables chains
-  - **IPSet** — ipset entries with fill rate bars
-  - **Stats** — aggregate statistics
+**Prérequis** : Fail2ban installé et actif sur le host.
 
-- **Requirements** :
-  - Fail2ban installed and running on the host
-  - Socket access: `/var/run/fail2ban/fail2ban.sock` (or host path in Docker)
-  - SQLite database: `/var/lib/fail2ban/fail2ban.sqlite3`
-
-- **Docker setup** — run the setup script on the host to configure permissions automatically:
+**Setup Docker (une seule fois sur le host) :**
 
 ```bash
 sudo bash <(curl -fsSL https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setup-fail2ban-access.sh)
 ```
 
-> Creates the `fail2ban` group, updates the systemd drop-in, fixes socket/SQLite permissions, and writes `FAIL2BAN_GID` to your `.env`.
-> Then add to `docker-compose.yml` under `group_add`: `- "${FAIL2BAN_GID:-}"`
+Ce script crée le groupe `fail2ban`, installe le drop-in systemd (`/etc/systemd/system/fail2ban.service.d/docker-access.conf`) pour que le socket soit accessible, et ajuste les permissions SQLite. Le conteneur détecte ensuite automatiquement les permissions au démarrage — aucune variable `.env` supplémentaire n'est requise.
 
-- **Configuration** :
-  - Configurable socket and database paths
-  - Docker-aware path mapping (host paths via `/host/...`)
-  - Sync interval configurable
+Pour vérifier l'état : **Administration → Plugins → Fail2ban → Diagnostic**.
 
 </details>
 
@@ -237,8 +220,8 @@ sudo bash <(curl -fsSL https://raw.githubusercontent.com/Erreur32/LogviewR/main/
 | `DASHBOARD_PORT` | Port du dashboard | `7500` | Non |
 | `HOST_IP` | IP de la machine hôte | Auto-détection | Non |
 | `CONFIG_FILE_PATH` | Chemin du fichier de configuration externe | `/app/config/logviewr.conf` | Non |
-| `ADM_GID` | GID du groupe adm sur l'hôte (pour lire les fichiers de logs) | `4` | Non |
-| `HOST_ROOT_PATH` | Chemin racine du système hôte monté dans le conteneur | `/host` | Non |
+| `ADM_GID` | GID du groupe `adm` sur l'hôte (logs système) | `4` | Non |
+| `HOST_ROOT_PATH` | Chemin racine hôte monté dans le conteneur | `/host` | Non |
 
 <details>
 <summary><strong>Permissions des fichiers de logs système</strong></summary>

@@ -264,40 +264,49 @@ export class Fail2banSqliteReader {
     /**
      * Ban history for charts: ban counts per day over the last N days.
      */
-    getBanHistoryByJail(days = 30): { jailNames: string[]; data: Record<string, Record<string, number>> } {
-        if (!this.isReadable()) return { jailNames: [], data: {} };
+    getBanHistoryByJail(days = 30): { jailNames: string[]; data: Record<string, Record<string, number>>; granularity: 'hour' | 'day' } {
+        if (!this.isReadable()) return { jailNames: [], data: {}, granularity: 'day' };
+        const hourly = days === 1;
         let db: Database.Database | null = null;
         try {
             db = new Database(this.dbPath, { readonly: true, fileMustExist: true });
-            const allTime = days <= 0 || days > 3650;
-            const since = Math.floor(Date.now() / 1000) - Math.min(days, 3650) * 86400;
-            const rows = allTime
-                ? (db.prepare(`SELECT jail, date(timeofban,'unixepoch') as date, COUNT(*) as cnt FROM bans GROUP BY jail, date ORDER BY date ASC`).all() as { jail: string; date: string; cnt: number }[])
-                : (db.prepare(`SELECT jail, date(timeofban,'unixepoch') as date, COUNT(*) as cnt FROM bans WHERE timeofban >= ? GROUP BY jail, date ORDER BY date ASC`).all(since) as { jail: string; date: string; cnt: number }[]);
+            const since = Math.floor(Date.now() / 1000) - (hourly ? 86400 : Math.min(days <= 0 ? 3650 : days, 3650) * 86400);
+            const rows: { jail: string; slot: string; cnt: number }[] = hourly
+                ? (db.prepare(`SELECT jail, strftime('%H', timeofban,'unixepoch') as slot, COUNT(*) as cnt FROM bans WHERE timeofban >= ? GROUP BY jail, slot ORDER BY slot ASC`).all(since) as { jail: string; slot: string; cnt: number }[])
+                : (days <= 0 || days > 3650)
+                    ? (db.prepare(`SELECT jail, date(timeofban,'unixepoch') as slot, COUNT(*) as cnt FROM bans GROUP BY jail, slot ORDER BY slot ASC`).all() as { jail: string; slot: string; cnt: number }[])
+                    : (db.prepare(`SELECT jail, date(timeofban,'unixepoch') as slot, COUNT(*) as cnt FROM bans WHERE timeofban >= ? GROUP BY jail, slot ORDER BY slot ASC`).all(since) as { jail: string; slot: string; cnt: number }[]);
             const data: Record<string, Record<string, number>> = {};
             const jailSet = new Set<string>();
             for (const r of rows) {
                 jailSet.add(r.jail);
                 if (!data[r.jail]) data[r.jail] = {};
-                data[r.jail][r.date] = r.cnt;
+                data[r.jail][r.slot] = r.cnt;
             }
-            // Sort jails by total desc
             const jailNames = [...jailSet].sort((a, b) =>
                 Object.values(data[b] ?? {}).reduce((s, v) => s + v, 0) -
                 Object.values(data[a] ?? {}).reduce((s, v) => s + v, 0)
             );
-            return { jailNames, data };
-        } catch { return { jailNames: [], data: {} }; }
+            return { jailNames, data, granularity: hourly ? 'hour' : 'day' };
+        } catch { return { jailNames: [], data: {}, granularity: 'day' }; }
         finally { db?.close(); }
     }
 
     getBanHistory(days = 30): { date: string; count: number }[] {
         if (!this.isReadable()) return [];
-
+        const hourly = days === 1;
         let db: Database.Database | null = null;
         try {
             db = new Database(this.dbPath, { readonly: true, fileMustExist: true });
-            // days <= 0 or very large → all time (cap window to avoid huge scans in pathological DBs)
+            if (hourly) {
+                const since = Math.floor(Date.now() / 1000) - 86400;
+                const rows = db.prepare(`
+                    SELECT strftime('%H', timeofban, 'unixepoch') as date, COUNT(*) as count
+                    FROM bans WHERE timeofban >= ?
+                    GROUP BY date ORDER BY date ASC
+                `).all(since) as { date: string; count: number }[];
+                return rows;
+            }
             const allTime = days <= 0 || days > 3650;
             const effectiveDays = allTime ? 3650 : Math.max(1, Math.min(days, 3650));
             const since = Math.floor(Date.now() / 1000) - effectiveDays * 86400;

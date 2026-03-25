@@ -39,10 +39,10 @@ export const Clock: React.FC<ClockProps> = ({
     }, []);
 
     return (
-        <div className={`flex items-center gap-2 bg-theme-secondary px-4 py-2 rounded-lg border border-theme ${className}`}>
+        <div className={`flex items-center gap-1.5 bg-theme-secondary px-2.5 py-1.5 rounded-lg border border-theme ${className}`}>
             {showLed && (
                 <div
-                    className="w-2 h-2 rounded-full flex-shrink-0"
+                    className="w-1.5 h-1.5 rounded-full flex-shrink-0"
                     style={{
                         backgroundColor: 'var(--accent-primary)',
                         animation: 'clockLedGlow 2s ease-in-out infinite'
@@ -51,7 +51,7 @@ export const Clock: React.FC<ClockProps> = ({
                 />
             )}
             <div className="flex flex-col items-end">
-                <div className="text-sm font-mono text-theme-primary font-semibold">
+                <div className="text-xs font-mono text-theme-primary font-semibold">
                     {currentTime.toLocaleTimeString('fr-FR', { 
                         hour: '2-digit', 
                         minute: '2-digit',
@@ -59,7 +59,7 @@ export const Clock: React.FC<ClockProps> = ({
                     })}
                 </div>
                 {showDate && (
-                    <div className="text-xs text-theme-secondary">
+                    <div className="text-[10px] text-theme-secondary">
                         {currentTime.toLocaleDateString('fr-FR', { 
                             weekday: 'short', 
                             day: '2-digit', 

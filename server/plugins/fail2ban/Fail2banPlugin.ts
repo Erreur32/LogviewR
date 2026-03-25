@@ -96,12 +96,13 @@ function parseJailConfigs(confBase: string): Record<string, JailMeta> {
         const get = (k: string): string | undefined => kv[k] ?? defaults[k];
         const parseNum = (v?: string): number | undefined => {
             if (v === undefined) return undefined;
-            // strip suffix like 10m → 600, 1h → 3600, 1d → 86400
-            const suffixMatch = v.match(/^(\d+(?:\.\d+)?)\s*([smhd])?$/i);
+            // handle -1 (permanent ban) and time suffixes: 10m→600, 1h→3600, 1d→86400, 1w→604800
+            const suffixMatch = v.trim().match(/^(-?\d+(?:\.\d+)?)\s*([smhdw])?$/i);
             if (!suffixMatch) return undefined;
             const n = parseFloat(suffixMatch[1]);
+            if (n < 0) return n; // -1 = permanent, keep as-is
             const unit = (suffixMatch[2] ?? 's').toLowerCase();
-            const mult: Record<string, number> = { s: 1, m: 60, h: 3600, d: 86400 };
+            const mult: Record<string, number> = { s: 1, m: 60, h: 3600, d: 86400, w: 604800 };
             return Math.round(n * (mult[unit] ?? 1));
         };
         // Parse action names: action = %(action_)s → action_ = %(banaction)s[..] → banaction = nftables
@@ -530,21 +531,31 @@ export class Fail2banPlugin extends BasePlugin {
                 }
                 const jailNames = await this.client.listJails();
                 const statuses = await Promise.all(jailNames.map(j => this.client.getJailStatus(j)));
-                const jails = statuses.filter(Boolean).map(j => ({
-                    ...j,
-                    // Merge config metadata (fill missing fields from parsed configs)
-                    filter:    j!.filter    ?? jailMeta[j!.jail]?.filter,
-                    port:      j!.port      ?? jailMeta[j!.jail]?.port,
-                    actions:   j!.actions   ?? jailMeta[j!.jail]?.actions,
-                    banaction: j!.banaction ?? jailMeta[j!.jail]?.banaction,
-                    bantime:   j!.bantime   ?? jailMeta[j!.jail]?.bantime,
-                    findtime:  j!.findtime  ?? jailMeta[j!.jail]?.findtime,
-                    maxretry:  j!.maxretry  ?? jailMeta[j!.jail]?.maxretry,
-                    // SQLite enrichment
-                    bansInPeriod:     periodByJail[j!.jail] ?? 0,
-                    totalBannedSqlite: totalsByJail[j!.jail] ?? undefined,
-                    active: true,
-                }));
+
+                // For jails missing bantime/findtime/maxretry from config files,
+                // query the live values via fail2ban-client (socket). Run in parallel.
+                const jailsWithMeta = await Promise.all(
+                    statuses.filter(Boolean).map(async j => {
+                        const meta = jailMeta[j!.jail] ?? {};
+                        const bantime  = j!.bantime  ?? meta.bantime  ?? await this.client.getJailParam(j!.jail, 'bantime');
+                        const findtime = j!.findtime ?? meta.findtime ?? await this.client.getJailParam(j!.jail, 'findtime');
+                        const maxretry = j!.maxretry ?? meta.maxretry ?? await this.client.getJailParam(j!.jail, 'maxretry');
+                        return {
+                            ...j,
+                            filter:    j!.filter    ?? meta.filter,
+                            port:      j!.port      ?? meta.port,
+                            actions:   j!.actions   ?? meta.actions,
+                            banaction: j!.banaction ?? meta.banaction,
+                            bantime,
+                            findtime,
+                            maxretry,
+                            bansInPeriod:      periodByJail[j!.jail] ?? 0,
+                            totalBannedSqlite: totalsByJail[j!.jail] ?? undefined,
+                            active: true,
+                        };
+                    })
+                );
+                const jails = jailsWithMeta;
                 // Inactive jails: in config but not running (skip DEFAULT/INCLUDES sections)
                 const RESERVED = new Set(['default', 'includes', 'sshd-ddos']);
                 const activeNames = new Set(jailNames);
@@ -591,8 +602,8 @@ export class Fail2banPlugin extends BasePlugin {
             // Frontend sends -1 for « Tous » → all-time aggregation in reader
             const days = Number.isNaN(raw) ? 30 : raw;
             const history = this.reader?.getBanHistory(days) ?? [];
-            const { jailNames, data: byJail } = this.reader?.getBanHistoryByJail(days) ?? { jailNames: [], data: {} };
-            res.json({ success: true, result: { ok: true, days, history, byJail, jailNames } });
+            const { jailNames, data: byJail, granularity } = this.reader?.getBanHistoryByJail(days) ?? { jailNames: [], data: {}, granularity: 'day' as const };
+            res.json({ success: true, result: { ok: true, days, history, byJail, jailNames, granularity } });
         }));
 
         // POST /api/plugins/fail2ban/ban   { jail, ip }

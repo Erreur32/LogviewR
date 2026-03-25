@@ -3,7 +3,8 @@
  * Extracted to avoid circular dependency: SettingsPage -> ThemeSection -> SettingsPage.
  */
 
-import React from 'react';
+import React, { useState } from 'react';
+import { ChevronDown } from 'lucide-react';
 
 export const SettingRow: React.FC<{
   label: string;
@@ -25,7 +26,12 @@ export const Section: React.FC<{
   children: React.ReactNode;
   permissionError?: string | null;
   iconColor?: 'blue' | 'purple' | 'emerald' | 'cyan' | 'red' | 'amber' | 'yellow' | 'violet' | 'teal' | 'orange';
-}> = ({ title, icon: Icon, children, permissionError, iconColor }) => {
+  collapsible?: boolean;
+  defaultCollapsed?: boolean;
+  badge?: React.ReactNode;
+}> = ({ title, icon: Icon, children, permissionError, iconColor, collapsible, defaultCollapsed, badge }) => {
+  const [collapsed, setCollapsed] = useState(defaultCollapsed ?? false);
+
   const iconColorClasses: Record<string, string> = {
     blue: 'text-blue-400',
     purple: 'text-purple-400',
@@ -43,16 +49,27 @@ export const Section: React.FC<{
 
   return (
     <div className={`bg-theme-card rounded-xl border border-theme overflow-hidden ${permissionError ? 'opacity-60' : ''}`} style={{ backdropFilter: 'var(--backdrop-blur)' }}>
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-theme bg-theme-primary">
+      <div
+        className={`flex items-center gap-3 px-4 py-3 border-b border-theme bg-theme-primary ${collapsible ? 'cursor-pointer select-none' : ''}`}
+        onClick={collapsible ? () => setCollapsed(c => !c) : undefined}
+      >
         <Icon size={18} className={iconClassName} />
-        <h3 className="font-medium theme-section-title">{title}</h3>
+        <h3 className="font-medium theme-section-title flex-1">{title}</h3>
+        {badge}
+        {collapsible && (
+          <ChevronDown size={16} className={`text-gray-500 transition-transform duration-200 ${collapsed ? '-rotate-90' : ''}`} />
+        )}
       </div>
-      {permissionError && (
-        <div className="px-4 py-3 bg-amber-900/20 border-b border-amber-700/30">
-          <p className="text-amber-400 text-xs">{permissionError}</p>
-        </div>
+      {!collapsed && (
+        <>
+          {permissionError && (
+            <div className="px-4 py-3 bg-amber-900/20 border-b border-amber-700/30">
+              <p className="text-amber-400 text-xs">{permissionError}</p>
+            </div>
+          )}
+          <div className={`px-4 py-4 ${permissionError ? 'pointer-events-none' : ''}`}>{children}</div>
+        </>
       )}
-      <div className={`px-4 py-4 ${permissionError ? 'pointer-events-none' : ''}`}>{children}</div>
     </div>
   );
 };
