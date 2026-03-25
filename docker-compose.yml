@@ -61,7 +61,8 @@ services:
     # The GID 4 is standard for adm group on Debian/Ubuntu systems
     # If your system uses a different GID for adm, set ADM_GID in .env file
     group_add:
-      - "${ADM_GID:-4}"  # Default GID 4 for adm group
+      - "${ADM_GID:-4}"  # Default GID 4 for adm group (read host log files)
+      - "0"              # root group (gid=0) — required to access fail2ban socket (root:root 660)
 
     # Optional: allow iptables/ipset/nftables commands inside the container (onglets Pare-feu)
     # ⚠️ Security: only enable if you use the IPTables/IPSet/NFTables tabs
@@ -78,7 +79,7 @@ services:
       #   mkdir -p /etc/systemd/system/fail2ban.service.d/
       #   cat > /etc/systemd/system/fail2ban.service.d/docker-access.conf << 'EOF'
       #   [Service]
-      #   ExecStartPost=/bin/sh -c 'i=0; while [ $i -lt 15 ] && [ ! -S /var/run/fail2ban/fail2ban.sock ]; do sleep 1; i=$((i+1)); done; chmod 660 /var/run/fail2ban/fail2ban.sock 2>/dev/null; chmod 644 /var/lib/fail2ban/fail2ban.sqlite3 2>/dev/null; exit 0'
+      #   ExecStartPost=/bin/sh -c 'i=0; while [ $i -lt 30 ] && ! fail2ban-client ping >/dev/null 2>&1; do sleep 0.5; i=$((i+1)); done; chmod 644 /var/lib/fail2ban/fail2ban.sqlite3 2>/dev/null'
       #   EOF
       #   systemctl daemon-reload && systemctl restart fail2ban
       # NOTE: Use sh -c with a wait loop — ExecStartPost runs before the socket is created!

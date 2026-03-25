@@ -2395,7 +2395,22 @@ const Fail2banConfigPanel: React.FC<Fail2banConfigPanelProps> = ({ sqliteDbPath,
                                     <div className="flex items-center gap-3">
                                         <Icon size={15} className={c.ok ? 'text-green-400' : 'text-red-400'} />
                                         <span className="text-sm flex-1">{label}</span>
-                                        {c.perms && <code className="text-xs text-gray-600 flex-shrink-0">{c.perms}</code>}
+                                        {c.perms && (() => {
+                                            const m = c.perms.match(/^(\d+)\s+uid=(\d+)\s+gid=(\d+)$/);
+                                            if (!m) return <code className="text-xs text-gray-600 flex-shrink-0">{c.perms}</code>;
+                                            const [, mode, uid, gid] = m;
+                                            const modeNum = parseInt(mode, 8);
+                                            const worldOk = (modeNum & 0o006) === 0o006;
+                                            const groupRoot = gid === '0';
+                                            const modeColor = worldOk ? '#3fb950' : groupRoot ? '#e86a65' : '#e3b341';
+                                            return (
+                                                <span className="flex items-center gap-1 flex-shrink-0">
+                                                    <span style={{ fontSize: '.68rem', fontWeight: 700, fontFamily: 'monospace', padding: '1px 6px', borderRadius: 4, border: `1px solid ${modeColor}40`, background: `${modeColor}18`, color: modeColor }}>{mode}</span>
+                                                    <span style={{ fontSize: '.68rem', padding: '1px 5px', borderRadius: 4, border: '1px solid #30363d', background: '#161b22', color: uid === '0' ? '#8b949e' : '#3fb950' }}>uid={uid}</span>
+                                                    <span style={{ fontSize: '.68rem', padding: '1px 5px', borderRadius: 4, border: `1px solid ${groupRoot ? '#e86a6540' : '#30363d'}`, background: groupRoot ? '#e86a6518' : '#161b22', color: groupRoot ? '#e86a65' : '#3fb950' }}>gid={gid}{groupRoot ? ' ⚠' : ''}</span>
+                                                </span>
+                                            );
+                                        })()}
                                         {c.ok
                                             ? <CheckCircle size={16} className="text-green-400 flex-shrink-0" />
                                             : <XCircle    size={16} className="text-red-400 flex-shrink-0" />
