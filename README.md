@@ -10,7 +10,7 @@
 
 <img src="LogviewR_banner.svg" alt="LogviewR" width="512" height="256" />
 
-![LogviewR](https://img.shields.io/badge/LogviewR-0.4.5-111827?style=for-the-badge)
+![LogviewR](https://img.shields.io/badge/LogviewR-0.4.6-111827?style=for-the-badge)
 ![Status](https://img.shields.io/badge/Status-DEVELOPMENT-374151?style=for-the-badge)
 ![Docker](https://img.shields.io/badge/Docker-Ready-1f2937?style=for-the-badge&logo=docker&logoColor=38bdf8)
 ![React](https://img.shields.io/badge/React-19-111827?style=for-the-badge&logo=react&logoColor=38bdf8)
@@ -205,6 +205,15 @@ LogviewR supporte plusieurs plugins pour différents types de logs :
   - Fail2ban installed and running on the host
   - Socket access: `/var/run/fail2ban/fail2ban.sock` (or host path in Docker)
   - SQLite database: `/var/lib/fail2ban/fail2ban.sqlite3`
+
+- **Docker setup** — run the setup script on the host to configure permissions automatically:
+
+```bash
+sudo bash <(curl -fsSL https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setup-fail2ban-access.sh)
+```
+
+> Creates the `fail2ban` group, updates the systemd drop-in, fixes socket/SQLite permissions, and writes `FAIL2BAN_GID` to your `.env`.
+> Then add to `docker-compose.yml` under `group_add`: `- "${FAIL2BAN_GID:-}"`
 
 - **Configuration** :
   - Configurable socket and database paths

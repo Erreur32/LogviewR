@@ -2369,6 +2369,17 @@ const Fail2banConfigPanel: React.FC<Fail2banConfigPanelProps> = ({ sqliteDbPath,
                     </button>
                 </div>
 
+                {/* Setup command */}
+                <div className="px-4 py-2.5 bg-[#0d1117] border-b border-gray-800 flex items-start gap-2">
+                    <Terminal size={12} style={{ color: '#3fb950', marginTop: 2, flexShrink: 0 }} />
+                    <div>
+                        <span className="text-[10px] text-gray-500">Setup rapide sur le host (Docker) : </span>
+                        <code className="text-[10px] text-green-400 break-all select-all">
+                            sudo bash &lt;(curl -fsSL https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setup-fail2ban-access.sh)
+                        </code>
+                    </div>
+                </div>
+
                 {!checkResult && checking && (
                     <div className="px-4 py-6 text-center text-xs text-gray-500 flex items-center justify-center gap-2">
                         <RefreshCw size={12} className="animate-spin" /> Analyse en cours…
