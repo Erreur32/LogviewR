@@ -9,6 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.4.7] - 2026-03-25
+
+### Pour les utilisateurs
+
+> Le plugin Fail2ban fonctionne désormais automatiquement en Docker, sans configuration manuelle du groupe.
+
+- **Accès socket Fail2ban automatique** — Le conteneur détecte maintenant lui-même les permissions du socket Fail2ban au démarrage et s'y adapte. Plus besoin de configurer `FAIL2BAN_GID` dans le fichier `.env` : le plugin s'active dès que `setup-fail2ban-access.sh` a été lancé une fois sur le host.
+
+---
+
+### Technique
+
+#### Docker — `docker-entrypoint.sh`
+
+- **Détection dynamique du GID socket** — Remplace l'ancien `chmod 660` statique. À chaque démarrage du conteneur : `stat -c "%g"` lit le GID réel du socket, crée le groupe correspondant dans Alpine (`addgroup -g $SOCK_GID fail2ban`), puis ajoute `node` à ce groupe. Fonctionne quel que soit le GID utilisé sur le host, sans aucune variable d'environnement.
+- **Message de log explicite** — Si `gid=0` (socket encore en `root:root`), affiche un message orientant vers `setup-fail2ban-access.sh`.
+
+#### Docker — `docker-compose.yml`
+
+- **Suppression de `FAIL2BAN_GID` dans `group_add`** — Ce mécanisme `group_add` était inopérant car le groupe `fail2ban` n'existe pas dans l'image Alpine de base (Docker ignore silencieusement les GIDs absents de `/etc/group`). L'entrée a été retirée ; l'entrypoint gère désormais tout dynamiquement.
+
+---
+
 ## [0.4.3] - 2026-03-25
 
 ### What's new for users

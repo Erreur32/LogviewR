@@ -32,13 +32,23 @@ fi
 addgroup node adm 2>/dev/null || true
 
 # ── Fail2ban socket access ────────────────────────────────────────────────────
-# The fail2ban socket (/var/run/fail2ban/fail2ban.sock) is root:root 0700 by default.
-# We chmod 660 so the node user (running the app) can communicate with fail2ban-client.
-# This is a safety net — the host systemd drop-in should already do this persistently.
-# See: /etc/systemd/system/fail2ban.service.d/docker-access.conf
+# Read the socket's GID at runtime, create the group inside the container,
+# and add node to it — so node can access any socket with mode 660 root:<gid>.
+# No hardcoded GID needed in the image or docker-compose.
 if [ -S "/var/run/fail2ban/fail2ban.sock" ]; then
-    chmod 660 /var/run/fail2ban/fail2ban.sock 2>/dev/null || true
-    echo "fail2ban socket: permissions set to 660"
+    SOCK_GID=$(stat -c "%g" /var/run/fail2ban/fail2ban.sock 2>/dev/null || echo "0")
+    SOCK_MODE=$(stat -c "%a" /var/run/fail2ban/fail2ban.sock 2>/dev/null || echo "0")
+    if [ "$SOCK_GID" != "0" ]; then
+        # Create fail2ban group with the socket's GID inside the container (if not already there)
+        if ! getent group "$SOCK_GID" > /dev/null 2>&1; then
+            addgroup -g "$SOCK_GID" fail2ban 2>/dev/null || true
+        fi
+        F2B_GROUP=$(getent group "$SOCK_GID" | cut -d: -f1)
+        addgroup node "$F2B_GROUP" 2>/dev/null || true
+        echo "fail2ban socket: node joined group '$F2B_GROUP' (gid=$SOCK_GID, mode=$SOCK_MODE)"
+    else
+        echo "fail2ban socket: gid=0 (root:root) — run setup-fail2ban-access.sh on the host for proper permissions"
+    fi
 else
     echo "fail2ban socket: not found at /var/run/fail2ban/fail2ban.sock (plugin will be unavailable)"
 fi

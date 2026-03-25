@@ -62,7 +62,6 @@ services:
     # If your system uses a different GID for adm, set ADM_GID in .env file
     group_add:
       - "${ADM_GID:-4}"           # adm group — read host log files
-      - "${FAIL2BAN_GID:-}"       # fail2ban group — access fail2ban socket (run setup-fail2ban-access.sh)
 
     # Optional: allow iptables/ipset/nftables commands inside the container (onglets Pare-feu)
     # ⚠️ Security: only enable if you use the IPTables/IPSet/NFTables tabs
