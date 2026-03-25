@@ -944,87 +944,166 @@ const DebugLogSection: React.FC = () => {
   );
 };
 
+// ── Frequency options for update check ────────────────────────────────────────
+
+const UPDATE_FREQUENCIES = [
+  { value: 1,   label: '1h' },
+  { value: 6,   label: '6h' },
+  { value: 12,  label: '12h' },
+  { value: 24,  label: '24h' },
+  { value: 168, label: '7 jours' },
+];
+
 // Update Check Section Component (for Administration > General tab)
 const UpdateCheckSection: React.FC = () => {
-  const { updateConfig, updateInfo, loadConfig, setConfig, checkForUpdates, isLoading } = useUpdateStore();
+  const { updateConfig, updateInfo, loadConfig, setConfig, checkForUpdates, isLoading, lastCheck } = useUpdateStore();
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     loadConfig();
-    if (updateConfig?.enabled) {
-      checkForUpdates();
-    }
   }, []);
+
+  useEffect(() => {
+    if (updateConfig?.enabled) checkForUpdates();
+  }, [updateConfig?.enabled]);
 
   const handleToggle = async (enabled: boolean) => {
     setIsSaving(true);
     try {
-      await setConfig(enabled);
-    } catch (error) {
-      console.error('[UpdateCheckSection] Error setting config:', error);
+      await setConfig(enabled, updateConfig?.frequency ?? 24);
+    } catch (e) {
+      console.error('[UpdateCheckSection] toggle error:', e);
     } finally {
       setIsSaving(false);
     }
   };
 
+  const handleFrequency = async (freq: number) => {
+    setIsSaving(true);
+    try {
+      await setConfig(updateConfig?.enabled ?? false, freq);
+    } catch (e) {
+      console.error('[UpdateCheckSection] frequency error:', e);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const enabled   = updateConfig?.enabled ?? false;
+  const frequency = updateConfig?.frequency ?? 24;
+
   return (
-    <>
-      <SettingRow
-        label="Vérification automatique des mises à jour"
-        description="Active la vérification des nouvelles versions disponibles sur GitHub Container Registry"
-      >
-        <Toggle
-          enabled={updateConfig?.enabled ?? true}
-          onChange={handleToggle}
-          disabled={isSaving}
-        />
-      </SettingRow>
-      {updateConfig?.enabled && (
-        <>
-          <div className="py-3 border-t border-gray-800">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-gray-400">Version actuelle</span>
-              <span className="text-sm font-mono text-white">{updateInfo?.currentVersion || '0.0.0'}</span>
+    <div className="space-y-3">
+      {/* Enable + Frequency row */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <Toggle enabled={enabled} onChange={handleToggle} disabled={isSaving} />
+        <span className="text-sm text-gray-300 flex-1">
+          Vérifier les mises à jour automatiquement
+        </span>
+        {enabled && (
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-gray-500">Fréquence :</span>
+            <div className="flex gap-1">
+              {UPDATE_FREQUENCIES.map(f => (
+                <button
+                  key={f.value}
+                  onClick={() => handleFrequency(f.value)}
+                  disabled={isSaving}
+                  className={`px-2 py-0.5 rounded text-xs border transition-colors ${
+                    frequency === f.value
+                      ? 'bg-amber-500/20 border-amber-500/50 text-amber-400'
+                      : 'bg-transparent border-gray-700 text-gray-500 hover:text-gray-300'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Status block — only when enabled */}
+      {enabled && (
+        <div className="rounded-lg border border-gray-800 bg-[#0d0d0d] divide-y divide-gray-800">
+          {/* Versions */}
+          <div className="px-3 py-2 flex flex-col gap-1">
+            <div className="flex justify-between text-xs">
+              <span className="text-gray-500">Version actuelle</span>
+              <span className="font-mono text-gray-300">{updateInfo?.currentVersion || getVersionString()}</span>
             </div>
             {updateInfo?.latestVersion && (
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-gray-400">Dernière version disponible</span>
-                <span className="text-sm font-mono text-amber-400">{updateInfo.latestVersion}</span>
+              <div className="flex justify-between text-xs">
+                <span className="text-gray-500">Dernière version (GitHub)</span>
+                <span className="font-mono text-amber-400">{updateInfo.latestVersion}</span>
               </div>
             )}
-            {updateInfo?.updateAvailable && (
-              <div className="mt-3 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
-                <p className="text-xs text-amber-400 font-semibold mb-1">Nouvelle version disponible !</p>
-                <p className="text-xs text-gray-400">
-                  Une mise à jour est disponible. Pour mettre à jour, utilisez :
-                </p>
-                <code className="block mt-2 text-xs text-cyan-300 bg-[#0a0a0a] p-2 rounded border border-gray-800">
-                  docker-compose pull && docker-compose up -d
-                </code>
+            {/* Docker build status */}
+            {updateInfo?.latestVersion && updateInfo.latestVersion !== updateInfo.currentVersion && (
+              <div className="flex justify-between text-xs">
+                <span className="text-gray-500">Image Docker GHCR</span>
+                {updateInfo.dockerReady === true ? (
+                  <span className="text-green-400 font-semibold">✓ Disponible</span>
+                ) : updateInfo.dockerReady === false ? (
+                  <span className="text-orange-400">⟳ Build en cours…</span>
+                ) : (
+                  <span className="text-gray-600">—</span>
+                )}
               </div>
             )}
-            {updateInfo?.error && (
-              <div className="mt-3 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
-                <p className="text-xs text-red-400">Erreur lors de la vérification : {updateInfo.error}</p>
+            {lastCheck && (
+              <div className="flex justify-between text-xs">
+                <span className="text-gray-600">Dernière vérification</span>
+                <span className="text-gray-600">{lastCheck.toLocaleTimeString('fr-FR')}</span>
               </div>
             )}
-            <div className="mt-3 p-3 bg-gray-500/10 border border-gray-500/30 rounded-lg">
-              <p className="text-xs text-gray-400">
-                La vérification manuelle des mises à jour est temporairement désactivée.
+          </div>
+
+          {/* Update available */}
+          {updateInfo?.updateAvailable && updateInfo.dockerReady && (
+            <div className="px-3 py-2 bg-amber-500/5">
+              <p className="text-xs text-amber-400 font-semibold mb-1">
+                🚀 Mise à jour disponible — v{updateInfo.latestVersion}
+              </p>
+              <code className="block text-xs text-cyan-300 bg-black/50 px-2 py-1.5 rounded border border-gray-800 font-mono">
+                docker compose pull && docker compose up -d
+              </code>
+            </div>
+          )}
+
+          {/* New tag but build not ready */}
+          {updateInfo?.latestVersion &&
+            updateInfo.latestVersion !== updateInfo.currentVersion &&
+            !updateInfo.dockerReady &&
+            !updateInfo.error && (
+            <div className="px-3 py-2 bg-orange-500/5">
+              <p className="text-xs text-orange-400">
+                Tag v{updateInfo.latestVersion} trouvé sur GitHub — en attente de la fin du build Docker.
               </p>
             </div>
+          )}
+
+          {/* Error */}
+          {updateInfo?.error && (
+            <div className="px-3 py-2">
+              <p className="text-xs text-red-400">Erreur : {updateInfo.error}</p>
+            </div>
+          )}
+
+          {/* Check now button */}
+          <div className="px-3 py-2 flex justify-end">
             <button
-              onClick={() => {}}
-              disabled={true}
-              className="mt-3 flex items-center gap-2 px-3 py-1.5 bg-gray-600 text-gray-400 text-sm rounded-lg transition-colors opacity-50 cursor-not-allowed"
+              onClick={() => checkForUpdates()}
+              disabled={isLoading}
+              className="flex items-center gap-1.5 px-3 py-1 text-xs rounded border border-gray-700 text-gray-400 hover:text-white hover:border-gray-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              <RefreshCw size={14} />
-              Vérifier maintenant
+              <RefreshCw size={12} className={isLoading ? 'animate-spin' : ''} />
+              {isLoading ? 'Vérification…' : 'Vérifier maintenant'}
             </button>
           </div>
-        </>
+        </div>
       )}
-    </>
+    </div>
   );
 };
 
@@ -1055,16 +1134,36 @@ const BackupSection: React.FC = () => {
   );
 };
 
+// Module-level cache so DefaultPageSection keeps its values across tab switches
+let _defaultPageCache: { defaultPage: string; defaultPluginId: string; defaultLogFile: string; defaultFail2banTab: string; rememberLastFile: boolean } | null = null;
+
+const FAIL2BAN_TABS = [
+  { id: 'jails',   label: 'Jails' },
+  { id: 'tracker', label: 'Tracker IPs' },
+  { id: 'stats',   label: 'Stats' },
+  { id: 'filtres', label: 'Filtres' },
+  { id: 'actions', label: 'Actions' },
+  { id: 'ban',     label: 'Ban Manager' },
+  { id: 'carte',   label: 'Carte' },
+  { id: 'iptables',label: 'IPTables' },
+  { id: 'ipset',   label: 'IPSet' },
+  { id: 'nftables',label: 'NFTables' },
+  { id: 'config',  label: 'Config' },
+  { id: 'audit',   label: 'Audit' },
+];
+
 // Default Page Configuration Section Component
 const DefaultPageSection: React.FC = () => {
   const { t } = useTranslation();
   const { plugins } = usePluginStore();
-  const [defaultPage, setDefaultPage] = useState<string>('dashboard');
-  const [defaultPluginId, setDefaultPluginId] = useState<string>('');
-  const [defaultLogFile, setDefaultLogFile] = useState<string>('');
-  const [rememberLastFile, setRememberLastFile] = useState<boolean>(true);
+  const [defaultPage, setDefaultPage] = useState<string>(_defaultPageCache?.defaultPage ?? 'dashboard');
+  const [defaultPluginId, setDefaultPluginId] = useState<string>(_defaultPageCache?.defaultPluginId ?? '');
+  const [defaultLogFile, setDefaultLogFile] = useState<string>(_defaultPageCache?.defaultLogFile ?? '');
+  const [defaultFail2banTab, setDefaultFail2banTab] = useState<string>(_defaultPageCache?.defaultFail2banTab ?? 'jails');
+  const [rememberLastFile, setRememberLastFile] = useState<boolean>(_defaultPageCache?.rememberLastFile ?? true);
+  const fail2banActive = plugins.some(p => p.id === 'fail2ban' && p.enabled);
   const [availableLogFiles, setAvailableLogFiles] = useState<Array<{ path: string; type: string }>>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [isLoadingFiles, setIsLoadingFiles] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -1072,17 +1171,25 @@ const DefaultPageSection: React.FC = () => {
   useEffect(() => {
     const fetchSettings = async () => {
       try {
-        const response = await api.get<{ 
-          defaultPage?: string; 
-          defaultPluginId?: string; 
+        const response = await api.get<{
+          defaultPage?: string;
+          defaultPluginId?: string;
           defaultLogFile?: string;
+          defaultFail2banTab?: string;
           rememberLastFile?: boolean;
         }>('/api/system/general');
         if (response.success && response.result) {
-          setDefaultPage(response.result.defaultPage || 'dashboard');
-          setDefaultPluginId(response.result.defaultPluginId || '');
-          setDefaultLogFile(response.result.defaultLogFile || '');
-          setRememberLastFile(response.result.rememberLastFile !== undefined ? response.result.rememberLastFile : true);
+          const dp = response.result.defaultPage || 'dashboard';
+          const dpi = response.result.defaultPluginId || '';
+          const dlf = response.result.defaultLogFile || '';
+          const dft = response.result.defaultFail2banTab || 'jails';
+          const rlf = response.result.rememberLastFile !== undefined ? response.result.rememberLastFile : true;
+          _defaultPageCache = { defaultPage: dp, defaultPluginId: dpi, defaultLogFile: dlf, defaultFail2banTab: dft, rememberLastFile: rlf };
+          setDefaultPage(dp);
+          setDefaultPluginId(dpi);
+          setDefaultLogFile(dlf);
+          setDefaultFail2banTab(dft);
+          setRememberLastFile(rlf);
         }
       } catch (error) {
         console.error('Failed to fetch default page settings:', error);
@@ -1132,9 +1239,10 @@ const DefaultPageSection: React.FC = () => {
       setIsSaving(true);
       try {
         const response = await api.put<{ message?: string }>('/api/system/general', {
-          defaultPage: defaultPage === 'dashboard' ? undefined : defaultPage,
+          defaultPage,
           defaultPluginId: defaultPage === 'log-viewer' ? defaultPluginId : undefined,
           defaultLogFile: defaultPage === 'log-viewer' && defaultPluginId ? defaultLogFile : undefined,
+          defaultFail2banTab: defaultPage === 'fail2ban' ? defaultFail2banTab : undefined,
           rememberLastFile
         });
         if (!response.success) {
@@ -1146,7 +1254,7 @@ const DefaultPageSection: React.FC = () => {
         setIsSaving(false);
       }
     }, 500);
-  }, [defaultPage, defaultPluginId, defaultLogFile, rememberLastFile]);
+  }, [defaultPage, defaultPluginId, defaultLogFile, defaultFail2banTab, rememberLastFile]);
 
   // Auto-save on changes
   useEffect(() => {
@@ -1158,31 +1266,19 @@ const DefaultPageSection: React.FC = () => {
         clearTimeout(autoSaveTimeoutRef.current);
       }
     };
-  }, [defaultPage, defaultPluginId, defaultLogFile, rememberLastFile, autoSave, isLoading]);
+  }, [defaultPage, defaultPluginId, defaultLogFile, defaultFail2banTab, rememberLastFile, autoSave, isLoading]);
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-4">
-        <Loader2 className="animate-spin text-blue-400" size={20} />
-              </div>
-    );
-  }
-
-  const logSourcePlugins = plugins.filter(p => 
+  const logSourcePlugins = plugins.filter(p =>
     p.enabled && ['host-system', 'nginx', 'apache', 'npm'].includes(p.id)
   );
 
   return (
     <div className="space-y-4">
-      {isSaving && (
-        <div className="p-2 rounded-lg text-sm bg-blue-900/30 border border-blue-700 text-blue-400 flex items-center gap-2">
-          <Loader2 className="animate-spin" size={16} />
-          <span>{t('admin.general.defaultPageSection.autoSaveInProgress')}</span>
-        </div>
-      )}
-
       <div className="py-3 border-b border-gray-800">
-        <h4 className="text-sm font-medium text-white mb-2">{t('admin.general.defaultPageSection.defaultPageTitle')}</h4>
+        <h4 className="text-sm font-medium text-white mb-2 flex items-center gap-2">
+          {t('admin.general.defaultPageSection.defaultPageTitle')}
+          {isSaving && <Loader2 className="animate-spin text-blue-400" size={12} />}
+        </h4>
         <select
           value={defaultPage}
           onChange={(e) => {
@@ -1196,6 +1292,7 @@ const DefaultPageSection: React.FC = () => {
         >
           <option value="dashboard">{t('admin.general.defaultPageSection.dashboard')}</option>
           <option value="log-viewer">{t('admin.general.defaultPageSection.logViewer')}</option>
+          {fail2banActive && <option value="fail2ban">Fail2ban</option>}
         </select>
         <p className="text-xs text-gray-400 mt-2">
           {t('admin.general.defaultPageSection.defaultPageDescription')}
@@ -1254,6 +1351,22 @@ const DefaultPageSection: React.FC = () => {
           </div>
           )}
         </>
+      )}
+
+      {defaultPage === 'fail2ban' && (
+        <div className="py-3 border-b border-gray-800">
+          <h4 className="text-sm font-medium text-white mb-2">Tab par défaut</h4>
+          <select
+            value={defaultFail2banTab}
+            onChange={(e) => setDefaultFail2banTab(e.target.value)}
+            className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500"
+          >
+            {FAIL2BAN_TABS.map(tab => (
+              <option key={tab.id} value={tab.id}>{tab.label}</option>
+            ))}
+          </select>
+          <p className="text-xs text-gray-400 mt-2">Tab affiché à l'ouverture de la page Fail2ban</p>
+        </div>
       )}
 
       <div className="py-3 border-b border-gray-800">
@@ -2794,7 +2907,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         {/* Administration Mode Content */}
         {mode === 'administration' && (
           <>
-            {activeAdminTab === 'general' && (
+            <div style={{ display: activeAdminTab === 'general' ? '' : 'none' }}>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {/* Colonne 1 */}
                 <div className="space-y-6">
@@ -2821,6 +2934,10 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 
                 {/* Colonne 3 */}
                 <div className="space-y-6">
+                  <Section title="Mises à jour" icon={Download} iconColor="amber">
+                    <UpdateCheckSection />
+                  </Section>
+
                   <Section title={t('admin.general.informations')} icon={Key} iconColor="purple">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                       <div className="p-3 bg-[#1a1a1a] rounded-lg border border-gray-800">
@@ -2874,7 +2991,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                   </Section>
                 </div>
               </div>
-            )}
+            </div>
 
             {activeAdminTab === 'theme' && (
               <div className="space-y-6">

@@ -11,6 +11,7 @@ import { getDatabase } from '../database/connection.js';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { logger } from '../utils/logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -24,7 +25,7 @@ function getCurrentVersion(): string {
     const packageJson = JSON.parse(readFileSync(packagePath, 'utf-8'));
     return packageJson.version || '0.0.0';
   } catch (error) {
-    console.error('[Updates] Error reading package.json:', error);
+    logger.error('Updates', `Error reading package.json: ${error instanceof Error ? error.message : String(error)}`);
     return '0.0.0';
   }
 }
@@ -49,6 +50,50 @@ function compareVersions(v1: string, v2: string): number {
 }
 
 /**
+ * Check if a specific Docker image tag exists on GHCR (public anonymous check).
+ * GHCR requires an anonymous Bearer token even for public images.
+ * Returns true if the image manifest is present (build completed), false otherwise.
+ */
+async function checkDockerImageAvailable(version: string): Promise<boolean> {
+  try {
+    // Step 1: get anonymous pull token for the repository
+    const tokenUrl = 'https://ghcr.io/token?scope=repository:erreur32/logviewr:pull&service=ghcr.io';
+    const tokenRes = await fetch(tokenUrl, {
+      headers: { 'User-Agent': 'LogviewR-UpdateChecker/1.0' },
+    });
+    if (!tokenRes.ok) {
+      return false;
+    }
+    const tokenData = await tokenRes.json() as { token?: string };
+    const token = tokenData.token;
+    if (!token) return false;
+
+    // Step 2: HEAD the manifest for the exact version tag
+    const manifestUrl = `https://ghcr.io/v2/erreur32/logviewr/manifests/${version}`;
+    const manifestRes = await fetch(manifestUrl, {
+      method: 'HEAD',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': [
+          'application/vnd.oci.image.index.v1+json',
+          'application/vnd.oci.image.manifest.v1+json',
+          'application/vnd.docker.distribution.manifest.v2+json',
+          'application/vnd.docker.distribution.manifest.list.v2+json',
+        ].join(','),
+        'User-Agent': 'LogviewR-UpdateChecker/1.0',
+      },
+    });
+
+    const ok = manifestRes.status === 200;
+    logger.debug('Updates', `GHCR image ${version}: ${ok ? 'available' : `not ready (${manifestRes.status})`}`);
+    return ok;
+  } catch (err) {
+    logger.debug('Updates', `GHCR check error: ${err instanceof Error ? err.message : String(err)}`);
+    return false;
+  }
+}
+
+/**
  * GET /api/updates/check
  * Check for available updates from GitHub Container Registry
  */
@@ -64,11 +109,11 @@ router.get('/check', requireAuth, asyncHandler(async (req: AuthenticatedRequest,
     try {
       const config = JSON.parse(updateConfigRow.value);
       updateCheckEnabled = config.enabled === true; // Only enabled if explicitly set to true
-    } catch (error) {
-      console.error('[Updates] Error parsing update_check_config:', error);
+    } catch {
+      // ignore malformed config
     }
   }
-  
+
   if (!updateCheckEnabled) {
     return res.json({
       success: true,
@@ -103,15 +148,11 @@ router.get('/check', requireAuth, asyncHandler(async (req: AuthenticatedRequest,
     
     if (githubToken) {
       headers['Authorization'] = `token ${githubToken}`;
-      console.log('[Updates] Using GitHub token from environment');
     }
-    
-    // Method 1: Try GitHub Tags API (public repository tags - no auth required)
-    // This is more reliable than packages API and doesn't require authentication
+
+    // Method 1: GitHub Tags API (public, no auth required)
     try {
       const tagsApiUrl = 'https://api.github.com/repos/erreur32/LogviewR/tags';
-      console.log('[Updates] Trying GitHub Tags API:', tagsApiUrl);
-      
       const tagsResponse = await fetch(tagsApiUrl, {
         headers
       });
@@ -121,14 +162,9 @@ router.get('/check', requireAuth, asyncHandler(async (req: AuthenticatedRequest,
           name: string;
           commit: { sha: string; url: string };
         }>;
-        
-        console.log(`[Updates] GitHub Tags API returned ${tags.length} tags`);
-        
+
         if (tags.length > 0) {
-          // Extract version numbers from tag names (e.g., "v0.0.7" -> "0.0.7")
           const tagNames = tags.map(tag => tag.name);
-          console.log('[Updates] All tag names:', JSON.stringify(tagNames));
-          
           versionTags = tagNames
             .filter(tag => {
               // Accept: x.y.z, vx.y.z format
@@ -143,18 +179,23 @@ router.get('/check', requireAuth, asyncHandler(async (req: AuthenticatedRequest,
             .filter((tag, index, self) => self.indexOf(tag) === index) // Remove duplicates
             .sort((a, b) => compareVersions(b, a)); // Sort descending (newest first)
           
-          console.log(`[Updates] Filtered GitHub Tags version tags: ${JSON.stringify(versionTags)}`);
-          
+          logger.debug('Updates', `GitHub tags found: ${versionTags.join(', ')}`);
+
           if (versionTags.length > 0) {
             latestVersion = versionTags[0];
             updateAvailable = compareVersions(latestVersion, currentVersion) > 0;
+            // Only report updateAvailable if the Docker image is actually built and ready
+            const dockerReady = updateAvailable
+              ? await checkDockerImageAvailable(latestVersion)
+              : false;
             return res.json({
               success: true,
               result: {
                 enabled: true,
                 currentVersion,
                 latestVersion,
-                updateAvailable,
+                updateAvailable: updateAvailable && dockerReady,
+                dockerReady,
                 error: undefined
               }
             });
@@ -164,8 +205,8 @@ router.get('/check', requireAuth, asyncHandler(async (req: AuthenticatedRequest,
         const rateLimitRemaining = tagsResponse.headers.get('x-ratelimit-remaining');
         const rateLimitReset = tagsResponse.headers.get('x-ratelimit-reset');
         const resetTime = rateLimitReset ? new Date(parseInt(rateLimitReset) * 1000).toLocaleString('fr-FR') : 'unknown';
-        lastError = `GitHub API rate limit exceeded (remaining: ${rateLimitRemaining || '0'}). Reset at: ${resetTime}. To fix: set GITHUB_TOKEN environment variable.`;
-        console.log('[Updates] GitHub Tags API rate limit:', lastError);
+        lastError = `GitHub API rate limit exceeded (remaining: ${rateLimitRemaining || '0'}). Reset at: ${resetTime}.`;
+        logger.warn('Updates', lastError);
       } else if (tagsResponse.status === 404) {
         lastError = 'Repository not found or not accessible.';
       } else {
@@ -173,7 +214,7 @@ router.get('/check', requireAuth, asyncHandler(async (req: AuthenticatedRequest,
       }
     } catch (tagsError) {
       lastError = `GitHub Tags API request failed: ${tagsError instanceof Error ? tagsError.message : 'Unknown error'}`;
-      console.log('[Updates] GitHub Tags API error:', lastError);
+      logger.debug('Updates', lastError);
     }
     
     // Method 2: Try GitHub REST API for packages (requires auth for most cases)
@@ -197,17 +238,6 @@ router.get('/check', requireAuth, asyncHandler(async (req: AuthenticatedRequest,
           };
         }>;
         
-        // Debug: log raw response if no tags found
-        if (versions.length === 0) {
-          console.log('[Updates] GitHub API returned empty versions array');
-        } else {
-          console.log(`[Updates] GitHub API returned ${versions.length} versions`);
-          // Log first version structure for debugging
-          if (versions[0]) {
-            console.log('[Updates] Sample version structure:', JSON.stringify(versions[0], null, 2));
-          }
-        }
-        
         // Extract version tags from metadata
         // Tags can be in metadata.container.tags or directly in the version name
         const allTags: string[] = [];
@@ -221,8 +251,6 @@ router.get('/check', requireAuth, asyncHandler(async (req: AuthenticatedRequest,
             allTags.push(version.name);
           }
         }
-        
-        console.log(`[Updates] All tags found: ${JSON.stringify(allTags)}`);
         
         versionTags = allTags
           .filter(tag => {
@@ -238,8 +266,8 @@ router.get('/check', requireAuth, asyncHandler(async (req: AuthenticatedRequest,
           .filter((tag, index, self) => self.indexOf(tag) === index) // Remove duplicates
           .sort((a, b) => compareVersions(b, a)); // Sort descending (newest first)
         
-        console.log(`[Updates] Filtered version tags: ${JSON.stringify(versionTags)}`);
-        
+        logger.debug('Updates', `GitHub packages API found ${versionTags.length} version tags`);
+
         if (versionTags.length > 0) {
           // Success with GitHub API
           latestVersion = versionTags[0];
@@ -325,8 +353,6 @@ router.get('/check', requireAuth, asyncHandler(async (req: AuthenticatedRequest,
             const versions = graphqlData.data.user.packages.nodes[0].versions.nodes;
             const allVersions = versions.map(v => v.version);
             
-            console.log('[Updates] GraphQL API found versions:', JSON.stringify(allVersions));
-            
             const graphqlTags = allVersions
               .filter(tag => {
                 const isSemanticVersion = /^\d+\.\d+\.\d+/.test(tag) || /^v\d+\.\d+\.\d+/.test(tag);
@@ -338,8 +364,8 @@ router.get('/check', requireAuth, asyncHandler(async (req: AuthenticatedRequest,
               .filter((tag, index, self) => self.indexOf(tag) === index)
               .sort((a, b) => compareVersions(b, a));
             
-            console.log('[Updates] Filtered GraphQL version tags:', JSON.stringify(graphqlTags));
-            
+            logger.debug('Updates', `GraphQL API found ${graphqlTags.length} version tags`);
+
             if (graphqlTags.length > 0) {
               // Merge with existing tags and keep unique
               versionTags = [...new Set([...versionTags, ...graphqlTags])].sort((a, b) => compareVersions(b, a));
@@ -360,14 +386,13 @@ router.get('/check', requireAuth, asyncHandler(async (req: AuthenticatedRequest,
               }
             }
           } else if (graphqlData.errors) {
-            console.log('[Updates] GraphQL API errors:', JSON.stringify(graphqlData.errors));
+            logger.debug('Updates', `GraphQL API returned errors`);
           }
         } else {
-          const rateLimitRemaining = graphqlResponse.headers.get('x-ratelimit-remaining');
-          console.log('[Updates] GraphQL API failed:', graphqlResponse.status, graphqlResponse.statusText, `Rate limit remaining: ${rateLimitRemaining}`);
+          logger.debug('Updates', `GraphQL API failed: ${graphqlResponse.status} ${graphqlResponse.statusText}`);
         }
       } catch (graphqlError) {
-        console.log('[Updates] GraphQL API request failed:', graphqlError);
+        logger.debug('Updates', `GraphQL API request failed: ${graphqlError instanceof Error ? graphqlError.message : String(graphqlError)}`);
       }
     }
     
@@ -384,11 +409,7 @@ router.get('/check', requireAuth, asyncHandler(async (req: AuthenticatedRequest,
       if (dockerResponse.ok) {
         const dockerData = await dockerResponse.json() as { tags?: string[] };
         
-        console.log(`[Updates] Docker Registry API response: ${JSON.stringify(dockerData)}`);
-        
         if (dockerData.tags && dockerData.tags.length > 0) {
-          console.log(`[Updates] Docker Registry found ${dockerData.tags.length} tags: ${JSON.stringify(dockerData.tags)}`);
-          
           // Filter tags - accept semantic versions (x.y.z or vx.y.z)
           // Also accept partial versions like 0.0 but prefer full versions
           versionTags = dockerData.tags
@@ -405,8 +426,8 @@ router.get('/check', requireAuth, asyncHandler(async (req: AuthenticatedRequest,
             .filter((tag, index, self) => self.indexOf(tag) === index) // Remove duplicates
             .sort((a, b) => compareVersions(b, a)); // Sort descending (newest first)
           
-          console.log(`[Updates] Filtered Docker Registry version tags: ${JSON.stringify(versionTags)}`);
-          
+          logger.debug('Updates', `Docker Registry found ${versionTags.length} version tags`);
+
           if (versionTags.length > 0) {
             latestVersion = versionTags[0];
             updateAvailable = compareVersions(latestVersion, currentVersion) > 0;
@@ -421,10 +442,10 @@ router.get('/check', requireAuth, asyncHandler(async (req: AuthenticatedRequest,
               }
             });
           } else {
-            console.log('[Updates] No version tags found after filtering. All tags:', JSON.stringify(dockerData.tags));
+            logger.debug('Updates', 'Docker Registry: no version tags after filtering');
           }
         } else {
-          console.log('[Updates] Docker Registry returned no tags or empty tags array');
+          logger.debug('Updates', 'Docker Registry returned no tags');
         }
       } else if (dockerResponse.status === 401) {
         error = 'Package requires authentication. Even public packages may require a GitHub token to access the API.';
@@ -456,7 +477,7 @@ router.get('/check', requireAuth, asyncHandler(async (req: AuthenticatedRequest,
       error = 'Problème de récupération de version';
     }
   } catch (err) {
-    console.error('[Updates] Error checking for updates:', err);
+    logger.error('Updates', `Error checking for updates: ${err instanceof Error ? err.message : String(err)}`);
     error = err instanceof Error ? err.message : 'Unknown error';
   }
   
@@ -481,15 +502,19 @@ router.get('/config', requireAuth, asyncHandler(async (req: AuthenticatedRequest
   const stmt = db.prepare('SELECT value FROM app_config WHERE key = ?');
   const row = stmt.get('update_check_config') as { value: string } | undefined;
   
-  let config = { enabled: false }; // Default to disabled
+  let config: { enabled: boolean; frequency: number } = { enabled: false, frequency: 24 };
   if (row) {
     try {
-      config = JSON.parse(row.value);
+      const parsed = JSON.parse(row.value);
+      config = {
+        enabled: parsed.enabled === true,
+        frequency: typeof parsed.frequency === 'number' ? parsed.frequency : 24,
+      };
     } catch (error) {
-      console.error('[Updates] Error parsing update_check_config:', error);
+      logger.error('Updates', `Error parsing update_check_config: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
-  
+
   res.json({
     success: true,
     result: config
@@ -501,18 +526,18 @@ router.get('/config', requireAuth, asyncHandler(async (req: AuthenticatedRequest
  * Update update check configuration
  */
 router.post('/config', requireAuth, asyncHandler(async (req: AuthenticatedRequest, res) => {
-  const { enabled } = req.body;
-  
+  const { enabled, frequency } = req.body;
+
   if (typeof enabled !== 'boolean') {
     return res.status(400).json({
       success: false,
-      error: {
-        message: 'enabled must be a boolean',
-        code: 'INVALID_INPUT'
-      }
+      error: { message: 'enabled must be a boolean', code: 'INVALID_INPUT' }
     });
   }
-  
+
+  const VALID_FREQUENCIES = [1, 6, 12, 24, 168];
+  const safeFrequency = VALID_FREQUENCIES.includes(frequency) ? frequency : 24;
+
   const db = getDatabase();
   const stmt = db.prepare(`
     INSERT INTO app_config (key, value, updated_at)
@@ -521,14 +546,11 @@ router.post('/config', requireAuth, asyncHandler(async (req: AuthenticatedReques
       value = excluded.value,
       updated_at = CURRENT_TIMESTAMP
   `);
-  
-  const config = { enabled };
+
+  const config = { enabled, frequency: safeFrequency };
   stmt.run('update_check_config', JSON.stringify(config));
-  
-  res.json({
-    success: true,
-    result: config
-  });
+
+  res.json({ success: true, result: config });
 }));
 
 export default router;

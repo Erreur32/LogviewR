@@ -14,7 +14,7 @@
       "exporter": "Exporter",
       "database": "Database",
       "analysis": "Analysis",
-      "notifications": "Notifications",
+      "notifications": "Webhooks",
       "debug": "Debug",
       "info": "Info"
     },

@@ -10,6 +10,7 @@
 import Database from 'better-sqlite3';
 import * as fs from 'fs';
 import { getDatabase } from '../database/connection.js';
+import { logger } from '../utils/logger.js';
 
 const SYNC_INTERVAL_MS = 60_000;
 
@@ -49,7 +50,7 @@ export class Fail2banSyncService {
         try {
             return this.doSync();
         } catch (e) {
-            console.error('[Fail2banSync] Error during sync:', e);
+            logger.error('Fail2banSync', `Error during sync: ${e instanceof Error ? e.message : String(e)}`);
             return -1;
         } finally {
             this.running = false;
@@ -106,7 +107,7 @@ export class Fail2banSyncService {
 
         const count = insertMany(newRows) as number;
         if (count > 0) {
-            console.log(`[Fail2banSync] Synced ${count} new ban(s) from fail2ban.sqlite3`);
+            logger.debug('Fail2banSync', `Synced ${count} new ban(s)`);
         }
         return count;
     }

@@ -23,6 +23,7 @@ import { getDatabase } from '../../database/connection.js';
 import * as dns from 'dns';
 import * as fs from 'fs';
 import * as path from 'path';
+import { logger } from '../../utils/logger.js';
 
 const DEFAULT_SQLITE_PATH = '/var/lib/fail2ban/fail2ban.sqlite3';
 const SOCKET_PATH = '/var/run/fail2ban/fail2ban.sock';
@@ -342,16 +343,16 @@ export class Fail2banPlugin extends BasePlugin {
         this.client = new Fail2banClientExec();
 
         if (!this.reader.isReadable()) {
-            console.warn(`[Fail2ban] SQLite DB not readable at ${dbPath} — ban history unavailable`);
+            logger.warn('Fail2ban', `SQLite DB not readable at ${dbPath} — ban history unavailable`);
         } else {
             // Start sync service to replicate bans into internal dashboard.db
             this.syncService = new Fail2banSyncService(dbPath);
             this.syncService.start();
         }
         if (!this.client.isAvailable()) {
-            console.warn(`[Fail2ban] fail2ban-client or socket not available — actions disabled`);
+            logger.warn('Fail2ban', 'fail2ban-client or socket not available — actions disabled');
         }
-        console.log(`[Fail2ban] Started. DB: ${dbPath} | Socket: ${SOCKET_PATH}`);
+        logger.info('Fail2ban', `Started. DB: ${dbPath} | Socket: ${SOCKET_PATH}`);
     }
 
     async getStats(): Promise<PluginStats> {

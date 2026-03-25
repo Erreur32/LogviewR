@@ -35,7 +35,9 @@ import { usePluginStore } from './stores/pluginStore';
 import { useUpdateStore } from './stores/updateStore';
 import {
   Settings,
-  FileText
+  FileText,
+  Download,
+  X as XIcon
 } from 'lucide-react';
 import { initTheme } from './utils/themeManager';
 import type { SettingsPageProps } from './pages/SettingsPage';
@@ -80,6 +82,7 @@ const App: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<PageType>('dashboard');
   const [selectedPluginId, setSelectedPluginId] = useState<string | null>(null);
   const [defaultLogFile, setDefaultLogFile] = useState<string | null>(null);
+  const [defaultFail2banTab, setDefaultFail2banTab] = useState<string | null>(null);
   const [hasUsers, setHasUsers] = useState<boolean | null>(null);
   const [checkingUsers, setCheckingUsers] = useState(true);
   const [pluginHeaderData, setPluginHeaderData] = useState<{
@@ -194,14 +197,30 @@ const App: React.FC = () => {
   }, [isUserAuthenticated]);
 
   // Update check store
-  const { loadConfig, checkForUpdates } = useUpdateStore();
+  const { loadConfig, checkForUpdates, updateInfo } = useUpdateStore();
+
+  // Dismissable update banner: dismissed version stored in localStorage
+  const [bannerDismissed, setBannerDismissed] = useState<string | null>(
+    () => localStorage.getItem('logviewr-dismissed-version')
+  );
+  const showUpdateBanner =
+    isUserAuthenticated &&
+    updateInfo?.updateAvailable === true &&
+    updateInfo?.dockerReady === true &&
+    updateInfo?.latestVersion !== bannerDismissed;
+
+  const dismissBanner = () => {
+    const v = updateInfo?.latestVersion ?? '';
+    localStorage.setItem('logviewr-dismissed-version', v);
+    setBannerDismissed(v);
+  };
 
   // Fetch plugins and stats when authenticated
   useEffect(() => {
     if (isUserAuthenticated) {
       fetchPlugins();
       fetchAllStats();
-      
+
       // Load update check config and check for updates if enabled
       loadConfig().then(() => {
         const { updateConfig } = useUpdateStore.getState();
@@ -209,6 +228,24 @@ const App: React.FC = () => {
           checkForUpdates();
         }
       });
+
+      // Navigate to configured default page on login
+      api.get<{ defaultPage?: string; defaultPluginId?: string; defaultLogFile?: string; defaultFail2banTab?: string }>(
+        '/api/system/general'
+      ).then(response => {
+        if (!response.success || !response.result) return;
+        const { defaultPage, defaultPluginId, defaultLogFile: dlf, defaultFail2banTab: dft } = response.result;
+        if (defaultPage === 'log-viewer' && defaultPluginId) {
+          setSelectedPluginId(defaultPluginId);
+          if (dlf) setDefaultLogFile(dlf);
+          setCurrentPage('log-viewer');
+        } else if (defaultPage === 'fail2ban') {
+          if (dft) setDefaultFail2banTab(dft);
+          setCurrentPage('fail2ban');
+        } else if (defaultPage && defaultPage !== 'dashboard') {
+          setCurrentPage(defaultPage as PageType);
+        }
+      }).catch(() => { /* keep dashboard on error */ });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isUserAuthenticated]); // Zustand functions are stable, no need to include them
@@ -222,6 +259,16 @@ const App: React.FC = () => {
     enabled: isUserAuthenticated,
     interval: POLLING_INTERVALS.dashboard,
     immediate: false // Already fetched in useEffect above
+  });
+
+  // Periodic update check based on configured frequency
+  const { updateConfig } = useUpdateStore();
+  usePolling(() => {
+    if (isUserAuthenticated) checkForUpdates();
+  }, {
+    enabled: isUserAuthenticated && (updateConfig?.enabled ?? false),
+    interval: (updateConfig?.frequency ?? 24) * 3600 * 1000,
+    immediate: false,
   });
 
 
@@ -337,6 +384,41 @@ const App: React.FC = () => {
           animationParameters={backgroundParams}
         />
         <div className={`relative z-0 ${mainContentBgClass}`}>
+          {/* ── Dismissable update banner ── */}
+          {showUpdateBanner && (
+            <div style={{
+              position: 'sticky', top: 0, zIndex: 999,
+              background: 'linear-gradient(90deg, rgba(245,158,11,.15) 0%, rgba(245,158,11,.08) 100%)',
+              borderBottom: '1px solid rgba(245,158,11,.35)',
+              display: 'flex', alignItems: 'center', gap: '.75rem',
+              padding: '.45rem 1rem', fontSize: '.82rem',
+            }}>
+              <Download size={14} style={{ color: '#f59e0b', flexShrink: 0 }} />
+              <span style={{ color: '#fbbf24', fontWeight: 600 }}>
+                Nouvelle version disponible : v{updateInfo?.latestVersion}
+              </span>
+              <span style={{ color: '#9ca3af', fontSize: '.75rem' }}>
+                — Image Docker prête ·
+              </span>
+              <code style={{
+                fontSize: '.72rem', color: '#67e8f9', fontFamily: 'monospace',
+                background: 'rgba(0,0,0,.3)', padding: '.1rem .45rem', borderRadius: 4,
+              }}>
+                docker compose pull &amp;&amp; docker compose up -d
+              </code>
+              <button
+                onClick={dismissBanner}
+                title="Masquer"
+                style={{
+                  marginLeft: 'auto', background: 'none', border: 'none',
+                  cursor: 'pointer', color: '#6b7280', padding: '.15rem',
+                  display: 'flex', flexShrink: 0,
+                }}
+              >
+                <XIcon size={14} />
+              </button>
+            </div>
+          )}
           {content}
         </div>
       </div>
@@ -551,7 +633,7 @@ const App: React.FC = () => {
         />
         <div className="flex-1 overflow-hidden">
           <Suspense fallback={<PageLoader />}>
-            <Fail2banPage onBack={() => setCurrentPage('dashboard')} />
+            <Fail2banPage onBack={() => setCurrentPage('dashboard')} initialTab={defaultFail2banTab as any ?? undefined} />
           </Suspense>
         </div>
         <Footer

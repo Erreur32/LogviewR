@@ -111,9 +111,9 @@ const Sparkline: React.FC<{ data: number[]; color: string }> = ({ data, color })
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
-export const Fail2banPage: React.FC<{ onBack?: () => void }> = () => {
+export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }> = ({ initialTab }) => {
     const contentRef = useRef<HTMLDivElement>(null);
-    const [tab, setTab]           = useState<TabId>('jails');
+    const [tab, setTab]           = useState<TabId>(initialTab ?? 'jails');
     const [collapsed, setCollapsed] = useState(false);
     const [status, setStatus]     = useState<StatusResponse | null>(null);
     const [history, setHistory]   = useState<HistoryEntry[]>([]);

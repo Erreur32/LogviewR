@@ -7,6 +7,7 @@
 import { BasePlugin } from '../base/BasePlugin.js';
 import type { PluginConfig, PluginStats } from '../base/PluginInterface.js';
 import { NotificationService } from './NotificationService.js';
+import { logger } from '../../utils/logger.js';
 
 export interface NotificationPluginConfig {
     enabled: boolean;
@@ -48,18 +49,18 @@ export class NotificationPlugin extends BasePlugin {
             }
         }
         
-        console.log('[NotificationPlugin] Initialized');
+        logger.debug('Plugin', 'notification initialized');
     }
 
     async start(): Promise<void> {
         await super.start();
-        console.log('[NotificationPlugin] Started');
+        logger.debug('Plugin', 'notification started');
     }
 
     async stop(): Promise<void> {
         await super.stop();
         this.notificationService.clearWebhooks();
-        console.log('[NotificationPlugin] Stopped');
+        logger.debug('Plugin', 'notification stopped');
     }
 
     async getStats(): Promise<PluginStats> {

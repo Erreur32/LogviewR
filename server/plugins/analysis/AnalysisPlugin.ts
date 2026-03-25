@@ -8,6 +8,7 @@
 import { BasePlugin } from '../base/BasePlugin.js';
 import type { PluginConfig, PluginStats } from '../base/PluginInterface.js';
 import { AnalysisService } from './AnalysisService.js';
+import { logger } from '../../utils/logger.js';
 
 export interface AnalysisPluginConfig {
     enabled: boolean;
@@ -27,17 +28,17 @@ export class AnalysisPlugin extends BasePlugin {
 
     async initialize(config: PluginConfig): Promise<void> {
         await super.initialize(config);
-        console.log('[AnalysisPlugin] Initialized (in development)');
+        logger.debug('Plugin', 'analysis initialized');
     }
 
     async start(): Promise<void> {
         await super.start();
-        console.log('[AnalysisPlugin] Started (in development)');
+        logger.debug('Plugin', 'analysis started');
     }
 
     async stop(): Promise<void> {
         await super.stop();
-        console.log('[AnalysisPlugin] Stopped');
+        logger.debug('Plugin', 'analysis stopped');
     }
 
     async getStats(): Promise<PluginStats> {

@@ -9,6 +9,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.4.2] - 2026-03-25
+
+### What's new for users
+
+> Automatic update notifications and configurable default page on login.
+
+- **Automatic update check** — LogviewR can now check whether a new version is available and notify you directly in the UI. A dismissable banner appears at the top of the screen when an update is ready (Docker image built on GHCR), with the exact command to run. Check frequency and enable/disable are configurable in Administration → General.
+- **Configurable default page** — Choose which page opens after login: dashboard, log viewer, or the Fail2ban page with a specific tab pre-selected.
+- **Reminder — Fail2ban plugin** *(available since v0.4.0)* — If you run a server with Fail2ban, the dedicated plugin provides full monitoring: active jails, banned IPs, ban history, attack map, IP tracker, statistics, and ban management. Enable it in Administration → Plugins.
+
+---
+
+### Technical
+
+#### Administration — Update checker
+
+- **`server/routes/updates.ts`** — New version check module: primary method via GitHub Tags API, Docker image availability verified on GHCR (anonymous Bearer token + HEAD manifest check) before reporting an update; `dockerReady: boolean` field separate from `updateAvailable`.
+- **`src/stores/updateStore.ts`** — Zustand store: `checkForUpdates`, `loadConfig`, `setConfig(enabled, frequency)`; `UpdateInfo` interface with `dockerReady` field.
+- **`src/pages/SettingsPage.tsx` — `UpdateCheckSection`** — Enable toggle + frequency selector (1h/6h/12h/24h/7d); current version / latest version / GHCR build status display; conditional `docker compose pull && docker compose up -d` command block.
+- **`src/App.tsx`** — Sticky dismissable banner (amber) shown only when `updateAvailable && dockerReady`; dismissal persisted per version in `localStorage['logviewr-dismissed-version']`; periodic polling based on configured frequency.
+
+#### Administration — General tab
+
+- **Default page** — Added `fail2ban` as a startup page option with tab selector (12 tabs), conditioned on plugin being enabled.
+- **`server/routes/system.ts`** — Bug fix: `defaultPage`, `defaultPluginId`, `defaultLogFile` were never written in `PUT /api/system/general` (silent bug since initial implementation). Added `defaultFail2banTab`. Validation against `VALID_PAGES = ['dashboard', 'log-viewer', 'fail2ban']`.
+- **`src/App.tsx`** — Effective navigation to configured default page on login (fetch `GET /api/system/general` in `useEffect([isUserAuthenticated])`).
+- **DefaultPageSection flicker fix** — General tab no longer unmounts its content on tab switch (`display:none` instead of `&&`); module-level cache for fetched values; inline save indicator (12px spinner in title) with no layout shift.
+
+#### Administration — UI
+
+- **Notifications tab → Webhooks** — Renamed in `en.json` and `fr.json`.
+- **Exporter — Removed "Log overview stats" card** — Stats block (files, .gz, active plugins, errors) removed from Exporter tab; related state and `useEffect` removed from `ExporterSection.tsx`.
+
+#### Server log cleanup
+
+- All non-essential `console.log` calls migrated to `logger.debug()` (gated, debug mode only) in: `BasePlugin`, `Fail2banPlugin`, `NotificationPlugin`, `AnalysisPlugin`, `HostSystemLogPlugin`, `fail2banSyncService`, `configService`, `routes/updates.ts`.
+- `console.error` → `logger.error()` throughout; no sensitive data (tokens, API keys, full responses) appears in logs.
+
+---
+
 ## [0.4.1] - 2026-03-25
 
 ### Fixed

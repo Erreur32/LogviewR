@@ -1,22 +1,24 @@
 /**
  * Update Store
- * 
+ *
  * Manages update checking and configuration
  */
 
 import { create } from 'zustand';
 import { api } from '../api/client';
 
-interface UpdateInfo {
+export interface UpdateInfo {
   enabled: boolean;
   currentVersion: string;
   latestVersion: string | null;
   updateAvailable: boolean;
+  dockerReady?: boolean;   // Docker image available on GHCR for that version
   error?: string;
 }
 
-interface UpdateConfig {
+export interface UpdateConfig {
   enabled: boolean;
+  frequency: number;  // hours: 1, 6, 12, 24, 168 (7j)
 }
 
 interface UpdateStore {
@@ -24,11 +26,11 @@ interface UpdateStore {
   updateConfig: UpdateConfig | null;
   isLoading: boolean;
   lastCheck: Date | null;
-  
+
   // Actions
   checkForUpdates: () => Promise<void>;
   loadConfig: () => Promise<void>;
-  setConfig: (enabled: boolean) => Promise<void>;
+  setConfig: (enabled: boolean, frequency?: number) => Promise<void>;
 }
 
 export const useUpdateStore = create<UpdateStore>((set, get) => ({
@@ -36,16 +38,16 @@ export const useUpdateStore = create<UpdateStore>((set, get) => ({
   updateConfig: null,
   isLoading: false,
   lastCheck: null,
-  
+
   checkForUpdates: async () => {
     set({ isLoading: true });
     try {
       const response = await api.get<UpdateInfo>('/api/updates/check');
       if (response.success && response.result) {
-        set({ 
+        set({
           updateInfo: response.result,
           lastCheck: new Date(),
-          isLoading: false
+          isLoading: false,
         });
       } else {
         set({ isLoading: false });
@@ -55,7 +57,7 @@ export const useUpdateStore = create<UpdateStore>((set, get) => ({
       set({ isLoading: false });
     }
   },
-  
+
   loadConfig: async () => {
     try {
       const response = await api.get<UpdateConfig>('/api/updates/config');
@@ -66,13 +68,16 @@ export const useUpdateStore = create<UpdateStore>((set, get) => ({
       console.error('[UpdateStore] Error loading config:', error);
     }
   },
-  
-  setConfig: async (enabled: boolean) => {
+
+  setConfig: async (enabled: boolean, frequency?: number) => {
     try {
-      const response = await api.post<UpdateConfig>('/api/updates/config', { enabled });
+      const payload = {
+        enabled,
+        frequency: frequency ?? get().updateConfig?.frequency ?? 24,
+      };
+      const response = await api.post<UpdateConfig>('/api/updates/config', payload);
       if (response.success && response.result) {
         set({ updateConfig: response.result });
-        // If enabling, check for updates immediately
         if (enabled) {
           get().checkForUpdates();
         }
@@ -81,5 +86,5 @@ export const useUpdateStore = create<UpdateStore>((set, get) => ({
       console.error('[UpdateStore] Error setting config:', error);
       throw error;
     }
-  }
+  },
 }));

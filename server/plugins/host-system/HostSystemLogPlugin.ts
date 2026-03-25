@@ -21,6 +21,7 @@ import type { PluginStats } from '../base/PluginInterface.js';
 import * as fs from 'fs/promises';
 import * as fsSync from 'fs';
 import * as path from 'path';
+import { logger } from '../../utils/logger.js';
 
 export interface HostSystemPluginConfig {
     // Catégorie 1 : Fichiers Système de Base
@@ -92,10 +93,9 @@ export class HostSystemLogPlugin extends BasePlugin implements LogSourcePlugin {
         detectOS().then(info => {
             this.osInfo = info;
             this.defaultLogFiles = getDefaultLogFiles(info.type);
-            console.log('[HostSystemLogPlugin] OS detected:', info);
-            console.log('[HostSystemLogPlugin] Default log files:', this.defaultLogFiles);
+            logger.debug('HostSystem', `OS detected: ${info.type} ${info.version || ''}`);
         }).catch(err => {
-            console.warn('[HostSystemLogPlugin] Failed to detect OS:', err);
+            logger.warn('HostSystem', `Failed to detect OS: ${err instanceof Error ? err.message : String(err)}`);
             // Fallback to Debian/Ubuntu defaults
             this.defaultLogFiles = getDefaultLogFiles('debian');
         });
@@ -343,14 +343,14 @@ export class HostSystemLogPlugin extends BasePlugin implements LogSourcePlugin {
                     // Skip directories we can't access
                     // Log error in debug mode only
                     if (process.env.DEBUG) {
-                        console.error(`[HostSystemLogPlugin] Cannot read directory ${dir}:`, readError);
+                        logger.debug('HostSystem', `Cannot read directory ${dir}: ${readError instanceof Error ? readError.message : String(readError)}`);
                     }
                 }
             };
 
             await scanDirectory(actualBasePath);
         } catch (error) {
-            console.error(`[HostSystemLogPlugin] Error scanning files:`, error);
+            logger.error('HostSystem', `Error scanning files: ${error instanceof Error ? error.message : String(error)}`);
         }
         
         return results;
@@ -1026,7 +1026,7 @@ export class HostSystemLogPlugin extends BasePlugin implements LogSourcePlugin {
             };
         } catch (error) {
             // If detection fails, return empty result instead of throwing
-            console.warn('[HostSystemLogPlugin] Error in detectLoggingServicesConfig:', error instanceof Error ? error.message : error);
+            logger.warn('HostSystem', `Error in detectLoggingServicesConfig: ${error instanceof Error ? error.message : String(error)}`);
             return {
                 primaryService: null,
                 allServices: [],

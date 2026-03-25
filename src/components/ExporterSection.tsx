@@ -5,14 +5,11 @@
  * and overview stats (files count, .gz, active plugins, errors/anomalies placeholder).
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Share2, Server, Database, Save, Loader2, ExternalLink, AlertCircle, CheckCircle, Download, Upload, FileText, Archive, Plug, AlertTriangle } from 'lucide-react';
+import { Share2, Server, Database, Save, Loader2, ExternalLink, AlertCircle, CheckCircle, Download, Upload, FileText } from 'lucide-react';
 import { Section, SettingRow } from './SettingsSection';
 import { api } from '../api/client';
-import { usePluginStore } from '../stores/pluginStore';
-import { formatBytes } from '../utils/constants';
-import type { LogPluginStats } from '../types/logViewer';
 
 interface MetricsConfig {
     prometheus: {
@@ -54,24 +51,7 @@ export const ExporterSection: React.FC = () => {
     const [initialConfig, setInitialConfig] = useState<MetricsConfig | null>(null);
     const [publicUrl, setPublicUrl] = useState<string>('');
 
-    // Stats overview (files, .gz, plugins, errors; anomalies placeholder)
-    const [statsOverview, setStatsOverview] = useState<{
-        totalFiles: number;
-        gzCount: number;
-        totalSize: number;
-        plugins: Array<{ id: string; name: string; totalFiles: number; gzCount: number; readable: number; unreadable: number }>;
-        errorsCount: number;
-    } | null>(null);
-    const [statsOverviewLoading, setStatsOverviewLoading] = useState(false);
-
     const { t } = useTranslation();
-    const { plugins } = usePluginStore();
-    const enabledLogPlugins = useMemo(() => {
-        const order = ['host-system', 'apache', 'npm', 'nginx'];
-        return plugins
-            .filter(p => p.enabled && order.includes(p.id))
-            .sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
-    }, [plugins]);
 
     useEffect(() => {
         // Load config first
@@ -79,54 +59,6 @@ export const ExporterSection: React.FC = () => {
         // Load public URL from system settings
         loadPublicUrl();
     }, []);
-
-    useEffect(() => {
-        if (enabledLogPlugins.length === 0) {
-            setStatsOverview(null);
-            return;
-        }
-        let cancelled = false;
-        setStatsOverviewLoading(true);
-        Promise.all(
-            enabledLogPlugins.map(p => api.get<LogPluginStats>(`/api/log-viewer/plugins/${p.id}/stats`))
-        ).then((responses) => {
-            if (cancelled) return;
-            let totalFiles = 0;
-            let gzCount = 0;
-            let totalSize = 0;
-            let errorsCount = 0;
-            const pluginList: typeof statsOverview.plugins = [];
-            responses.forEach((res, i) => {
-                if (!res.success || !res.result) return;
-                const plugin = enabledLogPlugins[i];
-                const r = res.result;
-                totalFiles += r.totalFiles ?? 0;
-                gzCount += r.gzCount ?? 0;
-                totalSize += r.totalSize ?? 0;
-                errorsCount += (r.errors?.length ?? 0);
-                pluginList.push({
-                    id: plugin.id,
-                    name: plugin.name,
-                    totalFiles: r.totalFiles ?? 0,
-                    gzCount: r.gzCount ?? 0,
-                    readable: r.readableFiles ?? 0,
-                    unreadable: r.unreadableFiles ?? 0
-                });
-            });
-            setStatsOverview({
-                totalFiles,
-                gzCount,
-                totalSize,
-                plugins: pluginList,
-                errorsCount
-            });
-        }).catch(() => {
-            if (!cancelled) setStatsOverview(null);
-        }).finally(() => {
-            if (!cancelled) setStatsOverviewLoading(false);
-        });
-        return () => { cancelled = true; };
-    }, [enabledLogPlugins]);
 
     // Load public URL from system settings
     const loadPublicUrl = async () => {
@@ -390,75 +322,6 @@ setConfigMessage({
                     {message.text}
                 </div>
             )}
-
-            {/* Stats overview: files, .gz, active plugins, errors, anomalies (placeholder) */}
-            <Section title={t('exporter.overviewTitle')} icon={FileText} iconColor="amber">
-                <div className="space-y-4">
-                    {statsOverviewLoading ? (
-                        <div className="flex items-center gap-2 text-sm text-gray-400">
-                            <Loader2 size={18} className="animate-spin" />
-                            {t('exporter.loadingStats')}
-                        </div>
-                    ) : statsOverview ? (
-                        <>
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                                <div className="p-3 rounded-lg bg-theme-secondary border border-theme">
-                                    <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
-                                        <FileText size={14} />
-                                        {t('exporter.files')}
-                                    </div>
-                                    <div className="text-lg font-mono font-semibold text-theme-primary">{statsOverview.totalFiles.toLocaleString()}</div>
-                                </div>
-                                <div className="p-3 rounded-lg bg-theme-secondary border border-theme">
-                                    <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
-                                        <Archive size={14} />
-                                        {t('exporter.filesGz')}
-                                    </div>
-                                    <div className="text-lg font-mono font-semibold text-theme-primary">{statsOverview.gzCount.toLocaleString()}</div>
-                                </div>
-                                <div className="p-3 rounded-lg bg-theme-secondary border border-theme">
-                                    <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">{t('exporter.totalSize')}</div>
-                                    <div className="text-lg font-mono font-semibold text-theme-primary">{formatBytes(statsOverview.totalSize)}</div>
-                                </div>
-                                <div className="p-3 rounded-lg bg-theme-secondary border border-theme">
-                                    <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
-                                        <AlertCircle size={14} />
-                                        {t('exporter.errors')}
-                                    </div>
-                                    <div className="text-lg font-mono font-semibold text-theme-primary">{statsOverview.errorsCount}</div>
-                                </div>
-                            </div>
-                            <div className="p-3 rounded-lg bg-theme-secondary border border-theme">
-                                <div className="flex items-center gap-2 text-gray-400 text-xs mb-2">
-                                    <Plug size={14} />
-                                    {t('exporter.activePlugins')}
-                                </div>
-                                <div className="flex flex-wrap gap-2">
-                                    {statsOverview.plugins.map((p) => (
-                                        <span
-                                            key={p.id}
-                                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-200 text-sm"
-                                            title={t('exporter.pluginFilesTooltip', { files: p.totalFiles, gz: p.gzCount })}
-                                        >
-                                            {p.name}
-                                            <span className="font-mono text-xs text-gray-400">({p.totalFiles})</span>
-                                        </span>
-                                    ))}
-                                </div>
-                            </div>
-                            <div className="p-3 rounded-lg bg-gray-900/40 border border-gray-700 border-dashed">
-                                <div className="flex items-center gap-2 text-gray-500 text-xs mb-1">
-                                    <AlertTriangle size={14} />
-                                    {t('exporter.errorsAnomalies')}
-                                </div>
-                                <p className="text-sm text-gray-500 italic">{t('exporter.errorsAnomaliesNotImplemented')}</p>
-                            </div>
-                        </>
-                    ) : (
-                        <p className="text-sm text-gray-400">{t('exporter.noActivePlugin')}</p>
-                    )}
-                </div>
-            </Section>
 
             {/* Prometheus Section */}
             <Section title={t('exporter.prometheusTitle')} icon={Server} iconColor="orange">

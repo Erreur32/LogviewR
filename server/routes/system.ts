@@ -62,7 +62,7 @@ router.get('/environment', asyncHandler(async (_req, res) => {
   }
   
   // Read app version
-  let appVersion = '0.4.1';
+  let appVersion = '0.4.2';
   try {
     const packageJsonPath = path.join(__dirname, '..', '..', 'package.json');
     const packageJson = JSON.parse(fsSync.readFileSync(packageJsonPath, 'utf8'));
@@ -260,6 +260,9 @@ router.get('/general', requireAuth, requireAdmin, asyncHandler(async (_req, res)
   const defaultLogFileJson = AppConfigRepository.get('default_log_file');
   const defaultLogFile = defaultLogFileJson ? JSON.parse(defaultLogFileJson) : '';
 
+  const defaultFail2banTabJson = AppConfigRepository.get('default_fail2ban_tab');
+  const defaultFail2banTab = defaultFail2banTabJson ? JSON.parse(defaultFail2banTabJson) : '';
+
   // Get Log Viewer maximum lines setting (controls how many lines are read per request)
   const logViewerMaxLinesJson = AppConfigRepository.get('log_viewer_max_lines');
   const rawLogViewerMaxLines = logViewerMaxLinesJson ? JSON.parse(logViewerMaxLinesJson) : 50000;
@@ -274,6 +277,7 @@ router.get('/general', requireAuth, requireAdmin, asyncHandler(async (_req, res)
       defaultPage,
       defaultPluginId,
       defaultLogFile,
+      defaultFail2banTab,
       logViewerMaxLines
     }
   });
@@ -281,7 +285,7 @@ router.get('/general', requireAuth, requireAdmin, asyncHandler(async (_req, res)
 
 // PUT /api/system/general - Update general application settings
 router.put('/general', requireAuth, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res) => {
-  const { publicUrl, corsConfig, rememberLastFile, defaultPage, defaultPluginId, defaultLogFile, logViewerMaxLines } = req.body;
+  const { publicUrl, corsConfig, rememberLastFile, defaultPage, defaultPluginId, defaultLogFile, defaultFail2banTab, logViewerMaxLines } = req.body;
 
   // Validate publicUrl format if provided
   if (publicUrl !== undefined && publicUrl !== null && publicUrl !== '') {
@@ -325,6 +329,24 @@ router.put('/general', requireAuth, requireAdmin, asyncHandler(async (req: Authe
       throw createError('rememberLastFile must be a boolean', 400, 'INVALID_REMEMBER_LAST_FILE');
     }
     AppConfigRepository.set('remember_last_file', JSON.stringify(rememberLastFile));
+  }
+
+  // Handle default page settings
+  if (defaultPage !== undefined) {
+    const VALID_PAGES = ['dashboard', 'log-viewer', 'fail2ban'];
+    if (!VALID_PAGES.includes(defaultPage)) {
+      throw createError('Invalid defaultPage value', 400, 'INVALID_DEFAULT_PAGE');
+    }
+    AppConfigRepository.set('default_page', JSON.stringify(defaultPage));
+  }
+  if (defaultPluginId !== undefined) {
+    AppConfigRepository.set('default_plugin_id', JSON.stringify(defaultPluginId));
+  }
+  if (defaultLogFile !== undefined) {
+    AppConfigRepository.set('default_log_file', JSON.stringify(defaultLogFile));
+  }
+  if (defaultFail2banTab !== undefined) {
+    AppConfigRepository.set('default_fail2ban_tab', JSON.stringify(defaultFail2banTab));
   }
 
   // Handle Log Viewer maximum lines setting
@@ -414,6 +436,9 @@ router.put('/general', requireAuth, requireAdmin, asyncHandler(async (req: Authe
   const currentDefaultLogFileJson = AppConfigRepository.get('default_log_file');
   const currentDefaultLogFile = currentDefaultLogFileJson ? JSON.parse(currentDefaultLogFileJson) : '';
 
+  const currentDefaultFail2banTabJson = AppConfigRepository.get('default_fail2ban_tab');
+  const currentDefaultFail2banTab = currentDefaultFail2banTabJson ? JSON.parse(currentDefaultFail2banTabJson) : '';
+
   res.json({
     success: true,
     result: {
@@ -423,6 +448,7 @@ router.put('/general', requireAuth, requireAdmin, asyncHandler(async (req: Authe
       defaultPage: currentDefaultPage,
       defaultPluginId: currentDefaultPluginId,
       defaultLogFile: currentDefaultLogFile,
+      defaultFail2banTab: currentDefaultFail2banTab,
       logViewerMaxLines: currentLogViewerMaxLines,
       message: 'General settings updated. Note: CORS changes require a server restart to take full effect.'
     }

@@ -1,22 +1,24 @@
-feat: shared IpModal + clickable IPs everywhere + UX fixes (v0.4.1)
+feat: update checker + default page fix + log cleanup (v0.4.2)
 
-## IpModal partagé
-- Nouveau composant `src/pages/fail2ban/IpModal.tsx` (exports: IpModal, GeoInfo, toFlag, fmtBantime)
-- En-tête enrichi : IP + badge récidiviste + géoloc (drapeau, ville, pays, org)
-- Layout 2 colonnes : Statistiques (bans, jails, dates) | Whois (pays, ASN, ISP, organisation)
-- Bouton "Bannir dans recidive" avec retour visuel succès/erreur
-- Auto-fetch géoloc si non fournie par le contexte appelant
-- Historique scrollable avec en-têtes sticky
+## Mises à jour automatiques
+- server/routes/updates.ts : vérification GitHub Tags API + GHCR manifest HEAD (dockerReady)
+- updateStore.ts : store Zustand avec checkForUpdates / loadConfig / setConfig
+- SettingsPage : UpdateCheckSection (toggle + fréquence + statut version/docker)
+- App.tsx : bandeau sticky dismissable (amber), dismissal par version en localStorage, polling configurable
 
-## IPs cliquables
-- TabTracker : utilise IpModal partagé (suppression du composant local)
-- TabJailsEvents : IPs dans le tableau ouvrent la modale de détail
-- JailCard (vue Cartes) : IPs bannies cliquables
-- JailExpandedGrid (vue Tableau) : IPs dans "Bans < 5 min" et "IPs bannies actives" cliquables
+## Page par défaut
+- Ajout option "fail2ban" + sélecteur de tab (12 tabs) dans DefaultPageSection
+- server/routes/system.ts : correction bug — defaultPage/defaultPluginId/defaultLogFile jamais écrits dans PUT
+- Ajout defaultFail2banTab, validation VALID_PAGES
+- App.tsx : navigation effective vers page par défaut au login
+- Fail2banPage : prop initialTab
+- Fix blink : display:none au lieu de && sur tab Général, cache module-level, spinner inline
 
-## Corrections UX
-- BanHistoryChart : suppression de overflow:hidden qui masquait le SVG
-- BanHistoryChart : collapse uniquement via le bouton ▾/▸ (plus de clic accidentel sur l'en-tête)
-- Scroll remis à 0 au changement d'onglet principal et de vue dans TabJails (graphe était au-dessus du viewport)
-- Barres de recherche centrées dans tous les onglets (TabJails, TabJailsEvents, TabFiltres, TabActions, TabTracker, TabStats)
-- Suppression overflow horizontal non voulu sur les tableaux Événements et Tableau
+## Interface administration
+- Onglet "Notifications" renommé "Webhooks" (en.json + fr.json)
+- Exporter : suppression cadre "Aperçu des logs" (stats fichiers/plugins/erreurs)
+
+## Nettoyage logs serveur
+- console.log → logger.debug (gated) dans BasePlugin, Fail2banPlugin, NotificationPlugin,
+  AnalysisPlugin, HostSystemLogPlugin, fail2banSyncService, configService, routes/updates.ts
+- console.error → logger.error partout, aucune donnée sensible dans les logs
