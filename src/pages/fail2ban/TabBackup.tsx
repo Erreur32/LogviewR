@@ -1,16 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Archive, UploadCloud, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
-
-// ── Design tokens (matches Fail2banPage.tsx inline palette) ──────────────────
-
-const card: React.CSSProperties = {
-    background: '#161b22', border: '1px solid #30363d', borderRadius: 8, overflow: 'hidden',
-};
-const cardH: React.CSSProperties = {
-    background: '#21262d', padding: '.65rem 1rem', borderBottom: '1px solid #30363d',
-    display: 'flex', alignItems: 'center', gap: '.5rem',
-};
-const cardB: React.CSSProperties = { padding: '1rem' };
+import { card, cardH, cardB } from './helpers';
 
 // ── Backup file shape (validated client-side) ─────────────────────────────────
 
@@ -101,6 +91,7 @@ export const TabBackup: React.FC = () => {
                 setFileErr('Impossible de lire le fichier JSON');
             }
         };
+        reader.onerror = () => setFileErr('Erreur de lecture du fichier');
         reader.readAsText(file);
     };
 
@@ -126,6 +117,8 @@ export const TabBackup: React.FC = () => {
             const json = await resp.json() as { success: boolean; error?: string; result?: typeof restoreResult };
             if (!json.success) throw new Error(json.error ?? 'Erreur inconnue');
             setRestoreResult(json.result ?? null);
+            setBackup(null);
+            if (fileRef.current) fileRef.current.value = '';
         } catch (err: unknown) {
             setRestoreErr(err instanceof Error ? err.message : String(err));
         } finally {
