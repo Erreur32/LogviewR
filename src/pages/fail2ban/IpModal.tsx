@@ -143,10 +143,10 @@ function tokenizeLogLine(raw: string, logType: LogType = 'other'): LogToken[] {
             { text: 'client: ', color: C_MUTED },
             { text: m[1], color: C_IP, weight: '600' },
         ]],
-        // [Sent-to X.X.X.X] fail2ban action log
+        // [Sent-to X.X.X.X] NPM proxy — destination IP (green = internal target)
         [/\[Sent-to (\d{1,3}(?:\.\d{1,3}){3}(?:\/\d+)?)\]/i, m => [
             { text: '[Sent-to ', color: C_METHOD },
-            { text: m[1], color: C_IP, weight: '600' },
+            { text: m[1], color: C_METHOD, weight: '600' },
             { text: ']', color: C_METHOD },
         ]],
         // Apache error module:severity [authz_core:error] — before generic [xxx] brackets
