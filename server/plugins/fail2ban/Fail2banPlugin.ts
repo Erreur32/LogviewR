@@ -1290,8 +1290,7 @@ export class Fail2banPlugin extends BasePlugin {
 
             // Check config dir is accessible
             try { fs.accessSync(confBase); } catch {
-                res.status(503).json({ success: false, error: `Config dir not accessible: ${confBase}` });
-                return;
+                throw createError('Config dir not accessible', 503, 'CONFIG_UNAVAILABLE');
             }
 
             // Root-level files to include
