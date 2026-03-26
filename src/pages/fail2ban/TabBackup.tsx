@@ -117,12 +117,12 @@ export const TabBackup: React.FC = () => {
             const json = await resp.json() as { success: boolean; error?: string; result?: typeof restoreResult };
             if (!json.success) throw new Error(json.error ?? 'Erreur inconnue');
             setRestoreResult(json.result ?? null);
-            setBackup(null);
-            if (fileRef.current) fileRef.current.value = '';
         } catch (err: unknown) {
             setRestoreErr(err instanceof Error ? err.message : String(err));
         } finally {
             setRestoring(false);
+            setBackup(null);
+            if (fileRef.current) fileRef.current.value = '';
         }
     };
 

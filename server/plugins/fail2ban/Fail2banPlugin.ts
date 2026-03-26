@@ -1286,6 +1286,7 @@ export class Fail2banPlugin extends BasePlugin {
 
         // ── GET /backup/full ──────────────────────────────────────────────────────────
         router.get('/backup/full', requireAuth, asyncHandler(async (_req, res) => {
+            if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
             const confBase = this.resolveDockerPathSync('/etc/fail2ban');
 
             // Check config dir is accessible
