@@ -37,7 +37,12 @@ WORKDIR /app
 # iptables   : lecture des règles pare-feu (onglet IPTables — nécessite cap_add: NET_ADMIN)
 # ipset      : lecture des sets d'IPs (onglet IPSet — nécessite cap_add: NET_ADMIN)
 # nftables   : lecture des règles nftables (onglet NFTables — nécessite cap_add: NET_ADMIN)
-RUN apk add --no-cache su-exec fail2ban iptables ipset nftables
+RUN apk add --no-cache su-exec fail2ban iptables ipset nftables sudo
+# Allow the node user to run network tools as root (needed when app runs as non-root
+# but the host kernel's nf_tables backend requires UID 0 even with NET_ADMIN cap).
+RUN echo "node ALL=(root) NOPASSWD: /usr/sbin/iptables, /usr/sbin/iptables-save, /usr/sbin/iptables-restore, /usr/sbin/ipset, /usr/sbin/nft" \
+    > /etc/sudoers.d/logviewr-nettools \
+    && chmod 0440 /etc/sudoers.d/logviewr-nettools
 
 # Créer le répertoire data avec les bonnes permissions
 RUN mkdir -p /app/data && chown -R node:node /app

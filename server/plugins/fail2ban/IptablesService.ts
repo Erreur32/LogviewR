@@ -1,6 +1,7 @@
 /**
  * IptablesService — read/write iptables rules + backup/restore.
  * Requires NET_ADMIN capability (Docker: cap_add: [NET_ADMIN]).
+ * When running as non-root (e.g. Docker node user), uses sudo for privileged commands.
  */
 
 import { execFile, spawn } from 'child_process';
@@ -10,6 +11,12 @@ import * as path from 'path';
 
 const execFileAsync = promisify(execFile);
 const EXEC_TIMEOUT = 10_000;
+
+/** Returns [cmd, args] — prepends sudo when not running as root. */
+function priv(cmd: string, args: string[]): [string, string[]] {
+    const isRoot = typeof process.getuid === 'function' && process.getuid() === 0;
+    return isRoot ? [cmd, args] : ['sudo', [cmd, ...args]];
+}
 
 export interface IptResult { ok: boolean; output: string; error?: string }
 export interface BackupEntry { filename: string; size: number; ts: number }
@@ -57,7 +64,8 @@ export class IptablesService {
 
     static async save(): Promise<IptResult> {
         try {
-            const { stdout } = await execFileAsync('iptables-save', [], { timeout: EXEC_TIMEOUT });
+            const [c, a] = priv('iptables-save', []);
+            const { stdout } = await execFileAsync(c, a, { timeout: EXEC_TIMEOUT });
             return { ok: true, output: stdout };
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : String(err);
@@ -71,7 +79,8 @@ export class IptablesService {
         const args = ['-L', '-v', '-n', '--line-numbers'];
         if (table) args.push('-t', table);
         try {
-            const { stdout } = await execFileAsync('iptables', args, { timeout: EXEC_TIMEOUT });
+            const [c, a] = priv('iptables', args);
+            const { stdout } = await execFileAsync(c, a, { timeout: EXEC_TIMEOUT });
             return { ok: true, chains: parseIptOutput(stdout) };
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : String(err);
@@ -96,7 +105,8 @@ export class IptablesService {
         if (!/^[a-z]{1,10}$/.test(table)) return { ok: false, output: '', error: 'Table invalide' };
         if (!/^[A-Z_]{1,32}$/.test(chain)) return { ok: false, output: '', error: 'Chain invalide' };
         try {
-            const { stdout } = await execFileAsync('iptables', ['-t', table, '-A', chain, ...ruleArgs], { timeout: EXEC_TIMEOUT });
+            const [c, a] = priv('iptables', ['-t', table, '-A', chain, ...ruleArgs]);
+            const { stdout } = await execFileAsync(c, a, { timeout: EXEC_TIMEOUT });
             return { ok: true, output: stdout.trim() || 'Règle ajoutée' };
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : String(err);
@@ -111,7 +121,8 @@ export class IptablesService {
         if (!/^[A-Z_]{1,32}$/.test(chain)) return { ok: false, output: '', error: 'Chain invalide' };
         if (!Number.isInteger(pos) || pos < 1) return { ok: false, output: '', error: 'Position invalide' };
         try {
-            const { stdout } = await execFileAsync('iptables', ['-t', table, '-I', chain, String(pos), ...specArgs], { timeout: EXEC_TIMEOUT });
+            const [c, a] = priv('iptables', ['-t', table, '-I', chain, String(pos), ...specArgs]);
+            const { stdout } = await execFileAsync(c, a, { timeout: EXEC_TIMEOUT });
             return { ok: true, output: stdout.trim() || 'Règle insérée' };
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : String(err);
@@ -125,7 +136,8 @@ export class IptablesService {
         if (!/^[a-z]{1,10}$/.test(table)) return { ok: false, output: '', error: 'Table invalide' };
         if (!/^[A-Z_]{1,32}$/.test(chain)) return { ok: false, output: '', error: 'Chain invalide' };
         try {
-            const { stdout } = await execFileAsync('iptables', ['-t', table, '-D', chain, ...specArgs], { timeout: EXEC_TIMEOUT });
+            const [c, a] = priv('iptables', ['-t', table, '-D', chain, ...specArgs]);
+            const { stdout } = await execFileAsync(c, a, { timeout: EXEC_TIMEOUT });
             return { ok: true, output: stdout.trim() || 'Règle supprimée' };
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : String(err);
@@ -139,7 +151,8 @@ export class IptablesService {
         if (!/^[A-Z_]{1,32}$/.test(chain)) return { ok: false, output: '', error: 'Chain invalide' };
         if (!Number.isInteger(rulenum) || rulenum < 1) return { ok: false, output: '', error: 'Numéro de règle invalide' };
         try {
-            const { stdout } = await execFileAsync('iptables', ['-t', table, '-D', chain, String(rulenum)], { timeout: EXEC_TIMEOUT });
+            const [c, a] = priv('iptables', ['-t', table, '-D', chain, String(rulenum)]);
+            const { stdout } = await execFileAsync(c, a, { timeout: EXEC_TIMEOUT });
             return { ok: true, output: stdout.trim() || 'Règle supprimée' };
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : String(err);
@@ -153,7 +166,8 @@ export class IptablesService {
             let settled = false;
             const settle = (r: IptResult) => { if (!settled) { settled = true; resolve(r); } };
 
-            const proc = spawn('iptables-restore', [], { timeout: EXEC_TIMEOUT });
+            const [c, a] = priv('iptables-restore', []);
+            const proc = spawn(c, a, { timeout: EXEC_TIMEOUT });
             let stderr = '';
             proc.stderr.on('data', (d: Buffer) => { stderr += d.toString(); });
             proc.on('close', (code: number | null) => {
