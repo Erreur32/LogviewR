@@ -64,6 +64,13 @@ export const TabTracker: React.FC<{ onIpClick?: (ip: string) => void; onTotalCha
     const [geoData, setGeoData] = useState<Map<string, GeoInfo | null>>(new Map());
     const [geoLoading, setGeoLoading] = useState<Set<string>>(new Set());
 
+    // Hostname cache: ip → hostname (or '' if none)
+    const hostnameCache = useRef<Map<string, string>>(new Map());
+    const [hostnameData, setHostnameData] = useState<Map<string, string>>(new Map());
+
+    // IPSet membership: ip → set names[]
+    const [ipsetMembership, setIpsetMembership] = useState<Map<string, string[]>>(new Map());
+
     // Sync status banner
     interface SyncStatus { internalEvents: number; f2bTotalBans: number | null; synced: boolean | null; lastSyncAt: string | null }
     const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
@@ -71,6 +78,31 @@ export const TabTracker: React.FC<{ onIpClick?: (ip: string) => void; onTotalCha
         api.get<SyncStatus & { ok: boolean }>('/api/plugins/fail2ban/sync-status').then(res => {
             if (res.success && res.result?.ok) setSyncStatus(res.result);
         });
+    }, []);
+
+    // Load all ipset entries on mount and build ip → sets map
+    useEffect(() => {
+        api.get<{ ok: boolean; sets: { name: string; entries: number }[] }>('/api/plugins/fail2ban/ipset/sets')
+            .then(res => {
+                if (!res.success || !res.result?.ok) return;
+                const sets = (res.result.sets ?? []).filter(s => s.entries > 0);
+                Promise.all(sets.map(s =>
+                    api.get<{ ok: boolean; entries: string[] }>(`/api/plugins/fail2ban/ipset/entries/${encodeURIComponent(s.name)}`)
+                        .then(r => ({ name: s.name, entries: r.result?.entries ?? [] as string[] }))
+                        .catch(() => ({ name: s.name, entries: [] as string[] }))
+                )).then(results => {
+                    const map = new Map<string, string[]>();
+                    for (const { name, entries } of results) {
+                        for (const entry of entries) {
+                            const ip = entry.replace(/\/\d+$/, '');
+                            if (!map.has(ip)) map.set(ip, []);
+                            map.get(ip)!.push(name);
+                        }
+                    }
+                    setIpsetMembership(map);
+                });
+            })
+            .catch(() => {});
     }, []);
 
     const [dataLoaded, setDataLoaded] = useState(false);
@@ -91,6 +123,31 @@ export const TabTracker: React.FC<{ onIpClick?: (ip: string) => void; onTotalCha
     }, [onTotalChange]);
 
     useEffect(() => { fetchData(); }, [fetchData]);
+
+    const fetchHostnames = useCallback((ipList: string[]) => {
+        const toFetch = ipList.filter(ip => !hostnameCache.current.has(ip));
+        if (!toFetch.length) return;
+        for (const ip of toFetch) hostnameCache.current.set(ip, ''); // mark in-flight
+        for (let i = 0; i < toFetch.length; i += 50) {
+            const batch = toFetch.slice(i, i + 50);
+            api.get<Record<string, string>>(`/api/plugins/fail2ban/dns/batch?ips=${batch.join(',')}`)
+                .then(res => {
+                    if (res.success && res.result) {
+                        setHostnameData(prev => {
+                            const next = new Map(prev);
+                            for (const [ip, h] of Object.entries(res.result as Record<string, string>)) {
+                                hostnameCache.current.set(ip, h);
+                                if (h) next.set(ip, h);
+                            }
+                            return next;
+                        });
+                    }
+                })
+                .catch(() => {
+                    for (const ip of batch) hostnameCache.current.delete(ip);
+                });
+        }
+    }, []);
 
     const fetchGeo = useCallback((ip: string) => {
         if (geoCache.current.has(ip)) return;
@@ -155,11 +212,12 @@ export const TabTracker: React.FC<{ onIpClick?: (ip: string) => void; onTotalCha
     const currentPage = Math.min(page, Math.max(1, totalPages));
     const paginated   = perPage === 0 ? sorted : sorted.slice((currentPage - 1) * perPage, currentPage * perPage);
 
-    // Auto-fetch geo for visible rows — only after tracker data has loaded successfully at least once
+    // Auto-fetch geo + hostnames for visible rows — only after tracker data has loaded successfully at least once
     useEffect(() => {
         if (!dataLoaded) return;
         for (const e of paginated) fetchGeo(e.ip);
-    }, [paginated, fetchGeo, dataLoaded]);
+        fetchHostnames(paginated.map(e => e.ip));
+    }, [paginated, fetchGeo, fetchHostnames, dataLoaded]);
 
     const ppBtn = (pp: number, label: string) => (
         <button key={pp} onClick={() => { setPerPage(pp); setPage(1); }}
@@ -252,6 +310,8 @@ export const TabTracker: React.FC<{ onIpClick?: (ip: string) => void; onTotalCha
                                     const geo        = geoData.get(e.ip);
                                     const geoFetched = geoCache.current.has(e.ip);
                                     const geoFetching = geoLoading.has(e.ip);
+                                    const hostname   = hostnameData.get(e.ip) ?? e.hostname;
+                                    const ipsets     = ipsetMembership.size > 0 ? (ipsetMembership.get(e.ip) ?? []) : (e.ipsets ?? []);
                                     return (
                                         <tr key={e.ip} style={{ borderBottom: '1px solid rgba(48,54,61,.6)' }}
                                             onMouseEnter={ev => (ev.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,.02)'}
@@ -319,15 +379,15 @@ export const TabTracker: React.FC<{ onIpClick?: (ip: string) => void; onTotalCha
                                                 </div>
                                             </td>
                                             <td style={{ padding: '.4rem .65rem' }}>
-                                                {e.ipsets && e.ipsets.length > 0 ? (
+                                                {ipsets.length > 0 ? (
                                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.25rem' }}>
-                                                        {e.ipsets.map(s => (
+                                                        {ipsets.map(s => (
                                                             <span key={s} style={{ padding: '.12rem .4rem', borderRadius: 4, fontSize: '.68rem', fontWeight: 600, background: 'rgba(188,140,255,.1)', color: '#bc8cff', border: '1px solid rgba(188,140,255,.25)', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{s}</span>
                                                         ))}
                                                     </div>
                                                 ) : <span style={{ color: '#8b949e', fontSize: '.75rem' }}>—</span>}
                                             </td>
-                                            <td style={{ padding: '.4rem .65rem', fontSize: '.78rem', color: e.hostname ? '#c9d1d9' : '#8b949e', fontFamily: 'monospace' }}>{e.hostname ?? '—'}</td>
+                                            <td style={{ padding: '.4rem .65rem', fontSize: '.78rem', color: hostname ? '#c9d1d9' : '#8b949e', fontFamily: 'monospace' }}>{hostname ?? '—'}</td>
                                         </tr>
                                     );
                                 })}

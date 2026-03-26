@@ -3,7 +3,7 @@
  * Sections: Bot/Provider · Stats · Jails actifs · IPSets · Whois · Géoloc · Actions · Historique · Logs source
  */
 import React, { useState, useEffect } from 'react';
-import { X, Clock, Shield, MapPin, Activity, Server, FileText, AlertTriangle, Info } from 'lucide-react';
+import { X, Clock, Shield, MapPin, Activity, FileText, AlertTriangle, Info } from 'lucide-react';
 import { api } from '../../api/client';
 import { GeoInfo, fmtBantime } from './types';
 import { FlagImg } from './FlagImg';
@@ -78,7 +78,7 @@ type LogType = 'access' | 'error' | 'other';
 // Colors
 const C_IP       = '#e86a65'; // IP addresses (red)
 const C_TS       = '#e3b341'; // timestamps (yellow)
-const C_PATH     = '#39c5cf'; // URL/filesystem paths (cyan)
+const C_PATH     = '#79c0ff'; // URL/filesystem paths (light blue)
 const C_METHOD   = '#3fb950'; // HTTP methods (green)
 const C_STATUS_E = '#e86a65'; // 4xx/5xx
 const C_STATUS_R = '#58a6ff'; // 3xx
@@ -106,20 +106,48 @@ function tokenizeLogLine(raw: string, logType: LogType = 'other'): LogToken[] {
         [/^\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2}/, m => [{ text: m[0], color: C_TS }]],
         // ISO timestamp
         [/\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}[.,\d]*Z?/, m => [{ text: m[0], color: C_TS }]],
-        // "METHOD /path HTTP/x.y" or "METHOD /path" (request line anywhere in line)
-        [/"(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS) (\/[^\s"]*?)(?:\s+(HTTP\/[\d.]+))?"/,  m => [
-            { text: '"' },
+        // NPM proxy: METHOD http(s) domain "path"  e.g. GET https mysite.fr "/wp-login.php"
+        [/\b(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)\s+(https?)\s+(\S+)\s+"([^"]*)"/, m => [
             { text: m[1], color: C_METHOD, weight: '600' },
-            { text: ' ' },
+            { text: ' ', color: C_MUTED },
+            { text: m[2], color: C_MUTED },
+            { text: ' ', color: C_MUTED },
+            { text: m[3], color: C_WARN },
+            { text: ' "', color: C_MUTED },
+            { text: m[4] || '-', color: m[4] ? C_PATH : C_MUTED, weight: '600' },
+            { text: '"', color: C_MUTED },
+        ]],
+        // "METHOD /path HTTP/x.y" or "METHOD /path" (standard access log request line)
+        [/"(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS) (\/[^\s"]*?)(?:\s+(HTTP\/[\d.]+))?"/,  m => [
+            { text: '"', color: C_MUTED },
+            { text: m[1], color: C_METHOD, weight: '600' },
+            { text: ' ', color: C_MUTED },
             { text: m[2], color: C_PATH, weight: '600' },
-            ...(m[3] ? [{ text: ' ' }, { text: m[3], color: C_MUTED }] : []),
-            { text: '"' },
+            ...(m[3] ? [{ text: ' ', color: C_MUTED }, { text: m[3], color: C_MUTED }] : []),
+            { text: '"', color: C_MUTED },
+        ]],
+        // NPM proxy metadata brackets: [Length 166] [Gzip 2.75]
+        [/\[(Length|Gzip)\s+([^\]]+)\]/i, m => [
+            { text: '[', color: C_MUTED },
+            { text: m[1], color: C_DIM },
+            { text: ' ' + m[2] + ']', color: C_DIM },
         ]],
         // [client X.X.X.X] Apache error log
         [/\[client (\d{1,3}(?:\.\d{1,3}){3})(?::\d+)?\]/i, m => [
-            { text: '[client ' },
+            { text: '[client ', color: C_MUTED },
             { text: m[1], color: C_IP, weight: '600' },
-            { text: m[0].slice(m[0].lastIndexOf(m[1]) + m[1].length) },
+            { text: m[0].slice(m[0].lastIndexOf(m[1]) + m[1].length), color: C_MUTED },
+        ]],
+        // nginx: client: 1.2.3.4 (error log format — here in COMMON so it fires for all log types)
+        [/\bclient:\s*(\d{1,3}(?:\.\d{1,3}){3})/, m => [
+            { text: 'client: ', color: C_MUTED },
+            { text: m[1], color: C_IP, weight: '600' },
+        ]],
+        // [Sent-to X.X.X.X] fail2ban action log
+        [/\[Sent-to (\d{1,3}(?:\.\d{1,3}){3}(?:\/\d+)?)\]/i, m => [
+            { text: '[Sent-to ', color: C_METHOD },
+            { text: m[1], color: C_IP, weight: '600' },
+            { text: ']', color: C_METHOD },
         ]],
         // Apache error module:severity [authz_core:error] — before generic [xxx] brackets
         [/\[[a-z_]+:[a-z]+\]/i, m => [{ text: m[0], color: C_WARN }]],
@@ -155,11 +183,6 @@ function tokenizeLogLine(raw: string, logType: LogType = 'other'): LogToken[] {
 
     // ── Error log specific patterns (prepended) ───────────────────────────────
     const ERROR_EXTRA: [RegExp, (m: RegExpMatchArray) => LogToken[]][] = [
-        // nginx: client: 1.2.3.4
-        [/\bclient:\s*(\d{1,3}(?:\.\d{1,3}){3})/, m => [
-            { text: 'client: ' },
-            { text: m[1], color: C_IP, weight: '600' },
-        ]],
         // nginx: server: hostname, host: "hostname"
         [/\b(server|host):\s*"?([^",\s]+)"?/, m => [
             { text: m[1] + ': ' },
@@ -236,15 +259,11 @@ const SVC_ICONS: Record<string, [string, string]> = {
 };
 
 const ServiceIcon: React.FC<{ filepath: string }> = ({ filepath }) => {
-    const svc = detectService(filepath);
-    const info = SVC_ICONS[svc];
+    const info = SVC_ICONS[detectService(filepath)];
     return (
-        <img
-            src={`/icons/services/${info[0]}`}
-            width={14} height={14}
+        <img src={`/icons/services/${info[0]}`} width={14} height={14}
             style={{ borderRadius: 2, flexShrink: 0, display: 'inline-block', verticalAlign: 'middle' }}
-            title={info[1]} alt={info[1]}
-            loading="lazy"
+            title={info[1]} alt={info[1]} loading="lazy"
         />
     );
 };
@@ -309,15 +328,6 @@ const JailPill: React.FC<{ jail: string }> = ({ jail }) => {
     );
 };
 
-const IpsetBadge: React.FC<{ name: string }> = ({ name }) => (
-    <span style={{ padding: '.07rem .38rem', borderRadius: 4, fontSize: '.7rem', fontWeight: 600,
-        background: 'rgba(188,140,255,.12)', color: '#bc8cff',
-        border: '1px solid rgba(188,140,255,.3)', marginRight: '.2rem',
-        fontFamily: 'monospace', display: 'inline-block' }}>
-        {name}
-    </span>
-);
-
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export const IpModal: React.FC<{
@@ -333,12 +343,13 @@ export const IpModal: React.FC<{
     const [actionMsg,    setActionMsg]    = useState<{ ok: boolean; text: string } | null>(null);
     const [banning,      setBanning]      = useState(false);
     const [ipsetBanning, setIpsetBanning] = useState<string | null>(null);
-    const [logsOpen,     setLogsOpen]     = useState(false);
+    const [selIpset,     setSelIpset]     = useState<string>('');
+    const [logsOpen,     setLogsOpen]     = useState(true);
     const [expandedLogs, setExpandedLogs] = useState<Set<number>>(new Set());
-    const LOG_LINES_DEFAULT = 10;
+    const LOG_LINES_DEFAULT = 4;
 
     useEffect(() => {
-        setHistory([]); setLoading(true); setActionMsg(null); setDetails(null); setLogsOpen(false); setExpandedLogs(new Set());
+        setHistory([]); setLoading(true); setActionMsg(null); setDetails(null); setLogsOpen(true); setExpandedLogs(new Set());
         if (!geoProp) setGeo(null);
 
         Promise.all([
@@ -367,6 +378,10 @@ export const IpModal: React.FC<{
                 });
             }
             if (geoRes && geoRes.success && geoRes.result?.ok) setGeo(geoRes.result.geo);
+            if (detRes.success && detRes.result?.ok) {
+                const first = detRes.result.allIpsets?.[0] ?? '';
+                setSelIpset(s => s || first);
+            }
             setLoading(false);
         });
     }, [ip, geoProp]);
@@ -438,7 +453,7 @@ export const IpModal: React.FC<{
             padding: '1rem', overflowY: 'auto' }}
             onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
             <div style={{ background: '#0d1117', border: '1px solid #30363d', borderRadius: 10,
-                width: '100%', maxWidth: 1400, marginTop: '1rem', marginBottom: '1rem',
+                width: '96vw', maxWidth: 2200, marginTop: '1rem', marginBottom: '1rem',
                 display: 'flex', flexDirection: 'column' }}>
 
                 {/* ── Header ── */}
@@ -493,7 +508,7 @@ export const IpModal: React.FC<{
 
                 {/* ── 3-column info grid ── */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'minmax(270px,1fr) minmax(260px,1fr) minmax(220px,1fr)',
-                    gap: '1rem', padding: '1rem 1.25rem', borderBottom: '1px solid #30363d' }}>
+                    gap: '1rem', padding: '1rem 1.75rem', borderBottom: '1px solid #30363d' }}>
 
                     {/* Col 1 — Stats + Types d'attaque + Jails actifs */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
@@ -556,30 +571,74 @@ export const IpModal: React.FC<{
                                         <span style={{ color: '#8b949e', fontSize: '.7rem', marginLeft: '.2rem' }}>(dernier ban)</span>
                                     </Row>
                                 )}
-                                {/* Bannir dans recidive */}
-                                {!inRecidive && (
-                                    <div style={{ marginTop: '.35rem', paddingTop: '.5rem', borderTop: '1px solid #30363d' }}>
-                                        <button onClick={banRecidive} disabled={banning}
-                                            style={{ width: '100%', padding: '.28rem .7rem', borderRadius: 5,
+                                {(details?.ipsets ?? []).length > 0 && (
+                                    <Row label="IPSet(s)">
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.25rem' }}>
+                                            {details!.ipsets.map(s => (
+                                                <span key={s} style={{ padding: '.08rem .4rem', borderRadius: 4, fontSize: '.68rem', fontWeight: 600, background: 'rgba(188,140,255,.1)', color: '#bc8cff', border: '1px solid rgba(188,140,255,.25)', fontFamily: 'monospace' }}>{s}</span>
+                                            ))}
+                                        </div>
+                                    </Row>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* ── Actions rapides ── */}
+                        <div style={card}>
+                            <div style={cardH}>
+                                <Shield style={{ width: 12, height: 12, color: '#e86a65' }} />
+                                <span style={{ fontWeight: 600, fontSize: '.8rem' }}>Actions rapides</span>
+                            </div>
+                            <div style={{ ...cardB, gap: '.55rem' }}>
+                                {/* Recidive */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
+                                    <span style={{ fontSize: '.72rem', color: '#8b949e', minWidth: 52 }}>Recidive</span>
+                                    {inRecidive
+                                        ? <span style={{ fontSize: '.72rem', color: '#e86a65', fontWeight: 600 }}>⚠ déjà banni</span>
+                                        : <button onClick={banRecidive} disabled={banning}
+                                            style={{ flex: 1, padding: '.25rem .6rem', borderRadius: 5,
                                                 background: 'rgba(232,106,101,.08)', border: '1px solid rgba(232,106,101,.3)',
                                                 color: '#e86a65', cursor: banning ? 'default' : 'pointer',
-                                                fontSize: '.75rem', fontWeight: 600, opacity: banning ? .6 : 1,
-                                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '.35rem' }}>
-                                            <Shield style={{ width: 11, height: 11 }} />
+                                                fontSize: '.74rem', fontWeight: 600, opacity: banning ? .6 : 1,
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '.3rem' }}>
+                                            <Shield style={{ width: 10, height: 10 }} />
                                             {banning ? 'Bannissement…' : 'Bannir dans recidive'}
                                         </button>
-                                        {actionMsg && (
-                                            <div style={{ marginTop: '.3rem', fontSize: '.72rem', textAlign: 'center',
-                                                color: actionMsg.ok ? '#3fb950' : '#e86a65' }}>
-                                                {actionMsg.text}
-                                            </div>
-                                        )}
+                                    }
+                                </div>
+                                {/* IPSet */}
+                                {(details?.allIpsets ?? []).length > 0 && (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
+                                        <span style={{ fontSize: '.72rem', color: '#8b949e', minWidth: 52 }}>IPSet</span>
+                                        <select value={selIpset} onChange={e => setSelIpset(e.target.value)}
+                                            style={{ flex: 1, background: '#21262d', border: '1px solid #30363d', color: '#e6edf3',
+                                                borderRadius: 4, padding: '.2rem .4rem', fontSize: '.74rem', outline: 'none', cursor: 'pointer' }}>
+                                            {(details?.allIpsets ?? []).map(s => (
+                                                <option key={s} value={s} style={{ background: '#21262d' }}>
+                                                    {s}{(details?.ipsets ?? []).includes(s) ? ' ✓' : ''}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <button
+                                            onClick={() => selIpset && banIpset(selIpset)}
+                                            disabled={!selIpset || ipsetBanning === selIpset || (details?.ipsets ?? []).includes(selIpset)}
+                                            style={{ padding: '.25rem .6rem', borderRadius: 5, whiteSpace: 'nowrap',
+                                                background: (details?.ipsets ?? []).includes(selIpset) ? 'rgba(188,140,255,.06)' : 'rgba(188,140,255,.1)',
+                                                border: '1px solid rgba(188,140,255,.3)', color: '#bc8cff',
+                                                cursor: (!selIpset || ipsetBanning === selIpset || (details?.ipsets ?? []).includes(selIpset)) ? 'default' : 'pointer',
+                                                fontSize: '.74rem', fontWeight: 600,
+                                                opacity: (!selIpset || ipsetBanning === selIpset) ? .5 : 1,
+                                                display: 'flex', alignItems: 'center', gap: '.3rem' }}>
+                                            {(details?.ipsets ?? []).includes(selIpset)
+                                                ? '✓ déjà ajouté'
+                                                : ipsetBanning === selIpset ? 'Ajout…' : '+ Ajouter'}
+                                        </button>
                                     </div>
                                 )}
-                                {inRecidive && (
-                                    <div style={{ marginTop: '.35rem', paddingTop: '.5rem', borderTop: '1px solid #30363d',
-                                        fontSize: '.72rem', color: '#e86a65', textAlign: 'center', fontWeight: 600 }}>
-                                        ⚠ Déjà en recidive
+                                {actionMsg && (
+                                    <div style={{ fontSize: '.72rem', color: actionMsg.ok ? '#3fb950' : '#e86a65',
+                                        display: 'flex', alignItems: 'center', gap: '.3rem' }}>
+                                        {actionMsg.text}
                                     </div>
                                 )}
                             </div>
@@ -628,42 +687,8 @@ export const IpModal: React.FC<{
                         )}
                     </div>
 
-                    {/* Col 2 — IPSets + Whois */}
+                    {/* Col 2 — Whois */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
-
-                        {/* IPSet membership + ajout */}
-                        {(details?.allIpsets ?? []).length > 0 && (
-                            <div style={card}>
-                                <div style={cardH}>
-                                    <Server style={{ width: 12, height: 12, color: '#bc8cff' }} />
-                                    <span style={{ fontWeight: 600, fontSize: '.8rem' }}>IPSet</span>
-                                </div>
-                                <div style={{ padding: '.6rem .85rem', display: 'flex', flexDirection: 'column', gap: '.4rem' }}>
-                                    {(details?.ipsets ?? []).length > 0 && (
-                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.3rem' }}>
-                                            {details!.ipsets.map(s => <IpsetBadge key={s} name={s} />)}
-                                        </div>
-                                    )}
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.3rem' }}>
-                                        {(details?.allIpsets ?? []).map(setName => {
-                                            const alreadyIn = (details?.ipsets ?? []).includes(setName);
-                                            const busy = ipsetBanning === setName;
-                                            return (
-                                                <button key={setName} onClick={() => !alreadyIn && !busy && banIpset(setName)}
-                                                    disabled={alreadyIn || busy}
-                                                    style={{ padding: '.2rem .55rem', borderRadius: 4, fontSize: '.72rem', fontWeight: 600,
-                                                        cursor: alreadyIn || busy ? 'default' : 'pointer',
-                                                        background: alreadyIn ? 'rgba(188,140,255,.08)' : 'rgba(227,179,65,.08)',
-                                                        border: `1px solid ${alreadyIn ? 'rgba(188,140,255,.3)' : 'rgba(227,179,65,.3)'}`,
-                                                        color: alreadyIn ? '#bc8cff' : '#e3b341', opacity: busy ? .6 : 1 }}>
-                                                    {alreadyIn ? `✓ ${setName}` : `+ ${setName}`}
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            </div>
-                        )}
 
                         {/* Whois */}
                         <div style={card}>
@@ -756,11 +781,12 @@ export const IpModal: React.FC<{
                 </div>
 
                 {/* ── Historique fail2ban ── */}
-                <div style={{ flexShrink: 0 }}>
-                    <div style={{ padding: '.4rem 1rem', background: '#161b22', borderBottom: '1px solid #30363d',
+                <div style={{ padding: '1.25rem 1.75rem 0', flexShrink: 0 }}>
+                    <div style={{ border: '1px solid #30363d', borderRadius: 8, overflow: 'hidden' }}>
+                    <div style={{ padding: '.5rem 1rem', background: '#161b22', borderBottom: '1px solid #30363d',
                         fontSize: '.72rem', color: '#8b949e', display: 'flex', alignItems: 'center', gap: '.4rem' }}>
                         <Clock style={{ width: 11, height: 11 }} />
-                        Historique fail2ban
+                        <span style={{ fontWeight: 600, color: '#e6edf3' }}>Historique fail2ban</span>
                         <span style={{ background: '#21262d', border: '1px solid #30363d', borderRadius: 3,
                             padding: '0 .35rem', color: '#e6edf3', fontWeight: 600 }}>
                             {history.length}
@@ -776,7 +802,7 @@ export const IpModal: React.FC<{
                             Aucun historique interne trouvé
                         </div>
                     ) : (
-                        <div style={{ maxHeight: 260, overflowY: 'auto' }}>
+                        <div style={{ maxHeight: 320, overflowY: 'auto' }}>
                             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                                 <thead>
                                     <tr style={{ position: 'sticky', top: 0, background: '#161b22', zIndex: 1 }}>
@@ -835,15 +861,18 @@ export const IpModal: React.FC<{
                             </table>
                         </div>
                     )}
+                    </div>
                 </div>
 
                 {/* ── Activité dans les logs source ── */}
                 {logEntries.length > 0 && (
-                    <div style={{ borderTop: '1px solid #30363d', flexShrink: 0 }}>
+                    <div style={{ padding: '1.25rem 1.75rem 1.25rem', flexShrink: 0 }}>
+                    <div style={{ border: '1px solid #30363d', borderRadius: 8, overflow: 'hidden' }}>
                         <button onClick={() => setLogsOpen(o => !o)}
                             style={{ width: '100%', background: '#161b22', border: 'none', cursor: 'pointer',
-                                padding: '.45rem 1rem', display: 'flex', alignItems: 'center', gap: '.45rem',
-                                color: '#e3b341', fontSize: '.77rem', textAlign: 'left' }}>
+                                padding: '.5rem 1rem', display: 'flex', alignItems: 'center', gap: '.45rem',
+                                color: '#e3b341', fontSize: '.77rem', textAlign: 'left',
+                                borderBottom: logsOpen ? '1px solid #30363d' : 'none' }}>
                             <FileText style={{ width: 12, height: 12, flexShrink: 0 }} />
                             <strong>Activité dans les logs source</strong>
                             <span style={{ background: '#21262d', border: '1px solid #30363d', borderRadius: 3,
@@ -913,7 +942,7 @@ export const IpModal: React.FC<{
                                             )}
                                             <pre style={{ margin: 0, padding: '.5rem .75rem', background: '#0d1117',
                                                 border: '1px solid #30363d', borderRadius: 5, overflow: 'auto',
-                                                fontSize: '.7rem', lineHeight: 1.6,
+                                                fontSize: '.7rem', lineHeight: 1.6, color: '#c9d1d9',
                                                 fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
                                                 {visibleLines.map((line, i) => (
                                                     <div key={i}><ColorizedLine line={line} logType={entry.type as LogType} /></div>
@@ -937,6 +966,7 @@ export const IpModal: React.FC<{
                                 })}
                             </div>
                         )}
+                    </div>
                     </div>
                 )}
 

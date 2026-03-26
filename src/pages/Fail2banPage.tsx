@@ -29,6 +29,9 @@ import { PERIODS, F2bTooltip } from './fail2ban/helpers';
 import { TabAide }           from './fail2ban/TabAide';
 import { TabBackup }         from './fail2ban/TabBackup';
 import { TabNetworkRaw }     from './fail2ban/TabNetworkRaw';
+import { TabIPSet }          from './fail2ban/TabIPSet';
+import { TabIPTables }       from './fail2ban/TabIPTables';
+import { TabNFTables }       from './fail2ban/TabNFTables';
 import { TabFileList }       from './fail2ban/TabFileList';
 import { BanHistoryChart }   from './fail2ban/BanHistoryChart';
 import type { StatusResponse, HistoryEntry, TabId } from './fail2ban/types';
@@ -144,6 +147,11 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
         tickRef.current = setInterval(() => setTick(t => t + 1), 5000);
         return () => { if (tickRef.current) clearInterval(tickRef.current); };
     }, []);
+
+    // ── URL hash sync — update hash on tab change for bookmarkable deep links ──
+    useEffect(() => {
+        window.history.replaceState(null, '', `#fail2ban/${tab}`);
+    }, [tab]);
 
     // ── Ban notification polling ───────────────────────────────────────────────
     // Bootstrap: get current max rowid so we only notify about future bans
@@ -526,9 +534,9 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
                             days={statsDays} onDaysChange={setStatsDays}
                             onIpClick={(ip) => setSelectedIp(ip)} />
                     )}
-                    {tab === 'iptables' && <TabNetworkRaw title="IPTables" endpoint="/api/plugins/fail2ban/iptables" icon={<Network style={{ width: 14, height: 14 }} />} />}
-                    {tab === 'ipset'    && <TabNetworkRaw title="IPSet"    endpoint="/api/plugins/fail2ban/ipset"    icon={<Database style={{ width: 14, height: 14 }} />} />}
-                    {tab === 'nftables' && <TabNetworkRaw title="NFTables" endpoint="/api/plugins/fail2ban/nftables" icon={<Server style={{ width: 14, height: 14 }} />} />}
+                    {tab === 'iptables' && <TabIPTables />}
+                    {tab === 'ipset'    && <TabIPSet onIpClick={ip => setSelectedIp(ip)} />}
+                    {tab === 'nftables' && <TabNFTables />}
                     {tab === 'config'   && <TabConfig />}
                     {tab === 'audit'    && <TabAudit />}
                     {tab === 'backup'   && <TabBackup />}

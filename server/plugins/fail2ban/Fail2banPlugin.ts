@@ -17,6 +17,7 @@ import { BasePlugin } from '../base/BasePlugin.js';
 import type { PluginStats } from '../base/PluginInterface.js';
 import { Fail2banSqliteReader } from './Fail2banSqliteReader.js';
 import { Fail2banClientExec } from './Fail2banClientExec.js';
+import { IptablesService } from './IptablesService.js';
 import { Fail2banSyncService } from '../../services/fail2banSyncService.js';
 import { asyncHandler, createError } from '../../middleware/errorHandler.js';
 import { requireAuth } from '../../middleware/authMiddleware.js';
@@ -401,6 +402,10 @@ export class Fail2banPlugin extends BasePlugin {
     private reader!: Fail2banSqliteReader;
     private client!: Fail2banClientExec;
     private syncService: Fail2banSyncService | null = null;
+    // Rollback state for iptables write operations
+    private ipt_rollbackTimer: ReturnType<typeof setTimeout> | null = null;
+    private ipt_rollbackSnapshot: string | null = null;
+    private ipt_rollbackDeadline: number | null = null;
 
     constructor() {
         super('fail2ban', 'Fail2ban', '1.0.0');
@@ -1536,7 +1541,7 @@ export class Fail2banPlugin extends BasePlugin {
                 const lines = await grepLogFile(resolved, ip, LOG_MAX_LINES);
                 if (lines.length > 0) {
                     const fname = logpath.replace(/.*\//, '');
-                    const type = /_error/i.test(fname) ? 'error' : /_access/i.test(fname) ? 'access' : 'other';
+                    const type = /error/i.test(fname) ? 'error' : /access/i.test(fname) ? 'access' : 'other';
                     logEntries.push({ jail, filepath: logpath, domain: domainForLogpath(logpath), type, lines });
                 }
             }));
@@ -1625,6 +1630,22 @@ export class Fail2banPlugin extends BasePlugin {
             const safeEntry = entry.replace(/[^0-9a-fA-F.:\/]/g, '');
             if (!safeSet || !safeEntry) return res.json({ success: true, result: { ok: false, error: 'Valeurs invalides' } });
             const r = await this.client?.ipsetAdd(safeSet, safeEntry) ?? { ok: false, output: '', error: 'client not initialized' };
+            res.json({ success: true, result: r });
+        }));
+
+        // GET /ipset/info — full set metadata (type, maxelem, size, entry count)
+        router.get('/ipset/info', requireAuth, asyncHandler(async (_req, res) => {
+            if (!this.isEnabled()) return res.json({ success: true, result: { ok: false, sets: [], error: 'Plugin désactivé' } });
+            const r = await this.client?.ipsetInfo() ?? { ok: false, sets: [], error: 'client not initialized' };
+            res.json({ success: true, result: r });
+        }));
+
+        // GET /ipset/entries/:set — list members of a specific set
+        router.get('/ipset/entries/:set', requireAuth, asyncHandler(async (req, res) => {
+            if (!this.isEnabled()) return res.json({ success: true, result: { ok: false, entries: [], error: 'Plugin désactivé' } });
+            const setName = String(req.params.set).replace(/[^a-zA-Z0-9_.-]/g, '');
+            if (!setName) return res.json({ success: true, result: { ok: false, entries: [], error: 'Nom de set invalide' } });
+            const r = await this.client?.ipsetEntries(setName) ?? { ok: false, entries: [], error: 'client not initialized' };
             res.json({ success: true, result: r });
         }));
 
@@ -1874,6 +1895,174 @@ export class Fail2banPlugin extends BasePlugin {
             res.json({ success: true, result: { ok: true } });
         }));
 
+        // ── IPTables extended routes ─────────────────────────────────────────
+
+        // GET /iptables/tables — list table names from iptables-save output
+        router.get('/iptables/tables', requireAuth, asyncHandler(async (_req, res) => {
+            if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
+            const r = await IptablesService.save();
+            if (!r.ok) return res.json({ success: true, result: { ok: false, tables: [], error: r.error } });
+            const tables = IptablesService.parseTables(r.output);
+            res.json({ success: true, result: { ok: true, tables } });
+        }));
+
+        // GET /iptables/rules?table=filter — full iptables-save (or filtered by table)
+        router.get('/iptables/rules', requireAuth, asyncHandler(async (req, res) => {
+            if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
+            const r = await IptablesService.save();
+            if (!r.ok) return res.json({ success: true, result: { ok: false, output: '', error: r.error } });
+            const table = typeof req.query.table === 'string' ? req.query.table : '';
+            if (!table) return res.json({ success: true, result: { ok: true, output: r.output } });
+            // Filter to just the requested table section
+            const lines = r.output.split('\n');
+            const out: string[] = [];
+            let inTable = false;
+            for (const line of lines) {
+                if (line === `*${table}`) { inTable = true; }
+                if (inTable) { out.push(line); if (line === 'COMMIT') break; }
+            }
+            res.json({ success: true, result: { ok: true, output: out.join('\n') } });
+        }));
+
+        // GET /iptables/parsed?table=filter — structured chains from iptables -L -v -n --line-numbers
+        router.get('/iptables/parsed', requireAuth, asyncHandler(async (req, res) => {
+            if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
+            const table = typeof req.query.table === 'string' ? req.query.table.replace(/[^a-z]/g, '') : 'filter';
+            const r = await IptablesService.listParsed(table || 'filter');
+            res.json({ success: true, result: r });
+        }));
+
+        // GET /iptables/backups — list available backups
+        router.get('/iptables/backups', requireAuth, asyncHandler(async (_req, res) => {
+            if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
+            const backups = IptablesService.listBackups();
+            res.json({ success: true, result: { ok: true, backups } });
+        }));
+
+        // POST /iptables/backup — create a backup
+        router.post('/iptables/backup', requireAuth, asyncHandler(async (req, res) => {
+            if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
+            const label = typeof req.body?.label === 'string' ? req.body.label : undefined;
+            const r = await IptablesService.saveBackup(label);
+            res.json({ success: true, result: r });
+        }));
+
+        // POST /iptables/restore/:filename — restore from backup file
+        router.post('/iptables/restore/:filename', requireAuth, asyncHandler(async (req, res) => {
+            if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
+            const { filename } = req.params;
+            const r = await IptablesService.restoreFromFile(filename);
+            res.json({ success: true, result: r });
+        }));
+
+        // DELETE /iptables/backup/:filename — delete a backup
+        router.delete('/iptables/backup/:filename', requireAuth, asyncHandler(async (req, res) => {
+            if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
+            const { filename } = req.params;
+            const r = IptablesService.deleteBackup(filename);
+            res.json({ success: true, result: r });
+        }));
+
+        // POST /iptables/rule/add — add a rule (starts rollback timer)
+        router.post('/iptables/rule/add', requireAuth, asyncHandler(async (req, res) => {
+            if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
+            const { table, chain, rule } = req.body ?? {};
+            if (!table || !chain || !rule) return res.json({ success: true, result: { ok: false, error: 'table, chain, rule requis' } });
+            // Parse rule string into args (simple split — no shell expansion)
+            const ruleArgs = String(rule).trim().split(/\s+/).filter(Boolean);
+            // Take snapshot before mutation
+            const snap = await IptablesService.save();
+            if (!snap.ok) return res.json({ success: true, result: { ok: false, error: `Snapshot impossible: ${snap.error}` } });
+            const r = await IptablesService.addRule(String(table), String(chain), ruleArgs);
+            if (!r.ok) return res.json({ success: true, result: r });
+            this._startRollback(snap.output, 30);
+            res.json({ success: true, result: { ...r, rollbackDeadline: this.ipt_rollbackDeadline } });
+        }));
+
+        // POST /iptables/rule/delete — delete rule by number (starts rollback timer)
+        router.post('/iptables/rule/delete', requireAuth, asyncHandler(async (req, res) => {
+            if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
+            const { table, chain, rulenum } = req.body ?? {};
+            if (!table || !chain || !rulenum) return res.json({ success: true, result: { ok: false, error: 'table, chain, rulenum requis' } });
+            const snap = await IptablesService.save();
+            if (!snap.ok) return res.json({ success: true, result: { ok: false, error: `Snapshot impossible: ${snap.error}` } });
+            const r = await IptablesService.deleteRule(String(table), String(chain), parseInt(String(rulenum), 10));
+            if (!r.ok) return res.json({ success: true, result: r });
+            this._startRollback(snap.output, 30);
+            res.json({ success: true, result: { ...r, rollbackDeadline: this.ipt_rollbackDeadline } });
+        }));
+
+        // POST /iptables/ip/ban — insert DROP rule for an IP at top of chain
+        router.post('/iptables/ip/ban', requireAuth, asyncHandler(async (req, res) => {
+            if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
+            const { table = 'filter', chain = 'INPUT', ip } = req.body ?? {};
+            if (!ip) return res.json({ success: true, result: { ok: false, error: 'ip requis' } });
+            if (!/^[\d./]+$/.test(String(ip)) && !/^[0-9a-fA-F:]+$/.test(String(ip)))
+                return res.json({ success: true, result: { ok: false, error: 'IP invalide' } });
+            const snap = await IptablesService.save();
+            if (!snap.ok) return res.json({ success: true, result: { ok: false, error: `Snapshot impossible: ${snap.error}` } });
+            const r = await IptablesService.insertRule(String(table), String(chain), 1, ['-s', String(ip), '-j', 'DROP']);
+            if (!r.ok) return res.json({ success: true, result: r });
+            this._startRollback(snap.output, 30);
+            res.json({ success: true, result: { ...r, rollbackDeadline: this.ipt_rollbackDeadline } });
+        }));
+
+        // POST /iptables/ip/unban — delete DROP rule for an IP from chain
+        router.post('/iptables/ip/unban', requireAuth, asyncHandler(async (req, res) => {
+            if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
+            const { table = 'filter', chain = 'INPUT', ip } = req.body ?? {};
+            if (!ip) return res.json({ success: true, result: { ok: false, error: 'ip requis' } });
+            if (!/^[\d./]+$/.test(String(ip)) && !/^[0-9a-fA-F:]+$/.test(String(ip)))
+                return res.json({ success: true, result: { ok: false, error: 'IP invalide' } });
+            const snap = await IptablesService.save();
+            if (!snap.ok) return res.json({ success: true, result: { ok: false, error: `Snapshot impossible: ${snap.error}` } });
+            const r = await IptablesService.deleteRuleSpec(String(table), String(chain), ['-s', String(ip), '-j', 'DROP']);
+            if (!r.ok) return res.json({ success: true, result: r });
+            this._startRollback(snap.output, 30);
+            res.json({ success: true, result: { ...r, rollbackDeadline: this.ipt_rollbackDeadline } });
+        }));
+
+        // GET /iptables/rollback/status — is a rollback pending?
+        router.get('/iptables/rollback/status', requireAuth, asyncHandler(async (_req, res) => {
+            const pending = this.ipt_rollbackTimer !== null;
+            res.json({ success: true, result: { ok: true, pending, deadline: this.ipt_rollbackDeadline } });
+        }));
+
+        // POST /iptables/rollback/confirm — confirm changes (cancel rollback timer)
+        router.post('/iptables/rollback/confirm', requireAuth, asyncHandler(async (_req, res) => {
+            this._cancelRollback();
+            res.json({ success: true, result: { ok: true } });
+        }));
+
+        // POST /iptables/rollback/now — rollback immediately
+        router.post('/iptables/rollback/now', requireAuth, asyncHandler(async (_req, res) => {
+            if (!this.ipt_rollbackSnapshot) return res.json({ success: true, result: { ok: false, error: 'Aucun snapshot disponible' } });
+            this._cancelRollback();
+            const r = await IptablesService.restore(this.ipt_rollbackSnapshot);
+            this.ipt_rollbackSnapshot = null;
+            res.json({ success: true, result: r });
+        }));
+
         return router;
+    }
+
+    // ── Rollback helpers ──────────────────────────────────────────────────────
+
+    private _startRollback(snapshot: string, secs: number): void {
+        this._cancelRollback();
+        this.ipt_rollbackSnapshot = snapshot;
+        this.ipt_rollbackDeadline = Date.now() + secs * 1000;
+        this.ipt_rollbackTimer = setTimeout(async () => {
+            logger.warn('[iptables]', 'Rollback automatique (délai expiré)');
+            if (this.ipt_rollbackSnapshot) await IptablesService.restore(this.ipt_rollbackSnapshot);
+            this.ipt_rollbackSnapshot = null;
+            this.ipt_rollbackTimer   = null;
+            this.ipt_rollbackDeadline = null;
+        }, secs * 1000);
+    }
+
+    private _cancelRollback(): void {
+        if (this.ipt_rollbackTimer) { clearTimeout(this.ipt_rollbackTimer); this.ipt_rollbackTimer = null; }
+        this.ipt_rollbackDeadline = null;
     }
 }

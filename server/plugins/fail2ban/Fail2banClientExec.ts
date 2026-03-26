@@ -13,7 +13,9 @@ import * as fs from 'fs';
 const execFileAsync = promisify(execFile);
 
 const SOCKET_PATH = '/var/run/fail2ban/fail2ban.sock';
-const EXEC_TIMEOUT = 10000; // 10s
+const EXEC_TIMEOUT  = 10000; // 10s
+const MAX_BUF_SMALL = 1 * 1024 * 1024;  // 1 MB  — default commands
+const MAX_BUF_LARGE = 16 * 1024 * 1024; // 16 MB — ipset list (can be huge)
 
 function findF2bClient(): string {
     for (const p of ['/usr/bin/fail2ban-client', '/bin/fail2ban-client']) {
@@ -39,6 +41,10 @@ export interface F2bJailStatus {
     bantime?: number;
     findtime?: number;
     maxretry?: number;
+}
+
+export interface IpsetSetInfo {
+    name: string; type: string; size: number; maxelem: number; entries: number;
 }
 
 export interface F2bClientResult {
@@ -167,9 +173,9 @@ export class Fail2banClientExec {
 
     // ── Network commands (require NET_ADMIN capability) ──────────────────────
 
-    private async runBin(bin: string, args: string[]): Promise<F2bClientResult> {
+    private async runBin(bin: string, args: string[], largeOutput = false): Promise<F2bClientResult> {
         try {
-            const { stdout } = await execFileAsync(bin, args, { timeout: EXEC_TIMEOUT });
+            const { stdout } = await execFileAsync(bin, args, { timeout: EXEC_TIMEOUT, maxBuffer: largeOutput ? MAX_BUF_LARGE : MAX_BUF_SMALL });
             return { ok: true, output: stdout.trim() };
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : String(err);
@@ -188,7 +194,7 @@ export class Fail2banClientExec {
     }
 
     async ipsetList(): Promise<F2bClientResult> {
-        return this.runBin('ipset', ['list']);
+        return this.runBin('ipset', ['list'], true);
     }
 
     async ipsetSets(): Promise<{ name: string; entries: number }[]> {
@@ -207,6 +213,41 @@ export class Fail2banClientExec {
             }
         }
         return sets;
+    }
+
+    /** Full set info: type, maxelem, memory size, entry count. Parses ipset list -t. */
+    async ipsetInfo(): Promise<{ ok: boolean; sets: IpsetSetInfo[]; error?: string }> {
+        const r = await this.runBin('ipset', ['list', '-t']);
+        if (!r.ok) return { ok: false, sets: [], error: r.error };
+        const sets: IpsetSetInfo[] = [];
+        let cur: Partial<IpsetSetInfo> & { name?: string } = {};
+        for (const line of r.output.split('\n')) {
+            const mName    = line.match(/^Name:\s*(.+)/);
+            const mType    = line.match(/^Type:\s*(.+)/);
+            const mMaxelem = line.match(/^Header:.*\bmaxelem\s+(\d+)/);
+            const mSize    = line.match(/^Size in memory:\s*(\d+)/);
+            const mEntries = line.match(/^Number of entries:\s*(\d+)/);
+            if (mName)    { cur = { name: mName[1].trim() }; }
+            if (mType)    { cur.type    = mType[1].trim(); }
+            if (mMaxelem) { cur.maxelem = parseInt(mMaxelem[1], 10); }
+            if (mSize)    { cur.size    = parseInt(mSize[1], 10); }
+            if (mEntries && cur.name) {
+                sets.push({ name: cur.name, type: cur.type ?? 'unknown', size: cur.size ?? 0, maxelem: cur.maxelem ?? 65536, entries: parseInt(mEntries[1], 10) });
+                cur = {};
+            }
+        }
+        return { ok: true, sets };
+    }
+
+    /** List members of a specific ipset. Uses large buffer — sets can have thousands of entries. */
+    async ipsetEntries(setName: string): Promise<{ ok: boolean; entries: string[]; error?: string }> {
+        const r = await this.runBin('ipset', ['list', setName], true);
+        if (!r.ok) return { ok: false, entries: [], error: r.error };
+        const lines = r.output.split('\n');
+        const mi = lines.findIndex(l => l.trim() === 'Members:');
+        if (mi === -1) return { ok: true, entries: [] };
+        const entries = lines.slice(mi + 1).map(l => l.trim()).filter(Boolean);
+        return { ok: true, entries };
     }
 
     async ipsetAdd(setName: string, entry: string): Promise<F2bClientResult> {

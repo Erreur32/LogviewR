@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Ban, Unlock, Database, Shield, ListChecks, AlertTriangle, CheckCircle, FolderOpen, ChevronDown } from 'lucide-react';
+import { Ban, Unlock, Database, Shield, ListChecks, AlertTriangle, CheckCircle, FolderOpen, ChevronDown, Network } from 'lucide-react';
 import { api } from '../../api/client';
 import { card, cardH, cardB } from './helpers';
 import type { JailStatus } from './types';
@@ -143,12 +143,46 @@ function ActionCard({ header, children, action }: {
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
+const IPT_CHAINS = ['INPUT', 'OUTPUT', 'FORWARD'];
+
 export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoading, onBan, onUnban, onIpClick }) => {
     // ── Fail2ban single ────────────────────────────────────────────────────────
     const [banJail,   setBanJail]   = useState(jails[0]?.jail ?? '');
     const [banIp,     setBanIp]     = useState('');
     const [unbanJail, setUnbanJail] = useState(jails[0]?.jail ?? '');
     const [unbanIp,   setUnbanIp]   = useState('');
+
+    // ── IPTables ───────────────────────────────────────────────────────────────
+    const [iptBanChain,    setIptBanChain]    = useState('INPUT');
+    const [iptBanIp,       setIptBanIp]       = useState('');
+    const [iptBanLoading,  setIptBanLoading]  = useState(false);
+    const [iptBanResult,   setIptBanResult]   = useState<{ ok: boolean; msg: string } | null>(null);
+    const [iptUnbanChain,  setIptUnbanChain]  = useState('INPUT');
+    const [iptUnbanIp,     setIptUnbanIp]     = useState('');
+    const [iptUnbanLoad,   setIptUnbanLoad]   = useState(false);
+    const [iptUnbanResult, setIptUnbanResult] = useState<{ ok: boolean; msg: string } | null>(null);
+
+    const doIptBan = async () => {
+        const ip = iptBanIp.trim(); if (!ip) return;
+        setIptBanLoading(true); setIptBanResult(null);
+        const res = await api.post<{ ok: boolean; output?: string; error?: string }>(
+            '/api/plugins/fail2ban/iptables/ip/ban', { table: 'filter', chain: iptBanChain, ip }
+        );
+        setIptBanLoading(false);
+        if (res.success && res.result?.ok) { setIptBanResult({ ok: true, msg: `${ip} bloqué dans ${iptBanChain}` }); setIptBanIp(''); }
+        else setIptBanResult({ ok: false, msg: res.result?.error ?? 'Erreur' });
+    };
+
+    const doIptUnban = async () => {
+        const ip = iptUnbanIp.trim(); if (!ip) return;
+        setIptUnbanLoad(true); setIptUnbanResult(null);
+        const res = await api.post<{ ok: boolean; output?: string; error?: string }>(
+            '/api/plugins/fail2ban/iptables/ip/unban', { table: 'filter', chain: iptUnbanChain, ip }
+        );
+        setIptUnbanLoad(false);
+        if (res.success && res.result?.ok) { setIptUnbanResult({ ok: true, msg: `${ip} débloqué dans ${iptUnbanChain}` }); setIptUnbanIp(''); }
+        else setIptUnbanResult({ ok: false, msg: res.result?.error ?? 'Erreur' });
+    };
 
     // ── Fail2ban bulk ──────────────────────────────────────────────────────────
     const [bulkJail,    setBulkJail]    = useState(jails[0]?.jail ?? '');
@@ -426,6 +460,68 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
                         </ActionCard>
                     </div>
                 )}
+            </div>
+
+            {/* ── IPTables section ── */}
+            <div>
+                <SectionTitle icon={<Network style={{ width: 15, height: 15 }} />} color="#39c5cf" label="IPTables (filter)" />
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(min(100%,420px),1fr))', gap: '.75rem' }}>
+
+                    {/* IPTables ban */}
+                    <ActionCard
+                        header={<><Ban style={{ width: 14, height: 14, color: '#e86a65' }} /><span style={{ fontWeight: 600, fontSize: '.88rem' }}>Bannir via IPTables</span></>}
+                        action={
+                            <>
+                                {iptBanResult && (
+                                    <div style={{ fontSize: '.75rem', marginBottom: '.45rem', color: iptBanResult.ok ? '#3fb950' : '#e86a65', display: 'flex', alignItems: 'center', gap: '.3rem' }}>
+                                        {iptBanResult.ok ? <CheckCircle style={{ width: 11, height: 11 }} /> : <AlertTriangle style={{ width: 11, height: 11 }} />}
+                                        {iptBanResult.msg}
+                                    </div>
+                                )}
+                                <ActionBtn color="#e86a65" border="rgba(232,106,101,.25)" bg="rgba(232,106,101,.1)"
+                                    disabled={iptBanLoading || !iptBanIp.trim()}
+                                    onClick={doIptBan}>
+                                    <Ban style={{ width: 13, height: 13 }} />{iptBanLoading ? 'Blocage…' : 'Bloquer (DROP)'}
+                                </ActionBtn>
+                            </>
+                        }>
+                        <p style={{ fontSize: '.78rem', color: '#8b949e', margin: 0 }}>Insère <code style={{ fontFamily: 'monospace', color: '#e6edf3' }}>-s IP -j DROP</code> en tête de chaîne. Rollback 30s.</p>
+                        <StyledSelect value={iptBanChain} onChange={e => setIptBanChain(e.target.value)}>
+                            {IPT_CHAINS.map(c => <option key={c} value={c} style={{ background: '#21262d', color: '#e6edf3' }}>{c}</option>)}
+                        </StyledSelect>
+                        <input type="text" value={iptBanIp} onChange={e => setIptBanIp(e.target.value)}
+                            placeholder="ex: 1.2.3.4 ou 1.2.0.0/24" style={{ ...inputSt, fontFamily: 'monospace' }}
+                            onKeyDown={e => { if (e.key === 'Enter') doIptBan(); }} />
+                    </ActionCard>
+
+                    {/* IPTables unban */}
+                    <ActionCard
+                        header={<><Unlock style={{ width: 14, height: 14, color: '#39c5cf' }} /><span style={{ fontWeight: 600, fontSize: '.88rem' }}>Débannir via IPTables</span></>}
+                        action={
+                            <>
+                                {iptUnbanResult && (
+                                    <div style={{ fontSize: '.75rem', marginBottom: '.45rem', color: iptUnbanResult.ok ? '#3fb950' : '#e86a65', display: 'flex', alignItems: 'center', gap: '.3rem' }}>
+                                        {iptUnbanResult.ok ? <CheckCircle style={{ width: 11, height: 11 }} /> : <AlertTriangle style={{ width: 11, height: 11 }} />}
+                                        {iptUnbanResult.msg}
+                                    </div>
+                                )}
+                                <ActionBtn color="#39c5cf" border="rgba(57,197,207,.25)" bg="rgba(57,197,207,.1)"
+                                    disabled={iptUnbanLoad || !iptUnbanIp.trim()}
+                                    onClick={doIptUnban}>
+                                    <Unlock style={{ width: 13, height: 13 }} />{iptUnbanLoad ? 'Déblocage…' : 'Retirer le blocage'}
+                                </ActionBtn>
+                            </>
+                        }>
+                        <p style={{ fontSize: '.78rem', color: '#8b949e', margin: 0 }}>Supprime la règle <code style={{ fontFamily: 'monospace', color: '#e6edf3' }}>-s IP -j DROP</code> de la chaîne.</p>
+                        <StyledSelect value={iptUnbanChain} onChange={e => setIptUnbanChain(e.target.value)}>
+                            {IPT_CHAINS.map(c => <option key={c} value={c} style={{ background: '#21262d', color: '#e6edf3' }}>{c}</option>)}
+                        </StyledSelect>
+                        <input type="text" value={iptUnbanIp} onChange={e => setIptUnbanIp(e.target.value)}
+                            placeholder="ex: 1.2.3.4 ou 1.2.0.0/24" style={{ ...inputSt, fontFamily: 'monospace' }}
+                            onKeyDown={e => { if (e.key === 'Enter') doIptUnban(); }} />
+                    </ActionCard>
+
+                </div>
             </div>
 
         </div>

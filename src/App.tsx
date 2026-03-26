@@ -13,6 +13,82 @@ import {
 import { ActionButton, UnsupportedFeature } from './components/ui';
 import { UserLoginModal, UserRegistrationModal } from './components/modals';
 
+// ── Hash-based navigation (fail2ban deep links) ───────────────────────────────
+
+// ── Hash navigation constants ─────────────────────────────────────────────────
+
+/** Valid fail2ban tab IDs — whitelist, never used in DOM/fetch/eval. */
+const VALID_FAIL2BAN_TABS = new Set([
+    'jails', 'filtres', 'actions', 'tracker', 'ban', 'stats', 'carte',
+    'iptables', 'ipset', 'nftables', 'config', 'audit', 'aide', 'backup',
+]);
+
+/** Plugin IDs are lowercase alphanumeric + hyphens, max 40 chars. */
+const VALID_PLUGIN_ID_RE = /^[a-z][a-z0-9-]{0,39}$/;
+
+/**
+ * Validate a decoded log file path from the URL hash.
+ * Rules: must start with /, no null bytes, no path traversal (..),
+ * only safe chars, max 500 chars. Never used in DOM or HTML injection.
+ */
+function isSafeFilePath(p: string): boolean {
+    if (!p || p.length > 500) return false;
+    if (p.includes('\0')) return false;              // null byte
+    if (!p.startsWith('/')) return false;            // must be absolute
+    if (/(?:^|\/)\.\.(?:\/|$)/.test(p)) return false; // path traversal
+    // Allow: letters, digits, / . - _ (no spaces, no shell metacharacters)
+    if (!/^[a-zA-Z0-9/._-]+$/.test(p)) return false;
+    return true;
+}
+
+/**
+ * Parse window.location.hash into typed navigation intent.
+ *
+ * Supported formats:
+ *   #fail2ban           → fail2ban page, default tab (jails)
+ *   #fail2ban/TAB       → fail2ban page, TAB (whitelist-validated)
+ *   #log/PLUGIN_ID      → log viewer for PLUGIN_ID
+ *   #log/PLUGIN_ID/FILE → log viewer for PLUGIN_ID + encoded file path
+ *
+ * All values are validated/sanitized before use.
+ * Returns null if the hash is not a recognized deep link.
+ */
+type HashNav =
+    | { type: 'fail2ban'; tab: string }
+    | { type: 'log'; pluginId: string; filePath: string | null };
+
+function parseHashNav(): HashNav | null {
+    const raw = window.location.hash.slice(1); // strip '#'
+    if (!raw) return null;
+    // Split only on the FIRST slash to separate page from rest
+    const slashIdx = raw.indexOf('/');
+    const page = slashIdx === -1 ? raw : raw.slice(0, slashIdx);
+    const rest  = slashIdx === -1 ? '' : raw.slice(slashIdx + 1);
+
+    if (page === 'fail2ban') {
+        const slashIdx2 = rest.indexOf('/');
+        const tab = slashIdx2 === -1 ? rest : rest.slice(0, slashIdx2);
+        return { type: 'fail2ban', tab: VALID_FAIL2BAN_TABS.has(tab) ? tab : 'jails' };
+    }
+
+    if (page === 'log') {
+        const slashIdx2 = rest.indexOf('/');
+        const pluginId  = slashIdx2 === -1 ? rest : rest.slice(0, slashIdx2);
+        const encodedFile = slashIdx2 === -1 ? '' : rest.slice(slashIdx2 + 1);
+        if (!VALID_PLUGIN_ID_RE.test(pluginId)) return null;
+        let filePath: string | null = null;
+        if (encodedFile) {
+            try {
+                const decoded = decodeURIComponent(encodedFile);
+                if (isSafeFilePath(decoded)) filePath = decoded;
+            } catch { /* malformed encoding — ignore */ }
+        }
+        return { type: 'log', pluginId, filePath };
+    }
+
+    return null;
+}
+
 // Lazy load pages for code splitting
 // Use default exports when available, otherwise use named exports
 const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage').then(m => ({ default: m.AnalyticsPage })));
@@ -152,12 +228,20 @@ const App: React.FC = () => {
     checkUsers();
   }, []);
 
-  // Check user auth on mount and clean URL hash
+  // Check user auth on mount and handle URL hash
   useEffect(() => {
-    // Clean URL hash if present (legacy support)
+    // Legacy admin hash
     if (window.location.hash === '#admin') {
       window.history.replaceState(null, '', window.location.pathname);
       sessionStorage.setItem('adminMode', 'true');
+    }
+    // Deep link hash: #fail2ban/TAB  or  #log/PLUGIN_ID[/FILE]
+    // Store intent in sessionStorage; actual navigation happens after auth resolves.
+    const hashNav = parseHashNav();
+    if (hashNav?.type === 'fail2ban') {
+      sessionStorage.setItem('_hashNavFail2ban', hashNav.tab);
+    } else if (hashNav?.type === 'log') {
+      sessionStorage.setItem('_hashNavLog', JSON.stringify({ pluginId: hashNav.pluginId, filePath: hashNav.filePath }));
     }
     checkUserAuth();
     
@@ -227,6 +311,36 @@ const App: React.FC = () => {
         }
       });
 
+      // ── Deep link priority: hash nav takes precedence over server default page ──
+
+      // fail2ban deep link
+      const hashF2b = sessionStorage.getItem('_hashNavFail2ban');
+      if (hashF2b) {
+        sessionStorage.removeItem('_hashNavFail2ban');
+        // Re-validate: only accept known tab IDs (sessionStorage could be tampered)
+        const safeTab = VALID_FAIL2BAN_TABS.has(hashF2b) ? hashF2b : 'jails';
+        setDefaultFail2banTab(safeTab);
+        setCurrentPage('fail2ban');
+        return;
+      }
+
+      // log-viewer deep link
+      const hashLog = sessionStorage.getItem('_hashNavLog');
+      if (hashLog) {
+        sessionStorage.removeItem('_hashNavLog');
+        try {
+          const nav = JSON.parse(hashLog) as { pluginId?: unknown; filePath?: unknown };
+          const pluginId = typeof nav.pluginId === 'string' && VALID_PLUGIN_ID_RE.test(nav.pluginId) ? nav.pluginId : null;
+          const filePath = typeof nav.filePath === 'string' && isSafeFilePath(nav.filePath) ? nav.filePath : null;
+          if (pluginId) {
+            setSelectedPluginId(pluginId);
+            if (filePath) setDefaultLogFile(filePath);
+            setCurrentPage('log-viewer');
+            return;
+          }
+        } catch { /* malformed sessionStorage — ignore */ }
+      }
+
       // Navigate to configured default page on login
       api.get<{ defaultPage?: string; defaultPluginId?: string; defaultLogFile?: string; defaultFail2banTab?: string }>(
         '/api/system/general'
@@ -271,7 +385,23 @@ const App: React.FC = () => {
 
 
 
+  // ── Hash sync for log-viewer ─────────────────────────────────────────────────
+  // When a plugin + file is open, keep the URL hash updated so it can be bookmarked/shared.
+  // Uses replaceState (no history entry per file change).
+  useEffect(() => {
+    if (currentPage !== 'log-viewer' || !selectedPluginId) return;
+    const filePath = pluginHeaderData?.selectedFilePath;
+    const hash = filePath
+      ? `#log/${encodeURIComponent(selectedPluginId)}/${encodeURIComponent(filePath)}`
+      : `#log/${encodeURIComponent(selectedPluginId)}`;
+    window.history.replaceState(null, '', hash);
+  }, [currentPage, selectedPluginId, pluginHeaderData?.selectedFilePath]);
+
   const handleLogout = () => {
+    // Clear any pending deep-link navigation so a re-login starts fresh
+    sessionStorage.removeItem('_hashNavFail2ban');
+    sessionStorage.removeItem('_hashNavLog');
+    window.history.replaceState(null, '', window.location.pathname);
     userLogout();
   };
 
@@ -288,7 +418,15 @@ const App: React.FC = () => {
       setSelectedPluginId(null);
       sessionStorage.removeItem('selectedPluginId');
     }
-    
+
+    // Clear deep-link hash when leaving the page it belongs to
+    const h = window.location.hash;
+    if (page !== 'fail2ban' && h.startsWith('#fail2ban')) {
+      window.history.replaceState(null, '', window.location.pathname);
+    } else if (page !== 'log-viewer' && h.startsWith('#log')) {
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+
     // Change page after state is updated
     setCurrentPage(page);
   };

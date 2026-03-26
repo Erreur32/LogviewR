@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 /** Hash string → stable hue (0–359) */
 function domainHue(domain: string): number {
@@ -7,11 +7,8 @@ function domainHue(domain: string): number {
     return h % 360;
 }
 
-/**
- * Local SVG initial avatar for a domain — no external requests.
- * Replaces Google/DuckDuckGo favicon APIs.
- */
-export const DomainInitial: React.FC<{ domain: string; size?: number }> = ({ domain, size = 14 }) => {
+/** Letter avatar SVG — final fallback when all favicon sources fail */
+const LetterAvatar: React.FC<{ domain: string; size: number }> = ({ domain, size }) => {
     const root = domain.replace(/^(www\.|m\.)/, '').split('.')[0] ?? '?';
     const letter = root[0]?.toUpperCase() ?? '?';
     const hue = domainHue(domain);
@@ -24,5 +21,31 @@ export const DomainInitial: React.FC<{ domain: string; size?: number }> = ({ dom
             <text x="7" y="10.5" textAnchor="middle" fontSize="8" fontWeight="700"
                 fontFamily="system-ui,sans-serif" fill={fg}>{letter}</text>
         </svg>
+    );
+};
+
+/**
+ * Domain favicon with fallback chain:
+ *   1. DuckDuckGo  (icons.duckduckgo.com/ip3/{domain}.ico)
+ *   2. Google      (google.com/s2/favicons?domain=…&sz=32)
+ *   3. Letter SVG  (generated locally — no external request)
+ */
+export const DomainInitial: React.FC<{ domain: string; size?: number }> = ({ domain, size = 14 }) => {
+    const [stage, setStage] = useState<0 | 1 | 2>(0);
+
+    if (stage === 2) return <LetterAvatar domain={domain} size={size} />;
+
+    const src = stage === 0
+        ? `https://icons.duckduckgo.com/ip3/${domain}.ico`
+        : `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
+
+    return (
+        <img
+            src={src}
+            width={size} height={size}
+            style={{ borderRadius: 2, flexShrink: 0, display: 'inline-block', verticalAlign: 'middle' }}
+            title={domain} alt={domain} loading="lazy"
+            onError={() => setStage(s => (s < 2 ? (s + 1) as 1 | 2 : 2))}
+        />
     );
 };

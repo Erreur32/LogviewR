@@ -1,6 +1,7 @@
-import React, { useState, useRef } from 'react';
-import { Archive, UploadCloud, AlertTriangle, CheckCircle, XCircle, FolderOpen, RefreshCw } from 'lucide-react';
-import { card, cardH, cardB } from './helpers';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Archive, UploadCloud, AlertTriangle, CheckCircle, XCircle, FolderOpen, RefreshCw, Save, RotateCcw, Trash2 } from 'lucide-react';
+import { api } from '../../api/client';
+import { card, cardH, cardB, F2bTooltip } from './helpers';
 
 // ── Palette ───────────────────────────────────────────────────────────────────
 
@@ -12,6 +13,8 @@ const C = {
 };
 
 // ── Types ─────────────────────────────────────────────────────────────────────
+
+interface IptBackupEntry { filename: string; size: number; ts: number }
 
 interface BackupFile {
     version: number;
@@ -51,6 +54,137 @@ const Alert: React.FC<{ type: 'error' | 'warn' | 'ok'; children: React.ReactNode
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: '.5rem', padding: '.5rem .75rem', background: bg, border: `1px solid ${border}`, borderRadius: 6, fontSize: '.8rem', color }}>
             <Icon style={{ width: 13, height: 13, flexShrink: 0, marginTop: 1 }} />
             <span>{children}</span>
+        </div>
+    );
+};
+
+// ── IPTables Backup Panel ─────────────────────────────────────────────────────
+
+const IptBackupPanel: React.FC = () => {
+    const [backups, setBackups]     = useState<IptBackupEntry[]>([]);
+    const [loading, setLoading]     = useState(false);
+    const [creating, setCreating]   = useState(false);
+    const [label, setLabel]         = useState('');
+    const [msg, setMsg]             = useState<{ ok: boolean; text: string } | null>(null);
+    const [restoring, setRestoring] = useState<string | null>(null);
+    const [deleting, setDeleting]   = useState<string | null>(null);
+
+    const fetchBackups = useCallback(async () => {
+        setLoading(true);
+        try {
+            const res = await api.get<{ ok: boolean; backups: IptBackupEntry[] }>('/api/plugins/fail2ban/iptables/backups');
+            if (res.success && res.result?.ok) setBackups(res.result.backups);
+        } finally { setLoading(false); }
+    }, []);
+
+    useEffect(() => { fetchBackups(); }, [fetchBackups]);
+
+    const createBackup = async () => {
+        setCreating(true); setMsg(null);
+        try {
+            const res = await api.post<{ ok: boolean; filename?: string; error?: string }>(
+                '/api/plugins/fail2ban/iptables/backup', { label: label.trim() || undefined }
+            );
+            if (res.success && res.result?.ok) {
+                setMsg({ ok: true, text: `Sauvegardé : ${res.result.filename}` });
+                setLabel(''); fetchBackups();
+            } else {
+                setMsg({ ok: false, text: res.result?.error ?? 'Erreur' });
+            }
+        } finally { setCreating(false); }
+    };
+
+    const restore = async (filename: string) => {
+        if (!confirm(`Restaurer "${filename}" ? Les règles actuelles seront remplacées.`)) return;
+        setRestoring(filename); setMsg(null);
+        try {
+            const res = await api.post<{ ok: boolean; output?: string; error?: string }>(
+                `/api/plugins/fail2ban/iptables/restore/${encodeURIComponent(filename)}`, {}
+            );
+            if (res.success && res.result?.ok) setMsg({ ok: true, text: `Restauré : ${filename}` });
+            else setMsg({ ok: false, text: res.result?.error ?? 'Erreur' });
+        } finally { setRestoring(null); }
+    };
+
+    const del = async (filename: string) => {
+        if (!confirm(`Supprimer "${filename}" ?`)) return;
+        setDeleting(filename);
+        try { await api.delete(`/api/plugins/fail2ban/iptables/backup/${encodeURIComponent(filename)}`); fetchBackups(); }
+        finally { setDeleting(null); }
+    };
+
+    const fmtSize = (b: number) => b > 1024 ? `${(b / 1024).toFixed(1)} KB` : `${b} B`;
+    const fmtDate = (ts: number) => new Date(ts).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    const inputStyle: React.CSSProperties = { background: '#0d1117', border: '1px solid #30363d', borderRadius: 4, color: '#e6edf3', fontSize: '.8rem', padding: '.35rem .6rem', outline: 'none' };
+
+    return (
+        <div style={card}>
+            <div style={cardH}>
+                <Save style={{ width: 14, height: 14, color: '#39c5cf' }} />
+                <span style={{ fontWeight: 600, fontSize: '.9rem' }}>Sauvegardes IPTables</span>
+                <span style={{ marginLeft: 'auto', fontSize: '.68rem', padding: '.1rem .45rem', borderRadius: 4, background: 'rgba(57,197,207,.12)', color: '#39c5cf', border: '1px solid rgba(57,197,207,.25)' }}>iptables-save</span>
+            </div>
+            <div style={{ ...cardB, display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
+                <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
+                    <input value={label} onChange={e => setLabel(e.target.value)} placeholder="Label (optionnel)"
+                        style={{ ...inputStyle, flex: 1 }}
+                        onKeyDown={e => { if (e.key === 'Enter') createBackup(); }} />
+                    <button onClick={createBackup} disabled={creating} style={{
+                        background: 'rgba(57,197,207,.12)', border: '1px solid rgba(57,197,207,.3)', color: '#39c5cf',
+                        borderRadius: 4, cursor: creating ? 'default' : 'pointer',
+                        padding: '.35rem .85rem', fontSize: '.8rem', fontWeight: 600,
+                        display: 'flex', alignItems: 'center', gap: '.35rem', opacity: creating ? .6 : 1,
+                    }}>
+                        <Save style={{ width: 12, height: 12 }} /> Sauvegarder maintenant
+                    </button>
+                </div>
+                {msg && (
+                    <div style={{ fontSize: '.78rem', color: msg.ok ? '#3fb950' : '#e86a65', display: 'flex', gap: '.4rem', alignItems: 'center' }}>
+                        {msg.ok ? <CheckCircle style={{ width: 12, height: 12 }} /> : <AlertTriangle style={{ width: 12, height: 12 }} />}
+                        {msg.text}
+                    </div>
+                )}
+                {loading && <div style={{ color: '#8b949e', fontSize: '.82rem' }}>Chargement…</div>}
+                {!loading && backups.length === 0 && <div style={{ color: '#555d69', fontSize: '.8rem' }}>Aucune sauvegarde IPTables</div>}
+                {backups.length > 0 && (
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.78rem' }}>
+                        <thead>
+                            <tr style={{ borderBottom: '1px solid #30363d', color: '#8b949e', fontSize: '.68rem', textTransform: 'uppercase', letterSpacing: '.05em' }}>
+                                <th style={{ textAlign: 'left', padding: '.3rem .5rem .3rem 0' }}>Fichier</th>
+                                <th style={{ textAlign: 'right', padding: '.3rem .5rem' }}>Taille</th>
+                                <th style={{ textAlign: 'right', padding: '.3rem .5rem' }}>Date</th>
+                                <th style={{ textAlign: 'right', padding: '.3rem 0 .3rem .5rem' }}>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {backups.map(b => (
+                                <tr key={b.filename}
+                                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,.02)'}
+                                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
+                                    style={{ borderBottom: '1px solid #21262d' }}>
+                                    <td style={{ padding: '.45rem .5rem .45rem 0', fontFamily: 'monospace', color: '#c9d1d9', fontSize: '.74rem', wordBreak: 'break-all' }}>{b.filename}</td>
+                                    <td style={{ padding: '.45rem .5rem', textAlign: 'right', color: '#8b949e', whiteSpace: 'nowrap' }}>{fmtSize(b.size)}</td>
+                                    <td style={{ padding: '.45rem .5rem', textAlign: 'right', color: '#8b949e', whiteSpace: 'nowrap' }}>{fmtDate(b.ts)}</td>
+                                    <td style={{ padding: '.45rem 0 .45rem .5rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                        <F2bTooltip title="Restaurer" body="Remplace les règles actuelles par ce backup" color="orange">
+                                            <button onClick={() => restore(b.filename)} disabled={restoring === b.filename}
+                                                style={{ background: 'rgba(227,179,65,.1)', border: '1px solid rgba(227,179,65,.25)', color: '#e3b341', borderRadius: 4, cursor: 'pointer', padding: '.2rem .45rem', marginRight: '.35rem', display: 'inline-flex', alignItems: 'center' }}>
+                                                <RotateCcw style={{ width: 11, height: 11 }} />
+                                            </button>
+                                        </F2bTooltip>
+                                        <F2bTooltip title="Supprimer" body="Supprime ce fichier de sauvegarde" color="red">
+                                            <button onClick={() => del(b.filename)} disabled={deleting === b.filename}
+                                                style={{ background: 'rgba(232,106,101,.08)', border: '1px solid rgba(232,106,101,.2)', color: '#e86a65', borderRadius: 4, cursor: 'pointer', padding: '.2rem .45rem', display: 'inline-flex', alignItems: 'center' }}>
+                                                <Trash2 style={{ width: 11, height: 11 }} />
+                                            </button>
+                                        </F2bTooltip>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                )}
+            </div>
         </div>
     );
 };
@@ -300,6 +434,8 @@ export const TabBackup: React.FC = () => {
                 </div>
 
             </div>
+
+            <IptBackupPanel />
 
             <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </div>
