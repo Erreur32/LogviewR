@@ -23,6 +23,7 @@ import { getDatabase } from '../../database/connection.js';
 import * as dns from 'dns';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 import { logger } from '../../utils/logger.js';
 
 const DEFAULT_SQLITE_PATH = '/var/lib/fail2ban/fail2ban.sqlite3';
@@ -1281,6 +1282,79 @@ export class Fail2banPlugin extends BasePlugin {
             }
             const { content, truncated, bytes } = readLogTail(abs, lines);
             res.json({ success: true, result: { ok: true, name, lines, bytes, truncated, content } });
+        }));
+
+        // ── GET /backup/full ──────────────────────────────────────────────────────────
+        router.get('/backup/full', requireAuth, asyncHandler(async (_req, res) => {
+            const confBase = this.resolveDockerPathSync('/etc/fail2ban');
+
+            // Check config dir is accessible
+            try { fs.accessSync(confBase); } catch {
+                res.status(503).json({ success: false, error: `Config dir not accessible: ${confBase}` });
+                return;
+            }
+
+            // Root-level files to include
+            const ROOT_FILES = [
+                'fail2ban.conf', 'fail2ban.local',
+                'jail.conf', 'jail.local',
+                'paths-common.conf', 'paths-debian.conf',
+            ];
+
+            // Subdirectories to read (non-recursive, direct children only)
+            const SUB_DIRS = ['jail.d', 'filter.d', 'action.d'];
+
+            const files: Record<string, string> = {};
+
+            // Read root files (skip silently if missing)
+            for (const name of ROOT_FILES) {
+                const abs = path.join(confBase, name);
+                try { files[`/etc/fail2ban/${name}`] = fs.readFileSync(abs, 'utf8'); } catch { /* skip */ }
+            }
+
+            // Read subdir files (non-recursive)
+            for (const sub of SUB_DIRS) {
+                const dir = path.join(confBase, sub);
+                try {
+                    const entries = fs.readdirSync(dir, { withFileTypes: true });
+                    for (const e of entries) {
+                        if (!e.isFile()) continue;
+                        const abs = path.join(dir, e.name);
+                        try { files[`/etc/fail2ban/${sub}/${e.name}`] = fs.readFileSync(abs, 'utf8'); } catch { /* skip */ }
+                    }
+                } catch { /* dir missing — skip */ }
+            }
+
+            // Runtime state — best-effort, skip on any error
+            const runtime: Record<string, unknown> = { total_banned: 0, jails: {} };
+            try {
+                const jailNames = await this.client.listJails();
+                let totalBanned = 0;
+                const jailsMap: Record<string, unknown> = {};
+                for (const jail of jailNames) {
+                    const st = await this.client.getJailStatus(jail);
+                    if (st) {
+                        totalBanned += st.currentlyBanned;
+                        jailsMap[jail] = { currently_banned: st.currentlyBanned, banned_ips: st.bannedIps };
+                    }
+                }
+                runtime.total_banned = totalBanned;
+                runtime.jails = jailsMap;
+            } catch { /* best-effort */ }
+
+            const payload = {
+                version: 1,
+                type: 'f2b_full_backup',
+                exported_at: new Date().toISOString(),
+                exported_by: 'LogviewR',
+                host: os.hostname(),
+                files,
+                runtime,
+            };
+
+            res.setHeader('Content-Type', 'application/json');
+            res.setHeader('Content-Disposition', 'attachment');
+            res.json(payload);
         }));
 
         return router;
