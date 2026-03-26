@@ -10,6 +10,7 @@ import {
     Ban, Activity,
     List, Filter, Zap, Settings,
     Network, Server, ClipboardList, HelpCircle, Database, Map as MapIcon,
+    Archive,
 } from 'lucide-react';
 import { api } from '../api/client';
 import fail2banIcon from '../icons/fail2ban.svg';
@@ -26,6 +27,7 @@ import { TabConfig }     from './fail2ban/TabConfig';
 import { TabAudit }      from './fail2ban/TabAudit';
 import { PERIODS, F2bTooltip } from './fail2ban/helpers';
 import { TabAide }           from './fail2ban/TabAide';
+import { TabBackup }         from './fail2ban/TabBackup';
 import { TabNetworkRaw }     from './fail2ban/TabNetworkRaw';
 import { TabFileList }       from './fail2ban/TabFileList';
 import { BanHistoryChart }   from './fail2ban/BanHistoryChart';
@@ -57,9 +59,10 @@ const NAV_GROUPS = [
     {
         label: 'Outils',
         items: [
-            { id: 'config' as TabId, label: 'Config', icon: Settings,      color: '#8b949e' },
-            { id: 'audit'  as TabId, label: 'Audit',  icon: ClipboardList, color: '#8b949e' },
-            { id: 'aide'   as TabId, label: 'Aide',   icon: HelpCircle,    color: '#8b949e' },
+            { id: 'config'  as TabId, label: 'Config',  icon: Settings,      color: '#8b949e' },
+            { id: 'audit'   as TabId, label: 'Audit',   icon: ClipboardList, color: '#8b949e' },
+            { id: 'backup'  as TabId, label: 'Backup',  icon: Archive,       color: '#58a6ff' },
+            { id: 'aide'    as TabId, label: 'Aide',    icon: HelpCircle,    color: '#8b949e' },
         ],
     },
 ] as const;
@@ -438,6 +441,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
                     {tab === 'nftables' && <TabNetworkRaw title="NFTables" endpoint="/api/plugins/fail2ban/nftables" icon={<Server style={{ width: 14, height: 14 }} />} />}
                     {tab === 'config'   && <TabConfig />}
                     {tab === 'audit'    && <TabAudit />}
+                    {tab === 'backup'   && <TabBackup />}
                     {tab === 'aide'     && <TabAide />}
                 </div>
             </div>
