@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-    Settings, Database, RefreshCw, RotateCcw, Save, Play,
+    Settings, Database, RefreshCw, Save, Play,
     Info, Shield, FileText, AlertTriangle, CheckCircle, XCircle,
-    ChevronRight, HardDrive, Stethoscope, Trash2,
+    ChevronRight, HardDrive, Stethoscope, Trash2, Copy,
 } from 'lucide-react';
 import { api } from '../../api/client';
 import { card, cardH, cardB } from './helpers';
@@ -153,6 +153,193 @@ const Btn: React.FC<{
     </button>
 );
 
+// ── Conf syntax highlighter ────────────────────────────────────────────────────
+
+type ConfToken = { t: 'section' | 'comment' | 'key' | 'eq' | 'value' | 'plain'; v: string };
+
+function tokenizeConfLine(line: string): ConfToken[] {
+    const trimmed = line.trimStart();
+    const indent = line.slice(0, line.length - trimmed.length);
+    const pre: ConfToken[] = indent ? [{ t: 'plain', v: indent }] : [];
+
+    // comment
+    if (/^[#;]/.test(trimmed)) return [...pre, { t: 'comment', v: trimmed }];
+    // section
+    const secM = trimmed.match(/^(\[)([^\]]+)(\].*)$/);
+    if (secM) return [...pre, { t: 'plain', v: secM[1] }, { t: 'section', v: secM[2] }, { t: 'plain', v: secM[3] }];
+    // key = value
+    const kvM = trimmed.match(/^([A-Za-z_][A-Za-z0-9_./-]*)(\s*=\s*)(.*)/);
+    if (kvM) return [...pre, { t: 'key', v: kvM[1] }, { t: 'eq', v: kvM[2] }, { t: 'value', v: kvM[3] }];
+    return [...pre, { t: 'plain', v: trimmed }];
+}
+
+const CONF_COLORS: Record<ConfToken['t'], string> = {
+    section: '#58a6ff',
+    comment: '#555d69',
+    key:     '#e3b341',
+    eq:      '#8b949e',
+    value:   '#3fb950',
+    plain:   '#8b949e',
+};
+
+const ConfHighlighter: React.FC<{ content: string }> = ({ content }) => (
+    <code style={{ fontFamily: 'monospace', fontSize: '.75rem', lineHeight: 1.65, display: 'block' }}>
+        {content.split('\n').map((line, i) => (
+            <div key={i} style={{ minHeight: '1.1em' }}>
+                {tokenizeConfLine(line).map((tok, j) => (
+                    <span key={j} style={{ color: CONF_COLORS[tok.t] }}>{tok.v}</span>
+                ))}
+            </div>
+        ))}
+    </code>
+);
+
+const RawFileViewer: React.FC<{ rawFiles: RawFiles | null; rawTab: string; onTabChange: (t: string) => void }> = ({ rawFiles, rawTab, onTabChange }) => {
+    const [copied, setCopied] = useState(false);
+    const FILES = ['fail2ban.conf', 'fail2ban.local', 'jail.conf', 'jail.local'] as const;
+    const content = rawFiles ? (rawFiles[rawTab as keyof RawFiles] ?? null) : null;
+    const copyContent = () => {
+        if (!content) return;
+        navigator.clipboard.writeText(content).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); });
+    };
+    const lineCount = content ? content.split('\n').length : 0;
+    return (
+        <div style={{ display: 'flex', gap: 0, height: 480, overflow: 'hidden' }}>
+            {/* Sidebar */}
+            <div style={{ width: 148, flexShrink: 0, borderRight: `1px solid #30363d`, display: 'flex', flexDirection: 'column', background: '#161b22' }}>
+                <div style={{ padding: '.45rem .75rem', fontSize: '.65rem', color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.06em', borderBottom: '1px solid #30363d' }}>
+                    /etc/fail2ban/
+                </div>
+                {FILES.map(f => {
+                    const absent = rawFiles && rawFiles[f] === null;
+                    const active = rawTab === f;
+                    return (
+                        <button key={f} onClick={() => onTabChange(f)} style={{
+                            textAlign: 'left', padding: '.4rem .75rem', fontSize: '.78rem',
+                            fontFamily: 'monospace', background: active ? 'rgba(88,166,255,.12)' : 'transparent',
+                            color: active ? '#58a6ff' : absent ? '#555d69' : '#e6edf3',
+                            border: 'none', borderLeft: active ? '2px solid #58a6ff' : '2px solid transparent',
+                            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '.4rem',
+                        }}>
+                            <FileText style={{ width: 11, height: 11, flexShrink: 0 }} />
+                            <span style={{ flex: 1 }}>{f}</span>
+                            {absent && <span style={{ fontSize: '.55rem', color: '#555d69' }}>∅</span>}
+                        </button>
+                    );
+                })}
+            </div>
+            {/* Editor area */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#0d1117' }}>
+                {/* Toolbar */}
+                <div style={{ display: 'flex', alignItems: 'center', padding: '.3rem .75rem', background: '#161b22', borderBottom: '1px solid #30363d', gap: '.5rem' }}>
+                    <span style={{ fontFamily: 'monospace', fontSize: '.72rem', color: '#58a6ff', flex: 1 }}>/etc/fail2ban/{rawTab}</span>
+                    {content && <span style={{ fontSize: '.68rem', color: '#555d69' }}>{lineCount} lignes</span>}
+                    {content === null && <span style={{ fontSize: '.68rem', color: '#555d69', fontStyle: 'italic' }}>fichier absent</span>}
+                    <button onClick={copyContent} disabled={!content} title="Copier" style={{
+                        background: 'none', border: `1px solid #30363d`, borderRadius: 4, cursor: content ? 'pointer' : 'not-allowed',
+                        color: copied ? '#3fb950' : '#8b949e', padding: '2px 6px', display: 'flex', alignItems: 'center', gap: '.3rem', fontSize: '.7rem',
+                    }}>
+                        {copied ? <CheckCircle style={{ width: 11, height: 11 }} /> : <Copy style={{ width: 11, height: 11 }} />}
+                        {copied ? 'Copié' : 'Copier'}
+                    </button>
+                </div>
+                {/* Content with line numbers */}
+                <div style={{ flex: 1, overflowY: 'auto', display: 'flex' }}>
+                    {content ? (
+                        <>
+                            {/* Line numbers */}
+                            <div style={{ padding: '.75rem .5rem', textAlign: 'right', userSelect: 'none', borderRight: '1px solid #21262d', flexShrink: 0, minWidth: 40 }}>
+                                {content.split('\n').map((_, i) => (
+                                    <div key={i} style={{ fontSize: '.72rem', lineHeight: 1.65, color: '#30363d', fontFamily: 'monospace' }}>{i + 1}</div>
+                                ))}
+                            </div>
+                            {/* Code */}
+                            <pre style={{ flex: 1, padding: '.75rem 1rem', margin: 0, overflow: 'visible', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                                <ConfHighlighter content={content} />
+                            </pre>
+                        </>
+                    ) : (
+                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#555d69', fontSize: '.8rem', fontStyle: 'italic' }}>
+                            {rawFiles ? 'Ce fichier n\'existe pas sur ce système' : 'Chargement…'}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const ShellCommand: React.FC<{ cmd: string }> = ({ cmd }) => {
+    const [copied, setCopied] = useState(false);
+    const copy = () => {
+        navigator.clipboard.writeText(cmd).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); });
+    };
+    return (
+        <div style={{ display: 'flex', alignItems: 'center', background: C.bg0, border: `1px solid ${C.border}`, borderRadius: 5, padding: '.3rem .6rem', gap: '.5rem', marginTop: '.4rem' }}>
+            <span style={{ color: C.muted, fontSize: '.72rem', userSelect: 'none' }}>$</span>
+            <code style={{ flex: 1, fontFamily: 'monospace', fontSize: '.72rem', color: C.cyan, userSelect: 'all' }}>{cmd}</code>
+            <button onClick={copy} title="Copier" style={{ background: 'none', border: 'none', cursor: 'pointer', color: copied ? C.green : C.muted, padding: 0, display: 'flex', alignItems: 'center' }}>
+                {copied
+                    ? <CheckCircle style={{ width: 12, height: 12 }} />
+                    : <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                }
+            </button>
+        </div>
+    );
+};
+
+const VacuumAlert: React.FC<{ fragPct: number; dbPath: string; onDone: () => void }> = ({ fragPct, dbPath, onDone }) => {
+    const [state, setState] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
+    const [errMsg, setErrMsg] = useState('');
+    const cmd = `sqlite3 ${dbPath} 'VACUUM'`;
+    const run = async () => {
+        setState('running');
+        try {
+            const res = await api.post<{ ok: boolean; error?: string }>('/api/plugins/fail2ban/config/sqlite-vacuum');
+            if (res.success && res.result?.ok) { setState('done'); onDone(); }
+            else {
+                const httpMsg = res.error?.message ?? '';
+                const is404 = httpMsg.includes('404') || res.error?.code === 'INVALID_RESPONSE';
+                const isAuth = httpMsg.includes('401') || httpMsg.includes('403');
+                setErrMsg(
+                    is404  ? 'Route introuvable (404) — redémarrez le serveur pour activer cette fonctionnalité' :
+                    isAuth ? 'Accès refusé — authentification requise' :
+                    res.result?.error ?? (httpMsg || 'Erreur inconnue')
+                );
+                setState('error');
+            }
+        } catch (e: unknown) {
+            setState('error');
+            setErrMsg(e instanceof Error ? e.message : 'Erreur réseau');
+        }
+    };
+    return (
+        <div style={{ fontSize: '.75rem', color: C.orange, marginTop: '.25rem', display: 'flex', alignItems: 'flex-start', gap: '.5rem', background: 'rgba(227,179,65,.06)', border: '1px solid rgba(227,179,65,.25)', borderRadius: 6, padding: '.6rem .75rem' }}>
+            <AlertTriangle style={{ width: 13, height: 13, marginTop: 1, flexShrink: 0 }} />
+            <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', flexWrap: 'wrap' }}>
+                    <span style={{ fontWeight: 600 }}>Fragmentation élevée ({fragPct}%)</span>
+                    <span style={{ color: C.muted }}>— compresse la DB et libère l'espace disque inutilisé</span>
+                    {state === 'done' && (
+                        <span style={{ color: C.green, display: 'inline-flex', alignItems: 'center', gap: '.3rem' }}>
+                            <CheckCircle style={{ width: 11, height: 11 }} /> VACUUM terminé
+                        </span>
+                    )}
+                    {state === 'error' && <span style={{ color: C.red }}>{errMsg}</span>}
+                    {state !== 'done' && (
+                        <Btn onClick={run} loading={state === 'running'} small
+                            bg="rgba(227,179,65,.15)" color={C.orange} border="rgba(227,179,65,.4)">
+                            <HardDrive style={{ width: 11, height: 11 }} />
+                            {state === 'running' ? 'VACUUM en cours…' : 'Lancer VACUUM'}
+                        </Btn>
+                    )}
+                </div>
+                <ShellCommand cmd={cmd} />
+            </div>
+        </div>
+    );
+};
+
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export const TabConfig: React.FC = () => {
@@ -162,6 +349,21 @@ export const TabConfig: React.FC = () => {
     const [rawTab, setRawTab]       = useState<string | null>(null);
     const [checkResult, setCheckResult] = useState<CheckResult | null>(null);
     const [checkLoading, setCheckLoading] = useState(true);
+
+    // Sync check
+    const [syncStatus, setSyncStatus] = useState<{
+        internalEvents: number; lastSyncedRowid: number;
+        f2bMaxRowid: number | null; f2bTotalBans: number | null;
+        lastSyncAt: string | null; synced: boolean | null;
+    } | null>(null);
+    const [syncChecking, setSyncChecking] = useState(false);
+
+    const checkSync = async () => {
+        setSyncChecking(true);
+        const res = await api.get<typeof syncStatus>('/api/plugins/fail2ban/sync-status');
+        if (res.success && res.result) setSyncStatus(res.result);
+        setSyncChecking(false);
+    };
 
     // Maintenance
     const [resetting, setResetting] = useState(false);
@@ -277,19 +479,6 @@ export const TabConfig: React.FC = () => {
         }
     };
 
-    const serviceAction = async (action: 'reload' | 'restart') => {
-        if (action === 'restart' && !window.confirm('Redémarrage complet de fail2ban ?\n\nLes IPs bannies seront temporairement inactives.')) return;
-        setSaving(`service-${action}`);
-        const res = await api.post<{ ok: boolean; output: string; error?: string }>(
-            '/api/plugins/fail2ban/config/service', { action }
-        );
-        setSaving(null);
-        if (res.success && res.result?.ok) {
-            toast(`fail2ban ${action === 'reload' ? 'rechargé' : 'redémarré'} ✓`, true);
-        } else {
-            toast(`Erreur ${action}: ${res.result?.error ?? 'échec'}`, false);
-        }
-    };
 
     const cfg = parsed?.cfg;
     const dbInfo = parsed?.dbInfo;
@@ -447,27 +636,24 @@ export const TabConfig: React.FC = () => {
                                     {dbInfo ? (
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
                                             <Row label="Chemin" value={parsed?.dbHostPath ?? cfg.dbfile} />
-                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(80px,1fr))', gap: '.5rem', marginTop: '.25rem' }}>
+                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '.5rem', marginTop: '.25rem' }}>
                                                 {[
-                                                    { l: 'Taille',       v: dbInfo.sizeFmt,                                         c: C.blue },
-                                                    { l: 'Intégrité',    v: dbInfo.integrity,                                       c: dbInfo.integrity === 'ok' ? C.green : C.red },
-                                                    { l: 'Pages',        v: String(dbInfo.pageCount),                               c: C.muted },
-                                                    { l: 'Fragmentation',v: `${dbInfo.fragPct}%`,                                   c: dbInfo.fragPct > 20 ? C.orange : C.green },
-                                                    { l: 'Bans en DB',   v: String(dbInfo.bans  ?? '—'),                           c: C.red },
-                                                    { l: 'Jails',        v: String(dbInfo.jails ?? '—'),                           c: C.purple },
-                                                    { l: 'Logs',         v: String(dbInfo.logs  ?? '—'),                           c: C.muted },
+                                                    { l: 'Taille',       v: dbInfo.sizeFmt,                  c: C.blue },
+                                                    { l: 'Intégrité',    v: dbInfo.integrity,                c: dbInfo.integrity === 'ok' ? C.green : C.red },
+                                                    { l: 'Pages',        v: String(dbInfo.pageCount),        c: C.muted },
+                                                    { l: 'Fragment.',    v: `${dbInfo.fragPct}%`,            c: dbInfo.fragPct > 20 ? C.orange : C.green },
+                                                    { l: 'Bans en DB',   v: String(dbInfo.bans  ?? '—'),    c: C.red },
+                                                    { l: 'Jails',        v: String(dbInfo.jails ?? '—'),    c: C.purple },
+                                                    { l: 'Logs',         v: String(dbInfo.logs  ?? '—'),    c: C.muted },
                                                 ].map(s => (
-                                                    <div key={s.l} style={{ background: C.bg2, borderRadius: 6, padding: '.5rem .65rem', textAlign: 'center' }}>
-                                                        <div style={{ fontSize: '.9rem', fontWeight: 700, color: s.c }}>{s.v}</div>
-                                                        <div style={{ fontSize: '.65rem', color: C.muted, textTransform: 'uppercase', marginTop: 2 }}>{s.l}</div>
+                                                    <div key={s.l} style={{ background: C.bg2, borderRadius: 6, padding: '.5rem .4rem', textAlign: 'center', minWidth: 0 }}>
+                                                        <div style={{ fontSize: '.9rem', fontWeight: 700, color: s.c, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.v}</div>
+                                                        <div style={{ fontSize: '.6rem', color: C.muted, textTransform: 'uppercase', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.l}</div>
                                                     </div>
                                                 ))}
                                             </div>
                                             {dbInfo.fragPct > 20 && (
-                                                <div style={{ fontSize: '.75rem', color: C.orange, marginTop: '.25rem', display: 'flex', alignItems: 'center', gap: '.35rem' }}>
-                                                    <AlertTriangle style={{ width: 11, height: 11 }} />
-                                                    Fragmentation élevée ({dbInfo.fragPct}%) — envisagez un VACUUM sur le host : <code style={{ fontFamily: 'monospace' }}>sqlite3 {cfg.dbfile} 'VACUUM'</code>
-                                                </div>
+                                                <VacuumAlert fragPct={dbInfo.fragPct} dbPath={cfg.dbfile} onDone={() => { void loadParsed(); }} />
                                             )}
                                         </div>
                                     ) : (
@@ -479,50 +665,50 @@ export const TabConfig: React.FC = () => {
                                 </div>
                             </div>
 
-                            {/* Card: Paramètres runtime */}
-                            <div style={card}>
-                                <div style={{ ...cardH }}>
-                                    <Play style={{ width: 14, height: 14, color: C.blue }} />
-                                    <span style={{ fontWeight: 600, fontSize: '.9rem' }}>Paramètres runtime</span>
-                                    <span style={{ marginLeft: 'auto', fontSize: '.7rem', color: C.muted }}>Appliqué sans redémarrage via fail2ban-client</span>
-                                </div>
-                                <div style={{ ...cardB, display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                            {/* Cards: Runtime + DB côte à côte */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', alignItems: 'start' }}>
+
+                                {/* Paramètres runtime */}
+                                <div style={card}>
+                                    <div style={{ ...cardH }}>
+                                        <Play style={{ width: 14, height: 14, color: C.blue }} />
+                                        <span style={{ fontWeight: 600, fontSize: '.9rem' }}>Runtime</span>
+                                        <span style={{ marginLeft: 'auto', fontSize: '.67rem', color: C.muted }}>sans redémarrage</span>
+                                    </div>
+                                    <div style={{ ...cardB, display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
                                         <div>
                                             <label style={{ fontSize: '.75rem', color: C.muted, display: 'block', marginBottom: '.3rem' }}>Loglevel</label>
                                             <select value={fmLoglevel} onChange={e => setFmLoglevel(e.target.value)} style={sel}>
                                                 {LOGLEVELS.map(l => <option key={l} value={l}>{l}</option>)}
                                             </select>
-                                            {cfg.local_values.loglevel && <div style={{ fontSize: '.65rem', color: C.orange, marginTop: 2 }}>Actuel local: {cfg.local_values.loglevel}</div>}
+                                            {cfg.local_values.loglevel && <div style={{ fontSize: '.65rem', color: C.orange, marginTop: 2 }}>Local: {cfg.local_values.loglevel}</div>}
                                         </div>
                                         <div>
                                             <label style={{ fontSize: '.75rem', color: C.muted, display: 'block', marginBottom: '.3rem' }}>Logtarget</label>
                                             <input type="text" value={fmLogtarget} onChange={e => setFmLogtarget(e.target.value)} style={inp} placeholder="/var/log/fail2ban.log" />
-                                            {cfg.local_values.logtarget && <div style={{ fontSize: '.65rem', color: C.orange, marginTop: 2 }}>Actuel local: {cfg.local_values.logtarget}</div>}
+                                            {cfg.local_values.logtarget && <div style={{ fontSize: '.65rem', color: C.orange, marginTop: 2 }}>Local: {cfg.local_values.logtarget}</div>}
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '.4rem' }}>
+                                            <Btn onClick={applyRuntime} loading={saving === 'runtime'}
+                                                bg="rgba(88,166,255,.15)" color={C.blue} border="rgba(88,166,255,.4)">
+                                                <Play style={{ width: 11, height: 11 }} /> Appliquer en runtime
+                                            </Btn>
+                                            <Btn onClick={persistRuntime} loading={saving === 'persist-runtime'}
+                                                bg="rgba(188,140,255,.15)" color={C.purple} border="rgba(188,140,255,.4)">
+                                                <Save style={{ width: 11, height: 11 }} /> Appliquer + persister
+                                            </Btn>
                                         </div>
                                     </div>
-                                    <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
-                                        <Btn onClick={applyRuntime} loading={saving === 'runtime'}
-                                            bg="rgba(88,166,255,.15)" color={C.blue} border="rgba(88,166,255,.4)">
-                                            <Play style={{ width: 11, height: 11 }} /> Appliquer en runtime
-                                        </Btn>
-                                        <Btn onClick={persistRuntime} loading={saving === 'persist-runtime'}
-                                            bg="rgba(188,140,255,.15)" color={C.purple} border="rgba(188,140,255,.4)">
-                                            <Save style={{ width: 11, height: 11 }} /> Appliquer + persister
-                                        </Btn>
-                                    </div>
                                 </div>
-                            </div>
 
-                            {/* Card: Base de données & Rétention */}
-                            <div style={card}>
-                                <div style={{ ...cardH }}>
-                                    <Database style={{ width: 14, height: 14, color: C.purple }} />
-                                    <span style={{ fontWeight: 600, fontSize: '.9rem' }}>Base de données &amp; Rétention</span>
-                                    <span style={{ marginLeft: 'auto', fontSize: '.7rem', color: C.muted }}>Écrit dans fail2ban.local</span>
-                                </div>
-                                <div style={{ ...cardB, display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                {/* Base de données & Rétention */}
+                                <div style={card}>
+                                    <div style={{ ...cardH }}>
+                                        <Database style={{ width: 14, height: 14, color: C.purple }} />
+                                        <span style={{ fontWeight: 600, fontSize: '.9rem' }}>Base de données</span>
+                                        <span style={{ marginLeft: 'auto', fontSize: '.67rem', color: C.muted }}>fail2ban.local</span>
+                                    </div>
+                                    <div style={{ ...cardB, display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
                                         <div>
                                             <label style={{ fontSize: '.75rem', color: C.muted, display: 'block', marginBottom: '.3rem' }}>DB Purge Age (secondes)</label>
                                             <input type="text" value={fmPurgeage} onChange={e => setFmPurgeage(e.target.value)} style={inp} placeholder="86400" />
@@ -533,39 +719,17 @@ export const TabConfig: React.FC = () => {
                                         <div>
                                             <label style={{ fontSize: '.75rem', color: C.muted, display: 'block', marginBottom: '.3rem' }}>DB Max Matches</label>
                                             <input type="number" min="1" max="10000" value={fmMaxmatches} onChange={e => setFmMaxmatches(e.target.value)} style={inp} />
-                                            <div style={{ fontSize: '.65rem', color: C.muted, marginTop: 2 }}>Nombre max de lignes de log conservées par IP</div>
+                                            <div style={{ fontSize: '.65rem', color: C.muted, marginTop: 2 }}>Lignes de log max conservées par IP</div>
                                         </div>
+                                        <Btn onClick={persistDb} loading={saving === 'persist-db'}
+                                            bg="rgba(188,140,255,.15)" color={C.purple} border="rgba(188,140,255,.4)">
+                                            <Save style={{ width: 11, height: 11 }} /> Persister dans fail2ban.local
+                                        </Btn>
                                     </div>
-                                    <Btn onClick={persistDb} loading={saving === 'persist-db'}
-                                        bg="rgba(188,140,255,.15)" color={C.purple} border="rgba(188,140,255,.4)">
-                                        <Save style={{ width: 11, height: 11 }} /> Appliquer + persister dans fail2ban.local
-                                    </Btn>
                                 </div>
+
                             </div>
 
-                            {/* Card: Service fail2ban */}
-                            <div style={card}>
-                                <div style={{ ...cardH }}>
-                                    <RefreshCw style={{ width: 14, height: 14, color: C.blue }} />
-                                    <span style={{ fontWeight: 600, fontSize: '.9rem' }}>Service fail2ban</span>
-                                </div>
-                                <div style={{ ...cardB, display: 'flex', gap: '1.5rem', flexWrap: 'wrap', alignItems: 'flex-start' }}>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '.35rem' }}>
-                                        <Btn onClick={() => serviceAction('reload')} loading={saving === 'service-reload'}
-                                            bg="rgba(88,166,255,.12)" color={C.blue} border="rgba(88,166,255,.3)">
-                                            <RefreshCw style={{ width: 12, height: 12 }} /> Recharger (reload)
-                                        </Btn>
-                                        <span style={{ fontSize: '.68rem', color: C.muted }}>Relit la configuration sans interrompre les bans</span>
-                                    </div>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '.35rem' }}>
-                                        <Btn onClick={() => serviceAction('restart')} loading={saving === 'service-restart'}
-                                            bg="rgba(232,106,101,.12)" color={C.red} border="rgba(232,106,101,.3)">
-                                            <RotateCcw style={{ width: 12, height: 12 }} /> Redémarrer (restart)
-                                        </Btn>
-                                        <span style={{ fontSize: '.68rem', color: C.muted }}>Redémarre complètement — bans temporairement inactifs</span>
-                                    </div>
-                                </div>
-                            </div>
                         </>
                     ) : (
                         <div style={{ padding: '2rem', textAlign: 'center', color: C.red, fontSize: '.85rem' }}>
@@ -579,35 +743,11 @@ export const TabConfig: React.FC = () => {
                     <div style={card}>
                         <div style={{ ...cardH, cursor: 'pointer' }} onClick={() => setRawTab(rawTab === null ? 'fail2ban.conf' : null)}>
                             <FileText style={{ width: 14, height: 14, color: C.blue }} />
-                            <span style={{ fontWeight: 600, fontSize: '.9rem' }}>Fichiers de configuration bruts</span>
+                            <span style={{ fontWeight: 600, fontSize: '.9rem' }}>Fichiers de configuration</span>
                             <ChevronRight style={{ width: 14, height: 14, color: C.muted, marginLeft: 'auto', transition: 'transform .15s', transform: rawTab !== null ? 'rotate(90deg)' : 'none' }} />
                         </div>
                         {rawTab !== null && (
-                            <div style={{ ...cardB, display: 'flex', gap: '.75rem', height: 420 }}>
-                                <div style={{ width: 160, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                    {(['fail2ban.conf', 'fail2ban.local', 'jail.conf', 'jail.local'] as const).map(f => (
-                                        <button key={f} onClick={() => setRawTab(f)}
-                                            style={{
-                                                textAlign: 'left', padding: '.35rem .65rem', fontSize: '.78rem',
-                                                fontFamily: 'monospace', background: rawTab === f ? 'rgba(88,166,255,.1)' : 'transparent',
-                                                color: rawTab === f ? C.blue : C.text, border: 'none', borderRadius: 4, cursor: 'pointer',
-                                            }}>
-                                            {f}
-                                            {rawFiles && rawFiles[f as keyof RawFiles] === null && (
-                                                <span style={{ fontSize: '.6rem', color: C.muted, marginLeft: 4 }}>(absent)</span>
-                                            )}
-                                        </button>
-                                    ))}
-                                </div>
-                                <div style={{ flex: 1, background: C.bg3, borderRadius: 6, border: `1px solid ${C.border}`, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                                    <div style={{ padding: '.35rem .65rem', background: C.bg2, borderBottom: `1px solid ${C.border}`, fontSize: '.72rem', color: C.muted, fontFamily: 'monospace' }}>
-                                        /etc/fail2ban/{rawTab}
-                                    </div>
-                                    <pre style={{ flex: 1, overflowY: 'auto', padding: '1rem', fontSize: '.75rem', fontFamily: 'monospace', color: C.text, lineHeight: 1.6, whiteSpace: 'pre-wrap', margin: 0 }}>
-                                        {rawFiles ? (rawFiles[rawTab as keyof RawFiles] ?? '(fichier non disponible)') : 'Chargement…'}
-                                    </pre>
-                                </div>
-                            </div>
+                            <RawFileViewer rawFiles={rawFiles} rawTab={rawTab} onTabChange={setRawTab} />
                         )}
                     </div>
 
@@ -665,6 +805,23 @@ export const TabConfig: React.FC = () => {
                                         <Row label="Dernière synchro" value={parsed.internalDbStats.lastSync
                                             ? new Date(parsed.internalDbStats.lastSync).toLocaleString('fr-FR')
                                             : 'Jamais (en attente…)'} />
+                                        <div style={{ marginTop: '.6rem', display: 'flex', alignItems: 'center', gap: '.5rem', flexWrap: 'wrap' }}>
+                                            <button onClick={checkSync} disabled={syncChecking}
+                                                style={{ display: 'flex', alignItems: 'center', gap: '.3rem', padding: '.2rem .6rem', fontSize: '.72rem', borderRadius: 4, border: `1px solid ${C.border}`, background: C.bg2, color: C.muted, cursor: 'pointer' }}>
+                                                <Stethoscope style={{ width: 11, height: 11 }} />
+                                                {syncChecking ? 'Vérification…' : 'Vérifier synchro'}
+                                            </button>
+                                            {syncStatus && (
+                                                <span style={{ fontSize: '.72rem', color: syncStatus.synced === true ? C.green : syncStatus.synced === false ? C.orange : C.muted }}>
+                                                    {syncStatus.synced === true
+                                                        ? `✓ À jour — ${syncStatus.internalEvents.toLocaleString()} événements (rowid ${syncStatus.lastSyncedRowid})`
+                                                        : syncStatus.synced === false
+                                                        ? `⚠ Décalage — interne: rowid ${syncStatus.lastSyncedRowid}, fail2ban: rowid ${syncStatus.f2bMaxRowid} (${syncStatus.f2bTotalBans} bans)`
+                                                        : `fail2ban.sqlite3 non lisible — ${syncStatus.internalEvents.toLocaleString()} événements locaux`
+                                                    }
+                                                </span>
+                                            )}
+                                        </div>
                                         <div style={{ fontSize: '.68rem', color: C.muted, marginTop: '.5rem', display: 'flex', alignItems: 'center', gap: '.35rem' }}>
                                             <Info style={{ width: 10, height: 10 }} />
                                             Synchronisation automatique toutes les 60s — conserve les bans indéfiniment (fail2ban purge selon dbpurgeage)

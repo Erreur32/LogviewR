@@ -1,20 +1,24 @@
 /**
  * TabMap — Carte Leaflet des IPs bannies avec clustering et géolocalisation progressive.
- * Leaflet + MarkerCluster chargés via CDN (identique à la version PHP de référence).
+ * Leaflet + MarkerCluster chargés localement (npm packages).
  */
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { api } from '../../api/client';
-import { card, cardH } from './helpers';
-import { Map as MapIcon, SlidersHorizontal } from 'lucide-react';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import 'leaflet.markercluster';
+import 'leaflet.markercluster/dist/MarkerCluster.css';
+import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 
-// ── CDN URLs (mêmes versions que la version PHP) ──────────────────────────────
-const CDN = {
-    leafletCss:       'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
-    clusterCss:       'https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css',
-    clusterDefaultCss:'https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css',
-    leafletJs:        'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
-    clusterJs:        'https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js',
-};
+// Fix Leaflet default marker icons broken by Vite's asset hashing
+import iconUrl        from 'leaflet/dist/images/marker-icon.png';
+import iconRetinaUrl  from 'leaflet/dist/images/marker-icon-2x.png';
+import shadowUrl      from 'leaflet/dist/images/marker-shadow.png';
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({ iconUrl, iconRetinaUrl, shadowUrl });
+import { api } from '../../api/client';
+import { card, cardH, F2bTooltip } from './helpers';
+import { Map as MapIcon, SlidersHorizontal } from 'lucide-react';
+import { FlagImg } from './FlagImg';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface GeoData { lat: number; lng: number; country: string; countryCode: string; region: string; city: string; org: string }
@@ -22,13 +26,16 @@ interface MapPoint { ip: string; jails: string[]; cached: GeoData | null }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-/** Unicode flag emoji from ISO country code */
-function countryFlag(code: string): string {
-    const c = (code || '').toUpperCase().replace(/[^A-Z]/g, '');
-    if (c.length !== 2) return '🌐';
-    return String.fromCodePoint(0x1F1E6 + c.charCodeAt(0) - 65) +
-           String.fromCodePoint(0x1F1E6 + c.charCodeAt(1) - 65);
+const FLAG_BASE = '/icons/country';
+
+/** Flag img tag — local SVG, for use in raw HTML strings */
+function flagImgHtml(code: string): string {
+    const c = (code || '').toLowerCase().replace(/[^a-z]/g, '');
+    const src = c.length === 2 ? `${FLAG_BASE}/${c}.svg` : `${FLAG_BASE}/xx.svg`;
+    const fallback = `${FLAG_BASE}/xx.svg`;
+    return `<img src="${src}" width="20" height="15" style="vertical-align:middle;border-radius:2px;margin-right:.3rem" alt="${c.toUpperCase()}" onerror="this.src='${fallback}'">`;
 }
+
 
 /** HSL heat colour — same algorithm as PHP reference */
 function heatColor(n: number, min: number, max: number): string {
@@ -39,49 +46,27 @@ function heatColor(n: number, min: number, max: number): string {
     return `hsl(${hue.toFixed(1)},${sat}%,${light}%)`;
 }
 
-function loadLink(href: string): HTMLLinkElement {
-    const existing = document.querySelector<HTMLLinkElement>(`link[href="${href}"]`);
-    if (existing) return existing;
-    const el = Object.assign(document.createElement('link'), { rel: 'stylesheet', href });
-    document.head.appendChild(el);
-    return el;
-}
-
-function loadScript(src: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-        const existing = document.querySelector<HTMLScriptElement>(`script[src="${src}"]`);
-        if (existing) {
-            // Script tag already in DOM — wait for it if still loading, resolve if already done
-            if ((existing as any)._loaded) { resolve(); return; }
-            existing.addEventListener('load',  () => resolve(), { once: true });
-            existing.addEventListener('error', () => reject(new Error(`Failed to load ${src}`)), { once: true });
-            return;
-        }
-        const s = document.createElement('script');
-        s.src = src;
-        s.onload  = () => { (s as any)._loaded = true; resolve(); };
-        s.onerror = () => reject(new Error(`Failed to load ${src}`));
-        document.head.appendChild(s);
-    });
-}
-
 // ── Component ─────────────────────────────────────────────────────────────────
 
 interface TabMapProps {
     onGoToTracker?: (ip: string) => void;
+    onIpClick?:     (ip: string) => void;
+    refreshKey?:    number;   // increment to trigger a map data refresh
 }
 
-export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker }) => {
+export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker, onIpClick, refreshKey }) => {
     const mapContainerRef  = useRef<HTMLDivElement>(null);
     const mapRef           = useRef<any>(null);       // Leaflet map instance
     const clusterRef       = useRef<any>(null);       // MarkerCluster layer
     const markerByIp       = useRef<Map<string, any>>(new Map());
     const metaByIp         = useRef<Map<string, { country: string; countryCode: string; region: string; jails: string[] }>>(new Map());
     const onGoToTrackerRef = useRef(onGoToTracker);
+    const onIpClickRef     = useRef(onIpClick);
     const pumpActiveRef    = useRef(false);
     onGoToTrackerRef.current = onGoToTracker;
+    onIpClickRef.current     = onIpClick;
 
-    const [leafletReady, setLeafletReady] = useState(false);
+    const [mapReady, setMapReady]         = useState(false);
     const [points, setPoints]             = useState<MapPoint[]>([]);
     const [loading, setLoading]           = useState(true);
     const [error, setError]               = useState<string | null>(null);
@@ -90,25 +75,49 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker }) => {
     const [filterCountry, setFilterCountry] = useState('');
     const [filterRegion, setFilterRegion]   = useState('');
     const [countryStats, setCountryStats]   = useState<Record<string, number>>({});
+    const [countryCodeMap, setCountryCodeMap] = useState<Record<string, string>>({}); // countryName → ISO code
     const [regionStats, setRegionStats]     = useState<Record<string, number>>({});
     const [resolveDelayMs, setResolveDelayMs] = useState(380);
-    const [lastLoaded, setLastLoaded]         = useState<number>(0);
+    const [mapSource, setMapSource]           = useState<'live' | 'history'>('live');
 
-    // ── Load CDN ───────────────────────────────────────────────────────────────
+    // ── Inject dark popup CSS once ─────────────────────────────────────────────
     useEffect(() => {
-        loadLink(CDN.leafletCss);
-        loadLink(CDN.clusterCss);
-        loadLink(CDN.clusterDefaultCss);
-        loadScript(CDN.leafletJs)
-            .then(() => loadScript(CDN.clusterJs))
-            .then(() => setLeafletReady(true))
-            .catch(e => setError(`Impossible de charger Leaflet : ${e.message}`));
+        if (!document.getElementById('f2b-map-popup-style')) {
+            const s = document.createElement('style');
+            s.id = 'f2b-map-popup-style';
+            s.textContent = `
+                @keyframes f2b-spin { to { transform: rotate(360deg) translateZ(0); } }
+                .f2b-geo-spin { animation: f2b-spin 1.2s linear infinite; transform-origin: 5.5px 5.5px; }
+                .f2b-map-popup .leaflet-popup-content-wrapper {
+                    background: #161b22; border: 1px solid #30363d;
+                    border-radius: 8px; box-shadow: 0 4px 24px rgba(0,0,0,.6);
+                    color: #e6edf3; padding: 0;
+                }
+                .f2b-map-popup .leaflet-popup-content { margin: 0; padding: .75rem .85rem; }
+                .f2b-map-popup .leaflet-popup-tip { background: #30363d; }
+                .f2b-map-popup .leaflet-popup-close-button { color: #8b949e !important; font-size: 16px; top: 6px !important; right: 8px !important; }
+                .f2b-map-popup .leaflet-popup-close-button:hover { color: #e6edf3 !important; }
+            `;
+            document.head.appendChild(s);
+        }
+        setMapReady(true);
     }, []);
 
     // ── Fetch map data ─────────────────────────────────────────────────────────
-    const fetchMap = useCallback(() => {
+    const fetchMap = useCallback((source: 'live' | 'history') => {
         setLoading(true);
-        api.get<{ ok: boolean; points: MapPoint[]; resolveDelayMs?: number; error?: string }>('/api/plugins/fail2ban/map')
+        // Reset map state when switching source
+        markerByIp.current.clear();
+        metaByIp.current.clear();
+        pumpActiveRef.current = false;
+        if (clusterRef.current) clusterRef.current.clearLayers();
+        setResolved(0);
+        setCountryStats({});
+        setCountryCodeMap({});
+        setRegionStats({});
+        setFilterCountry('');
+        setFilterRegion('');
+        api.get<{ ok: boolean; points: MapPoint[]; resolveDelayMs?: number; error?: string }>(`/api/plugins/fail2ban/map?source=${source}`)
             .then(res => {
                 if (res.success && res.result?.ok) {
                     setPoints(res.result.points);
@@ -116,26 +125,37 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker }) => {
                 } else {
                     setError(res.result?.error ?? 'Erreur chargement carte');
                 }
-                setLoading(false);
-                setLastLoaded(Date.now());
-            });
-    }, []);
+            })
+            .catch(e => setError(String(e)))
+            .finally(() => setLoading(false));
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-    useEffect(() => { fetchMap(); }, [fetchMap]);
+    useEffect(() => { fetchMap(mapSource); }, [mapSource]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Refresh map data when parent header refreshes (skip initial mount — mapSource effect handles that)
+    const refreshKeyRef = useRef(refreshKey);
+    useEffect(() => {
+        if (refreshKey === refreshKeyRef.current) return; // skip initial
+        refreshKeyRef.current = refreshKey;
+        fetchMap(mapSource);
+    }, [refreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // ── Build country/region stats from current markers ────────────────────────
     const rebuildStats = useCallback(() => {
         const cStats: Record<string, number> = {};
+        const cCodes: Record<string, string> = {}; // countryName → ISO code
         const rStats: Record<string, number> = {};
         for (const [, meta] of metaByIp.current) {
             const c = meta.country || '??';
             cStats[c] = (cStats[c] ?? 0) + 1;
+            if (meta.countryCode) cCodes[c] = meta.countryCode;
             if (filterCountry && meta.country === filterCountry) {
                 const r = meta.region || '—';
                 rStats[r] = (rStats[r] ?? 0) + 1;
             }
         }
         setCountryStats(cStats);
+        setCountryCodeMap(cCodes);
         setRegionStats(rStats);
     }, [filterCountry]);
 
@@ -155,7 +175,7 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker }) => {
     // ── Add a marker for an IP once geo is known ───────────────────────────────
     const addMarker = useCallback((point: MapPoint, geo: GeoData) => {
         if (!mapRef.current || markerByIp.current.has(point.ip)) return;
-        const L = (window as any).L;
+        
         const marker = L.marker([geo.lat, geo.lng], { title: point.ip });
         const loc = [geo.city, geo.region, geo.country].filter(Boolean).join(', ') || '—';
         const jailBadges = point.jails.map(j =>
@@ -164,46 +184,53 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker }) => {
         const popupHtml = `
             <div style="min-width:220px;font-family:system-ui,sans-serif">
                 <div style="font-family:monospace;font-weight:700;color:#e86a65;font-size:.9rem;margin-bottom:.35rem">${point.ip}</div>
-                <div style="font-size:.78rem;color:#e6edf3;margin-bottom:.25rem">${countryFlag(geo.countryCode)} ${loc}</div>
+                <div style="font-size:.78rem;color:#e6edf3;margin-bottom:.25rem;display:flex;align-items:center;gap:.3rem">${flagImgHtml(geo.countryCode)}${loc}</div>
                 ${geo.org ? `<div style="font-size:.72rem;color:#8b949e;margin-bottom:.35rem">${geo.org}</div>` : ''}
                 <div style="margin-bottom:.5rem">${jailBadges}</div>
-                <button class="f2b-map-tracker-btn" data-ip="${point.ip}"
-                    style="width:100%;padding:.3rem .5rem;font-size:.75rem;border-radius:4px;background:rgba(88,166,255,.15);border:1px solid rgba(88,166,255,.3);color:#58a6ff;cursor:pointer;font-weight:600">
-                    🔍 Détails dans le Tracker
+                <button class="f2b-map-ip-btn" data-ip="${point.ip}"
+                    style="width:100%;padding:.3rem .5rem;font-size:.75rem;border-radius:4px;background:rgba(232,106,101,.15);border:1px solid rgba(232,106,101,.3);color:#e86a65;cursor:pointer;font-weight:600">
+                    🛡 Détails IP
                 </button>
             </div>`;
         marker.bindPopup(popupHtml, { maxWidth: 280, className: 'f2b-map-popup' });
         marker.on('popupopen', () => {
             const el = marker.getPopup()?.getElement();
             if (!el) return;
-            const btn = (el as Element).querySelector('.f2b-map-tracker-btn') as HTMLButtonElement | null;
-            if (btn) btn.onclick = () => onGoToTrackerRef.current?.(point.ip);
+            const ipBtn = (el as Element).querySelector('.f2b-map-ip-btn') as HTMLButtonElement | null;
+            if (ipBtn) ipBtn.onclick = () => onIpClickRef.current?.(point.ip);
         });
-        marker.f2bCountry = geo.country || '';
-        marker.f2bRegion  = geo.region  || '—';
         metaByIp.current.set(point.ip, { country: geo.country, countryCode: geo.countryCode, region: geo.region, jails: point.jails });
         markerByIp.current.set(point.ip, marker);
     }, []);
 
-    // ── Init map + add cached markers ──────────────────────────────────────────
+    // ── Init map (once) ────────────────────────────────────────────────────────
     useEffect(() => {
-        if (!leafletReady || !points.length || !mapContainerRef.current) return;
-        if (mapRef.current) return; // already initialized
+        if (!mapReady || !mapContainerRef.current || mapRef.current) return;
+        try {
+            const map = L.map(mapContainerRef.current, { zoomControl: true }).setView([26, 12], 3);
+            mapRef.current = map;
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                attribution: '© <a href="https://www.openstreetmap.org/copyright">OSM</a> © <a href="https://carto.com/">CARTO</a>',
+                subdomains: 'abcd', maxZoom: 20,
+            }).addTo(map);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const MCG = (L as any).markerClusterGroup ?? (window as any).L?.markerClusterGroup;
+            if (!MCG) { setError('MarkerCluster non disponible — rechargez la page'); return; }
+            clusterRef.current = MCG({ chunkedLoading: true, spiderfyOnMaxZoom: true, showCoverageOnHover: false });
+            map.addLayer(clusterRef.current);
+            requestAnimationFrame(() => { map.invalidateSize({ animate: false }); });
+            setTimeout(() => map.invalidateSize({ animate: false }), 400);
+            const ro = new ResizeObserver(() => map.invalidateSize({ animate: false }));
+            if (mapContainerRef.current) ro.observe(mapContainerRef.current);
+            return () => { ro.disconnect(); };
+        } catch (e) {
+            setError(`Erreur initialisation carte : ${e instanceof Error ? e.message : String(e)}`);
+        }
+    }, [mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
-        const L = (window as any).L;
-        const map = L.map(mapContainerRef.current, { zoomControl: true }).setView([26, 12], 3);
-        mapRef.current = map;
-
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-            attribution: '© <a href="https://www.openstreetmap.org/copyright">OSM</a> © <a href="https://carto.com/">CARTO</a>',
-            subdomains: 'abcd', maxZoom: 20,
-        }).addTo(map);
-
-        const cluster = L.markerClusterGroup({ chunkedLoading: true, spiderfyOnMaxZoom: true, showCoverageOnHover: false });
-        clusterRef.current = cluster;
-        map.addLayer(cluster);
-
-        // Add cached markers immediately
+    // ── Add cached markers whenever points change (source switch or first load) ─
+    useEffect(() => {
+        if (!mapRef.current || !clusterRef.current || !points.length) return;
         let done = 0;
         for (const p of points) {
             if (p.cached) { addMarker(p, p.cached); done++; }
@@ -211,16 +238,7 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker }) => {
         setResolved(done);
         applyFilter('', '');
         rebuildStats();
-
-        // Fix size after render
-        requestAnimationFrame(() => { map.invalidateSize({ animate: false }); });
-        setTimeout(() => map.invalidateSize({ animate: false }), 400);
-
-        // Resize observer
-        const ro = new ResizeObserver(() => map.invalidateSize({ animate: false }));
-        if (mapContainerRef.current) ro.observe(mapContainerRef.current);
-        return () => { ro.disconnect(); };
-    }, [leafletReady, points, addMarker, applyFilter, rebuildStats]);
+    }, [points, addMarker, applyFilter, rebuildStats]);
 
     // ── Invalidate size when side panel toggles ────────────────────────────────
     useEffect(() => {
@@ -230,7 +248,7 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker }) => {
 
     // ── Progressive geo resolution pump ───────────────────────────────────────
     useEffect(() => {
-        if (!leafletReady || !mapRef.current || pumpActiveRef.current) return;
+        if (!mapReady || !mapRef.current || pumpActiveRef.current) return;
         const queue = points.filter(p => !p.cached).map(p => p.ip);
         if (!queue.length) return;
         pumpActiveRef.current = true;
@@ -259,7 +277,7 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker }) => {
             }).finally(() => { setTimeout(pump, resolveDelayMs); });
         }
         pump();
-    }, [leafletReady, points, resolveDelayMs, addMarker, applyFilter, rebuildStats, filterCountry, filterRegion]);
+    }, [mapReady, points, resolveDelayMs, addMarker, applyFilter, rebuildStats, filterCountry, filterRegion]);
 
     // ── Filter handlers ────────────────────────────────────────────────────────
     const handleCountryClick = useCallback((code: string) => {
@@ -269,7 +287,7 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker }) => {
         applyFilter(next, '');
         rebuildStats();
         if (next && mapRef.current) {
-            const L = (window as any).L;
+            
             const bounds = L.latLngBounds([]);
             for (const [ip, marker] of markerByIp.current) {
                 const meta = metaByIp.current.get(ip);
@@ -314,16 +332,45 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker }) => {
                 <span style={{ fontWeight: 600, fontSize: '.88rem', color: '#58a6ff' }}>
                     {loading ? 'Chargement…' : `${total} IP${total > 1 ? 's' : ''} sur la carte`}
                 </span>
-                {!loading && total > 0 && (
-                    <span style={{ fontSize: '.72rem', color: '#8b949e' }}>
-                        {resolved} / {total} géolocalisée{total > 1 ? 's' : ''} · Cache SQLite ~30 j · ip-api.com
+                {!loading && total > 0 && mapReady && resolved < total && (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.4rem', padding: '.18rem .6rem', borderRadius: 20, background: 'rgba(227,179,65,.1)', border: '1px solid rgba(227,179,65,.25)' }}>
+                        <svg width="11" height="11" viewBox="0 0 11 11" style={{ flexShrink: 0 }}>
+                            <circle cx="5.5" cy="5.5" r="4.5" fill="none" stroke="rgba(227,179,65,.3)" strokeWidth="1.5"/>
+                            <circle className="f2b-geo-spin" cx="5.5" cy="5.5" r="4.5" fill="none" stroke="#e3b341" strokeWidth="1.5"
+                                strokeDasharray={`${Math.round((resolved / total) * 28.3)} 28.3`}
+                                strokeLinecap="round"/>
+                        </svg>
+                        <span style={{ fontSize: '.72rem', color: '#e3b341', fontWeight: 600 }}>{resolved}/{total}</span>
+                        <span style={{ fontSize: '.68rem', color: '#8b949e' }}>·</span>
+                        <span style={{ fontSize: '.68rem', color: '#8b949e' }}>{total - resolved} restante{total - resolved > 1 ? 's' : ''}</span>
                     </span>
                 )}
-                {lastLoaded > 0 && !loading && (
-                    <span style={{ marginLeft: 'auto', fontSize: '.68rem', color: '#8b949e', whiteSpace: 'nowrap' }}>
-                        ↻ {new Date(lastLoaded).toLocaleTimeString('fr-FR')}
-                    </span>
+                {!loading && total > 0 && mapReady && resolved >= total && total > 0 && (
+                    <span style={{ fontSize: '.72rem', color: '#3fb950' }}>✓ {total} géolocalisée{total > 1 ? 's' : ''}</span>
                 )}
+
+                {/* Source toggle */}
+                <div style={{ display: 'flex', gap: '.25rem', marginLeft: 'auto', background: '#21262d', border: '1px solid #30363d', borderRadius: 6, padding: '.15rem' }}>
+                    <F2bTooltip color="red" title="🔴 Bans actifs"
+                        bodyNode={<>IPs <strong style={{ color: '#e6edf3' }}>actuellement en jail</strong> dans fail2ban (ban non expiré).<br/>Source : <code style={{ fontFamily: 'monospace', fontSize: '.72rem', color: '#8b949e' }}>fail2ban.sqlite3</code><br/><span style={{ color: '#8b949e', fontSize: '.72rem' }}>Se vide si fail2ban redémarre ou purge sa DB (<code style={{ fontFamily: 'monospace' }}>dbpurgeage</code>).</span></>}>
+                        <button onClick={() => setMapSource('live')} style={{
+                            padding: '.2rem .65rem', fontSize: '.72rem', borderRadius: 4, cursor: 'pointer', fontWeight: 600,
+                            border: `1px solid ${mapSource === 'live' ? 'rgba(232,106,101,.4)' : 'transparent'}`,
+                            background: mapSource === 'live' ? 'rgba(232,106,101,.15)' : 'transparent',
+                            color: mapSource === 'live' ? '#e86a65' : '#8b949e',
+                        }}>🔴 Bans actifs</button>
+                    </F2bTooltip>
+                    <F2bTooltip color="blue" title="📦 Historique"
+                        bodyNode={<>Toutes les IPs <strong style={{ color: '#e6edf3' }}>jamais bannies</strong> depuis le démarrage de la surveillance, bans expirés inclus.<br/>Source : <code style={{ fontFamily: 'monospace', fontSize: '.72rem', color: '#8b949e' }}>f2b_events</code><br/><span style={{ color: '#8b949e', fontSize: '.72rem' }}>Conservé indéfiniment, même après un redémarrage de fail2ban.</span></>}>
+                        <button onClick={() => setMapSource('history')} style={{
+                            padding: '.2rem .65rem', fontSize: '.72rem', borderRadius: 4, cursor: 'pointer', fontWeight: 600,
+                            border: `1px solid ${mapSource === 'history' ? 'rgba(88,166,255,.4)' : 'transparent'}`,
+                            background: mapSource === 'history' ? 'rgba(88,166,255,.15)' : 'transparent',
+                            color: mapSource === 'history' ? '#58a6ff' : '#8b949e',
+                        }}>📦 Historique</button>
+                    </F2bTooltip>
+                </div>
+
             </div>
 
             {/* Empty state */}
@@ -331,7 +378,9 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker }) => {
                 <div style={{ ...card, padding: '3rem', textAlign: 'center' }}>
                     <div style={{ fontSize: '2.5rem', marginBottom: '.75rem' }}>🌐</div>
                     <p style={{ color: '#3fb950', fontWeight: 700, fontSize: '1rem', marginBottom: '.4rem' }}>Aucune IP à afficher</p>
-                    <p style={{ color: '#8b949e', fontSize: '.82rem' }}>La carte liste les IPs actuellement bannies (même source que le Tracker).</p>
+                    <p style={{ color: '#8b949e', fontSize: '.82rem' }}>
+                        {mapSource === 'live' ? 'Aucune IP actuellement bannie.' : 'Aucun historique de bans disponible.'}
+                    </p>
                 </div>
             )}
 
@@ -376,7 +425,7 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker }) => {
                                             return (
                                                 <button key={code} onClick={() => handleCountryClick(code)}
                                                     style={{ display: 'flex', alignItems: 'center', width: '100%', padding: '.28rem .4rem', borderRadius: 4, border: `1px solid ${active ? 'rgba(88,166,255,.35)' : 'transparent'}`, background: active ? 'rgba(88,166,255,.1)' : 'transparent', cursor: 'pointer', marginBottom: '.15rem', gap: '.35rem' }}>
-                                                    <span style={{ fontSize: '.82rem', flexShrink: 0 }}>{countryFlag(code)}</span>
+                                                    <FlagImg code={countryCodeMap[code] ?? code} size={16} />
                                                     <span style={{ fontSize: '.73rem', color: active ? '#58a6ff' : '#e6edf3', flex: 1, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{code === '??' ? '(inconnu)' : code}</span>
                                                     <span style={{ fontSize: '.72rem', fontWeight: 700, color: heatColor(cnt, minC, maxC), flexShrink: 0 }}>{cnt}</span>
                                                 </button>
@@ -419,7 +468,6 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker }) => {
                             {/* Help */}
                             <div style={{ padding: '.65rem .75rem' }}>
                                 <div style={{ fontSize: '.7rem', color: '#8b949e', lineHeight: 1.5 }}>
-                                    <strong style={{ color: '#e6edf3' }}>Marqueur</strong> : popup → Détails pour ouvrir le Tracker.<br/>
                                     <strong style={{ color: '#e6edf3' }}>Pays</strong> : zoom sur l'emprise + masque les autres points.<br/>
                                     IPs sans coordonnées résolues progressivement (limite la charge sur ip-api.com).
                                 </div>

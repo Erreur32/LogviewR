@@ -48,8 +48,8 @@ export default defineConfig({
         // because the proxy runs server-side on the same machine
         // IMPORTANT: Use PORT (container port) not SERVER_PORT (host port) in Docker
         // In Docker dev: PORT=3003 (container), SERVER_PORT=3779 (host)
-        // In npm dev: PORT=3004 or SERVER_PORT=3004 (same value)
-        target: `http://127.0.0.1:${process.env.PORT || process.env.SERVER_PORT || '3004'}`,
+        // In npm dev: PORT=3005 or SERVER_PORT=3005 (same value)
+        target: `http://127.0.0.1:${process.env.PORT || process.env.SERVER_PORT || '3005'}`,
         changeOrigin: true,
         secure: false,
         timeout: 180000, // 3 min for long-running requests (e.g. error-summary scanning many files)
@@ -88,8 +88,8 @@ export default defineConfig({
       '/ws': {
         // IMPORTANT: Use PORT (container port) not SERVER_PORT (host port) in Docker
         // In Docker dev: PORT=3003 (container), SERVER_PORT=3779 (host)
-        // In npm dev: PORT=3004 or SERVER_PORT=3004 (same value)
-        target: `ws://127.0.0.1:${process.env.PORT || process.env.SERVER_PORT || '3004'}`,
+        // In npm dev: PORT=3005 or SERVER_PORT=3005 (same value)
+        target: `ws://127.0.0.1:${process.env.PORT || process.env.SERVER_PORT || '3005'}`,
         ws: true,
         changeOrigin: true,
         secure: false,

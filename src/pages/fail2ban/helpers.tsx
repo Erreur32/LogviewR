@@ -101,13 +101,16 @@ interface F2bTooltipProps {
     children: React.ReactNode;
     /** Use a div wrapper instead of span — needed when children are block-level */
     block?: boolean;
+    /** Force placement. Default: auto (below if trigger is in top half of viewport) */
+    placement?: 'top' | 'bottom';
 }
 
 export const F2bTooltip: React.FC<F2bTooltipProps> = ({
-    title, body, bodyNode, color = 'blue', children, block = false,
+    title, body, bodyNode, color = 'blue', children, block = false, placement,
 }) => {
     const [visible, setVisible] = useState(false);
     const [pos, setPos] = useState({ left: 0, top: 0 });
+    const [below, setBelow] = useState(false);
     const [ready, setReady] = useState(false);
     const triggerRef = useRef<HTMLDivElement & HTMLSpanElement>(null);
     const boxRef = useRef<HTMLDivElement>(null);
@@ -123,12 +126,15 @@ export const F2bTooltip: React.FC<F2bTooltipProps> = ({
         const br = boxRef.current.getBoundingClientRect();
         const margin = 10;
         let left = tr.left + tr.width / 2;
-        const top  = tr.top - 6;
+        // Auto placement: below if trigger is in top 40% of viewport or forced
+        const autoBelow = placement === 'bottom' || (placement !== 'top' && tr.top < window.innerHeight * 0.4);
+        setBelow(autoBelow);
+        const top = autoBelow ? tr.bottom + 6 : tr.top - 6;
         // Clamp horizontally so tooltip stays in viewport
         left = Math.max(margin + br.width / 2, Math.min(left, window.innerWidth - br.width / 2 - margin));
         setPos({ left, top });
         setReady(true);
-    }, [visible]);
+    }, [visible, placement]);
 
     const show = () => { setReady(false); setVisible(true); };
     const hide = () => { setVisible(false); setReady(false); };
@@ -142,7 +148,7 @@ export const F2bTooltip: React.FC<F2bTooltipProps> = ({
                 position: 'fixed',
                 left: pos.left,
                 top: pos.top,
-                transform: 'translate(-50%, -100%) translateY(-4px)',
+                transform: below ? 'translate(-50%, 0)' : 'translate(-50%, -100%) translateY(-4px)',
                 zIndex: 10002,
                 pointerEvents: 'none',
                 opacity: ready ? 1 : 0,
@@ -187,17 +193,17 @@ export const F2bTooltip: React.FC<F2bTooltipProps> = ({
                 }}>
                     {bodyNode ?? body}
                 </span>
-                {/* Downward arrow */}
+                {/* Arrow — points toward trigger */}
                 <div style={{
                     position: 'absolute',
                     left: '50%',
-                    bottom: -7,
+                    ...(below
+                        ? { top: -7,    borderBottom: `7px solid ${bgBody}`, borderTop: 'none' }
+                        : { bottom: -7, borderTop:    `7px solid ${bgBody}`, borderBottom: 'none' }),
                     transform: 'translateX(-50%)',
-                    width: 0,
-                    height: 0,
+                    width: 0, height: 0,
                     borderLeft: '7px solid transparent',
                     borderRight: '7px solid transparent',
-                    borderTop: `7px solid ${bgBody}`,
                 }} />
             </div>
         </div>,

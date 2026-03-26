@@ -32,6 +32,7 @@ import { TabNetworkRaw }     from './fail2ban/TabNetworkRaw';
 import { TabFileList }       from './fail2ban/TabFileList';
 import { BanHistoryChart }   from './fail2ban/BanHistoryChart';
 import type { StatusResponse, HistoryEntry, TabId } from './fail2ban/types';
+import { IpModal } from './fail2ban/IpModal';
 
 // ── Nav groups ────────────────────────────────────────────────────────────────
 
@@ -117,9 +118,11 @@ const Sparkline: React.FC<{ data: number[]; color: string }> = ({ data, color })
 export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }> = ({ initialTab }) => {
     const contentRef = useRef<HTMLDivElement>(null);
     const [tab, setTab]           = useState<TabId>(initialTab ?? 'jails');
+    const [selectedIp, setSelectedIp] = useState<string | null>(null);
     const [collapsed, setCollapsed] = useState(false);
     const [status, setStatus]     = useState<StatusResponse | null>(null);
     const [history, setHistory]   = useState<HistoryEntry[]>([]);
+    const [trackerTotal, setTrackerTotal] = useState<number | null>(null);
     const [byJail, setByJail]     = useState<Record<string, Record<string, number>>>({});
     const [jailNames, setJailNames] = useState<string[]>([]);
     const [granularity, setGranularity] = useState<'hour' | 'day'>('day');
@@ -130,15 +133,48 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
     const [actionMsg, setActionMsg]         = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
     const [statsDays, setStatsDays]         = useState(1);
     const [lastRefreshed, setLastRefreshed] = useState<number>(0);
-    const [toasts, setToasts]               = useState<{ id: number; title: string; detail: string }[]>([]);
-    const prevBannedRef = useRef<Record<string, number>>({});
-    const toastIdRef    = useRef(0);
+    interface BanToast { id: number; ip: string; jail: string; timeofban: number; failures: number | null }
+    const [toasts, setToasts] = useState<BanToast[]>([]);
+    const toastIdRef   = useRef(0);
+    const lastRowidRef = useRef<number>(-1); // -1 = not bootstrapped yet
     // ticker: re-render every 5s so "il y a Xs" stays fresh
     const [, setTick] = useState(0);
     const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
     useEffect(() => {
         tickRef.current = setInterval(() => setTick(t => t + 1), 5000);
         return () => { if (tickRef.current) clearInterval(tickRef.current); };
+    }, []);
+
+    // ── Ban notification polling ───────────────────────────────────────────────
+    // Bootstrap: get current max rowid so we only notify about future bans
+    useEffect(() => {
+        interface SinceResult { ok: boolean; events: []; maxRowid: number }
+        api.get<SinceResult>('/api/plugins/fail2ban/events/since?rowid=0').then(res => {
+            if (res.success && res.result?.ok) lastRowidRef.current = res.result.maxRowid;
+        });
+    }, []);
+
+    // Poll every 30s — each new event gets its own toast
+    useEffect(() => {
+        interface BanEvent { rowid: number; ip: string; jail: string; timeofban: number; bantime: number | null; failures: number | null }
+        interface SinceResult { ok: boolean; events: BanEvent[]; maxRowid: number }
+
+        const poll = () => {
+            if (lastRowidRef.current < 0) return; // not bootstrapped yet
+            api.get<SinceResult>(`/api/plugins/fail2ban/events/since?rowid=${lastRowidRef.current}`).then(res => {
+                if (!res.success || !res.result?.ok) return;
+                const { events, maxRowid } = res.result;
+                lastRowidRef.current = maxRowid;
+                for (const ev of events) {
+                    const id = ++toastIdRef.current;
+                    setToasts(t => [...t, { id, ip: ev.ip, jail: ev.jail, timeofban: ev.timeofban, failures: ev.failures }]);
+                    setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 15000);
+                }
+            });
+        };
+
+        const timer = setInterval(poll, 30_000);
+        return () => clearInterval(timer);
     }, []);
 
     const fetchStatus = useCallback(async () => {
@@ -151,23 +187,6 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
             ]);
             if (sRes.success && sRes.result) {
                 setStatus(sRes.result);
-                // Detect new bans (skip on initial load)
-                if (hasDataRef.current && sRes.result.jails) {
-                    const prev = prevBannedRef.current;
-                    const newBansPerJail: string[] = [];
-                    let delta = 0;
-                    for (const j of sRes.result.jails) {
-                        const d = j.currentlyBanned - (prev[j.jail] ?? 0);
-                        if (d > 0) { newBansPerJail.push(`${j.jail} (+${d})`); delta += d; }
-                    }
-                    if (delta > 0) {
-                        const id = ++toastIdRef.current;
-                        const detail = newBansPerJail.join(', ');
-                        setToasts(t => [...t, { id, title: `+${delta} ban${delta > 1 ? 's' : ''} détecté${delta > 1 ? 's' : ''}`, detail }]);
-                        setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 12000);
-                    }
-                    prevBannedRef.current = Object.fromEntries(sRes.result.jails.map(j => [j.jail, j.currentlyBanned]));
-                }
             }
             if (hRes.success && hRes.result?.history && Array.isArray(hRes.result.history)) {
                 setHistory(hRes.result.history);
@@ -206,7 +225,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
 
     const jails           = status?.jails ?? [];
     const inactiveJails   = status?.inactiveJails ?? [];
-    const totalBanned     = jails.reduce((s, j) => s + j.currentlyBanned, 0);
+    const totalBanned     = new Set(jails.flatMap(j => j.bannedIps ?? [])).size;
     const totalFailed     = jails.reduce((s, j) => s + j.currentlyFailed, 0);
     const totalAllTime    = jails.reduce((s, j) => s + (j.totalBannedSqlite ?? j.totalBanned), 0);
     const activeJails     = jails.filter(j => j.currentlyBanned > 0 || j.currentlyFailed > 0).length;
@@ -254,10 +273,12 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
           ttColor: 'blue' as const },
         { ttTitle: 'Bans actifs',
           ttBodyNode: statTtBody(totalBanned, 'bans', '#e86a65',
-              'Adresses IP actuellement bannies — toutes jails confondues.',
-              prevStats?.totalBanned !== undefined && trend(totalBanned, prevStats.totalBanned)
-                  ? <span>Dernier refresh : {prevStats.totalBanned} → <strong style={{ color: '#e86a65' }}>{totalBanned}</strong> {trend(totalBanned, prevStats.totalBanned)}</span>
-                  : undefined),
+              'Adresses IP actuellement bannies (ban non expiré) — toutes jails confondues, IPs uniques.',
+              <span>
+                  {prevStats?.totalBanned !== undefined && trend(totalBanned, prevStats.totalBanned) &&
+                      <span>Dernier refresh : {prevStats.totalBanned} → <strong style={{ color: '#e86a65' }}>{totalBanned}</strong> {trend(totalBanned, prevStats.totalBanned)}<br/></span>}
+                  <span style={{ color: '#8b949e' }}>≠ Tracker ({trackerTotal ?? '…'}) : le tracker compte <em>toutes</em> les IPs historiques, bans expirés inclus.</span>
+              </span>),
           ttColor: 'red' as const },
         { ttTitle: `Bans (${periodLabel})`,
           ttBodyNode: statTtBody(periodBans, 'bans', '#39c5cf',
@@ -307,7 +328,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
         </div>
     );
 
-    const badges: Partial<Record<TabId, number>> = { jails: jails.length, tracker: totalBanned };
+    const badges: Partial<Record<TabId, number>> = { jails: jails.length, tracker: trackerTotal ?? totalBanned };
 
     const allNavItems = ([] as { id: TabId; label: string; color: string }[]).concat(...NAV_GROUPS.map(g => g.items as unknown as { id: TabId; label: string; color: string }[]));
     const activeColor = allNavItems.find(i => i.id === tab)?.color ?? '#58a6ff';
@@ -357,10 +378,18 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
                                         <Icon style={{ width: 15, height: 15, flexShrink: 0, color }} />
                                         {!collapsed && <span style={{ flex: 1, textAlign: 'left', color: active ? color : '#c9d1d9' }}>{label}</span>}
                                         {!collapsed && badge !== undefined && badge > 0 && (
-                                            <span style={{ background: '#e86a65', color: '#fff', fontSize: '.65rem', borderRadius: 999, padding: '.05rem .45rem', fontWeight: 700 }}>{badge}</span>
+                                            <span title={
+                                                id === 'tracker' ? `${badge} IPs uniques dans l'historique (f2b_events)\nInclut les bans expirés — ≠ bans actifs (${totalBanned})` :
+                                                id === 'jails'   ? `${badge} jail${badge > 1 ? 's' : ''} configuré${badge > 1 ? 's' : ''}` :
+                                                String(badge)
+                                            } style={{ background: id === 'jails' ? '#58a6ff' : '#e86a65', color: '#fff', fontSize: '.65rem', borderRadius: 999, padding: '.05rem .45rem', fontWeight: 700 }}>{badge}</span>
                                         )}
                                         {collapsed && badge !== undefined && badge > 0 && (
-                                            <span style={{ position: 'absolute', top: 3, right: 3, background: '#e86a65', color: '#fff', fontSize: '.55rem', borderRadius: 6, padding: '0 .25rem', lineHeight: 1.6, zIndex: 1 }}>{badge > 9 ? '9+' : badge}</span>
+                                            <span title={
+                                                id === 'tracker' ? `${badge} IPs uniques historiques (≠ bans actifs : ${totalBanned})` :
+                                                id === 'jails'   ? `${badge} jails` :
+                                                String(badge)
+                                            } style={{ position: 'absolute', top: 3, right: 3, background: id === 'jails' ? '#58a6ff' : '#e86a65', color: '#fff', fontSize: '.55rem', borderRadius: 6, padding: '0 .25rem', lineHeight: 1.6, zIndex: 1 }}>{badge > 9 ? '9+' : badge}</span>
                                         )}
                                     </button>
                                 );
@@ -417,19 +446,39 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
                         )}
                     </div>
                 </div>
-                {/* Toast notifications */}
+                {/* Ban toast notifications */}
                 {toasts.length > 0 && (
-                    <div style={{ position: 'fixed', top: '5rem', left: '50%', transform: 'translateX(-50%)', display: 'flex', flexDirection: 'column', gap: '.5rem', zIndex: 9999, pointerEvents: 'none', alignItems: 'center' }}>
-                        {toasts.map(t => (
-                            <div key={t.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '.6rem', padding: '.65rem .85rem', background: '#161b22', border: '1px solid rgba(232,106,101,.4)', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,.5)', minWidth: 240, maxWidth: 340, pointerEvents: 'all' }}>
-                                <Ban style={{ width: 14, height: 14, color: '#e86a65', flexShrink: 0, marginTop: 2 }} />
-                                <div style={{ minWidth: 0 }}>
-                                    <div style={{ fontWeight: 700, fontSize: '.82rem', color: '#e86a65' }}>{t.title}</div>
-                                    {t.detail && <div style={{ fontSize: '.73rem', color: '#8b949e', marginTop: '.15rem', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.detail}</div>}
+                    <div style={{ position: 'fixed', bottom: '1.5rem', right: '1.5rem', display: 'flex', flexDirection: 'column-reverse', gap: '.45rem', zIndex: 9999, alignItems: 'flex-end' }}>
+                        {toasts.map(t => {
+                            const secsAgo = Math.floor(Date.now() / 1000 - t.timeofban);
+                            const age = secsAgo < 60 ? `${secsAgo}s` : secsAgo < 3600 ? `${Math.floor(secsAgo / 60)}min` : `${Math.floor(secsAgo / 3600)}h`;
+                            const isRecidive = t.jail === 'recidive';
+                            return (
+                                <div key={t.id} style={{ display: 'flex', alignItems: 'stretch', background: '#161b22', border: `1px solid ${isRecidive ? 'rgba(227,179,65,.5)' : 'rgba(232,106,101,.4)'}`, borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,.6)', width: 300, overflow: 'hidden', animation: 'slideIn .2s ease-out' }}>
+                                    {/* Colored left stripe */}
+                                    <div style={{ width: 4, flexShrink: 0, background: isRecidive ? '#e3b341' : '#e86a65' }} />
+                                    {/* Main content — clickable */}
+                                    <button onClick={() => { setSelectedIp(t.ip); setToasts(ts => ts.filter(x => x.id !== t.id)); }}
+                                        style={{ flex: 1, background: 'none', border: 'none', cursor: 'pointer', padding: '.6rem .75rem', textAlign: 'left', minWidth: 0 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', marginBottom: '.25rem' }}>
+                                            <Ban style={{ width: 12, height: 12, color: isRecidive ? '#e3b341' : '#e86a65', flexShrink: 0 }} />
+                                            <span style={{ fontWeight: 700, fontSize: '.78rem', color: isRecidive ? '#e3b341' : '#e86a65' }}>
+                                                {isRecidive ? '⚠ Récidiviste banni' : 'Nouveau ban'}
+                                            </span>
+                                            <span style={{ marginLeft: 'auto', fontSize: '.65rem', color: '#555d69' }}>il y a {age}</span>
+                                        </div>
+                                        <div style={{ fontFamily: 'monospace', fontSize: '.85rem', fontWeight: 600, color: '#e6edf3', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.ip}</div>
+                                        <div style={{ display: 'flex', gap: '.4rem', marginTop: '.2rem', alignItems: 'center' }}>
+                                            <span style={{ fontSize: '.68rem', padding: '.05rem .35rem', borderRadius: 3, background: isRecidive ? 'rgba(227,179,65,.12)' : 'rgba(63,185,80,.1)', color: isRecidive ? '#e3b341' : '#3fb950', border: `1px solid ${isRecidive ? 'rgba(227,179,65,.25)' : 'rgba(63,185,80,.2)'}`, fontFamily: 'monospace' }}>{t.jail}</span>
+                                            {t.failures !== null && t.failures > 0 && <span style={{ fontSize: '.68rem', color: '#8b949e' }}>{t.failures} tentative{t.failures > 1 ? 's' : ''}</span>}
+                                        </div>
+                                    </button>
+                                    {/* Dismiss */}
+                                    <button onClick={() => setToasts(ts => ts.filter(x => x.id !== t.id))}
+                                        style={{ background: 'none', border: 'none', borderLeft: '1px solid #21262d', color: '#555d69', cursor: 'pointer', padding: '0 .6rem', fontSize: '.8rem', flexShrink: 0 }}>✕</button>
                                 </div>
-                                <button onClick={() => setToasts(ts => ts.filter(x => x.id !== t.id))} style={{ marginLeft: 'auto', flexShrink: 0, background: 'none', border: 'none', color: '#8b949e', cursor: 'pointer', fontSize: '.8rem', lineHeight: 1, padding: 0 }}>✕</button>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 )}
 
@@ -458,21 +507,24 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
                             actionLoading={actionLoading} days={statsDays}
                             onUnban={(jail, ip) => doAction('/api/plugins/fail2ban/unban', { jail, ip }, `unban-${jail}-${ip}`)}
                             onBan={(jail, ip)   => doAction('/api/plugins/fail2ban/ban',   { jail, ip }, `ban-${jail}-${ip}`)}
-                            onReload={(jail)    => doAction('/api/plugins/fail2ban/reload', { jail },    `reload-${jail}`)} />
+                            onReload={(jail)    => doAction('/api/plugins/fail2ban/reload', { jail },    `reload-${jail}`)}
+                            onIpClick={(ip) => setSelectedIp(ip)} />
                     )}
                     {tab === 'filtres' && <TabFiltres jails={jails} />}
                     {tab === 'actions' && <TabActions jails={jails} />}
-                    {tab === 'tracker' && <TabTracker />}
-                    {tab === 'carte'   && <TabMap onGoToTracker={ip => { void ip; setTab('tracker'); }} />}
+                    {tab === 'tracker' && <TabTracker onIpClick={(ip) => setSelectedIp(ip)} onTotalChange={setTrackerTotal} />}
+                    {tab === 'carte'   && <TabMap onGoToTracker={ip => { void ip; setTab('tracker'); }} onIpClick={ip => setSelectedIp(ip)} refreshKey={lastRefreshed} />}
                     {tab === 'ban' && (
                         <TabBanManager jails={jails} actionLoading={actionLoading}
                             onBan={(jail, ip)   => doAction('/api/plugins/fail2ban/ban',   { jail, ip }, `ban-${jail}-${ip}`)}
-                            onUnban={(jail, ip) => doAction('/api/plugins/fail2ban/unban', { jail, ip }, `unban-${jail}-${ip}`)} />
+                            onUnban={(jail, ip) => doAction('/api/plugins/fail2ban/unban', { jail, ip }, `unban-${jail}-${ip}`)}
+                            onIpClick={(ip) => setSelectedIp(ip)} />
                     )}
                     {tab === 'stats' && (
                         <TabStats jails={jails} loading={loading}
                             totalBanned={totalBanned} totalFailed={totalFailed} totalAllTime={totalAllTime} activeJails={activeJails}
-                            days={statsDays} onDaysChange={setStatsDays} />
+                            days={statsDays} onDaysChange={setStatsDays}
+                            onIpClick={(ip) => setSelectedIp(ip)} />
                     )}
                     {tab === 'iptables' && <TabNetworkRaw title="IPTables" endpoint="/api/plugins/fail2ban/iptables" icon={<Network style={{ width: 14, height: 14 }} />} />}
                     {tab === 'ipset'    && <TabNetworkRaw title="IPSet"    endpoint="/api/plugins/fail2ban/ipset"    icon={<Database style={{ width: 14, height: 14 }} />} />}
@@ -483,6 +535,8 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
                     {tab === 'aide'     && <TabAide />}
                 </div>
             </div>
+            {selectedIp && <IpModal ip={selectedIp} onClose={() => setSelectedIp(null)} />}
+            <style>{`@keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }`}</style>
         </div>
     );
 };

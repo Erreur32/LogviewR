@@ -13,9 +13,9 @@ import { api } from '../../api/client';
 import { card, cardH, Badge, StatusDot, fmtSecs, fmtTs, F2bTooltip } from './helpers';
 import { ConfEditorModal } from './ConfEditorModal';
 import type { ConfEditorTarget } from './ConfEditorModal';
-import { IpModal } from './IpModal';
 import { JailConfigModal } from './JailConfigModal';
 import type { JailStatus, BanEntry } from './types';
+import { DomainInitial } from './DomainInitial';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -30,6 +30,7 @@ export interface TabJailsProps {
     onUnban: (jail: string, ip: string) => void;
     onBan:   (jail: string, ip: string) => void;
     onReload: (jail: string) => void;
+    onIpClick?: (ip: string) => void;
 }
 
 type JailsViewMode = 'cards' | 'table' | 'events';
@@ -103,12 +104,12 @@ export const JailCard: React.FC<{
     onUnban: (ip: string) => void;
     onBan:   (ip: string) => void;
     onReload: () => void;
-}> = ({ jail, actionLoading, onUnban, onBan, onReload }) => {
+    onIpClick?: (ip: string) => void;
+}> = ({ jail, actionLoading, onUnban, onBan, onReload, onIpClick }) => {
     const [banIp, setBanIp] = useState('');
     const [ipFilter, setIpFilter] = useState('');
     const [editor, setEditor] = useState<ConfEditorTarget | null>(null);
     const [configOpen, setConfigOpen] = useState(false);
-    const [modalIp, setModalIp] = useState<string | null>(null);
     const [hostnames, setHostnames] = useState<Record<string, string>>({});
     const [logModal, setLogModal] = useState(false);
     const reloadKey = `reload-${jail.jail}`;
@@ -133,7 +134,6 @@ export const JailCard: React.FC<{
         <>
         {editor && <ConfEditorModal target={editor} onClose={() => setEditor(null)} />}
         {configOpen && <JailConfigModal jailName={jail.jail} isActive onClose={() => setConfigOpen(false)} />}
-        {modalIp && <IpModal ip={modalIp} jails={[jail.jail]} onClose={() => setModalIp(null)} />}
         {logModal && jail.fileList && (() => {
             const files = jail.fileList.split(/\s+/).filter(Boolean);
             return (
@@ -285,8 +285,8 @@ export const JailCard: React.FC<{
                                         onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
                                         <td style={{ padding: '.3rem .5rem', color: '#8b949e', fontSize: '.7rem' }}>{i + 1}</td>
                                         <td style={{ padding: '.3rem .5rem' }}>
-                                            <button onClick={() => setModalIp(ip)}
-                                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'monospace', fontSize: '.8rem', color: '#e86a65', fontWeight: 600 }}>
+                                            <button onClick={() => onIpClick?.(ip)}
+                                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'monospace', fontSize: '.8rem', color: '#e6edf3', fontWeight: 600 }}>
                                                 {ip}
                                             </button>
                                         </td>
@@ -350,11 +350,11 @@ const JailExpandedGrid: React.FC<{
     onReload: () => void;
     onUnbanAll: () => void;
     onOpenConfig: () => void;
-}> = ({ jail, actionLoading, bansInPeriodLabel, onUnban, onBan, onReload, onUnbanAll, onOpenConfig }) => {
+    onIpClick?: (ip: string) => void;
+}> = ({ jail, actionLoading, bansInPeriodLabel, onUnban, onBan, onReload, onUnbanAll, onOpenConfig, onIpClick }) => {
     const [banIp, setBanIp]           = useState('');
     const [showAllIps, setShowAllIps] = useState(false);
     const [recentBans, setRecentBans] = useState<BanEntry[]>([]);
-    const [modalIp, setModalIp]       = useState<string | null>(null);
     const [logsOpen, setLogsOpen]     = useState(false);
     const [hostnames, setHostnames]   = useState<Record<string, string>>({});
     const reloadKey = `reload-${jail.jail}`;
@@ -411,7 +411,6 @@ const JailExpandedGrid: React.FC<{
 
     return (
         <>
-        {modalIp && <IpModal ip={modalIp} jails={[jail.jail]} onClose={() => setModalIp(null)} />}
         <div style={{ background: 'rgba(13,17,23,.6)', borderTop: '1px solid #30363d', padding: '0' }}>
             {/* Pills header — exact PHP .jdp-pill style */}
             <div style={{ padding: '.55rem 1rem', borderBottom: '1px solid #30363d', display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
@@ -532,8 +531,8 @@ const JailExpandedGrid: React.FC<{
                     ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '.3rem' }}>
                             {recentBans.slice(0, 6).map((b, i) => (
-                                <button key={i} onClick={() => setModalIp(b.ip)}
-                                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'monospace', fontSize: '.75rem', color: '#e86a65', textAlign: 'left' }}>
+                                <button key={i} onClick={() => onIpClick?.(b.ip)}
+                                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'monospace', fontSize: '.75rem', color: '#e6edf3', fontWeight: 600, textAlign: 'left' }}>
                                     {b.ip}
                                 </button>
                             ))}
@@ -555,8 +554,8 @@ const JailExpandedGrid: React.FC<{
                                 {(showAllIps ? jail.bannedIps : bannedShow).map(ip => (
                                     <div key={ip} style={{ display: 'flex', alignItems: 'center', gap: '.4rem' }}>
                                         <div style={{ flex: 1, overflow: 'hidden' }}>
-                                            <button onClick={() => setModalIp(ip)}
-                                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'monospace', fontSize: '.77rem', color: '#e86a65', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block', maxWidth: '100%', textAlign: 'left' }}>
+                                            <button onClick={() => onIpClick?.(ip)}
+                                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'monospace', fontSize: '.77rem', color: '#e6edf3', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block', maxWidth: '100%', textAlign: 'left' }}>
                                                 {ip}
                                             </button>
                                             {hostnames[ip] && <div style={{ fontFamily: 'monospace', fontSize: '.65rem', color: '#8b949e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{hostnames[ip]}</div>}
@@ -605,7 +604,8 @@ const JailsTableView: React.FC<{
     onUnban: (jail: string, ip: string) => void;
     onBan:   (jail: string, ip: string) => void;
     onReload: (jail: string) => void;
-}> = ({ jails, days, actionLoading, onUnban, onBan, onReload }) => {
+    onIpClick?: (ip: string) => void;
+}> = ({ jails, days, actionLoading, onUnban, onBan, onReload, onIpClick }) => {
     const [expanded,   setExpanded]   = useState<string | null>(null);
     const [editor,     setEditor]     = useState<ConfEditorTarget | null>(null);
     const [configJail, setConfigJail] = useState<string | null>(null);
@@ -728,6 +728,7 @@ const JailsTableView: React.FC<{
                                                     onReload={() => onReload(j.jail)}
                                                     onUnbanAll={() => j.bannedIps.forEach(ip => onUnban(j.jail, ip))}
                                                     onOpenConfig={() => setConfigJail(j.jail)}
+                                                    onIpClick={onIpClick}
                                                 />
                                             </td>
                                         </tr>
@@ -863,7 +864,7 @@ interface AuditEnrichment {
     jail_domains:   Record<string, string>;
 }
 
-export const TabJailsEvents: React.FC = () => {
+export const TabJailsEvents: React.FC<{ onIpClick?: (ip: string) => void }> = ({ onIpClick }) => {
     const [bans, setBans]           = useState<BanEntry[]>([]);
     const [enrichment, setEnrich]   = useState<AuditEnrichment>({ jail_actions: {}, jail_logs: {}, jail_servers: {}, jail_domains: {} });
     const [loading, setLoading]     = useState(true);
@@ -873,7 +874,6 @@ export const TabJailsEvents: React.FC = () => {
     const [page, setPage]           = useState(0);
     const [sortCol, setSortCol]     = useState<SortCol>('date');
     const [sortDir, setSortDir]     = useState<SortDir>('desc');
-    const [modalIp, setModalIp]     = useState<string | null>(null);
 
     const fetchAudit = useCallback(() => {
         api.get<{ ok: boolean; bans: BanEntry[] } & AuditEnrichment>('/api/plugins/fail2ban/audit?limit=500').then(res => {
@@ -968,8 +968,6 @@ export const TabJailsEvents: React.FC = () => {
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '.6rem' }}>
-            {modalIp && <IpModal ip={modalIp} onClose={() => setModalIp(null)} />}
-
             {/* ── Toolbar unique ── */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', flexWrap: 'wrap', padding: '.4rem .6rem', background: '#161b22', border: '1px solid #30363d', borderRadius: 7 }}>
                 {/* Title */}
@@ -1104,7 +1102,7 @@ export const TabJailsEvents: React.FC = () => {
                                                 : <span style={{ color: '#3fb950', fontSize: '.78rem', fontWeight: 600 }}>🔓 unban</span>}
                                     </td>
                                     <td style={{ padding: '.4rem .65rem' }}>
-                                        <button onClick={() => setModalIp(b.ip)}
+                                        <button onClick={() => onIpClick?.(b.ip)}
                                             style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'monospace', fontSize: '.8rem', color: '#e6edf3', fontWeight: 600 }}>
                                             {b.ip}
                                         </button>
@@ -1117,15 +1115,11 @@ export const TabJailsEvents: React.FC = () => {
                                     <td style={{ padding: '.4rem .65rem' }}>
                                         {domain ? (
                                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                                                <img
-                                                    src={`https://icons.duckduckgo.com/ip3/${encodeURIComponent(domain)}.ico`}
-                                                    width={13} height={13}
-                                                    style={{ borderRadius: 2, flexShrink: 0, verticalAlign: '-2px' }}
-                                                    onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-                                                    loading="lazy" alt=""
-                                                />
+                                                <DomainInitial domain={domain} size={13} />
                                                 <span style={{ fontFamily: 'monospace', fontSize: '.7rem', color: '#39c5cf', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={domain}>{domain}</span>
                                             </span>
+                                        ) : srv ? (
+                                            <span style={{ fontFamily: 'monospace', fontSize: '.68rem', color: '#8b949e', background: '#21262d', border: '1px solid #30363d', borderRadius: 4, padding: '.1rem .4rem' }} title={logpath}>{srv}</span>
                                         ) : <span style={{ color: '#30363d', fontSize: '.7rem' }}>—</span>}
                                     </td>
                                     {/* Log */}
@@ -1187,7 +1181,7 @@ const viewBtnStyle = (active: boolean): React.CSSProperties => ({
 
 export const TabJails: React.FC<TabJailsProps> = ({
     jails, inactiveJails = [], loading, statusOk, statusError, actionLoading,
-    days = 1, onUnban, onBan, onReload,
+    days = 1, onUnban, onBan, onReload, onIpClick,
 }) => {
     const [showAll, setShowAll]     = useState(false);
     const [jailFilter, setJailFilter] = useState('');
@@ -1258,17 +1252,18 @@ export const TabJails: React.FC<TabJailsProps> = ({
                         <JailCard key={jail.jail} jail={jail} actionLoading={actionLoading}
                             onUnban={ip => onUnban(jail.jail, ip)}
                             onBan={ip => onBan(jail.jail, ip)}
-                            onReload={() => onReload(jail.jail)} />
+                            onReload={() => onReload(jail.jail)}
+                            onIpClick={onIpClick} />
                     ))}
                 </div>
             )}
             {view === 'table' && (
                 <JailsTableView jails={displayJails} days={days} actionLoading={actionLoading}
-                    onUnban={onUnban} onBan={onBan} onReload={onReload} />
+                    onUnban={onUnban} onBan={onBan} onReload={onReload} onIpClick={onIpClick} />
             )}
             {/* TabJailsEvents reste monté pour éviter le scroll-to-top au changement de vue */}
             <div style={{ display: view === 'events' ? undefined : 'none' }}>
-                <TabJailsEvents />
+                <TabJailsEvents onIpClick={onIpClick} />
             </div>
         </div>
     );

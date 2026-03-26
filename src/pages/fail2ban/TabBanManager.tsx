@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Ban, Unlock, Database, Shield, ListChecks, AlertTriangle, CheckCircle, FolderOpen } from 'lucide-react';
+import { Ban, Unlock, Database, Shield, ListChecks, AlertTriangle, CheckCircle, FolderOpen, ChevronDown } from 'lucide-react';
 import { api } from '../../api/client';
 import { card, cardH, cardB } from './helpers';
 import type { JailStatus } from './types';
@@ -9,6 +9,7 @@ interface TabBanManagerProps {
     actionLoading: string | null;
     onBan:   (jail: string, ip: string) => void;
     onUnban: (jail: string, ip: string) => void;
+    onIpClick?: (ip: string) => void;
 }
 
 interface IpsetEntry { name: string; entries: number }
@@ -21,11 +22,41 @@ const inputSt: React.CSSProperties = {
     background: '#0d1117', border: '1px solid #30363d', color: '#e6edf3',
     outline: 'none', boxSizing: 'border-box',
 };
-const selectSt: React.CSSProperties = { ...inputSt, appearance: 'auto' };
 const taSt: React.CSSProperties = {
     ...inputSt, fontFamily: 'monospace', resize: 'vertical', minHeight: 80,
     lineHeight: 1.45, fontSize: '.76rem',
 };
+
+// ── Styled select with dark chevron ───────────────────────────────────────────
+
+function StyledSelect({ value, onChange, children }: {
+    value: string;
+    onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
+    children: React.ReactNode;
+}) {
+    const [focused, setFocused] = React.useState(false);
+    return (
+        <div style={{ position: 'relative', width: '100%' }}>
+            <select
+                value={value}
+                onChange={onChange}
+                onFocus={() => setFocused(true)}
+                onBlur={() => setFocused(false)}
+                style={{
+                    width: '100%', padding: '.4rem 2rem .4rem .65rem', fontSize: '.83rem', borderRadius: 5,
+                    background: '#21262d', border: `1px solid ${focused ? '#58a6ff' : '#30363d'}`,
+                    color: '#e6edf3', outline: 'none', boxSizing: 'border-box',
+                    appearance: 'none', cursor: 'pointer', transition: 'border-color .12s',
+                }}>
+                {children}
+            </select>
+            <ChevronDown style={{
+                position: 'absolute', right: '.55rem', top: '50%', transform: 'translateY(-50%)',
+                width: 13, height: 13, color: '#8b949e', pointerEvents: 'none',
+            }} />
+        </div>
+    );
+}
 
 // ── File input button (hidden native input + styled label) ────────────────────
 
@@ -61,14 +92,14 @@ function ActionBtn({ color, border, bg, disabled, onClick, children }: {
     );
 }
 
-function ResultList({ results }: { results: BulkResult[] }) {
+function ResultList({ results, onIpClick }: { results: BulkResult[]; onIpClick?: (ip: string) => void }) {
     if (!results.length) return null;
     return (
         <div style={{ maxHeight: 120, overflowY: 'auto', marginTop: '.5rem', display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
             {results.map((r, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '.35rem', fontSize: '.72rem', color: r.ok ? '#3fb950' : '#e86a65' }}>
                     {r.ok ? <CheckCircle style={{ width: 10, height: 10, flexShrink: 0 }} /> : <AlertTriangle style={{ width: 10, height: 10, flexShrink: 0 }} />}
-                    <code style={{ fontFamily: 'monospace' }}>{r.ip}</code>
+                    <button onClick={() => onIpClick?.(r.ip)} style={{ background: 'none', border: 'none', cursor: onIpClick ? 'pointer' : 'default', padding: 0, fontFamily: 'monospace', color: '#e6edf3', fontWeight: 600 }}>{r.ip}</button>
                     {!r.ok && r.error && <span style={{ color: '#8b949e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>— {r.error}</span>}
                 </div>
             ))}
@@ -112,7 +143,7 @@ function ActionCard({ header, children, action }: {
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
-export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoading, onBan, onUnban }) => {
+export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoading, onBan, onUnban, onIpClick }) => {
     // ── Fail2ban single ────────────────────────────────────────────────────────
     const [banJail,   setBanJail]   = useState(jails[0]?.jail ?? '');
     const [banIp,     setBanIp]     = useState('');
@@ -255,10 +286,10 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
                             </ActionBtn>
                         }>
                         <p style={{ fontSize: '.78rem', color: '#8b949e', margin: 0 }}>Bannit une IP dans un jail fail2ban.</p>
-                        <select value={banJail} onChange={e => setBanJail(e.target.value)} style={selectSt}>
-                            <option value="">— Sélectionner —</option>
-                            {jails.map(j => <option key={j.jail} value={j.jail}>{j.jail}</option>)}
-                        </select>
+                        <StyledSelect value={banJail} onChange={e => setBanJail(e.target.value)}>
+                            <option value="" style={{ background: '#21262d', color: '#8b949e' }}>— Sélectionner —</option>
+                            {jails.map(j => <option key={j.jail} value={j.jail} style={{ background: '#21262d', color: '#e6edf3' }}>{j.jail}</option>)}
+                        </StyledSelect>
                         <input type="text" value={banIp} onChange={e => setBanIp(e.target.value)}
                             placeholder="ex: 1.2.3.4" style={{ ...inputSt, fontFamily: 'monospace' }} />
                     </ActionCard>
@@ -273,14 +304,14 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
                                     onClick={doBulkBan}>
                                     <Ban style={{ width: 13, height: 13 }} />{bulkLoading ? 'Bannissement…' : 'Bannir'}
                                 </ActionBtn>
-                                <ResultList results={bulkResults} />
+                                <ResultList results={bulkResults} onIpClick={onIpClick} />
                             </>
                         }>
                         <p style={{ fontSize: '.78rem', color: '#8b949e', margin: 0 }}>Liste d'IPs → jail fail2ban.</p>
-                        <select value={bulkJail} onChange={e => setBulkJail(e.target.value)} style={selectSt}>
-                            <option value="">— Sélectionner —</option>
-                            {jails.map(j => <option key={j.jail} value={j.jail}>{j.jail}</option>)}
-                        </select>
+                        <StyledSelect value={bulkJail} onChange={e => setBulkJail(e.target.value)}>
+                            <option value="" style={{ background: '#21262d', color: '#8b949e' }}>— Sélectionner —</option>
+                            {jails.map(j => <option key={j.jail} value={j.jail} style={{ background: '#21262d', color: '#e6edf3' }}>{j.jail}</option>)}
+                        </StyledSelect>
                         <textarea value={bulkIps} onChange={e => setBulkIps(e.target.value)}
                             placeholder={"1.2.3.4\n5.6.7.8"} style={taSt} />
                         <FileBtn onChange={loadBulkFile} />
@@ -297,10 +328,10 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
                             </ActionBtn>
                         }>
                         <p style={{ fontSize: '.78rem', color: '#8b949e', margin: 0 }}>Retire l'IP du jail et de la liste de blocage.</p>
-                        <select value={unbanJail} onChange={e => setUnbanJail(e.target.value)} style={selectSt}>
-                            <option value="">— Sélectionner —</option>
-                            {jails.map(j => <option key={j.jail} value={j.jail}>{j.jail}</option>)}
-                        </select>
+                        <StyledSelect value={unbanJail} onChange={e => setUnbanJail(e.target.value)}>
+                            <option value="" style={{ background: '#21262d', color: '#8b949e' }}>— Sélectionner —</option>
+                            {jails.map(j => <option key={j.jail} value={j.jail} style={{ background: '#21262d', color: '#e6edf3' }}>{j.jail}</option>)}
+                        </StyledSelect>
                         <input type="text" value={unbanIp} onChange={e => setUnbanIp(e.target.value)}
                             placeholder="ex: 1.2.3.4" style={{ ...inputSt, fontFamily: 'monospace' }} />
                     </ActionCard>
@@ -336,10 +367,10 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
                                 </>
                             }>
                             <p style={{ fontSize: '.78rem', color: '#8b949e', margin: 0 }}>Ajoute une IP ou plage CIDR dans un IPSet.</p>
-                            <select value={addSet} onChange={e => setAddSet(e.target.value)} style={selectSt}>
-                                <option value="">— Sélectionner —</option>
-                                {ipsets.map(s => <option key={s.name} value={s.name}>{s.name} ({s.entries} entrées)</option>)}
-                            </select>
+                            <StyledSelect value={addSet} onChange={e => setAddSet(e.target.value)}>
+                                <option value="" style={{ background: '#21262d', color: '#8b949e' }}>— Sélectionner —</option>
+                                {ipsets.map(s => <option key={s.name} value={s.name} style={{ background: '#21262d', color: '#e6edf3' }}>{s.name} ({s.entries} entrées)</option>)}
+                            </StyledSelect>
                             <input type="text" value={addEntry} onChange={e => setAddEntry(e.target.value)}
                                 placeholder="ex: 1.2.3.4 ou 1.2.0.0/16" style={{ ...inputSt, fontFamily: 'monospace' }} />
                         </ActionCard>
@@ -358,10 +389,10 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
                                 </>
                             }>
                             <p style={{ fontSize: '.78rem', color: '#8b949e', margin: 0 }}>Liste d'IPs ou CIDR → IPSet cible.</p>
-                            <select value={bulkIpsetSet} onChange={e => setBulkIpsetSet(e.target.value)} style={selectSt}>
-                                <option value="">— Sélectionner —</option>
-                                {ipsets.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
-                            </select>
+                            <StyledSelect value={bulkIpsetSet} onChange={e => setBulkIpsetSet(e.target.value)}>
+                                <option value="" style={{ background: '#21262d', color: '#8b949e' }}>— Sélectionner —</option>
+                                {ipsets.map(s => <option key={s.name} value={s.name} style={{ background: '#21262d', color: '#e6edf3' }}>{s.name}</option>)}
+                            </StyledSelect>
                             <textarea value={bulkIpsetList} onChange={e => setBulkIpsetList(e.target.value)}
                                 placeholder={"1.2.3.4\n10.0.0.0/24"} style={taSt} />
                             <FileBtn onChange={loadIpsetFile} />
@@ -386,10 +417,10 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
                                 </>
                             }>
                             <p style={{ fontSize: '.78rem', color: '#8b949e', margin: 0 }}>Supprime une IP ou CIDR d'un IPSet.</p>
-                            <select value={delSet} onChange={e => setDelSet(e.target.value)} style={selectSt}>
-                                <option value="">— Sélectionner —</option>
-                                {ipsets.map(s => <option key={s.name} value={s.name}>{s.name} ({s.entries} entrées)</option>)}
-                            </select>
+                            <StyledSelect value={delSet} onChange={e => setDelSet(e.target.value)}>
+                                <option value="" style={{ background: '#21262d', color: '#8b949e' }}>— Sélectionner —</option>
+                                {ipsets.map(s => <option key={s.name} value={s.name} style={{ background: '#21262d', color: '#e6edf3' }}>{s.name} ({s.entries} entrées)</option>)}
+                            </StyledSelect>
                             <input type="text" value={delEntry} onChange={e => setDelEntry(e.target.value)}
                                 placeholder="ex: 1.2.3.4 ou 1.2.0.0/16" style={{ ...inputSt, fontFamily: 'monospace' }} />
                         </ActionCard>

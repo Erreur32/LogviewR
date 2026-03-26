@@ -317,6 +317,18 @@ export function initializeDatabase(): void {
         ts          INTEGER NOT NULL
     )`);
 
+    // Whois cache for IP modal (TTL 7 days, populated on demand via system whois)
+    database.exec(`CREATE TABLE IF NOT EXISTS f2b_whois_cache (
+        ip      TEXT    PRIMARY KEY,
+        org     TEXT    NOT NULL DEFAULT '',
+        country TEXT    NOT NULL DEFAULT '',
+        asn     TEXT    NOT NULL DEFAULT '',
+        netname TEXT    NOT NULL DEFAULT '',
+        cidr    TEXT    NOT NULL DEFAULT '',
+        ts      INTEGER NOT NULL
+    )`);
+
+
     // Log sources table (configuration for log sources: Apache, Nginx, System, etc.)
     database.exec(`
         CREATE TABLE IF NOT EXISTS log_sources (

@@ -1,5 +1,22 @@
 // Shared types for Fail2ban tabs
 
+export interface GeoInfo {
+    country: string; countryCode: string; city: string;
+    org: string; isp: string; as: string;
+}
+
+export const toFlag = (cc: string) =>
+    cc.toUpperCase().split('').map(c => String.fromCodePoint(0x1F1E6 + c.charCodeAt(0) - 65)).join('');
+
+export const fmtBantime = (s: number | null) => {
+    if (s === null) return '—';
+    if (s === -1)   return '∞ permanent';
+    if (s < 60)     return `${s}s`;
+    if (s < 3600)   return `${Math.round(s / 60)}m`;
+    if (s < 86400)  return `${Math.round(s / 3600)}h`;
+    return `${Math.round(s / 86400)}j`;
+};
+
 export interface JailStatus {
     jail: string;
     currentlyFailed: number;
@@ -54,6 +71,7 @@ export interface TrackerEntry {
     lastSeen?: number;
     hostname?: string;
     ipsets?: string[];
+    currentlyBanned?: boolean;
 }
 
 export type TabId =

@@ -102,7 +102,7 @@ export class Fail2banClientExec {
             currentlyBanned: parseInt(parse(/Currently banned:\s*(\d+)/), 10),
             totalBanned:     parseInt(parse(/Total banned:\s*(\d+)/),     10),
             bannedIps,
-            fileList: parse(/File list:\s*(.*)/),
+            fileList: res.output.match(/File list:\s*(.*)/)?.[1]?.trim() ?? '',
         };
     }
 

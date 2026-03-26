@@ -18,8 +18,8 @@ export const config = {
   // IMPORTANT: In Docker, use PORT (container port), not SERVER_PORT (host port)
   // SERVER_PORT is only for display/logging purposes
   port: parseInt(
-    process.env.PORT || 
-    (process.env.NODE_ENV === 'production' ? '3000' : '3004'), 
+    process.env.PORT ||
+    (process.env.NODE_ENV === 'production' ? '3000' : '3005'),
     10
   ),
   // Public URL for frontend access (used in logs and WebSocket URLs)

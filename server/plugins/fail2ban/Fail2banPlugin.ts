@@ -25,13 +25,80 @@ import * as dns from 'dns';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
+import { fileURLToPath } from 'url';
 import { logger } from '../../utils/logger.js';
+
+const execFileAsync = promisify(execFile);
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const DEFAULT_SQLITE_PATH = '/var/lib/fail2ban/fail2ban.sqlite3';
 const SOCKET_PATH = '/var/run/fail2ban/fail2ban.sock';
 
 /** Filenames only — no path traversal (matches fail2ban.log, fail2ban.log.1, etc.) */
 const FAIL2BAN_LOG_NAME = /^fail2ban[a-zA-Z0-9._-]*\.log(\.\d+)?$/;
+
+// ── Whois + Known-provider helpers ─────────────────────────────────────────────
+
+interface WhoisInfo { org: string; country: string; asn: string; netname: string; cidr: string; }
+interface KnownProvider { name: string; cidr: string; }
+
+/** Runs system `whois <ip>` and parses key fields. Returns null on timeout/error. */
+async function runWhois(ip: string): Promise<WhoisInfo | null> {
+    try {
+        const { stdout } = await execFileAsync('whois', [ip], { timeout: 6000 });
+        const info: WhoisInfo = { org: '', country: '', asn: '', netname: '', cidr: '' };
+        for (const raw of stdout.split('\n')) {
+            const line = raw.trim();
+            if (!line || line.startsWith('#') || line.startsWith('%')) continue;
+            if (!info.org     && /^org(?:name)?:\s*(.+)/i.test(line))          info.org     = line.replace(/^org(?:name)?:\s*/i, '').trim();
+            if (!info.country && /^country:\s*(.+)/i.test(line))               info.country = line.replace(/^country:\s*/i, '').trim().toUpperCase();
+            if (!info.asn     && /^(?:origin|aut-num):\s*(AS\d+)/i.test(line)) info.asn     = line.match(/AS\d+/i)![0];
+            if (!info.netname && /^netname:\s*(.+)/i.test(line))               info.netname = line.replace(/^netname:\s*/i, '').trim();
+            if (!info.cidr    && /^(?:cidr|route):\s*(.+)/i.test(line))        info.cidr    = line.replace(/^(?:cidr|route):\s*/i, '').trim();
+        }
+        return (info.org || info.country || info.asn || info.netname) ? info : null;
+    } catch { return null; }
+}
+
+/** Checks if IPv4 belongs to a known provider range (Cloudflare, Google, AWS, Microsoft). */
+function checkKnownProvider(ip: string): KnownProvider | null {
+    // IPv6 not supported for CIDR check
+    if (!ip || ip.includes(':')) return null;
+    const parts = ip.split('.').map(Number);
+    if (parts.length !== 4 || parts.some(p => isNaN(p) || p < 0 || p > 255)) return null;
+    const ipLong = ((parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3]) >>> 0;
+
+    let ranges: Record<string, string[]>;
+    try {
+        ranges = JSON.parse(fs.readFileSync(path.join(__dirname, 'known-ip-ranges.json'), 'utf8'));
+    } catch { return null; }
+
+    for (const [provider, cidrs] of Object.entries(ranges)) {
+        for (const cidr of cidrs) {
+            const [subnet, bits] = cidr.split('/');
+            const b = parseInt(bits, 10);
+            if (!subnet || isNaN(b) || b < 1 || b > 32) continue;
+            const sp = subnet.split('.').map(Number);
+            if (sp.length !== 4) continue;
+            const subnetLong = ((sp[0] << 24) | (sp[1] << 16) | (sp[2] << 8) | sp[3]) >>> 0;
+            const mask = b === 32 ? 0xFFFFFFFF : (~(0xFFFFFFFF >>> b)) >>> 0;
+            if ((ipLong & mask) === (subnetLong & mask)) return { name: provider, cidr };
+        }
+    }
+    return null;
+}
+
+/** Greps a log file for an IP (literal match, last N lines). Returns [] on error. */
+async function grepLogFile(resolvedPath: string, ip: string, maxLines = 30): Promise<string[]> {
+    if (!resolvedPath || !fs.existsSync(resolvedPath)) return [];
+    try {
+        const { stdout } = await execFileAsync('grep', ['-F', ip, resolvedPath], { timeout: 5000, maxBuffer: 4 * 1024 * 1024 });
+        const lines = stdout.trim().split('\n').filter(Boolean);
+        return lines.slice(-maxLines);
+    } catch { return []; }
+}
 
 // ── Jail config parser ─────────────────────────────────────────────────────────
 
@@ -613,6 +680,61 @@ export class Fail2banPlugin extends BasePlugin {
             res.json({ success: true, result: { ok: true, days, history, byJail, jailNames, granularity, slotBase } });
         }));
 
+        // GET /events/since?rowid=N  — new ban events from internal f2b_events since rowid
+        // rowid=0 (bootstrap): returns current max rowid + empty events array
+        router.get('/events/since', requireAuth, asyncHandler(async (req, res) => {
+            if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
+            const sinceRowid = parseInt(String(req.query.rowid ?? '0'), 10);
+            const appDb = getDatabase();
+
+            if (sinceRowid === 0) {
+                const row = appDb.prepare('SELECT MAX(rowid) as maxid FROM f2b_events').get() as { maxid: number | null };
+                return res.json({ success: true, result: { ok: true, events: [], maxRowid: row.maxid ?? 0 } });
+            }
+
+            const events = appDb.prepare(`
+                SELECT rowid, ip, jail, timeofban, bantime, failures
+                FROM f2b_events
+                WHERE rowid > ?
+                ORDER BY rowid ASC
+                LIMIT 50
+            `).all(sinceRowid) as { rowid: number; ip: string; jail: string; timeofban: number; bantime: number | null; failures: number | null }[];
+
+            const maxRowid = events.length > 0 ? events[events.length - 1].rowid : sinceRowid;
+            res.json({ success: true, result: { ok: true, events, maxRowid } });
+        }));
+
+        // GET /sync-status  — compare fail2ban SQLite max rowid vs internal sync position
+        router.get('/sync-status', requireAuth, asyncHandler(async (_req, res) => {
+            if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
+            const appDb = getDatabase();
+            const syncState = appDb.prepare('SELECT last_rowid, last_sync_at FROM f2b_sync_state WHERE id = 1').get() as { last_rowid: number; last_sync_at: string | null } | undefined;
+            const internalCount = (appDb.prepare('SELECT COUNT(*) as n FROM f2b_events').get() as { n: number }).n;
+            const lastRowid = syncState?.last_rowid ?? 0;
+
+            let f2bMaxRowid: number | null = null;
+            let f2bTotalBans: number | null = null;
+            try {
+                const f2bPath = this.reader?.getStats()?.dbPath ?? '/var/lib/fail2ban/fail2ban.sqlite3';
+                const f2bDb = new (await import('better-sqlite3')).default(f2bPath, { readonly: true, fileMustExist: true });
+                try {
+                    f2bMaxRowid  = (f2bDb.prepare('SELECT MAX(rowid) as m FROM bans').get() as { m: number | null }).m;
+                    f2bTotalBans = (f2bDb.prepare('SELECT COUNT(*) as n FROM bans').get() as { n: number }).n;
+                } finally { f2bDb.close(); }
+            } catch { /* not readable */ }
+
+            const synced = f2bMaxRowid !== null ? lastRowid >= f2bMaxRowid : null;
+            res.json({ success: true, result: {
+                ok: true,
+                internalEvents: internalCount,
+                lastSyncedRowid: lastRowid,
+                f2bMaxRowid,
+                f2bTotalBans,
+                lastSyncAt: syncState?.last_sync_at ?? null,
+                synced,
+            } });
+        }));
+
         // POST /api/plugins/fail2ban/ban   { jail, ip }
         router.post('/ban', requireAuth, asyncHandler(async (req, res) => {
             if (!this.isEnabled()) return res.json({ success: true, result: { ok: false, error: 'Plugin fail2ban désactivé' } });
@@ -922,6 +1044,22 @@ export class Fail2banPlugin extends BasePlugin {
             res.json({ success: true, result: { ok: true, cfg, version, dbInfo, dbHostPath, appDbInfo, internalDbStats } });
         }));
 
+        // POST /config/sqlite-vacuum  — run VACUUM on fail2ban SQLite DB
+        router.post('/config/sqlite-vacuum', requireAuth, asyncHandler(async (req, res) => {
+            if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
+            const confBase = this.resolveDockerPathSync('/etc/fail2ban');
+            const cfg = parseGlobalConfig(confBase);
+            const dbHostPath = this.resolveDockerPathSync(cfg.dbfile || '/var/lib/fail2ban/fail2ban.sqlite3');
+            const BetterSqlite = (await import('better-sqlite3')).default;
+            const db = new BetterSqlite(dbHostPath, { readonly: false, fileMustExist: true });
+            try {
+                db.exec('VACUUM');
+                res.json({ success: true, result: { ok: true } });
+            } finally {
+                db.close();
+            }
+        }));
+
         // POST /config/runtime  — apply runtime settings via fail2ban-client
         router.post('/config/runtime', requireAuth, asyncHandler(async (req, res) => {
             if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
@@ -973,62 +1111,90 @@ export class Fail2banPlugin extends BasePlugin {
             res.json({ success: true, result: r });
         }));
 
-        // GET /tracker  — IPs bannies actuelles (SQLite) enriched with per-IP stats
-        // Supports ?days=N to scope bans/failures stats to period (default: all time)
+        // GET /tracker  — ALL historical IPs from internal f2b_events (dashboard.db)
+        // Source is the project DB, not fail2ban SQLite — survives fail2ban dbpurge
         router.get('/tracker', requireAuth, asyncHandler(async (req, res) => {
             if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
-            const limit = Math.min(parseInt(String(req.query.limit ?? '500'), 10), 2000);
-            const days  = parseInt(String(req.query.days ?? '-1'), 10);
+            const limit = Math.min(parseInt(String(req.query.limit ?? '2000'), 10), 5000);
+
+            // All unique IPs with aggregated stats from internal DB
+            const appDb = getDatabase();
+            const rows = appDb.prepare(`
+                SELECT ip,
+                       COUNT(*)                      AS bans,
+                       SUM(COALESCE(failures, 0))    AS failures,
+                       MAX(timeofban)                AS lastSeen,
+                       GROUP_CONCAT(DISTINCT jail)   AS jails
+                FROM f2b_events
+                GROUP BY ip
+                ORDER BY lastSeen DESC
+                LIMIT ?
+            `).all(limit) as { ip: string; bans: number; failures: number; lastSeen: number; jails: string }[];
+
+            const total = (appDb.prepare('SELECT COUNT(DISTINCT ip) as n FROM f2b_events').get() as { n: number }).n;
+
+            // Currently banned IPs from fail2ban SQLite — used to show active jails
+            const activeJails = new Map<string, string[]>();
             const stats = this.reader?.getStats();
-            if (!stats?.readable) return res.json({ success: true, result: { ok: false, ips: [], error: 'SQLite not readable' } });
-            const map = new Map<string, string[]>();
-            for (const [jail, data] of Object.entries(stats.jails)) {
-                for (const ip of data.bannedIps) {
-                    if (!map.has(ip)) map.set(ip, []);
-                    map.get(ip)!.push(jail);
+            if (stats?.readable) {
+                for (const [jail, data] of Object.entries(stats.jails)) {
+                    for (const ip of data.bannedIps) {
+                        if (!activeJails.has(ip)) activeJails.set(ip, []);
+                        activeJails.get(ip)!.push(jail);
+                    }
                 }
             }
-            const ipStats = this.reader?.getIpStats(days) ?? {};
-            const baseIps = Array.from(map.entries()).map(([ip, jails]) => {
-                const s = ipStats[ip];
-                return { ip, jails, bans: s?.bans, lastSeen: s?.lastSeen, failures: s?.failures };
-            }).slice(0, limit);
 
-            // Parallel: ipset membership + DNS reverse lookup
-            const [ipsetMap, hostnames] = await Promise.all([
-                this.client?.ipsetList().then(r => r.ok ? parseIpsetMembership(r.output) : new Map<string, string[]>())
-                    .catch(() => new Map<string, string[]>()),
-                Promise.all(baseIps.map(e => reverseDns(e.ip))),
-            ]);
-
-            const ips = baseIps.map((e, i) => ({
-                ...e,
-                hostname: hostnames[i] ?? undefined,
-                ipsets:   ipsetMap.get(e.ip)?.filter(s => !s.startsWith('docker-')) ?? [],
+            const baseIps = rows.map(r => ({
+                ip:             r.ip,
+                bans:           r.bans,
+                failures:       r.failures,
+                lastSeen:       r.lastSeen,
+                currentlyBanned: activeJails.has(r.ip),
+                // Active jails if currently banned, else historical jails from DB
+                jails: activeJails.get(r.ip) ?? r.jails.split(',').filter(Boolean),
             }));
 
-            res.json({ success: true, result: { ok: true, total: ips.length, ips } });
+            res.json({ success: true, result: { ok: true, total, ips: baseIps } });
         }));
 
-        // GET /map  — currently banned IPs + cached geo (for map tab)
-        router.get('/map', requireAuth, asyncHandler(async (_req, res) => {
+        // GET /map?source=live|history  — IPs + cached geo (for map tab)
+        // live    : currently banned IPs from fail2ban SQLite (real-time)
+        // history : all distinct IPs from internal f2b_events (survives fail2ban purge)
+        router.get('/map', requireAuth, asyncHandler(async (req, res) => {
             if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
-            const stats = this.reader?.getStats();
-            if (!stats?.readable) {
-                return res.json({ success: true, result: { ok: false, points: [], error: 'SQLite not readable' } });
-            }
-            // Build ip → jails map from currently banned
-            const ipJails = new Map<string, string[]>();
-            for (const [jail, data] of Object.entries(stats.jails)) {
-                for (const ip of data.bannedIps) {
-                    if (!ipJails.has(ip)) ipJails.set(ip, []);
-                    ipJails.get(ip)!.push(jail);
-                }
-            }
-            // Fetch cached geo (TTL 30 days)
+            const source = String(req.query.source ?? 'live') === 'history' ? 'history' : 'live';
+            const appDb = getDatabase();
             const TTL = 30 * 86400;
             const now = Math.floor(Date.now() / 1000);
-            const appDb = getDatabase();
+
+            const ipJails = new Map<string, string[]>();
+
+            if (source === 'live') {
+                const stats = this.reader?.getStats();
+                if (!stats?.readable) {
+                    return res.json({ success: true, result: { ok: false, points: [], error: 'SQLite not readable' } });
+                }
+                for (const [jail, data] of Object.entries(stats.jails)) {
+                    for (const ip of data.bannedIps) {
+                        if (!ipJails.has(ip)) ipJails.set(ip, []);
+                        ipJails.get(ip)!.push(jail);
+                    }
+                }
+            } else {
+                // Historical: all distinct IPs from f2b_events with their jails
+                const rows = appDb.prepare(`
+                    SELECT ip, GROUP_CONCAT(DISTINCT jail) AS jails
+                    FROM f2b_events
+                    GROUP BY ip
+                    LIMIT 5000
+                `).all() as { ip: string; jails: string }[];
+                for (const r of rows) {
+                    ipJails.set(r.ip, r.jails.split(',').filter(Boolean));
+                }
+            }
+
+            // Fetch cached geo (TTL 30 days)
             const geoCache = new Map<string, { lat: number; lng: number; country: string; countryCode: string; region: string; city: string; org: string }>();
             const ipList = Array.from(ipJails.keys());
             for (let i = 0; i < ipList.length; i += 400) {
@@ -1039,10 +1205,11 @@ export class Fail2banPlugin extends BasePlugin {
                     if (now - r.ts <= TTL) geoCache.set(r.ip, { lat: r.lat, lng: r.lng, country: r.country, countryCode: r.countryCode, region: r.region, city: r.city, org: r.org });
                 }
             }
+
             const points = Array.from(ipJails.entries()).map(([ip, jails]) => ({
                 ip, jails, cached: geoCache.get(ip) ?? null,
             }));
-            res.json({ success: true, result: { ok: true, points, resolveDelayMs: 380, cacheTtlDays: 30 } });
+            res.json({ success: true, result: { ok: true, points, source, resolveDelayMs: 380, cacheTtlDays: 30 } });
         }));
 
         // GET /map/resolve/:ip  — geo lookup + cache in f2b_ip_geo
@@ -1238,6 +1405,156 @@ export class Fail2banPlugin extends BasePlugin {
             }
 
             res.json({ success: true, result: { ok: true, bans, jail_actions, jail_logs, jail_servers, jail_domains } });
+        }));
+
+        // GET /ip/:ip  — données agrégées pour le modal détail IP
+        // Returns: active jails, ipset membership, hostname, whois, known provider, log lines
+        router.get('/ip/:ip', requireAuth, asyncHandler(async (req, res) => {
+            if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
+            const ip = String(req.params.ip);
+            if (!/^[\d:.a-fA-F]{2,45}$/.test(ip)) throw createError('Invalid IP', 400, 'BAD_PARAM');
+
+            const db    = getDatabase();
+            const stats = this.reader?.getStats();
+
+            // Active jails: find jails where IP is currently banned
+            const activeJails: string[] = [];
+            if (stats?.jails) {
+                for (const [jail, data] of Object.entries(stats.jails)) {
+                    if ((data as { bannedIps?: string[] }).bannedIps?.includes(ip)) activeJails.push(jail);
+                }
+            }
+
+            // All jails ever seen for this IP: active + historical (from internal DB)
+            const histJails: string[] = [];
+            try {
+                const hist = Fail2banSyncService.getIpHistory(ip, 500);
+                for (const row of hist) {
+                    if (row.jail && !histJails.includes(row.jail)) histJails.push(row.jail);
+                }
+            } catch { /* ignore */ }
+            const allJails = [...new Set([...activeJails, ...histJails])];
+
+            // Jail log paths for all jails (runtime fail2ban-client status, like PHP does)
+            // fileList is space-separated and can contain multiple paths — keep ALL of them
+            const jailLogPaths: Record<string, string[]> = {};
+            await Promise.all(allJails.map(async jail => {
+                const status = await this.client?.getJailStatus(jail).catch(() => null);
+                if (status?.fileList?.trim()) {
+                    const paths = status.fileList.trim().split(/\s+/).filter(Boolean);
+                    if (paths.length > 0) jailLogPaths[jail] = paths;
+                }
+            }));
+
+            // Whois — serve from cache (7 days TTL), otherwise run whois command
+            const WHOIS_TTL = 7 * 86400;
+            let whois: WhoisInfo | null = null;
+            const whoisCached = db.prepare('SELECT org,country,asn,netname,cidr,ts FROM f2b_whois_cache WHERE ip=?').get(ip) as { org:string; country:string; asn:string; netname:string; cidr:string; ts:number } | undefined;
+            if (whoisCached && (Date.now() / 1000 - whoisCached.ts) < WHOIS_TTL) {
+                whois = { org: whoisCached.org, country: whoisCached.country, asn: whoisCached.asn, netname: whoisCached.netname, cidr: whoisCached.cidr };
+            } else {
+                whois = await runWhois(ip);
+                if (whois) {
+                    db.prepare('INSERT OR REPLACE INTO f2b_whois_cache(ip,org,country,asn,netname,cidr,ts) VALUES(?,?,?,?,?,?,?)')
+                        .run(ip, whois.org, whois.country, whois.asn, whois.netname, whois.cidr, Math.floor(Date.now() / 1000));
+                }
+            }
+
+            // Parallel: ipset, hostname, known-provider check
+            const [ipsetResult, hostname] = await Promise.all([
+                this.client?.ipsetList().catch(() => ({ ok: false, output: '', error: '' }))
+                    ?? Promise.resolve({ ok: false, output: '', error: '' }),
+                reverseDns(ip),
+            ]);
+            const knownProvider = checkKnownProvider(ip);
+
+            const ipsetMap    = ipsetResult.ok ? parseIpsetMembership(ipsetResult.output) : new Map<string, string[]>();
+            const allIpsetNames: string[] = [];
+            if (ipsetResult.ok) {
+                for (const line of ipsetResult.output.split('\n')) {
+                    const m = line.match(/^Name:\s+(.+)/);
+                    if (m && !m[1].startsWith('docker-')) allIpsetNames.push(m[1].trim());
+                }
+            }
+            const ipsets = ipsetMap.get(ip)?.filter(s => !s.startsWith('docker-')) ?? [];
+
+            // Build NPM domain map (proxy-host-N → domain) from the first NPM log path found
+            const allLogPathsList = Object.values(jailLogPaths).flat();
+            const npmDomainMap: Record<string, string> = (() => {
+                for (const logpath of allLogPathsList) {
+                    const m = logpath.match(/proxy-host-(\d+)[_-]/);
+                    if (!m) continue;
+                    const logsIdx = logpath.lastIndexOf('/logs/');
+                    const npmBase = logsIdx >= 0 ? logpath.slice(0, logsIdx) : null;
+                    if (!npmBase) continue;
+                    const dbPath = this.resolveDockerPathSync(`${npmBase}/database.sqlite`);
+                    try {
+                        const npmDb = new Database(dbPath, { readonly: true, fileMustExist: true });
+                        const rows = npmDb.prepare('SELECT id, domain_names FROM proxy_host WHERE is_deleted=0').all() as { id: number; domain_names: string }[];
+                        npmDb.close();
+                        const map: Record<string, string> = {};
+                        for (const row of rows) {
+                            try {
+                                const names: string[] = JSON.parse(row.domain_names);
+                                if (names.length > 0) map[String(row.id)] = names[0].replace(/^www\./, '').toLowerCase();
+                            } catch { /* bad JSON */ }
+                        }
+                        return map;
+                    } catch { /* db not accessible */ }
+                    break;
+                }
+                return {};
+            })();
+
+            /** Resolve domain for a log file path */
+            const domainForLogpath = (logpath: string): string | null => {
+                // NPM: proxy-host-N → look up in DB map
+                const npmM = logpath.match(/proxy-host-(\d+)[_-]/);
+                if (npmM) return npmDomainMap[npmM[1]] ?? null;
+                // Filename heuristic: strip _access.log / _error.log etc.
+                const fname = logpath.replace(/.*\//, '');
+                const stripped = fname.replace(/[._-]?(ssl_access|ssl_error|other_vhosts_access|access|error)\.log$/i, '').replace(/\.log$/i, '');
+                return /^[a-zA-Z0-9][a-zA-Z0-9._-]+\.[a-zA-Z]{2,}$/.test(stripped) ? stripped.toLowerCase() : null;
+            };
+
+            // Source log lines: grep each unique log file for this IP (30 lines per file, no file limit)
+            const LOG_MAX_LINES = 30;
+            // Deduplicate log paths (multiple jails can share the same log file)
+            const uniqueLogPaths = new Map<string, string>(); // logpath → first jail
+            for (const [jail, paths] of Object.entries(jailLogPaths)) {
+                for (const logpath of paths) {
+                    if (!uniqueLogPaths.has(logpath)) uniqueLogPaths.set(logpath, jail);
+                }
+            }
+            const logFilesToGrep = [...uniqueLogPaths.entries()];
+            const totalLogFiles = uniqueLogPaths.size;
+
+            interface LogFileEntry { jail: string; filepath: string; domain: string | null; type: string; lines: string[] }
+            const logEntries: LogFileEntry[] = [];
+            await Promise.all(logFilesToGrep.map(async ([logpath, jail]) => {
+                const resolved = this.resolveDockerPathSync(logpath);
+                const lines = await grepLogFile(resolved, ip, LOG_MAX_LINES);
+                if (lines.length > 0) {
+                    const fname = logpath.replace(/.*\//, '');
+                    const type = /_error/i.test(fname) ? 'error' : /_access/i.test(fname) ? 'access' : 'other';
+                    logEntries.push({ jail, filepath: logpath, domain: domainForLogpath(logpath), type, lines });
+                }
+            }));
+            // Sort by domain then filepath for consistent display
+            logEntries.sort((a, b) => (a.domain ?? a.filepath).localeCompare(b.domain ?? b.filepath));
+
+            res.json({ success: true, result: {
+                ok: true,
+                activeJails,
+                ipsets,
+                allIpsets: allIpsetNames,
+                hostname,
+                whois,
+                knownProvider,
+                logEntries,
+                logFilesTotal: totalLogFiles,
+                logFilesShown: totalLogFiles,
+            }});
         }));
 
         // GET /audit/internal  — historique bans depuis la DB interne (dashboard.db)

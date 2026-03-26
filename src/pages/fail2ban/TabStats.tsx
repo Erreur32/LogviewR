@@ -161,7 +161,7 @@ interface TopsData {
     summary: { totalBans: number; uniqueIps: number; topJail: string | null; topJailCount: number };
 }
 
-const TopCard: React.FC<{ icon: React.ReactNode; title: string; color: string; entries: TopEntry[]; loading: boolean; labelKey: 'ip' | 'jail' }> = ({ icon, title, color, entries, loading, labelKey }) => {
+const TopCard: React.FC<{ icon: React.ReactNode; title: string; color: string; entries: TopEntry[]; loading: boolean; labelKey: 'ip' | 'jail'; onIpClick?: (ip: string) => void }> = ({ icon, title, color, entries, loading, labelKey, onIpClick }) => {
     const max = Math.max(...entries.map(e => e.count), 1);
     const rgb = color === C.red ? '232,106,101' : color === C.orange ? '227,179,65' : color === C.cyan ? '57,197,207' : '88,166,255';
     return (
@@ -176,10 +176,20 @@ const TopCard: React.FC<{ icon: React.ReactNode; title: string; color: string; e
                 : entries.length === 0 ? <div style={{ textAlign: 'center', padding: '1rem', color: C.muted, fontSize: '.78rem' }}>Aucune donnée</div>
                 : entries.map((e, i) => {
                     const label = labelKey === 'ip' ? e.ip! : e.jail!;
+                    const clickable = labelKey === 'ip' && !!onIpClick;
                     return (
                         <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '.4rem', padding: '.22rem .75rem' }}>
                             <span style={{ width: 18, fontSize: '.65rem', color: C.muted, textAlign: 'right', flexShrink: 0 }}>{i + 1}</span>
-                            <span style={{ flex: 1, fontFamily: 'monospace', fontSize: '.75rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color }}>{label}</span>
+                            {clickable ? (
+                                <button onClick={() => onIpClick!(label)}
+                                    style={{ flex: 1, background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'monospace', fontSize: '.75rem', color: '#e6edf3', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'left' }}>
+                                    {label}
+                                </button>
+                            ) : (
+                                <span style={{ flex: 1, fontFamily: 'monospace', fontSize: '.75rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color }}>
+                                    {label}
+                                </span>
+                            )}
                             <div style={{ width: 60, background: C.bg3, borderRadius: 2, height: 4, overflow: 'hidden', flexShrink: 0 }}>
                                 <div style={{ width: `${Math.max(4, (e.count / max) * 100)}%`, height: '100%', background: color, borderRadius: 2 }} />
                             </div>
@@ -348,7 +358,7 @@ const HeatmapSection: React.FC<{
 };
 
 // ── Tops section ──────────────────────────────────────────────────────────────
-const TopsSection: React.FC<{ days: number; onDaysChange: (d: number) => void }> = ({ days, onDaysChange }) => {
+const TopsSection: React.FC<{ days: number; onDaysChange: (d: number) => void; onIpClick?: (ip: string) => void }> = ({ days, onDaysChange, onIpClick }) => {
     const [data, setData]   = useState<TopsData | null>(null);
     const [loading, setLoading] = useState(true);
     const [limit, setLimit] = useState(10);
@@ -383,7 +393,7 @@ const TopsSection: React.FC<{ days: number; onDaysChange: (d: number) => void }>
             }
             collapsible>
             <div style={{ padding: '1rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(220px,1fr))', gap: '1rem' }}>
-                {topCards.map(c => <TopCard key={c.title} {...c} loading={loading} />)}
+                {topCards.map(c => <TopCard key={c.title} {...c} loading={loading} onIpClick={onIpClick} />)}
             </div>
         </SCard>
     );
@@ -394,7 +404,7 @@ interface AuditEvent { ip: string; jail: string; timeofban: number; bantime: num
 
 const LIMITS = [25, 50, 100, 200, 0];
 
-const DerniersEventsSection: React.FC<{ days: number; onDaysChange: (d: number) => void }> = ({ days, onDaysChange }) => {
+const DerniersEventsSection: React.FC<{ days: number; onDaysChange: (d: number) => void; onIpClick?: (ip: string) => void }> = ({ days, onDaysChange, onIpClick }) => {
     const [events, setEvents] = useState<AuditEvent[]>([]);
     const [loading, setLoading] = useState(true);
     const [limit, setLimit]   = useState(50);
@@ -499,7 +509,9 @@ const DerniersEventsSection: React.FC<{ days: number; onDaysChange: (d: number) 
                                 onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,.02)'}
                                 onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
                                 <td style={{ padding: '.38rem .75rem', fontFamily: 'monospace', fontSize: '.75rem', color: C.muted, whiteSpace: 'nowrap' }}>{fmtTime(ev.timeofban)}</td>
-                                <td style={{ padding: '.38rem .75rem', fontFamily: 'monospace', fontSize: '.8rem', color: C.red }}>{ev.ip}</td>
+                                <td style={{ padding: '.38rem .75rem' }}>
+                                    <button onClick={() => onIpClick?.(ev.ip)} style={{ background: 'none', border: 'none', cursor: onIpClick ? 'pointer' : 'default', padding: 0, fontFamily: 'monospace', fontSize: '.8rem', color: '#e6edf3', fontWeight: 600 }}>{ev.ip}</button>
+                                </td>
                                 <td style={{ padding: '.38rem .75rem', fontSize: '.78rem' }}>
                                     <span style={{ background: 'rgba(57,197,207,.1)', color: C.cyan, border: `1px solid rgba(57,197,207,.25)`, borderRadius: 4, padding: '.08rem .4rem', fontSize: '.72rem', fontFamily: 'monospace' }}>{ev.jail}</span>
                                 </td>
@@ -549,12 +561,13 @@ interface TabStatsProps {
     activeJails: number;
     days: number;
     onDaysChange: (d: number) => void;
+    onIpClick?: (ip: string) => void;
 }
 
 export const TabStats: React.FC<TabStatsProps> = ({
     jails, loading,
     totalBanned, totalFailed, totalAllTime, activeJails,
-    days, onDaysChange,
+    days, onDaysChange, onIpClick,
 }) => {
     const statCards = [
         { label: 'Jails actifs',     value: activeJails,  icon: <Shield style={{ width: 14, height: 14 }} />,       color: C.blue },
@@ -591,10 +604,10 @@ export const TabStats: React.FC<TabStatsProps> = ({
             <TypesAttaqueSection days={days} onDaysChange={onDaysChange} />
 
             {/* Tops section */}
-            <TopsSection days={days} onDaysChange={onDaysChange} />
+            <TopsSection days={days} onDaysChange={onDaysChange} onIpClick={onIpClick} />
 
             {/* Derniers événements */}
-            <DerniersEventsSection days={days} onDaysChange={onDaysChange} />
+            <DerniersEventsSection days={days} onDaysChange={onDaysChange} onIpClick={onIpClick} />
 
             {/* Bans par heure */}
             <HeatmapSection dataKey="heatmap" title="Bans par heure" color={C.orange} days={days} onDaysChange={onDaysChange} />

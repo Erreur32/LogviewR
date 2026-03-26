@@ -1,14 +1,13 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { api } from '../../api/client';
-import { card, cardH, PERIODS as SHARED_PERIODS, F2bTooltip } from './helpers';
-import { List, MapPin } from 'lucide-react';
+import { card, cardH } from './helpers';
+import { List, Shield } from 'lucide-react';
 import type { TrackerEntry } from './types';
-import { IpModal, GeoInfo, toFlag } from './IpModal';
+import { GeoInfo } from './types';
+import { FlagImg } from './FlagImg';
 
 type SortCol = 'ip' | 'bans' | 'unbans' | 'failures' | 'jails' | 'last';
 type SortDir = 'asc' | 'desc';
-
-const PERIODS = SHARED_PERIODS;
 
 
 // ── "Dernier vu" badge ─────────────────────────────────────────────────────────
@@ -50,43 +49,67 @@ const SortTh: React.FC<{
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
-export const TabTracker: React.FC = () => {
+export const TabTracker: React.FC<{ onIpClick?: (ip: string) => void; onTotalChange?: (n: number) => void }> = ({ onIpClick, onTotalChange }) => {
     const [ips, setIps]         = useState<TrackerEntry[]>([]);
     const [total, setTotal]     = useState(0);
     const [loading, setLoading] = useState(true);
-    const [days, setDays]       = useState(30);
     const [filter, setFilter]   = useState('');
     const [perPage, setPerPage] = useState(32);
     const [page, setPage]       = useState(1);
     const [sortCol, setSortCol] = useState<SortCol>('last');
     const [sortDir, setSortDir] = useState<SortDir>('desc');
-    const [modalIp, setModalIp] = useState<string | null>(null);
 
     // Geo cache: ip → GeoInfo (or null on error)
     const geoCache = useRef<Map<string, GeoInfo | null>>(new Map());
     const [geoData, setGeoData] = useState<Map<string, GeoInfo | null>>(new Map());
     const [geoLoading, setGeoLoading] = useState<Set<string>>(new Set());
 
+    // Sync status banner
+    interface SyncStatus { internalEvents: number; f2bTotalBans: number | null; synced: boolean | null; lastSyncAt: string | null }
+    const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
+    useEffect(() => {
+        api.get<SyncStatus & { ok: boolean }>('/api/plugins/fail2ban/sync-status').then(res => {
+            if (res.success && res.result?.ok) setSyncStatus(res.result);
+        });
+    }, []);
+
+    const [dataLoaded, setDataLoaded] = useState(false);
+
     const fetchData = useCallback(() => {
         setLoading(true);
-        const param = days < 0 ? '' : `?days=${days}`;
-        api.get<{ ok: boolean; total: number; ips: TrackerEntry[] }>(`/api/plugins/fail2ban/tracker${param}`).then(res => {
-            if (res.success && res.result?.ok) { setIps(res.result.ips); setTotal(res.result.total); }
-            setLoading(false);
-        });
-    }, [days]);
+        api.get<{ ok: boolean; total: number; ips: TrackerEntry[] }>('/api/plugins/fail2ban/tracker')
+            .then(res => {
+                if (res.success && res.result?.ok) {
+                    setIps(res.result.ips);
+                    setTotal(res.result.total);
+                    onTotalChange?.(res.result.total);
+                    setDataLoaded(true);
+                }
+            })
+            .catch(() => { /* server not ready yet — will retry on next fetchData call */ })
+            .finally(() => setLoading(false));
+    }, [onTotalChange]);
 
     useEffect(() => { fetchData(); }, [fetchData]);
 
     const fetchGeo = useCallback((ip: string) => {
         if (geoCache.current.has(ip)) return;
+        // Mark as in-flight immediately (prevents duplicate requests)
+        geoCache.current.set(ip, undefined as any);
         setGeoLoading(prev => new Set([...prev, ip]));
-        api.get<{ ok: boolean; geo: GeoInfo }>(`/api/plugins/fail2ban/geo/${encodeURIComponent(ip)}`).then(res => {
-            const info = res.success && res.result?.ok ? res.result.geo : null;
-            geoCache.current.set(ip, info);
-            setGeoData(prev => new Map([...prev, [ip, info]]));
-            setGeoLoading(prev => { const s = new Set(prev); s.delete(ip); return s; });
-        });
+        api.get<{ ok: boolean; geo: GeoInfo }>(`/api/plugins/fail2ban/geo/${encodeURIComponent(ip)}`)
+            .then(res => {
+                const info = res.success && res.result?.ok ? res.result.geo : null;
+                geoCache.current.set(ip, info);
+                setGeoData(prev => new Map([...prev, [ip, info]]));
+            })
+            .catch(() => {
+                // Network error (server not ready yet) — remove from cache so it can be retried
+                geoCache.current.delete(ip);
+            })
+            .finally(() => {
+                setGeoLoading(prev => { const s = new Set(prev); s.delete(ip); return s; });
+            });
     }, []);
 
     const handleSort = useCallback((col: SortCol) => {
@@ -132,6 +155,12 @@ export const TabTracker: React.FC = () => {
     const currentPage = Math.min(page, Math.max(1, totalPages));
     const paginated   = perPage === 0 ? sorted : sorted.slice((currentPage - 1) * perPage, currentPage * perPage);
 
+    // Auto-fetch geo for visible rows — only after tracker data has loaded successfully at least once
+    useEffect(() => {
+        if (!dataLoaded) return;
+        for (const e of paginated) fetchGeo(e.ip);
+    }, [paginated, fetchGeo, dataLoaded]);
+
     const ppBtn = (pp: number, label: string) => (
         <button key={pp} onClick={() => { setPerPage(pp); setPage(1); }}
             style={{ padding: '.1rem .4rem', fontSize: '.68rem', borderRadius: 4, background: perPage === pp ? 'rgba(88,166,255,.15)' : 'transparent', border: `1px solid ${perPage === pp ? 'rgba(88,166,255,.4)' : '#30363d'}`, color: perPage === pp ? '#58a6ff' : '#8b949e', cursor: 'pointer' }}>
@@ -140,9 +169,6 @@ export const TabTracker: React.FC = () => {
     );
 
     const thStyle: React.CSSProperties = { padding: '.4rem .65rem', borderBottom: '1px solid #30363d', fontSize: '.67rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: '#8b949e', textAlign: 'left', whiteSpace: 'nowrap' };
-
-    const modalEntry = modalIp ? ips.find(e => e.ip === modalIp) : null;
-    const modalGeo   = modalIp ? (geoData.get(modalIp) ?? null) : null;
 
     return (
         <>
@@ -155,17 +181,7 @@ export const TabTracker: React.FC = () => {
                     <strong style={{ color: '#e86a65' }}>{total}</strong>
                     <span style={{ color: '#e6edf3' }}>IP{total !== 1 ? 's' : ''} suivie{total !== 1 ? 's' : ''}</span>
                 </div>
-                {/* Period selector */}
-                <div style={{ display: 'flex', gap: '.25rem', flexWrap: 'wrap' }}>
-                    {PERIODS.map(p => (
-                        <F2bTooltip key={p.days} title={p.label} body={p.title} color="blue">
-                            <button onClick={() => { setDays(p.days); setPage(1); }}
-                                style={{ padding: '.12rem .5rem', fontSize: '.7rem', borderRadius: 4, border: `1px solid ${days === p.days ? 'rgba(88,166,255,.4)' : '#30363d'}`, background: days === p.days ? 'rgba(88,166,255,.15)' : 'transparent', color: days === p.days ? '#58a6ff' : '#8b949e', cursor: 'pointer' }}>
-                                {p.label}
-                            </button>
-                        </F2bTooltip>
-                    ))}
-                </div>
+                <span style={{ fontSize: '.72rem', color: '#8b949e', padding: '.15rem .55rem', borderRadius: 4, border: '1px solid #30363d' }}>Tout l'historique</span>
                 {/* Search — centré */}
                 <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
                     <div style={{ position: 'relative', width: 220 }}>
@@ -193,6 +209,19 @@ export const TabTracker: React.FC = () => {
                 </div>
             </div>
 
+            {/* ── Sync status banner ── */}
+            {syncStatus && syncStatus.synced === false && syncStatus.f2bTotalBans !== null && (
+                <div style={{ padding: '.45rem 1rem', background: 'rgba(227,179,65,.07)', borderBottom: '1px solid rgba(227,179,65,.2)', display: 'flex', alignItems: 'center', gap: '.5rem', fontSize: '.78rem' }}>
+                    <span style={{ color: '#e3b341', fontWeight: 700 }}>⟳ Import en cours…</span>
+                    <span style={{ color: '#8b949e' }}>
+                        {syncStatus.internalEvents.toLocaleString()} / {syncStatus.f2bTotalBans.toLocaleString()} événements importés
+                    </span>
+                    <span style={{ color: '#8b949e', fontSize: '.72rem', marginLeft: '.5rem' }}>
+                        — les données affichées sont partielles, rafraîchissez dans quelques secondes
+                    </span>
+                </div>
+            )}
+
             {/* ── Table ── */}
             {loading
                 ? <div style={{ textAlign: 'center', padding: '3rem', color: '#8b949e' }}>Chargement…</div>
@@ -206,6 +235,7 @@ export const TabTracker: React.FC = () => {
                                     <th style={{ ...thStyle, width: 32 }}>#</th>
                                     <SortTh col="last" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} style={thStyle}>Dernier vu</SortTh>
                                     <SortTh col="ip"   sortCol={sortCol} sortDir={sortDir} onSort={handleSort} style={thStyle}>IP</SortTh>
+                                    <th style={thStyle}>Pays</th>
                                     <th style={thStyle}>Géoloc</th>
                                     <SortTh col="failures" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} style={{ ...thStyle, textAlign: 'center' }}>Tentatives</SortTh>
                                     <SortTh col="bans"   sortCol={sortCol} sortDir={sortDir} onSort={handleSort} style={{ ...thStyle, textAlign: 'center' }}><span style={{ color: '#e86a65' }}>Bans</span></SortTh>
@@ -231,32 +261,43 @@ export const TabTracker: React.FC = () => {
                                                 {e.lastSeen ? <LastSeenBadge ts={e.lastSeen} /> : <span style={{ color: '#8b949e' }}>—</span>}
                                             </td>
                                             <td style={{ padding: '.4rem .65rem', whiteSpace: 'nowrap' }}>
-                                                {inRecidive && <span title="Récidive" style={{ color: '#e3b341', fontSize: '.72rem', marginRight: '.35rem' }}>⚠</span>}
-                                                <button onClick={() => setModalIp(e.ip)}
-                                                    title="Voir historique détaillé"
-                                                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'monospace', fontSize: '.85rem', color: '#e6edf3', fontWeight: 600 }}>
-                                                    {e.ip}
-                                                </button>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '.35rem' }}>
+                                                    {inRecidive && <span title="Récidive" style={{ color: '#e3b341', fontSize: '.72rem' }}>⚠</span>}
+                                                    <button onClick={() => onIpClick?.(e.ip)}
+                                                        title="Voir historique détaillé"
+                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'monospace', fontSize: '.85rem', color: '#e6edf3', fontWeight: 600 }}>
+                                                        {e.ip}
+                                                    </button>
+                                                    {e.currentlyBanned && (
+                                                        <span title="Actuellement banni" style={{ display: 'inline-flex', alignItems: 'center', padding: '.05rem .3rem', borderRadius: 3, fontSize: '.6rem', fontWeight: 700, background: 'rgba(232,106,101,.15)', color: '#e86a65', border: '1px solid rgba(232,106,101,.3)', letterSpacing: '.03em' }}>
+                                                            <Shield style={{ width: 8, height: 8, marginRight: 2 }} />BANNI
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </td>
+                                            {/* Pays */}
+                                            <td style={{ padding: '.35rem .65rem', whiteSpace: 'nowrap' }}>
+                                                {geoFetched && geo
+                                                    ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.3rem' }}>
+                                                        <FlagImg code={geo.countryCode} size={14} />
+                                                        <span style={{ fontSize: '.75rem', color: '#e6edf3' }}>{geo.countryCode || '—'}</span>
+                                                      </span>
+                                                    : geoFetching
+                                                    ? <span style={{ color: '#8b949e', fontSize: '.72rem' }}>…</span>
+                                                    : <span style={{ color: '#8b949e', fontSize: '.75rem' }}>—</span>
+                                                }
+                                            </td>
+                                            {/* Géoloc */}
                                             <td style={{ padding: '.35rem .65rem', whiteSpace: 'nowrap' }}>
                                                 {geoFetched && geo
                                                     ? (
-                                                        <span title={`${geo.org} · ${geo.isp}`} style={{ fontSize: '.78rem', color: '#8b949e' }}>
-                                                            <span style={{ marginRight: '.3rem' }}>{toFlag(geo.countryCode)}</span>
-                                                            <span style={{ color: '#e6edf3' }}>{geo.city}</span>
-                                                            <span style={{ color: '#8b949e', fontSize: '.7rem', marginLeft: '.25rem' }}>({geo.countryCode})</span>
+                                                        <span title={geo.org} style={{ fontSize: '.78rem' }}>
+                                                            <span style={{ color: '#e6edf3' }}>{geo.city || '—'}</span>
                                                         </span>
                                                     )
                                                     : geoFetching
                                                     ? <span style={{ color: '#8b949e', fontSize: '.72rem' }}>…</span>
-                                                    : (
-                                                        <button onClick={() => fetchGeo(e.ip)}
-                                                            title="Géolocaliser cette IP"
-                                                            style={{ background: 'none', border: '1px solid #30363d', borderRadius: 4, cursor: 'pointer', padding: '.1rem .35rem', display: 'inline-flex', alignItems: 'center', gap: '.25rem', color: '#8b949e' }}>
-                                                            <MapPin style={{ width: 11, height: 11 }} />
-                                                            <span style={{ fontSize: '.68rem' }}>Géoloc</span>
-                                                        </button>
-                                                    )
+                                                    : <span style={{ color: '#8b949e', fontSize: '.75rem' }}>—</span>
                                                 }
                                             </td>
                                             <td style={{ padding: '.4rem .65rem', textAlign: 'center', fontSize: '.78rem' }}>
@@ -301,15 +342,6 @@ export const TabTracker: React.FC = () => {
                 )}
         </div>
 
-        {/* ── IP Details Modal ── */}
-        {modalIp && (
-            <IpModal
-                ip={modalIp}
-                geo={modalGeo}
-                jails={modalEntry?.jails}
-                onClose={() => setModalIp(null)}
-            />
-        )}
         </>
     );
 };
