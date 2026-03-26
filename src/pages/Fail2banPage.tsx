@@ -24,7 +24,7 @@ import { TabActions }    from './fail2ban/TabActions';
 import { TabMap }        from './fail2ban/TabMap';
 import { TabConfig }     from './fail2ban/TabConfig';
 import { TabAudit }      from './fail2ban/TabAudit';
-import { PERIODS }       from './fail2ban/helpers';
+import { PERIODS, F2bTooltip } from './fail2ban/helpers';
 import { TabAide }           from './fail2ban/TabAide';
 import { TabNetworkRaw }     from './fail2ban/TabNetworkRaw';
 import { TabFileList }       from './fail2ban/TabFileList';
@@ -230,6 +230,15 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
     const periodBans = history.reduce((s, h) => s + h.count, 0);
     const periodLabel = PERIODS.find(p => p.days === statsDays)?.label ?? `${statsDays}j`;
 
+    const MINI_CARD_TT = [
+        { ttTitle: 'Jails actifs',    ttBody: 'Jails avec au moins une règle active (enabled=true)',                                  ttColor: 'blue'   as const },
+        { ttTitle: 'Bans actifs',     ttBody: 'Adresses IP actuellement bannies — toutes jails confondues',                           ttColor: 'red'    as const },
+        { ttTitle: 'Bans période',    ttBody: `Bans enregistrés sur la période ${periodLabel} (fenêtre du graphique)`,                 ttColor: 'cyan'   as const },
+        { ttTitle: 'Échecs actifs',   ttBody: 'Tentatives échouées en cours (fenêtre findtime) — pas encore bannies',                  ttColor: 'orange' as const },
+        { ttTitle: 'Total cumulé',    ttBody: 'Somme de tous les bans depuis l\'installation (base SQLite)',                           ttColor: 'purple' as const },
+        { ttTitle: 'Expirés (24h)',   ttBody: 'Bans levés automatiquement dans les dernières 24 heures',                              ttColor: 'green'  as const },
+    ];
+
     const miniStatCards = (
         <div style={{ padding: '.85rem 1rem .65rem', display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '.6rem', borderBottom: '1px solid #30363d', width: '100%', boxSizing: 'border-box' }}>
             {([
@@ -239,18 +248,20 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
                 { label: 'Échecs actifs',           value: totalFailed,    icon: <AlertTriangle style={{ width: 14, height: 14 }} />, color: '#e3b341', spark: false, trendVal: null },
                 { label: 'Total bans cumul',        value: totalAllTime,   icon: <Shield style={{ width: 14, height: 14 }} />,        color: '#bc8cff', spark: true,  trendVal: null },
                 { label: 'Expirés (24h)',           value: expiredLast24h, icon: <CheckCircle style={{ width: 14, height: 14 }} />,   color: '#3fb950', spark: false, trendVal: trend(expiredLast24h, prevStats?.expiredLast24h), trendCol: trendColor(expiredLast24h, prevStats?.expiredLast24h, false) },
-            ] as { label: string; value: number; icon: React.ReactNode; color: string; spark: boolean; trendVal: string | null; trendCol?: string }[]).map(({ label, value, icon, color, spark, trendVal, trendCol }) => (
-                <div key={label} style={{ background: '#0d1117', border: '1px solid #30363d', borderRadius: 7, padding: '.65rem .8rem', minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '.68rem', color: '#8b949e' }}>
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
-                        <span style={{ color, flexShrink: 0 }}>{icon}</span>
+            ] as { label: string; value: number; icon: React.ReactNode; color: string; spark: boolean; trendVal: string | null; trendCol?: string }[]).map(({ label, value, icon, color, spark, trendVal, trendCol }, idx) => (
+                <F2bTooltip key={label} block title={MINI_CARD_TT[idx].ttTitle} body={MINI_CARD_TT[idx].ttBody} color={MINI_CARD_TT[idx].ttColor}>
+                    <div style={{ background: '#0d1117', border: '1px solid #30363d', borderRadius: 7, padding: '.65rem .8rem', minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '.68rem', color: '#8b949e' }}>
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+                            <span style={{ color, flexShrink: 0 }}>{icon}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'flex-end', gap: '.3rem', marginTop: '.15rem' }}>
+                            <span style={{ fontSize: '1.45rem', fontWeight: 700, color, lineHeight: 1.15 }}>{value}</span>
+                            {trendVal && <span style={{ fontSize: '.78rem', fontWeight: 700, color: trendCol, marginBottom: '.1rem' }}>{trendVal}</span>}
+                        </div>
+                        {spark && <Sparkline data={sparkData} color={color} />}
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: '.3rem', marginTop: '.15rem' }}>
-                        <span style={{ fontSize: '1.45rem', fontWeight: 700, color, lineHeight: 1.15 }}>{value}</span>
-                        {trendVal && <span style={{ fontSize: '.78rem', fontWeight: 700, color: trendCol, marginBottom: '.1rem' }}>{trendVal}</span>}
-                    </div>
-                    {spark && <Sparkline data={sparkData} color={color} />}
-                </div>
+                </F2bTooltip>
             ))}
         </div>
     );

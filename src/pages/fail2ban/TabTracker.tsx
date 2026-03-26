@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { api } from '../../api/client';
-import { card, cardH } from './helpers';
+import { card, cardH, PERIODS as SHARED_PERIODS, F2bTooltip } from './helpers';
 import { List, MapPin } from 'lucide-react';
 import type { TrackerEntry } from './types';
 import { IpModal, GeoInfo, toFlag } from './IpModal';
@@ -8,14 +8,7 @@ import { IpModal, GeoInfo, toFlag } from './IpModal';
 type SortCol = 'ip' | 'bans' | 'unbans' | 'failures' | 'jails' | 'last';
 type SortDir = 'asc' | 'desc';
 
-const PERIODS = [
-    { label: '24h', days: 1 },
-    { label: '7j',  days: 7 },
-    { label: '30j', days: 30 },
-    { label: '6m',  days: 180 },
-    { label: '1an', days: 365 },
-    { label: 'Tous', days: -1 },
-];
+const PERIODS = SHARED_PERIODS;
 
 
 // ── "Dernier vu" badge ─────────────────────────────────────────────────────────
@@ -165,10 +158,12 @@ export const TabTracker: React.FC = () => {
                 {/* Period selector */}
                 <div style={{ display: 'flex', gap: '.25rem', flexWrap: 'wrap' }}>
                     {PERIODS.map(p => (
-                        <button key={p.days} onClick={() => { setDays(p.days); setPage(1); }}
-                            style={{ padding: '.12rem .5rem', fontSize: '.7rem', borderRadius: 4, border: `1px solid ${days === p.days ? 'rgba(88,166,255,.4)' : '#30363d'}`, background: days === p.days ? 'rgba(88,166,255,.15)' : 'transparent', color: days === p.days ? '#58a6ff' : '#8b949e', cursor: 'pointer' }}>
-                            {p.label}
-                        </button>
+                        <F2bTooltip key={p.days} title={p.label} body={p.title} color="blue">
+                            <button onClick={() => { setDays(p.days); setPage(1); }}
+                                style={{ padding: '.12rem .5rem', fontSize: '.7rem', borderRadius: 4, border: `1px solid ${days === p.days ? 'rgba(88,166,255,.4)' : '#30363d'}`, background: days === p.days ? 'rgba(88,166,255,.15)' : 'transparent', color: days === p.days ? '#58a6ff' : '#8b949e', cursor: 'pointer' }}>
+                                {p.label}
+                            </button>
+                        </F2bTooltip>
                     ))}
                 </div>
                 {/* Search — centré */}

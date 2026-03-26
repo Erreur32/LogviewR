@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState, useRef, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 
 // ── Formatters ────────────────────────────────────────────────────────────────
 
@@ -73,5 +74,145 @@ export const StatusDot: React.FC<{ banned: number; failed: number }> = ({ banned
             display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
             background: color, flexShrink: 0, boxShadow: `0 0 4px ${color}88`,
         }} />
+    );
+};
+
+// ── F2bTooltip — PHP jd-tt style tooltip ─────────────────────────────────────
+// Replicates .jd-tt-root / .jd-tt-box / .jd-tt--{color} from Fail2ban-web CSS.
+// Usage: <F2bTooltip title="Bantime" body="Durée du ban" color="cyan"> ... </F2bTooltip>
+
+export type F2bTtColor = 'blue' | 'red' | 'orange' | 'purple' | 'green' | 'cyan' | 'muted';
+
+const TT_ACCENT: Record<F2bTtColor, string> = {
+    blue: '#58a6ff', red: '#e86a65', orange: '#e3b341',
+    purple: '#bc8cff', green: '#3fb950', cyan: '#39c5cf', muted: '#8b949e',
+};
+const TT_BORDER: Record<F2bTtColor, string> = {
+    blue: '#58a6ff', red: '#e86a65', orange: '#e3b341',
+    purple: '#bc8cff', green: '#3fb950', cyan: '#39c5cf', muted: '#30363d',
+};
+
+interface F2bTooltipProps {
+    title: string;
+    body: string;
+    color?: F2bTtColor;
+    children: React.ReactNode;
+    /** Use a div wrapper instead of span — needed when children are block-level */
+    block?: boolean;
+}
+
+export const F2bTooltip: React.FC<F2bTooltipProps> = ({
+    title, body, color = 'blue', children, block = false,
+}) => {
+    const [visible, setVisible] = useState(false);
+    const [pos, setPos] = useState({ left: 0, top: 0 });
+    const [ready, setReady] = useState(false);
+    const triggerRef = useRef<HTMLDivElement & HTMLSpanElement>(null);
+    const boxRef = useRef<HTMLDivElement>(null);
+
+    const accent = TT_ACCENT[color];
+    const border = TT_BORDER[color];
+    const bgTitle = '#161b22';
+    const bgBody  = '#21262d';
+
+    useLayoutEffect(() => {
+        if (!visible || !triggerRef.current || !boxRef.current) return;
+        const tr = triggerRef.current.getBoundingClientRect();
+        const br = boxRef.current.getBoundingClientRect();
+        const margin = 10;
+        let left = tr.left + tr.width / 2;
+        const top  = tr.top - 6;
+        // Clamp horizontally so tooltip stays in viewport
+        left = Math.max(margin + br.width / 2, Math.min(left, window.innerWidth - br.width / 2 - margin));
+        setPos({ left, top });
+        setReady(true);
+    }, [visible]);
+
+    const show = () => { setReady(false); setVisible(true); };
+    const hide = () => { setVisible(false); setReady(false); };
+
+    const Wrapper = block ? 'div' : 'span';
+
+    const tooltip = visible && createPortal(
+        <div
+            ref={boxRef}
+            style={{
+                position: 'fixed',
+                left: pos.left,
+                top: pos.top,
+                transform: 'translate(-50%, -100%) translateY(-4px)',
+                zIndex: 10002,
+                pointerEvents: 'none',
+                opacity: ready ? 1 : 0,
+                transition: 'opacity .15s ease',
+                visibility: ready ? 'visible' : 'hidden',
+            }}
+        >
+            {/* Box */}
+            <div style={{
+                position: 'relative',
+                background: bgBody,
+                border: `1px solid ${border}`,
+                borderLeftWidth: 4,
+                borderRadius: 8,
+                minWidth: 160,
+                maxWidth: 380,
+                boxShadow: '0 6px 24px rgba(0,0,0,.6)',
+                fontSize: '.82rem',
+                lineHeight: 1.5,
+                overflow: 'hidden',
+            }}>
+                {title && (
+                    <span style={{
+                        display: 'block',
+                        fontWeight: 700,
+                        fontSize: '.88rem',
+                        color: accent,
+                        padding: '.4rem .85rem .3rem',
+                        borderBottom: '1px solid rgba(255,255,255,.06)',
+                        background: bgTitle,
+                    }}>
+                        {title}
+                    </span>
+                )}
+                <span style={{
+                    display: 'block',
+                    color: '#e6edf3',
+                    fontSize: '.8rem',
+                    lineHeight: 1.5,
+                    padding: '.35rem .85rem .5rem',
+                    whiteSpace: 'pre-wrap',
+                }}>
+                    {body}
+                </span>
+                {/* Downward arrow */}
+                <div style={{
+                    position: 'absolute',
+                    left: '50%',
+                    bottom: -7,
+                    transform: 'translateX(-50%)',
+                    width: 0,
+                    height: 0,
+                    borderLeft: '7px solid transparent',
+                    borderRight: '7px solid transparent',
+                    borderTop: `7px solid ${bgBody}`,
+                }} />
+            </div>
+        </div>,
+        document.body,
+    );
+
+    return (
+        <>
+            <Wrapper
+                ref={triggerRef as React.RefObject<HTMLDivElement>}
+                onMouseEnter={show}
+                onMouseLeave={hide}
+                style={{ display: block ? 'block' : 'inline-flex' } as React.CSSProperties}
+            >
+                {children}
+            </Wrapper>
+            {tooltip}
+        </>
     );
 };

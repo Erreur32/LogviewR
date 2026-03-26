@@ -4,7 +4,7 @@
  */
 import React, { useState, useMemo } from 'react';
 import { Activity } from 'lucide-react';
-import { PERIODS } from './helpers';
+import { PERIODS, F2bTooltip } from './helpers';
 import type { HistoryEntry } from './types';
 
 // ── Palette (same as PHP JAIL_COLORS) ─────────────────────────────────────────
@@ -294,15 +294,21 @@ export const BanHistoryChart: React.FC<BanHistoryChartProps> = ({
         <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', gap: '.2rem' }}>
                 {PERIODS.map(p => (
-                    <button key={p.days} title={p.title} onClick={() => onDaysChange(p.days)} style={periodBtnStyle(days === p.days)}>
-                        {p.label}
-                    </button>
+                    <F2bTooltip key={p.days} title={p.label} body={p.title} color="blue">
+                        <button onClick={() => onDaysChange(p.days)} style={periodBtnStyle(days === p.days)}>
+                            {p.label}
+                        </button>
+                    </F2bTooltip>
                 ))}
             </div>
             <div style={{ width: 1, height: 14, background: '#30363d', flexShrink: 0 }} />
             <div style={{ display: 'flex', gap: '.2rem' }}>
-                <button onClick={() => setMode('line')} style={periodBtnStyle(mode === 'line')}>∿ Courbe</button>
-                <button onClick={() => setMode('bar')}  style={periodBtnStyle(mode === 'bar')}>▐▌ Barres</button>
+                <F2bTooltip title="Courbe" body="Représentation en lignes continues — idéal pour voir les tendances" color="blue">
+                    <button onClick={() => setMode('line')} style={periodBtnStyle(mode === 'line')}>∿ Courbe</button>
+                </F2bTooltip>
+                <F2bTooltip title="Barres" body="Colonnes verticales empilées par jail — idéal pour comparer les volumes" color="blue">
+                    <button onClick={() => setMode('bar')}  style={periodBtnStyle(mode === 'bar')}>▐▌ Barres</button>
+                </F2bTooltip>
             </div>
         </div>
     );

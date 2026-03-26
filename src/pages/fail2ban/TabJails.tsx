@@ -10,7 +10,7 @@ import {
     Settings, Terminal, Clock,
 } from 'lucide-react';
 import { api } from '../../api/client';
-import { card, cardH, Badge, StatusDot, fmtSecs, fmtTs } from './helpers';
+import { card, cardH, Badge, StatusDot, fmtSecs, fmtTs, F2bTooltip } from './helpers';
 import { ConfEditorModal } from './ConfEditorModal';
 import type { ConfEditorTarget } from './ConfEditorModal';
 import { IpModal } from './IpModal';
@@ -166,25 +166,27 @@ export const JailCard: React.FC<{
                 <Shield style={{ width: 13, height: 13, color: jail.currentlyBanned > 0 ? '#e86a65' : '#58a6ff', flexShrink: 0 }} />
                 <span style={{ fontWeight: 600, fontSize: '.88rem', flex: 1 }}>{jail.jail.toUpperCase()}</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', fontSize: '.72rem', color: '#8b949e' }}>
-                    {jail.bantime  !== undefined && <span title="Durée de ban">⏱ {fmtSecs(jail.bantime)}</span>}
-                    {jail.findtime !== undefined && <span title="Fenêtre de détection">👁 {fmtSecs(jail.findtime)}</span>}
-                    {jail.maxretry !== undefined && <span title="Tentatives max">{jail.maxretry}×</span>}
+                    {jail.bantime  !== undefined && <F2bTooltip title="Bantime"  body="Durée du bannissement — l'IP reste bannie pendant ce délai" color="cyan"><span>⏱ {fmtSecs(jail.bantime)}</span></F2bTooltip>}
+                    {jail.findtime !== undefined && <F2bTooltip title="Findtime" body="Fenêtre de détection — les échecs sont comptés dans cette période" color="orange"><span>👁 {fmtSecs(jail.findtime)}</span></F2bTooltip>}
+                    {jail.maxretry !== undefined && <F2bTooltip title="Maxretry" body="Nombre d'échecs avant ban automatique" color="blue"><span>{jail.maxretry}×</span></F2bTooltip>}
                 </div>
             </div>
 
             {/* 5-column stats grid */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', borderBottom: '1px solid #30363d' }}>
-                {[
-                    { v: jail.currentlyBanned, l: 'Bannis',        color: '#e86a65' },
-                    { v: totalDisplay,          l: 'Total ban',      color: '#58a6ff' },
-                    { v: bansInPeriod !== undefined ? bansInPeriod : '—', l: 'Bans période', color: bansInPeriod !== undefined ? '#39c5cf' : '#8b949e' },
-                    { v: jail.currentlyFailed,  l: 'Échecs actifs',  color: '#e3b341' },
-                    { v: jail.totalFailed,       l: 'Tot. échecs',    color: '#bc8cff' },
-                ].map(({ v, l, color }, idx) => (
-                    <div key={l} style={{ textAlign: 'center', padding: '.6rem .3rem', borderRight: idx < 4 ? '1px solid #30363d' : undefined }}>
-                        <div style={{ fontSize: '1.2rem', fontWeight: 700, lineHeight: 1.2, color }}>{v}</div>
-                        <div style={{ fontSize: '.62rem', color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.04em', marginTop: 2 }}>{l}</div>
-                    </div>
+                {([
+                    { v: jail.currentlyBanned, l: 'Bannis',        color: '#e86a65', ttTitle: 'Bannis',        ttBody: 'Clients actuellement bannis dans ce jail',                       ttColor: 'red'    as const },
+                    { v: totalDisplay,          l: 'Total ban',      color: '#58a6ff', ttTitle: 'Total ban',     ttBody: 'Bans cumulés toutes périodes (SQLite collecteur)',                ttColor: 'blue'   as const },
+                    { v: bansInPeriod !== undefined ? bansInPeriod : '—', l: 'Bans période', color: bansInPeriod !== undefined ? '#39c5cf' : '#8b949e', ttTitle: 'Bans période', ttBody: 'Bans sur la période du graphique — clic pour l\'historique', ttColor: 'cyan' as const },
+                    { v: jail.currentlyFailed,  l: 'Échecs actifs',  color: '#e3b341', ttTitle: 'Échecs actifs', ttBody: 'Tentatives échouées en cours (fenêtre findtime) — pas encore bannies', ttColor: 'orange' as const },
+                    { v: jail.totalFailed,       l: 'Tot. échecs',    color: '#bc8cff', ttTitle: 'Total échecs',  ttBody: 'Total des tentatives échouées enregistrées',                    ttColor: 'purple' as const },
+                ] as { v: number | string; l: string; color: string; ttTitle: string; ttBody: string; ttColor: import('./helpers').F2bTtColor }[]).map(({ v, l, color, ttTitle, ttBody, ttColor }, idx) => (
+                    <F2bTooltip key={l} block title={ttTitle} body={ttBody} color={ttColor}>
+                        <div style={{ textAlign: 'center', padding: '.6rem .3rem', borderRight: idx < 4 ? '1px solid #30363d' : undefined }}>
+                            <div style={{ fontSize: '1.2rem', fontWeight: 700, lineHeight: 1.2, color }}>{v}</div>
+                            <div style={{ fontSize: '.62rem', color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.04em', marginTop: 2 }}>{l}</div>
+                        </div>
+                    </F2bTooltip>
                 ))}
             </div>
 

@@ -6,7 +6,7 @@ import {
     Shield, Ban, AlertTriangle, ShieldOff, Database,
     TrendingUp, Lock, RotateCcw, Clock, Target, BarChart2, Gauge, List, Search,
 } from 'lucide-react';
-import { card, PERIODS } from './helpers';
+import { card, PERIODS, F2bTooltip } from './helpers';
 import { api } from '../../api/client';
 import type { JailStatus } from './types';
 
@@ -29,7 +29,11 @@ const btnStyle = (active: boolean, color = C.blue): React.CSSProperties => ({
 
 const PeriodBtns: React.FC<{ days: number; color?: string; onChange: (d: number) => void }> = ({ days, color, onChange }) => (
     <div style={{ display: 'flex', gap: '.2rem' }}>
-        {PERIODS.map(p => <button key={p.days} onClick={() => onChange(p.days)} style={btnStyle(days === p.days, color)}>{p.label}</button>)}
+        {PERIODS.map(p => (
+            <F2bTooltip key={p.days} title={p.label} body={p.title} color="blue">
+                <button onClick={() => onChange(p.days)} style={btnStyle(days === p.days, color)}>{p.label}</button>
+            </F2bTooltip>
+        ))}
     </div>
 );
 
