@@ -36,8 +36,6 @@ import { useUpdateStore } from './stores/updateStore';
 import {
   Settings,
   FileText,
-  Download,
-  X as XIcon
 } from 'lucide-react';
 import { initTheme } from './utils/themeManager';
 import type { SettingsPageProps } from './pages/SettingsPage';
@@ -384,41 +382,6 @@ const App: React.FC = () => {
           animationParameters={backgroundParams}
         />
         <div className={`relative z-0 ${mainContentBgClass}`}>
-          {/* ── Dismissable update banner ── */}
-          {showUpdateBanner && (
-            <div style={{
-              position: 'sticky', top: 0, zIndex: 999,
-              background: 'linear-gradient(90deg, rgba(245,158,11,.15) 0%, rgba(245,158,11,.08) 100%)',
-              borderBottom: '1px solid rgba(245,158,11,.35)',
-              display: 'flex', alignItems: 'center', gap: '.75rem',
-              padding: '.45rem 1rem', fontSize: '.82rem',
-            }}>
-              <Download size={14} style={{ color: '#f59e0b', flexShrink: 0 }} />
-              <span style={{ color: '#fbbf24', fontWeight: 600 }}>
-                Nouvelle version disponible : v{updateInfo?.latestVersion}
-              </span>
-              <span style={{ color: '#9ca3af', fontSize: '.75rem' }}>
-                — Image Docker prête ·
-              </span>
-              <code style={{
-                fontSize: '.72rem', color: '#67e8f9', fontFamily: 'monospace',
-                background: 'rgba(0,0,0,.3)', padding: '.1rem .45rem', borderRadius: 4,
-              }}>
-                docker compose pull &amp;&amp; docker compose up -d
-              </code>
-              <button
-                onClick={dismissBanner}
-                title="Masquer"
-                style={{
-                  marginLeft: 'auto', background: 'none', border: 'none',
-                  cursor: 'pointer', color: '#6b7280', padding: '.15rem',
-                  display: 'flex', flexShrink: 0,
-                }}
-              >
-                <XIcon size={14} />
-              </button>
-            </div>
-          )}
           {content}
         </div>
       </div>
@@ -456,6 +419,7 @@ const App: React.FC = () => {
             setSelectedPluginId(pluginId);
             setCurrentPage('log-viewer');
           }}
+          updateBanner={{ show: showUpdateBanner, latestVersion: updateInfo?.latestVersion, onDismiss: dismissBanner }}
         />
         <GoAccessStyleStatsPage onBack={() => setCurrentPage('dashboard')} />
       </>
@@ -478,6 +442,7 @@ const App: React.FC = () => {
             setSelectedPluginId(pluginId);
             setCurrentPage('log-viewer');
           }}
+          updateBanner={{ show: showUpdateBanner, latestVersion: updateInfo?.latestVersion, onDismiss: dismissBanner }}
         />
         <AnalyticsPage onBack={() => setCurrentPage('dashboard')} />
       </>
@@ -588,6 +553,7 @@ const App: React.FC = () => {
             setPluginHeaderData(null);
             // The LogViewerPage will reload with the new plugin
           }}
+          updateBanner={{ show: showUpdateBanner, latestVersion: updateInfo?.latestVersion, onDismiss: dismissBanner }}
         />
         <main className="flex-1 overflow-auto">
           <Suspense fallback={<PageLoader />}>
@@ -630,6 +596,7 @@ const App: React.FC = () => {
             setSelectedPluginId(pluginId);
             setCurrentPage('log-viewer');
           }}
+          updateBanner={{ show: showUpdateBanner, latestVersion: updateInfo?.latestVersion, onDismiss: dismissBanner }}
         />
         <div className="flex-1 overflow-hidden">
           <Suspense fallback={<PageLoader />}>
@@ -662,6 +629,7 @@ const App: React.FC = () => {
             setSelectedPluginId(pluginId);
             setCurrentPage('log-viewer');
           }}
+          updateBanner={{ show: showUpdateBanner, latestVersion: updateInfo?.latestVersion, onDismiss: dismissBanner }}
         />
         <main className="p-4 md:p-6 max-w-[1920px] mx-auto">
           <div className="mb-8">
@@ -748,6 +716,7 @@ const App: React.FC = () => {
         onProfileClick={handleProfileClick}
         onUsersClick={handleUsersClick}
         onLogout={handleLogout}
+        updateBanner={{ show: showUpdateBanner, latestVersion: updateInfo?.latestVersion, onDismiss: dismissBanner }}
       />
       <main className="p-4 md:p-6 max-w-[1920px] mx-auto">
         <div className="text-center py-12">
