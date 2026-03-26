@@ -12,6 +12,7 @@
  */
 
 import { Router } from 'express';
+import Database from 'better-sqlite3';
 import { BasePlugin } from '../base/BasePlugin.js';
 import type { PluginStats } from '../base/PluginInterface.js';
 import { Fail2banSqliteReader } from './Fail2banSqliteReader.js';
@@ -157,6 +158,7 @@ interface GlobalConfig {
     dbpurgeage: string;
     dbmaxmatches: string;
     local_values: Partial<Record<string, string>>;
+    local_exists: boolean;
 }
 
 /** Parse fail2ban.conf + fail2ban.local and return merged global config values. */
@@ -195,6 +197,9 @@ function parseGlobalConfig(confBase: string): GlobalConfig {
     parseFile(path.join(confBase, 'fail2ban.conf'), false);
     parseFile(path.join(confBase, 'fail2ban.local'), true);
 
+    let localExists = false;
+    try { fs.accessSync(path.join(confBase, 'fail2ban.local'), fs.constants.R_OK); localExists = true; } catch {}
+
     return {
         loglevel:     merged.loglevel ?? defaults.loglevel,
         logtarget:    merged.logtarget ?? defaults.logtarget,
@@ -204,6 +209,7 @@ function parseGlobalConfig(confBase: string): GlobalConfig {
         dbpurgeage:   merged.dbpurgeage ?? defaults.dbpurgeage,
         dbmaxmatches: merged.dbmaxmatches ?? defaults.dbmaxmatches,
         local_values: localVals,
+        local_exists: localExists,
     };
 }
 
@@ -603,8 +609,8 @@ export class Fail2banPlugin extends BasePlugin {
             // Frontend sends -1 for « Tous » → all-time aggregation in reader
             const days = Number.isNaN(raw) ? 30 : raw;
             const history = this.reader?.getBanHistory(days) ?? [];
-            const { jailNames, data: byJail, granularity } = this.reader?.getBanHistoryByJail(days) ?? { jailNames: [], data: {}, granularity: 'day' as const };
-            res.json({ success: true, result: { ok: true, days, history, byJail, jailNames, granularity } });
+            const { jailNames, data: byJail, granularity, slotBase } = this.reader?.getBanHistoryByJail(days) ?? { jailNames: [], data: {}, granularity: 'day' as const };
+            res.json({ success: true, result: { ok: true, days, history, byJail, jailNames, granularity, slotBase } });
         }));
 
         // POST /api/plugins/fail2ban/ban   { jail, ip }
@@ -872,13 +878,16 @@ export class Fail2banPlugin extends BasePlugin {
 
             // SQLite DB info
             const dbHostPath = this.resolveDockerPathSync(cfg.dbfile || '/var/lib/fail2ban/fail2ban.sqlite3');
-            let dbInfo: { size: number; sizeFmt: string; readable: boolean; integrity: string; pageCount: number; freePages: number; fragPct: number } | null = null;
+            let dbInfo: { size: number; sizeFmt: string; readable: boolean; integrity: string; pageCount: number; freePages: number; fragPct: number; bans: number; jails: number; logs: number } | null = null;
             try {
                 const stat = fs.statSync(dbHostPath);
                 const readable = (() => { try { fs.accessSync(dbHostPath, fs.constants.R_OK); return true; } catch { return false; } })();
                 let integrity = 'unknown';
                 let pageCount = 0;
                 let freePages = 0;
+                let bans = 0;
+                let jails = 0;
+                let logs = 0;
                 if (readable) {
                     const Database = (await import('better-sqlite3')).default;
                     const db = new Database(dbHostPath, { readonly: true, fileMustExist: true });
@@ -886,12 +895,15 @@ export class Fail2banPlugin extends BasePlugin {
                         integrity = (db.pragma('integrity_check', { simple: true }) as string) ?? 'unknown';
                         pageCount = (db.pragma('page_count', { simple: true }) as number) ?? 0;
                         freePages = (db.pragma('freelist_count', { simple: true }) as number) ?? 0;
+                        bans  = ((db.prepare('SELECT COUNT(*) as n FROM bans').get() as { n: number } | undefined)?.n) ?? 0;
+                        jails = ((db.prepare('SELECT COUNT(DISTINCT jail) as n FROM bans').get() as { n: number } | undefined)?.n) ?? 0;
+                        try { logs = ((db.prepare('SELECT COUNT(*) as n FROM logs').get() as { n: number } | undefined)?.n) ?? 0; } catch {}
                     } finally { db.close(); }
                 }
                 const fragPct = pageCount > 0 ? Math.round(freePages / pageCount * 100 * 10) / 10 : 0;
                 const size = stat.size;
                 const sizeFmt = size >= 1048576 ? `${(size / 1048576).toFixed(2)} Mo` : `${(size / 1024).toFixed(1)} Ko`;
-                dbInfo = { size, sizeFmt, readable, integrity, pageCount, freePages, fragPct };
+                dbInfo = { size, sizeFmt, readable, integrity, pageCount, freePages, fragPct, bans, jails, logs };
             } catch { /* db not found or not readable */ }
 
             // App DB (dashboard.db) info
@@ -1091,7 +1103,7 @@ export class Fail2banPlugin extends BasePlugin {
             const confBase  = this.resolveDockerPathSync('/etc/fail2ban');
             const jailMeta  = parseJailConfigs(confBase);
 
-            // jail_actions + jail_logs + jail_servers (déduit du logpath / nom jail)
+            // jail_actions + jail_logs + jail_servers
             const jail_actions: Record<string, string> = {};
             const jail_logs:    Record<string, string> = {};
             const jail_servers: Record<string, string> = {};
@@ -1112,15 +1124,37 @@ export class Fail2banPlugin extends BasePlugin {
                 if (j.includes('lighttpd'))return 'lighttpd';
                 return '';
             };
+
+            // Seed from config parsing first (cheap, synchronous)
             for (const [jailName, meta] of Object.entries(jailMeta)) {
                 if (meta.banaction) jail_actions[jailName] = meta.banaction;
                 if (meta.logpath)   jail_logs[jailName]    = meta.logpath;
-                const srv = detectServer(jailName, meta.logpath ?? '');
+            }
+
+            // Override / fill gaps with runtime fail2ban-client status (same as PHP does).
+            // This is the authoritative source — config files may miss logpath or use unresolved vars.
+            if (this.client?.isAvailable()) {
+                const uniqueJails = [...new Set((bans as { jail: string }[]).map((b: { jail: string }) => b.jail))];
+                await Promise.all(uniqueJails.map(async (jailName: string) => {
+                    try {
+                        const status = await this.client.getJailStatus(jailName);
+                        if (status?.fileList) {
+                            // fileList is space-separated; take first path (like PHP does)
+                            const firstPath = status.fileList.trim().split(/\s+/)[0];
+                            if (firstPath) jail_logs[jailName] = firstPath;
+                        }
+                    } catch { /* socket unavailable for this jail */ }
+                }));
+            }
+
+            // Populate jail_servers from final jail_logs
+            for (const [jailName, logpath] of Object.entries(jail_logs)) {
+                const srv = detectServer(jailName, logpath);
                 if (srv) jail_servers[jailName] = srv;
             }
 
-            // ip_domains: domain of the targeted site (extracted from jail log filename, like PHP fail2ban-web)
-            // e.g. /var/log/nginx/example.com_access.log → "example.com"
+            // jail_domains: domain of the targeted site, keyed by jail name
+            // Strategy 1 — filename heuristic: /var/log/nginx/example.com_access.log → "example.com"
             const domainFromLogpath = (logpath: string): string => {
                 const fname = logpath.replace(/.*\//, '');
                 const stripped = fname
@@ -1128,15 +1162,82 @@ export class Fail2banPlugin extends BasePlugin {
                     .replace(/\.log$/i, '');
                 return /^[a-zA-Z0-9][a-zA-Z0-9._-]+\.[a-zA-Z]{2,}$/.test(stripped) ? stripped.toLowerCase() : '';
             };
-            const ip_domains: Record<string, string> = {};
-            for (const ban of bans as { ip: string; jail: string }[]) {
-                if (ip_domains[ban.ip]) continue;
-                const lp = jail_logs[ban.jail] ?? '';
-                const dom = lp ? domainFromLogpath(lp) : '';
-                if (dom) ip_domains[ban.ip] = dom;
+
+            // Strategy 2 — LogviewR sources DB: match log_files.file_path to get log_sources.name (human-readable)
+            // Normalize paths by basename for matching since DB stores Docker-internal paths but
+            // fail2ban configs store host paths.
+            const domainFromSources = (() => {
+                try {
+                    const db = getDatabase();
+                    const rows = db.prepare(`
+                        SELECT lf.file_path, ls.name
+                        FROM log_files lf JOIN log_sources ls ON lf.source_id = ls.id
+                        WHERE lf.enabled = 1
+                    `).all() as { file_path: string; name: string }[];
+                    // basename → name map (fallback: match by filename when full paths differ)
+                    const basenameMap: Record<string, string> = {};
+                    const fullPathMap: Record<string, string> = {};
+                    for (const r of rows) {
+                        fullPathMap[r.file_path] = r.name;
+                        const bn = r.file_path.replace(/.*\//, '');
+                        if (!basenameMap[bn]) basenameMap[bn] = r.name;
+                    }
+                    return (logpath: string): string => {
+                        const name = fullPathMap[logpath] ?? basenameMap[logpath.replace(/.*\//, '')] ?? '';
+                        if (!name) return '';
+                        const n = name.trim();
+                        return /^[a-zA-Z0-9][a-zA-Z0-9._-]+\.[a-zA-Z]{2,}/.test(n) ? n.toLowerCase() : '';
+                    };
+                } catch {
+                    return (_lp: string) => '';
+                }
+            })();
+
+            // Strategy 3 — NPM SQLite database
+            // Pattern: <npm_base>/logs/proxy-host-N_access.log → <npm_base>/database.sqlite → proxy_host.domain_names
+            // More reliable than reading conf files (conf may not exist for deleted/regenerated hosts).
+            // Build a map: hostId → domain by opening the NPM db once.
+            const npmDbDomains: Record<string, string> = (() => {
+                // Find npm_base from any NPM logpath in jail_logs
+                for (const logpath of Object.values(jail_logs)) {
+                    const m = (logpath as string).match(/proxy-host-(\d+)[_-]/);
+                    if (!m) continue;
+                    const logsIdx = (logpath as string).lastIndexOf('/logs/');
+                    const npmBase = logsIdx >= 0 ? (logpath as string).slice(0, logsIdx) : null;
+                    if (!npmBase) continue;
+                    const dbPath = this.resolveDockerPathSync(`${npmBase}/database.sqlite`);
+                    try {
+                        const npmDb = new Database(dbPath, { readonly: true, fileMustExist: true });
+                        const rows = npmDb.prepare('SELECT id, domain_names FROM proxy_host WHERE is_deleted=0').all() as { id: number; domain_names: string }[];
+                        npmDb.close();
+                        const map: Record<string, string> = {};
+                        for (const row of rows) {
+                            try {
+                                const names: string[] = JSON.parse(row.domain_names);
+                                if (names.length > 0) map[String(row.id)] = names[0].replace(/^www\./, '').toLowerCase();
+                            } catch { /* bad JSON */ }
+                        }
+                        return map;
+                    } catch { /* db not accessible */ }
+                    break;
+                }
+                return {};
+            })();
+
+            const domainFromNpmDb = (logpath: string): string => {
+                const m = logpath.match(/proxy-host-(\d+)[_-]/);
+                if (!m) return '';
+                return npmDbDomains[m[1]] ?? '';
+            };
+
+            const jail_domains: Record<string, string> = {};
+            for (const [jailName, logpath] of Object.entries(jail_logs)) {
+                if (!logpath) continue;
+                const dom = domainFromLogpath(logpath) || domainFromSources(logpath) || domainFromNpmDb(logpath);
+                if (dom) jail_domains[jailName] = dom;
             }
 
-            res.json({ success: true, result: { ok: true, bans, jail_actions, jail_logs, jail_servers, ip_domains } });
+            res.json({ success: true, result: { ok: true, bans, jail_actions, jail_logs, jail_servers, jail_domains } });
         }));
 
         // GET /audit/internal  — historique bans depuis la DB interne (dashboard.db)
@@ -1444,6 +1545,16 @@ export class Fail2banPlugin extends BasePlugin {
             }
 
             res.json({ success: true, result: { ok, written, skipped, errors, ...(doReload ? { reloadOk, reloadOut } : {}) } });
+        }));
+
+        // POST /config/maintenance/reset  — wipe f2b_events, f2b_ip_geo, reset sync state
+        router.post('/config/maintenance/reset', requireAuth, asyncHandler(async (_req, res) => {
+            if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
+            const appDb = getDatabase();
+            appDb.prepare('DELETE FROM f2b_events').run();
+            appDb.prepare('DELETE FROM f2b_ip_geo').run();
+            appDb.prepare('UPDATE f2b_sync_state SET last_rowid = 0, last_sync_at = NULL WHERE id = 1').run();
+            res.json({ success: true, result: { ok: true } });
         }));
 
         return router;

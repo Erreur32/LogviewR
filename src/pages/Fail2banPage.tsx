@@ -123,6 +123,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
     const [byJail, setByJail]     = useState<Record<string, Record<string, number>>>({});
     const [jailNames, setJailNames] = useState<string[]>([]);
     const [granularity, setGranularity] = useState<'hour' | 'day'>('day');
+    const [slotBase, setSlotBase]       = useState<number | undefined>(undefined);
     const [loading, setLoading]   = useState(true);
     const hasDataRef = useRef(false);
     const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -172,9 +173,11 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
                 setHistory(hRes.result.history);
                 setByJail(hRes.result.byJail ?? {});
                 setJailNames(hRes.result.jailNames ?? []);
-                setGranularity((hRes.result as { granularity?: 'hour' | 'day' }).granularity ?? 'day');
+                const r = hRes.result as { granularity?: 'hour' | 'day'; slotBase?: number };
+                setGranularity(r.granularity ?? 'day');
+                setSlotBase(r.slotBase);
             } else {
-                setHistory([]); setByJail({}); setJailNames([]); setGranularity('day');
+                setHistory([]); setByJail({}); setJailNames([]); setGranularity('day'); setSlotBase(undefined);
             }
         } finally {
             hasDataRef.current = true;
@@ -233,13 +236,48 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
     const periodBans = history.reduce((s, h) => s + h.count, 0);
     const periodLabel = PERIODS.find(p => p.days === statsDays)?.label ?? `${statsDays}j`;
 
+    // ── Rich stat-box tooltip body — matches PHP stats-tt-stat-val/desc/meta style ──
+    const statTtBody = (value: number, unit: string, color: string, desc: string, meta?: React.ReactNode) => (
+        <div>
+            <div style={{ fontSize: '1.35rem', fontWeight: 800, color, lineHeight: 1.1, marginBottom: '.22rem', letterSpacing: '-.01em' }}>
+                {value.toLocaleString()}
+                <span style={{ fontSize: '.68rem', fontWeight: 600, opacity: .7, marginLeft: '.25rem', letterSpacing: 0, verticalAlign: 'middle' }}>{unit}</span>
+            </div>
+            <div style={{ fontSize: '.75rem', color: '#e6edf3', opacity: .88, lineHeight: 1.45 }}>{desc}</div>
+            {meta && <div style={{ fontSize: '.69rem', color: '#8b949e', marginTop: '.28rem', paddingTop: '.28rem', borderTop: '1px solid rgba(255,255,255,.06)' }}>{meta}</div>}
+        </div>
+    );
+
     const MINI_CARD_TT = [
-        { ttTitle: 'Jails actifs',    ttBody: 'Jails avec au moins une règle active (enabled=true)',                                  ttColor: 'blue'   as const },
-        { ttTitle: 'Bans actifs',     ttBody: 'Adresses IP actuellement bannies — toutes jails confondues',                           ttColor: 'red'    as const },
-        { ttTitle: 'Bans période',    ttBody: `Bans enregistrés sur la période ${periodLabel} (fenêtre du graphique)`,                 ttColor: 'cyan'   as const },
-        { ttTitle: 'Échecs actifs',   ttBody: 'Tentatives échouées en cours (fenêtre findtime) — pas encore bannies',                  ttColor: 'orange' as const },
-        { ttTitle: 'Total cumulé',    ttBody: 'Somme de tous les bans depuis l\'installation (base SQLite)',                           ttColor: 'purple' as const },
-        { ttTitle: 'Expirés (24h)',   ttBody: 'Bans levés automatiquement dans les dernières 24 heures',                              ttColor: 'green'  as const },
+        { ttTitle: 'Jails actifs',
+          ttBody: 'Jails avec au moins une règle active (enabled=true)',
+          ttColor: 'blue' as const },
+        { ttTitle: 'Bans actifs',
+          ttBodyNode: statTtBody(totalBanned, 'bans', '#e86a65',
+              'Adresses IP actuellement bannies — toutes jails confondues.',
+              prevStats?.totalBanned !== undefined && trend(totalBanned, prevStats.totalBanned)
+                  ? <span>Dernier refresh : {prevStats.totalBanned} → <strong style={{ color: '#e86a65' }}>{totalBanned}</strong> {trend(totalBanned, prevStats.totalBanned)}</span>
+                  : undefined),
+          ttColor: 'red' as const },
+        { ttTitle: `Bans (${periodLabel})`,
+          ttBodyNode: statTtBody(periodBans, 'bans', '#39c5cf',
+              `Total bans enregistrés sur la fenêtre ${periodLabel} (données du graphique).`),
+          ttColor: 'cyan' as const },
+        { ttTitle: 'Échecs actifs',
+          ttBodyNode: statTtBody(totalFailed, 'tentatives', '#e3b341',
+              'Tentatives échouées en cours (fenêtre findtime) — pas encore bannies.'),
+          ttColor: 'orange' as const },
+        { ttTitle: 'Total cumulé',
+          ttBodyNode: statTtBody(totalAllTime, 'bans cumulés', '#bc8cff',
+              'Total événements Ban depuis l\'installation.\nUne IP peut être comptée plusieurs fois (multi-bans).'),
+          ttColor: 'purple' as const },
+        { ttTitle: 'Expirés (24h)',
+          ttBodyNode: statTtBody(expiredLast24h, 'unbans', '#3fb950',
+              'Bans levés automatiquement dans les dernières 24 heures.',
+              prevStats?.expiredLast24h !== undefined && trend(expiredLast24h, prevStats.expiredLast24h)
+                  ? <span>Dernier refresh : {prevStats.expiredLast24h} → <strong style={{ color: '#3fb950' }}>{expiredLast24h}</strong> {trend(expiredLast24h, prevStats.expiredLast24h)}</span>
+                  : undefined),
+          ttColor: 'green' as const },
     ];
 
     const miniStatCards = (
@@ -247,12 +285,12 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
             {([
                 { label: 'Jails actifs',            value: jails.length,   icon: <Shield style={{ width: 14, height: 14 }} />,       color: '#58a6ff', spark: false, trendVal: null },
                 { label: 'Bans actifs',             value: totalBanned,    icon: <Ban style={{ width: 14, height: 14 }} />,           color: '#e86a65', spark: true,  trendVal: trend(totalBanned, prevStats?.totalBanned), trendCol: trendColor(totalBanned, prevStats?.totalBanned, true) },
-                { label: `Bans (${periodLabel})`,   value: periodBans,     icon: <Activity style={{ width: 14, height: 14 }} />,      color: '#39c5cf', spark: false, trendVal: null },
-                { label: 'Échecs actifs',           value: totalFailed,    icon: <AlertTriangle style={{ width: 14, height: 14 }} />, color: '#e3b341', spark: false, trendVal: null },
+                { label: `Bans (${periodLabel})`,   value: periodBans,     icon: <Activity style={{ width: 14, height: 14 }} />,      color: '#39c5cf', spark: true,  trendVal: null },
+                { label: 'Échecs actifs',           value: totalFailed,    icon: <AlertTriangle style={{ width: 14, height: 14 }} />, color: '#e3b341', spark: true,  trendVal: null },
                 { label: 'Total bans cumul',        value: totalAllTime,   icon: <Shield style={{ width: 14, height: 14 }} />,        color: '#bc8cff', spark: true,  trendVal: null },
-                { label: 'Expirés (24h)',           value: expiredLast24h, icon: <CheckCircle style={{ width: 14, height: 14 }} />,   color: '#3fb950', spark: false, trendVal: trend(expiredLast24h, prevStats?.expiredLast24h), trendCol: trendColor(expiredLast24h, prevStats?.expiredLast24h, false) },
+                { label: 'Expirés (24h)',           value: expiredLast24h, icon: <CheckCircle style={{ width: 14, height: 14 }} />,   color: '#3fb950', spark: true,  trendVal: trend(expiredLast24h, prevStats?.expiredLast24h), trendCol: trendColor(expiredLast24h, prevStats?.expiredLast24h, false) },
             ] as { label: string; value: number; icon: React.ReactNode; color: string; spark: boolean; trendVal: string | null; trendCol?: string }[]).map(({ label, value, icon, color, spark, trendVal, trendCol }, idx) => (
-                <F2bTooltip key={label} block title={MINI_CARD_TT[idx].ttTitle} body={MINI_CARD_TT[idx].ttBody} color={MINI_CARD_TT[idx].ttColor}>
+                <F2bTooltip key={label} block title={MINI_CARD_TT[idx].ttTitle} body={(MINI_CARD_TT[idx] as { ttBody?: string }).ttBody} bodyNode={(MINI_CARD_TT[idx] as { ttBodyNode?: React.ReactNode }).ttBodyNode} color={MINI_CARD_TT[idx].ttColor}>
                     <div style={{ background: '#0d1117', border: '1px solid #30363d', borderRadius: 7, padding: '.65rem .8rem', minWidth: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '.68rem', color: '#8b949e' }}>
                             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
@@ -371,10 +409,10 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
                         )}
                         {lastRefreshed > 0 && !loading && (
                             <span title="Auto-refresh actif toutes les 30s"
-                                style={{ display: 'inline-flex', alignItems: 'center', gap: '.3rem', padding: '.15rem .5rem', borderRadius: 5, border: '1px solid #30363d', background: '#161b22', fontSize: '.67rem', color: '#8b949e', whiteSpace: 'nowrap', cursor: 'default' }}>
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: '.3rem', padding: '.15rem .5rem', borderRadius: 5, border: '1px solid #30363d', background: '#161b22', fontSize: '.67rem', color: '#8b949e', whiteSpace: 'nowrap', cursor: 'default', width: '11.5rem', flexShrink: 0, overflow: 'hidden' }}>
                                 ↻
-                                <span style={{ fontFamily: 'monospace', color: '#c9d1d9' }}>{new Date(lastRefreshed).toLocaleTimeString('fr-FR')}</span>
-                                <span style={{ color: '#8b949e' }}>({fmtAge(lastRefreshed)})</span>
+                                <span style={{ fontFamily: 'monospace', color: '#c9d1d9', flexShrink: 0 }}>{new Date(lastRefreshed).toLocaleTimeString('fr-FR')}</span>
+                                <span style={{ color: '#8b949e', overflow: 'hidden', textOverflow: 'ellipsis' }}>({fmtAge(lastRefreshed)})</span>
                             </span>
                         )}
                     </div>
@@ -408,12 +446,12 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
                 )}
 
                 {/* Content */}
-                <div ref={contentRef} style={{ flex: 1, overflowY: 'auto', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div ref={contentRef} style={{ flex: 1, overflowY: 'auto', padding: '1.25rem 1.25rem 5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     {/* Shared stats card: shown for jails + stats tabs */}
                     {(tab === 'jails' || tab === 'stats') && (
                         <BanHistoryChart history={history} histMax={histMax} days={statsDays} onDaysChange={setStatsDays}
                             loading={loading} card headerExtra={miniStatCards}
-                            byJail={byJail} jailNames={jailNames} granularity={granularity} />
+                            byJail={byJail} jailNames={jailNames} granularity={granularity} slotBase={slotBase} />
                     )}
                     {tab === 'jails' && (
                         <TabJails jails={jails} inactiveJails={inactiveJails} loading={loading} statusOk={status?.ok} statusError={status?.error}

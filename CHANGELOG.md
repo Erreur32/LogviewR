@@ -9,6 +9,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.4.9] - 2026-03-26
+
+### Pour les utilisateurs
+
+> Graphique 24h en temps réel, colonne Domaine fonctionnelle et rafraîchissement automatique des événements Fail2ban.
+
+- **Graphique 24h glissant** — Le graphique ne montre plus les 24 heures fixes (00h–23h) mais toujours les **dernières 24 heures** à partir de maintenant, avec des points toutes les 30 minutes. L'axe X affiche les heures exactes (ex. `14:00`, `15:00`…) et se met à jour en continu.
+- **Colonne Domaine dans les Événements** — La colonne "Domaine" du tableau Événements (onglet Jails) affiche maintenant le nom de domaine du site attaqué pour les jails liées à Nginx Proxy Manager. La résolution utilise directement la base de données de NPM — plus fiable que les fichiers de config qui peuvent ne pas exister.
+- **Événements rafraîchis automatiquement** — Le tableau des événements Fail2ban se recharge toutes les 30 secondes en arrière-plan (pause si l'onglet est masqué).
+- **Scrollbar double corrigée** — La page Jails n'affichait parfois deux barres de défilement simultanées ; c'est corrigé.
+
+---
+
+### Technique
+
+#### Backend — Fail2ban
+
+- **`Fail2banPlugin.ts`** — Stratégie 3 domaine remplacée : lecture de `<npm_base>/database.sqlite` (`proxy_host.domain_names`) via `better-sqlite3` en lecture seule, au lieu des fichiers `.conf` nginx qui peuvent ne pas exister pour des hôtes supprimés. Import `better-sqlite3` ajouté. Champ `_debug_domains` supprimé de la réponse `/audit`.
+- **`Fail2banSqliteReader.ts`** — `SLOT_SECS = 1800` (30 min). Pour `days=1`, `since` aligné sur la borne 30-min (`Math.floor(rawSince / 1800) * 1800`), slots indexés par `CAST((timeofban - since) / 1800 AS INTEGER)`, labels `HH:MM`. `slotBase` renvoyé dans la réponse pour synchronisation frontend.
+
+#### Frontend — Fail2ban
+
+- **`BanHistoryChart.tsx`** — `buildHourlySlots()` remplacé par `buildRollingSlots(history, slotBase)` : 48 slots de 30 min depuis `slotBase` jusqu'à maintenant, recalculés en temps réel via un ticker 5s. Labels X affichés uniquement sur les slots `:00` (une étiquette par heure). Ligne verticale "now" supprimée.
+- **`Fail2banPage.tsx`** — État `slotBase` ajouté, alimenté depuis `fetchStatus`, transmis à `BanHistoryChart`.
+- **`TabJails.tsx`** — `AuditEnrichment._debug_domains` supprimé ; panneau debug retiré. `fetchAudit` repoll toutes les 30s avec guard `document.hidden`. Résolution domaine via `enrichment.jail_domains[b.jail]`.
+
+#### Frontend — Global
+
+- **`App.tsx`** — `wrapWithBackground(content, fullscreen=true)` : variante `h-screen overflow-hidden` sans `pb-20` pour la page Fail2ban → supprime la double scrollbar.
+- **`TabAudit.tsx`** — Simplifié : le sous-onglet switcher Événements/Logs supprimé ; l'onglet Audit affiche uniquement `TabJailsFiles` (les Événements ont leur propre entrée dans la nav).
+- **`TabBanManager.tsx`** — Composant `FileBtn` (bouton fichier stylisé masquant le `<input type="file">` natif) ; grille responsive `minmax(min(100%,420px),1fr)`.
+- **`TabConfig.tsx`** — Champ `local_exists` dans `GlobalConfig` ; stats DB étendues (`bans`, `jails`, `logs`) ; état `resetting` pour le bouton maintenance.
+
+---
+
 ## [0.4.8] - 2026-03-25
 
 ### Pour les utilisateurs

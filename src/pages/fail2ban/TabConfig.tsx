@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
     Settings, Database, RefreshCw, RotateCcw, Save, Play,
     Info, Shield, FileText, AlertTriangle, CheckCircle, XCircle,
-    ChevronRight, HardDrive, Stethoscope,
+    ChevronRight, HardDrive, Stethoscope, Trash2,
 } from 'lucide-react';
 import { api } from '../../api/client';
 import { card, cardH, cardB } from './helpers';
@@ -18,6 +18,7 @@ interface GlobalConfig {
     dbpurgeage: string;
     dbmaxmatches: string;
     local_values: Record<string, string>;
+    local_exists?: boolean;
 }
 
 interface DbInfo {
@@ -28,6 +29,9 @@ interface DbInfo {
     pageCount: number;
     freePages: number;
     fragPct: number;
+    bans?: number;
+    jails?: number;
+    logs?: number;
 }
 
 interface InternalDbStats {
@@ -159,6 +163,9 @@ export const TabConfig: React.FC = () => {
     const [checkResult, setCheckResult] = useState<CheckResult | null>(null);
     const [checkLoading, setCheckLoading] = useState(true);
 
+    // Maintenance
+    const [resetting, setResetting] = useState(false);
+
     // Form state (runtime & persist)
     const [fmLoglevel, setFmLoglevel]   = useState('');
     const [fmLogtarget, setFmLogtarget] = useState('');
@@ -257,6 +264,19 @@ export const TabConfig: React.FC = () => {
         }
     };
 
+    const doReset = async () => {
+        if (!window.confirm('Réinitialiser toutes les données fail2ban ?\n\nCela supprime : événements f2b_events, cache géo f2b_ip_geo, état de synchronisation.\nCette action est irréversible.')) return;
+        setResetting(true);
+        const res = await api.post<{ ok: boolean }>('/api/plugins/fail2ban/config/maintenance/reset', {});
+        setResetting(false);
+        if (res.success && res.result?.ok) {
+            toast('Données fail2ban réinitialisées ✓', true);
+            await loadParsed();
+        } else {
+            toast('Erreur lors de la réinitialisation', false);
+        }
+    };
+
     const serviceAction = async (action: 'reload' | 'restart') => {
         if (action === 'restart' && !window.confirm('Redémarrage complet de fail2ban ?\n\nLes IPs bannies seront temporairement inactives.')) return;
         setSaving(`service-${action}`);
@@ -284,8 +304,14 @@ export const TabConfig: React.FC = () => {
 
     const sel: React.CSSProperties = { ...inp };
 
+    // ── Shared column body style
+    const colBody: React.CSSProperties = {
+        border: `1px solid ${C.border}`, borderTop: 'none', borderRadius: '0 0 8px 8px',
+        padding: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem', background: C.bg0,
+    };
+
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', paddingBottom: '2rem' }}>
+        <div style={{ paddingBottom: '2rem' }}>
 
             {/* ── Toast notifications ─────────────────────────────────────── */}
             <div style={{ position: 'fixed', bottom: 24, right: 24, display: 'flex', flexDirection: 'column', gap: 8, zIndex: 9999 }}>
@@ -304,7 +330,12 @@ export const TabConfig: React.FC = () => {
                 ))}
             </div>
 
-            {/* ── SECTION 1: Fail2ban ──────────────────────────────────────── */}
+            {/* ── 2-column grid ─────────────────────────────────────────────── */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 520px), 1fr))', gap: '1.25rem', alignItems: 'start' }}>
+
+            {/* ══════════════════════════════════════════════════════════════
+                COLONNE GAUCHE — Fail2ban (démon)
+            ══════════════════════════════════════════════════════════════ */}
             <div>
                 <SectionHeader
                     color={C.blue} bg="rgba(88,166,255,.07)"
@@ -312,7 +343,7 @@ export const TabConfig: React.FC = () => {
                     title="Fail2ban"
                     sub="Configuration du démon, service, et base de données officielle"
                 />
-                <div style={{ border: `1px solid ${C.border}`, borderTop: 'none', borderRadius: '0 0 8px 8px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem', background: C.bg0 }}>
+                <div style={colBody}>
 
                     {/* ── Card: Diagnostic système (auto-run) ── */}
                     <div style={card}>
@@ -393,6 +424,16 @@ export const TabConfig: React.FC = () => {
                                     <Row label="dbfile"       value={cfg.dbfile} />
                                     <Row label="dbpurgeage"   value={`${cfg.dbpurgeage}s (${Math.round(parseInt(cfg.dbpurgeage,10)/86400)} j)`} isLocal={!!cfg.local_values.dbpurgeage} />
                                     <Row label="dbmaxmatches" value={cfg.dbmaxmatches} isLocal={!!cfg.local_values.dbmaxmatches} />
+                                    <Row label="fail2ban.local" value={
+                                        cfg.local_exists
+                                            ? <span style={{ color: C.green, display: 'inline-flex', alignItems: 'center', gap: '.3rem' }}>
+                                                <CheckCircle style={{ width: 11, height: 11 }} /> Présent
+                                                <span style={{ color: C.muted, fontSize: '.73rem' }}>({Object.keys(cfg.local_values).length} directive{Object.keys(cfg.local_values).length !== 1 ? 's' : ''})</span>
+                                              </span>
+                                            : <span style={{ color: C.muted, display: 'inline-flex', alignItems: 'center', gap: '.3rem' }}>
+                                                <XCircle style={{ width: 11, height: 11 }} /> Absent
+                                              </span>
+                                    } />
                                 </div>
                             </div>
 
@@ -406,12 +447,15 @@ export const TabConfig: React.FC = () => {
                                     {dbInfo ? (
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
                                             <Row label="Chemin" value={parsed?.dbHostPath ?? cfg.dbfile} />
-                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '.5rem', marginTop: '.25rem' }}>
+                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(80px,1fr))', gap: '.5rem', marginTop: '.25rem' }}>
                                                 {[
-                                                    { l: 'Taille',       v: dbInfo.sizeFmt,              c: C.blue },
-                                                    { l: 'Pages',        v: String(dbInfo.pageCount),    c: C.muted },
-                                                    { l: 'Fragmentation',v: `${dbInfo.fragPct}%`,        c: dbInfo.fragPct > 20 ? C.orange : C.green },
-                                                    { l: 'Intégrité',    v: dbInfo.integrity,            c: dbInfo.integrity === 'ok' ? C.green : C.red },
+                                                    { l: 'Taille',       v: dbInfo.sizeFmt,                                         c: C.blue },
+                                                    { l: 'Intégrité',    v: dbInfo.integrity,                                       c: dbInfo.integrity === 'ok' ? C.green : C.red },
+                                                    { l: 'Pages',        v: String(dbInfo.pageCount),                               c: C.muted },
+                                                    { l: 'Fragmentation',v: `${dbInfo.fragPct}%`,                                   c: dbInfo.fragPct > 20 ? C.orange : C.green },
+                                                    { l: 'Bans en DB',   v: String(dbInfo.bans  ?? '—'),                           c: C.red },
+                                                    { l: 'Jails',        v: String(dbInfo.jails ?? '—'),                           c: C.purple },
+                                                    { l: 'Logs',         v: String(dbInfo.logs  ?? '—'),                           c: C.muted },
                                                 ].map(s => (
                                                     <div key={s.l} style={{ background: C.bg2, borderRadius: 6, padding: '.5rem .65rem', textAlign: 'center' }}>
                                                         <div style={{ fontSize: '.9rem', fontWeight: 700, color: s.c }}>{s.v}</div>
@@ -530,18 +574,57 @@ export const TabConfig: React.FC = () => {
                             <div style={{ color: C.muted, marginTop: '.25rem', fontSize: '.75rem' }}>Vérifiez que /etc/fail2ban/ est monté dans le container.</div>
                         </div>
                     )}
+
+                    {/* Card: Raw files viewer — fichiers /etc/fail2ban/ */}
+                    <div style={card}>
+                        <div style={{ ...cardH, cursor: 'pointer' }} onClick={() => setRawTab(rawTab === null ? 'fail2ban.conf' : null)}>
+                            <FileText style={{ width: 14, height: 14, color: C.blue }} />
+                            <span style={{ fontWeight: 600, fontSize: '.9rem' }}>Fichiers de configuration bruts</span>
+                            <ChevronRight style={{ width: 14, height: 14, color: C.muted, marginLeft: 'auto', transition: 'transform .15s', transform: rawTab !== null ? 'rotate(90deg)' : 'none' }} />
+                        </div>
+                        {rawTab !== null && (
+                            <div style={{ ...cardB, display: 'flex', gap: '.75rem', height: 420 }}>
+                                <div style={{ width: 160, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                    {(['fail2ban.conf', 'fail2ban.local', 'jail.conf', 'jail.local'] as const).map(f => (
+                                        <button key={f} onClick={() => setRawTab(f)}
+                                            style={{
+                                                textAlign: 'left', padding: '.35rem .65rem', fontSize: '.78rem',
+                                                fontFamily: 'monospace', background: rawTab === f ? 'rgba(88,166,255,.1)' : 'transparent',
+                                                color: rawTab === f ? C.blue : C.text, border: 'none', borderRadius: 4, cursor: 'pointer',
+                                            }}>
+                                            {f}
+                                            {rawFiles && rawFiles[f as keyof RawFiles] === null && (
+                                                <span style={{ fontSize: '.6rem', color: C.muted, marginLeft: 4 }}>(absent)</span>
+                                            )}
+                                        </button>
+                                    ))}
+                                </div>
+                                <div style={{ flex: 1, background: C.bg3, borderRadius: 6, border: `1px solid ${C.border}`, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                                    <div style={{ padding: '.35rem .65rem', background: C.bg2, borderBottom: `1px solid ${C.border}`, fontSize: '.72rem', color: C.muted, fontFamily: 'monospace' }}>
+                                        /etc/fail2ban/{rawTab}
+                                    </div>
+                                    <pre style={{ flex: 1, overflowY: 'auto', padding: '1rem', fontSize: '.75rem', fontFamily: 'monospace', color: C.text, lineHeight: 1.6, whiteSpace: 'pre-wrap', margin: 0 }}>
+                                        {rawFiles ? (rawFiles[rawTab as keyof RawFiles] ?? '(fichier non disponible)') : 'Chargement…'}
+                                    </pre>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
                 </div>
             </div>
 
-            {/* ── SECTION 2: Application ──────────────────────────────────── */}
+            {/* ══════════════════════════════════════════════════════════════
+                COLONNE DROITE — Application LogviewR
+            ══════════════════════════════════════════════════════════════ */}
             <div>
                 <SectionHeader
                     color={C.orange} bg="rgba(227,179,65,.07)"
                     icon={<Settings style={{ width: 16, height: 16 }} />}
                     title="Application"
-                    sub="Base de données interne, maintenance"
+                    sub="Base de données interne LogviewR, maintenance"
                 />
-                <div style={{ border: `1px solid ${C.border}`, borderTop: 'none', borderRadius: '0 0 8px 8px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem', background: C.bg0 }}>
+                <div style={colBody}>
 
                     {/* Card: App DB + internal sync stats */}
                     <div style={card}>
@@ -594,45 +677,31 @@ export const TabConfig: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Card: Raw files viewer */}
-                    <div style={card}>
-                        <div style={{ ...cardH, cursor: 'pointer' }} onClick={() => setRawTab(rawTab === null ? 'fail2ban.conf' : null)}>
-                            <FileText style={{ width: 14, height: 14, color: C.blue }} />
-                            <span style={{ fontWeight: 600, fontSize: '.9rem' }}>Fichiers de configuration bruts</span>
-                            <ChevronRight style={{ width: 14, height: 14, color: C.muted, marginLeft: 'auto', transition: 'transform .15s', transform: rawTab !== null ? 'rotate(90deg)' : 'none' }} />
+                    {/* Card: Maintenance */}
+                    <div style={{ ...card, borderColor: 'rgba(255,85,85,.35)' }}>
+                        <div style={{ ...cardH, background: 'rgba(255,85,85,.06)' }}>
+                            <Trash2 style={{ width: 14, height: 14, color: C.red }} />
+                            <span style={{ fontWeight: 600, fontSize: '.9rem' }}>Maintenance &amp; base de données</span>
                         </div>
-                        {rawTab !== null && (
-                            <div style={{ ...cardB, display: 'flex', gap: '.75rem', height: 420 }}>
-                                <div style={{ width: 160, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                    {(['fail2ban.conf', 'fail2ban.local', 'jail.conf', 'jail.local'] as const).map(f => (
-                                        <button key={f} onClick={() => setRawTab(f)}
-                                            style={{
-                                                textAlign: 'left', padding: '.35rem .65rem', fontSize: '.78rem',
-                                                fontFamily: 'monospace', background: rawTab === f ? 'rgba(88,166,255,.1)' : 'transparent',
-                                                color: rawTab === f ? C.blue : C.text, border: 'none', borderRadius: 4, cursor: 'pointer',
-                                            }}>
-                                            {f}
-                                            {rawFiles && rawFiles[f as keyof RawFiles] === null && (
-                                                <span style={{ fontSize: '.6rem', color: C.muted, marginLeft: 4 }}>(absent)</span>
-                                            )}
-                                        </button>
-                                    ))}
-                                </div>
-                                <div style={{ flex: 1, background: C.bg3, borderRadius: 6, border: `1px solid ${C.border}`, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                                    <div style={{ padding: '.35rem .65rem', background: C.bg2, borderBottom: `1px solid ${C.border}`, fontSize: '.72rem', color: C.muted, fontFamily: 'monospace' }}>
-                                        /etc/fail2ban/{rawTab}
-                                    </div>
-                                    <pre style={{ flex: 1, overflowY: 'auto', padding: '1rem', fontSize: '.75rem', fontFamily: 'monospace', color: C.text, lineHeight: 1.6, whiteSpace: 'pre-wrap', margin: 0 }}>
-                                        {rawFiles ? (rawFiles[rawTab as keyof RawFiles] ?? '(fichier non disponible)') : 'Chargement…'}
-                                    </pre>
-                                </div>
+                        <div style={{ ...cardB }}>
+                            <p style={{ fontSize: '.83rem', color: C.muted, lineHeight: 1.6, marginBottom: '1rem' }}>
+                                Opérations de maintenance sur la base de données interne. Ces actions sont irréversibles.
+                            </p>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                                <Btn onClick={doReset} loading={resetting}
+                                    bg="rgba(232,106,101,.12)" color={C.red} border="rgba(232,106,101,.4)">
+                                    <Trash2 style={{ width: 12, height: 12 }} /> Réinitialiser les données fail2ban
+                                </Btn>
+                                <span style={{ fontSize: '.8rem', color: C.muted }}>Vide les événements, le cache géo et l'état de synchronisation.</span>
                             </div>
-                        )}
+                        </div>
                     </div>
+
 
                 </div>
             </div>
 
+            </div>{/* /grid */}
         </div>
     );
 };

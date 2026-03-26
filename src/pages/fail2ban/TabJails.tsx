@@ -3,7 +3,7 @@
  * Vue Cartes / Tableau (4-col expand) / Événements / Fichiers log.
  * Aligné sur tabs/jails.php du projet PHP Fail2ban-web.
  */
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
     Shield, Ban, Unlock, RotateCcw, AlertTriangle,
     LayoutGrid, Table2, ScrollText, List, ChevronRight, ChevronDown,
@@ -857,15 +857,15 @@ const SERVICE_ICONS: Record<string, [string, string]> = {
 };
 
 interface AuditEnrichment {
-    jail_actions: Record<string, string>;
-    jail_logs:    Record<string, string>;
-    jail_servers: Record<string, string>;
-    ip_domains:   Record<string, string>;
+    jail_actions:   Record<string, string>;
+    jail_logs:      Record<string, string>;
+    jail_servers:   Record<string, string>;
+    jail_domains:   Record<string, string>;
 }
 
 export const TabJailsEvents: React.FC = () => {
     const [bans, setBans]           = useState<BanEntry[]>([]);
-    const [enrichment, setEnrich]   = useState<AuditEnrichment>({ jail_actions: {}, jail_logs: {}, jail_servers: {}, ip_domains: {} });
+    const [enrichment, setEnrich]   = useState<AuditEnrichment>({ jail_actions: {}, jail_logs: {}, jail_servers: {}, jail_domains: {} });
     const [loading, setLoading]     = useState(true);
     const [search, setSearch]       = useState('');
     const [type, setType]           = useState<EvtType>('all');
@@ -875,20 +875,32 @@ export const TabJailsEvents: React.FC = () => {
     const [sortDir, setSortDir]     = useState<SortDir>('desc');
     const [modalIp, setModalIp]     = useState<string | null>(null);
 
-    useEffect(() => {
+    const fetchAudit = useCallback(() => {
         api.get<{ ok: boolean; bans: BanEntry[] } & AuditEnrichment>('/api/plugins/fail2ban/audit?limit=500').then(res => {
             if (res.success && res.result?.ok) {
                 setBans(res.result.bans ?? []);
                 setEnrich({
-                    jail_actions: res.result.jail_actions ?? {},
-                    jail_logs:    res.result.jail_logs    ?? {},
-                    jail_servers: res.result.jail_servers ?? {},
-                    ip_domains:   res.result.ip_domains   ?? {},
+                    jail_actions:   res.result.jail_actions   ?? {},
+                    jail_logs:      res.result.jail_logs      ?? {},
+                    jail_servers:   res.result.jail_servers   ?? {},
+                    jail_domains:   res.result.jail_domains   ?? {},
                 });
             }
             setLoading(false);
         });
     }, []);
+
+    // Initial load
+    useEffect(() => { fetchAudit(); }, [fetchAudit]);
+
+    // Auto-refresh every 30s (pauses when tab is hidden)
+    const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    useEffect(() => {
+        intervalRef.current = setInterval(() => {
+            if (!document.hidden) fetchAudit();
+        }, 30_000);
+        return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+    }, [fetchAudit]);
 
     const toggleSort = (col: SortCol) => {
         if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -902,7 +914,7 @@ export const TabJailsEvents: React.FC = () => {
         if (type === 'failed') rows = rows.filter(b => b.failures > 0 && b.bantime === 0);
         if (search) rows = rows.filter(b =>
             b.ip.includes(search) || b.jail.includes(search) ||
-            (enrichment.ip_domains[b.ip] ?? '').includes(search) ||
+            (enrichment.jail_domains[b.jail] ?? '').includes(search) ||
             (enrichment.jail_logs[b.jail] ?? '').includes(search)
         );
         rows.sort((a, b) => {
@@ -913,7 +925,7 @@ export const TabJailsEvents: React.FC = () => {
             else if (sortCol === 'ip')       { va = a.ip; vb = b.ip; }
             else if (sortCol === 'jail')     { va = a.jail; vb = b.jail; }
             else if (sortCol === 'failures') { va = a.failures; vb = b.failures; }
-            else if (sortCol === 'domain')   { va = enrichment.ip_domains[a.ip] ?? ''; vb = enrichment.ip_domains[b.ip] ?? ''; }
+            else if (sortCol === 'domain')   { va = enrichment.jail_domains[a.jail] ?? ''; vb = enrichment.jail_domains[b.jail] ?? ''; }
             else if (sortCol === 'log')      { va = (enrichment.jail_logs[a.jail] ?? '').replace(/.*\//, ''); vb = (enrichment.jail_logs[b.jail] ?? '').replace(/.*\//, ''); }
             else { va = a.bantime; vb = b.bantime; }
             if (va < vb) return sortDir === 'asc' ? -1 : 1;
@@ -957,6 +969,7 @@ export const TabJailsEvents: React.FC = () => {
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '.6rem' }}>
             {modalIp && <IpModal ip={modalIp} onClose={() => setModalIp(null)} />}
+
             {/* ── Toolbar unique ── */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', flexWrap: 'wrap', padding: '.4rem .6rem', background: '#161b22', border: '1px solid #30363d', borderRadius: 7 }}>
                 {/* Title */}
@@ -1058,7 +1071,7 @@ export const TabJailsEvents: React.FC = () => {
                         </thead>
                         <tbody>
                             {displayed.map((b, i) => {
-                                const domain  = enrichment.ip_domains[b.ip] ?? '';
+                                const domain  = enrichment.jail_domains[b.jail] ?? '';
                                 const logpath = enrichment.jail_logs[b.jail] ?? '';
                                 const logbase = logpath.replace(/.*\//, '');
                                 const srv     = enrichment.jail_servers[b.jail] ?? '';
@@ -1092,7 +1105,7 @@ export const TabJailsEvents: React.FC = () => {
                                     </td>
                                     <td style={{ padding: '.4rem .65rem' }}>
                                         <button onClick={() => setModalIp(b.ip)}
-                                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'monospace', fontSize: '.8rem', color: '#e86a65', fontWeight: 600 }}>
+                                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'monospace', fontSize: '.8rem', color: '#e6edf3', fontWeight: 600 }}>
                                             {b.ip}
                                         </button>
                                     </td>

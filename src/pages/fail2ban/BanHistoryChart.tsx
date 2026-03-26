@@ -2,9 +2,10 @@
  * BanHistoryChart — shared between TabJails stats strip and TabStats.
  * Multi-series per jail with toggle legend, matching PHP fail2ban-web style.
  */
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useCallback } from 'react';
 import { Activity } from 'lucide-react';
 import { PERIODS, F2bTooltip } from './helpers';
+import type { F2bTtColor } from './helpers';
 import type { HistoryEntry } from './types';
 
 // ── Palette (same as PHP JAIL_COLORS) ─────────────────────────────────────────
@@ -15,6 +16,91 @@ function jailColor(jail: string, jailNames: string[]): string {
     if (/^recidive/i.test(jail)) return '#e86a65';
     return JAIL_COLORS[i % JAIL_COLORS.length] ?? '#58a6ff';
 }
+
+// ── colorToTt helper ──────────────────────────────────────────────────────────
+const COLOR_TO_TT: Record<string, F2bTtColor> = {
+    '#58a6ff': 'blue',  '#79c0ff': 'blue',
+    '#3fb950': 'green', '#56d364': 'green',
+    '#bc8cff': 'purple','#d2a8ff': 'purple',
+    '#e3b341': 'orange',
+    '#f28a84': 'red',   '#e86a65': 'red',
+    '#39c5cf': 'cyan',
+};
+function colorToTt(color: string): F2bTtColor {
+    return COLOR_TO_TT[color] ?? 'blue';
+}
+
+// ── TooltipData type ──────────────────────────────────────────────────────────
+type TooltipData = {
+    x: number;   // px relative to wrapper div
+    y: number;   // px relative to wrapper div
+    jail: string;
+    date: string;
+    value: number;
+    color: string;
+} | null;
+
+// ── ChartTooltip component (stats-tt PHP style, inline styles only) ───────────
+const ChartTooltip: React.FC<{ data: TooltipData; isHourly?: boolean }> = ({ data, isHourly = false }) => {
+    if (!data) return null;
+    const { x, y, jail, date, value, color } = data;
+    // For 30-min slots the date is already "HH:MM"; for daily it's "MM-DD"
+    const dateLabel = isHourly
+        ? (date.includes(':') ? `${date}–${date.slice(0,2)}:${String(parseInt(date.slice(3)) + 30).padStart(2,'0')}` : `${date}h00`)
+        : date;
+    return (
+        <div style={{
+            position: 'absolute',
+            left: x,
+            top: y - 8,
+            transform: 'translate(-50%, -100%)',
+            pointerEvents: 'none',
+            zIndex: 9999,
+            borderRadius: 10,
+            overflow: 'hidden',
+            boxShadow: '0 10px 36px rgba(0,0,0,.65), 0 2px 8px rgba(0,0,0,.35)',
+            border: `1px solid ${color}`,
+            borderLeftWidth: 4,
+            minWidth: 140,
+        }}>
+            {/* Title area */}
+            <div style={{
+                background: '#161b22',
+                padding: '.45rem .9rem .35rem',
+                borderBottom: '1px solid rgba(255,255,255,.07)',
+                fontWeight: 700,
+                fontSize: '.85rem',
+                fontFamily: 'monospace',
+                color,
+            }}>
+                {jail}
+            </div>
+            {/* Body area */}
+            <div style={{
+                background: '#21262d',
+                padding: '.4rem .9rem .5rem',
+            }}>
+                <div style={{ color: '#bc8cff', fontWeight: 600, fontSize: '.73rem' }}>{dateLabel}</div>
+                <div style={{ marginTop: '.15rem' }}>
+                    <span style={{ color, fontWeight: 700, fontSize: '.95rem' }}>{value}</span>
+                    <span style={{ color: '#8b949e', fontSize: '.8rem' }}> ban{value !== 1 ? 's' : ''}</span>
+                </div>
+            </div>
+            {/* Downward arrow */}
+            <div style={{
+                position: 'absolute',
+                left: '50%',
+                bottom: -7,
+                transform: 'translateX(-50%)',
+                width: 0,
+                height: 0,
+                borderLeft: '7px solid transparent',
+                borderRight: '7px solid transparent',
+                borderTop: '7px solid #21262d',
+            }} />
+        </div>
+    );
+};
 
 // ── Y-axis ticks ──────────────────────────────────────────────────────────────
 function yTicks(max: number): { val: number; frac: number }[] {
@@ -29,7 +115,8 @@ function xLabelIndices(len: number, count: number): number[] {
 }
 
 function labelCountForDays(days: number, isHourly: boolean): number {
-    if (isHourly) return 24;
+    // 30-min slots for 24h: show one label per hour = 25 labels (0h..24h)
+    if (isHourly) return 25;
     if (days === 7)   return 7;
     if (days === 30)  return 10;
     if (days === 180) return 12;
@@ -51,18 +138,21 @@ const LineChart: React.FC<{
     hidden: Set<string>;
     isHourly?: boolean;
     days?: number;
-}> = ({ history, histMax, byJail, jailNames, hidden, isHourly = false, days = 30 }) => {
+    nowSlotFrac?: number; // fractional position of "now" within the last slot
+}> = ({ history, histMax, byJail, jailNames, hidden, isHourly = false, days = 30, nowSlotFrac = 0 }) => {
     if (history.length === 0) return null;
     const W = 700; const H = 170;
     const padL = 32; const padR = 8; const padT = 8; const padB = 20;
     const innerW = W - padL - padR;
     const innerH = H - padT - padB;
 
+    const [tip, setTip] = useState<TooltipData>(null);
+    const wrapRef = useRef<HTMLDivElement>(null);
+
     const dates = allDates(history);
     const n = Math.max(dates.length - 1, 1);
     const visibleJails = jailNames.filter(j => !hidden.has(j));
 
-    // Compute per-date totals for hidden mode fallback
     const maxVal = Math.max(histMax, 1);
     const xOf = (i: number) => padL + (i / n) * innerW;
     const yOf = (v: number) => padT + innerH - Math.min((v / maxVal) * innerH, innerH);
@@ -70,58 +160,91 @@ const LineChart: React.FC<{
     const ticks = yTicks(maxVal);
     const xIdxs = xLabelIndices(dates.length, labelCountForDays(days, isHourly));
 
+    const handleEnter = useCallback((svgX: number, svgY: number, jail: string, date: string, value: number, color: string) => {
+        if (!wrapRef.current) return;
+        const rect = wrapRef.current.getBoundingClientRect();
+        setTip({
+            x: (svgX / W) * rect.width,
+            y: (svgY / H) * rect.height,
+            jail,
+            date,
+            value,
+            color,
+        });
+    }, []);
+
     return (
-        <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: H, display: 'block' }} preserveAspectRatio="none">
-            {/* Grid lines + Y labels */}
-            {ticks.map(({ val, frac }) => {
-                const y = padT + innerH * (1 - frac);
-                return (
-                    <g key={val}>
-                        <line x1={padL} x2={W - padR} y1={y} y2={y} stroke="rgba(128,128,128,.13)" strokeWidth={frac === 0 ? 1 : 0.5} />
-                        {frac > 0 && <text x={padL - 3} y={y - 2} fontSize={8} fill="rgba(128,128,128,.45)" textAnchor="end">{val}</text>}
-                    </g>
-                );
-            })}
+        <div ref={wrapRef} style={{ position: 'relative' }} onMouseLeave={() => setTip(null)}>
+            <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: H, display: 'block' }} preserveAspectRatio="none">
+                {/* Grid lines + Y labels */}
+                {ticks.map(({ val, frac }) => {
+                    const y = padT + innerH * (1 - frac);
+                    return (
+                        <g key={val}>
+                            <line x1={padL} x2={W - padR} y1={y} y2={y} stroke="rgba(128,128,128,.13)" strokeWidth={frac === 0 ? 1 : 0.5} />
+                            {frac > 0 && <text x={padL - 3} y={y - 2} fontSize={8} fill="rgba(128,128,128,.45)" textAnchor="end">{val}</text>}
+                        </g>
+                    );
+                })}
 
-            {/* Per-jail area + line */}
-            {visibleJails.map(jail => {
-                const color = jailColor(jail, jailNames);
-                const pts = dates.map((dt, i) => `${xOf(i)},${yOf((byJail[jail]?.[dt]) ?? 0)}`);
-                const areaPts = [...pts, `${xOf(dates.length - 1)},${yOf(0)}`, `${xOf(0)},${yOf(0)}`].join(' ');
-                return (
-                    <g key={jail}>
-                        <polygon points={areaPts} fill={color} opacity={0.07} />
-                        <polyline points={pts.join(' ')} fill="none" stroke={color} strokeWidth={1.6} strokeLinejoin="round" strokeLinecap="round" opacity={0.9} />
-                        {dates.map((dt, i) => {
-                            const v = (byJail[jail]?.[dt]) ?? 0;
-                            return v > 0 ? (
-                                <circle key={i} cx={xOf(i)} cy={yOf(v)} r={2.5} fill={color} stroke="#0d1117" strokeWidth={1} opacity={0.95}>
-                                    <title>{dt} · {jail} : {v} ban{v > 1 ? 's' : ''}</title>
-                                </circle>
-                            ) : null;
-                        })}
-                    </g>
-                );
-            })}
+                {/* Per-jail area + line */}
+                {visibleJails.map(jail => {
+                    const color = jailColor(jail, jailNames);
+                    const pts = dates.map((dt, i) => `${xOf(i)},${yOf((byJail[jail]?.[dt]) ?? 0)}`);
+                    const areaPts = [...pts, `${xOf(dates.length - 1)},${yOf(0)}`, `${xOf(0)},${yOf(0)}`].join(' ');
+                    return (
+                        <g key={jail}>
+                            <polygon points={areaPts} fill={color} opacity={0.07} />
+                            <polyline points={pts.join(' ')} fill="none" stroke={color} strokeWidth={1.6} strokeLinejoin="round" strokeLinecap="round" opacity={0.9} />
+                            {dates.map((dt, i) => {
+                                const v = (byJail[jail]?.[dt]) ?? 0;
+                                const cx = xOf(i);
+                                const cy = yOf(v);
+                                return v > 0 ? (
+                                    <g key={i}>
+                                        <circle cx={cx} cy={cy} r={2.5} fill={color} stroke="#0d1117" strokeWidth={1} opacity={0.95} />
+                                        <circle
+                                            cx={cx} cy={cy} r={8} fill="transparent"
+                                            style={{ cursor: 'crosshair' }}
+                                            onMouseEnter={() => handleEnter(cx, cy, jail, dt, v, color)}
+                                        />
+                                    </g>
+                                ) : null;
+                            })}
+                        </g>
+                    );
+                })}
 
-            {/* Fallback: single total line when no jail data */}
-            {visibleJails.length === 0 && (
-                <polyline
-                    points={dates.map((_, i) => `${xOf(i)},${yOf(history[i]?.count ?? 0)}`).join(' ')}
-                    fill="none" stroke="#e86a65" strokeWidth={1.6} strokeLinejoin="round" strokeLinecap="round" />
-            )}
+                {/* Fallback: single total line when no jail data */}
+                {visibleJails.length === 0 && (
+                    <polyline
+                        points={dates.map((_, i) => `${xOf(i)},${yOf(history[i]?.count ?? 0)}`).join(' ')}
+                        fill="none" stroke="#e86a65" strokeWidth={1.6} strokeLinejoin="round" strokeLinecap="round" />
+                )}
 
-            {/* X-axis labels */}
-            {xIdxs.map(i => {
-                const anchor = i === 0 ? 'start' : i === dates.length - 1 ? 'end' : 'middle';
-                const label = isHourly ? `${dates[i]}h` : (dates[i]?.slice(5) ?? '');
-                return (
-                    <text key={i} x={xOf(i)} y={H - 3} fontSize={8} fill="rgba(128,128,128,.55)" textAnchor={anchor}>
-                        {label}
-                    </text>
-                );
-            })}
-        </svg>
+                {/* X-axis labels — for 30-min mode: only label the :00 slots (on-the-hour) */}
+                {isHourly
+                    ? dates.map((d, i) => {
+                        if (!d.endsWith(':00')) return null;
+                        const anchor = i === 0 ? 'start' : 'middle';
+                        return (
+                            <text key={i} x={xOf(i)} y={H - 3} fontSize={8} fill="rgba(128,128,128,.55)" textAnchor={anchor}>
+                                {d.slice(0, 5)}
+                            </text>
+                        );
+                    })
+                    : xIdxs.map(i => {
+                        const anchor = i === 0 ? 'start' : i === dates.length - 1 ? 'end' : 'middle';
+                        return (
+                            <text key={i} x={xOf(i)} y={H - 3} fontSize={8} fill="rgba(128,128,128,.55)" textAnchor={anchor}>
+                                {dates[i]?.slice(5) ?? ''}
+                            </text>
+                        );
+                    })
+                }
+            </svg>
+            <ChartTooltip data={tip} isHourly={isHourly} />
+        </div>
     );
 };
 
@@ -134,7 +257,8 @@ const BarChart: React.FC<{
     hidden: Set<string>;
     isHourly?: boolean;
     days?: number;
-}> = ({ history, histMax, byJail, jailNames, hidden, isHourly = false, days = 30 }) => {
+    nowSlotFrac?: number;
+}> = ({ history, histMax, byJail, jailNames, hidden, isHourly = false, days = 30, nowSlotFrac = 0 }) => {
     const dates = allDates(history.slice(-60));
     const W = 700; const H = 170;
     const padL = 32; const padR = 8; const padT = 8; const padB = 20;
@@ -148,66 +272,114 @@ const BarChart: React.FC<{
     const ticks = yTicks(max);
     const xIdxs = xLabelIndices(dates.length, labelCountForDays(days, isHourly));
 
+    const [tip, setTip] = useState<TooltipData>(null);
+    const wrapRef = useRef<HTMLDivElement>(null);
+
+    const handleEnter = useCallback((svgX: number, svgY: number, jail: string, date: string, value: number, color: string) => {
+        if (!wrapRef.current) return;
+        const rect = wrapRef.current.getBoundingClientRect();
+        setTip({
+            x: (svgX / W) * rect.width,
+            y: (svgY / H) * rect.height,
+            jail,
+            date,
+            value,
+            color,
+        });
+    }, []);
+
     return (
-        <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: H, display: 'block' }} preserveAspectRatio="none">
-            <defs>
-                <linearGradient id="f2bBarG" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#e86a65" stopOpacity={0.9} />
-                    <stop offset="100%" stopColor="#e86a65" stopOpacity={0.3} />
-                </linearGradient>
-            </defs>
-            {ticks.map(({ val, frac }) => {
-                const y = padT + innerH * (1 - frac);
-                return (
-                    <g key={val}>
-                        <line x1={padL} x2={W - padR} y1={y} y2={y} stroke="rgba(128,128,128,.13)" strokeWidth={frac === 0 ? 1 : 0.5} />
-                        {frac > 0 && <text x={padL - 3} y={y - 2} fontSize={8} fill="rgba(128,128,128,.45)" textAnchor="end">{val}</text>}
-                    </g>
-                );
-            })}
+        <div ref={wrapRef} style={{ position: 'relative' }} onMouseLeave={() => setTip(null)}>
+            <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: H, display: 'block' }} preserveAspectRatio="none">
+                <defs>
+                    <linearGradient id="f2bBarG" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#e86a65" stopOpacity={0.9} />
+                        <stop offset="100%" stopColor="#e86a65" stopOpacity={0.3} />
+                    </linearGradient>
+                </defs>
+                {ticks.map(({ val, frac }) => {
+                    const y = padT + innerH * (1 - frac);
+                    return (
+                        <g key={val}>
+                            <line x1={padL} x2={W - padR} y1={y} y2={y} stroke="rgba(128,128,128,.13)" strokeWidth={frac === 0 ? 1 : 0.5} />
+                            {frac > 0 && <text x={padL - 3} y={y - 2} fontSize={8} fill="rgba(128,128,128,.45)" textAnchor="end">{val}</text>}
+                        </g>
+                    );
+                })}
 
-            {/* Stacked bars per jail */}
-            {dates.map((dt, i) => {
-                const x = padL + i * (barW + barGap);
-                let yBase = padT + innerH;
-                return (
-                    <g key={dt}>
-                        {visibleJails.map(jail => {
-                            const v = (byJail[jail]?.[dt]) ?? 0;
-                            if (v === 0) return null;
-                            const bh = (v / max) * innerH;
-                            yBase -= bh;
-                            const color = jailColor(jail, jailNames);
-                            return (
-                                <rect key={jail} x={x} y={Math.max(yBase, padT)} width={barW} height={Math.max(bh, 1)} fill={color} opacity={0.85} rx={1}>
-                                    <title>{dt} · {jail} : {v} ban{v > 1 ? 's' : ''}</title>
-                                </rect>
-                            );
-                        })}
-                        {/* Fallback: total bar when no jail data */}
-                        {visibleJails.length === 0 && (() => {
-                            const v = history[i]?.count ?? 0;
-                            const bh = (v / max) * innerH;
-                            return v > 0 ? (
-                                <rect x={x} y={padT + innerH - bh} width={barW} height={Math.max(bh, 1)} fill="url(#f2bBarG)" rx={1}>
-                                    <title>{dt} : {v}</title>
-                                </rect>
-                            ) : null;
-                        })()}
-                    </g>
-                );
-            })}
+                {/* Stacked bars per jail */}
+                {dates.map((dt, i) => {
+                    const x = padL + i * (barW + barGap);
+                    let yBase = padT + innerH;
 
-            {xIdxs.map(i => {
-                const x = padL + i * (barW + barGap) + barW / 2;
-                const label = isHourly ? `${dates[i]}h` : (dates[i]?.slice(5) ?? '');
-                return (
-                    <text key={i} x={x} y={H - 3} fontSize={8} fill="rgba(128,128,128,.55)" textAnchor="middle">
-                        {label}
-                    </text>
-                );
-            })}
-        </svg>
+                    // Compute total for this date (for the column overlay tooltip)
+                    const colTotal = visibleJails.reduce((s, jail) => s + ((byJail[jail]?.[dt]) ?? 0), 0);
+                    const colMidX = x + barW / 2;
+                    const colTopY = colTotal > 0 ? padT + innerH - (colTotal / max) * innerH : padT;
+
+                    return (
+                        <g key={dt}>
+                            {visibleJails.map(jail => {
+                                const v = (byJail[jail]?.[dt]) ?? 0;
+                                if (v === 0) return null;
+                                const bh = (v / max) * innerH;
+                                yBase -= bh;
+                                const color = jailColor(jail, jailNames);
+                                const barMidY = yBase + bh / 2;
+                                return (
+                                    <rect
+                                        key={jail}
+                                        x={x} y={Math.max(yBase, padT)} width={barW} height={Math.max(bh, 1)}
+                                        fill={color} opacity={0.85} rx={1}
+                                        style={{ cursor: 'crosshair' }}
+                                        onMouseEnter={() => handleEnter(colMidX, barMidY, jail, dt, v, color)}
+                                    />
+                                );
+                            })}
+                            {/* Fallback: total bar when no jail data */}
+                            {visibleJails.length === 0 && (() => {
+                                const v = history[i]?.count ?? 0;
+                                const bh = (v / max) * innerH;
+                                return v > 0 ? (
+                                    <rect x={x} y={padT + innerH - bh} width={barW} height={Math.max(bh, 1)} fill="url(#f2bBarG)" rx={1} />
+                                ) : null;
+                            })()}
+                            {/* Transparent full-column overlay — shows total on hover */}
+                            {visibleJails.length > 0 && colTotal > 0 && (
+                                <rect
+                                    x={x} y={padT} width={barW} height={innerH}
+                                    fill="transparent"
+                                    style={{ cursor: 'crosshair' }}
+                                    onMouseEnter={() => handleEnter(colMidX, colTopY, 'Total', dt, colTotal, '#8b949e')}
+                                />
+                            )}
+                        </g>
+                    );
+                })}
+
+                {/* X-axis labels — for 30-min mode: only label :00 slots */}
+                {isHourly
+                    ? dates.map((d, i) => {
+                        if (!d.endsWith(':00')) return null;
+                        const x = padL + i * (barW + barGap) + barW / 2;
+                        return (
+                            <text key={i} x={x} y={H - 3} fontSize={8} fill="rgba(128,128,128,.55)" textAnchor="middle">
+                                {d.slice(0, 5)}
+                            </text>
+                        );
+                    })
+                    : xIdxs.map(i => {
+                        const x = padL + i * (barW + barGap) + barW / 2;
+                        return (
+                            <text key={i} x={x} y={H - 3} fontSize={8} fill="rgba(128,128,128,.55)" textAnchor="middle">
+                                {dates[i]?.slice(5) ?? ''}
+                            </text>
+                        );
+                    })
+                }
+            </svg>
+            <ChartTooltip data={tip} isHourly={isHourly} />
+        </div>
     );
 };
 
@@ -231,23 +403,44 @@ interface BanHistoryChartProps {
     byJail?: Record<string, Record<string, number>>;
     jailNames?: string[];
     granularity?: 'hour' | 'day';
+    /** Unix timestamp (seconds) of the start of the 24h rolling window — for slot alignment */
+    slotBase?: number;
     card?: boolean;
     loading?: boolean;
 }
 
-// Build 24 hourly slots "00".."23", filling from history data
-function buildHourlySlots(history: HistoryEntry[]): HistoryEntry[] {
+const SLOT_SECS = 1800; // 30-min slots for 24h mode
+
+/**
+ * Build 48 rolling 30-min slots anchored to slotBase (or now-24h).
+ * Slots are labeled "HH:MM" and run from oldest (left) to newest (right).
+ * Also returns nowFrac: fractional position of current time within the last slot (0-1).
+ */
+function buildRollingSlots(
+    history: HistoryEntry[],
+    slotBase?: number,
+): { slots: HistoryEntry[]; nowSlotFrac: number } {
+    const nowSecs = Math.floor(Date.now() / 1000);
+    const rawBase = slotBase ?? (nowSecs - 86400);
+    // Align to 30-min boundary so slot labels always land on HH:00 / HH:30
+    const base = Math.floor(rawBase / SLOT_SECS) * SLOT_SECS;
+    const totalSlots = Math.ceil((nowSecs - base) / SLOT_SECS);
     const map: Record<string, number> = {};
     for (const h of history) map[h.date] = h.count;
-    return Array.from({ length: 24 }, (_, i) => {
-        const slot = String(i).padStart(2, '0');
-        return { date: slot, count: map[slot] ?? 0 };
+    const slots = Array.from({ length: totalSlots }, (_, i) => {
+        const ts = new Date((base + i * SLOT_SECS) * 1000);
+        const label = `${String(ts.getHours()).padStart(2, '0')}:${String(ts.getMinutes()).padStart(2, '0')}`;
+        return { date: label, count: map[label] ?? 0 };
     });
+    // How far into the last slot are we? (0 = start, 1 = full)
+    const elapsed = (nowSecs - base) % SLOT_SECS;
+    const nowSlotFrac = elapsed / SLOT_SECS;
+    return { slots, nowSlotFrac };
 }
 
 export const BanHistoryChart: React.FC<BanHistoryChartProps> = ({
     history, histMax, days, onDaysChange, headerExtra,
-    byJail = {}, jailNames = [], granularity = 'day',
+    byJail = {}, jailNames = [], granularity = 'day', slotBase,
     card: showCard = true, loading = false,
 }) => {
     const [mode, setMode]       = useState<'bar' | 'line'>('line');
@@ -256,8 +449,11 @@ export const BanHistoryChart: React.FC<BanHistoryChartProps> = ({
 
     const isHourly    = granularity === 'hour';
     const periodLabel = PERIODS.find(p => p.days === days)?.label ?? `${days}j`;
-    // For 24h mode: always 24 slots; otherwise last 60 days
-    const histSlice   = isHourly ? buildHourlySlots(history) : history.slice(-60);
+    // For 24h: rolling 30-min slots ending at "now"; otherwise last 60 days
+    const { slots: rollingSlots, nowSlotFrac } = isHourly
+        ? buildRollingSlots(history, slotBase)
+        : { slots: [], nowSlotFrac: 0 };
+    const histSlice = isHourly ? rollingSlots : history.slice(-60);
 
     // Recompute max from visible jails only so Y-axis adapts when a jail is hidden
     const effectiveMax = useMemo(() => {
@@ -319,13 +515,16 @@ export const BanHistoryChart: React.FC<BanHistoryChartProps> = ({
                 const color = jailColor(jail, jailNames);
                 const isHidden = hidden.has(jail);
                 const total = jailTotals(jail);
+                const ttBody = `${total} ban${total !== 1 ? 's' : ''} sur la période\n${isHidden ? 'Cliquer pour afficher' : 'Cliquer pour masquer'}`;
                 return (
-                    <button key={jail} onClick={() => toggleJail(jail)} title={isHidden ? 'Afficher dans le graphique' : 'Masquer du graphique'}
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: '.3rem', padding: '.15rem .45rem', borderRadius: 4, border: `1px solid ${isHidden ? '#30363d' : color + '55'}`, background: isHidden ? 'transparent' : color + '12', cursor: 'pointer', opacity: isHidden ? 0.4 : 1, transition: 'opacity .15s, border-color .15s' }}>
-                        <span style={{ display: 'inline-block', width: 9, height: 9, borderRadius: '50%', background: color, flexShrink: 0, opacity: isHidden ? 0.3 : 1 }} />
-                        <span style={{ fontSize: '.7rem', color: isHidden ? '#8b949e' : '#c9d1d9', fontFamily: 'monospace' }}>{jail}</span>
-                        <span style={{ fontSize: '.68rem', color, fontWeight: 600 }}>{total.toLocaleString()}</span>
-                    </button>
+                    <F2bTooltip key={jail} title={jail} body={ttBody} color={colorToTt(jailColor(jail, jailNames))}>
+                        <button onClick={() => toggleJail(jail)} title={isHidden ? 'Afficher dans le graphique' : 'Masquer du graphique'}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '.3rem', padding: '.15rem .45rem', borderRadius: 4, border: `1px solid ${isHidden ? '#30363d' : color + '55'}`, background: isHidden ? 'transparent' : color + '12', cursor: 'pointer', opacity: isHidden ? 0.4 : 1, transition: 'opacity .15s, border-color .15s' }}>
+                            <span style={{ display: 'inline-block', width: 9, height: 9, borderRadius: '50%', background: color, flexShrink: 0, opacity: isHidden ? 0.3 : 1 }} />
+                            <span style={{ fontSize: '.7rem', color: isHidden ? '#8b949e' : '#c9d1d9', fontFamily: 'monospace' }}>{jail}</span>
+                            <span style={{ fontSize: '.68rem', color, fontWeight: 600 }}>{total.toLocaleString()}</span>
+                        </button>
+                    </F2bTooltip>
                 );
             })}
         </div>
@@ -340,9 +539,9 @@ export const BanHistoryChart: React.FC<BanHistoryChartProps> = ({
                     Aucun ban enregistré sur la période
                 </div>
             ) : mode === 'bar' ? (
-                <BarChart history={histSlice} histMax={effectiveMax} byJail={byJail} jailNames={jailNames} hidden={hidden} isHourly={isHourly} days={days} />
+                <BarChart history={histSlice} histMax={effectiveMax} byJail={byJail} jailNames={jailNames} hidden={hidden} isHourly={isHourly} days={days} nowSlotFrac={nowSlotFrac} />
             ) : (
-                <LineChart history={histSlice} histMax={effectiveMax} byJail={byJail} jailNames={jailNames} hidden={hidden} isHourly={isHourly} days={days} />
+                <LineChart history={histSlice} histMax={effectiveMax} byJail={byJail} jailNames={jailNames} hidden={hidden} isHourly={isHourly} days={days} nowSlotFrac={nowSlotFrac} />
             )}
         </div>
     );

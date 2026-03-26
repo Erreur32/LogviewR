@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Ban, Unlock, Database, Shield, ListChecks, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Ban, Unlock, Database, Shield, ListChecks, AlertTriangle, CheckCircle, FolderOpen } from 'lucide-react';
 import { api } from '../../api/client';
 import { card, cardH, cardB } from './helpers';
 import type { JailStatus } from './types';
@@ -23,9 +23,31 @@ const inputSt: React.CSSProperties = {
 };
 const selectSt: React.CSSProperties = { ...inputSt, appearance: 'auto' };
 const taSt: React.CSSProperties = {
-    ...inputSt, fontFamily: 'monospace', resize: 'vertical', minHeight: 72,
+    ...inputSt, fontFamily: 'monospace', resize: 'vertical', minHeight: 80,
     lineHeight: 1.45, fontSize: '.76rem',
 };
+
+// ── File input button (hidden native input + styled label) ────────────────────
+
+function FileBtn({ onChange, label = 'Charger depuis un fichier' }: {
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+    label?: string;
+}) {
+    return (
+        <label style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '.4rem',
+            padding: '.38rem .7rem', borderRadius: 5, cursor: 'pointer', width: '100%',
+            boxSizing: 'border-box', background: '#21262d', border: '1px solid #30363d',
+            color: '#8b949e', fontSize: '.76rem', fontWeight: 500, transition: 'border-color .12s',
+        }}
+            onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = '#58a6ff'}
+            onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = '#30363d'}>
+            <input type="file" accept=".txt,.csv,text/plain" onChange={onChange} style={{ display: 'none' }} />
+            <FolderOpen style={{ width: 13, height: 13, flexShrink: 0 }} />
+            {label}
+        </label>
+    );
+}
 
 function ActionBtn({ color, border, bg, disabled, onClick, children }: {
     color: string; border: string; bg: string; disabled: boolean;
@@ -61,6 +83,29 @@ function SectionTitle({ icon, color, label }: { icon: React.ReactNode; color: st
         <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.5rem' }}>
             <span style={{ color }}>{icon}</span>
             <span style={{ fontWeight: 700, fontSize: '.85rem', color }}>{label}</span>
+        </div>
+    );
+}
+
+// ── Card with pinned footer ────────────────────────────────────────────────────
+// Wraps a card so the action area is always at the bottom, regardless of content height.
+
+function ActionCard({ header, children, action }: {
+    header: React.ReactNode;
+    children: React.ReactNode;
+    action: React.ReactNode;
+}) {
+    return (
+        <div style={{ ...card, display: 'flex', flexDirection: 'column' }}>
+            <div style={cardH}>{header}</div>
+            <div style={{ ...cardB, flex: 1, display: 'flex', flexDirection: 'column', gap: '.45rem' }}>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '.45rem' }}>
+                    {children}
+                </div>
+                <div style={{ paddingTop: '.5rem', borderTop: '1px solid rgba(255,255,255,.04)' }}>
+                    {action}
+                </div>
+            </div>
         </div>
     );
 }
@@ -197,77 +242,68 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
             {/* ── Fail2ban section ── */}
             <div>
                 <SectionTitle icon={<Shield style={{ width: 15, height: 15 }} />} color="#58a6ff" label="Fail2Ban" />
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(260px,1fr))', gap: '.75rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(min(100%,420px),1fr))', gap: '.75rem' }}>
 
                     {/* Ban single */}
-                    <div style={card}>
-                        <div style={cardH}>
-                            <Ban style={{ width: 14, height: 14, color: '#e3b341' }} />
-                            <span style={{ fontWeight: 600, fontSize: '.88rem' }}>Bannir via Fail2Ban</span>
-                        </div>
-                        <div style={cardB}>
-                            <p style={{ fontSize: '.78rem', color: '#8b949e', marginBottom: '.65rem' }}>Bannit une IP dans un jail fail2ban.</p>
-                            <select value={banJail} onChange={e => setBanJail(e.target.value)} style={{ ...selectSt, marginBottom: '.5rem' }}>
-                                <option value="">— Sélectionner —</option>
-                                {jails.map(j => <option key={j.jail} value={j.jail}>{j.jail}</option>)}
-                            </select>
-                            <input type="text" value={banIp} onChange={e => setBanIp(e.target.value)}
-                                placeholder="ex: 1.2.3.4" style={{ ...inputSt, fontFamily: 'monospace', marginBottom: '.65rem' }} />
+                    <ActionCard
+                        header={<><Ban style={{ width: 14, height: 14, color: '#e3b341' }} /><span style={{ fontWeight: 600, fontSize: '.88rem' }}>Bannir via Fail2Ban</span></>}
+                        action={
                             <ActionBtn color="#e3b341" border="rgba(227,179,65,.25)" bg="rgba(227,179,65,.1)"
                                 disabled={!banIp.trim() || !banJail || !!actionLoading}
                                 onClick={() => { if (banIp.trim() && banJail) { onBan(banJail, banIp.trim()); setBanIp(''); } }}>
                                 <Ban style={{ width: 13, height: 13 }} /> Bannir l'IP
                             </ActionBtn>
-                        </div>
-                    </div>
+                        }>
+                        <p style={{ fontSize: '.78rem', color: '#8b949e', margin: 0 }}>Bannit une IP dans un jail fail2ban.</p>
+                        <select value={banJail} onChange={e => setBanJail(e.target.value)} style={selectSt}>
+                            <option value="">— Sélectionner —</option>
+                            {jails.map(j => <option key={j.jail} value={j.jail}>{j.jail}</option>)}
+                        </select>
+                        <input type="text" value={banIp} onChange={e => setBanIp(e.target.value)}
+                            placeholder="ex: 1.2.3.4" style={{ ...inputSt, fontFamily: 'monospace' }} />
+                    </ActionCard>
 
                     {/* Bulk ban F2B */}
-                    <div style={card}>
-                        <div style={cardH}>
-                            <ListChecks style={{ width: 14, height: 14, color: '#bc8cff' }} />
-                            <span style={{ fontWeight: 600, fontSize: '.88rem' }}>Bannir en masse (Fail2Ban)</span>
-                        </div>
-                        <div style={cardB}>
-                            <p style={{ fontSize: '.78rem', color: '#8b949e', marginBottom: '.5rem' }}>Liste d'IPs → jail fail2ban.</p>
-                            <select value={bulkJail} onChange={e => setBulkJail(e.target.value)} style={{ ...selectSt, marginBottom: '.4rem' }}>
-                                <option value="">— Sélectionner —</option>
-                                {jails.map(j => <option key={j.jail} value={j.jail}>{j.jail}</option>)}
-                            </select>
-                            <textarea value={bulkIps} onChange={e => setBulkIps(e.target.value)}
-                                placeholder={"1.2.3.4\n5.6.7.8"} style={{ ...taSt, marginBottom: '.35rem' }} />
-                            <label style={{ display: 'block', fontSize: '.73rem', color: '#8b949e', marginBottom: '.4rem', cursor: 'pointer' }}>
-                                <input type="file" accept=".txt,.csv,text/plain" onChange={loadBulkFile} style={{ fontSize: '.73rem' }} />
-                            </label>
-                            <ActionBtn color="#bc8cff" border="rgba(188,140,255,.25)" bg="rgba(188,140,255,.1)"
-                                disabled={bulkLoading || !bulkIps.trim() || !bulkJail}
-                                onClick={doBulkBan}>
-                                <Ban style={{ width: 13, height: 13 }} />{bulkLoading ? 'Bannissement…' : 'Bannir'}
-                            </ActionBtn>
-                            <ResultList results={bulkResults} />
-                        </div>
-                    </div>
+                    <ActionCard
+                        header={<><ListChecks style={{ width: 14, height: 14, color: '#bc8cff' }} /><span style={{ fontWeight: 600, fontSize: '.88rem' }}>Bannir en masse (Fail2Ban)</span></>}
+                        action={
+                            <>
+                                <ActionBtn color="#bc8cff" border="rgba(188,140,255,.25)" bg="rgba(188,140,255,.1)"
+                                    disabled={bulkLoading || !bulkIps.trim() || !bulkJail}
+                                    onClick={doBulkBan}>
+                                    <Ban style={{ width: 13, height: 13 }} />{bulkLoading ? 'Bannissement…' : 'Bannir'}
+                                </ActionBtn>
+                                <ResultList results={bulkResults} />
+                            </>
+                        }>
+                        <p style={{ fontSize: '.78rem', color: '#8b949e', margin: 0 }}>Liste d'IPs → jail fail2ban.</p>
+                        <select value={bulkJail} onChange={e => setBulkJail(e.target.value)} style={selectSt}>
+                            <option value="">— Sélectionner —</option>
+                            {jails.map(j => <option key={j.jail} value={j.jail}>{j.jail}</option>)}
+                        </select>
+                        <textarea value={bulkIps} onChange={e => setBulkIps(e.target.value)}
+                            placeholder={"1.2.3.4\n5.6.7.8"} style={taSt} />
+                        <FileBtn onChange={loadBulkFile} />
+                    </ActionCard>
 
                     {/* Unban single */}
-                    <div style={card}>
-                        <div style={cardH}>
-                            <Unlock style={{ width: 14, height: 14, color: '#3fb950' }} />
-                            <span style={{ fontWeight: 600, fontSize: '.88rem' }}>Débannir via Fail2Ban</span>
-                        </div>
-                        <div style={cardB}>
-                            <p style={{ fontSize: '.78rem', color: '#8b949e', marginBottom: '.65rem' }}>Retire l'IP du jail et de la liste de blocage.</p>
-                            <select value={unbanJail} onChange={e => setUnbanJail(e.target.value)} style={{ ...selectSt, marginBottom: '.5rem' }}>
-                                <option value="">— Sélectionner —</option>
-                                {jails.map(j => <option key={j.jail} value={j.jail}>{j.jail}</option>)}
-                            </select>
-                            <input type="text" value={unbanIp} onChange={e => setUnbanIp(e.target.value)}
-                                placeholder="ex: 1.2.3.4" style={{ ...inputSt, fontFamily: 'monospace', marginBottom: '.65rem' }} />
+                    <ActionCard
+                        header={<><Unlock style={{ width: 14, height: 14, color: '#3fb950' }} /><span style={{ fontWeight: 600, fontSize: '.88rem' }}>Débannir via Fail2Ban</span></>}
+                        action={
                             <ActionBtn color="#3fb950" border="rgba(63,185,80,.25)" bg="rgba(63,185,80,.1)"
                                 disabled={!unbanIp.trim() || !unbanJail || !!actionLoading}
                                 onClick={() => { if (unbanIp.trim() && unbanJail) { onUnban(unbanJail, unbanIp.trim()); setUnbanIp(''); } }}>
                                 <Unlock style={{ width: 13, height: 13 }} /> Débannir l'IP
                             </ActionBtn>
-                        </div>
-                    </div>
+                        }>
+                        <p style={{ fontSize: '.78rem', color: '#8b949e', margin: 0 }}>Retire l'IP du jail et de la liste de blocage.</p>
+                        <select value={unbanJail} onChange={e => setUnbanJail(e.target.value)} style={selectSt}>
+                            <option value="">— Sélectionner —</option>
+                            {jails.map(j => <option key={j.jail} value={j.jail}>{j.jail}</option>)}
+                        </select>
+                        <input type="text" value={unbanIp} onChange={e => setUnbanIp(e.target.value)}
+                            placeholder="ex: 1.2.3.4" style={{ ...inputSt, fontFamily: 'monospace' }} />
+                    </ActionCard>
                 </div>
             </div>
 
@@ -279,89 +315,84 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
                         Aucun IPSet détecté — vérifiez que <code style={{ fontFamily: 'monospace', color: '#e6edf3' }}>ipset</code> est disponible et que le container a la capability <code style={{ fontFamily: 'monospace', color: '#e6edf3' }}>NET_ADMIN</code>.
                     </div>
                 ) : (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(260px,1fr))', gap: '.75rem' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(min(100%,420px),1fr))', gap: '.75rem' }}>
 
                         {/* IPSet add */}
-                        <div style={card}>
-                            <div style={cardH}>
-                                <Ban style={{ width: 14, height: 14, color: '#e86a65' }} />
-                                <span style={{ fontWeight: 600, fontSize: '.88rem' }}>Bloquer via IPSet</span>
-                            </div>
-                            <div style={cardB}>
-                                <p style={{ fontSize: '.78rem', color: '#8b949e', marginBottom: '.65rem' }}>Ajoute une IP ou plage CIDR dans un IPSet.</p>
-                                <select value={addSet} onChange={e => setAddSet(e.target.value)} style={{ ...selectSt, marginBottom: '.5rem' }}>
-                                    <option value="">— Sélectionner —</option>
-                                    {ipsets.map(s => <option key={s.name} value={s.name}>{s.name} ({s.entries} entrées)</option>)}
-                                </select>
-                                <input type="text" value={addEntry} onChange={e => setAddEntry(e.target.value)}
-                                    placeholder="ex: 1.2.3.4 ou 1.2.0.0/16" style={{ ...inputSt, fontFamily: 'monospace', marginBottom: '.65rem' }} />
-                                {addResult && (
-                                    <div style={{ fontSize: '.75rem', marginBottom: '.5rem', color: addResult.ok ? '#3fb950' : '#e86a65', display: 'flex', alignItems: 'center', gap: '.3rem' }}>
-                                        {addResult.ok ? <CheckCircle style={{ width: 11, height: 11 }} /> : <AlertTriangle style={{ width: 11, height: 11 }} />}
-                                        {addResult.msg}
-                                    </div>
-                                )}
-                                <ActionBtn color="#e86a65" border="rgba(232,106,101,.25)" bg="rgba(232,106,101,.1)"
-                                    disabled={addLoading || !addSet || !addEntry.trim()}
-                                    onClick={doIpsetAdd}>
-                                    <Ban style={{ width: 13, height: 13 }} />{addLoading ? 'Blocage…' : 'Bloquer IP / Plage'}
-                                </ActionBtn>
-                            </div>
-                        </div>
+                        <ActionCard
+                            header={<><Ban style={{ width: 14, height: 14, color: '#e86a65' }} /><span style={{ fontWeight: 600, fontSize: '.88rem' }}>Bloquer via IPSet</span></>}
+                            action={
+                                <>
+                                    {addResult && (
+                                        <div style={{ fontSize: '.75rem', marginBottom: '.45rem', color: addResult.ok ? '#3fb950' : '#e86a65', display: 'flex', alignItems: 'center', gap: '.3rem' }}>
+                                            {addResult.ok ? <CheckCircle style={{ width: 11, height: 11 }} /> : <AlertTriangle style={{ width: 11, height: 11 }} />}
+                                            {addResult.msg}
+                                        </div>
+                                    )}
+                                    <ActionBtn color="#e86a65" border="rgba(232,106,101,.25)" bg="rgba(232,106,101,.1)"
+                                        disabled={addLoading || !addSet || !addEntry.trim()}
+                                        onClick={doIpsetAdd}>
+                                        <Ban style={{ width: 13, height: 13 }} />{addLoading ? 'Blocage…' : 'Bloquer IP / Plage'}
+                                    </ActionBtn>
+                                </>
+                            }>
+                            <p style={{ fontSize: '.78rem', color: '#8b949e', margin: 0 }}>Ajoute une IP ou plage CIDR dans un IPSet.</p>
+                            <select value={addSet} onChange={e => setAddSet(e.target.value)} style={selectSt}>
+                                <option value="">— Sélectionner —</option>
+                                {ipsets.map(s => <option key={s.name} value={s.name}>{s.name} ({s.entries} entrées)</option>)}
+                            </select>
+                            <input type="text" value={addEntry} onChange={e => setAddEntry(e.target.value)}
+                                placeholder="ex: 1.2.3.4 ou 1.2.0.0/16" style={{ ...inputSt, fontFamily: 'monospace' }} />
+                        </ActionCard>
 
                         {/* IPSet bulk add */}
-                        <div style={card}>
-                            <div style={cardH}>
-                                <ListChecks style={{ width: 14, height: 14, color: '#e86a65' }} />
-                                <span style={{ fontWeight: 600, fontSize: '.88rem' }}>Bloquer en masse (IPSet)</span>
-                            </div>
-                            <div style={cardB}>
-                                <p style={{ fontSize: '.78rem', color: '#8b949e', marginBottom: '.5rem' }}>Liste d'IPs ou CIDR → IPSet cible.</p>
-                                <select value={bulkIpsetSet} onChange={e => setBulkIpsetSet(e.target.value)} style={{ ...selectSt, marginBottom: '.4rem' }}>
-                                    <option value="">— Sélectionner —</option>
-                                    {ipsets.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
-                                </select>
-                                <textarea value={bulkIpsetList} onChange={e => setBulkIpsetList(e.target.value)}
-                                    placeholder={"1.2.3.4\n10.0.0.0/24"} style={{ ...taSt, marginBottom: '.35rem' }} />
-                                <label style={{ display: 'block', fontSize: '.73rem', color: '#8b949e', marginBottom: '.4rem', cursor: 'pointer' }}>
-                                    <input type="file" accept=".txt,.csv,text/plain" onChange={loadIpsetFile} style={{ fontSize: '.73rem' }} />
-                                </label>
-                                <ActionBtn color="#e86a65" border="rgba(232,106,101,.25)" bg="rgba(232,106,101,.1)"
-                                    disabled={bulkIpsetLoad || !bulkIpsetList.trim() || !bulkIpsetSet}
-                                    onClick={doBulkIpsetAdd}>
-                                    <Ban style={{ width: 13, height: 13 }} />{bulkIpsetLoad ? 'Blocage…' : 'Bloquer'}
-                                </ActionBtn>
-                                <ResultList results={bulkIpsetResult} />
-                            </div>
-                        </div>
+                        <ActionCard
+                            header={<><ListChecks style={{ width: 14, height: 14, color: '#e86a65' }} /><span style={{ fontWeight: 600, fontSize: '.88rem' }}>Bloquer en masse (IPSet)</span></>}
+                            action={
+                                <>
+                                    <ActionBtn color="#e86a65" border="rgba(232,106,101,.25)" bg="rgba(232,106,101,.1)"
+                                        disabled={bulkIpsetLoad || !bulkIpsetList.trim() || !bulkIpsetSet}
+                                        onClick={doBulkIpsetAdd}>
+                                        <Ban style={{ width: 13, height: 13 }} />{bulkIpsetLoad ? 'Blocage…' : 'Bloquer'}
+                                    </ActionBtn>
+                                    <ResultList results={bulkIpsetResult} />
+                                </>
+                            }>
+                            <p style={{ fontSize: '.78rem', color: '#8b949e', margin: 0 }}>Liste d'IPs ou CIDR → IPSet cible.</p>
+                            <select value={bulkIpsetSet} onChange={e => setBulkIpsetSet(e.target.value)} style={selectSt}>
+                                <option value="">— Sélectionner —</option>
+                                {ipsets.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
+                            </select>
+                            <textarea value={bulkIpsetList} onChange={e => setBulkIpsetList(e.target.value)}
+                                placeholder={"1.2.3.4\n10.0.0.0/24"} style={taSt} />
+                            <FileBtn onChange={loadIpsetFile} />
+                        </ActionCard>
 
                         {/* IPSet del */}
-                        <div style={card}>
-                            <div style={cardH}>
-                                <Unlock style={{ width: 14, height: 14, color: '#3fb950' }} />
-                                <span style={{ fontWeight: 600, fontSize: '.88rem' }}>Retirer d'un IPSet</span>
-                            </div>
-                            <div style={cardB}>
-                                <p style={{ fontSize: '.78rem', color: '#8b949e', marginBottom: '.65rem' }}>Supprime une IP ou CIDR d'un IPSet.</p>
-                                <select value={delSet} onChange={e => setDelSet(e.target.value)} style={{ ...selectSt, marginBottom: '.5rem' }}>
-                                    <option value="">— Sélectionner —</option>
-                                    {ipsets.map(s => <option key={s.name} value={s.name}>{s.name} ({s.entries} entrées)</option>)}
-                                </select>
-                                <input type="text" value={delEntry} onChange={e => setDelEntry(e.target.value)}
-                                    placeholder="ex: 1.2.3.4 ou 1.2.0.0/16" style={{ ...inputSt, fontFamily: 'monospace', marginBottom: '.65rem' }} />
-                                {delResult && (
-                                    <div style={{ fontSize: '.75rem', marginBottom: '.5rem', color: delResult.ok ? '#3fb950' : '#e86a65', display: 'flex', alignItems: 'center', gap: '.3rem' }}>
-                                        {delResult.ok ? <CheckCircle style={{ width: 11, height: 11 }} /> : <AlertTriangle style={{ width: 11, height: 11 }} />}
-                                        {delResult.msg}
-                                    </div>
-                                )}
-                                <ActionBtn color="#3fb950" border="rgba(63,185,80,.25)" bg="rgba(63,185,80,.1)"
-                                    disabled={delLoading || !delSet || !delEntry.trim()}
-                                    onClick={doIpsetDel}>
-                                    <Unlock style={{ width: 13, height: 13 }} />{delLoading ? 'Suppression…' : 'Retirer l\'entrée'}
-                                </ActionBtn>
-                            </div>
-                        </div>
+                        <ActionCard
+                            header={<><Unlock style={{ width: 14, height: 14, color: '#3fb950' }} /><span style={{ fontWeight: 600, fontSize: '.88rem' }}>Retirer d'un IPSet</span></>}
+                            action={
+                                <>
+                                    {delResult && (
+                                        <div style={{ fontSize: '.75rem', marginBottom: '.45rem', color: delResult.ok ? '#3fb950' : '#e86a65', display: 'flex', alignItems: 'center', gap: '.3rem' }}>
+                                            {delResult.ok ? <CheckCircle style={{ width: 11, height: 11 }} /> : <AlertTriangle style={{ width: 11, height: 11 }} />}
+                                            {delResult.msg}
+                                        </div>
+                                    )}
+                                    <ActionBtn color="#3fb950" border="rgba(63,185,80,.25)" bg="rgba(63,185,80,.1)"
+                                        disabled={delLoading || !delSet || !delEntry.trim()}
+                                        onClick={doIpsetDel}>
+                                        <Unlock style={{ width: 13, height: 13 }} />{delLoading ? 'Suppression…' : 'Retirer l\'entrée'}
+                                    </ActionBtn>
+                                </>
+                            }>
+                            <p style={{ fontSize: '.78rem', color: '#8b949e', margin: 0 }}>Supprime une IP ou CIDR d'un IPSet.</p>
+                            <select value={delSet} onChange={e => setDelSet(e.target.value)} style={selectSt}>
+                                <option value="">— Sélectionner —</option>
+                                {ipsets.map(s => <option key={s.name} value={s.name}>{s.name} ({s.entries} entrées)</option>)}
+                            </select>
+                            <input type="text" value={delEntry} onChange={e => setDelEntry(e.target.value)}
+                                placeholder="ex: 1.2.3.4 ou 1.2.0.0/16" style={{ ...inputSt, fontFamily: 'monospace' }} />
+                        </ActionCard>
                     </div>
                 )}
             </div>

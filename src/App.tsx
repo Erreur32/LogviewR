@@ -370,18 +370,23 @@ const App: React.FC = () => {
   const mainContentBgClass = isBlackThemeWithActiveAnimation
     ? 'min-h-screen pb-20 bg-black/20 text-theme-primary font-sans selection:bg-accent-primary/30'
     : 'min-h-screen pb-20 bg-theme-primary text-theme-primary font-sans selection:bg-accent-primary/30';
+  // Fullscreen variant: h-screen + overflow-hidden, no pb-20 (for fixed-layout pages like Fail2ban)
+  const mainContentBgClassFull = isBlackThemeWithActiveAnimation
+    ? 'h-full bg-black/20 text-theme-primary font-sans selection:bg-accent-primary/30'
+    : 'h-full bg-theme-primary text-theme-primary font-sans selection:bg-accent-primary/30';
 
   // Helper: wrap content with animated background and animation params provider (ThemeSection needs the provider)
-  const wrapWithBackground = (content: React.ReactNode) => (
+  // fullscreen=true: uses h-screen overflow-hidden — prevents window scroll on fixed-layout pages
+  const wrapWithBackground = (content: React.ReactNode, fullscreen = false) => (
     <AnimationParametersContext.Provider value={animationParameters}>
-      <div className="relative min-h-screen">
+      <div className={`relative ${fullscreen ? 'h-screen overflow-hidden' : 'min-h-screen'}`}>
         <AnimatedBackground
           variant={bgVariant}
           disabled={prefersReducedMotion}
           animationSpeed={animationSpeed}
           animationParameters={backgroundParams}
         />
-        <div className={`relative z-0 ${mainContentBgClass}`}>
+        <div className={`relative z-0 ${fullscreen ? mainContentBgClassFull : mainContentBgClass}`}>
           {content}
         </div>
       </div>
@@ -583,7 +588,7 @@ const App: React.FC = () => {
   // Render Fail2ban page — full-screen flex column so sidebar fills remaining height
   if (currentPage === 'fail2ban') {
     return wrapWithBackground(
-      <div className="flex flex-col h-screen">
+      <div className="flex flex-col h-full">
         <Header
           pageType="fail2ban"
           user={user || undefined}
@@ -609,7 +614,8 @@ const App: React.FC = () => {
           onLogout={handleLogout}
           userRole={user?.role}
         />
-      </div>
+      </div>,
+      true, // fullscreen: prevent window scroll (no pb-20)
     );
   }
 

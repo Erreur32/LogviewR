@@ -94,7 +94,9 @@ const TT_BORDER: Record<F2bTtColor, string> = {
 
 interface F2bTooltipProps {
     title: string;
-    body: string;
+    body?: string;
+    /** Rich ReactNode body — overrides body string when provided */
+    bodyNode?: React.ReactNode;
     color?: F2bTtColor;
     children: React.ReactNode;
     /** Use a div wrapper instead of span — needed when children are block-level */
@@ -102,7 +104,7 @@ interface F2bTooltipProps {
 }
 
 export const F2bTooltip: React.FC<F2bTooltipProps> = ({
-    title, body, color = 'blue', children, block = false,
+    title, body, bodyNode, color = 'blue', children, block = false,
 }) => {
     const [visible, setVisible] = useState(false);
     const [pos, setPos] = useState({ left: 0, top: 0 });
@@ -183,7 +185,7 @@ export const F2bTooltip: React.FC<F2bTooltipProps> = ({
                     padding: '.35rem .85rem .5rem',
                     whiteSpace: 'pre-wrap',
                 }}>
-                    {body}
+                    {bodyNode ?? body}
                 </span>
                 {/* Downward arrow */}
                 <div style={{

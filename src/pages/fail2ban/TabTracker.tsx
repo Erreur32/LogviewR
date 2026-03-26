@@ -234,7 +234,7 @@ export const TabTracker: React.FC = () => {
                                                 {inRecidive && <span title="Récidive" style={{ color: '#e3b341', fontSize: '.72rem', marginRight: '.35rem' }}>⚠</span>}
                                                 <button onClick={() => setModalIp(e.ip)}
                                                     title="Voir historique détaillé"
-                                                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'monospace', fontSize: '.85rem', color: '#e86a65', fontWeight: 600 }}>
+                                                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'monospace', fontSize: '.85rem', color: '#e6edf3', fontWeight: 600 }}>
                                                     {e.ip}
                                                 </button>
                                             </td>
