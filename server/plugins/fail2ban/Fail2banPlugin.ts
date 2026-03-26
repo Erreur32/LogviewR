@@ -1358,6 +1358,7 @@ export class Fail2banPlugin extends BasePlugin {
 
         // ── POST /backup/restore ──────────────────────────────────────────────────────
         router.post('/backup/restore', requireAuth, asyncHandler(async (req, res) => {
+            if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
             const body = req.body as Record<string, unknown>;
 
             // Validate backup envelope
@@ -1386,8 +1387,20 @@ export class Fail2banPlugin extends BasePlugin {
                     continue;
                 }
 
+                // Validate content is a string
+                if (typeof content !== 'string') {
+                    errors.push(`${key}: content is not a string, skipped`);
+                    continue;
+                }
+
                 // Only restore .local files
                 if (!key.endsWith('.local')) {
+                    skipped.push(key);
+                    continue;
+                }
+
+                // Keys must be under /etc/fail2ban/
+                if (!key.startsWith('/etc/fail2ban/')) {
                     skipped.push(key);
                     continue;
                 }
