@@ -1356,6 +1356,82 @@ export class Fail2banPlugin extends BasePlugin {
             res.json(payload);
         }));
 
+        // ── POST /backup/restore ──────────────────────────────────────────────────────
+        router.post('/backup/restore', requireAuth, asyncHandler(async (req, res) => {
+            const body = req.body as Record<string, unknown>;
+
+            // Validate backup envelope
+            if (body?.type !== 'f2b_full_backup' || body?.version !== 1) {
+                res.status(400).json({ success: false, error: 'Invalid backup: type or version mismatch' });
+                return;
+            }
+
+            const files = body.files as Record<string, string> | undefined;
+            if (!files || typeof files !== 'object') {
+                res.status(400).json({ success: false, error: 'Invalid backup: missing files map' });
+                return;
+            }
+
+            const doReload = req.query['reload'] === '1';
+            const confBase = this.resolveDockerPathSync('/etc/fail2ban');
+
+            const written: string[] = [];
+            const skipped: string[] = [];
+            const errors: string[] = [];
+
+            for (const [key, content] of Object.entries(files)) {
+                // Security layer 1: no path traversal
+                if (key.includes('..')) {
+                    errors.push(`${key}: path traversal rejected`);
+                    continue;
+                }
+
+                // Only restore .local files
+                if (!key.endsWith('.local')) {
+                    skipped.push(key);
+                    continue;
+                }
+
+                // Derive the relative path under /etc/fail2ban/
+                const rel = key.replace(/^\/etc\/fail2ban\//, '');
+                const resolved = path.join(confBase, rel);
+
+                // Security layer 2: resolved path must stay within confBase
+                if (!resolved.startsWith(confBase + path.sep) && resolved !== confBase) {
+                    errors.push(`${key}: outside confBase, rejected`);
+                    continue;
+                }
+
+                try {
+                    const dir = path.dirname(resolved);
+                    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+                    fs.writeFileSync(resolved, content, 'utf8');
+                    written.push(key);
+                } catch (err: unknown) {
+                    errors.push(`${key}: ${err instanceof Error ? err.message : String(err)}`);
+                }
+            }
+
+            // ok = true if no write errors (reload failure does not affect ok)
+            const ok = errors.length === 0;
+
+            let reloadOk: boolean | undefined;
+            let reloadOut: string | undefined;
+
+            if (doReload) {
+                try {
+                    const result = await this.client.reload();
+                    reloadOk = result.ok;
+                    reloadOut = result.output || result.error;
+                } catch (err: unknown) {
+                    reloadOk = false;
+                    reloadOut = err instanceof Error ? err.message : String(err);
+                }
+            }
+
+            res.json({ success: true, result: { ok, written, skipped, errors, ...(doReload ? { reloadOk, reloadOut } : {}) } });
+        }));
+
         return router;
     }
 }
