@@ -353,6 +353,7 @@ function readLogTail(absPath: string, maxLines: number): { content: string; trun
 
 export interface Fail2banPluginConfig {
     sqliteDbPath?: string;   // host path (will be resolved to /host/... in Docker)
+    npmDataPath?: string;    // host path to NPM data dir (contains database.sqlite + logs/)
     enabled: boolean;
 }
 
@@ -584,6 +585,62 @@ export class Fail2banPlugin extends BasePlugin {
             res.json({ success: true, result: { ok: allOk, checks } });
         }));
 
+        // GET /api/plugins/fail2ban/check-npm
+        // Validates the configured NPM data path: DB reachable, proxy_host rows readable
+        router.get('/check-npm', requireAuth, asyncHandler(async (_req, res) => {
+            const settings = this.config?.settings as unknown as Fail2banPluginConfig | undefined;
+            const configuredPath = settings?.npmDataPath ?? '';
+
+            if (!configuredPath) {
+                return res.json({ success: true, result: { ok: false, step: 'config', error: 'Chemin NPM non configuré', resolvedPath: '', domains: 0, jailMatches: 0 } });
+            }
+
+            const resolvedPath = this.resolveDockerPathSync(`${configuredPath}/database.sqlite`);
+
+            // Check file existence
+            if (!fs.existsSync(resolvedPath)) {
+                return res.json({ success: true, result: { ok: false, step: 'file', error: `Fichier non trouvé : ${resolvedPath}`, resolvedPath, domains: 0, jailMatches: 0 } });
+            }
+
+            // Try opening the SQLite DB and reading proxy_host
+            let domains = 0;
+            try {
+                const npmDb = new Database(resolvedPath, { readonly: true, fileMustExist: true });
+                const rows = npmDb.prepare('SELECT id, domain_names FROM proxy_host WHERE is_deleted=0').all() as { id: number; domain_names: string }[];
+                npmDb.close();
+                const idMap: Record<string, string> = {};
+                for (const row of rows) {
+                    try { const ns: string[] = JSON.parse(row.domain_names); if (ns.length) idMap[String(row.id)] = ns[0]; } catch { /* */ }
+                }
+                domains = Object.keys(idMap).length;
+
+                // Count cached jails with a resolved domain
+                const evDb = getDatabase();
+                const cachedWithDomain = (evDb.prepare(`SELECT COUNT(*) AS cnt FROM f2b_jail_domain WHERE domain != ''`).get() as { cnt: number }).cnt;
+
+                // Collect jail logpaths from fail2ban config for diagnosis
+                const confBase = this.resolveDockerPathSync('/etc/fail2ban');
+                const jailMeta = parseJailConfigs(confBase);
+                const jailLogpaths: Record<string, string> = {};
+                for (const [jail, meta] of Object.entries(jailMeta)) {
+                    if (meta.logpath) jailLogpaths[jail] = meta.logpath;
+                }
+                // Check which logpaths match proxy-host-N pattern
+                const proxyHostJails = Object.entries(jailLogpaths)
+                    .filter(([, lp]) => /proxy-host-(\d+)[_-]/i.test(lp))
+                    .map(([jail, lp]) => ({ jail, logpath: lp }));
+
+                return res.json({ success: true, result: {
+                    ok: true, step: 'ok', error: null, resolvedPath, domains,
+                    jailMatches: cachedWithDomain,
+                    jailLogpaths,          // all jail → logpath (raw, for debug)
+                    proxyHostJails,        // jails whose logpath contains proxy-host-N
+                } });
+            } catch (e: any) {
+                return res.json({ success: true, result: { ok: false, step: 'db', error: `Erreur ouverture DB : ${e?.message ?? String(e)}`, resolvedPath, domains: 0, jailMatches: 0, jailLogpaths: {}, proxyHostJails: [] } });
+            }
+        }));
+
         // GET /api/plugins/fail2ban/status?days=1
         // Returns live jail status from fail2ban-client (or DB fallback), enriched with
         // jail config metadata + SQLite per-jail totals + bans in requested period.
@@ -597,9 +654,26 @@ export class Fail2banPlugin extends BasePlugin {
             const confBase = this.resolveDockerPathSync('/etc/fail2ban');
             const jailMeta = parseJailConfigs(confBase);
 
-            // SQLite enrichment (period bans + all-time totals)
-            const periodByJail = this.reader?.getBansInPeriodByJail(days) ?? {};
-            const totalsByJail = this.reader?.getTotalsByJail() ?? {};
+            // Stats from our f2b_events (never purged, single connection)
+            const evDb = getDatabase();
+            const now  = Math.floor(Date.now() / 1000);
+            const since = days > 0 ? now - days * 86400 : 0;
+
+            const periodRows = (since > 0
+                ? evDb.prepare(`SELECT jail, COUNT(*) as cnt FROM f2b_events WHERE event_type='ban' AND timeofban >= ? GROUP BY jail`).all(since)
+                : evDb.prepare(`SELECT jail, COUNT(*) as cnt FROM f2b_events WHERE event_type='ban' GROUP BY jail`).all()
+            ) as { jail: string; cnt: number }[];
+            const periodByJail: Record<string, number> = Object.fromEntries(periodRows.map(r => [r.jail, r.cnt]));
+
+            const totalRows = evDb.prepare(`SELECT jail, COUNT(*) as cnt FROM f2b_events WHERE event_type='ban' GROUP BY jail`).all() as { jail: string; cnt: number }[];
+            const totalsByJail: Record<string, number> = Object.fromEntries(totalRows.map(r => [r.jail, r.cnt]));
+
+            const uniqueIpsTotal  = (evDb.prepare(`SELECT COUNT(DISTINCT ip) as n FROM f2b_events WHERE event_type='ban'`).get() as { n: number }).n;
+            const firstEventAt    = ((evDb.prepare(`SELECT MIN(timeofban) as t FROM f2b_events WHERE event_type='ban'`).get() as { t: number | null }).t) ?? null;
+            const periodStart     = days > 0 ? now - days * 86400 : 0;
+            const uniqueIpsPeriod = (evDb.prepare(`SELECT COUNT(DISTINCT ip) as n FROM f2b_events WHERE event_type='ban' AND timeofban >= ?`).get(periodStart) as { n: number }).n;
+            const from24h = now - 86400;
+            const expiredLast24h = (evDb.prepare(`SELECT COUNT(*) as n FROM f2b_events WHERE event_type='ban' AND bantime > 0 AND (timeofban+bantime) >= ? AND (timeofban+bantime) <= ?`).get(from24h, now) as { n: number }).n;
 
             const clientAvailable = this.client?.isAvailable();
 
@@ -658,31 +732,101 @@ export class Fail2banPlugin extends BasePlugin {
                         totalBannedSqlite: totalsByJail[name] ?? undefined,
                         active: false,
                     }));
-                const uniqueIpsTotal = this.reader?.getUniqueIpsTotal() ?? 0;
-                const expiredLast24h = this.reader?.getExpiredBansInWindow(24) ?? 0;
-                return res.json({ success: true, result: { ok: true, source: 'client', days, jails, inactiveJails, uniqueIpsTotal, expiredLast24h } });
+                return res.json({ success: true, result: { ok: true, source: 'client', days, jails, inactiveJails, uniqueIpsTotal, uniqueIpsPeriod, expiredLast24h, firstEventAt } });
             }
 
-            // Fallback: SQLite
-            const dbStats = this.reader?.getStats();
-            if (dbStats?.readable) {
-                const uniqueIpsTotal = this.reader?.getUniqueIpsTotal() ?? 0;
-                const expiredLast24h = this.reader?.getExpiredBansInWindow(24) ?? 0;
-                return res.json({ success: true, result: { ok: true, source: 'sqlite', days, ...dbStats, uniqueIpsTotal, expiredLast24h } });
-            }
+            // Fallback: no fail2ban-client — build jail snapshots from f2b_events
+            const activeBanRows = evDb.prepare(`
+                SELECT ip, jail, timeofban, bantime, failures
+                FROM f2b_events
+                WHERE event_type='ban' AND (bantime = -1 OR (timeofban + bantime) > ?)
+                ORDER BY timeofban DESC
+            `).all(now) as { ip: string; jail: string; timeofban: number; bantime: number; failures: number }[];
 
-            return res.json({ success: true, result: { ok: false, source: 'none', error: 'No data source available' } });
+            const jailsMap: Record<string, { jail: string; currentlyBanned: number; totalBanned: number; bannedIps: string[] }> = {};
+            for (const ban of activeBanRows) {
+                if (!jailsMap[ban.jail]) jailsMap[ban.jail] = { jail: ban.jail, currentlyBanned: 0, totalBanned: 0, bannedIps: [] };
+                jailsMap[ban.jail].currentlyBanned++;
+                jailsMap[ban.jail].bannedIps.push(ban.ip);
+            }
+            for (const [jail, cnt] of Object.entries(totalsByJail)) {
+                if (!jailsMap[jail]) jailsMap[jail] = { jail, currentlyBanned: 0, totalBanned: cnt, bannedIps: [] };
+                else jailsMap[jail].totalBanned = cnt;
+            }
+            const recentBans = evDb.prepare(`SELECT ip, jail, timeofban, bantime, failures FROM f2b_events WHERE event_type='ban' ORDER BY timeofban DESC LIMIT 50`).all();
+            return res.json({ success: true, result: {
+                ok: true, source: 'sqlite', days,
+                jails: jailsMap, recentBans, totalBanned: activeBanRows.length,
+                uniqueIpsTotal, uniqueIpsPeriod, expiredLast24h, firstEventAt,
+            } });
         }));
 
         // GET /api/plugins/fail2ban/history?days=30
         router.get('/history', requireAuth, asyncHandler(async (req, res) => {
             if (!this.isEnabled()) throw createError('Fail2ban plugin not enabled', 503, 'PLUGIN_DISABLED');
-            const raw = parseInt(String(req.query.days ?? '30'), 10);
-            // Frontend sends -1 for « Tous » → all-time aggregation in reader
+            const raw  = parseInt(String(req.query.days ?? '30'), 10);
             const days = Number.isNaN(raw) ? 30 : raw;
-            const history = this.reader?.getBanHistory(days) ?? [];
-            const { jailNames, data: byJail, granularity, slotBase } = this.reader?.getBanHistoryByJail(days) ?? { jailNames: [], data: {}, granularity: 'day' as const };
-            res.json({ success: true, result: { ok: true, days, history, byJail, jailNames, granularity, slotBase } });
+
+            const evDb    = getDatabase();
+            const SLOT    = 1800; // 30-min slots for 24h view
+            const halfHour = days === 1;
+            const allTime  = days <= 0 || days > 3650;
+            const rawSince = Math.floor(Date.now() / 1000) - (halfHour ? 86400 : Math.min(allTime ? 3650 : days, 3650) * 86400);
+            const since    = halfHour ? Math.floor(rawSince / SLOT) * SLOT : rawSince;
+
+            // Global ban history (sparkline)
+            let history: { date: string; count: number }[];
+            if (halfHour) {
+                const rawRows = evDb.prepare(`
+                    SELECT CAST((timeofban - ?) / ? AS INTEGER) as slot_idx, COUNT(*) as count
+                    FROM f2b_events WHERE event_type='ban' AND timeofban >= ?
+                    GROUP BY slot_idx ORDER BY slot_idx ASC
+                `).all(since, SLOT, since) as { slot_idx: number; count: number }[];
+                history = rawRows.map(r => {
+                    const ts = new Date((since + r.slot_idx * SLOT) * 1000);
+                    return { date: `${String(ts.getHours()).padStart(2,'0')}:${String(ts.getMinutes()).padStart(2,'0')}`, count: r.count };
+                });
+            } else {
+                history = (allTime
+                    ? evDb.prepare(`SELECT date(timeofban,'unixepoch') as date, COUNT(*) as count FROM f2b_events WHERE event_type='ban' GROUP BY date ORDER BY date ASC`).all()
+                    : evDb.prepare(`SELECT date(timeofban,'unixepoch') as date, COUNT(*) as count FROM f2b_events WHERE event_type='ban' AND timeofban >= ? GROUP BY date ORDER BY date ASC`).all(since)
+                ) as { date: string; count: number }[];
+            }
+
+            // Per-jail breakdown (stacked chart)
+            let jailRows: { jail: string; slot: string; cnt: number }[];
+            if (halfHour) {
+                const slotLabel = (idx: number) => {
+                    const ts = new Date((since + idx * SLOT) * 1000);
+                    return `${String(ts.getHours()).padStart(2,'0')}:${String(ts.getMinutes()).padStart(2,'0')}`;
+                };
+                jailRows = (evDb.prepare(`
+                    SELECT jail, CAST((timeofban - ?) / ? AS INTEGER) as slot_idx, COUNT(*) as cnt
+                    FROM f2b_events WHERE event_type='ban' AND timeofban >= ?
+                    GROUP BY jail, slot_idx ORDER BY slot_idx ASC
+                `).all(since, SLOT, since) as { jail: string; slot_idx: number; cnt: number }[])
+                    .map(r => ({ jail: r.jail, slot: slotLabel(r.slot_idx), cnt: r.cnt }));
+            } else {
+                jailRows = (allTime
+                    ? evDb.prepare(`SELECT jail, date(timeofban,'unixepoch') as slot, COUNT(*) as cnt FROM f2b_events WHERE event_type='ban' GROUP BY jail, slot ORDER BY slot ASC`).all()
+                    : evDb.prepare(`SELECT jail, date(timeofban,'unixepoch') as slot, COUNT(*) as cnt FROM f2b_events WHERE event_type='ban' AND timeofban >= ? GROUP BY jail, slot ORDER BY slot ASC`).all(since)
+                ) as { jail: string; slot: string; cnt: number }[];
+            }
+
+            const byJail: Record<string, Record<string, number>> = {};
+            const jailSet = new Set<string>();
+            for (const r of jailRows) {
+                jailSet.add(r.jail);
+                if (!byJail[r.jail]) byJail[r.jail] = {};
+                byJail[r.jail][r.slot] = r.cnt;
+            }
+            const jailNames = [...jailSet].sort((a, b) =>
+                Object.values(byJail[b] ?? {}).reduce((s, v) => s + v, 0) -
+                Object.values(byJail[a] ?? {}).reduce((s, v) => s + v, 0)
+            );
+            const granularity: 'hour' | 'day' = halfHour ? 'hour' : 'day';
+
+            res.json({ success: true, result: { ok: true, days, history, byJail, jailNames, granularity, slotBase: halfHour ? since : undefined } });
         }));
 
         // GET /events/since?rowid=N  — new ban events from internal f2b_events since rowid
@@ -1033,13 +1177,19 @@ export class Fail2banPlugin extends BasePlugin {
                 dbInfo = { size, sizeFmt, readable, integrity, pageCount, freePages, fragPct, bans, jails, logs };
             } catch { /* db not found or not readable */ }
 
-            // App DB (dashboard.db) info
+            // App DB (dashboard.db) info + fragmentation
             const appDbPath = path.join(process.cwd(), 'data', 'dashboard.db');
-            let appDbInfo: { size: number; sizeFmt: string; exists: boolean } = { size: 0, sizeFmt: '0 Ko', exists: false };
+            let appDbInfo: { size: number; sizeFmt: string; exists: boolean; fragPct: number } = { size: 0, sizeFmt: '0 Ko', exists: false, fragPct: 0 };
             try {
                 const stat = fs.statSync(appDbPath);
                 const size = stat.size;
-                appDbInfo = { size, sizeFmt: size >= 1048576 ? `${(size / 1048576).toFixed(2)} Mo` : `${(size / 1024).toFixed(1)} Ko`, exists: true };
+                const sizeFmt = size >= 1048576 ? `${(size / 1048576).toFixed(2)} Mo` : `${(size / 1024).toFixed(1)} Ko`;
+                // Read fragmentation from open connection (WAL mode — use getDatabase())
+                const appDb = getDatabase();
+                const appPageCount  = (appDb.pragma('page_count',     { simple: true }) as number) ?? 0;
+                const appFreePages  = (appDb.pragma('freelist_count', { simple: true }) as number) ?? 0;
+                const appFragPct    = appPageCount > 0 ? Math.round(appFreePages / appPageCount * 100 * 10) / 10 : 0;
+                appDbInfo = { size, sizeFmt, exists: true, fragPct: appFragPct };
             } catch {}
 
             // Internal DB stats (f2b_events synced from fail2ban.sqlite3)
@@ -1065,7 +1215,16 @@ export class Fail2banPlugin extends BasePlugin {
             }
         }));
 
+        // POST /config/dashboard-vacuum  — run VACUUM on internal dashboard.db
+        router.post('/config/dashboard-vacuum', requireAuth, asyncHandler(async (_req, res) => {
+            if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
+            const appDb = getDatabase();
+            appDb.exec('VACUUM');
+            res.json({ success: true, result: { ok: true } });
+        }));
+
         // POST /config/runtime  — apply runtime settings via fail2ban-client
+
         router.post('/config/runtime', requireAuth, asyncHandler(async (req, res) => {
             if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
             const { loglevel, logtarget } = req.body as { loglevel?: string; logtarget?: string };
@@ -1107,6 +1266,90 @@ export class Fail2banPlugin extends BasePlugin {
             res.json({ success: true, result: { ok: errors.length === 0, written, errors } });
         }));
 
+        // POST /config/test-raw  — validate INI content without writing (syntax + key whitelist)
+        router.post('/config/test-raw', requireAuth, asyncHandler(async (req, res) => {
+            if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
+            const { filename, content } = req.body as { filename?: string; content?: string };
+            const ALLOWED = ['fail2ban.local', 'jail.local'];
+            if (!filename || !ALLOWED.includes(filename))
+                return res.json({ success: true, result: { ok: false, errors: [`Fichier non autorisé. Seuls ${ALLOWED.join(', ')} sont éditables.`], warnings: [] } });
+            if (typeof content !== 'string')
+                return res.json({ success: true, result: { ok: false, errors: ['Contenu manquant'], warnings: [] } });
+
+            const errors: string[] = [];
+            const warnings: string[] = [];
+            const F2B_LOCAL_KEYS  = new Set(['loglevel','logtarget','socket','pidfile','dbfile','dbpurgeage','dbmaxmatches','syslogsocket','allowipv6']);
+            const LOGLEVELS       = new Set(['CRITICAL','ERROR','WARNING','NOTICE','INFO','DEBUG']);
+            const DANGEROUS       = [/`[^`]*`/, /\$\(/, /\|\s*(bash|sh|python|perl|ruby)\b/, /;\s*(rm|dd|mkfs|wget|curl)\b/i];
+
+            const lines = content.split(/\r?\n/);
+            let section = '';
+            const foundSections: string[] = [];
+
+            for (let i = 0; i < lines.length; i++) {
+                const ln = i + 1;
+                const raw = lines[i];
+                const t = raw.trim();
+                if (!t || t.startsWith('#') || t.startsWith(';')) continue;
+                // Continuation lines (indented)
+                if (/^\s/.test(raw) && section) continue;
+                // Section header
+                const secM = t.match(/^\[([^\]]+)\]$/);
+                if (secM) { section = secM[1]; foundSections.push(section); continue; }
+                // Key = value
+                const kvM = t.match(/^([A-Za-z0-9_./-]+)\s*=\s*(.*)$/);
+                if (!kvM) { errors.push(`Ligne ${ln}: syntaxe invalide — "${raw.slice(0, 60)}"`); continue; }
+                const key = kvM[1].toLowerCase();
+                const val = kvM[2].trim();
+                // Dangerous patterns
+                for (const pat of DANGEROUS) {
+                    if (pat.test(val)) { errors.push(`Ligne ${ln}: valeur potentiellement dangereuse pour « ${key} »`); break; }
+                }
+                // fail2ban.local — [Definition] key whitelist
+                if (filename === 'fail2ban.local' && section.toLowerCase() === 'definition') {
+                    if (!F2B_LOCAL_KEYS.has(key)) warnings.push(`Ligne ${ln}: clé inconnue « ${key} » dans [Definition]`);
+                    if (key === 'loglevel'     && !LOGLEVELS.has(val.toUpperCase()))
+                        errors.push(`Ligne ${ln}: loglevel invalide « ${val} » — valeurs: ${[...LOGLEVELS].join(', ')}`);
+                    if (key === 'dbpurgeage'   && !/^\d+$/.test(val))
+                        errors.push(`Ligne ${ln}: dbpurgeage doit être un entier positif`);
+                    if (key === 'dbmaxmatches' && (!/^\d+$/.test(val) || parseInt(val, 10) < 1))
+                        errors.push(`Ligne ${ln}: dbmaxmatches doit être un entier >= 1`);
+                }
+            }
+            // fail2ban.local must have [Definition]
+            if (filename === 'fail2ban.local' && foundSections.length > 0 && !foundSections.map(s => s.toLowerCase()).includes('definition'))
+                errors.push('Section [Definition] manquante — fail2ban.local doit contenir [Definition]');
+
+            res.json({ success: true, result: { ok: errors.length === 0, errors, warnings } });
+        }));
+
+        // POST /config/write-raw  — write .local file content then reload
+        router.post('/config/write-raw', requireAuth, asyncHandler(async (req, res) => {
+            if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
+            const { filename, content } = req.body as { filename?: string; content?: string };
+            const ALLOWED = ['fail2ban.local', 'jail.local'];
+            if (!filename || !ALLOWED.includes(filename))
+                return res.json({ success: true, result: { ok: false, error: `Fichier non autorisé. Seuls ${ALLOWED.join(', ')} sont éditables.` } });
+            if (typeof content !== 'string')
+                return res.json({ success: true, result: { ok: false, error: 'Contenu manquant' } });
+            const confBase = this.resolveDockerPathSync('/etc/fail2ban');
+            const filePath = path.join(confBase, filename);
+            try {
+                fs.writeFileSync(filePath, content, 'utf8');
+            } catch (e) {
+                return res.json({ success: true, result: { ok: false, error: `Écriture impossible : ${e instanceof Error ? e.message : String(e)}` } });
+            }
+            // Reload fail2ban if socket available
+            let reloadOk = false;
+            let reloadOutput = 'Socket non disponible — rechargement manuel requis';
+            if (this.client?.isAvailable()) {
+                const r = await this.client.reload();
+                reloadOk = r.ok;
+                reloadOutput = r.output || r.error || '';
+            }
+            res.json({ success: true, result: { ok: true, reloadOk, reloadOutput } });
+        }));
+
         // POST /config/service  — reload or restart fail2ban service
         router.post('/config/service', requireAuth, asyncHandler(async (req, res) => {
             if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
@@ -1124,37 +1367,42 @@ export class Fail2banPlugin extends BasePlugin {
 
             // All unique IPs with aggregated stats from internal DB
             const appDb = getDatabase();
+            const nowTracker = Math.floor(Date.now() / 1000);
             const rows = appDb.prepare(`
                 SELECT ip,
-                       COUNT(*)                      AS bans,
-                       SUM(COALESCE(failures, 0))    AS failures,
-                       MAX(timeofban)                AS lastSeen,
-                       GROUP_CONCAT(DISTINCT jail)   AS jails
+                       COUNT(*)                                                        AS bans,
+                       SUM(COALESCE(failures, 0))                                     AS failures,
+                       MAX(timeofban)                                                  AS lastSeen,
+                       GROUP_CONCAT(DISTINCT jail)                                     AS jails,
+                       SUM(CASE WHEN bantime > 0 AND (timeofban + bantime) < ? THEN 1 ELSE 0 END) AS unbans
                 FROM f2b_events
+                WHERE event_type = 'ban'
                 GROUP BY ip
                 ORDER BY lastSeen DESC
                 LIMIT ?
-            `).all(limit) as { ip: string; bans: number; failures: number; lastSeen: number; jails: string }[];
+            `).all(nowTracker, limit) as { ip: string; bans: number; failures: number; lastSeen: number; jails: string; unbans: number }[];
 
             const total = (appDb.prepare('SELECT COUNT(DISTINCT ip) as n FROM f2b_events').get() as { n: number }).n;
 
-            // Currently banned IPs from fail2ban SQLite — used to show active jails
+            // Currently banned IPs from internal f2b_events (survives fail2ban purge)
+            const nowTs = Math.floor(Date.now() / 1000);
             const activeJails = new Map<string, string[]>();
-            const stats = this.reader?.getStats();
-            if (stats?.readable) {
-                for (const [jail, data] of Object.entries(stats.jails)) {
-                    for (const ip of data.bannedIps) {
-                        if (!activeJails.has(ip)) activeJails.set(ip, []);
-                        activeJails.get(ip)!.push(jail);
-                    }
-                }
+            const activeRows = appDb.prepare(`
+                SELECT ip, GROUP_CONCAT(DISTINCT jail) AS jails
+                FROM f2b_events
+                WHERE event_type='ban' AND (bantime = -1 OR (timeofban + bantime) > ?)
+                GROUP BY ip
+            `).all(nowTs) as { ip: string; jails: string }[];
+            for (const r of activeRows) {
+                activeJails.set(r.ip, r.jails.split(',').filter(Boolean));
             }
 
             const baseIps = rows.map(r => ({
-                ip:             r.ip,
-                bans:           r.bans,
-                failures:       r.failures,
-                lastSeen:       r.lastSeen,
+                ip:              r.ip,
+                bans:            r.bans,
+                unbans:          r.unbans,
+                failures:        r.failures,
+                lastSeen:        r.lastSeen,
                 currentlyBanned: activeJails.has(r.ip),
                 // Active jails if currently banned, else historical jails from DB
                 jails: activeJails.get(r.ip) ?? r.jails.split(',').filter(Boolean),
@@ -1176,15 +1424,16 @@ export class Fail2banPlugin extends BasePlugin {
             const ipJails = new Map<string, string[]>();
 
             if (source === 'live') {
-                const stats = this.reader?.getStats();
-                if (!stats?.readable) {
-                    return res.json({ success: true, result: { ok: false, points: [], error: 'SQLite not readable' } });
-                }
-                for (const [jail, data] of Object.entries(stats.jails)) {
-                    for (const ip of data.bannedIps) {
-                        if (!ipJails.has(ip)) ipJails.set(ip, []);
-                        ipJails.get(ip)!.push(jail);
-                    }
+                // Active bans from internal f2b_events (survives fail2ban purge)
+                const liveRows = appDb.prepare(`
+                    SELECT ip, GROUP_CONCAT(DISTINCT jail) AS jails
+                    FROM f2b_events
+                    WHERE event_type='ban' AND (bantime = -1 OR (timeofban + bantime) > ?)
+                    GROUP BY ip
+                    LIMIT 2000
+                `).all(now) as { ip: string; jails: string }[];
+                for (const r of liveRows) {
+                    ipJails.set(r.ip, r.jails.split(',').filter(Boolean));
                 }
             } else {
                 // Historical: all distinct IPs from f2b_events with their jails
@@ -1250,26 +1499,160 @@ export class Fail2banPlugin extends BasePlugin {
             if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
             const days  = parseInt(String(req.query.days  ?? '30'), 10);
             const limit = Math.min(parseInt(String(req.query.limit ?? '10'), 10), 100);
-            if (!this.reader?.isReadable()) {
-                return res.json({ success: true, result: { ok: false, error: 'SQLite not readable' } });
+            // All stats from our f2b_events (dashboard.db) — never purged unlike fail2ban's own DB.
+            // One shared connection, all queries in the same session.
+            const evDb   = getDatabase();
+            const allTime = days <= 0;
+            const since  = allTime ? 0 : Math.floor(Date.now() / 1000) - days * 86400;
+
+            const topIps = (allTime
+                ? evDb.prepare(`SELECT ip, COUNT(*) as count FROM f2b_events WHERE event_type='ban' GROUP BY ip ORDER BY count DESC LIMIT @limit`).all({ limit })
+                : evDb.prepare(`SELECT ip, COUNT(*) as count FROM f2b_events WHERE event_type='ban' AND timeofban >= @since GROUP BY ip ORDER BY count DESC LIMIT @limit`).all({ since, limit })
+            ) as { ip: string; count: number }[];
+
+            const topJailsWF = (allTime
+                ? evDb.prepare(`SELECT jail, COUNT(*) as bans, COALESCE(SUM(failures),0) as failures FROM f2b_events WHERE event_type='ban' GROUP BY jail ORDER BY bans DESC LIMIT @limit`).all({ limit })
+                : evDb.prepare(`SELECT jail, COUNT(*) as bans, COALESCE(SUM(failures),0) as failures FROM f2b_events WHERE event_type='ban' AND timeofban >= @since GROUP BY jail ORDER BY bans DESC LIMIT @limit`).all({ since, limit })
+            ) as { jail: string; bans: number; failures: number }[];
+            const topJails = topJailsWF.map(j => ({ jail: j.jail, count: j.bans }));
+
+            const topRecidivists = (allTime
+                ? evDb.prepare(`SELECT ip, COUNT(*) as count FROM f2b_events WHERE event_type='ban' GROUP BY ip HAVING count >= 2 ORDER BY count DESC LIMIT 100`).all()
+                : evDb.prepare(`SELECT ip, COUNT(*) as count FROM f2b_events WHERE event_type='ban' AND timeofban >= @since GROUP BY ip HAVING count >= 2 ORDER BY count DESC LIMIT 100`).all({ since })
+            ).slice(0, limit) as { ip: string; count: number }[];
+
+            const heatmap = (allTime
+                ? evDb.prepare(`SELECT CAST(strftime('%H',timeofban,'unixepoch') AS INTEGER) as hour, COUNT(*) as count FROM f2b_events WHERE event_type='ban' GROUP BY hour ORDER BY hour`).all()
+                : evDb.prepare(`SELECT CAST(strftime('%H',timeofban,'unixepoch') AS INTEGER) as hour, COUNT(*) as count FROM f2b_events WHERE event_type='ban' AND timeofban >= @since GROUP BY hour ORDER BY hour`).all({ since })
+            ) as { hour: number; count: number }[];
+
+            const heatmapFailed = (allTime
+                ? evDb.prepare(`SELECT CAST(strftime('%H',timeofban,'unixepoch') AS INTEGER) as hour, COALESCE(SUM(failures),0) as count FROM f2b_events WHERE event_type='ban' GROUP BY hour ORDER BY hour`).all()
+                : evDb.prepare(`SELECT CAST(strftime('%H',timeofban,'unixepoch') AS INTEGER) as hour, COALESCE(SUM(failures),0) as count FROM f2b_events WHERE event_type='ban' AND timeofban >= @since GROUP BY hour ORDER BY hour`).all({ since })
+            ) as { hour: number; count: number }[];
+
+            const buildWeekGrid = (rows: { dow: number; hour: number; count: number }[]): number[][] => {
+                const g: number[][] = Array.from({ length: 7 }, () => new Array(24).fill(0));
+                for (const r of rows) { if (r.dow >= 0 && r.dow < 7 && r.hour >= 0 && r.hour < 24) g[r.dow][r.hour] = r.count; }
+                return g;
+            };
+            const heatmapWeek = buildWeekGrid((allTime
+                ? evDb.prepare(`SELECT (CAST(strftime('%w',timeofban,'unixepoch') AS INTEGER)+6)%7 as dow, CAST(strftime('%H',timeofban,'unixepoch') AS INTEGER) as hour, COUNT(*) as count FROM f2b_events WHERE event_type='ban' GROUP BY dow, hour`).all()
+                : evDb.prepare(`SELECT (CAST(strftime('%w',timeofban,'unixepoch') AS INTEGER)+6)%7 as dow, CAST(strftime('%H',timeofban,'unixepoch') AS INTEGER) as hour, COUNT(*) as count FROM f2b_events WHERE event_type='ban' AND timeofban >= @since GROUP BY dow, hour`).all({ since })
+            ) as { dow: number; hour: number; count: number }[]);
+
+            const heatmapFailedWeek = buildWeekGrid((allTime
+                ? evDb.prepare(`SELECT (CAST(strftime('%w',timeofban,'unixepoch') AS INTEGER)+6)%7 as dow, CAST(strftime('%H',timeofban,'unixepoch') AS INTEGER) as hour, COALESCE(SUM(failures),0) as count FROM f2b_events WHERE event_type='ban' GROUP BY dow, hour`).all()
+                : evDb.prepare(`SELECT (CAST(strftime('%w',timeofban,'unixepoch') AS INTEGER)+6)%7 as dow, CAST(strftime('%H',timeofban,'unixepoch') AS INTEGER) as hour, COALESCE(SUM(failures),0) as count FROM f2b_events WHERE event_type='ban' AND timeofban >= @since GROUP BY dow, hour`).all({ since })
+            ) as { dow: number; hour: number; count: number }[]);
+
+            const summaryRow = (allTime
+                ? evDb.prepare(`SELECT COUNT(*) as total, COUNT(DISTINCT ip) as uniq FROM f2b_events WHERE event_type='ban'`).get()
+                : evDb.prepare(`SELECT COUNT(*) as total, COUNT(DISTINCT ip) as uniq FROM f2b_events WHERE event_type='ban' AND timeofban >= @since`).get({ since })
+            ) as { total: number; uniq: number };
+            const topJailRow = (allTime
+                ? evDb.prepare(`SELECT jail, COUNT(*) as cnt FROM f2b_events WHERE event_type='ban' GROUP BY jail ORDER BY cnt DESC LIMIT 1`).get()
+                : evDb.prepare(`SELECT jail, COUNT(*) as cnt FROM f2b_events WHERE event_type='ban' AND timeofban >= @since GROUP BY jail ORDER BY cnt DESC LIMIT 1`).get({ since })
+            ) as { jail: string; cnt: number } | undefined;
+            const summary = {
+                totalBans:    summaryRow?.total ?? 0,
+                uniqueIps:    summaryRow?.uniq  ?? 0,
+                topJail:      topJailRow?.jail ?? null,
+                topJailCount: topJailRow?.cnt  ?? 0,
+            };
+
+            // Top Domaines: scan NPM access logs directly for banned IPs
+            // No dependency on fail2ban config — pure NPM logs + NPM DB
+            const topDomains: { domain: string; count: number; failures: number }[] = [];
+            const npmDataPath = (this.config?.settings as unknown as Fail2banPluginConfig | undefined)?.npmDataPath ?? '';
+            if (npmDataPath) {
+                try {
+                    // 1. Build proxy-host id → domain from NPM DB
+                    const npmDbPath = this.resolveDockerPathSync(`${npmDataPath}/database.sqlite`);
+                    const npmDb = new Database(npmDbPath, { readonly: true, fileMustExist: true });
+                    const proxyRows = npmDb.prepare('SELECT id, domain_names FROM proxy_host WHERE is_deleted=0').all() as { id: number; domain_names: string }[];
+                    npmDb.close();
+                    const idToDomain: Record<string, string> = {};
+                    for (const row of proxyRows) {
+                        try {
+                            const ns: string[] = JSON.parse(row.domain_names);
+                            if (ns.length) idToDomain[String(row.id)] = ns[0].replace(/^www\./, '').toLowerCase();
+                        } catch { /* bad JSON */ }
+                    }
+
+                    // 2. Banned IPs in period with their total failures
+                    const bannedRows = (allTime
+                        ? evDb.prepare(`SELECT ip, COALESCE(SUM(failures),0) AS tf FROM f2b_events WHERE event_type='ban' GROUP BY ip`).all()
+                        : evDb.prepare(`SELECT ip, COALESCE(SUM(failures),0) AS tf FROM f2b_events WHERE event_type='ban' AND timeofban >= ? GROUP BY ip`).all(since)
+                    ) as { ip: string; tf: number }[];
+                    const bannedIps = new Map<string, number>(bannedRows.map(r => [r.ip, r.tf]));
+
+                    // 3. Scan proxy-host-N_access.log files, read last 5 MB each
+                    const logsDir = this.resolveDockerPathSync(`${npmDataPath}/logs`);
+                    const logFiles = fs.readdirSync(logsDir)
+                        .filter(f => /^proxy-host-(\d+)[_.-]/i.test(f) && /access/i.test(f));
+
+                    const domainBans: Record<string, { bans: number; failures: number }> = {};
+                    for (const logFile of logFiles) {
+                        const m = logFile.match(/^proxy-host-(\d+)/i);
+                        if (!m) continue;
+                        const domain = idToDomain[m[1]];
+                        if (!domain) continue;
+                        const filePath = path.join(logsDir, logFile);
+                        try {
+                            const stat = fs.statSync(filePath);
+                            const readSize = Math.min(stat.size, 5 * 1024 * 1024);
+                            const buf = Buffer.alloc(readSize);
+                            const fd = fs.openSync(filePath, 'r');
+                            fs.readSync(fd, buf, 0, readSize, stat.size - readSize);
+                            fs.closeSync(fd);
+                            const content = buf.toString('utf8');
+                            let bans = 0, failures = 0;
+                            for (const [ip, tf] of bannedIps) {
+                                if (content.includes(ip)) { bans++; failures += tf; }
+                            }
+                            if (bans > 0) {
+                                if (!domainBans[domain]) domainBans[domain] = { bans: 0, failures: 0 };
+                                domainBans[domain].bans += bans;
+                                domainBans[domain].failures += failures;
+                            }
+                        } catch { /* unreadable file — skip */ }
+                    }
+
+                    for (const [domain, { bans, failures }] of Object.entries(domainBans)
+                            .sort((a, b) => b[1].bans - a[1].bans)
+                            .slice(0, limit)) {
+                        topDomains.push({ domain, count: bans, failures });
+                    }
+                } catch { /* non-critical */ }
             }
-            const topIps         = this.reader.getTopIps(days, limit);
-            const topJails       = this.reader.getTopJails(days, limit);
-            const topRecidivists = this.reader.getTopIps(days, 100).filter(r => r.count >= 2).slice(0, limit);
-            const heatmap        = this.reader.getHeatmap(days);
-            const heatmapFailed  = this.reader.getFailuresHeatmap(days);
-            const summary        = this.reader.getPeriodSummary(days);
-            res.json({ success: true, result: { ok: true, topIps, topJails, topRecidivists, heatmap, heatmapFailed, summary } });
+
+            res.json({ success: true, result: { ok: true, topIps, topJails, topRecidivists, topDomains, heatmap, heatmapFailed, heatmapWeek, heatmapFailedWeek, summary } });
         }));
 
-        // GET /audit  — historique bans (fail2ban SQLite) + enrichissements jail/IP
+        // GET /audit  — historique bans (f2b_events — notre DB, historique complet) + enrichissements
         router.get('/audit', requireAuth, asyncHandler(async (req, res) => {
             if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
-            const limit     = Math.min(parseInt(String(req.query.limit ?? '200'), 10), 1000);
+            const limit      = Math.min(parseInt(String(req.query.limit ?? '200'), 10), 1000);
+            const daysParam  = parseInt(String(req.query.days  ?? '0'),  10);
             const jailFilter = req.query.jail ? String(req.query.jail) : null;
-            const stats     = this.reader?.getStats();
-            let bans        = stats?.recentBans?.slice(0, limit) ?? [];
-            if (jailFilter) bans = bans.filter((b: { jail: string }) => b.jail === jailFilter);
+
+            // Read from our long-term f2b_events (never purged, unlike fail2ban's own DB)
+            const evDb    = getDatabase();
+            const allTime = daysParam <= 0;
+            const since   = allTime ? 0 : Math.floor(Date.now() / 1000) - daysParam * 86400;
+            let bans: { ip: string; jail: string; timeofban: number; bantime: number; failures: number }[];
+            if (jailFilter) {
+                bans = (allTime
+                    ? evDb.prepare(`SELECT ip, jail, timeofban, bantime, failures FROM f2b_events WHERE event_type='ban' AND jail=? ORDER BY timeofban DESC LIMIT ?`).all(jailFilter, limit)
+                    : evDb.prepare(`SELECT ip, jail, timeofban, bantime, failures FROM f2b_events WHERE event_type='ban' AND jail=? AND timeofban >= ? ORDER BY timeofban DESC LIMIT ?`).all(jailFilter, since, limit)
+                ) as typeof bans;
+            } else {
+                bans = (allTime
+                    ? evDb.prepare(`SELECT ip, jail, timeofban, bantime, failures FROM f2b_events WHERE event_type='ban' ORDER BY timeofban DESC LIMIT ?`).all(limit)
+                    : evDb.prepare(`SELECT ip, jail, timeofban, bantime, failures FROM f2b_events WHERE event_type='ban' AND timeofban >= ? ORDER BY timeofban DESC LIMIT ?`).all(since, limit)
+                ) as typeof bans;
+            }
 
             // ── Enrichissements ──────────────────────────────────────────────
             const confBase  = this.resolveDockerPathSync('/etc/fail2ban');
@@ -1303,17 +1686,24 @@ export class Fail2banPlugin extends BasePlugin {
                 if (meta.logpath)   jail_logs[jailName]    = meta.logpath;
             }
 
-            // Override / fill gaps with runtime fail2ban-client status (same as PHP does).
-            // This is the authoritative source — config files may miss logpath or use unresolved vars.
+            // Override / fill gaps with runtime fail2ban-client status (authoritative source).
+            // Also collect ALL logpaths per jail (not just first) for multi-domain detection.
+            const jail_all_logpaths: Record<string, string[]> = {};
+            for (const [jailName, logpath] of Object.entries(jail_logs)) {
+                jail_all_logpaths[jailName] = [logpath];
+            }
+
             if (this.client?.isAvailable()) {
                 const uniqueJails = [...new Set((bans as { jail: string }[]).map((b: { jail: string }) => b.jail))];
                 await Promise.all(uniqueJails.map(async (jailName: string) => {
                     try {
                         const status = await this.client.getJailStatus(jailName);
                         if (status?.fileList) {
-                            // fileList is space-separated; take first path (like PHP does)
-                            const firstPath = status.fileList.trim().split(/\s+/)[0];
-                            if (firstPath) jail_logs[jailName] = firstPath;
+                            const paths = status.fileList.trim().split(/\s+/).filter(Boolean);
+                            if (paths.length > 0) {
+                                jail_logs[jailName] = paths[0];
+                                jail_all_logpaths[jailName] = paths;
+                            }
                         }
                     } catch { /* socket unavailable for this jail */ }
                 }));
@@ -1325,7 +1715,7 @@ export class Fail2banPlugin extends BasePlugin {
                 if (srv) jail_servers[jailName] = srv;
             }
 
-            // jail_domains: domain of the targeted site, keyed by jail name
+            // jail_domains / jail_all_domains: domain(s) of the targeted site, keyed by jail name
             // Strategy 1 — filename heuristic: /var/log/nginx/example.com_access.log → "example.com"
             const domainFromLogpath = (logpath: string): string => {
                 const fname = logpath.replace(/.*\//, '');
@@ -1335,9 +1725,7 @@ export class Fail2banPlugin extends BasePlugin {
                 return /^[a-zA-Z0-9][a-zA-Z0-9._-]+\.[a-zA-Z]{2,}$/.test(stripped) ? stripped.toLowerCase() : '';
             };
 
-            // Strategy 2 — LogviewR sources DB: match log_files.file_path to get log_sources.name (human-readable)
-            // Normalize paths by basename for matching since DB stores Docker-internal paths but
-            // fail2ban configs store host paths.
+            // Strategy 2 — LogviewR sources DB
             const domainFromSources = (() => {
                 try {
                     const db = getDatabase();
@@ -1346,7 +1734,6 @@ export class Fail2banPlugin extends BasePlugin {
                         FROM log_files lf JOIN log_sources ls ON lf.source_id = ls.id
                         WHERE lf.enabled = 1
                     `).all() as { file_path: string; name: string }[];
-                    // basename → name map (fallback: match by filename when full paths differ)
                     const basenameMap: Record<string, string> = {};
                     const fullPathMap: Record<string, string> = {};
                     for (const r of rows) {
@@ -1365,17 +1752,14 @@ export class Fail2banPlugin extends BasePlugin {
                 }
             })();
 
-            // Strategy 3 — NPM SQLite database
-            // Pattern: <npm_base>/logs/proxy-host-N_access.log → <npm_base>/database.sqlite → proxy_host.domain_names
-            // More reliable than reading conf files (conf may not exist for deleted/regenerated hosts).
-            // Build a map: hostId → domain by opening the NPM db once.
+            // Strategy 3 — NPM SQLite: scan ALL logpaths to find npm_base, load full id→domain map
             const npmDbDomains: Record<string, string> = (() => {
-                // Find npm_base from any NPM logpath in jail_logs
-                for (const logpath of Object.values(jail_logs)) {
-                    const m = (logpath as string).match(/proxy-host-(\d+)[_-]/);
+                const allLogpaths = Object.values(jail_all_logpaths).flat();
+                for (const logpath of allLogpaths) {
+                    const m = logpath.match(/proxy-host-(\d+)[_-]/);
                     if (!m) continue;
-                    const logsIdx = (logpath as string).lastIndexOf('/logs/');
-                    const npmBase = logsIdx >= 0 ? (logpath as string).slice(0, logsIdx) : null;
+                    const logsIdx = logpath.lastIndexOf('/logs/');
+                    const npmBase = logsIdx >= 0 ? logpath.slice(0, logsIdx) : null;
                     if (!npmBase) continue;
                     const dbPath = this.resolveDockerPathSync(`${npmBase}/database.sqlite`);
                     try {
@@ -1402,14 +1786,33 @@ export class Fail2banPlugin extends BasePlugin {
                 return npmDbDomains[m[1]] ?? '';
             };
 
+            // Build per-jail domain lists (one domain if single logpath, multiple if e.g. NPM jail)
             const jail_domains: Record<string, string> = {};
-            for (const [jailName, logpath] of Object.entries(jail_logs)) {
-                if (!logpath) continue;
-                const dom = domainFromLogpath(logpath) || domainFromSources(logpath) || domainFromNpmDb(logpath);
-                if (dom) jail_domains[jailName] = dom;
+            const jail_all_domains: Record<string, string[]> = {};
+            for (const [jailName, logpaths] of Object.entries(jail_all_logpaths)) {
+                const domains = [...new Set(
+                    logpaths
+                        .map(lp => domainFromLogpath(lp) || domainFromSources(lp) || domainFromNpmDb(lp))
+                        .filter(d => d !== '')
+                )];
+                if (domains.length > 0) {
+                    jail_domains[jailName] = domains[0];
+                    jail_all_domains[jailName] = domains;
+                }
             }
 
-            res.json({ success: true, result: { ok: true, bans, jail_actions, jail_logs, jail_servers, jail_domains } });
+            // ── Geo cache — country codes for all IPs (cache only, no new API calls) ──
+            const uniqueIps = [...new Set(bans.map(b => b.ip))];
+            const geoByIp: Record<string, string> = {};
+            for (let i = 0; i < uniqueIps.length; i += 500) {
+                const chunk = uniqueIps.slice(i, i + 500);
+                const placeholders = chunk.map(() => '?').join(',');
+                const geoRows = evDb.prepare(`SELECT ip, countryCode FROM f2b_ip_geo WHERE ip IN (${placeholders})`).all(...chunk) as { ip: string; countryCode: string }[];
+                for (const r of geoRows) geoByIp[r.ip] = r.countryCode;
+            }
+            const bansWithGeo = bans.map(b => ({ ...b, countryCode: geoByIp[b.ip] ?? '' }));
+
+            res.json({ success: true, result: { ok: true, bans: bansWithGeo, jail_actions, jail_logs, jail_servers, jail_domains, jail_all_domains } });
         }));
 
         // GET /ip/:ip  — données agrégées pour le modal détail IP
@@ -1420,15 +1823,14 @@ export class Fail2banPlugin extends BasePlugin {
             if (!/^[\d:.a-fA-F]{2,45}$/.test(ip)) throw createError('Invalid IP', 400, 'BAD_PARAM');
 
             const db    = getDatabase();
-            const stats = this.reader?.getStats();
+            const nowSec = Math.floor(Date.now() / 1000);
 
-            // Active jails: find jails where IP is currently banned
-            const activeJails: string[] = [];
-            if (stats?.jails) {
-                for (const [jail, data] of Object.entries(stats.jails)) {
-                    if ((data as { bannedIps?: string[] }).bannedIps?.includes(ip)) activeJails.push(jail);
-                }
-            }
+            // Active jails: IPs still within ban window in our internal f2b_events store
+            const activeJailRows = db.prepare(`
+                SELECT DISTINCT jail FROM f2b_events
+                WHERE ip = ? AND event_type='ban' AND (bantime = -1 OR (timeofban + bantime) > ?)
+            `).all(ip, nowSec) as { jail: string }[];
+            const activeJails = activeJailRows.map(r => r.jail);
 
             // All jails ever seen for this IP: active + historical (from internal DB)
             const histJails: string[] = [];
@@ -1634,10 +2036,45 @@ export class Fail2banPlugin extends BasePlugin {
         }));
 
         // GET /ipset/info — full set metadata (type, maxelem, size, entry count)
+        // Also records a daily snapshot for the historical chart.
         router.get('/ipset/info', requireAuth, asyncHandler(async (_req, res) => {
             if (!this.isEnabled()) return res.json({ success: true, result: { ok: false, sets: [], error: 'Plugin désactivé' } });
             const r = await this.client?.ipsetInfo() ?? { ok: false, sets: [], error: 'client not initialized' };
+            if (r.ok && r.sets.length > 0) {
+                try {
+                    const appDb  = getDatabase();
+                    const today  = new Date().toISOString().slice(0, 10);
+                    const upsert = appDb.prepare(`
+                        INSERT INTO f2b_ipset_snapshots(name, date, entries)
+                        VALUES(?,?,?)
+                        ON CONFLICT(name, date) DO UPDATE SET entries=excluded.entries, ts=strftime('%s','now')
+                    `);
+                    for (const s of r.sets.filter(s => !s.name.startsWith('docker-'))) {
+                        upsert.run(s.name, today, s.entries);
+                    }
+                } catch { /* non-critical */ }
+            }
             res.json({ success: true, result: r });
+        }));
+
+        // GET /ipset/history?days=30 — historical IPSet entry counts per day
+        router.get('/ipset/history', requireAuth, asyncHandler(async (req, res) => {
+            if (!this.isEnabled()) return res.json({ success: true, result: { ok: false, ipset_names: [], ipset_days: {} } });
+            const days = Math.min(Math.max(1, parseInt(String(req.query.days ?? '30'), 10)), 365);
+            const appDb = getDatabase();
+            const rows = appDb.prepare(`
+                SELECT name, date, entries
+                FROM f2b_ipset_snapshots
+                WHERE date >= date('now', '-' || ? || ' days')
+                ORDER BY date ASC
+            `).all(days) as { name: string; date: string; entries: number }[];
+            const ipset_names = [...new Set(rows.map(r => r.name))];
+            const ipset_days: Record<string, Record<string, number>> = {};
+            for (const r of rows) {
+                if (!ipset_days[r.date]) ipset_days[r.date] = {};
+                ipset_days[r.date][r.name] = r.entries;
+            }
+            res.json({ success: true, result: { ok: true, ipset_names, ipset_days } });
         }));
 
         // GET /ipset/entries/:set — list members of a specific set
@@ -1960,6 +2397,37 @@ export class Fail2banPlugin extends BasePlugin {
             if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
             const { filename } = req.params;
             const r = IptablesService.deleteBackup(filename);
+            res.json({ success: true, result: r });
+        }));
+
+        // GET /ipset/backups — list available ipset backups
+        router.get('/ipset/backups', requireAuth, asyncHandler(async (_req, res) => {
+            if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
+            const backups = IptablesService.listIpsetBackups();
+            res.json({ success: true, result: { ok: true, backups } });
+        }));
+
+        // POST /ipset/backup — create an ipset backup
+        router.post('/ipset/backup', requireAuth, asyncHandler(async (req, res) => {
+            if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
+            const label = typeof req.body?.label === 'string' ? req.body.label : undefined;
+            const r = await IptablesService.saveIpsetBackup(label);
+            res.json({ success: true, result: r });
+        }));
+
+        // POST /ipset/restore/:filename — restore ipset from backup file
+        router.post('/ipset/restore/:filename', requireAuth, asyncHandler(async (req, res) => {
+            if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
+            const { filename } = req.params;
+            const r = await IptablesService.restoreIpsetFromFile(filename);
+            res.json({ success: true, result: r });
+        }));
+
+        // DELETE /ipset/backup/:filename — delete an ipset backup
+        router.delete('/ipset/backup/:filename', requireAuth, asyncHandler(async (req, res) => {
+            if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
+            const { filename } = req.params;
+            const r = IptablesService.deleteIpsetBackup(filename);
             res.json({ success: true, result: r });
         }));
 

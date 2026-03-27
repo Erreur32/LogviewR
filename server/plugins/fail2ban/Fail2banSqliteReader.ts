@@ -187,6 +187,22 @@ export class Fail2banSqliteReader {
         finally { db?.close(); }
     }
 
+    /** Top jails by ban count + failures sum in period. */
+    getTopJailsWithFailures(days: number, limit: number): { jail: string; bans: number; failures: number }[] {
+        if (!this.isReadable()) return [];
+        let db: Database.Database | null = null;
+        try {
+            db = new Database(this.dbPath, { readonly: true, fileMustExist: true });
+            const allTime = days <= 0;
+            const since = allTime ? 0 : Math.floor(Date.now() / 1000) - days * 86400;
+            const rows = allTime
+                ? db.prepare(`SELECT jail, COUNT(*) as bans, COALESCE(SUM(failures),0) as failures FROM bans GROUP BY jail ORDER BY bans DESC LIMIT ?`).all(limit) as { jail: string; bans: number; failures: number }[]
+                : db.prepare(`SELECT jail, COUNT(*) as bans, COALESCE(SUM(failures),0) as failures FROM bans WHERE timeofban >= ? GROUP BY jail ORDER BY bans DESC LIMIT ?`).all(since, limit) as { jail: string; bans: number; failures: number }[];
+            return rows;
+        } catch { return []; }
+        finally { db?.close(); }
+    }
+
     /** Hourly ban heatmap (0–23). */
     getHeatmap(days: number): { hour: number; count: number }[] {
         if (!this.isReadable()) return [];
@@ -235,6 +251,45 @@ export class Fail2banSqliteReader {
             return rows;
         } catch { return []; }
         finally { db?.close(); }
+    }
+
+    /** Ban count per weekday (Mon=0..Sun=6) × hour (0..23) — 7×24 matrix. */
+    getHeatmapWeek(days: number): number[][] {
+        const grid: number[][] = Array.from({ length: 7 }, () => new Array(24).fill(0));
+        if (!this.isReadable()) return grid;
+        let db: Database.Database | null = null;
+        try {
+            db = new Database(this.dbPath, { readonly: true, fileMustExist: true });
+            const allTime = days <= 0;
+            const since = allTime ? 0 : Math.floor(Date.now() / 1000) - days * 86400;
+            // strftime('%w') = 0 Sun … 6 Sat → (w+6)%7 = 0 Mon … 6 Sun
+            const rows = (allTime
+                ? db.prepare(`SELECT (CAST(strftime('%w', timeofban, 'unixepoch') AS INTEGER) + 6) % 7 as dow, CAST(strftime('%H', timeofban, 'unixepoch') AS INTEGER) as hour, COUNT(*) as count FROM bans GROUP BY dow, hour`).all()
+                : db.prepare(`SELECT (CAST(strftime('%w', timeofban, 'unixepoch') AS INTEGER) + 6) % 7 as dow, CAST(strftime('%H', timeofban, 'unixepoch') AS INTEGER) as hour, COUNT(*) as count FROM bans WHERE timeofban >= ? GROUP BY dow, hour`).all(since)
+            ) as { dow: number; hour: number; count: number }[];
+            for (const r of rows) { if (r.dow >= 0 && r.dow < 7 && r.hour >= 0 && r.hour < 24) grid[r.dow][r.hour] = r.count; }
+        } catch { /* */ }
+        finally { db?.close(); }
+        return grid;
+    }
+
+    /** Failure count per weekday × hour — same shape as getHeatmapWeek. */
+    getFailuresHeatmapWeek(days: number): number[][] {
+        const grid: number[][] = Array.from({ length: 7 }, () => new Array(24).fill(0));
+        if (!this.isReadable()) return grid;
+        let db: Database.Database | null = null;
+        try {
+            db = new Database(this.dbPath, { readonly: true, fileMustExist: true });
+            const allTime = days <= 0;
+            const since = allTime ? 0 : Math.floor(Date.now() / 1000) - days * 86400;
+            const rows = (allTime
+                ? db.prepare(`SELECT (CAST(strftime('%w', timeofban, 'unixepoch') AS INTEGER) + 6) % 7 as dow, CAST(strftime('%H', timeofban, 'unixepoch') AS INTEGER) as hour, SUM(COALESCE(json_extract(data,'$.failures'), bancount)) as count FROM bans GROUP BY dow, hour`).all()
+                : db.prepare(`SELECT (CAST(strftime('%w', timeofban, 'unixepoch') AS INTEGER) + 6) % 7 as dow, CAST(strftime('%H', timeofban, 'unixepoch') AS INTEGER) as hour, SUM(COALESCE(json_extract(data,'$.failures'), bancount)) as count FROM bans WHERE timeofban >= ? GROUP BY dow, hour`).all(since)
+            ) as { dow: number; hour: number; count: number }[];
+            for (const r of rows) { if (r.dow >= 0 && r.dow < 7 && r.hour >= 0 && r.hour < 24) grid[r.dow][r.hour] = r.count; }
+        } catch { /* */ }
+        finally { db?.close(); }
+        return grid;
     }
 
     /** Summary stats for a period: total bans, unique IPs, most active jail. */

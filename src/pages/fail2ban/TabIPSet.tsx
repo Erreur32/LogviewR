@@ -264,7 +264,7 @@ function EntriesPanel({ setName, onEntryDeleted, onIpClick }: { setName: string;
                                     style={{ borderBottom: '1px solid rgba(48,54,61,.4)' }}>
                                     <td style={{ padding: '.38rem .5rem .38rem 0', fontFamily: 'monospace', fontSize: '.8rem' }}>
                                         {onIpClick
-                                            ? <span onClick={() => onIpClick(entry.replace(/\/\d+$/, ''))} style={{ color: '#e86a65', cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 2 }}>{entry}</span>
+                                            ? <span onClick={() => onIpClick(entry.replace(/\/\d+$/, ''))} style={{ color: '#58a6ff', cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 2 }}>{entry}</span>
                                             : <span style={{ color: '#e6edf3' }}>{entry}</span>
                                         }
                                     </td>

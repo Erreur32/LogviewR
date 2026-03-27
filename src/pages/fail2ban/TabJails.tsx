@@ -10,12 +10,13 @@ import {
     Settings, Terminal, Clock,
 } from 'lucide-react';
 import { api } from '../../api/client';
-import { card, cardH, Badge, StatusDot, fmtSecs, fmtTs, F2bTooltip } from './helpers';
+import { card, cardH, Badge, StatusDot, fmtSecs, fmtTs, F2bTooltip, type F2bTtColor } from './helpers';
 import { ConfEditorModal } from './ConfEditorModal';
 import type { ConfEditorTarget } from './ConfEditorModal';
 import { JailConfigModal } from './JailConfigModal';
 import type { JailStatus, BanEntry } from './types';
 import { DomainInitial } from './DomainInitial';
+import { FlagImg } from './FlagImg';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -845,7 +846,7 @@ export const TabJailsFiles: React.FC = () => {
 // ── Vue événements (bans/unbans depuis audit SQLite) ──────────────────────────
 
 type EvtType = 'all' | 'ban' | 'unban' | 'failed';
-type SortCol = 'date' | 'type' | 'ip' | 'jail' | 'failures' | 'bantime' | 'domain' | 'log';
+type SortCol = 'date' | 'type' | 'ip' | 'jail' | 'failures' | 'bantime' | 'domain' | 'log' | 'country';
 type SortDir = 'asc' | 'desc';
 const EVT_LIMITS = [10, 25, 50, 100, 0];
 
@@ -866,7 +867,7 @@ interface AuditEnrichment {
     jail_domains:   Record<string, string>;
 }
 
-export const TabJailsEvents: React.FC<{ onIpClick?: (ip: string) => void }> = ({ onIpClick }) => {
+export const TabJailsEvents: React.FC<{ onIpClick?: (ip: string) => void; days?: number }> = ({ onIpClick, days }) => {
     const [bans, setBans]           = useState<BanEntry[]>([]);
     const [enrichment, setEnrich]   = useState<AuditEnrichment>({ jail_actions: {}, jail_logs: {}, jail_servers: {}, jail_domains: {} });
     const [loading, setLoading]     = useState(true);
@@ -878,7 +879,8 @@ export const TabJailsEvents: React.FC<{ onIpClick?: (ip: string) => void }> = ({
     const [sortDir, setSortDir]     = useState<SortDir>('desc');
 
     const fetchAudit = useCallback(() => {
-        api.get<{ ok: boolean; bans: BanEntry[] } & AuditEnrichment>('/api/plugins/fail2ban/audit?limit=500').then(res => {
+        const daysQ = days && days > 0 ? `&days=${days}` : '';
+        api.get<{ ok: boolean; bans: BanEntry[] } & AuditEnrichment>(`/api/plugins/fail2ban/audit?limit=500${daysQ}`).then(res => {
             if (res.success && res.result?.ok) {
                 setBans(res.result.bans ?? []);
                 setEnrich({
@@ -890,9 +892,9 @@ export const TabJailsEvents: React.FC<{ onIpClick?: (ip: string) => void }> = ({
             }
             setLoading(false);
         });
-    }, []);
+    }, [days]);
 
-    // Initial load
+    // Initial load + reload when days changes
     useEffect(() => { fetchAudit(); }, [fetchAudit]);
 
     // Auto-refresh every 30s (pauses when tab is hidden)
@@ -917,7 +919,8 @@ export const TabJailsEvents: React.FC<{ onIpClick?: (ip: string) => void }> = ({
         if (search) rows = rows.filter(b =>
             b.ip.includes(search) || b.jail.includes(search) ||
             (enrichment.jail_domains[b.jail] ?? '').includes(search) ||
-            (enrichment.jail_logs[b.jail] ?? '').includes(search)
+            (enrichment.jail_logs[b.jail] ?? '').includes(search) ||
+            (b.countryCode ?? '').toLowerCase().includes(search.toLowerCase())
         );
         rows.sort((a, b) => {
             let va: number | string, vb: number | string;
@@ -929,6 +932,7 @@ export const TabJailsEvents: React.FC<{ onIpClick?: (ip: string) => void }> = ({
             else if (sortCol === 'failures') { va = a.failures; vb = b.failures; }
             else if (sortCol === 'domain')   { va = enrichment.jail_domains[a.jail] ?? ''; vb = enrichment.jail_domains[b.jail] ?? ''; }
             else if (sortCol === 'log')      { va = (enrichment.jail_logs[a.jail] ?? '').replace(/.*\//, ''); vb = (enrichment.jail_logs[b.jail] ?? '').replace(/.*\//, ''); }
+            else if (sortCol === 'country')  { va = a.countryCode ?? ''; vb = b.countryCode ?? ''; }
             else { va = a.bantime; vb = b.bantime; }
             if (va < vb) return sortDir === 'asc' ? -1 : 1;
             if (va > vb) return sortDir === 'asc' ? 1 : -1;
@@ -955,9 +959,11 @@ export const TabJailsEvents: React.FC<{ onIpClick?: (ip: string) => void }> = ({
         </span>
     );
 
-    const thS = (col: SortCol, label: string, textAlign: 'left' | 'center' = 'left'): React.ReactNode => (
-        <th onClick={() => toggleSort(col)} style={{ padding: '.45rem .65rem', borderBottom: '1px solid #30363d', fontSize: '.66rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: '#8b949e', textAlign, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}>
-            {label}{sortIcon(col)}
+    const thS = (col: SortCol, label: string, tooltip: string, textAlign: 'left' | 'center' = 'left', ttColor: F2bTtColor = 'muted'): React.ReactNode => (
+        <th onClick={() => toggleSort(col)} style={{ padding: '.45rem .75rem', borderBottom: '1px solid #30363d', fontSize: '.66rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: '#8b949e', textAlign, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}>
+            <F2bTooltip title={label} body={tooltip} color={ttColor} placement="bottom">
+                <span style={{ display: 'inline-flex', alignItems: 'center' }}>{label}{sortIcon(col)}</span>
+            </F2bTooltip>
         </th>
     );
 
@@ -983,31 +989,31 @@ export const TabJailsEvents: React.FC<{ onIpClick?: (ip: string) => void }> = ({
                 {/* Badges cliquables = filtre type */}
                 <div style={{ display: 'flex', gap: '.3rem' }}>
                     <span onClick={() => setTypeAndReset(type === 'all' ? 'ban' : 'all')}
-                        style={{ padding: '.12rem .5rem', borderRadius: 12, fontSize: '.68rem', fontWeight: 600, cursor: 'pointer',
+                        style={{ padding: '.12rem .5rem', borderRadius: 4, fontSize: '.68rem', fontWeight: 600, cursor: 'pointer',
                             background: type === 'ban' ? 'rgba(232,106,101,.3)' : 'rgba(232,106,101,.15)',
                             color: '#e86a65',
                             border: type === 'ban' ? '1px solid rgba(232,106,101,.7)' : '1px solid rgba(232,106,101,.4)',
                             outline: type === 'ban' ? '2px solid rgba(232,106,101,.35)' : 'none',
                             outlineOffset: 1 }}>
-                        🔨 {banCount} ban
+                        🔨 {banCount} bans
                     </span>
                     <span onClick={() => setTypeAndReset(type === 'unban' ? 'all' : 'unban')}
-                        style={{ padding: '.12rem .5rem', borderRadius: 12, fontSize: '.68rem', fontWeight: 600, cursor: 'pointer',
+                        style={{ padding: '.12rem .5rem', borderRadius: 4, fontSize: '.68rem', fontWeight: 600, cursor: 'pointer',
                             background: type === 'unban' ? 'rgba(63,185,80,.25)' : 'rgba(63,185,80,.12)',
                             color: '#3fb950',
                             border: type === 'unban' ? '1px solid rgba(63,185,80,.7)' : '1px solid rgba(63,185,80,.4)',
                             outline: type === 'unban' ? '2px solid rgba(63,185,80,.3)' : 'none',
                             outlineOffset: 1 }}>
-                        🔓 {unbanCount} unban
+                        🔓 {unbanCount} unbans
                     </span>
                     <span onClick={() => setTypeAndReset(type === 'failed' ? 'all' : 'failed')}
-                        style={{ padding: '.12rem .5rem', borderRadius: 12, fontSize: '.68rem', fontWeight: 600, cursor: 'pointer',
+                        style={{ padding: '.12rem .5rem', borderRadius: 4, fontSize: '.68rem', fontWeight: 600, cursor: 'pointer',
                             background: type === 'failed' ? 'rgba(227,179,65,.25)' : 'rgba(227,179,65,.12)',
                             color: '#e3b341',
                             border: type === 'failed' ? '1px solid rgba(227,179,65,.7)' : '1px solid rgba(227,179,65,.4)',
                             outline: type === 'failed' ? '2px solid rgba(227,179,65,.3)' : 'none',
                             outlineOffset: 1 }}>
-                        ⚠ {failCount} tentative
+                        ⚠ {failCount} tentatives
                     </span>
                 </div>
 
@@ -1022,8 +1028,8 @@ export const TabJailsEvents: React.FC<{ onIpClick?: (ip: string) => void }> = ({
 
                 {/* Per-page + pagination — droite */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem' }}>
-                    <span style={{ fontSize: '.7rem', color: '#8b949e', whiteSpace: 'nowrap' }}>
-                        {processed.length} evt{processed.length > 1 ? 's' : ''}
+                    <span style={{ display: 'inline-flex', alignItems: 'center', padding: '.12rem .5rem', borderRadius: 4, fontSize: '.68rem', fontWeight: 600, whiteSpace: 'nowrap', background: 'rgba(88,166,255,.12)', color: '#58a6ff', border: '1px solid rgba(88,166,255,.35)' }}>
+                        {processed.length} événement{processed.length > 1 ? 's' : ''}
                     </span>
                     <div style={{ width: 1, height: 18, background: '#30363d', flexShrink: 0 }} />
                     <div style={{ display: 'flex', gap: '.2rem', alignItems: 'center' }}>
@@ -1060,13 +1066,14 @@ export const TabJailsEvents: React.FC<{ onIpClick?: (ip: string) => void }> = ({
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.82rem' }}>
                         <thead>
                             <tr style={{ background: '#21262d' }}>
-                                {thS('date', 'Date')}
-                                {thS('type', 'Type')}
-                                {thS('ip', 'IP')}
-                                {thS('jail', 'Jail')}
-                                {thS('failures', 'Tentatives', 'center')}
-                                {thS('domain', 'Domaine')}
-                                {thS('log', 'Log')}
+                                {thS('date',     'Date',       'Date et heure du ban. Couleur = fraîcheur : rouge < 1h, orange < 6h, bleu < 24h, gris = ancien.', 'left', 'muted')}
+                                {thS('type',     'Type',       '🔨 ban — IP bannie (bantime > 0)\n🔓 unban — ban levé (bantime = 0, failures = 0)\n⚠ tentative — seuil maxretry non atteint (failures > 0, bantime = 0)', 'left', 'muted')}
+                                {thS('ip',       'IP',         'Adresse IP source de l\'attaque. Cliquer pour ouvrir le modal détail : whois, géolocalisation, historique, ipset…', 'left', 'red')}
+                                {thS('country',  'Pays',       'Pays d\'origine de l\'IP depuis le cache géo ip-api.com (TTL 30 jours). Vide si l\'IP n\'a pas encore été géolocalisée.', 'center', 'cyan')}
+                                {thS('jail',     'Jail',       'Nom de la jail fail2ban qui a déclenché l\'événement. La jail définit les règles de détection (filter) et d\'action (ban/unban).', 'left', 'blue')}
+                                {thS('failures', 'Tentatives', 'Nombre d\'échecs comptés par fail2ban dans la fenêtre findtime avant le ban.\nEx: 5 = 5 connexions ratées détectées.\nPour les tentatives (non encore bannies) : compteur en cours, seuil maxretry pas encore atteint.', 'center', 'orange')}
+                                {thS('domain',   'Domaine',    'Domaine ou serveur web associé à la jail (résolu depuis la config fail2ban ou la base log sources).', 'left', 'cyan')}
+                                {thS('log',      'Log',        'Nom du fichier log surveillé par la jail. Passer la souris pour voir le chemin complet.', 'left', 'muted')}
                             </tr>
                         </thead>
                         <tbody>
@@ -1091,41 +1098,68 @@ export const TabJailsEvents: React.FC<{ onIpClick?: (ip: string) => void }> = ({
                                 <tr key={i} style={{ borderBottom: '1px solid #30363d' }}
                                     onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,.02)'}
                                     onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
-                                    <td style={{ padding: '.4rem .65rem', fontFamily: 'monospace', fontSize: '.77rem', whiteSpace: 'nowrap' }}>
+                                    <td style={{ padding: '.45rem .75rem', fontFamily: 'monospace', fontSize: '.77rem', whiteSpace: 'nowrap' }}>
                                         <span style={{ color: '#8b949e', marginRight: '.25rem' }}>{datePart}</span>
                                         <span style={{ display: 'inline-block', padding: '.05rem .35rem', borderRadius: 4, fontSize: '.72rem', fontWeight: 600, background: tBg, color: tColor, border: `1px solid ${tBorder}` }}>{timePart}</span>
                                     </td>
                                     {/* Type */}
-                                    <td style={{ padding: '.4rem .65rem', whiteSpace: 'nowrap' }}>
+                                    <td style={{ padding: '.45rem .75rem', whiteSpace: 'nowrap' }}>
                                         {b.bantime > 0
                                             ? <span style={{ color: '#e86a65', fontSize: '.78rem', fontWeight: 600 }}>🔨 ban</span>
                                             : b.failures > 0
                                                 ? <span style={{ color: '#e3b341', fontSize: '.78rem', fontWeight: 600 }}>⚠ tentative</span>
                                                 : <span style={{ color: '#3fb950', fontSize: '.78rem', fontWeight: 600 }}>🔓 unban</span>}
                                     </td>
-                                    <td style={{ padding: '.4rem .65rem' }}>
-                                        <button onClick={() => onIpClick?.(b.ip)}
-                                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'monospace', fontSize: '.8rem', color: '#e6edf3', fontWeight: 600 }}>
-                                            {b.ip}
-                                        </button>
+                                    <td style={{ padding: '.45rem .75rem' }}>
+                                        <F2bTooltip title={b.ip} bodyNode={
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
+                                                <div style={{ color: '#8b949e' }}>Cliquer pour voir le détail</div>
+                                                <div style={{ color: '#8b949e', fontSize: '.72rem' }}>whois · géo · historique · ipset…</div>
+                                            </div>
+                                        } color="red" placement="bottom">
+                                            <button onClick={() => onIpClick?.(b.ip)}
+                                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'monospace', fontSize: '.8rem', color: '#e6edf3', fontWeight: 600, textDecoration: 'underline dotted', textUnderlineOffset: 3 }}>
+                                                {b.ip}
+                                            </button>
+                                        </F2bTooltip>
                                     </td>
-                                    <td style={{ padding: '.4rem .65rem' }}>
-                                        <Badge color="blue">{b.jail}</Badge>
+                                    <td style={{ padding: '.45rem .75rem', textAlign: 'center' }}>
+                                        {b.countryCode ? (
+                                            <span title={b.countryCode} style={{ display: 'inline-flex', alignItems: 'center', gap: '.3rem' }}>
+                                                <FlagImg code={b.countryCode} size={16} />
+                                                <span style={{ fontFamily: 'monospace', fontSize: '.7rem', color: '#8b949e' }}>{b.countryCode}</span>
+                                            </span>
+                                        ) : <span style={{ color: '#30363d', fontSize: '.7rem' }}>—</span>}
                                     </td>
-                                    <td style={{ padding: '.4rem .65rem', textAlign: 'center', color: '#8b949e', fontSize: '.77rem' }}>{b.failures || '—'}</td>
+                                    <td style={{ padding: '.45rem .75rem' }}>
+                                        <Badge color={b.jail === 'recidive' ? 'orange' : 'blue'}>{b.jail}</Badge>
+                                    </td>
+                                    <td style={{ padding: '.45rem .75rem', textAlign: 'center' }}>
+                                        {b.failures > 0 ? (
+                                            <F2bTooltip title={`${b.failures} tentative${b.failures > 1 ? 's' : ''}`} bodyNode={
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
+                                                    <div style={{ color: '#e3b341', fontWeight: 700, fontSize: '.95rem' }}>{b.failures} échec{b.failures > 1 ? 's' : ''}</div>
+                                                    <div style={{ color: '#8b949e', fontSize: '.72rem' }}>Dernière tentative :</div>
+                                                    <div style={{ color: '#e6edf3', fontFamily: 'monospace', fontSize: '.78rem' }}>{fmtTs(b.timeofban)}</div>
+                                                </div>
+                                            } color="orange" placement="bottom">
+                                                <span style={{ color: '#e3b341', fontSize: '.77rem', fontWeight: 600, cursor: 'default', borderBottom: '1px dotted #e3b341', paddingBottom: 1 }}>{b.failures}</span>
+                                            </F2bTooltip>
+                                        ) : <span style={{ color: '#30363d', fontSize: '.77rem' }}>—</span>}
+                                    </td>
                                     {/* Domaine */}
-                                    <td style={{ padding: '.4rem .65rem' }}>
+                                    <td style={{ padding: '.45rem .75rem' }}>
                                         {domain ? (
-                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                                                <DomainInitial domain={domain} size={13} />
+                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                                <img src={`https://icons.duckduckgo.com/ip3/${encodeURIComponent(domain)}.ico`} width={13} height={13} style={{ borderRadius: 2, flexShrink: 0 }} alt="" loading="lazy" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
                                                 <span style={{ fontFamily: 'monospace', fontSize: '.7rem', color: '#39c5cf', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={domain}>{domain}</span>
                                             </span>
                                         ) : srv ? (
-                                            <span style={{ fontFamily: 'monospace', fontSize: '.68rem', color: '#8b949e', background: '#21262d', border: '1px solid #30363d', borderRadius: 4, padding: '.1rem .4rem' }} title={logpath}>{srv}</span>
+                                            <span style={{ fontFamily: 'monospace', fontSize: '.68rem', color: '#8b949e' }} title={logpath}>{srv}</span>
                                         ) : <span style={{ color: '#30363d', fontSize: '.7rem' }}>—</span>}
                                     </td>
                                     {/* Log */}
-                                    <td style={{ padding: '.4rem .65rem' }}>
+                                    <td style={{ padding: '.45rem .75rem' }}>
                                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
                                             {svcInfo && (
                                                 <img

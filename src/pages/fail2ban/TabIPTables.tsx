@@ -204,10 +204,10 @@ function ChainCard({ chain, onDelete, deleting, hiddenDockerRules, onToggleDocke
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {sortedRules.map(r => {
-                                        const dk = `${chain.name}-${r.num}`;
+                                    {sortedRules.map((r, i) => {
+                                        const dk = `${chain.name}-${r.num}-${i}`;
                                         return (
-                                            <tr key={r.num}
+                                            <tr key={dk}
                                                 onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,.025)'}
                                                 onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
                                                 <td style={{ ...TD, textAlign: 'right', fontFamily: 'monospace', color: '#555d69' }}>{r.num}</td>

@@ -290,10 +290,12 @@ export function initializeDatabase(): void {
         )
     `);
     database.exec(`
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_f2b_events_rowid   ON f2b_events(f2b_rowid);
-        CREATE INDEX       IF NOT EXISTS idx_f2b_events_ip        ON f2b_events(ip);
-        CREATE INDEX       IF NOT EXISTS idx_f2b_events_jail      ON f2b_events(jail);
-        CREATE INDEX       IF NOT EXISTS idx_f2b_events_timeofban ON f2b_events(timeofban)
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_f2b_events_rowid      ON f2b_events(f2b_rowid);
+        CREATE INDEX       IF NOT EXISTS idx_f2b_events_ip          ON f2b_events(ip);
+        CREATE INDEX       IF NOT EXISTS idx_f2b_events_jail        ON f2b_events(jail);
+        CREATE INDEX       IF NOT EXISTS idx_f2b_events_timeofban   ON f2b_events(timeofban);
+        CREATE INDEX       IF NOT EXISTS idx_f2b_events_jail_time   ON f2b_events(jail, timeofban);
+        CREATE INDEX       IF NOT EXISTS idx_f2b_events_ip_time     ON f2b_events(ip, timeofban)
     `);
     database.exec(`
         CREATE TABLE IF NOT EXISTS f2b_sync_state (
@@ -303,6 +305,23 @@ export function initializeDatabase(): void {
         )
     `);
     database.exec(`INSERT OR IGNORE INTO f2b_sync_state(id, last_rowid) VALUES(1, 0)`);
+
+    // Jail → domain cache (populated from jail logpaths / NPM DB resolution)
+    database.exec(`CREATE TABLE IF NOT EXISTS f2b_jail_domain (
+        jail   TEXT PRIMARY KEY,
+        domain TEXT NOT NULL DEFAULT '',
+        ts     INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+    )`);
+
+    // Daily IPSet entry-count snapshots (for historical chart in Stats tab)
+    database.exec(`CREATE TABLE IF NOT EXISTS f2b_ipset_snapshots (
+        id      INTEGER PRIMARY KEY AUTOINCREMENT,
+        name    TEXT    NOT NULL,
+        date    TEXT    NOT NULL,
+        entries INTEGER NOT NULL,
+        ts      INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+    )`);
+    database.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_f2b_ipset_snapshots_nd ON f2b_ipset_snapshots(name, date)`);
 
     // Geo-cache for fail2ban map tab (TTL 30 days, populated on demand via ip-api.com)
     database.exec(`CREATE TABLE IF NOT EXISTS f2b_ip_geo (

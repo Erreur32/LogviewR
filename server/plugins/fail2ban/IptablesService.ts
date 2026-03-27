@@ -232,4 +232,72 @@ export class IptablesService {
         try { fs.unlinkSync(fullPath); return { ok: true }; }
         catch (err: unknown) { return { ok: false, error: err instanceof Error ? err.message : String(err) }; }
     }
+
+    // ── IPSet Backups ─────────────────────────────────────────────────────────
+
+    static async saveIpsetBackup(label?: string): Promise<{ ok: boolean; filename?: string; error?: string }> {
+        ensureBackupDir();
+        try {
+            const [c, a] = priv('ipset', ['save']);
+            const { stdout } = await execFileAsync(c, a, { timeout: EXEC_TIMEOUT, maxBuffer: 16 * 1024 * 1024 });
+            const ts = new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').slice(0, 19);
+            const safe = (label ?? '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 40);
+            const filename = safe ? `${ts}-${safe}.ipset` : `${ts}.ipset`;
+            fs.writeFileSync(path.join(getBackupDir(), filename), stdout, 'utf8');
+            return { ok: true, filename };
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : String(err);
+            if (msg.includes('ENOENT')) return { ok: false, error: 'ipset non disponible. Vérifiez NET_ADMIN dans docker-compose.yml.' };
+            return { ok: false, error: msg };
+        }
+    }
+
+    static listIpsetBackups(): BackupEntry[] {
+        ensureBackupDir();
+        try {
+            return fs.readdirSync(getBackupDir())
+                .filter(f => f.endsWith('.ipset'))
+                .map(f => {
+                    const st = fs.statSync(path.join(getBackupDir(), f));
+                    return { filename: f, size: st.size, ts: Math.floor(st.mtimeMs) };
+                })
+                .sort((a, b) => b.ts - a.ts)
+                .slice(0, 50);
+        } catch { return []; }
+    }
+
+    static async restoreIpsetFromFile(filename: string): Promise<IptResult> {
+        const safe = path.basename(filename);
+        const fullPath = path.join(getBackupDir(), safe);
+        if (!fullPath.startsWith(getBackupDir() + path.sep)) return { ok: false, output: '', error: 'Chemin invalide' };
+        let content: string;
+        try { content = fs.readFileSync(fullPath, 'utf8'); }
+        catch { return { ok: false, output: '', error: `Fichier introuvable: ${safe}` }; }
+        return new Promise<IptResult>(resolve => {
+            let settled = false;
+            const settle = (r: IptResult) => { if (!settled) { settled = true; resolve(r); } };
+            const [c, a] = priv('ipset', ['restore']);
+            const proc = spawn(c, a, { timeout: EXEC_TIMEOUT });
+            let stderr = '';
+            proc.stderr.on('data', (d: Buffer) => { stderr += d.toString(); });
+            proc.on('close', (code: number | null) => {
+                if (code === 0) settle({ ok: true, output: 'Sets restaurés avec succès' });
+                else settle({ ok: false, output: '', error: stderr.trim() || `Exit code ${code}` });
+            });
+            proc.on('error', (err: Error) => {
+                if (err.message.includes('ENOENT')) settle({ ok: false, output: '', error: 'ipset non disponible' });
+                else settle({ ok: false, output: '', error: err.message });
+            });
+            proc.stdin.write(content, 'utf8');
+            proc.stdin.end();
+        });
+    }
+
+    static deleteIpsetBackup(filename: string): { ok: boolean; error?: string } {
+        const safe = path.basename(filename);
+        const fullPath = path.join(getBackupDir(), safe);
+        if (!fullPath.startsWith(getBackupDir() + path.sep)) return { ok: false, error: 'Chemin invalide' };
+        try { fs.unlinkSync(fullPath); return { ok: true }; }
+        catch (err: unknown) { return { ok: false, error: err instanceof Error ? err.message : String(err) }; }
+    }
 }

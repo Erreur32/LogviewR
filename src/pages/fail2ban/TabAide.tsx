@@ -189,7 +189,7 @@ const GROUPS: Group[] = [
         sections: [
             {
                 title: 'Socket inaccessible',
-                color: '#e86a65', border: 'rgba(232,106,101,.25)', bg: 'rgba(232,106,101,.04)',
+                color: '#e86a65', border: 'rgba(232,106,101,.25)', bg: 'rgba(232,106,101,.04)', collapsed: true,
                 blocks: [
                     { type: 'text', v: 'Le socket fail2ban doit être chmod 660 sur le host. Créez le drop-in systemd :' },
                     { type: 'shell', v: `mkdir -p /etc/systemd/system/fail2ban.service.d/
@@ -200,7 +200,7 @@ systemctl daemon-reload && systemctl restart fail2ban` },
             },
             {
                 title: 'Config jail manquante (filter/port/bantime…)',
-                color: '#3fb950', border: 'rgba(63,185,80,.25)', bg: 'rgba(63,185,80,.04)',
+                color: '#3fb950', border: 'rgba(63,185,80,.25)', bg: 'rgba(63,185,80,.04)', collapsed: true,
                 blocks: [
                     { type: 'text', v: 'Ces métadonnées sont lues depuis /etc/fail2ban/jail.conf + jail.d/. Montez le volume :' },
                     { type: 'yaml', v: 'volumes:\n  - /etc/fail2ban:/host/etc/fail2ban:ro' },
@@ -208,7 +208,7 @@ systemctl daemon-reload && systemctl restart fail2ban` },
             },
             {
                 title: 'SQLite non lisible',
-                color: '#bc8cff', border: 'rgba(188,140,255,.25)', bg: 'rgba(188,140,255,.04)',
+                color: '#bc8cff', border: 'rgba(188,140,255,.25)', bg: 'rgba(188,140,255,.04)', collapsed: true,
                 blocks: [
                     { type: 'text', v: 'La DB fail2ban est montée via /host/ dans Docker. Corrigez les permissions sur le host :' },
                     { type: 'shell', v: 'chmod o+r /var/lib/fail2ban/fail2ban.sqlite3' },
@@ -218,7 +218,7 @@ systemctl daemon-reload && systemctl restart fail2ban` },
             },
             {
                 title: 'IPTables / IPSet / NFTables vides',
-                color: '#58a6ff', border: 'rgba(88,166,255,.25)', bg: 'rgba(88,166,255,.04)',
+                color: '#58a6ff', border: 'rgba(88,166,255,.25)', bg: 'rgba(88,166,255,.04)', collapsed: true,
                 blocks: [
                     { type: 'text', v: 'Ces onglets nécessitent NET_ADMIN + les binaires dans le container :' },
                     { type: 'yaml', v: 'cap_add:\n  - NET_ADMIN' },

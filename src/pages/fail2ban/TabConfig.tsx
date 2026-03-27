@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import {
     Settings, Database, RefreshCw, Save, Play,
     Info, Shield, FileText, AlertTriangle, CheckCircle, XCircle,
-    ChevronRight, HardDrive, Stethoscope, Trash2, Copy, Terminal,
+    ChevronRight, ChevronDown, HardDrive, Stethoscope, Trash2, Copy, Terminal,
+    Pencil, X, Layers, Network,
 } from 'lucide-react';
 import { api } from '../../api/client';
 import { card, cardH, cardB } from './helpers';
@@ -47,7 +49,7 @@ interface ParsedConfigResult {
     version: string;
     dbInfo: DbInfo | null;
     dbHostPath: string;
-    appDbInfo: { size: number; sizeFmt: string; exists: boolean };
+    appDbInfo: { size: number; sizeFmt: string; exists: boolean; fragPct: number };
     internalDbStats: InternalDbStats | null;
 }
 
@@ -194,75 +196,261 @@ const ConfHighlighter: React.FC<{ content: string }> = ({ content }) => (
     </code>
 );
 
-const RawFileViewer: React.FC<{ rawFiles: RawFiles | null; rawTab: string; onTabChange: (t: string) => void }> = ({ rawFiles, rawTab, onTabChange }) => {
-    const [copied, setCopied] = useState(false);
+type TestResult = { ok: boolean; errors: string[]; warnings: string[] };
+type SaveResult = { ok: boolean; reloadOk: boolean; reloadOutput: string; error?: string };
+
+const RawFileViewer: React.FC<{
+    rawFiles: RawFiles | null;
+    rawTab: string;
+    onTabChange: (t: string) => void;
+    height?: number | string;
+    onSaved?: (filename: string, content: string) => void;
+}> = ({ rawFiles, rawTab, onTabChange, height = 480, onSaved }) => {
+    const [copied, setCopied]       = useState(false);
+    const [editMode, setEditMode]   = useState(false);
+    const [editContent, setEditContent] = useState('');
+    const [testing, setTesting]     = useState(false);
+    const [testResult, setTestResult] = useState<TestResult | null>(null);
+    const [saving, setSaving]       = useState(false);
+    const [saveResult, setSaveResult] = useState<SaveResult | null>(null);
+
     const FILES = ['fail2ban.conf', 'fail2ban.local', 'jail.conf', 'jail.local'] as const;
+    const EDITABLE = new Set(['fail2ban.local', 'jail.local']);
+
     const content = rawFiles ? (rawFiles[rawTab as keyof RawFiles] ?? null) : null;
+    const isEditable = EDITABLE.has(rawTab);
+    const isDirty = editMode && editContent !== (content ?? '');
+
     const copyContent = () => {
-        if (!content) return;
-        navigator.clipboard.writeText(content).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); });
+        const src = editMode ? editContent : content;
+        if (!src) return;
+        navigator.clipboard.writeText(src).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); });
     };
-    const lineCount = content ? content.split('\n').length : 0;
+
+    const enterEdit = () => {
+        setEditContent(content ?? '');
+        setTestResult(null);
+        setSaveResult(null);
+        setEditMode(true);
+    };
+
+    const exitEdit = () => {
+        setEditMode(false);
+        setTestResult(null);
+        setSaveResult(null);
+    };
+
+    const switchTab = (f: string) => {
+        if (editMode && isDirty) {
+            if (!window.confirm('Des modifications non sauvegardées seront perdues. Continuer ?')) return;
+        }
+        exitEdit();
+        onTabChange(f);
+    };
+
+    const testConfig = async () => {
+        setTesting(true);
+        setTestResult(null);
+        setSaveResult(null);
+        const res = await api.post<TestResult>('/api/plugins/fail2ban/config/test-raw', { filename: rawTab, content: editContent });
+        setTesting(false);
+        if (res.success && res.result) setTestResult(res.result);
+        else setTestResult({ ok: false, errors: [res.error?.message ?? 'Erreur réseau'], warnings: [] });
+    };
+
+    const saveConfig = async () => {
+        setSaving(true);
+        setSaveResult(null);
+        const res = await api.post<SaveResult>('/api/plugins/fail2ban/config/write-raw', { filename: rawTab, content: editContent });
+        setSaving(false);
+        if (res.success && res.result) {
+            setSaveResult(res.result);
+            if (res.result.ok) {
+                onSaved?.(rawTab, editContent);
+                setEditMode(false);
+                setTestResult(null);
+            }
+        } else {
+            setSaveResult({ ok: false, reloadOk: false, reloadOutput: '', error: res.error?.message ?? 'Erreur réseau' });
+        }
+    };
+
+    const lineCount = (editMode ? editContent : (content ?? '')).split('\n').length;
+
     return (
-        <div style={{ display: 'flex', gap: 0, height: 480, overflow: 'hidden' }}>
-            {/* Sidebar */}
-            <div style={{ width: 148, flexShrink: 0, borderRight: `1px solid #30363d`, display: 'flex', flexDirection: 'column', background: '#161b22' }}>
-                <div style={{ padding: '.45rem .75rem', fontSize: '.65rem', color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.06em', borderBottom: '1px solid #30363d' }}>
-                    /etc/fail2ban/
-                </div>
-                {FILES.map(f => {
-                    const absent = rawFiles && rawFiles[f] === null;
-                    const active = rawTab === f;
-                    return (
-                        <button key={f} onClick={() => onTabChange(f)} style={{
-                            textAlign: 'left', padding: '.4rem .75rem', fontSize: '.78rem',
-                            fontFamily: 'monospace', background: active ? 'rgba(88,166,255,.12)' : 'transparent',
-                            color: active ? '#58a6ff' : absent ? '#555d69' : '#e6edf3',
-                            border: 'none', borderLeft: active ? '2px solid #58a6ff' : '2px solid transparent',
-                            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '.4rem',
-                        }}>
-                            <FileText style={{ width: 11, height: 11, flexShrink: 0 }} />
-                            <span style={{ flex: 1 }}>{f}</span>
-                            {absent && <span style={{ fontSize: '.55rem', color: '#555d69' }}>∅</span>}
-                        </button>
-                    );
-                })}
-            </div>
-            {/* Editor area */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#0d1117' }}>
-                {/* Toolbar */}
-                <div style={{ display: 'flex', alignItems: 'center', padding: '.3rem .75rem', background: '#161b22', borderBottom: '1px solid #30363d', gap: '.5rem' }}>
-                    <span style={{ fontFamily: 'monospace', fontSize: '.72rem', color: '#58a6ff', flex: 1 }}>/etc/fail2ban/{rawTab}</span>
-                    {content && <span style={{ fontSize: '.68rem', color: '#555d69' }}>{lineCount} lignes</span>}
-                    {content === null && <span style={{ fontSize: '.68rem', color: '#555d69', fontStyle: 'italic' }}>fichier absent</span>}
-                    <button onClick={copyContent} disabled={!content} title="Copier" style={{
-                        background: 'none', border: `1px solid #30363d`, borderRadius: 4, cursor: content ? 'pointer' : 'not-allowed',
-                        color: copied ? '#3fb950' : '#8b949e', padding: '2px 6px', display: 'flex', alignItems: 'center', gap: '.3rem', fontSize: '.7rem',
-                    }}>
-                        {copied ? <CheckCircle style={{ width: 11, height: 11 }} /> : <Copy style={{ width: 11, height: 11 }} />}
-                        {copied ? 'Copié' : 'Copier'}
-                    </button>
-                </div>
-                {/* Content with line numbers */}
-                <div style={{ flex: 1, overflowY: 'auto', display: 'flex' }}>
-                    {content ? (
-                        <>
-                            {/* Line numbers */}
-                            <div style={{ padding: '.75rem .5rem', textAlign: 'right', userSelect: 'none', borderRight: '1px solid #21262d', flexShrink: 0, minWidth: 40 }}>
-                                {content.split('\n').map((_, i) => (
-                                    <div key={i} style={{ fontSize: '.72rem', lineHeight: 1.65, color: '#30363d', fontFamily: 'monospace' }}>{i + 1}</div>
-                                ))}
-                            </div>
-                            {/* Code */}
-                            <pre style={{ flex: 1, padding: '.75rem 1rem', margin: 0, overflow: 'visible', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-                                <ConfHighlighter content={content} />
-                            </pre>
-                        </>
-                    ) : (
-                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#555d69', fontSize: '.8rem', fontStyle: 'italic' }}>
-                            {rawFiles ? 'Ce fichier n\'existe pas sur ce système' : 'Chargement…'}
+        <div style={{ display: 'flex', flexDirection: 'column', height, overflow: 'hidden' }}>
+            {/* Test/Save result banner */}
+            {(testResult || saveResult) && (
+                <div style={{
+                    padding: '.45rem .85rem', flexShrink: 0, fontSize: '.75rem',
+                    background: (testResult?.ok || saveResult?.ok) ? 'rgba(63,185,80,.08)' : 'rgba(232,106,101,.08)',
+                    borderBottom: `1px solid ${(testResult?.ok || saveResult?.ok) ? 'rgba(63,185,80,.3)' : 'rgba(232,106,101,.3)'}`,
+                }}>
+                    {testResult && !testResult.ok && testResult.errors.map((e, i) => (
+                        <div key={i} style={{ color: '#e86a65', display: 'flex', alignItems: 'flex-start', gap: '.4rem' }}>
+                            <XCircle style={{ width: 12, height: 12, flexShrink: 0, marginTop: 1 }} />{e}
+                        </div>
+                    ))}
+                    {testResult && testResult.warnings.map((w, i) => (
+                        <div key={i} style={{ color: '#e3b341', display: 'flex', alignItems: 'flex-start', gap: '.4rem' }}>
+                            <AlertTriangle style={{ width: 12, height: 12, flexShrink: 0, marginTop: 1 }} />{w}
+                        </div>
+                    ))}
+                    {testResult?.ok && (
+                        <div style={{ color: '#3fb950', display: 'flex', alignItems: 'center', gap: '.4rem' }}>
+                            <CheckCircle style={{ width: 12, height: 12 }} /> Syntaxe valide — prêt à sauvegarder
                         </div>
                     )}
+                    {saveResult && !saveResult.ok && (
+                        <div style={{ color: '#e86a65', display: 'flex', alignItems: 'center', gap: '.4rem' }}>
+                            <XCircle style={{ width: 12, height: 12 }} /> {saveResult.error ?? 'Échec de l\'écriture'}
+                        </div>
+                    )}
+                </div>
+            )}
+
+            <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+                {/* Sidebar */}
+                <div style={{ width: 148, flexShrink: 0, borderRight: `1px solid #30363d`, display: 'flex', flexDirection: 'column', background: '#161b22' }}>
+                    <div style={{ padding: '.45rem .75rem', fontSize: '.65rem', color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.06em', borderBottom: '1px solid #30363d' }}>
+                        /etc/fail2ban/
+                    </div>
+                    {FILES.map(f => {
+                        const absent = rawFiles && rawFiles[f] === null;
+                        const active = rawTab === f;
+                        const canEdit = EDITABLE.has(f);
+                        return (
+                            <button key={f} onClick={() => switchTab(f)} style={{
+                                textAlign: 'left', padding: '.4rem .75rem', fontSize: '.78rem',
+                                fontFamily: 'monospace', background: active ? 'rgba(88,166,255,.12)' : 'transparent',
+                                color: active ? '#58a6ff' : absent ? '#555d69' : '#e6edf3',
+                                border: 'none', borderLeft: active ? '2px solid #58a6ff' : '2px solid transparent',
+                                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '.4rem',
+                            }}>
+                                <FileText style={{ width: 11, height: 11, flexShrink: 0 }} />
+                                <span style={{ flex: 1 }}>{f}</span>
+                                {absent && <span style={{ fontSize: '.55rem', color: '#555d69' }}>∅</span>}
+                                {canEdit && !absent && <Pencil style={{ width: 9, height: 9, color: '#8b949e', opacity: .5 }} />}
+                            </button>
+                        );
+                    })}
+                    <div style={{ flex: 1 }} />
+                    <div style={{ padding: '.5rem .6rem', fontSize: '.62rem', color: '#555d69', borderTop: '1px solid #30363d', lineHeight: 1.4 }}>
+                        <span style={{ color: '#3fb950' }}>●</span> éditable<br />
+                        <span style={{ color: '#555d69' }}>●</span> lecture seule
+                    </div>
+                </div>
+
+                {/* Editor area */}
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#0d1117' }}>
+                    {/* Toolbar */}
+                    <div style={{ display: 'flex', alignItems: 'center', padding: '.3rem .75rem', background: '#161b22', borderBottom: '1px solid #30363d', gap: '.5rem', flexShrink: 0 }}>
+                        <span style={{ fontFamily: 'monospace', fontSize: '.72rem', color: '#58a6ff', flex: 1 }}>
+                            /etc/fail2ban/{rawTab}
+                            {isDirty && <span style={{ color: '#e3b341', marginLeft: '.4rem' }}>●</span>}
+                        </span>
+                        {content && !editMode && <span style={{ fontSize: '.68rem', color: '#555d69' }}>{lineCount} lignes</span>}
+                        {editMode && <span style={{ fontSize: '.68rem', color: '#e3b341' }}>{lineCount} lignes · édition</span>}
+                        {content === null && <span style={{ fontSize: '.68rem', color: '#555d69', fontStyle: 'italic' }}>fichier absent</span>}
+
+                        {/* Edit mode actions */}
+                        {editMode && isDirty && (
+                            <button onClick={testConfig} disabled={testing} style={{
+                                background: testing ? 'rgba(227,179,65,.08)' : 'rgba(227,179,65,.15)', color: '#e3b341',
+                                border: '1px solid rgba(227,179,65,.4)', borderRadius: 4, cursor: testing ? 'not-allowed' : 'pointer',
+                                padding: '2px 7px', display: 'flex', alignItems: 'center', gap: '.3rem', fontSize: '.7rem',
+                            }}>
+                                {testing
+                                    ? <><RefreshCw style={{ width: 10, height: 10, animation: 'spin 1s linear infinite' }} /> Test…</>
+                                    : <><CheckCircle style={{ width: 10, height: 10 }} /> Tester</>
+                                }
+                            </button>
+                        )}
+                        {editMode && testResult?.ok && isDirty && (
+                            <button onClick={saveConfig} disabled={saving} style={{
+                                background: saving ? 'rgba(63,185,80,.08)' : 'rgba(63,185,80,.15)', color: '#3fb950',
+                                border: '1px solid rgba(63,185,80,.4)', borderRadius: 4, cursor: saving ? 'not-allowed' : 'pointer',
+                                padding: '2px 7px', display: 'flex', alignItems: 'center', gap: '.3rem', fontSize: '.7rem',
+                            }}>
+                                {saving
+                                    ? <><RefreshCw style={{ width: 10, height: 10, animation: 'spin 1s linear infinite' }} /> Sauvegarde…</>
+                                    : <><Save style={{ width: 10, height: 10 }} /> Sauvegarder & Recharger</>
+                                }
+                            </button>
+                        )}
+
+                        {/* Copy */}
+                        <button onClick={copyContent} disabled={!content && !editMode} title="Copier" style={{
+                            background: 'none', border: `1px solid #30363d`, borderRadius: 4,
+                            cursor: (content || editMode) ? 'pointer' : 'not-allowed',
+                            color: copied ? '#3fb950' : '#8b949e', padding: '2px 6px', display: 'flex', alignItems: 'center', gap: '.3rem', fontSize: '.7rem',
+                        }}>
+                            {copied ? <CheckCircle style={{ width: 11, height: 11 }} /> : <Copy style={{ width: 11, height: 11 }} />}
+                            {copied ? 'Copié' : 'Copier'}
+                        </button>
+
+                        {/* Edit toggle */}
+                        {isEditable && !editMode && (
+                            <button onClick={enterEdit} title="Activer l'édition" style={{
+                                background: 'rgba(88,166,255,.12)', color: '#58a6ff',
+                                border: '1px solid rgba(88,166,255,.35)', borderRadius: 4,
+                                cursor: 'pointer', padding: '2px 7px', display: 'flex', alignItems: 'center', gap: '.3rem', fontSize: '.7rem',
+                            }}>
+                                <Pencil style={{ width: 10, height: 10 }} /> Éditer
+                            </button>
+                        )}
+                        {editMode && (
+                            <button onClick={exitEdit} title="Quitter l'édition" style={{
+                                background: 'rgba(232,106,101,.12)', color: '#e86a65',
+                                border: '1px solid rgba(232,106,101,.35)', borderRadius: 4,
+                                cursor: 'pointer', padding: '2px 7px', display: 'flex', alignItems: 'center', gap: '.3rem', fontSize: '.7rem',
+                            }}>
+                                <X style={{ width: 10, height: 10 }} /> Quitter
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Content */}
+                    <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                        {editMode ? (
+                            <textarea
+                                value={editContent}
+                                onChange={e => { setEditContent(e.target.value); setTestResult(null); setSaveResult(null); }}
+                                spellCheck={false}
+                                style={{
+                                    flex: 1, width: '100%', height: '100%', resize: 'none',
+                                    borderTop: 'none', borderRight: 'none', borderBottom: 'none', outline: 'none',
+                                    background: '#0d1117', color: '#e6edf3', fontFamily: 'monospace', fontSize: '.75rem',
+                                    lineHeight: 1.65, padding: '.75rem 1rem', boxSizing: 'border-box',
+                                    borderLeft: '3px solid rgba(227,179,65,.4)',
+                                }}
+                            />
+                        ) : content ? (
+                            <div style={{ flex: 1, overflowY: 'auto', display: 'flex' }}>
+                                {/* Line numbers */}
+                                <div style={{ padding: '.75rem .5rem', textAlign: 'right', userSelect: 'none', borderRight: '1px solid #21262d', flexShrink: 0, minWidth: 40 }}>
+                                    {content.split('\n').map((_, i) => (
+                                        <div key={i} style={{ fontSize: '.72rem', lineHeight: 1.65, color: '#30363d', fontFamily: 'monospace' }}>{i + 1}</div>
+                                    ))}
+                                </div>
+                                <pre style={{ flex: 1, padding: '.75rem 1rem', margin: 0, overflow: 'visible', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                                    <ConfHighlighter content={content} />
+                                </pre>
+                            </div>
+                        ) : (
+                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '.6rem', color: '#555d69', fontSize: '.8rem' }}>
+                                {rawFiles ? (
+                                    isEditable ? (
+                                        <>
+                                            <span style={{ fontStyle: 'italic' }}>Ce fichier n'existe pas — cliquez <strong style={{ color: '#58a6ff' }}>Éditer</strong> pour le créer</span>
+                                        </>
+                                    ) : (
+                                        <span style={{ fontStyle: 'italic' }}>Ce fichier n'existe pas sur ce système</span>
+                                    )
+                                ) : 'Chargement…'}
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>
@@ -340,9 +528,100 @@ const VacuumAlert: React.FC<{ fragPct: number; dbPath: string; onDone: () => voi
     );
 };
 
+// ── VacuumAlert for dashboard.db ──────────────────────────────────────────────
+
+const DashboardVacuumAlert: React.FC<{ fragPct: number; onDone: () => void }> = ({ fragPct, onDone }) => {
+    const [state, setState] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
+    const [errMsg, setErrMsg] = useState('');
+    const run = async () => {
+        setState('running');
+        try {
+            const res = await api.post<{ ok: boolean; error?: string }>('/api/plugins/fail2ban/config/dashboard-vacuum');
+            if (res.success && res.result?.ok) { setState('done'); onDone(); }
+            else {
+                setErrMsg(res.result?.error ?? res.error?.message ?? 'Erreur inconnue');
+                setState('error');
+            }
+        } catch (e: unknown) {
+            setState('error');
+            setErrMsg(e instanceof Error ? e.message : 'Erreur réseau');
+        }
+    };
+    return (
+        <div style={{ fontSize: '.75rem', color: C.orange, marginTop: '.25rem', display: 'flex', alignItems: 'flex-start', gap: '.5rem', background: 'rgba(227,179,65,.06)', border: '1px solid rgba(227,179,65,.25)', borderRadius: 6, padding: '.6rem .75rem' }}>
+            <AlertTriangle style={{ width: 13, height: 13, marginTop: 1, flexShrink: 0 }} />
+            <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', flexWrap: 'wrap' }}>
+                    <span style={{ fontWeight: 600 }}>Fragmentation élevée ({fragPct}%)</span>
+                    <span style={{ color: C.muted }}>— compresse dashboard.db et libère l'espace inutilisé</span>
+                    {state === 'done' && (
+                        <span style={{ color: C.green, display: 'inline-flex', alignItems: 'center', gap: '.3rem' }}>
+                            <CheckCircle style={{ width: 11, height: 11 }} /> VACUUM terminé
+                        </span>
+                    )}
+                    {state === 'error' && <span style={{ color: C.red }}>{errMsg}</span>}
+                    {state !== 'done' && (
+                        <Btn onClick={run} loading={state === 'running'} small
+                            bg="rgba(227,179,65,.15)" color={C.orange} border="rgba(227,179,65,.4)">
+                            <HardDrive style={{ width: 11, height: 11 }} />
+                            {state === 'running' ? 'VACUUM en cours…' : 'Lancer VACUUM'}
+                        </Btn>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// ── Warning badge inline ───────────────────────────────────────────────────────
+
+const WarnBadge: React.FC<{ count: number; tip?: string }> = ({ count, tip }) => (
+    <span title={tip} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 18, height: 18, padding: '0 5px', borderRadius: 999, background: 'rgba(227,179,65,.18)', border: '1px solid rgba(227,179,65,.45)', color: C.orange, fontSize: '.65rem', fontWeight: 700, cursor: tip ? 'help' : undefined }}>
+        {count}
+    </span>
+);
+
+// ── Raw File Modal ─────────────────────────────────────────────────────────────
+
+const RawFileModal: React.FC<{
+    rawFiles: RawFiles | null;
+    rawTab: string;
+    onTabChange: (t: string) => void;
+    onClose: () => void;
+    onSaved: (filename: string, content: string) => void;
+}> = ({ rawFiles, rawTab, onTabChange, onClose, onSaved }) => createPortal(
+    <div
+        style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,.7)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }}
+        onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+    >
+        <div style={{ background: C.bg1, border: `1px solid ${C.border}`, borderRadius: 10, width: '100%', maxWidth: 1300, boxShadow: '0 20px 60px rgba(0,0,0,.6)', display: 'flex', flexDirection: 'column', maxHeight: '95vh' }}>
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', padding: '.8rem 1rem', borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
+                <FileText style={{ width: 15, height: 15, color: C.blue }} />
+                <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 700, fontSize: '.95rem', color: C.text }}>Fichiers de configuration</div>
+                    <div style={{ fontSize: '.72rem', color: C.muted, marginTop: 1 }}>/etc/fail2ban/ — <span style={{ color: C.orange }}>fail2ban.local</span> et <span style={{ color: C.orange }}>jail.local</span> sont éditables</div>
+                </div>
+                <button onClick={onClose} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 5, cursor: 'pointer', color: C.muted, padding: '.2rem .4rem', display: 'flex', alignItems: 'center' }}>
+                    <X style={{ width: 14, height: 14 }} />
+                </button>
+            </div>
+            {/* Body */}
+            <div style={{ flex: 1, overflow: 'hidden', borderRadius: '0 0 10px 10px' }}>
+                <RawFileViewer rawFiles={rawFiles} rawTab={rawTab} onTabChange={onTabChange} height="100%" onSaved={onSaved} />
+            </div>
+        </div>
+    </div>,
+    document.body
+);
+
 // ── Main Component ────────────────────────────────────────────────────────────
 
-export const TabConfig: React.FC = () => {
+export const TabConfig: React.FC<{
+    onWarningsChange?: (count: number) => void;
+    npmDataPath?: string;
+    onNpmDataPathChange?: (v: string) => void;
+}> = ({ onWarningsChange, npmDataPath = '', onNpmDataPathChange }) => {
     const [parsed, setParsed]       = useState<ParsedConfigResult | null>(null);
     const [rawFiles, setRawFiles]   = useState<RawFiles | null>(null);
     const [loading, setLoading]     = useState(true);
@@ -365,6 +644,40 @@ export const TabConfig: React.FC = () => {
         setSyncChecking(false);
     };
 
+    // Intégrations — NPM logpath (synced with parent via props)
+    const [npmInput, setNpmInput] = useState(npmDataPath);
+    const [npmSaving, setNpmSaving] = useState(false);
+    const [npmSaved, setNpmSaved]   = useState(false);
+    type NpmCheckResult = { ok: boolean; step: string; error: string | null; resolvedPath: string; domains: number; jailMatches: number; jailLogpaths?: Record<string, string>; proxyHostJails?: { jail: string; logpath: string }[] };
+    const [npmCheck, setNpmCheck] = useState<NpmCheckResult | null>(null);
+    const [npmChecking, setNpmChecking] = useState(false);
+    // Keep local input in sync when parent prop updates (e.g. initial load)
+    useEffect(() => { setNpmInput(npmDataPath); }, [npmDataPath]);
+
+    const saveNpmSettings = async () => {
+        setNpmSaving(true);
+        setNpmCheck(null);
+        setNpmSaved(false);
+        const res = await api.post<{ ok: boolean }>('/api/plugins/fail2ban/config', { settings: { npmDataPath: npmInput.trim() } });
+        setNpmSaving(false);
+        if (res.success) {
+            onNpmDataPathChange?.(npmInput.trim());
+            setNpmSaved(true);
+            setTimeout(() => setNpmSaved(false), 4000);
+        } else {
+            toast('Erreur lors de l\'enregistrement', false);
+        }
+    };
+
+    const checkNpm = async () => {
+        setNpmChecking(true);
+        setNpmCheck(null);
+        const res = await api.get<NpmCheckResult>('/api/plugins/fail2ban/check-npm');
+        setNpmChecking(false);
+        if (res.success && res.result) setNpmCheck(res.result);
+        else setNpmCheck({ ok: false, step: 'request', error: res.error?.message ?? 'Erreur réseau', resolvedPath: '', domains: 0, jailMatches: 0 });
+    };
+
     // Maintenance
     const [resetting, setResetting] = useState(false);
 
@@ -373,6 +686,48 @@ export const TabConfig: React.FC = () => {
     const [fmLogtarget, setFmLogtarget] = useState('');
     const [fmPurgeage, setFmPurgeage]   = useState('');
     const [fmMaxmatches, setFmMaxmatches] = useState('');
+
+    // Collapsible cards
+    const [openRuntime, setOpenRuntime] = useState(false);
+    const [openDb,      setOpenDb]      = useState(false);
+    const [openMaint,   setOpenMaint]   = useState(false);
+
+    // Raw files modal
+    const [openRawModal, setOpenRawModal] = useState(false);
+
+    // Firewall checks (iptables / ipset / nftables)
+    type FwStatus = 'idle' | 'loading' | 'ok' | 'error';
+    const FW_CHECKS_CFG = [
+        { key: 'iptables', label: 'IPTables', icon: <Shield style={{ width: 13, height: 13 }} />, color: C.blue,   route: '/api/plugins/fail2ban/iptables',  detail: 'Règles netfilter via iptables-save', fix: 'Requiert NET_ADMIN + network_mode: host' },
+        { key: 'ipset',    label: 'IPSet',    icon: <Layers  style={{ width: 13, height: 13 }} />, color: C.purple, route: '/api/plugins/fail2ban/ipset/info', detail: 'Sets netfilter (f2b-*, blacklist…)',  fix: 'Requiert NET_ADMIN + network_mode: host' },
+        { key: 'nftables', label: 'NFTables', icon: <Network style={{ width: 13, height: 13 }} />, color: C.cyan,   route: '/api/plugins/fail2ban/nftables',  detail: 'Ruleset nftables du host',           fix: 'Requiert NET_ADMIN + network_mode: host' },
+    ];
+    const [fwStatuses, setFwStatuses] = useState<Record<string, FwStatus>>({});
+    const [fwErrors,   setFwErrors]   = useState<Record<string, string>>({});
+    const [fwLoading,  setFwLoading]  = useState(false);
+
+    const checkFirewall = useCallback(async () => {
+        setFwLoading(true);
+        setFwStatuses({ iptables: 'loading', ipset: 'loading', nftables: 'loading' });
+        setFwErrors({});
+        const results = await Promise.all(
+            FW_CHECKS_CFG.map(async c => {
+                try {
+                    const res = await api.get<{ ok: boolean; error?: string }>(c.route);
+                    const ok = res.success && res.result?.ok === true;
+                    return { key: c.key, status: ok ? 'ok' : 'error', error: res.result?.error ?? '' };
+                } catch (e) {
+                    return { key: c.key, status: 'error', error: e instanceof Error ? e.message : String(e) };
+                }
+            })
+        );
+        const st: Record<string, FwStatus> = {};
+        const er: Record<string, string>   = {};
+        for (const r of results) { st[r.key] = r.status as FwStatus; if (r.error) er[r.key] = r.error; }
+        setFwStatuses(st);
+        setFwErrors(er);
+        setFwLoading(false);
+    }, []);
 
     // Feedback toasts
     const [toasts, setToasts] = useState<{ id: number; msg: string; ok: boolean }[]>([]);
@@ -406,7 +761,19 @@ export const TabConfig: React.FC = () => {
     useEffect(() => {
         loadParsed();
         runChecks();
-    }, [loadParsed, runChecks]);
+        checkFirewall();
+    }, [loadParsed, runChecks, checkFirewall]);
+
+    // Notify parent whenever parsed data or firewall statuses change → drives nav badge
+    useEffect(() => {
+        if (!onWarningsChange) return;
+        let warns = 0;
+        if (parsed?.dbInfo?.fragPct   && parsed.dbInfo.fragPct   > 20) warns++;
+        if (parsed?.dbInfo?.integrity && parsed.dbInfo.integrity !== 'ok') warns++;
+        if (parsed?.appDbInfo?.fragPct && parsed.appDbInfo.fragPct > 20) warns++;
+        warns += FW_CHECKS_CFG.filter(c => fwStatuses[c.key] === 'error').length;
+        onWarningsChange(warns);
+    }, [parsed, fwStatuses, onWarningsChange]);
 
     const loadRaw = useCallback(async () => {
         const res = await api.get<{ files: RawFiles }>('/api/plugins/fail2ban/config');
@@ -519,6 +886,17 @@ export const TabConfig: React.FC = () => {
                 ))}
             </div>
 
+            {/* ── Raw File Modal ────────────────────────────────────────────── */}
+            {openRawModal && (
+                <RawFileModal
+                    rawFiles={rawFiles}
+                    rawTab={rawTab ?? 'fail2ban.conf'}
+                    onTabChange={setRawTab}
+                    onClose={() => setOpenRawModal(false)}
+                    onSaved={(filename, content) => setRawFiles(prev => prev ? { ...prev, [filename]: content } : prev)}
+                />
+            )}
+
             {/* ── 2-column grid ─────────────────────────────────────────────── */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 520px), 1fr))', gap: '1.25rem', alignItems: 'start' }}>
 
@@ -539,7 +917,11 @@ export const TabConfig: React.FC = () => {
                         <div style={{ ...cardH }}>
                             <Stethoscope style={{ width: 14, height: 14, color: C.cyan }} />
                             <span style={{ fontWeight: 600, fontSize: '.9rem' }}>Diagnostic système</span>
-                            <span style={{ marginLeft: 'auto' }}>
+                            <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '.5rem' }}>
+                                <button onClick={runChecks} disabled={checkLoading}
+                                    style={{ padding: '.2rem .5rem', borderRadius: 4, background: 'transparent', border: `1px solid ${C.border}`, color: C.muted, cursor: 'pointer', fontSize: '.72rem', display: 'inline-flex', alignItems: 'center', gap: '.25rem', opacity: checkLoading ? .5 : 1 }}>
+                                    <RefreshCw style={{ width: 10, height: 10 }} /> Relancer
+                                </button>
                                 {checkLoading ? (
                                     <span style={{ fontSize: '.72rem', color: C.muted, display: 'flex', alignItems: 'center', gap: '.3rem' }}>
                                         <RefreshCw style={{ width: 11, height: 11, animation: 'spin 1s linear infinite' }} /> Analyse…
@@ -554,10 +936,6 @@ export const TabConfig: React.FC = () => {
                                     </span>
                                 )}
                             </span>
-                            <button onClick={runChecks} disabled={checkLoading}
-                                style={{ marginLeft: '.5rem', padding: '.2rem .5rem', borderRadius: 4, background: 'transparent', border: `1px solid ${C.border}`, color: C.muted, cursor: 'pointer', fontSize: '.72rem', display: 'inline-flex', alignItems: 'center', gap: '.25rem', opacity: checkLoading ? .5 : 1 }}>
-                                <RefreshCw style={{ width: 10, height: 10 }} /> Relancer
-                            </button>
                         </div>
                         {!checkLoading && checkResult && !checkResult.ok && (
                             <div style={{ ...cardB, display: 'flex', flexDirection: 'column', gap: '.6rem' }}>
@@ -645,10 +1023,14 @@ export const TabConfig: React.FC = () => {
                             </div>
 
                             {/* Card: SQLite fail2ban */}
-                            <div style={{ ...card, borderColor: dbInfo?.integrity === 'ok' ? C.border : 'rgba(232,106,101,.4)' }}>
+                            <div style={{ ...card, borderColor: (dbInfo && (dbInfo.integrity !== 'ok' || dbInfo.fragPct > 20)) ? 'rgba(227,179,65,.4)' : C.border }}>
                                 <div style={{ ...cardH }}>
                                     <Database style={{ width: 14, height: 14, color: C.purple }} />
                                     <span style={{ fontWeight: 600, fontSize: '.9rem' }}>SQLite fail2ban (officielle)</span>
+                                    {dbInfo && (dbInfo.integrity !== 'ok' || dbInfo.fragPct > 20) && (
+                                        <WarnBadge count={[dbInfo.integrity !== 'ok', dbInfo.fragPct > 20].filter(Boolean).length}
+                                            tip={[dbInfo.integrity !== 'ok' ? `Intégrité : ${dbInfo.integrity}` : '', dbInfo.fragPct > 20 ? `Fragmentation élevée : ${dbInfo.fragPct}%` : ''].filter(Boolean).join(' · ')} />
+                                    )}
                                 </div>
                                 <div style={{ ...cardB }}>
                                     {dbInfo ? (
@@ -688,12 +1070,13 @@ export const TabConfig: React.FC = () => {
 
                                 {/* Paramètres runtime */}
                                 <div style={card}>
-                                    <div style={{ ...cardH }}>
+                                    <div onClick={() => setOpenRuntime(o => !o)} style={{ ...cardH, cursor: 'pointer', userSelect: 'none' }}>
                                         <Play style={{ width: 14, height: 14, color: C.blue }} />
                                         <span style={{ fontWeight: 600, fontSize: '.9rem' }}>Runtime</span>
                                         <span style={{ marginLeft: 'auto', fontSize: '.67rem', color: C.muted }}>sans redémarrage</span>
+                                        {openRuntime ? <ChevronDown style={{ width: 13, height: 13, color: C.muted, marginLeft: '.35rem' }} /> : <ChevronRight style={{ width: 13, height: 13, color: C.muted, marginLeft: '.35rem' }} />}
                                     </div>
-                                    <div style={{ ...cardB, display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
+                                    {openRuntime && <div style={{ ...cardB, display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
                                         <div>
                                             <label style={{ fontSize: '.75rem', color: C.muted, display: 'block', marginBottom: '.3rem' }}>Loglevel</label>
                                             <select value={fmLoglevel} onChange={e => setFmLoglevel(e.target.value)} style={sel}>
@@ -716,17 +1099,18 @@ export const TabConfig: React.FC = () => {
                                                 <Save style={{ width: 11, height: 11 }} /> Appliquer + persister
                                             </Btn>
                                         </div>
-                                    </div>
+                                    </div>}
                                 </div>
 
                                 {/* Base de données & Rétention */}
                                 <div style={card}>
-                                    <div style={{ ...cardH }}>
+                                    <div onClick={() => setOpenDb(o => !o)} style={{ ...cardH, cursor: 'pointer', userSelect: 'none' }}>
                                         <Database style={{ width: 14, height: 14, color: C.purple }} />
                                         <span style={{ fontWeight: 600, fontSize: '.9rem' }}>Base de données</span>
                                         <span style={{ marginLeft: 'auto', fontSize: '.67rem', color: C.muted }}>fail2ban.local</span>
+                                        {openDb ? <ChevronDown style={{ width: 13, height: 13, color: C.muted, marginLeft: '.35rem' }} /> : <ChevronRight style={{ width: 13, height: 13, color: C.muted, marginLeft: '.35rem' }} />}
                                     </div>
-                                    <div style={{ ...cardB, display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
+                                    {openDb && <div style={{ ...cardB, display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
                                         <div>
                                             <label style={{ fontSize: '.75rem', color: C.muted, display: 'block', marginBottom: '.3rem' }}>DB Purge Age (secondes)</label>
                                             <input type="text" value={fmPurgeage} onChange={e => setFmPurgeage(e.target.value)} style={inp} placeholder="86400" />
@@ -743,7 +1127,7 @@ export const TabConfig: React.FC = () => {
                                             bg="rgba(188,140,255,.15)" color={C.purple} border="rgba(188,140,255,.4)">
                                             <Save style={{ width: 11, height: 11 }} /> Persister dans fail2ban.local
                                         </Btn>
-                                    </div>
+                                    </div>}
                                 </div>
 
                             </div>
@@ -759,14 +1143,20 @@ export const TabConfig: React.FC = () => {
 
                     {/* Card: Raw files viewer — fichiers /etc/fail2ban/ */}
                     <div style={card}>
-                        <div style={{ ...cardH, cursor: 'pointer' }} onClick={() => setRawTab(rawTab === null ? 'fail2ban.conf' : null)}>
+                        <div style={{ ...cardH }}>
                             <FileText style={{ width: 14, height: 14, color: C.blue }} />
                             <span style={{ fontWeight: 600, fontSize: '.9rem' }}>Fichiers de configuration</span>
-                            <ChevronRight style={{ width: 14, height: 14, color: C.muted, marginLeft: 'auto', transition: 'transform .15s', transform: rawTab !== null ? 'rotate(90deg)' : 'none' }} />
+                            <span style={{ marginLeft: 'auto' }}>
+                                <button onClick={() => { setRawTab(t => t ?? 'fail2ban.conf'); setOpenRawModal(true); }} style={{
+                                    display: 'inline-flex', alignItems: 'center', gap: '.3rem',
+                                    padding: '.2rem .55rem', borderRadius: 5, cursor: 'pointer',
+                                    background: 'rgba(88,166,255,.12)', color: C.blue,
+                                    border: '1px solid rgba(88,166,255,.35)', fontSize: '.73rem',
+                                }}>
+                                    <Pencil style={{ width: 11, height: 11 }} /> Éditer
+                                </button>
+                            </span>
                         </div>
-                        {rawTab !== null && (
-                            <RawFileViewer rawFiles={rawFiles} rawTab={rawTab} onTabChange={setRawTab} />
-                        )}
                     </div>
 
                 </div>
@@ -785,17 +1175,28 @@ export const TabConfig: React.FC = () => {
                 <div style={colBody}>
 
                     {/* Card: App DB + internal sync stats */}
-                    <div style={card}>
+                    <div style={{ ...card, borderColor: (parsed?.appDbInfo?.fragPct ?? 0) > 20 ? 'rgba(227,179,65,.4)' : C.border }}>
                         <div style={{ ...cardH }}>
                             <HardDrive style={{ width: 14, height: 14, color: C.cyan }} />
                             <span style={{ fontWeight: 600, fontSize: '.9rem' }}>Base de données interne (dashboard.db)</span>
+                            {(parsed?.appDbInfo?.fragPct ?? 0) > 20 && (
+                                <WarnBadge count={1} tip={`Fragmentation élevée : ${parsed!.appDbInfo.fragPct}% — VACUUM recommandé`} />
+                            )}
                         </div>
                         <div style={{ ...cardB }}>
                             {parsed?.appDbInfo ? (
                                 <div>
                                     <Row label="Chemin" value="data/dashboard.db" />
                                     <Row label="Taille" value={parsed.appDbInfo.sizeFmt} />
+                                    <Row label="Fragmentation" value={
+                                        <span style={{ color: parsed.appDbInfo.fragPct > 20 ? C.orange : C.green, fontWeight: 600 }}>
+                                            {parsed.appDbInfo.fragPct}%
+                                        </span>
+                                    } />
                                     <Row label="État" value={<StatusBadge ok={parsed.appDbInfo.exists} label={parsed.appDbInfo.exists ? 'Accessible' : 'Non trouvé'} />} />
+                                    {parsed.appDbInfo.fragPct > 20 && (
+                                        <DashboardVacuumAlert fragPct={parsed.appDbInfo.fragPct} onDone={() => { void loadParsed(); }} />
+                                    )}
                                 </div>
                             ) : (
                                 <div style={{ fontSize: '.8rem', color: C.muted }}>Non disponible</div>
@@ -852,12 +1253,170 @@ export const TabConfig: React.FC = () => {
                         </div>
                     </div>
 
+                    {/* Card: Pare-feu — Netfilter */}
+                    {(() => {
+                        const fwErrCount = FW_CHECKS_CFG.filter(c => fwStatuses[c.key] === 'error').length;
+                        const fwOkAll    = FW_CHECKS_CFG.every(c => fwStatuses[c.key] === 'ok');
+                        return (
+                    <div style={{ ...card, borderColor: fwErrCount > 0 ? 'rgba(227,179,65,.4)' : C.border }}>
+                        <div style={{ ...cardH, background: fwErrCount > 0 ? 'rgba(227,179,65,.04)' : undefined }}>
+                            <Layers style={{ width: 14, height: 14, color: fwErrCount > 0 ? C.orange : C.cyan }} />
+                            <span style={{ fontWeight: 600, fontSize: '.9rem' }}>Pare-feu — Netfilter <span style={{ fontWeight: 400, color: C.orange, fontSize: '.72rem' }}>(optionnel)</span></span>
+                            {fwErrCount > 0 && (
+                                <WarnBadge count={fwErrCount}
+                                    tip={FW_CHECKS_CFG.filter(c => fwStatuses[c.key] === 'error').map(c => `${c.label} inaccessible`).join(' · ') + ' — NET_ADMIN + network_mode: host requis'} />
+                            )}
+                            <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '.5rem' }}>
+                                <button onClick={checkFirewall} disabled={fwLoading} style={{ padding: '.2rem .5rem', borderRadius: 4, background: 'transparent', border: `1px solid ${C.border}`, color: C.muted, cursor: 'pointer', fontSize: '.72rem', display: 'inline-flex', alignItems: 'center', gap: '.25rem', opacity: fwLoading ? .5 : 1 }}>
+                                    <RefreshCw style={{ width: 10, height: 10, ...(fwLoading ? { animation: 'spin 1s linear infinite' } : {}) }} /> Relancer
+                                </button>
+                                {fwOkAll ? (
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '.72rem', padding: '2px 8px', borderRadius: 4, background: 'rgba(63,185,80,.12)', color: C.green, border: '1px solid rgba(63,185,80,.3)' }}>
+                                        <CheckCircle style={{ width: 10, height: 10 }} /> Tout accessible
+                                    </span>
+                                ) : fwErrCount > 0 ? (
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '.72rem', padding: '2px 8px', borderRadius: 4, background: 'rgba(227,179,65,.12)', color: C.orange, border: '1px solid rgba(227,179,65,.3)' }}>
+                                        <AlertTriangle style={{ width: 10, height: 10 }} /> {fwErrCount} inaccessible{fwErrCount > 1 ? 's' : ''}
+                                    </span>
+                                ) : null}
+                            </span>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                            {FW_CHECKS_CFG.map((c, i) => {
+                                const st  = fwStatuses[c.key] ?? 'idle';
+                                const err = fwErrors[c.key] ?? '';
+                                return (
+                                    <div key={c.key} style={{ borderBottom: i < FW_CHECKS_CFG.length - 1 ? `1px solid ${C.border}` : undefined }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', padding: '.5rem 1rem' }}>
+                                            <span style={{ color: c.color }}>{c.icon}</span>
+                                            <span style={{ fontWeight: 600, fontSize: '.82rem', color: C.text, minWidth: 72 }}>{c.label}</span>
+                                            <span style={{ fontSize: '.73rem', color: C.muted }}>{c.detail}</span>
+                                            <span style={{ marginLeft: 'auto' }}>
+                                                {st === 'loading' ? (
+                                                    <RefreshCw style={{ width: 11, height: 11, color: C.muted, animation: 'spin 1s linear infinite' }} />
+                                                ) : st === 'ok' ? (
+                                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '.72rem', color: C.green }}>
+                                                        <CheckCircle style={{ width: 11, height: 11 }} /> Accessible
+                                                    </span>
+                                                ) : st === 'error' ? (
+                                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '.72rem', color: C.red }}>
+                                                        <XCircle style={{ width: 11, height: 11 }} /> Non disponible
+                                                    </span>
+                                                ) : null}
+                                            </span>
+                                        </div>
+                                        {st === 'error' && (
+                                            <div style={{ padding: '0 1rem .6rem 2.6rem', display: 'flex', flexDirection: 'column', gap: '.3rem' }}>
+                                                {err && <div style={{ fontSize: '.72rem', color: C.orange, background: 'rgba(227,179,65,.06)', border: '1px solid rgba(227,179,65,.2)', borderRadius: 4, padding: '.3rem .6rem', fontFamily: 'monospace' }}>{err}</div>}
+                                                <div style={{ fontSize: '.71rem', color: C.muted }}>{c.fix}</div>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                        );
+                    })()}
+
+                    {/* Card: Intégrations — NPM */}
+                    <div style={{ ...card, borderColor: npmDataPath ? 'transparent' : 'rgba(227,179,65,.4)' }}>
+                        <div style={{ ...cardH, background: npmDataPath ? undefined : 'rgba(227,179,65,.06)' }}>
+                            <Network style={{ width: 14, height: 14, color: npmDataPath ? C.cyan : C.orange }} />
+                            <span style={{ fontWeight: 600, fontSize: '.9rem' }}>Intégrations <span style={{ fontWeight: 400, color: C.orange, fontSize: '.72rem' }}>(optionnel)</span></span>
+                            {!npmDataPath && <WarnBadge count={1} tip="Chemin données NPM non configuré — Top Domaines inactif" />}
+                            <span style={{ marginLeft: 'auto', fontSize: '.65rem', background: 'rgba(57,197,207,.08)', color: C.cyan, border: `1px solid ${C.cyan}40`, borderRadius: 4, padding: '.08rem .4rem' }}>Nginx Proxy Manager</span>
+                        </div>
+                        <div style={{ ...cardB }}>
+                            {/* Warning banner when not configured */}
+                            {!npmDataPath && (
+                                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '.5rem', padding: '.5rem .7rem', borderRadius: 6, background: 'rgba(227,179,65,.08)', border: '1px solid rgba(227,179,65,.3)', marginBottom: '.75rem' }}>
+                                    <AlertTriangle style={{ width: 14, height: 14, color: C.orange, flexShrink: 0, marginTop: 1 }} />
+                                    <span style={{ fontSize: '.78rem', color: C.orange, lineHeight: 1.5 }}>
+                                        Chemin NPM non configuré — les <strong>Top Domaines</strong> (onglet Stats) ne fonctionneront pas.
+                                    </span>
+                                </div>
+                            )}
+                            <p style={{ fontSize: '.8rem', color: C.muted, lineHeight: 1.6, marginBottom: '.75rem' }}>
+                                Les <strong style={{ color: C.text }}>Top Domaines</strong> fonctionnent uniquement avec <strong style={{ color: C.cyan }}>Nginx Proxy Manager</strong>.
+                                LogviewR lit le fichier <code style={{ fontFamily: 'monospace', fontSize: '.78rem', color: C.orange }}>database.sqlite</code> de NPM
+                                pour résoudre les <code style={{ fontFamily: 'monospace', fontSize: '.78rem' }}>proxy-host-N</code> en noms de domaine.
+                            </p>
+                            <div style={{ fontSize: '.78rem', color: C.muted, marginBottom: '.35rem', fontWeight: 600 }}>
+                                Chemin du répertoire données NPM{' '}
+                                <span style={{ fontWeight: 400, color: C.orange, fontSize: '.72rem' }}>(optionnel)</span>
+                                {' '}<span style={{ fontWeight: 400, color: C.muted }}>(dossier contenant <code style={{ fontFamily: 'monospace' }}>database.sqlite</code>)</span>
+                            </div>
+                            <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
+                                <input
+                                    value={npmInput}
+                                    onChange={e => { setNpmInput(e.target.value); setNpmCheck(null); }}
+                                    placeholder="/data  ou  /opt/npm/data"
+                                    style={{ flex: 1, background: C.bg3, border: `1px solid ${npmDataPath ? C.border : 'rgba(227,179,65,.4)'}`, borderRadius: 5, color: C.text, fontFamily: 'monospace', fontSize: '.8rem', padding: '.35rem .6rem', outline: 'none' }}
+                                />
+                                <button onClick={saveNpmSettings} disabled={npmSaving}
+                                    style={{ padding: '.3rem .7rem', borderRadius: 5, background: 'rgba(57,197,207,.12)', border: `1px solid ${C.cyan}50`, color: C.cyan, cursor: 'pointer', fontSize: '.78rem', display: 'flex', alignItems: 'center', gap: '.3rem', opacity: npmSaving ? .5 : 1, whiteSpace: 'nowrap' }}>
+                                    <Save style={{ width: 11, height: 11 }} /> {npmSaving ? 'Sauvegarde…' : 'Enregistrer'}
+                                </button>
+                                <button onClick={checkNpm} disabled={npmChecking || !npmDataPath}
+                                    style={{ padding: '.3rem .7rem', borderRadius: 5, background: 'rgba(63,185,80,.1)', border: `1px solid rgba(63,185,80,.35)`, color: C.green, cursor: npmDataPath ? 'pointer' : 'not-allowed', fontSize: '.78rem', display: 'flex', alignItems: 'center', gap: '.3rem', opacity: (npmChecking || !npmDataPath) ? .5 : 1, whiteSpace: 'nowrap' }}>
+                                    <Stethoscope style={{ width: 11, height: 11 }} /> {npmChecking ? 'Test…' : 'Tester'}
+                                </button>
+                            </div>
+                            {npmSaved && (
+                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '.35rem', marginTop: '.4rem', fontSize: '.78rem', color: C.green, background: 'rgba(63,185,80,.1)', border: '1px solid rgba(63,185,80,.3)', borderRadius: 5, padding: '.25rem .6rem' }}>
+                                    <CheckCircle style={{ width: 12, height: 12 }} /> Chemin NPM enregistré
+                                </div>
+                            )}
+                            <div style={{ fontSize: '.72rem', color: C.muted, marginTop: '.4rem', lineHeight: 1.5 }}>
+                                Exemple Docker : <code style={{ fontFamily: 'monospace', color: C.orange }}>/host/data</code> si NPM monte ses données dans <code style={{ fontFamily: 'monospace' }}>/data</code>.
+                                Laissez vide pour détection automatique via les logpaths fail2ban.
+                            </div>
+                            {npmCheck && (
+                                <div style={{ marginTop: '.6rem', padding: '.5rem .75rem', borderRadius: 6, background: npmCheck.ok ? 'rgba(63,185,80,.07)' : 'rgba(232,106,101,.07)', border: `1px solid ${npmCheck.ok ? 'rgba(63,185,80,.3)' : 'rgba(232,106,101,.3)'}`, fontSize: '.78rem', display: 'flex', flexDirection: 'column', gap: '.25rem' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', fontWeight: 600, color: npmCheck.ok ? C.green : C.red }}>
+                                        {npmCheck.ok
+                                            ? <><CheckCircle style={{ width: 13, height: 13 }} /> DB NPM accessible — {npmCheck.domains} domaine{npmCheck.domains > 1 ? 's' : ''} trouvé{npmCheck.domains > 1 ? 's' : ''}</>
+                                            : <><XCircle style={{ width: 13, height: 13 }} /> Échec ({npmCheck.step})</>}
+                                    </div>
+                                    {npmCheck.error && <div style={{ color: C.orange, fontFamily: 'monospace', fontSize: '.73rem' }}>{npmCheck.error}</div>}
+                                    {npmCheck.resolvedPath && <div style={{ color: C.muted, fontFamily: 'monospace', fontSize: '.7rem' }}>→ {npmCheck.resolvedPath}</div>}
+                                    {npmCheck.ok && <div style={{ color: C.muted, fontSize: '.73rem' }}>{npmCheck.jailMatches} jail{npmCheck.jailMatches > 1 ? 's' : ''} résolu{npmCheck.jailMatches > 1 ? 's' : ''} en cache (f2b_jail_domain)</div>}
+                                    {npmCheck.ok && npmCheck.jailMatches === 0 && (
+                                        <>
+                                            <div style={{ color: C.orange, fontSize: '.73rem', marginTop: '.15rem' }}>⚠ Aucun jail résolu — logpaths fail2ban sans pattern <code style={{ fontFamily: 'monospace' }}>proxy-host-N</code></div>
+                                            {npmCheck.jailLogpaths && Object.keys(npmCheck.jailLogpaths).length > 0 ? (
+                                                <div style={{ marginTop: '.4rem' }}>
+                                                    <div style={{ fontSize: '.7rem', color: C.muted, marginBottom: '.2rem', fontWeight: 600 }}>Logpaths détectés ({Object.keys(npmCheck.jailLogpaths).length} jails) :</div>
+                                                    <div style={{ maxHeight: 120, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '.15rem' }}>
+                                                        {Object.entries(npmCheck.jailLogpaths).map(([jail, lp]) => (
+                                                            <div key={jail} style={{ fontSize: '.68rem', fontFamily: 'monospace', color: C.muted, display: 'flex', gap: '.5rem' }}>
+                                                                <span style={{ color: C.blue, flexShrink: 0 }}>{jail}</span>
+                                                                <span style={{ color: /proxy-host/i.test(lp) ? C.green : C.muted }}>{lp}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div style={{ fontSize: '.7rem', color: C.red, marginTop: '.2rem' }}>Aucun logpath trouvé dans /etc/fail2ban — configs non accessibles ?</div>
+                                            )}
+                                        </>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
                     {/* Card: Maintenance */}
                     <div style={{ ...card, borderColor: 'rgba(255,85,85,.35)' }}>
-                        <div style={{ ...cardH, background: 'rgba(255,85,85,.06)' }}>
+                        <div onClick={() => setOpenMaint(o => !o)} style={{ ...cardH, background: 'rgba(255,85,85,.06)', cursor: 'pointer', userSelect: 'none' }}>
                             <Trash2 style={{ width: 14, height: 14, color: C.red }} />
                             <span style={{ fontWeight: 600, fontSize: '.9rem' }}>Maintenance &amp; base de données</span>
+                            {openMaint
+                                ? <ChevronDown  style={{ width: 13, height: 13, color: C.muted, marginLeft: 'auto' }} />
+                                : <ChevronRight style={{ width: 13, height: 13, color: C.muted, marginLeft: 'auto' }} />}
                         </div>
+                        {openMaint && (
                         <div style={{ ...cardB }}>
                             <p style={{ fontSize: '.83rem', color: C.muted, lineHeight: 1.6, marginBottom: '1rem' }}>
                                 Opérations de maintenance sur la base de données interne. Ces actions sont irréversibles.
@@ -870,6 +1429,7 @@ export const TabConfig: React.FC = () => {
                                 <span style={{ fontSize: '.8rem', color: C.muted }}>Vide les événements, le cache géo et l'état de synchronisation.</span>
                             </div>
                         </div>
+                        )}
                     </div>
 
 

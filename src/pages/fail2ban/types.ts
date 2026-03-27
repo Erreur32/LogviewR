@@ -49,7 +49,9 @@ export interface StatusResponse {
     totalBanned?: number;
     days?: number;
     uniqueIpsTotal?: number;
+    uniqueIpsPeriod?: number;
     expiredLast24h?: number;
+    firstEventAt?: number | null;
 }
 
 export interface HistoryEntry { date: string; count: number; }
@@ -60,6 +62,7 @@ export interface BanEntry {
     timeofban: number;
     bantime: number;
     failures: number;
+    countryCode?: string;
 }
 
 export interface TrackerEntry {

@@ -265,6 +265,11 @@ export class Fail2banClientExec {
         return this.runBin('ipset', ['del', setName, entry]);
     }
 
+    /** Dump all ipset sets via `ipset save` — output suitable for `ipset restore`. */
+    async ipsetSave(): Promise<F2bClientResult> {
+        return this.runBin('ipset', ['save'], true);
+    }
+
     async nftList(): Promise<F2bClientResult> {
         return this.runBin('nft', ['list', 'ruleset']);
     }

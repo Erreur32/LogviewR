@@ -7,7 +7,7 @@
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Settings, CheckCircle, XCircle, RefreshCw, AlertCircle, Save, Eye, EyeOff, Plus, Trash2, FileText, Code, ChevronUp, ChevronDown, RotateCw, Shield, ShieldAlert, Terminal, Database, Cpu } from 'lucide-react';
+import { Settings, CheckCircle, XCircle, RefreshCw, AlertCircle, Save, Eye, EyeOff, Plus, Trash2, FileText, Code, ChevronUp, ChevronDown, RotateCw, Shield, ShieldAlert, Terminal, Database, Cpu, Layers, Network } from 'lucide-react';
 import { usePluginStore, type Plugin } from '../stores/pluginStore';
 import { Button } from './ui/Button';
 import { api } from '../api/client';
@@ -210,7 +210,8 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
             });
         } else if (plugin && pluginId === 'fail2ban') {
             setFormData({
-                sqliteDbPath: (plugin.settings?.sqliteDbPath as string) ?? ''
+                sqliteDbPath: (plugin.settings?.sqliteDbPath as string) ?? '',
+                npmDataPath:  (plugin.settings?.npmDataPath  as string) ?? ''
             });
         }
     }, [plugin, isLogSourcePlugin, pluginId]);
@@ -1028,6 +1029,8 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                     <Fail2banConfigPanel
                         sqliteDbPath={String(formData.sqliteDbPath ?? '')}
                         onSqliteDbPathChange={(v) => handleInputChange('sqliteDbPath', v)}
+                        npmDataPath={String(formData.npmDataPath ?? '')}
+                        onNpmDataPathChange={(v) => handleInputChange('npmDataPath', v)}
                     />
                 )}
 
@@ -2290,12 +2293,50 @@ interface F2bCheckResult {
 interface Fail2banConfigPanelProps {
     sqliteDbPath: string;
     onSqliteDbPathChange: (v: string) => void;
+    npmDataPath: string;
+    onNpmDataPathChange: (v: string) => void;
 }
 
-const Fail2banConfigPanel: React.FC<Fail2banConfigPanelProps> = ({ sqliteDbPath, onSqliteDbPathChange }) => {
+const FW_ITEMS = [
+    { key: 'iptables', label: 'IPTables', Icon: Shield,  color: '#58a6ff', route: '/api/plugins/fail2ban/iptables',  detail: 'Règles netfilter (iptables-save)' },
+    { key: 'ipset',    label: 'IPSet',    Icon: Layers,  color: '#bc8cff', route: '/api/plugins/fail2ban/ipset/info', detail: 'Sets netfilter (f2b-*, blacklist…)' },
+    { key: 'nftables', label: 'NFTables', Icon: Network, color: '#39c5cf', route: '/api/plugins/fail2ban/nftables',  detail: 'Ruleset nftables du host' },
+];
+
+const Fail2banConfigPanel: React.FC<Fail2banConfigPanelProps> = ({ sqliteDbPath, onSqliteDbPathChange, npmDataPath, onNpmDataPathChange }) => {
     const [checkResult, setCheckResult] = useState<F2bCheckResult | null>(null);
     const [checking, setChecking] = useState(false);
     const [expandedFix, setExpandedFix] = useState<string | null>(null);
+
+    // Firewall checks — optional (require NET_ADMIN + network_mode: host)
+    const [fwOpen,     setFwOpen]     = useState(false);
+    const [fwLoading,  setFwLoading]  = useState(false);
+    const [fwStatuses, setFwStatuses] = useState<Record<string, 'idle'|'loading'|'ok'|'error'>>({});
+    const [fwErrors,   setFwErrors]   = useState<Record<string, string>>({});
+
+    const checkFirewall = useCallback(async () => {
+        setFwLoading(true);
+        setFwStatuses({ iptables: 'loading', ipset: 'loading', nftables: 'loading' });
+        setFwErrors({});
+        const results = await Promise.all(
+            FW_ITEMS.map(async c => {
+                try {
+                    const res = await fetch(c.route, { headers: { Authorization: `Bearer ${localStorage.getItem('dashboard_user_token') ?? ''}` } });
+                    const data = res.ok ? await res.json() : null;
+                    const ok = data?.result?.ok === true || data?.ok === true;
+                    return { key: c.key, status: ok ? 'ok' : 'error', error: data?.result?.error ?? data?.error ?? '' };
+                } catch (e) {
+                    return { key: c.key, status: 'error', error: e instanceof Error ? e.message : String(e) };
+                }
+            })
+        );
+        const st: Record<string, 'idle'|'loading'|'ok'|'error'> = {};
+        const er: Record<string, string> = {};
+        for (const r of results) { st[r.key] = r.status as 'ok'|'error'; if (r.error) er[r.key] = r.error as string; }
+        setFwStatuses(st);
+        setFwErrors(er);
+        setFwLoading(false);
+    }, []);
 
     const runCheck = useCallback(async () => {
         setChecking(true);
@@ -2327,27 +2368,50 @@ const Fail2banConfigPanel: React.FC<Fail2banConfigPanelProps> = ({ sqliteDbPath,
 
     return (
         <div className="space-y-4">
-            {/* SQLite path field */}
+            {/* Config fields — 2-column grid */}
             <div className="bg-gradient-to-r from-red-500/10 to-orange-500/10 rounded-lg border border-red-500/30 p-4 space-y-3">
                 <h4 className="text-base font-bold text-red-400 flex items-center gap-2 pb-3 border-b border-red-500/20">
                     <Settings size={18} />
                     Configuration Fail2ban
                 </h4>
-                <div>
-                    <label htmlFor="f2b-sqlite-path" className="block text-sm font-medium text-gray-300 mb-2">
-                        Chemin base SQLite <span className="text-gray-500 font-normal">(optionnel)</span>
-                    </label>
-                    <input
-                        id="f2b-sqlite-path"
-                        type="text"
-                        value={sqliteDbPath}
-                        onChange={(e) => onSqliteDbPathChange(e.target.value)}
-                        placeholder="/var/lib/fail2ban/fail2ban.sqlite3"
-                        className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500 text-sm font-mono"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                        Vide = chemin par défaut. Accessible via <code className="text-red-400">/var/lib/fail2ban/fail2ban.sqlite3</code>.
-                    </p>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {/* SQLite path */}
+                    <div>
+                        <label htmlFor="f2b-sqlite-path" className="block text-sm font-medium text-gray-300 mb-2">
+                            Chemin base SQLite{' '}
+                            <span className="text-amber-400 font-normal text-xs">(optionnel)</span>
+                        </label>
+                        <input
+                            id="f2b-sqlite-path"
+                            type="text"
+                            value={sqliteDbPath}
+                            onChange={(e) => onSqliteDbPathChange(e.target.value)}
+                            placeholder="/var/lib/fail2ban/fail2ban.sqlite3"
+                            className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500 text-sm font-mono"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                            Vide = chemin par défaut <code className="text-red-400">/var/lib/fail2ban/fail2ban.sqlite3</code>.
+                        </p>
+                    </div>
+
+                    {/* NPM data path */}
+                    <div>
+                        <label htmlFor="f2b-npm-path" className="block text-sm font-medium text-gray-300 mb-2">
+                            Chemin données NPM{' '}
+                            <span className="text-amber-400 font-normal text-xs">(optionnel)</span>
+                        </label>
+                        <input
+                            id="f2b-npm-path"
+                            type="text"
+                            value={npmDataPath}
+                            onChange={(e) => onNpmDataPathChange(e.target.value)}
+                            placeholder="/data/nginx-proxy-manager"
+                            className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500 text-sm font-mono"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                            Requis pour "Top Domaines" (Nginx Proxy Manager uniquement). Ex&nbsp;: <code className="text-orange-400">/data/nginx-proxy-manager</code>
+                        </p>
+                    </div>
                 </div>
             </div>
 
@@ -2454,6 +2518,68 @@ const Fail2banConfigPanel: React.FC<Fail2banConfigPanelProps> = ({ sqliteDbPath,
                                 </div>
                             );
                         })}
+                    </div>
+                )}
+            </div>
+
+            {/* ── Pare-feu — optionnel ──────────────────────────────────────── */}
+            <div className="rounded-lg border border-gray-700 overflow-hidden">
+                <button
+                    type="button"
+                    onClick={() => { setFwOpen(o => !o); if (!fwOpen) checkFirewall(); }}
+                    className="w-full flex items-center gap-2 px-4 py-3 bg-gray-900/60 hover:bg-gray-800/60 transition-colors text-left"
+                >
+                    <Layers size={15} className="text-cyan-400 flex-shrink-0" />
+                    <span className="text-sm font-semibold text-gray-200 flex-1">Pare-feu Netfilter</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded border border-gray-600 text-gray-500 mr-2">Optionnel</span>
+                    <span className="text-[10px] text-gray-500 mr-2">IPTables · IPSet · NFTables</span>
+                    <ChevronDown size={13} className={`text-gray-500 transition-transform ${fwOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {fwOpen && (
+                    <div className="border-t border-gray-700">
+                        {/* Info banner */}
+                        <div className="px-4 py-2 bg-[#0d1117] border-b border-gray-800 text-[10px] text-gray-500 flex items-start gap-2">
+                            <AlertCircle size={11} className="text-yellow-500 mt-0.5 flex-shrink-0" />
+                            <span>Requiert <code className="text-yellow-400">NET_ADMIN</code> + <code className="text-yellow-400">network_mode: host</code> dans docker-compose.yml</span>
+                        </div>
+
+                        <div className="flex items-center justify-between px-4 py-2 border-b border-gray-800">
+                            <span className="text-xs text-gray-500">Accès aux règles netfilter du host</span>
+                            <button
+                                type="button"
+                                onClick={checkFirewall}
+                                disabled={fwLoading}
+                                className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 transition-colors disabled:opacity-50"
+                            >
+                                <RefreshCw size={11} className={fwLoading ? 'animate-spin' : ''} />
+                                Relancer
+                            </button>
+                        </div>
+
+                        <div className="divide-y divide-gray-800">
+                            {FW_ITEMS.map(({ key, label, Icon, color, detail }) => {
+                                const st  = fwStatuses[key] ?? 'idle';
+                                const err = fwErrors[key] ?? '';
+                                return (
+                                    <div key={key} className="px-4 py-2.5">
+                                        <div className="flex items-center gap-3">
+                                            <Icon size={13} style={{ color, flexShrink: 0 }} />
+                                            <span className="text-sm font-medium text-gray-300 w-20 flex-shrink-0">{label}</span>
+                                            <span className="text-xs text-gray-500 flex-1">{detail}</span>
+                                            {st === 'loading' && <RefreshCw size={13} className="animate-spin text-gray-500 flex-shrink-0" />}
+                                            {st === 'ok'      && <CheckCircle size={14} className="text-green-400 flex-shrink-0" />}
+                                            {st === 'error'   && <XCircle    size={14} className="text-red-400 flex-shrink-0" />}
+                                        </div>
+                                        {st === 'error' && err && (
+                                            <div className="mt-1.5 ml-8 text-[10px] text-orange-400 font-mono bg-orange-900/10 border border-orange-900/30 rounded px-2 py-1 break-all">
+                                                {err}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
                     </div>
                 )}
             </div>

@@ -25,7 +25,7 @@ import { TabActions }    from './fail2ban/TabActions';
 import { TabMap }        from './fail2ban/TabMap';
 import { TabConfig }     from './fail2ban/TabConfig';
 import { TabAudit }      from './fail2ban/TabAudit';
-import { PERIODS, F2bTooltip } from './fail2ban/helpers';
+import { PERIODS, F2bTooltip, type F2bTtColor } from './fail2ban/helpers';
 import { TabAide }           from './fail2ban/TabAide';
 import { TabBackup }         from './fail2ban/TabBackup';
 import { TabNetworkRaw }     from './fail2ban/TabNetworkRaw';
@@ -94,7 +94,7 @@ const CHIP_COLORS: Record<string, { color: string; border: string }> = {
 const Chip: React.FC<{ color: string; children: React.ReactNode }> = ({ color, children }) => {
     const c = CHIP_COLORS[color] ?? CHIP_COLORS.blue;
     return (
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.3rem', padding: '.18rem .6rem', borderRadius: 20, fontSize: '.73rem', fontWeight: 600, border: `1px solid ${c.border}`, color: c.color, background: 'transparent', whiteSpace: 'nowrap' }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.3rem', padding: '.18rem .6rem', borderRadius: 4, fontSize: '.73rem', fontWeight: 600, border: `1px solid ${c.border}`, color: c.color, background: 'transparent', whiteSpace: 'nowrap' }}>
             {children}
         </span>
     );
@@ -137,6 +137,8 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
     const [actionMsg, setActionMsg]         = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
     const [statsDays, setStatsDays]         = useState(1);
     const [lastRefreshed, setLastRefreshed] = useState<number>(0);
+    const [dbFragPct, setDbFragPct] = useState<number | null>(null);
+    const [npmDataPath, setNpmDataPath] = useState<string>('');
     interface BanToast { id: number; ip: string; jail: string; timeofban: number; failures: number | null }
     const [toasts, setToasts] = useState<BanToast[]>([]);
     const toastIdRef   = useRef(0);
@@ -147,6 +149,33 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
     useEffect(() => {
         tickRef.current = setInterval(() => setTick(t => t + 1), 5000);
         return () => { if (tickRef.current) clearInterval(tickRef.current); };
+    }, []);
+
+    // ── Config warnings check — auto on mount + every 5 min, drives Config tab badge ──
+    const checkConfigWarnings = useCallback(() => {
+        api.get<{ dbInfo: { fragPct: number; integrity: string } | null; appDbInfo: { fragPct: number } | null }>('/api/plugins/fail2ban/config/parsed')
+            .then(res => {
+                if (!res.success || !res.result) return;
+                let warns = 0;
+                const { dbInfo, appDbInfo } = res.result;
+                if (dbInfo?.fragPct   && dbInfo.fragPct   > 20) warns++;
+                if (dbInfo?.integrity && dbInfo.integrity !== 'ok') warns++;
+                if (appDbInfo?.fragPct && appDbInfo.fragPct > 20) warns++;
+                setDbFragPct(warns);
+            })
+            .catch(() => {});
+    }, []);
+    useEffect(() => {
+        checkConfigWarnings();
+        const timer = setInterval(checkConfigWarnings, 5 * 60_000);
+        return () => clearInterval(timer);
+    }, [checkConfigWarnings]);
+
+    // Load npmDataPath from plugin config on mount
+    useEffect(() => {
+        api.get<{ settings?: { npmDataPath?: string } }>('/api/plugins/fail2ban')
+            .then(res => { if (res.success) setNpmDataPath(res.result?.settings?.npmDataPath ?? ''); })
+            .catch(() => {});
     }, []);
 
     // ── URL hash sync — update hash on tab change for bookmarkable deep links ──
@@ -239,7 +268,9 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
     const totalAllTime    = jails.reduce((s, j) => s + (j.totalBannedSqlite ?? j.totalBanned), 0);
     const activeJails     = jails.filter(j => j.currentlyBanned > 0 || j.currentlyFailed > 0).length;
     const uniqueIpsTotal  = status?.uniqueIpsTotal ?? 0;
+    const uniqueIpsPeriod = status?.uniqueIpsPeriod ?? 0;
     const expiredLast24h  = status?.expiredLast24h ?? 0;
+    const firstEventAt    = status?.firstEventAt ?? null;
     const histMax         = history.length ? Math.max(...history.map(h => h.count), 1) : 1;
     const sparkData       = history.slice(-14).map(h => h.count);
 
@@ -280,13 +311,13 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
         { ttTitle: 'Jails actifs',
           ttBody: 'Jails avec au moins une règle active (enabled=true)',
           ttColor: 'blue' as const },
-        { ttTitle: 'Bans actifs',
-          ttBodyNode: statTtBody(totalBanned, 'bans', '#e86a65',
-              'Adresses IP actuellement bannies (ban non expiré) — toutes jails confondues, IPs uniques.',
+        { ttTitle: 'IPs bannies (BDD)',
+          ttBodyNode: statTtBody(uniqueIpsTotal, 'IPs uniques', '#e86a65',
+              'Total IPs distinctes bannies dans f2b_events (base de données locale) — depuis l\'installation.',
               <span>
-                  {prevStats?.totalBanned !== undefined && trend(totalBanned, prevStats.totalBanned) &&
-                      <span>Dernier refresh : {prevStats.totalBanned} → <strong style={{ color: '#e86a65' }}>{totalBanned}</strong> {trend(totalBanned, prevStats.totalBanned)}<br/></span>}
-                  <span style={{ color: '#8b949e' }}>≠ Tracker ({trackerTotal ?? '…'}) : le tracker compte <em>toutes</em> les IPs historiques, bans expirés inclus.</span>
+                  {prevStats?.uniqueIpsTotal !== undefined && trend(uniqueIpsTotal, prevStats.uniqueIpsTotal) &&
+                      <span>Dernier refresh : {prevStats.uniqueIpsTotal} → <strong style={{ color: '#e86a65' }}>{uniqueIpsTotal}</strong> {trend(uniqueIpsTotal, prevStats.uniqueIpsTotal)}<br/></span>}
+                  <span style={{ color: '#8b949e' }}>Inclut bans expirés · bans actifs : {totalBanned}</span>
               </span>),
           ttColor: 'red' as const },
         { ttTitle: `Bans (${periodLabel})`,
@@ -297,9 +328,9 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
           ttBodyNode: statTtBody(totalFailed, 'tentatives', '#e3b341',
               'Tentatives échouées en cours (fenêtre findtime) — pas encore bannies.'),
           ttColor: 'orange' as const },
-        { ttTitle: 'Total cumulé',
-          ttBodyNode: statTtBody(totalAllTime, 'bans cumulés', '#bc8cff',
-              'Total événements Ban depuis l\'installation.\nUne IP peut être comptée plusieurs fois (multi-bans).'),
+        { ttTitle: `IPs uniques (${periodLabel})`,
+          ttBodyNode: statTtBody(uniqueIpsPeriod, 'IPs distinctes', '#bc8cff',
+              `IPs distinctes ayant déclenché au moins un ban sur la période ${periodLabel} (f2b_events).`),
           ttColor: 'purple' as const },
         { ttTitle: 'Expirés (24h)',
           ttBodyNode: statTtBody(expiredLast24h, 'unbans', '#3fb950',
@@ -314,10 +345,10 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
         <div style={{ padding: '.85rem 1rem .65rem', display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '.6rem', borderBottom: '1px solid #30363d', width: '100%', boxSizing: 'border-box' }}>
             {([
                 { label: 'Jails actifs',            value: jails.length,   icon: <Shield style={{ width: 14, height: 14 }} />,       color: '#58a6ff', spark: false, trendVal: null },
-                { label: 'Bans actifs',             value: totalBanned,    icon: <Ban style={{ width: 14, height: 14 }} />,           color: '#e86a65', spark: true,  trendVal: trend(totalBanned, prevStats?.totalBanned), trendCol: trendColor(totalBanned, prevStats?.totalBanned, true) },
+                { label: 'IPs bannies (BDD)',        value: uniqueIpsTotal, icon: <Ban style={{ width: 14, height: 14 }} />,           color: '#e86a65', spark: true,  trendVal: trend(uniqueIpsTotal, prevStats?.uniqueIpsTotal), trendCol: trendColor(uniqueIpsTotal, prevStats?.uniqueIpsTotal, true) },
                 { label: `Bans (${periodLabel})`,   value: periodBans,     icon: <Activity style={{ width: 14, height: 14 }} />,      color: '#39c5cf', spark: true,  trendVal: null },
                 { label: 'Échecs actifs',           value: totalFailed,    icon: <AlertTriangle style={{ width: 14, height: 14 }} />, color: '#e3b341', spark: true,  trendVal: null },
-                { label: 'Total bans cumul',        value: totalAllTime,   icon: <Shield style={{ width: 14, height: 14 }} />,        color: '#bc8cff', spark: true,  trendVal: null },
+                { label: `IPs uniques (${periodLabel})`, value: uniqueIpsPeriod, icon: <Shield style={{ width: 14, height: 14 }} />,   color: '#bc8cff', spark: true,  trendVal: null },
                 { label: 'Expirés (24h)',           value: expiredLast24h, icon: <CheckCircle style={{ width: 14, height: 14 }} />,   color: '#3fb950', spark: true,  trendVal: trend(expiredLast24h, prevStats?.expiredLast24h), trendCol: trendColor(expiredLast24h, prevStats?.expiredLast24h, false) },
             ] as { label: string; value: number; icon: React.ReactNode; color: string; spark: boolean; trendVal: string | null; trendCol?: string }[]).map(({ label, value, icon, color, spark, trendVal, trendCol }, idx) => (
                 <F2bTooltip key={label} block title={MINI_CARD_TT[idx].ttTitle} body={(MINI_CARD_TT[idx] as { ttBody?: string }).ttBody} bodyNode={(MINI_CARD_TT[idx] as { ttBodyNode?: React.ReactNode }).ttBodyNode} color={MINI_CARD_TT[idx].ttColor}>
@@ -337,7 +368,142 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
         </div>
     );
 
-    const badges: Partial<Record<TabId, number>> = { jails: jails.length, tracker: trackerTotal ?? totalBanned };
+    // ── Nav tooltips — F2bTooltip style par tab ──────────────────────────────
+    const npmMissing = npmDataPath === '';
+    const configBadge = (dbFragPct ?? 0) + (npmMissing ? 1 : 0);
+    const C = { muted: '#8b949e', blue: '#58a6ff', red: '#e86a65', orange: '#e3b341', green: '#3fb950', cyan: '#39c5cf', purple: '#bc8cff' };
+    const ttVal = (v: number | string, color: string) => <span style={{ fontWeight: 700, color }}>{v}</span>;
+    const ttRow = (val: number | string, color: string, label: string) => (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem' }}>{ttVal(val, color)}<span style={{ color: C.muted }}>{label}</span></div>
+    );
+    const navTt: Partial<Record<TabId, { title: string; bodyNode: React.ReactNode; color: F2bTtColor }>> = {
+        jails: {
+            title: 'Jails fail2ban',
+            bodyNode: <div style={{ display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
+                {ttRow(jails.length, C.blue, `jail${jails.length > 1 ? 's' : ''} configurée${jails.length > 1 ? 's' : ''}`)}
+                {ttRow(activeJails, C.green, 'avec activité')}
+                {ttRow(totalBanned, C.red, 'bans actifs (IPs uniques)')}
+                {totalFailed > 0 && ttRow(totalFailed, C.orange, 'tentatives en cours')}
+            </div>,
+            color: 'blue',
+        },
+        filtres: {
+            title: 'Filtres',
+            bodyNode: <div style={{ display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
+                <div style={{ color: C.muted }}>Règles de détection par jail</div>
+                <div style={{ color: C.muted }}>failregex · ignoreregex · maxretry</div>
+            </div>,
+            color: 'green',
+        },
+        actions: {
+            title: 'Actions',
+            bodyNode: <div style={{ display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
+                <div style={{ color: C.muted }}>Scripts ban / unban par jail</div>
+                <div style={{ color: C.muted }}>iptables-multiport · sendmail…</div>
+            </div>,
+            color: 'orange',
+        },
+        tracker: {
+            title: 'Tracker IPs',
+            bodyNode: <div style={{ display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
+                {ttRow(trackerTotal ?? uniqueIpsTotal, C.orange, 'IPs uniques (historique f2b_events)')}
+                {ttRow(totalBanned, C.red, 'actuellement actives')}
+                <div style={{ color: C.muted, fontSize: '.75rem' }}>Inclut les bans expirés</div>
+            </div>,
+            color: 'orange',
+        },
+        carte: {
+            title: 'Carte mondiale',
+            bodyNode: <div style={{ display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
+                <div style={{ color: C.muted }}>Distribution géographique des bans</div>
+                <div style={{ color: C.muted }}>Géoloc. ip-api.com · cache 30 jours</div>
+            </div>,
+            color: 'cyan',
+        },
+        ban: {
+            title: 'Ban Manager',
+            bodyNode: <div style={{ display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
+                <div style={{ color: C.muted }}>Bannir / débannir manuellement</div>
+                <div style={{ color: C.muted }}>Par IP · par jail · ou global</div>
+            </div>,
+            color: 'red',
+        },
+        stats: {
+            title: 'Statistiques',
+            bodyNode: <div style={{ display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
+                {ttRow(totalAllTime, C.blue, 'bans en base (f2b_events)')}
+                <div style={{ color: C.muted }}>Top IPs · jails · heatmaps · historique</div>
+                {npmMissing && <div style={{ color: C.orange, fontSize: '.75rem', marginTop: '.15rem' }}>⚠ Chemin données NPM non configuré — Top Domaines inactif</div>}
+            </div>,
+            color: npmMissing ? 'orange' : 'blue',
+        },
+        iptables: {
+            title: 'IPTables',
+            bodyNode: <div style={{ display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
+                <div style={{ color: C.muted }}>Règles netfilter du host</div>
+                <div style={{ color: C.orange, fontSize: '.75rem' }}>Requiert NET_ADMIN + network_mode: host</div>
+            </div>,
+            color: 'cyan',
+        },
+        ipset: {
+            title: 'IPSet',
+            bodyNode: <div style={{ display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
+                <div style={{ color: C.muted }}>Sets d'IPs actifs (f2b-*, blacklist…)</div>
+                <div style={{ color: C.orange, fontSize: '.75rem' }}>Requiert NET_ADMIN + network_mode: host</div>
+            </div>,
+            color: 'purple',
+        },
+        nftables: {
+            title: 'NFTables',
+            bodyNode: <div style={{ display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
+                <div style={{ color: C.muted }}>Ruleset nftables du host</div>
+                <div style={{ color: C.orange, fontSize: '.75rem' }}>Requiert NET_ADMIN + network_mode: host</div>
+            </div>,
+            color: 'orange',
+        },
+        config: {
+            title: 'Configuration',
+            bodyNode: <div style={{ display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
+                {configBadge > 0
+                    ? <div style={{ color: C.orange, fontWeight: 600 }}>⚠ {configBadge} avertissement{configBadge > 1 ? 's' : ''}</div>
+                    : <div style={{ color: C.muted }}>Paramètres fail2ban · DB · maintenance</div>}
+                {(dbFragPct ?? 0) > 0 && <div style={{ color: C.muted, fontSize: '.75rem' }}>· Fragmentation base de données</div>}
+                {npmMissing && <div style={{ color: C.muted, fontSize: '.75rem' }}>· Chemin données NPM non configuré</div>}
+                <div style={{ color: C.muted }}>Sync f2b_events toutes les 60s</div>
+            </div>,
+            color: configBadge > 0 ? 'orange' : 'muted',
+        },
+        audit: {
+            title: 'Audit système',
+            bodyNode: <div style={{ display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
+                <div style={{ color: C.muted }}>Socket · daemon · SQLite · drop-in</div>
+                <div style={{ color: C.muted }}>Pare-feu : IPTables · IPSet · NFTables</div>
+            </div>,
+            color: 'muted',
+        },
+        backup: {
+            title: 'Backup',
+            bodyNode: <div style={{ display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
+                <div style={{ color: C.muted }}>Export jails actifs et configs fail2ban</div>
+                <div style={{ color: C.muted }}>fail2ban.conf · jail.conf · jail.local</div>
+            </div>,
+            color: 'blue',
+        },
+        aide: {
+            title: 'Aide',
+            bodyNode: <div style={{ display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
+                <div style={{ color: C.muted }}>Documentation · prérequis Docker</div>
+                <div style={{ color: C.muted }}>Guide de configuration fail2ban</div>
+            </div>,
+            color: 'muted',
+        },
+    };
+
+    const badges: Partial<Record<TabId, number>> = {
+        jails:   jails.length,
+        tracker: trackerTotal ?? uniqueIpsTotal,
+        ...(configBadge > 0 ? { config: configBadge } : {}),
+    };
 
     const allNavItems = ([] as { id: TabId; label: string; color: string }[]).concat(...NAV_GROUPS.map(g => g.items as unknown as { id: TabId; label: string; color: string }[]));
     const activeColor = allNavItems.find(i => i.id === tab)?.color ?? '#58a6ff';
@@ -377,8 +543,10 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
                             {group.items.map(({ id, label, icon: Icon, color }) => {
                                 const badge = badges[id];
                                 const active = tab === id;
+                                const tt = navTt[id];
                                 return (
-                                    <button key={id} onClick={() => setTab(id)} title={label}
+                                    <F2bTooltip key={id} title={tt?.title ?? label} bodyNode={tt?.bodyNode} color={tt?.color ?? 'blue'} block placement="bottom">
+                                    <button onClick={() => setTab(id)}
                                         style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '.55rem', padding: collapsed ? '.52rem 0' : '.45rem 1rem', justifyContent: collapsed ? 'center' : undefined, fontSize: '.84rem', fontWeight: 500, border: 'none', borderLeft: `3px solid ${active ? color : 'transparent'}`, background: active ? `${color}18` : 'transparent', color: active ? color : '#8b949e', cursor: 'pointer', transition: 'background .12s, border-color .12s', whiteSpace: 'nowrap', overflow: 'hidden', position: 'relative' }}
                                         onMouseEnter={e => { if (!active) { (e.currentTarget as HTMLElement).style.background = '#21262d'; } }}
                                         onMouseLeave={e => { if (!active) { (e.currentTarget as HTMLElement).style.background = 'transparent'; } }}
@@ -388,19 +556,26 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
                                         {!collapsed && <span style={{ flex: 1, textAlign: 'left', color: active ? color : '#c9d1d9' }}>{label}</span>}
                                         {!collapsed && badge !== undefined && badge > 0 && (
                                             <span title={
-                                                id === 'tracker' ? `${badge} IPs uniques dans l'historique (f2b_events)\nInclut les bans expirés — ≠ bans actifs (${totalBanned})` :
+                                                id === 'config'  ? `${badge} warning${badge > 1 ? 's' : ''} — voir onglet Config` :
+                                                id === 'tracker' ? `${badge} IPs uniques (historique f2b_events — bans actifs : ${totalBanned})` :
                                                 id === 'jails'   ? `${badge} jail${badge > 1 ? 's' : ''} configuré${badge > 1 ? 's' : ''}` :
                                                 String(badge)
-                                            } style={{ background: id === 'jails' ? '#58a6ff' : '#e86a65', color: '#fff', fontSize: '.65rem', borderRadius: 999, padding: '.05rem .45rem', fontWeight: 700 }}>{badge}</span>
+                                            } style={{ background: id === 'config' ? '#e3b341' : id === 'jails' ? '#58a6ff' : '#e86a65', color: id === 'config' ? '#0d1117' : '#fff', fontSize: '.65rem', borderRadius: 999, padding: '.05rem .45rem', fontWeight: 700 }}>
+                                                {id === 'config' ? '!' : badge}
+                                            </span>
                                         )}
                                         {collapsed && badge !== undefined && badge > 0 && (
                                             <span title={
-                                                id === 'tracker' ? `${badge} IPs uniques historiques (≠ bans actifs : ${totalBanned})` :
+                                                id === 'config'  ? `${badge} warning${badge > 1 ? 's' : ''} — voir Config` :
+                                                id === 'tracker' ? `${badge} IPs uniques (f2b_events · actifs : ${totalBanned})` :
                                                 id === 'jails'   ? `${badge} jails` :
                                                 String(badge)
-                                            } style={{ position: 'absolute', top: 3, right: 3, background: id === 'jails' ? '#58a6ff' : '#e86a65', color: '#fff', fontSize: '.55rem', borderRadius: 6, padding: '0 .25rem', lineHeight: 1.6, zIndex: 1 }}>{badge > 9 ? '9+' : badge}</span>
+                                            } style={{ position: 'absolute', top: 3, right: 3, background: id === 'config' ? '#e3b341' : id === 'jails' ? '#58a6ff' : '#e86a65', color: id === 'config' ? '#0d1117' : '#fff', fontSize: '.55rem', borderRadius: 6, padding: '0 .25rem', lineHeight: 1.6, zIndex: 1 }}>
+                                                {id === 'config' ? '!' : badge > 9 ? '9+' : badge}
+                                            </span>
                                         )}
                                     </button>
+                                    </F2bTooltip>
                                 );
                             })}
                         </div>
@@ -428,7 +603,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
                     <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '.4rem', flexWrap: 'wrap' }}>
                         {status?.ok && (<>
                             <Chip color="blue"><Ban style={{ width: 11, height: 11 }} /> <strong>{jails.length}</strong><span style={{ fontWeight: 400, color: '#8b949e' }}> jails</span></Chip>
-                            <Chip color="red"><Ban style={{ width: 11, height: 11 }} /> <strong>{totalBanned}</strong><span style={{ fontWeight: 400, color: '#8b949e' }}> bannis</span></Chip>
+                            <Chip color="red"><Ban style={{ width: 11, height: 11 }} /> <strong>{uniqueIpsTotal}</strong><span style={{ fontWeight: 400, color: '#8b949e' }}> bannis (BDD)</span></Chip>
                             {totalFailed > 0 && <Chip color="orange"><AlertTriangle style={{ width: 11, height: 11 }} /> <strong>{totalFailed}</strong><span style={{ fontWeight: 400, color: '#8b949e' }}> échecs</span></Chip>}
                             {activeJails > 0 && <Chip color="green"><Activity style={{ width: 11, height: 11 }} /> <strong>{activeJails}</strong><span style={{ fontWeight: 400, color: '#8b949e' }}> actifs</span></Chip>}
                         </>)}
@@ -531,14 +706,14 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
                     )}
                     {tab === 'stats' && (
                         <TabStats jails={jails} loading={loading}
-                            totalBanned={totalBanned} totalFailed={totalFailed} totalAllTime={totalAllTime} activeJails={activeJails}
+                            totalBanned={totalBanned} totalFailed={totalFailed} totalAllTime={totalAllTime} uniqueIpsTotal={uniqueIpsTotal} firstEventAt={firstEventAt} activeJails={activeJails}
                             days={statsDays} onDaysChange={setStatsDays}
                             onIpClick={(ip) => setSelectedIp(ip)} />
                     )}
                     {tab === 'iptables' && <TabIPTables />}
                     {tab === 'ipset'    && <TabIPSet onIpClick={ip => setSelectedIp(ip)} />}
                     {tab === 'nftables' && <TabNFTables />}
-                    {tab === 'config'   && <TabConfig />}
+                    {tab === 'config'   && <TabConfig onWarningsChange={setDbFragPct} npmDataPath={npmDataPath} onNpmDataPathChange={setNpmDataPath} />}
                     {tab === 'audit'    && <TabAudit />}
                     {tab === 'backup'   && <TabBackup />}
                     {tab === 'aide'     && <TabAide />}

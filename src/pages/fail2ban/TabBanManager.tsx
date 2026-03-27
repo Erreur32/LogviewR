@@ -109,11 +109,18 @@ function ResultList({ results, onIpClick }: { results: BulkResult[]; onIpClick?:
 
 // ── Section title ─────────────────────────────────────────────────────────────
 
-function SectionTitle({ icon, color, label }: { icon: React.ReactNode; color: string; label: string }) {
+function SectionTitle({ icon, color, label, avail }: { icon: React.ReactNode; color: string; label: string; avail?: boolean | null }) {
     return (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.65rem' }}>
             <span style={{ color }}>{icon}</span>
-            <span style={{ fontWeight: 700, fontSize: '.85rem', color }}>{label}</span>
+            <span style={{ fontWeight: 700, fontSize: '.82rem', color, letterSpacing: '.04em', textTransform: 'uppercase' }}>{label}</span>
+            {avail === false && (
+                <span style={{ fontSize: '.67rem', padding: '.1rem .45rem', borderRadius: 4, background: 'rgba(232,106,101,.1)', color: '#e86a65', border: '1px solid rgba(232,106,101,.22)' }}>Non disponible</span>
+            )}
+            {avail === true && (
+                <span style={{ fontSize: '.67rem', padding: '.1rem .45rem', borderRadius: 4, background: 'rgba(63,185,80,.1)', color: '#3fb950', border: '1px solid rgba(63,185,80,.22)' }}>Disponible</span>
+            )}
+            <div style={{ flex: 1, height: 1, background: `linear-gradient(90deg, ${color}44 0%, transparent 100%)` }} />
         </div>
     );
 }
@@ -189,6 +196,23 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
     const [bulkIps,     setBulkIps]     = useState('');
     const [bulkLoading, setBulkLoading] = useState(false);
     const [bulkResults, setBulkResults] = useState<BulkResult[]>([]);
+
+    // ── Availability checks ────────────────────────────────────────────────────
+    const [f2bAvail,   setF2bAvail]   = useState<boolean | null>(null);
+    const [iptAvail,   setIptAvail]   = useState<boolean | null>(null);
+    const [ipsetAvail, setIpsetAvail] = useState<boolean | null>(null);
+
+    useEffect(() => {
+        api.get<{ checks?: { daemon?: { ok: boolean } } }>('/api/plugins/fail2ban/check')
+            .then(r => setF2bAvail(r.success && r.result?.checks?.daemon?.ok === true))
+            .catch(() => setF2bAvail(false));
+        api.get<{ ok: boolean }>('/api/plugins/fail2ban/iptables')
+            .then(r => setIptAvail(r.success && r.result?.ok === true))
+            .catch(() => setIptAvail(false));
+        api.get<{ ok: boolean }>('/api/plugins/fail2ban/ipset/info')
+            .then(r => setIpsetAvail(r.success && r.result?.ok === true))
+            .catch(() => setIpsetAvail(false));
+    }, []);
 
     // ── IPSet ─────────────────────────────────────────────────────────────────
     const [ipsets,          setIpsets]          = useState<IpsetEntry[]>([]);
@@ -299,14 +323,12 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
         e.target.value = '';
     };
 
-    const noIpsets = !ipsetsLoading && ipsets.length === 0;
-
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
 
             {/* ── Fail2ban section ── */}
             <div>
-                <SectionTitle icon={<Shield style={{ width: 15, height: 15 }} />} color="#58a6ff" label="Fail2Ban" />
+                <SectionTitle icon={<Shield style={{ width: 15, height: 15 }} />} color="#58a6ff" label="Fail2Ban" avail={f2bAvail} />
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(min(100%,420px),1fr))', gap: '.75rem' }}>
 
                     {/* Ban single */}
@@ -374,11 +396,14 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
 
             {/* ── IPSet section ── */}
             <div>
-                <SectionTitle icon={<Database style={{ width: 15, height: 15 }} />} color="#bc8cff" label="IPSet" />
-                {noIpsets ? (
-                    <div style={{ ...card, padding: '1.25rem', fontSize: '.82rem', color: '#8b949e' }}>
-                        Aucun IPSet détecté — vérifiez que <code style={{ fontFamily: 'monospace', color: '#e6edf3' }}>ipset</code> est disponible et que le container a la capability <code style={{ fontFamily: 'monospace', color: '#e6edf3' }}>NET_ADMIN</code>.
+                <SectionTitle icon={<Database style={{ width: 15, height: 15 }} />} color="#bc8cff" label="IPSet" avail={ipsetAvail} />
+                {ipsetAvail === false ? (
+                    <div style={{ ...card, padding: '1rem 1.25rem', fontSize: '.82rem', color: '#8b949e', display: 'flex', alignItems: 'center', gap: '.6rem' }}>
+                        <AlertTriangle style={{ width: 13, height: 13, color: '#e3b341', flexShrink: 0 }} />
+                        <span><code style={{ fontFamily: 'monospace', color: '#e6edf3' }}>ipset</code> non accessible — vérifiez <code style={{ fontFamily: 'monospace', color: '#e6edf3' }}>NET_ADMIN</code> + <code style={{ fontFamily: 'monospace', color: '#e6edf3' }}>network_mode: host</code> dans docker-compose.yml</span>
                     </div>
+                ) : ipsetAvail === null ? (
+                    <div style={{ color: '#8b949e', fontSize: '.8rem', padding: '.25rem .5rem' }}>Vérification…</div>
                 ) : (
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(min(100%,420px),1fr))', gap: '.75rem' }}>
 
@@ -464,7 +489,15 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
 
             {/* ── IPTables section ── */}
             <div>
-                <SectionTitle icon={<Network style={{ width: 15, height: 15 }} />} color="#39c5cf" label="IPTables (filter)" />
+                <SectionTitle icon={<Network style={{ width: 15, height: 15 }} />} color="#39c5cf" label="IPTables (filter)" avail={iptAvail} />
+                {iptAvail === false ? (
+                    <div style={{ ...card, padding: '1rem 1.25rem', fontSize: '.82rem', color: '#8b949e', display: 'flex', alignItems: 'center', gap: '.6rem' }}>
+                        <AlertTriangle style={{ width: 13, height: 13, color: '#e3b341', flexShrink: 0 }} />
+                        <span><code style={{ fontFamily: 'monospace', color: '#e6edf3' }}>iptables</code> non accessible — vérifiez <code style={{ fontFamily: 'monospace', color: '#e6edf3' }}>NET_ADMIN</code> + <code style={{ fontFamily: 'monospace', color: '#e6edf3' }}>network_mode: host</code> dans docker-compose.yml</span>
+                    </div>
+                ) : iptAvail === null ? (
+                    <div style={{ color: '#8b949e', fontSize: '.8rem', padding: '.25rem .5rem' }}>Vérification…</div>
+                ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(min(100%,420px),1fr))', gap: '.75rem' }}>
 
                     {/* IPTables ban */}
@@ -522,6 +555,7 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
                     </ActionCard>
 
                 </div>
+                )}
             </div>
 
         </div>
