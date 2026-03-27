@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.5.6] - 2026-03-27
+
+### Fixed
+
+- **CI: upgrade GitHub Actions to Node.js 24** — updated all actions to latest versions (`actions/checkout@v6`, `docker/*@v4`/`v6`/`v7`) to eliminate Node.js 20 deprecation warnings before the June 2026 forced migration
+
+---
+
 ## [0.5.5] - 2026-03-27
 
 ### Fixed
