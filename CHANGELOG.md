@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.5.7] - 2026-03-27
+
+### Fixed
+
+- **IP modal log display** — filter out `/api/plugins/fail2ban/` lines from log entries (self-generated API calls were appearing as duplicates); log file sections with no remaining lines are hidden; line count badge reflects filtered count
+
+---
+
 ## [0.5.6] - 2026-03-27
 
 ### Fixed
