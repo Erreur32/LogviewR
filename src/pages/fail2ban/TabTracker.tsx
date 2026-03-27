@@ -75,7 +75,7 @@ export const TabTracker: React.FC<{ onIpClick?: (ip: string) => void; onTotalCha
     interface SyncStatus { internalEvents: number; f2bTotalBans: number | null; synced: boolean | null; lastSyncAt: string | null }
     const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
     useEffect(() => {
-        api.get<SyncStatus & { ok: boolean }>('/api/plugins/fail2ban/sync-status').then(res => {
+        api.get<SyncStatus & { ok: boolean }>('/api/plugins/fail2ban/sync-state').then(res => {
             if (res.success && res.result?.ok) setSyncStatus(res.result);
         });
     }, []);

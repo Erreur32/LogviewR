@@ -236,6 +236,13 @@ export function initializeDatabase(): void {
         )
     `);
     
+    // Migration: Add domain column to f2b_events (extracted from fail2ban data.matches)
+    try {
+        database.exec(`ALTER TABLE f2b_events ADD COLUMN domain TEXT`);
+    } catch {
+        // Column already exists
+    }
+
     // Migration: Add hostname_source and vendor_source columns if they don't exist
     try {
         database.exec(`

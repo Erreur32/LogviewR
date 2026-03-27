@@ -639,7 +639,7 @@ export const TabConfig: React.FC<{
 
     const checkSync = async () => {
         setSyncChecking(true);
-        const res = await api.get<typeof syncStatus>('/api/plugins/fail2ban/sync-status');
+        const res = await api.get<typeof syncStatus>('/api/plugins/fail2ban/sync-state');
         if (res.success && res.result) setSyncStatus(res.result);
         setSyncChecking(false);
     };

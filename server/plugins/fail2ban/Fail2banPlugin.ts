@@ -853,8 +853,8 @@ export class Fail2banPlugin extends BasePlugin {
             res.json({ success: true, result: { ok: true, events, maxRowid } });
         }));
 
-        // GET /sync-status  — compare fail2ban SQLite max rowid vs internal sync position
-        router.get('/sync-status', requireAuth, asyncHandler(async (_req, res) => {
+        // GET /sync-state  — compare fail2ban SQLite max rowid vs internal sync position
+        router.get('/sync-state', requireAuth, asyncHandler(async (_req, res) => {
             if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
             const appDb = getDatabase();
             const syncState = appDb.prepare('SELECT last_rowid, last_sync_at FROM f2b_sync_state WHERE id = 1').get() as { last_rowid: number; last_sync_at: string | null } | undefined;
@@ -1631,6 +1631,11 @@ export class Fail2banPlugin extends BasePlugin {
         }));
 
         // GET /audit  — historique bans (f2b_events — notre DB, historique complet) + enrichissements
+        // GET /sync-status — real-time sync progress (polled by frontend banner)
+        router.get('/sync-status', requireAuth, (_req, res) => {
+            res.json({ success: true, result: this.syncService?.getStatus() ?? { phase: 'idle', message: '', detail: '', progress: -1, updatedAt: 0 } });
+        });
+
         router.get('/audit', requireAuth, asyncHandler(async (req, res) => {
             if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
             const limit      = Math.min(parseInt(String(req.query.limit ?? '200'), 10), 1000);
@@ -1641,16 +1646,16 @@ export class Fail2banPlugin extends BasePlugin {
             const evDb    = getDatabase();
             const allTime = daysParam <= 0;
             const since   = allTime ? 0 : Math.floor(Date.now() / 1000) - daysParam * 86400;
-            let bans: { ip: string; jail: string; timeofban: number; bantime: number; failures: number }[];
+            let bans: { ip: string; jail: string; timeofban: number; bantime: number; failures: number; domain: string }[];
             if (jailFilter) {
                 bans = (allTime
-                    ? evDb.prepare(`SELECT ip, jail, timeofban, bantime, failures FROM f2b_events WHERE event_type='ban' AND jail=? ORDER BY timeofban DESC LIMIT ?`).all(jailFilter, limit)
-                    : evDb.prepare(`SELECT ip, jail, timeofban, bantime, failures FROM f2b_events WHERE event_type='ban' AND jail=? AND timeofban >= ? ORDER BY timeofban DESC LIMIT ?`).all(jailFilter, since, limit)
+                    ? evDb.prepare(`SELECT ip, jail, timeofban, bantime, failures, COALESCE(domain,'') as domain FROM f2b_events WHERE event_type='ban' AND jail=? ORDER BY timeofban DESC LIMIT ?`).all(jailFilter, limit)
+                    : evDb.prepare(`SELECT ip, jail, timeofban, bantime, failures, COALESCE(domain,'') as domain FROM f2b_events WHERE event_type='ban' AND jail=? AND timeofban >= ? ORDER BY timeofban DESC LIMIT ?`).all(jailFilter, since, limit)
                 ) as typeof bans;
             } else {
                 bans = (allTime
-                    ? evDb.prepare(`SELECT ip, jail, timeofban, bantime, failures FROM f2b_events WHERE event_type='ban' ORDER BY timeofban DESC LIMIT ?`).all(limit)
-                    : evDb.prepare(`SELECT ip, jail, timeofban, bantime, failures FROM f2b_events WHERE event_type='ban' AND timeofban >= ? ORDER BY timeofban DESC LIMIT ?`).all(since, limit)
+                    ? evDb.prepare(`SELECT ip, jail, timeofban, bantime, failures, COALESCE(domain,'') as domain FROM f2b_events WHERE event_type='ban' ORDER BY timeofban DESC LIMIT ?`).all(limit)
+                    : evDb.prepare(`SELECT ip, jail, timeofban, bantime, failures, COALESCE(domain,'') as domain FROM f2b_events WHERE event_type='ban' AND timeofban >= ? ORDER BY timeofban DESC LIMIT ?`).all(since, limit)
                 ) as typeof bans;
             }
 
@@ -1810,7 +1815,23 @@ export class Fail2banPlugin extends BasePlugin {
                 const geoRows = evDb.prepare(`SELECT ip, countryCode FROM f2b_ip_geo WHERE ip IN (${placeholders})`).all(...chunk) as { ip: string; countryCode: string }[];
                 for (const r of geoRows) geoByIp[r.ip] = r.countryCode;
             }
-            const bansWithGeo = bans.map(b => ({ ...b, countryCode: geoByIp[b.ip] ?? '' }));
+            // Build domain→logpath reverse map for per-ban logfile resolution
+            // When a ban has a specific domain, find the matching logpath in jail_all_logpaths
+            const domainToLogpath: Record<string, string> = {};
+            for (const [, logpaths] of Object.entries(jail_all_logpaths)) {
+                for (const lp of logpaths) {
+                    const d = domainFromLogpath(lp) || domainFromSources(lp) || domainFromNpmDb(lp);
+                    if (d && !domainToLogpath[d]) domainToLogpath[d] = lp;
+                }
+            }
+
+            const bansWithGeo = bans.map(b => {
+                // Resolve per-ban logfile: use domain→logpath if available, else jail default
+                const logfile = (b.domain && domainToLogpath[b.domain])
+                    ? domainToLogpath[b.domain]
+                    : (jail_logs[b.jail] ?? '');
+                return { ...b, countryCode: geoByIp[b.ip] ?? '', logfile };
+            });
 
             res.json({ success: true, result: { ok: true, bans: bansWithGeo, jail_actions, jail_logs, jail_servers, jail_domains, jail_all_domains } });
         }));

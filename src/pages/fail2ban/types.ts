@@ -63,6 +63,8 @@ export interface BanEntry {
     bantime: number;
     failures: number;
     countryCode?: string;
+    domain?: string;   // extracted from fail2ban data.matches (per-ban, more accurate than jail-level)
+    logfile?: string;  // resolved log file path for this specific ban
 }
 
 export interface TrackerEntry {

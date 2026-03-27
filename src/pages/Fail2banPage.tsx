@@ -36,6 +36,7 @@ import { TabFileList }       from './fail2ban/TabFileList';
 import { BanHistoryChart }   from './fail2ban/BanHistoryChart';
 import type { StatusResponse, HistoryEntry, TabId } from './fail2ban/types';
 import { IpModal } from './fail2ban/IpModal';
+import { SyncProgressBanner } from './fail2ban/SyncProgressBanner';
 
 // ── Nav groups ────────────────────────────────────────────────────────────────
 
@@ -510,6 +511,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
 
     return (
         <div className="flex h-full overflow-hidden" style={{ background: '#0d1117', color: '#e6edf3' }}>
+            <SyncProgressBanner />
 
             {/* ── Left sidebar ── */}
             <aside style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', background: '#161b22', borderRight: '1px solid #30363d', transition: 'width .2s ease', overflow: 'hidden', width: collapsed ? 46 : 220 }}>

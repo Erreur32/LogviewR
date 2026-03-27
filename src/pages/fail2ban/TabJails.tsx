@@ -1078,8 +1078,8 @@ export const TabJailsEvents: React.FC<{ onIpClick?: (ip: string) => void; days?:
                         </thead>
                         <tbody>
                             {displayed.map((b, i) => {
-                                const domain  = enrichment.jail_domains[b.jail] ?? '';
-                                const logpath = enrichment.jail_logs[b.jail] ?? '';
+                                const domain  = b.domain || (enrichment.jail_domains[b.jail] ?? '');
+                                const logpath = b.logfile || (enrichment.jail_logs[b.jail] ?? '');
                                 const logbase = logpath.replace(/.*\//, '');
                                 const srv     = enrichment.jail_servers[b.jail] ?? '';
                                 const svcInfo = SERVICE_ICONS[srv];
