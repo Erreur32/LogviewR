@@ -36,7 +36,7 @@
 services:
   logviewr:
     image: ghcr.io/erreur32/logviewr:latest
-    container_name: logviewr
+    container_name: logviewr-dev
     restart: unless-stopped
 
     # ── MODE A — Standard (default) ──────────────────────────────────────────
