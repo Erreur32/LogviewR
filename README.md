@@ -118,6 +118,43 @@ Ce script crée le groupe `fail2ban`, installe le drop-in systemd pour que le so
 
 Pour vérifier l'état : **Administration → Plugins → Fail2ban → Diagnostic**.
 
+---
+
+**Onglets Pare-feu en Docker (IPTables · IPSet · NFTables)**
+
+Ces onglets nécessitent deux conditions **cumulatives** — ni l'une ni l'autre seule ne suffit :
+
+| Condition | Rôle |
+|-----------|------|
+| `network_mode: host` | Partage le namespace réseau du host → les règles fail2ban sont visibles |
+| `cap_add: NET_ADMIN` | Capacité Linux requise par le kernel pour lire/écrire netfilter |
+
+> ⚠️ `network_mode: host` est **incompatible avec `ports:`** — retirez la section `ports:` et utilisez `PORT=7500` dans `environment:` à la place.
+
+Configuration `docker-compose.yml` avec les onglets Pare-feu activés :
+
+```yaml
+services:
+  logviewr:
+    image: ghcr.io/erreur32/logviewr:latest
+    container_name: logviewr
+    restart: unless-stopped
+    # ⚠️ Retirez la section ports: ci-dessous quand network_mode: host est actif
+    # ports:
+    #   - "7500:3000"
+    network_mode: host          # partage le réseau du host
+    cap_add:
+      - NET_ADMIN               # accès netfilter (iptables/ipset/nft)
+    environment:
+      JWT_SECRET: ${JWT_SECRET}
+      PORT: 7500                # port d'écoute direct (pas de mapping)
+      DASHBOARD_PORT: 7500
+      HOST_IP: ${HOST_IP:-}
+    # ... reste de la config identique
+```
+
+Sans ces options, les onglets IPTables/IPSet/NFTables afficheront une erreur `Permission denied`.
+
 </details>
 
 ---
@@ -136,6 +173,8 @@ Pour vérifier l'état : **Administration → Plugins → Fail2ban → Diagnosti
 | `HOST_ROOT_PATH` | Chemin racine hôte monté dans le conteneur | `/host` | Non |
 
 ### docker-compose.yml
+
+**Mode standard** (sans onglets Pare-feu) :
 
 ```yaml
 services:
@@ -159,6 +198,39 @@ services:
       - /sys:/host/sys:ro
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+```
+
+**Mode Pare-feu** (onglets IPTables · IPSet · NFTables activés) — remplacer `ports:` par `network_mode: host` :
+
+```yaml
+services:
+  logviewr:
+    image: ghcr.io/erreur32/logviewr:latest
+    container_name: logviewr
+    restart: unless-stopped
+    # ⚠️ pas de ports: — incompatible avec network_mode: host
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+    environment:
+      JWT_SECRET: ${JWT_SECRET}
+      PORT: 7500                  # port direct (remplace le mapping ports:)
+      DASHBOARD_PORT: 7500
+      HOST_IP: ${HOST_IP:-}
+    group_add:
+      - "${ADM_GID:-4}"
+    volumes:
+      - ./data:/app/data
+      - /var/run/fail2ban/fail2ban.sock:/var/run/fail2ban/fail2ban.sock
+      - /:/host:ro
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:7500/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
