@@ -10,7 +10,7 @@
 
 <img src="LogviewR_banner.svg" alt="LogviewR" width="512" height="256" />
 
-![LogviewR](https://img.shields.io/badge/LogviewR-0.5.1-111827?style=for-the-badge)
+![LogviewR](https://img.shields.io/badge/LogviewR-0.5.2-111827?style=for-the-badge)
 ![Status](https://img.shields.io/badge/Status-DEVELOPMENT-374151?style=for-the-badge)
 ![Docker](https://img.shields.io/badge/Docker-Ready-1f2937?style=for-the-badge&logo=docker&logoColor=38bdf8)
 ![React](https://img.shields.io/badge/React-19-111827?style=for-the-badge&logo=react&logoColor=38bdf8)
@@ -93,17 +93,9 @@
 
 **Onglets** : Jails · Filtres · Actions · Tracker IPs · Carte · Ban Manager · Stats · IPTables · IPSet · NFTables · Config · Audit
 
-**Prérequis** : Fail2ban installé et actif sur le host.
+**Requirements:** fail2ban installed and active on the host. Host setup required — see [Installation Step 2](#-installation).
 
-**Setup (une seule fois sur le host) :**
-
-```bash
-sudo bash <(curl -fsSL https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setup-fail2ban-access.sh)
-```
-
-Ce script crée le groupe `fail2ban`, installe le drop-in systemd pour que le socket soit accessible au conteneur, et ajuste les permissions SQLite. Le conteneur détecte ensuite automatiquement le GID au démarrage — aucune variable `.env` supplémentaire requise.
-
-Pour vérifier l'état : **Administration → Plugins → Fail2ban → Diagnostic**.
+To verify: **Administration → Plugins → Fail2ban → Diagnostic**.
 
 ---
 
@@ -150,15 +142,30 @@ Sans ces options, les onglets IPTables/IPSet/NFTables afficheront une erreur `Pe
 
 ## 🚀 Installation
 
-```bash
-# 1. Créer le fichier .env
-echo "JWT_SECRET=$(openssl rand -base64 32)" > .env
+**Step 1 — Create `.env`**
 
-# 2. Lancer
+```bash
+echo "JWT_SECRET=$(openssl rand -base64 32)" > .env
+```
+
+**Step 2 — Fail2ban host setup** *(one-time — required only if using the Fail2ban plugin)*
+
+```bash
+sudo bash <(curl -fsSL https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setup-fail2ban-access.sh)
+```
+
+> Run this **before** `docker compose up`, directly on the Docker host (not inside the container).
+> Creates the `fail2ban` group, installs a systemd drop-in to persist socket permissions across reboots, and sets SQLite read access.
+> **One-time only** — survives reboots and fail2ban restarts automatically.
+> Re-run only if you reinstall fail2ban on the host.
+
+**Step 3 — Start**
+
+```bash
 docker compose up -d
 ```
 
-Dashboard disponible sur `http://your-ip:7500`
+Dashboard available at `http://your-ip:7500`
 
 
 ## ⚙️ Configuration
