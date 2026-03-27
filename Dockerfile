@@ -11,9 +11,6 @@ WORKDIR /app
 # Ces outils seront supprimés dans l'image finale
 RUN apk add --no-cache python3 make g++
 
-# Upgrade npm to latest stable (npm 11 — compatible with Node 22)
-RUN npm install -g npm@11.12.1 --loglevel=error
-
 # Install all dependencies (including devDependencies) to compile native modules
 # devDependencies are removed in the final image (see npm prune --production below)
 COPY package*.json ./
