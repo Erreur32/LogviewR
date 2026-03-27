@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.5.4] - 2026-03-27
+
+### Fixed
+
+- **Firewall tabs (IPTables / IPSet / NFTables) now work correctly in Docker** — `network_mode: host` is required (not just `cap_add: NET_ADMIN`) to share the host network namespace; without it the container saw its own empty namespace instead of the host rules
+- **`security_opt: no-new-privileges:true` incompatible with firewall tabs** — this flag prevents `sudo` from elevating privileges, breaking `iptables-save`, `ipset list`, and `nft` commands; must be removed when using firewall tabs
+- **JWT tokens invalidated on container restart** — JWT secret is now persisted in the SQLite `app_config` table on first start; subsequent restarts reuse the same secret instead of generating a new one
+- **WebSocket endpoints unauthenticated** — `/ws/log-viewer` and `/ws/logs` now require a valid JWT token passed as `?token=` query parameter; connections without a valid token are rejected with code 4401
+- **CORS misconfigured in production** — default changed from `true` (all origins) to `false` (same-origin only); set `CORS_ORIGIN` env var to allow a specific origin if needed
+- **Path traversal in log viewer** — user-supplied `basePath` values containing `..` are now rejected
+- **Path traversal in config import** — uploaded file paths are validated against the allowed config directory using `path.resolve()`
+- **Public endpoints unprotected** — `/api/users/check` (20 req/min) and `/api/users/register` (5 req/min) are now rate-limited per IP
+
+### Changed
+
+- **`docker-compose.yml`** — clarified MODE A (bridge, default) vs MODE B (host network, firewall tabs) with inline examples; documented `PORT` vs `DASHBOARD_PORT` distinction; added reverse proxy examples (NPM, Nginx, Caddy, Traefik)
+- **`docker-compose.test.yml`** — `security_opt: no-new-privileges` commented out (incompatible with firewall tabs in host network mode)
+- **README** — firewall tabs section updated with all three incompatibilities (`ports:`, `no-new-privileges`, port change workflow); reverse proxy configuration examples added
+- **Security headers** — added `X-Content-Type-Options`, `X-Frame-Options: DENY`, `X-XSS-Protection`, `Referrer-Policy`, `Permissions-Policy`; removed `X-Powered-By`
+
+---
+
 ## [0.4.9] - 2026-03-26
 
 ### Pour les utilisateurs

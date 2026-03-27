@@ -57,6 +57,9 @@ services:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
 
+    # security_opt: no-new-privileges:true
+    # ⚠️ Incompatible with firewall tabs — sudo cannot elevate with this flag set (breaks iptables/ipset/nft)
+
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:7502/api/health"]
       interval: 30s

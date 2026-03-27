@@ -6,8 +6,10 @@
 
 import { WebSocketServer, WebSocket } from 'ws';
 import type { WebSocket as WsType } from 'ws';
+import { URL } from 'url';
 import { logger } from '../utils/logger.js';
 import { logBuffer } from '../utils/logBuffer.js';
+import { authService } from './authService.js';
 
 type ClientWebSocket = WsType & { isAlive?: boolean };
 
@@ -31,8 +33,22 @@ class LogsWebSocketService {
       logger.error('LogsWS', 'Error details:', error instanceof Error ? error.message : String(error));
     });
 
-    this.wss.on('connection', (ws: ClientWebSocket, req) => {
-      logger.info('LogsWS', `Client connected from: ${req.socket.remoteAddress}`);
+    this.wss.on('connection', async (ws: ClientWebSocket, req) => {
+      // Verify JWT token from query param ?token=<jwt>
+      const reqUrl = new URL(req.url ?? '/', 'http://localhost');
+      const token = reqUrl.searchParams.get('token');
+      if (!token) {
+        ws.close(4401, 'Authentication required');
+        return;
+      }
+      try {
+        await authService.verifyToken(token);
+      } catch {
+        ws.close(4401, 'Invalid or expired token');
+        return;
+      }
+
+      logger.info('LogsWS', `Authenticated client connected from: ${req.socket.remoteAddress}`);
       logger.debug('LogsWS', `Connection URL: ${req.url}, Headers:`, req.headers);
       ws.isAlive = true;
 

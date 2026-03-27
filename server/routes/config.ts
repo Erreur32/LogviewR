@@ -5,6 +5,7 @@
  */
 
 import { Router } from 'express';
+import path from 'path';
 import { 
     exportConfigToFile, 
     importConfigFromFile, 
@@ -70,8 +71,13 @@ router.post('/import', requireAuth, requireAdmin, asyncHandler(async (req: Authe
             fs.writeFileSync(tempPath, fileContent, 'utf-8');
             filePath = tempPath;
         } else if (req.body.filePath) {
-            // File path provided
-            filePath = req.body.filePath;
+            // File path provided — validate it stays within the allowed config directory
+            const requestedPath = path.resolve(req.body.filePath as string);
+            const allowedDir = path.dirname(path.resolve(getConfigFilePath()));
+            if (!requestedPath.startsWith(allowedDir) || (req.body.filePath as string).includes('..')) {
+                throw createError('Invalid file path', 400, 'INVALID_PATH');
+            }
+            filePath = requestedPath;
         } else {
             // Use default config file
             filePath = getConfigFilePath();

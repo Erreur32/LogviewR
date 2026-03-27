@@ -2,20 +2,36 @@
 # LogviewR - Docker Compose (Production)
 # ===========================================
 #
-# Docker Compose configuration for PRODUCTION
-# 
 # Usage:
-#   docker-compose up -d
-#   docker-compose pull && docker-compose up -d  # Update and restart
-#
-# Environment variables:
-#   DASHBOARD_PORT - Dashboard port (default: 7500)
-#   JWT_SECRET     - JWT secret for authentication (REQUIRED - use .env file)
-#   PUBLIC_URL     - Public URL if using reverse proxy (optional)
+#   docker compose up -d
+#   docker compose pull && docker compose up -d   # update to latest
 #
 # IMPORTANT: Create a .env file with JWT_SECRET before starting:
-#   JWT_SECRET=$(openssl rand -base64 32)
-#   echo "JWT_SECRET=$JWT_SECRET" > .env
+#   echo "JWT_SECRET=$(openssl rand -base64 32)" > .env
+#
+# ── Port modes ──────────────────────────────────────────────────────────────
+#
+#  MODE A — Standard (bridge network, no firewall tabs)
+#    ports:
+#      - "${DASHBOARD_PORT:-7500}:3000"
+#    environment:
+#      DASHBOARD_PORT: ${DASHBOARD_PORT:-7500}   # host port exposed by Docker
+#
+#  MODE B — Firewall tabs (IPTables / IPSet / NFTables) + reverse proxy
+#    network_mode: host                           # shares host network namespace
+#    cap_add: [NET_ADMIN]                         # required for netfilter
+#    environment:
+#      PORT: ${PORT:-7500}                        # direct listen port on host
+#    → reverse proxy target: 127.0.0.1:7500
+#    → to change port: set PORT=8080 in .env and update reverse proxy
+#    ⚠️  network_mode: host is INCOMPATIBLE with ports: — remove ports: section
+#
+# ── Reverse proxy examples (MODE B) ─────────────────────────────────────────
+#   Nginx Proxy Manager : Forward Hostname = 127.0.0.1 / Port = 7500
+#   Nginx manual        : proxy_pass http://127.0.0.1:7500;
+#   Caddy               : reverse_proxy 127.0.0.1:7500
+#   Traefik             : url = "http://127.0.0.1:7500"
+# ─────────────────────────────────────────────────────────────────────────────
 
 services:
   logviewr:
@@ -23,98 +39,71 @@ services:
     container_name: logviewr
     restart: unless-stopped
 
+    # ── MODE A — Standard (default) ──────────────────────────────────────────
+    # Direct port mapping: host port → container port 3000
+    # Comment out and use MODE B below to enable firewall tabs
     ports:
-      # Dashboard port mapping: host port → container port 3000
       - "${DASHBOARD_PORT:-7500}:3000"
 
+    # ── MODE B — Firewall tabs (IPTables / IPSet / NFTables) ─────────────────
+    # Uncomment the block below AND remove the ports: section above
+    #
+    # network_mode: host          # shares host network namespace (required)
+    # cap_add:
+    #   - NET_ADMIN               # required for netfilter kernel operations
+
     environment:
-      # 🔐 SECRET OBLIGATOIRE - JWT secret for authentication
-      # ⚠️ CRITICAL SECURITY: Never use default secret in production!
-      # Generate with: openssl rand -base64 32
-      # Store in .env file: JWT_SECRET=votre_secret_genere
+      # ── Required ────────────────────────────────────────────────────────────
+      # JWT secret — generate once and store in .env:
+      #   echo "JWT_SECRET=$(openssl rand -base64 32)" >> .env
       JWT_SECRET: ${JWT_SECRET}
 
-      # Dashboard port mapping (host port → container port 3000)
-      # This is the port exposed on the host machine
-      # Must match the port in the "ports" section above
+      # ── Port (choose one based on mode) ─────────────────────────────────────
+      # MODE A — must match the host port in ports: above
       DASHBOARD_PORT: ${DASHBOARD_PORT:-7500}
-      
-      # Host machine IP (for banner and URLs) - RECOMMENDED in Docker
-      # Without this, the banner shows the Docker gateway IP (e.g. 192.168.48.1), not your host IP.
-      # Set in .env to your machine's LAN IP so you see the correct URL to open in the browser.
-      # Example: HOST_IP=192.168.32.150
+      # MODE B — direct listen port when using network_mode: host
+      # Uncomment and set PORT in .env to change (default 7500):
+      # PORT: ${PORT:-7500}
+
+      # ── Optional ─────────────────────────────────────────────────────────────
+      # Host machine LAN IP — shown in the dashboard banner
+      # Without this, the banner shows the Docker gateway IP, not your host IP
+      # Example: HOST_IP=192.168.1.100
       HOST_IP: ${HOST_IP:-}
 
-      # Configuration file path (optional external config file)
+      # External config file path (optional, for plugin config persistence)
       CONFIG_FILE_PATH: ${CONFIG_FILE_PATH:-/app/config/logviewr.conf}
 
-      # Host metrics access (read-only mount of host filesystem)
-      # Used to read hostname, disk usage, and system info from the host
+      # Path where the host filesystem is mounted inside the container
       HOST_ROOT_PATH: ${HOST_ROOT_PATH:-/host}
 
-      # PUBLIC_URL (only if using reverse proxy like nginx)
-      # Uncomment and set if accessing via domain name instead of IP:port
+      # Public URL — uncomment if accessing via domain name / reverse proxy
       # PUBLIC_URL: https://dashboard.example.com
 
-    # Add node user to adm group (GID 4) to read log files owned by root:adm
-    # This allows reading files like auth.log, cron.log, daemon.log, etc.
-    # The GID 4 is standard for adm group on Debian/Ubuntu systems
-    # If your system uses a different GID for adm, set ADM_GID in .env file
+    # Add container user to host groups for file/socket access
     group_add:
-      - "${ADM_GID:-4}"           # adm group — read host log files
-
-    # ── Pare-feu (IPTables / IPSet / NFTables) ─────────────────────────────────
-    # Pour que les onglets Pare-feu voient les règles du HOST, les deux options
-    # ci-dessous sont OBLIGATOIRES (cumulatives) :
-    #   1. network_mode: host  — partage le namespace réseau du host
-    #   2. cap_add: NET_ADMIN  — autorise les opérations netfilter kernel
-    #
-    # ⚠️  network_mode: host est INCOMPATIBLE avec ports: — retirer la section
-    #     ports: et utiliser PORT=7500 dans environment: à la place.
-    # ⚠️  Security: n'activer que si vous utilisez les onglets Pare-feu.
-    #
-    # network_mode: host
-    # cap_add:
-    #   - NET_ADMIN
+      - "${ADM_GID:-4}"           # adm group (GID 4) — read /var/log files
+      - "${FAIL2BAN_GID:-}"       # fail2ban group — socket access (set by setup script)
 
     volumes:
-      # Persistent storage for:
-      # - SQLite database (dashboard.db)
-      # - Application configuration
+      # Persistent data (SQLite DB + app config)
       - ./data:/app/data
-      # Fail2ban Unix socket (read-write — needed for fail2ban-client commands: ban, unban, status)
-      # PREREQUISITE: run the host setup script once before starting the container:
+
+      # Fail2ban Unix socket — required for ban/unban commands
+      # Run the setup script once before starting (see README Step 2):
       #   sudo bash <(curl -fsSL https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setup-fail2ban-access.sh)
       - /var/run/fail2ban/fail2ban.sock:/var/run/fail2ban/fail2ban.sock
-      # Mount host filesystem (read-only) to access real host metrics
-      # This allows the app to read hostname, disk usage, and other system info from the host
-      # NOTE: This mount creates /host directory and mounts everything including /var/log
+
+      # Host filesystem (read-only) — provides access to logs, hostname, disk info
       - /:/host:ro
-      # Mount host /proc and /sys separately for better compatibility
-      # These are used to read CPU, memory, network stats, and hostname
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
-      # Create symlink /host/logs -> /host/var/log for backward compatibility
-      # The plugin expects /host/logs but /host/var/log is already available via /:/host:ro
-      # This is done via entrypoint script to avoid Docker mount issues
-      # 
-      # ⚠️ IMPORTANT: Do NOT mount /var/log:/host/logs:ro here!
-      # It causes "read-only file system" errors. Use the symlink created by entrypoint instead.
-      #
-      # Optional: Mount specific log directories for direct access
-      # Uncomment if you want plugins to access logs directly without /host/ prefix:
-      # - /var/log/apache2:/var/log/apache2:ro    # Apache logs (accessible at /var/log/apache2)
-      # - /var/log/nginx:/var/log/nginx:ro        # Nginx logs (accessible at /var/log/nginx)
-      # - /var/log/npm:/var/log/npm:ro            # NPM logs (accessible at /var/log/npm)
-      # Note: Without these mounts, plugins must use /host/var/log/... paths in configuration
-      #
-      # NPM (Nginx Proxy Manager) custom data path: NO need to add a volume.
-      # The mount "/: /host:ro" already exposes the whole host. In the plugin config,
-      # use the path AS ON THE HOST, e.g. /home/docker/nginx_proxy/data/logs —
-      # the app resolves it to /host/home/docker/nginx_proxy/data/logs inside the container.
 
-    # Health check: verify container is responding to API requests
-    # Uses wget (available in Alpine base image) to check /api/health endpoint
+      # Optional: mount specific log directories for direct access (without /host/ prefix)
+      # - /var/log/nginx:/var/log/nginx:ro
+      # - /var/log/apache2:/var/log/apache2:ro
+
+    # Health check — adjust port if using MODE B with a custom PORT
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000/api/health"]
       interval: 30s
@@ -122,6 +111,11 @@ services:
       retries: 3
       start_period: 40s
 
+    # Prevent privilege escalation — safe in MODE A (bridge, no firewall tabs)
+    # ⚠️ Remove or comment out in MODE B (network_mode: host + firewall tabs)
+    #    sudo cannot run with this flag set, breaking iptables/ipset/nft commands
+    security_opt:
+      - no-new-privileges:true
 
     # Resource limits (optional)
     # deploy:
@@ -129,6 +123,3 @@ services:
     #     limits:
     #       cpus: '0.5'
     #       memory: 512M
-    #     reservations:
-    #       cpus: '0.1'
-    #       memory: 256M

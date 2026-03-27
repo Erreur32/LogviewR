@@ -64,13 +64,25 @@ function normalizeLogFilePath(filePath: string): string {
  * This ensures that when the frontend does not send basePath (e.g. LogViewer page calling
  * files-direct), we use the path configured in Settings (e.g. /home/docker/nginx_proxy/data/logs for NPM).
  */
+/**
+ * Reject paths containing traversal sequences before resolution.
+ * This prevents ../../../etc/passwd style attacks from user-supplied basePath.
+ */
+function validatePathSafe(p: string): void {
+    if (p.includes('..')) {
+        throw new Error(`Path traversal attempt blocked: ${p}`);
+    }
+}
+
 function getEffectiveBasePath(
     pluginId: string,
     plugin: LogSourcePlugin,
     fromRequest: string | undefined
 ): string {
     if (fromRequest && typeof fromRequest === 'string' && fromRequest.trim()) {
-        return fromRequest.trim();
+        const p = fromRequest.trim();
+        validatePathSafe(p);
+        return p;
     }
     const pluginConfig = PluginConfigRepository.findByPluginId(pluginId);
     const configured = pluginConfig?.settings?.basePath;

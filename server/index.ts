@@ -131,10 +131,10 @@ function getCorsConfig() {
   }
   
   // Default CORS configuration
-  // In production (Docker), allow all origins since frontend is served from same server
-  // In development, allow localhost and common network IPs
+  // In production the frontend is served from the same Express instance → same-origin, no CORS needed.
+  // Set CORS_ORIGIN env var to allow a specific external origin (e.g. separate frontend deployment).
   const corsOrigin = process.env.NODE_ENV === 'production'
-    ? true  // Allow all origins in production (frontend served from same origin)
+    ? (process.env.CORS_ORIGIN || false)  // false = same-origin only; override with CORS_ORIGIN env var
     : [
         'http://localhost:3000',
         'http://localhost:5175',
@@ -150,6 +150,18 @@ function getCorsConfig() {
 }
 
 app.use(cors(getCorsConfig()));
+
+// Security headers — applied to every response
+app.use((_req, res, next) => {
+    res.removeHeader('X-Powered-By');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+    next();
+});
+
 app.use(express.json({ limit: '10mb' }));
 
 // Metrics middleware (track all API requests)
@@ -575,7 +587,7 @@ server.listen(port, host, () => {
   };
 
   // Read app version from package.json
-  let appVersion = '0.5.3'; // Default fallback
+  let appVersion = '0.5.4'; // Default fallback
   try {
     const packageJsonPath = path.join(__dirname, '..', 'package.json');
     const packageJson = JSON.parse(fsSync.readFileSync(packageJsonPath, 'utf8'));

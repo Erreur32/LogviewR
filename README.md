@@ -10,7 +10,7 @@
 
 <img src="LogviewR_banner.svg" alt="LogviewR" width="512" height="256" />
 
-![LogviewR](https://img.shields.io/badge/LogviewR-0.5.3-111827?style=for-the-badge)
+![LogviewR](https://img.shields.io/badge/LogviewR-0.5.4-111827?style=for-the-badge)
 ![Status](https://img.shields.io/badge/Status-DEVELOPMENT-374151?style=for-the-badge)
 ![Docker](https://img.shields.io/badge/Docker-Ready-1f2937?style=for-the-badge&logo=docker&logoColor=38bdf8)
 ![React](https://img.shields.io/badge/React-19-111827?style=for-the-badge&logo=react&logoColor=38bdf8)
@@ -105,10 +105,13 @@ Ces onglets nécessitent deux conditions **cumulatives** — ni l'une ni l'autre
 
 | Condition | Rôle |
 |-----------|------|
-| `network_mode: host` | Partage le namespace réseau du host → les règles fail2ban sont visibles |
-| `cap_add: NET_ADMIN` | Capacité Linux requise par le kernel pour lire/écrire netfilter |
+| `network_mode: host` | Shares host network namespace — container sees host iptables/ipset/nft rules |
+| `cap_add: NET_ADMIN` | Linux capability required by the kernel for netfilter read/write |
 
-> ⚠️ `network_mode: host` est **incompatible avec `ports:`** — retirez la section `ports:` et utilisez `PORT=7500` dans `environment:` à la place.
+> ⚠️ **Three incompatibilities to know:**
+> - `network_mode: host` is **incompatible with `ports:`** — remove `ports:` and use `PORT=7500` in `environment:` instead
+> - `security_opt: no-new-privileges:true` is **incompatible with firewall tabs** — `sudo` cannot elevate with this flag, breaking iptables/ipset/nft commands
+> - To change the listen port: set `PORT=8080` in `.env` and point your reverse proxy to `127.0.0.1:8080`
 
 Configuration `docker-compose.yml` avec les onglets Pare-feu activés :
 
@@ -118,21 +121,33 @@ services:
     image: ghcr.io/erreur32/logviewr:latest
     container_name: logviewr
     restart: unless-stopped
-    # ⚠️ Retirez la section ports: ci-dessous quand network_mode: host est actif
-    # ports:
-    #   - "7500:3000"
-    network_mode: host          # partage le réseau du host
+    # no ports: — incompatible with network_mode: host
+    network_mode: host
     cap_add:
-      - NET_ADMIN               # accès netfilter (iptables/ipset/nft)
+      - NET_ADMIN               # required for netfilter (iptables/ipset/nft)
+    # no security_opt: no-new-privileges — incompatible with sudo (breaks firewall tabs)
     environment:
       JWT_SECRET: ${JWT_SECRET}
-      PORT: 7500                # port d'écoute direct (pas de mapping)
-      DASHBOARD_PORT: 7500
+      PORT: ${PORT:-7500}       # direct listen port — change here + update reverse proxy
       HOST_IP: ${HOST_IP:-}
-    # ... reste de la config identique
+    group_add:
+      - "${ADM_GID:-4}"
+      - "${FAIL2BAN_GID:-}"
+    volumes:
+      - ./data:/app/data
+      - /var/run/fail2ban/fail2ban.sock:/var/run/fail2ban/fail2ban.sock
+      - /:/host:ro
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:7500/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 ```
 
-Sans ces options, les onglets IPTables/IPSet/NFTables afficheront une erreur `Permission denied`.
+Sans ces options, les onglets IPTables/IPSet/NFTables afficheront une erreur `Permission denied` ou `no new privileges`.
 
 </details>
 
@@ -185,7 +200,8 @@ Dashboard available at `http://your-ip:7500`
 | Variable | Description | Défaut | Requis |
 |----------|-------------|--------|--------|
 | `JWT_SECRET` | Secret pour signer les tokens JWT | — | ✅ Oui |
-| `DASHBOARD_PORT` | Port du dashboard | `7500` | Non |
+| `DASHBOARD_PORT` | Port du dashboard (mode bridge avec `ports:`) | `7500` | Non |
+| `PORT` | Port d'écoute direct (mode `network_mode: host`) | `3000` | Non |
 | `HOST_IP` | IP de la machine hôte | Auto-détection | Non |
 | `CONFIG_FILE_PATH` | Chemin du fichier de configuration externe | `/app/config/logviewr.conf` | Non |
 | `ADM_GID` | GID du groupe `adm` sur l'hôte (logs système) | `4` | Non |
@@ -231,14 +247,13 @@ services:
     image: ghcr.io/erreur32/logviewr:latest
     container_name: logviewr
     restart: unless-stopped
-    # ⚠️ pas de ports: — incompatible avec network_mode: host
+    # ⚠️ no ports: — incompatible with network_mode: host
     network_mode: host
     cap_add:
       - NET_ADMIN
     environment:
       JWT_SECRET: ${JWT_SECRET}
-      PORT: 7500                  # port direct (remplace le mapping ports:)
-      DASHBOARD_PORT: 7500
+      PORT: 7500                  # direct listen port (replaces ports: mapping)
       HOST_IP: ${HOST_IP:-}
     group_add:
       - "${ADM_GID:-4}"
@@ -254,6 +269,30 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+```
+
+**Changer le port** : modifiez uniquement `PORT: 7500` → `PORT: 8080` (ou autre), puis pointez votre reverse proxy vers ce port.
+
+**Reverse proxy** (Nginx Proxy Manager, Caddy, Traefik…) avec `network_mode: host` :
+
+Le conteneur écoute directement sur le host — le reverse proxy se connecte via `127.0.0.1` :
+
+```
+# Nginx Proxy Manager
+Forward Hostname : 127.0.0.1
+Forward Port     : 7500        ← doit correspondre à PORT=
+
+# Nginx manuel
+location / {
+    proxy_pass http://127.0.0.1:7500;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host $host;
+}
+
+# Caddy
+reverse_proxy 127.0.0.1:7500
 ```
 
 > Le fichier complet avec tous les commentaires est dans [`docker-compose.yml`](docker-compose.yml) à la racine du projet.

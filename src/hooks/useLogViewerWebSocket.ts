@@ -99,6 +99,10 @@ export const useLogViewerWebSocket = () => {
             wsUrl = `${protocol}//${window.location.host}/ws/log-viewer`;
         }
 
+        // Append JWT token as query param — WebSocket upgrade cannot send Authorization header
+        const token = localStorage.getItem('dashboard_user_token') ?? '';
+        if (token) wsUrl += `?token=${encodeURIComponent(token)}`;
+
         if (import.meta.env.DEV) {
             console.log('[LogViewerWS] WebSocket URL:', wsUrl, '(hostname:', window.location.hostname, ', port:', window.location.port, ')');
         }

@@ -18,6 +18,28 @@ import { metricsCollector } from '../services/metricsCollector.js';
 
 const router = Router();
 
+// ── Simple in-memory rate limiter for public endpoints ───────────────────────
+// Prevents user enumeration on /check and spam on /register
+const _rlMap = new Map<string, { count: number; resetAt: number }>();
+function rateLimit(maxReq: number, windowMs: number) {
+    return (req: import('express').Request, res: import('express').Response, next: import('express').NextFunction) => {
+        const ip = (req.ip ?? req.socket.remoteAddress ?? 'unknown').replace(/^::ffff:/, '');
+        const now = Date.now();
+        const key = `${req.path}:${ip}`;
+        let entry = _rlMap.get(key);
+        if (!entry || now > entry.resetAt) {
+            _rlMap.set(key, { count: 1, resetAt: now + windowMs });
+            return next();
+        }
+        entry.count++;
+        if (entry.count > maxReq) {
+            res.status(429).json({ success: false, error: { code: 'RATE_LIMITED', message: 'Too many requests, please try again later' } });
+            return;
+        }
+        next();
+    };
+}
+
 // ── Input validation helpers ──────────────────────────────────────────────────
 const USERNAME_RE = /^[a-zA-Z0-9_.-]+$/;
 function validateUsername(u: string): string | null {
@@ -39,7 +61,7 @@ function validatePassword(p: string): string | null {
 }
 
 // GET /api/users/check - Check if any users exist (public)
-router.get('/check', asyncHandler(async (_req, res) => {
+router.get('/check', rateLimit(20, 60_000), asyncHandler(async (_req, res) => {
     const users = UserRepository.findAll();
     const hasUsers = users.length > 0;
     
@@ -53,7 +75,7 @@ router.get('/check', asyncHandler(async (_req, res) => {
 }));
 
 // POST /api/users/register - Register new user (public, but can be restricted)
-router.post('/register', asyncHandler(async (req, res) => {
+router.post('/register', rateLimit(5, 60_000), asyncHandler(async (req, res) => {
     const { username, email, password } = req.body;
 
     const usernameErr = validateUsername(username);

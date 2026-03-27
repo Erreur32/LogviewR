@@ -32,23 +32,45 @@ export class AuthService {
             'dev_secret_change_in_production'
         ];
         const envSecret = process.env.JWT_SECRET;
-        
-        // If no JWT_SECRET is set or it's one of the default values, generate a random one
-        if (!envSecret || defaultSecrets.includes(envSecret)) {
-            // Generate a secure random secret (64 characters, base64 encoded)
-            const generatedSecret = crypto.randomBytes(48).toString('base64');
-            this.jwtSecret = generatedSecret;
-            
-            // Log warning about auto-generated secret
-            logger.warn('Auth', '⚠️  JWT_SECRET not set or using default value. Auto-generated secret is being used.');
-            logger.warn('Auth', '⚠️  IMPORTANT: Set JWT_SECRET environment variable in production for security!');
-            logger.warn('Auth', '⚠️  Generated secret will change on each restart until JWT_SECRET is set.');
-        } else {
+
+        if (envSecret && !defaultSecrets.includes(envSecret)) {
+            // Explicit valid secret provided via env — use it
             this.jwtSecret = envSecret;
+        } else {
+            // No env secret (or default placeholder) — persist a generated one in the DB
+            // so it survives container restarts without requiring env var configuration
+            this.jwtSecret = this.getOrCreatePersistedSecret();
+            if (!envSecret || defaultSecrets.includes(envSecret)) {
+                logger.warn('Auth', 'JWT_SECRET not set — using auto-generated secret persisted in database.');
+                logger.warn('Auth', 'Set JWT_SECRET in .env for full control over token invalidation.');
+            }
         }
-        
+
         // Load JWT expiration from database, fallback to environment variable, then default
         this.jwtExpiresIn = this.getJwtExpiresIn();
+    }
+
+    /**
+     * Get persisted JWT secret from database, or generate and store a new one.
+     * This ensures the same secret is reused across container restarts.
+     */
+    private getOrCreatePersistedSecret(): string {
+        try {
+            const db = getDatabase();
+            const row = db.prepare('SELECT value FROM app_config WHERE key = ?').get('jwt_secret_generated') as { value: string } | undefined;
+            if (row?.value) {
+                return row.value;
+            }
+            // First run — generate and persist
+            const generated = crypto.randomBytes(48).toString('base64');
+            db.prepare(`INSERT INTO app_config (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP`)
+                .run('jwt_secret_generated', generated);
+            return generated;
+        } catch {
+            // DB not ready yet (startup race) — generate ephemeral secret; will be replaced on next call
+            return crypto.randomBytes(48).toString('base64');
+        }
     }
 
     /**
