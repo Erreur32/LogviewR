@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.5.5] - 2026-03-27
+
+### Fixed
+
+- **Docker build warnings** — suppressed deprecated transitive dependency warnings (`rimraf@3`, `glob@7`, `npmlog`) during `npm ci`; these come from `bcrypt` → `@mapbox/node-pre-gyp` build tools only, not runtime
+- **CI: Docker Hub login** — added Docker Hub authentication before QEMU/buildx setup to avoid anonymous pull rate limits on GitHub Actions runners
+- **Firewall tabs: `no-new-privileges` incompatibility** — `security_opt: no-new-privileges:true` prevents `sudo` from running, breaking `iptables-save`/`ipset list`/`nft`; commented out in firewall mode with clear explanation in all compose files and README
+
+---
+
 ## [0.5.4] - 2026-03-27
 
 ### Fixed
