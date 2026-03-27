@@ -406,6 +406,11 @@ export const IpModal: React.FC<{
     }
     const categories = Object.entries(categoryMap).sort((a, b) => b[1] - a[1]);
 
+    // Jail breakdown for historique
+    const jailCountMap: Record<string, number> = {};
+    for (const b of bans) jailCountMap[b.jail] = (jailCountMap[b.jail] ?? 0) + 1;
+    const jailEntries = Object.entries(jailCountMap).sort((a, b) => b[1] - a[1]);
+
     // Ban frequency
     const freqLabel = (() => {
         if (bans.length < 2) return null;
@@ -510,12 +515,63 @@ export const IpModal: React.FC<{
                     </div>
                 )}
 
-                {/* ── 3-column info grid ── */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(270px,1fr) minmax(260px,1fr) minmax(220px,1fr)',
-                    gap: '1rem', padding: '1rem 1.75rem', borderBottom: '1px solid #30363d' }}>
+                {/* ── INFO STRIP: Geo + Whois ── */}
+                <div style={{ padding: '.65rem 1.75rem', borderBottom: '1px solid #30363d',
+                    display: 'flex', alignItems: 'center', gap: '1.25rem', flexWrap: 'wrap',
+                    background: 'rgba(255,255,255,.015)' }}>
+                    {geo ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '.55rem' }}>
+                            {geo.countryCode && <FlagImg code={geo.countryCode} size={22} />}
+                            <div>
+                                <div style={{ fontSize: '.8rem', color: '#e6edf3', fontWeight: 600 }}>
+                                    {[geo.city, geo.country].filter(Boolean).join(', ')}
+                                    {geo.countryCode && <span style={{ marginLeft: '.4rem', fontSize: '.68rem', color: '#8b949e', fontFamily: 'monospace' }}>{geo.countryCode}</span>}
+                                </div>
+                                {geo.org && <div style={{ fontSize: '.7rem', color: '#8b949e', marginTop: '.05rem' }}>{geo.org}</div>}
+                            </div>
+                        </div>
+                    ) : loading ? <span style={{ fontSize: '.73rem', color: '#8b949e', fontStyle: 'italic' }}>Chargement géo…</span> : null}
 
-                    {/* Col 1 — Stats + Types d'attaque + Jails actifs */}
+                    {details?.whois && <div style={{ width: 1, height: 32, background: '#30363d', flexShrink: 0 }} />}
+                    {details?.whois ? (
+                        <div style={{ display: 'flex', gap: '1.25rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                            {details.whois.org && <div><div style={{ fontSize: '.6rem', color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.1rem' }}>Organisation</div><div style={{ fontSize: '.74rem', fontFamily: 'monospace', color: '#e6edf3' }}>{details.whois.org}</div></div>}
+                            {details.whois.asn && <div><div style={{ fontSize: '.6rem', color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.1rem' }}>ASN</div><div style={{ fontSize: '.74rem', fontFamily: 'monospace', color: '#bc8cff' }}>{details.whois.asn}</div></div>}
+                            {details.whois.cidr && <div><div style={{ fontSize: '.6rem', color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.1rem' }}>CIDR</div><div style={{ fontSize: '.74rem', fontFamily: 'monospace', color: '#8b949e' }}>{details.whois.cidr}</div></div>}
+                            {details.whois.netname && <div><div style={{ fontSize: '.6rem', color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.1rem' }}>Netname</div><div style={{ fontSize: '.74rem', fontFamily: 'monospace', color: '#8b949e' }}>{details.whois.netname}</div></div>}
+                        </div>
+                    ) : loading ? <span style={{ fontSize: '.73rem', color: '#8b949e', fontStyle: 'italic' }}>Chargement whois…</span> : null}
+
+                    {geo?.isp && geo.isp !== geo.org && <><div style={{ width: 1, height: 32, background: '#30363d', flexShrink: 0 }} /><div><div style={{ fontSize: '.6rem', color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.1rem' }}>ISP</div><div style={{ fontSize: '.74rem', fontFamily: 'monospace', color: '#8b949e' }}>{geo.isp}</div></div></>}
+                    {details?.hostname && <><div style={{ width: 1, height: 32, background: '#30363d', flexShrink: 0 }} /><div><div style={{ fontSize: '.6rem', color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.1rem' }}>Hostname</div><div style={{ fontSize: '.74rem', fontFamily: 'monospace', color: '#8b949e' }}>{details.hostname}</div></div></>}
+                    {details?.knownProvider && <><div style={{ width: 1, height: 32, background: '#30363d', flexShrink: 0 }} /><span style={{ padding: '.2rem .55rem', borderRadius: 5, fontSize: '.7rem', fontWeight: 600, background: 'rgba(88,166,255,.12)', color: '#58a6ff', border: '1px solid rgba(88,166,255,.3)' }}>☁ {details.knownProvider.name} · {details.knownProvider.cidr}</span></>}
+                </div>
+
+
+                {/* ── EN COURS + HISTORIQUE (2 colonnes) ── */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', padding: '1rem 1.75rem', borderBottom: '1px solid #30363d' }}>
+
+                    {/* ── EN COURS ── */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
+
+                        {/* Live status */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', padding: '.5rem .85rem',
+                            borderRadius: 7, border: `1px solid ${(details?.activeJails ?? []).length > 0 ? 'rgba(232,106,101,.35)' : 'rgba(63,185,80,.25)'}`,
+                            background: (details?.activeJails ?? []).length > 0 ? 'rgba(232,106,101,.07)' : 'rgba(63,185,80,.06)' }}>
+                            <div style={{ width: 9, height: 9, borderRadius: '50%', flexShrink: 0,
+                                background: (details?.activeJails ?? []).length > 0 ? '#e86a65' : '#3fb950',
+                                boxShadow: (details?.activeJails ?? []).length > 0 ? '0 0 8px rgba(232,106,101,.6)' : '0 0 6px rgba(63,185,80,.4)',
+                                animation: (details?.activeJails ?? []).length > 0 ? 'pulse 1.2s ease-in-out infinite' : 'none' }} />
+                            <span style={{ fontWeight: 700, fontSize: '.83rem',
+                                color: (details?.activeJails ?? []).length > 0 ? '#e86a65' : '#3fb950' }}>
+                                {(details?.activeJails ?? []).length > 0 ? 'BANNI ACTUELLEMENT' : 'Non banni actuellement'}
+                            </span>
+                            {lastBan && (
+                                <span style={{ marginLeft: 'auto', fontSize: '.68rem', color: '#8b949e', fontFamily: 'monospace' }}>
+                                    {fmtDate(lastBan.timeofban)}
+                                </span>
+                            )}
+                        </div>
 
                         {/* Bot/Scanner badge */}
                         {isBotLike && !isKnownProvider && !knownBot && (
@@ -523,12 +579,109 @@ export const IpModal: React.FC<{
                                 borderRadius: 6, padding: '.5rem .75rem', display: 'flex', alignItems: 'center', gap: '.5rem' }}>
                                 <AlertTriangle style={{ width: 13, height: 13, color: '#e3b341', flexShrink: 0 }} />
                                 <span style={{ fontSize: '.77rem', color: '#e3b341' }}>
-                                    Comportement de <strong>bot / scanner</strong> détecté (attaques répétées)
+                                    Comportement de <strong>bot / scanner</strong> détecté
                                 </span>
                             </div>
                         )}
 
-                        {/* Statistiques + action bannir */}
+                        {/* Jails actifs + IPSets + Actions — même ligne */}
+                        <div style={{ display: 'flex', gap: '.75rem', alignItems: 'stretch' }}>
+                            <div style={{ ...card, flex: 1, minWidth: 0 }}>
+                                <div style={cardH}>
+                                    <Shield style={{ width: 12, height: 12, color: (details?.activeJails ?? []).length > 0 ? '#3fb950' : '#8b949e' }} />
+                                    <span style={{ fontWeight: 600, fontSize: '.8rem' }}>Jails actifs</span>
+                                    {(details?.activeJails ?? []).length > 0 && (
+                                        <span style={{ marginLeft: 'auto', fontSize: '.68rem', color: '#3fb950' }}>
+                                            {(details?.activeJails ?? []).length} actif{(details?.activeJails ?? []).length > 1 ? 's' : ''}
+                                        </span>
+                                    )}
+                                </div>
+                                <div style={{ padding: '.6rem .85rem', display: 'flex', flexWrap: 'wrap', gap: '.3rem' }}>
+                                    {(details?.activeJails ?? []).length > 0
+                                        ? details!.activeJails.map(j => <JailPill key={j} jail={j} />)
+                                        : <span style={{ fontSize: '.73rem', color: '#8b949e', fontStyle: 'italic' }}>aucun jail actif</span>
+                                    }
+                                </div>
+                            </div>
+                            {(details?.ipsets ?? []).length > 0 && (
+                                <div style={{ ...card, flex: 1, minWidth: 0 }}>
+                                    <div style={cardH}>
+                                        <Shield style={{ width: 12, height: 12, color: '#bc8cff' }} />
+                                        <span style={{ fontWeight: 600, fontSize: '.8rem' }}>IPSets</span>
+                                    </div>
+                                    <div style={{ padding: '.6rem .85rem', display: 'flex', flexWrap: 'wrap', gap: '.3rem' }}>
+                                        {details!.ipsets.map(s => (
+                                            <span key={s} style={{ padding: '.08rem .4rem', borderRadius: 4, fontSize: '.68rem', fontWeight: 600,
+                                                background: 'rgba(188,140,255,.1)', color: '#bc8cff',
+                                                border: '1px solid rgba(188,140,255,.25)', fontFamily: 'monospace' }}>{s}</span>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                            <div style={{ ...card, flex: 1, minWidth: 0 }}>
+                                <div style={cardH}>
+                                    <Shield style={{ width: 12, height: 12, color: '#e86a65' }} />
+                                    <span style={{ fontWeight: 600, fontSize: '.8rem' }}>Actions rapides</span>
+                                </div>
+                                <div style={{ ...cardB, gap: '.55rem' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
+                                        <span style={{ fontSize: '.72rem', color: '#8b949e', minWidth: 52 }}>Recidive</span>
+                                        {inRecidive
+                                            ? <span style={{ fontSize: '.72rem', color: '#e86a65', fontWeight: 600 }}>⚠ déjà banni</span>
+                                            : <button onClick={banRecidive} disabled={banning}
+                                                style={{ flex: 1, padding: '.25rem .6rem', borderRadius: 5,
+                                                    background: 'rgba(232,106,101,.08)', border: '1px solid rgba(232,106,101,.3)',
+                                                    color: '#e86a65', cursor: banning ? 'default' : 'pointer',
+                                                    fontSize: '.74rem', fontWeight: 600, opacity: banning ? .6 : 1,
+                                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '.3rem' }}>
+                                                <Shield style={{ width: 10, height: 10 }} />
+                                                {banning ? 'Bannissement…' : 'Bannir dans recidive'}
+                                            </button>
+                                        }
+                                    </div>
+                                    {(details?.allIpsets ?? []).length > 0 && (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
+                                            <span style={{ fontSize: '.72rem', color: '#8b949e', minWidth: 52 }}>IPSet</span>
+                                            <select value={selIpset} onChange={e => setSelIpset(e.target.value)}
+                                                style={{ flex: 1, background: '#21262d', border: '1px solid #30363d', color: '#e6edf3',
+                                                    borderRadius: 4, padding: '.2rem .4rem', fontSize: '.74rem', outline: 'none', cursor: 'pointer' }}>
+                                                {(details?.allIpsets ?? []).map(s => (
+                                                    <option key={s} value={s} style={{ background: '#21262d' }}>
+                                                        {s}{(details?.ipsets ?? []).includes(s) ? ' ✓' : ''}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            <button
+                                                onClick={() => selIpset && banIpset(selIpset)}
+                                                disabled={!selIpset || ipsetBanning === selIpset || (details?.ipsets ?? []).includes(selIpset)}
+                                                style={{ padding: '.25rem .6rem', borderRadius: 5, whiteSpace: 'nowrap',
+                                                    background: (details?.ipsets ?? []).includes(selIpset) ? 'rgba(188,140,255,.06)' : 'rgba(188,140,255,.1)',
+                                                    border: '1px solid rgba(188,140,255,.3)', color: '#bc8cff',
+                                                    cursor: (!selIpset || ipsetBanning === selIpset || (details?.ipsets ?? []).includes(selIpset)) ? 'default' : 'pointer',
+                                                    fontSize: '.74rem', fontWeight: 600,
+                                                    opacity: (!selIpset || ipsetBanning === selIpset) ? .5 : 1,
+                                                    display: 'flex', alignItems: 'center', gap: '.3rem' }}>
+                                                {(details?.ipsets ?? []).includes(selIpset)
+                                                    ? '✓ déjà ajouté'
+                                                    : ipsetBanning === selIpset ? 'Ajout…' : '+ Ajouter'}
+                                            </button>
+                                        </div>
+                                    )}
+                                    {actionMsg && (
+                                        <div style={{ fontSize: '.72rem', color: actionMsg.ok ? '#3fb950' : '#e86a65',
+                                            display: 'flex', alignItems: 'center', gap: '.3rem' }}>
+                                            {actionMsg.text}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* ── HISTORIQUE ── */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
+
+                        {/* Stats globales */}
                         <div style={card}>
                             <div style={cardH}>
                                 <Activity style={{ width: 12, height: 12, color: '#e86a65' }} />
@@ -575,296 +728,153 @@ export const IpModal: React.FC<{
                                         <span style={{ color: '#8b949e', fontSize: '.7rem', marginLeft: '.2rem' }}>(dernier ban)</span>
                                     </Row>
                                 )}
-                                {(details?.ipsets ?? []).length > 0 && (
-                                    <Row label="IPSet(s)">
-                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.25rem' }}>
-                                            {details!.ipsets.map(s => (
-                                                <span key={s} style={{ padding: '.08rem .4rem', borderRadius: 4, fontSize: '.68rem', fontWeight: 600, background: 'rgba(188,140,255,.1)', color: '#bc8cff', border: '1px solid rgba(188,140,255,.25)', fontFamily: 'monospace' }}>{s}</span>
-                                            ))}
-                                        </div>
-                                    </Row>
-                                )}
                             </div>
                         </div>
 
-                        {/* ── Actions rapides ── */}
-                        <div style={card}>
-                            <div style={cardH}>
-                                <Shield style={{ width: 12, height: 12, color: '#e86a65' }} />
-                                <span style={{ fontWeight: 600, fontSize: '.8rem' }}>Actions rapides</span>
-                            </div>
-                            <div style={{ ...cardB, gap: '.55rem' }}>
-                                {/* Recidive */}
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
-                                    <span style={{ fontSize: '.72rem', color: '#8b949e', minWidth: 52 }}>Recidive</span>
-                                    {inRecidive
-                                        ? <span style={{ fontSize: '.72rem', color: '#e86a65', fontWeight: 600 }}>⚠ déjà banni</span>
-                                        : <button onClick={banRecidive} disabled={banning}
-                                            style={{ flex: 1, padding: '.25rem .6rem', borderRadius: 5,
-                                                background: 'rgba(232,106,101,.08)', border: '1px solid rgba(232,106,101,.3)',
-                                                color: '#e86a65', cursor: banning ? 'default' : 'pointer',
-                                                fontSize: '.74rem', fontWeight: 600, opacity: banning ? .6 : 1,
-                                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '.3rem' }}>
-                                            <Shield style={{ width: 10, height: 10 }} />
-                                            {banning ? 'Bannissement…' : 'Bannir dans recidive'}
-                                        </button>
-                                    }
-                                </div>
-                                {/* IPSet */}
-                                {(details?.allIpsets ?? []).length > 0 && (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
-                                        <span style={{ fontSize: '.72rem', color: '#8b949e', minWidth: 52 }}>IPSet</span>
-                                        <select value={selIpset} onChange={e => setSelIpset(e.target.value)}
-                                            style={{ flex: 1, background: '#21262d', border: '1px solid #30363d', color: '#e6edf3',
-                                                borderRadius: 4, padding: '.2rem .4rem', fontSize: '.74rem', outline: 'none', cursor: 'pointer' }}>
-                                            {(details?.allIpsets ?? []).map(s => (
-                                                <option key={s} value={s} style={{ background: '#21262d' }}>
-                                                    {s}{(details?.ipsets ?? []).includes(s) ? ' ✓' : ''}
-                                                </option>
-                                            ))}
-                                        </select>
-                                        <button
-                                            onClick={() => selIpset && banIpset(selIpset)}
-                                            disabled={!selIpset || ipsetBanning === selIpset || (details?.ipsets ?? []).includes(selIpset)}
-                                            style={{ padding: '.25rem .6rem', borderRadius: 5, whiteSpace: 'nowrap',
-                                                background: (details?.ipsets ?? []).includes(selIpset) ? 'rgba(188,140,255,.06)' : 'rgba(188,140,255,.1)',
-                                                border: '1px solid rgba(188,140,255,.3)', color: '#bc8cff',
-                                                cursor: (!selIpset || ipsetBanning === selIpset || (details?.ipsets ?? []).includes(selIpset)) ? 'default' : 'pointer',
-                                                fontSize: '.74rem', fontWeight: 600,
-                                                opacity: (!selIpset || ipsetBanning === selIpset) ? .5 : 1,
-                                                display: 'flex', alignItems: 'center', gap: '.3rem' }}>
-                                            {(details?.ipsets ?? []).includes(selIpset)
-                                                ? '✓ déjà ajouté'
-                                                : ipsetBanning === selIpset ? 'Ajout…' : '+ Ajouter'}
-                                        </button>
-                                    </div>
-                                )}
-                                {actionMsg && (
-                                    <div style={{ fontSize: '.72rem', color: actionMsg.ok ? '#3fb950' : '#e86a65',
-                                        display: 'flex', alignItems: 'center', gap: '.3rem' }}>
-                                        {actionMsg.text}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Types d'attaque */}
-                        {categories.length > 0 && (
-                            <div style={card}>
-                                <div style={cardH}>
-                                    <AlertTriangle style={{ width: 12, height: 12, color: '#e3b341' }} />
-                                    <span style={{ fontWeight: 600, fontSize: '.8rem' }}>Types d'attaque</span>
-                                </div>
-                                <div style={{ padding: '.75rem 1rem', display: 'flex', flexDirection: 'column', gap: '.55rem' }}>
-                                    {categories.map(([cat, count]) => {
-                                        const pct = Math.round(count / bans.length * 100);
-                                        return (
-                                            <div key={cat}>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '.2rem' }}>
-                                                    <span style={{ fontSize: '.74rem', color: '#e6edf3' }}>{cat}</span>
-                                                    <span style={{ fontSize: '.7rem', color: '#e3b341', fontWeight: 600 }}>
-                                                        {count}× <span style={{ color: '#8b949e', fontWeight: 400 }}>({pct}%)</span>
-                                                    </span>
-                                                </div>
-                                                <div style={{ background: '#2d333b', borderRadius: 3, height: 4, overflow: 'hidden' }}>
-                                                    <div style={{ width: `${pct}%`, height: '100%', background: '#e3b341', borderRadius: 3 }} />
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Jails actifs — déplacé ici sous types d'attaque */}
-                        {(details?.activeJails ?? []).length > 0 && (
-                            <div style={card}>
-                                <div style={cardH}>
-                                    <Shield style={{ width: 12, height: 12, color: '#3fb950' }} />
-                                    <span style={{ fontWeight: 600, fontSize: '.8rem' }}>Jails actifs</span>
-                                    <span style={{ marginLeft: 'auto', fontSize: '.7rem', color: '#3fb950' }}>banni actuellement</span>
-                                </div>
-                                <div style={{ padding: '.6rem .85rem', display: 'flex', flexWrap: 'wrap', gap: '.3rem' }}>
-                                    {details!.activeJails.map(j => <JailPill key={j} jail={j} />)}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Col 2 — Whois */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
-
-                        {/* Whois */}
-                        <div style={card}>
-                            <div style={cardH}>
-                                <Info style={{ width: 12, height: 12, color: '#58a6ff' }} />
-                                <span style={{ fontWeight: 600, fontSize: '.8rem' }}>Whois</span>
-                            </div>
-                            <div style={{ ...cardB, gap: '.4rem' }}>
-                                {details?.whois ? (<>
-                                    {details.whois.country && (
-                                        <Row label="Pays">
-                                            {details.whois.country}
-                                        </Row>
-                                    )}
-                                    {details.whois.org && (
-                                        <Row label="Organisation">
-                                            <span style={{ fontFamily: 'monospace', fontSize: '.73rem' }}>{details.whois.org}</span>
-                                        </Row>
-                                    )}
-                                    {details.whois.netname && (
-                                        <Row label="Netname">
-                                            <span style={{ fontFamily: 'monospace', fontSize: '.73rem', color: '#8b949e' }}>{details.whois.netname}</span>
-                                        </Row>
-                                    )}
-                                    {details.whois.asn && (
-                                        <Row label="ASN">
-                                            <span style={{ fontFamily: 'monospace', fontSize: '.73rem', color: '#bc8cff' }}>{details.whois.asn}</span>
-                                        </Row>
-                                    )}
-                                    {details.whois.cidr && (
-                                        <Row label="CIDR">
-                                            <span style={{ fontFamily: 'monospace', fontSize: '.73rem', color: '#8b949e' }}>{details.whois.cidr}</span>
-                                        </Row>
-                                    )}
-                                </>) : (
-                                    <div style={{ color: '#8b949e', fontSize: '.77rem', fontStyle: 'italic' }}>
-                                        {loading ? 'Chargement whois…' : 'Aucune information whois disponible'}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Col 3 — Géolocalisation */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
-                        <div style={card}>
-                            <div style={cardH}>
-                                <MapPin style={{ width: 12, height: 12, color: '#39c5cf' }} />
-                                <span style={{ fontWeight: 600, fontSize: '.8rem' }}>Géolocalisation</span>
-                            </div>
-                            <div style={{ ...cardB, gap: '.4rem' }}>
-                                {geo ? (<>
-                                    {geo.country && (
-                                        <Row label="Pays">
-                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.35rem' }}>
-                                                {geo.countryCode && <FlagImg code={geo.countryCode} size={18} />}
-                                                {geo.country}
-                                                {geo.countryCode && (
-                                                    <span style={{ fontSize: '.7rem', color: '#8b949e', fontFamily: 'monospace' }}>
-                                                        {geo.countryCode}
-                                                    </span>
-                                                )}
+                        {/* Jails déclencheurs + Types d'attaque — même ligne */}
+                        {(jailEntries.length > 0 || categories.length > 0) && (
+                            <div style={{ display: 'flex', gap: '.75rem', alignItems: 'stretch' }}>
+                                {jailEntries.length > 0 && (
+                                    <div style={{ ...card, flex: 1, minWidth: 0 }}>
+                                        <div style={cardH}>
+                                            <Shield style={{ width: 12, height: 12, color: '#58a6ff' }} />
+                                            <span style={{ fontWeight: 600, fontSize: '.8rem' }}>Jails déclencheurs</span>
+                                            <span style={{ marginLeft: 'auto', fontSize: '.68rem', color: '#8b949e' }}>
+                                                {jailEntries.length} jail{jailEntries.length > 1 ? 's' : ''}
                                             </span>
-                                        </Row>
-                                    )}
-                                    {geo.city && <Row label="Ville">{geo.city}</Row>}
-                                    {geo.org && (
-                                        <Row label="Organisation">
-                                            <span style={{ fontFamily: 'monospace', fontSize: '.73rem' }}>{geo.org}</span>
-                                        </Row>
-                                    )}
-                                    {geo.isp && geo.isp !== geo.org && (
-                                        <Row label="ISP">
-                                            <span style={{ fontFamily: 'monospace', fontSize: '.73rem' }}>{geo.isp}</span>
-                                        </Row>
-                                    )}
-                                    {geo.as && (
-                                        <Row label="ASN">
-                                            <span style={{ fontFamily: 'monospace', fontSize: '.73rem', color: '#8b949e' }}>{geo.as}</span>
-                                        </Row>
-                                    )}
-                                </>) : (
-                                    <div style={{ color: '#8b949e', fontSize: '.77rem', fontStyle: 'italic' }}>
-                                        {loading ? 'Chargement géoloc…' : 'Non disponible'}
+                                        </div>
+                                        <div style={{ padding: '.65rem 1rem', display: 'flex', flexDirection: 'column', gap: '.45rem' }}>
+                                            {jailEntries.map(([jail, count]) => {
+                                                const pct = Math.round(count / bans.length * 100);
+                                                return (
+                                                    <div key={jail}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '.2rem' }}>
+                                                            <JailPill jail={jail} />
+                                                            <span style={{ fontSize: '.7rem', color: '#58a6ff', fontWeight: 600 }}>
+                                                                {count}× <span style={{ color: '#8b949e', fontWeight: 400 }}>({pct}%)</span>
+                                                            </span>
+                                                        </div>
+                                                        <div style={{ background: '#2d333b', borderRadius: 3, height: 3, overflow: 'hidden' }}>
+                                                            <div style={{ width: `${pct}%`, height: '100%', background: '#58a6ff', borderRadius: 3 }} />
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+                                {categories.length > 0 && (
+                                    <div style={{ ...card, flex: 1, minWidth: 0 }}>
+                                        <div style={cardH}>
+                                            <AlertTriangle style={{ width: 12, height: 12, color: '#e3b341' }} />
+                                            <span style={{ fontWeight: 600, fontSize: '.8rem' }}>Types d'attaque</span>
+                                        </div>
+                                        <div style={{ padding: '.75rem 1rem', display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
+                                            {categories.map(([cat, count]) => {
+                                                const pct = Math.round(count / bans.length * 100);
+                                                return (
+                                                    <div key={cat}>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '.2rem' }}>
+                                                            <span style={{ fontSize: '.74rem', color: '#e6edf3' }}>{cat}</span>
+                                                            <span style={{ fontSize: '.7rem', color: '#e3b341', fontWeight: 600 }}>
+                                                                {count}× <span style={{ color: '#8b949e', fontWeight: 400 }}>({pct}%)</span>
+                                                            </span>
+                                                        </div>
+                                                        <div style={{ background: '#2d333b', borderRadius: 3, height: 4, overflow: 'hidden' }}>
+                                                            <div style={{ width: `${pct}%`, height: '100%', background: '#e3b341', borderRadius: 3 }} />
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
                                     </div>
                                 )}
                             </div>
-                        </div>
+                        )}
                     </div>
                 </div>
 
-                {/* ── Historique fail2ban ── */}
-                <div style={{ padding: '1.25rem 1.75rem 0', flexShrink: 0 }}>
+                {/* ── Timeline bans ── */}
+                <div style={{ padding: '1rem 1.75rem 0', flexShrink: 0 }}>
                     <div style={{ border: '1px solid #30363d', borderRadius: 8, overflow: 'hidden' }}>
-                    <div style={{ padding: '.5rem 1rem', background: '#161b22', borderBottom: '1px solid #30363d',
-                        fontSize: '.72rem', color: '#8b949e', display: 'flex', alignItems: 'center', gap: '.4rem' }}>
-                        <Clock style={{ width: 11, height: 11 }} />
-                        <span style={{ fontWeight: 600, color: '#e6edf3' }}>Historique fail2ban</span>
-                        <span style={{ background: '#21262d', border: '1px solid #30363d', borderRadius: 3,
-                            padding: '0 .35rem', color: '#e6edf3', fontWeight: 600 }}>
-                            {history.length}
-                        </span>
-                        {history.length >= 250 && (
-                            <span style={{ color: '#e3b341' }}>· limité à 250 évènements</span>
+                        <div style={{ padding: '.5rem 1rem', background: '#161b22', borderBottom: '1px solid #30363d',
+                            fontSize: '.72rem', color: '#8b949e', display: 'flex', alignItems: 'center', gap: '.4rem' }}>
+                            <Clock style={{ width: 11, height: 11 }} />
+                            <span style={{ fontWeight: 600, color: '#e6edf3' }}>Timeline des bans</span>
+                            <span style={{ background: '#21262d', border: '1px solid #30363d', borderRadius: 3,
+                                padding: '0 .35rem', color: '#e6edf3', fontWeight: 600 }}>
+                                {history.length}
+                            </span>
+                            {history.length >= 250 && (
+                                <span style={{ color: '#e3b341' }}>· limité à 250 évènements</span>
+                            )}
+                        </div>
+                        {loading ? (
+                            <div style={{ textAlign: 'center', padding: '2rem', color: '#8b949e', fontSize: '.85rem' }}>Chargement…</div>
+                        ) : history.length === 0 ? (
+                            <div style={{ textAlign: 'center', padding: '2rem', color: '#3fb950', fontSize: '.85rem' }}>
+                                Aucun historique interne trouvé
+                            </div>
+                        ) : (
+                            <div style={{ maxHeight: 260, overflowY: 'auto' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                    <thead>
+                                        <tr style={{ position: 'sticky', top: 0, background: '#161b22', zIndex: 1 }}>
+                                            {['Date', 'Action', 'Jail', 'Durée', 'Tentatives'].map(h => (
+                                                <th key={h} style={{ padding: '.4rem .85rem', borderBottom: '1px solid #30363d',
+                                                    fontSize: '.67rem', fontWeight: 700, textTransform: 'uppercase',
+                                                    letterSpacing: '.05em', color: '#8b949e', textAlign: 'left', whiteSpace: 'nowrap' }}>
+                                                    {h}
+                                                </th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {history.map((h, i) => {
+                                            const isBan = (h.bantime ?? 0) > 0;
+                                            const age = Date.now() / 1000 - h.timeofban;
+                                            const ageLabel = age < 3600 ? `${Math.round(age / 60)}m`
+                                                : age < 86400 ? `${Math.round(age / 3600)}h`
+                                                : `${Math.round(age / 86400)}j`;
+                                            const ageColor = dateColor(h.timeofban);
+                                            return (
+                                                <tr key={i} style={{ borderBottom: '1px solid rgba(48,54,61,.5)' }}
+                                                    onMouseEnter={ev => (ev.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,.02)'}
+                                                    onMouseLeave={ev => (ev.currentTarget as HTMLElement).style.background = 'transparent'}>
+                                                    <td style={{ padding: '.45rem .85rem', whiteSpace: 'nowrap' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem' }}>
+                                                            <span style={{ padding: '.05rem .35rem', borderRadius: 3, fontSize: '.66rem', fontWeight: 700,
+                                                                background: ageColor + '20', color: ageColor,
+                                                                border: `1px solid ${ageColor}55`, flexShrink: 0 }}>
+                                                                {ageLabel}
+                                                            </span>
+                                                            <span style={{ color: '#8b949e', fontFamily: 'monospace', fontSize: '.72rem' }}>
+                                                                {fmtDate(h.timeofban)}
+                                                            </span>
+                                                        </div>
+                                                    </td>
+                                                    <td style={{ padding: '.45rem .85rem' }}>
+                                                        <span style={{ padding: '.07rem .4rem', borderRadius: 4, fontSize: '.69rem', fontWeight: 700,
+                                                            background: isBan ? 'rgba(232,106,101,.15)' : 'rgba(63,185,80,.12)',
+                                                            color: isBan ? '#e86a65' : '#3fb950',
+                                                            border: `1px solid ${isBan ? 'rgba(232,106,101,.3)' : 'rgba(63,185,80,.25)'}`}}>
+                                                            {isBan ? '⚖ Ban' : '✓ Unban'}
+                                                        </span>
+                                                    </td>
+                                                    <td style={{ padding: '.45rem .85rem' }}><JailPill jail={h.jail} /></td>
+                                                    <td style={{ padding: '.45rem .85rem', fontSize: '.76rem', color: '#58a6ff', fontFamily: 'monospace' }}>
+                                                        {fmtBantime(h.bantime)}
+                                                    </td>
+                                                    <td style={{ padding: '.45rem .85rem', fontSize: '.76rem', color: '#e3b341', fontWeight: 600 }}>
+                                                        {h.failures ?? '—'}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
                         )}
-                    </div>
-                    {loading ? (
-                        <div style={{ textAlign: 'center', padding: '2rem', color: '#8b949e', fontSize: '.85rem' }}>Chargement…</div>
-                    ) : history.length === 0 ? (
-                        <div style={{ textAlign: 'center', padding: '2rem', color: '#3fb950', fontSize: '.85rem' }}>
-                            Aucun historique interne trouvé
-                        </div>
-                    ) : (
-                        <div style={{ maxHeight: 320, overflowY: 'auto' }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                                <thead>
-                                    <tr style={{ position: 'sticky', top: 0, background: '#161b22', zIndex: 1 }}>
-                                        {['Date', 'Action', 'Jail', 'Durée', 'Tentatives'].map(h => (
-                                            <th key={h} style={{ padding: '.4rem .85rem', borderBottom: '1px solid #30363d',
-                                                fontSize: '.67rem', fontWeight: 700, textTransform: 'uppercase',
-                                                letterSpacing: '.05em', color: '#8b949e', textAlign: 'left', whiteSpace: 'nowrap' }}>
-                                                {h}
-                                            </th>
-                                        ))}
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {history.map((h, i) => {
-                                        const isBan = (h.bantime ?? 0) > 0;
-                                        const age = Date.now() / 1000 - h.timeofban;
-                                        const ageLabel = age < 3600 ? `${Math.round(age / 60)}m`
-                                            : age < 86400 ? `${Math.round(age / 3600)}h`
-                                            : `${Math.round(age / 86400)}j`;
-                                        const ageColor = dateColor(h.timeofban);
-                                        return (
-                                            <tr key={i} style={{ borderBottom: '1px solid rgba(48,54,61,.5)' }}
-                                                onMouseEnter={ev => (ev.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,.02)'}
-                                                onMouseLeave={ev => (ev.currentTarget as HTMLElement).style.background = 'transparent'}>
-                                                <td style={{ padding: '.45rem .85rem', whiteSpace: 'nowrap' }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem' }}>
-                                                        <span style={{ padding: '.05rem .35rem', borderRadius: 3, fontSize: '.66rem', fontWeight: 700,
-                                                            background: ageColor + '20', color: ageColor,
-                                                            border: `1px solid ${ageColor}55`, flexShrink: 0 }}>
-                                                            {ageLabel}
-                                                        </span>
-                                                        <span style={{ color: '#8b949e', fontFamily: 'monospace', fontSize: '.72rem' }}>
-                                                            {fmtDate(h.timeofban)}
-                                                        </span>
-                                                    </div>
-                                                </td>
-                                                <td style={{ padding: '.45rem .85rem' }}>
-                                                    <span style={{ padding: '.07rem .4rem', borderRadius: 4, fontSize: '.69rem', fontWeight: 700,
-                                                        background: isBan ? 'rgba(232,106,101,.15)' : 'rgba(63,185,80,.12)',
-                                                        color: isBan ? '#e86a65' : '#3fb950',
-                                                        border: `1px solid ${isBan ? 'rgba(232,106,101,.3)' : 'rgba(63,185,80,.25)'}` }}>
-                                                        {isBan ? '⚖ Ban' : '✓ Unban'}
-                                                    </span>
-                                                </td>
-                                                <td style={{ padding: '.45rem .85rem' }}><JailPill jail={h.jail} /></td>
-                                                <td style={{ padding: '.45rem .85rem', fontSize: '.76rem', color: '#58a6ff', fontFamily: 'monospace' }}>
-                                                    {fmtBantime(h.bantime)}
-                                                </td>
-                                                <td style={{ padding: '.45rem .85rem', fontSize: '.76rem', color: '#e3b341', fontWeight: 600 }}>
-                                                    {h.failures ?? '—'}
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
                     </div>
                 </div>
 
@@ -957,12 +967,16 @@ export const IpModal: React.FC<{
                                                     const next = new Set(prev);
                                                     isExpanded ? next.delete(idx) : next.add(idx);
                                                     return next;
-                                                })} style={{ marginTop: '.2rem', background: 'none', border: '1px solid #30363d',
-                                                    borderRadius: 4, color: '#8b949e', cursor: 'pointer', fontSize: '.68rem',
-                                                    padding: '.15rem .5rem', width: '100%' }}>
+                                                })} style={{
+                                                    marginTop: '.35rem', background: isExpanded ? 'rgba(88,166,255,.06)' : 'rgba(88,166,255,.08)',
+                                                    border: '1px solid rgba(88,166,255,.25)', borderRadius: 5,
+                                                    color: '#58a6ff', cursor: 'pointer', fontSize: '.71rem', fontWeight: 600,
+                                                    padding: '.3rem .8rem', display: 'inline-flex', alignItems: 'center', gap: '.35rem',
+                                                    transition: 'background .15s',
+                                                }}>
                                                     {isExpanded
-                                                        ? `▲ Réduire`
-                                                        : `▼ Voir tout (${entry.lines.length - LOG_LINES_DEFAULT} lignes de plus)`}
+                                                        ? <>▲ Réduire</>
+                                                        : <>▼ Voir tout <span style={{ color: '#8b949e', fontWeight: 400 }}>({entry.lines.length - LOG_LINES_DEFAULT} lignes)</span></>}
                                                 </button>
                                             )}
                                         </div>

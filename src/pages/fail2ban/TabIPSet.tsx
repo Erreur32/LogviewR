@@ -8,6 +8,14 @@ import { Database, AlertTriangle, Trash2, Plus, Search, CheckCircle } from 'luci
 import { api } from '../../api/client';
 import { card, cardH, cardB, F2bTooltip } from './helpers';
 
+const _cache: Record<string, { data: unknown; ts: number }> = {};
+const CACHE_TTL = 60_000;
+function getCached<T>(key: string): T | null {
+    const e = _cache[key];
+    return (e && Date.now() - e.ts < CACHE_TTL) ? e.data as T : null;
+}
+function setCached(key: string, data: unknown) { _cache[key] = { data, ts: Date.now() }; }
+
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 interface IpsetInfo { name: string; type: string; size: number; maxelem: number; entries: number }
@@ -351,11 +359,18 @@ export const TabIPSet: React.FC<{ onIpClick?: (ip: string) => void }> = ({ onIpC
     const [installed, setInstalled] = useState<boolean | null>(null);
 
     const fetchSets = useCallback(async () => {
-        setLoading(true);
+        const cached = getCached<IpsetInfo[]>('ipset:sets');
+        if (cached) {
+            setSets(cached);
+            setInstalled(true);
+            if (!selected && cached.length > 0) setSelected(cached[0].name);
+            setLoading(false);
+        }
         try {
             const res = await api.get<{ ok: boolean; sets: IpsetInfo[]; error?: string }>('/api/plugins/fail2ban/ipset/info');
             if (res.success) {
                 if (res.result?.ok) {
+                    setCached('ipset:sets', res.result.sets ?? []);
                     setSets(res.result.sets ?? []);
                     setInstalled(true);
                     // Auto-select first set

@@ -628,6 +628,7 @@ export const TabConfig: React.FC<{
     const [rawTab, setRawTab]       = useState<string | null>(null);
     const [checkResult, setCheckResult] = useState<CheckResult | null>(null);
     const [checkLoading, setCheckLoading] = useState(true);
+    const [sysInfoOpen, setSysInfoOpen] = useState(false);
 
     // Sync check
     const [syncStatus, setSyncStatus] = useState<{
@@ -992,34 +993,37 @@ export const TabConfig: React.FC<{
                         <div style={{ color: C.muted, fontSize: '.85rem', textAlign: 'center', padding: '2rem' }}>Chargement…</div>
                     ) : cfg ? (
                         <>
-                            {/* Card: Infos système */}
+                            {/* Card: Infos système — replié par défaut */}
                             <div style={card}>
-                                <div style={{ ...cardH }}>
+                                <div style={{ ...cardH, cursor: 'pointer' }} onClick={() => setSysInfoOpen(o => !o)}>
                                     <Info style={{ width: 14, height: 14, color: C.muted }} />
                                     <span style={{ fontWeight: 600, fontSize: '.9rem' }}>Infos système</span>
                                     {parsed?.version && <span style={{ marginLeft: 'auto', fontSize: '.73rem', color: C.muted, fontFamily: 'monospace' }}>v{parsed.version}</span>}
                                     <span style={{ marginLeft: parsed?.version ? '.5rem' : 'auto' }}>
                                         <StatusBadge ok={!!parsed?.dbInfo?.readable} label="SQLite" />
                                     </span>
+                                    <span style={{ marginLeft: '.5rem', color: C.muted, fontSize: '.75rem' }}>{sysInfoOpen ? '▾' : '▸'}</span>
                                 </div>
-                                <div style={{ ...cardB }}>
-                                    <Row label="loglevel"     value={cfg.loglevel}     isLocal={!!cfg.local_values.loglevel} />
-                                    <Row label="logtarget"    value={cfg.logtarget}    isLocal={!!cfg.local_values.logtarget} />
-                                    <Row label="socket"       value={cfg.socket} />
-                                    <Row label="dbfile"       value={cfg.dbfile} />
-                                    <Row label="dbpurgeage"   value={`${cfg.dbpurgeage}s (${Math.round(parseInt(cfg.dbpurgeage,10)/86400)} j)`} isLocal={!!cfg.local_values.dbpurgeage} />
-                                    <Row label="dbmaxmatches" value={cfg.dbmaxmatches} isLocal={!!cfg.local_values.dbmaxmatches} />
-                                    <Row label="fail2ban.local" value={
-                                        cfg.local_exists
-                                            ? <span style={{ color: C.green, display: 'inline-flex', alignItems: 'center', gap: '.3rem' }}>
-                                                <CheckCircle style={{ width: 11, height: 11 }} /> Présent
-                                                <span style={{ color: C.muted, fontSize: '.73rem' }}>({Object.keys(cfg.local_values).length} directive{Object.keys(cfg.local_values).length !== 1 ? 's' : ''})</span>
-                                              </span>
-                                            : <span style={{ color: C.muted, display: 'inline-flex', alignItems: 'center', gap: '.3rem' }}>
-                                                <XCircle style={{ width: 11, height: 11 }} /> Absent
-                                              </span>
-                                    } />
-                                </div>
+                                {sysInfoOpen && (
+                                    <div style={{ ...cardB }}>
+                                        <Row label="loglevel"     value={cfg.loglevel}     isLocal={!!cfg.local_values.loglevel} />
+                                        <Row label="logtarget"    value={cfg.logtarget}    isLocal={!!cfg.local_values.logtarget} />
+                                        <Row label="socket"       value={cfg.socket} />
+                                        <Row label="dbfile"       value={cfg.dbfile} />
+                                        <Row label="dbpurgeage"   value={`${cfg.dbpurgeage}s (${Math.round(parseInt(cfg.dbpurgeage,10)/86400)} j)`} isLocal={!!cfg.local_values.dbpurgeage} />
+                                        <Row label="dbmaxmatches" value={cfg.dbmaxmatches} isLocal={!!cfg.local_values.dbmaxmatches} />
+                                        <Row label="fail2ban.local" value={
+                                            cfg.local_exists
+                                                ? <span style={{ color: C.green, display: 'inline-flex', alignItems: 'center', gap: '.3rem' }}>
+                                                    <CheckCircle style={{ width: 11, height: 11 }} /> Présent
+                                                    <span style={{ color: C.muted, fontSize: '.73rem' }}>({Object.keys(cfg.local_values).length} directive{Object.keys(cfg.local_values).length !== 1 ? 's' : ''})</span>
+                                                  </span>
+                                                : <span style={{ color: C.muted, display: 'inline-flex', alignItems: 'center', gap: '.3rem' }}>
+                                                    <XCircle style={{ width: 11, height: 11 }} /> Absent
+                                                  </span>
+                                        } />
+                                    </div>
+                                )}
                             </div>
 
                             {/* Card: SQLite fail2ban */}

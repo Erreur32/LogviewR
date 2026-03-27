@@ -4,6 +4,14 @@ import { api } from '../../api/client';
 import { card, cardH } from './helpers';
 import type { JailStatus } from './types';
 
+const _cache: Record<string, { data: unknown; ts: number }> = {};
+const CACHE_TTL = 60_000;
+function getCached<T>(key: string): T | null {
+    const e = _cache[key];
+    return (e && Date.now() - e.ts < CACHE_TTL) ? e.data as T : null;
+}
+function setCached(key: string, data: unknown) { _cache[key] = { data, ts: Date.now() }; }
+
 interface TabFiltresProps {
     jails: JailStatus[];
 }
@@ -164,11 +172,14 @@ export const TabFiltres: React.FC<TabFiltresProps> = ({ jails }) => {
     const [modal, setModal]       = useState<string | null>(null);
 
     const loadFilters = () => {
-        setLoading(true);
+        const cached = getCached<string[]>('filters:list');
+        if (cached) { setFiles(cached); setLoading(false); }
         api.get<{ ok: boolean; files: string[]; error?: string }>('/api/plugins/fail2ban/filters')
             .then(res => {
-                if (res.success && res.result?.ok) setFiles(res.result.files);
-                else setError(res.result?.error ?? 'Erreur lecture filter.d');
+                if (res.success && res.result?.ok) {
+                    setCached('filters:list', res.result.files);
+                    setFiles(res.result.files);
+                } else if (!cached) setError(res.result?.error ?? 'Erreur lecture filter.d');
                 setLoading(false);
             });
     };

@@ -2,11 +2,12 @@
  * BanHistoryChart — shared between TabJails stats strip and TabStats.
  * Multi-series per jail with toggle legend, matching PHP fail2ban-web style.
  */
-import React, { useState, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { Activity } from 'lucide-react';
 import { PERIODS, F2bTooltip } from './helpers';
 import type { F2bTtColor } from './helpers';
 import type { HistoryEntry } from './types';
+import { api } from '../../api/client';
 
 // ── Palette (same as PHP JAIL_COLORS) ─────────────────────────────────────────
 const JAIL_COLORS = ['#58a6ff','#3fb950','#bc8cff','#e3b341','#79c0ff','#56d364','#f28a84','#e86a65','#39c5cf','#d2a8ff'];
@@ -149,13 +150,24 @@ const LineChart: React.FC<{
     nowSlotFrac?: number; // fractional position of "now" within the last slot
 }> = ({ history, histMax, byJail, jailNames, hidden, isHourly = false, days = 30, nowSlotFrac = 0 }) => {
     if (history.length === 0) return null;
-    const W = 700; const H = 170;
+    const H = 170;
     const padL = 4; const padR = 4; const padT = 12; const padB = 20;
-    const innerW = W - padL - padR;
-    const innerH = H - padT - padB;
 
     const [tip, setTip] = useState<TooltipData>(null);
     const wrapRef = useRef<HTMLDivElement>(null);
+    const [W, setW] = useState(700);
+    useEffect(() => {
+        const el = wrapRef.current;
+        if (!el) return;
+        const measure = () => setW(el.clientWidth || 700);
+        measure();
+        const ro = new ResizeObserver(measure);
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, []);
+
+    const innerW = W - padL - padR;
+    const innerH = H - padT - padB;
 
     const dates = allDates(history);
     const n = Math.max(dates.length - 1, 1);
@@ -274,9 +286,23 @@ const BarChart: React.FC<{
     days?: number;
     nowSlotFrac?: number;
 }> = ({ history, histMax, byJail, jailNames, hidden, isHourly = false, days = 30, nowSlotFrac = 0 }) => {
-    const dates = allDates(history.slice(-60));
-    const W = 700; const H = 170;
+    const H = 170;
     const padL = 4; const padR = 4; const padT = 12; const padB = 20;
+
+    const [tip, setTip] = useState<TooltipData>(null);
+    const wrapRef = useRef<HTMLDivElement>(null);
+    const [W, setW] = useState(700);
+    useEffect(() => {
+        const el = wrapRef.current;
+        if (!el) return;
+        const measure = () => setW(el.clientWidth || 700);
+        measure();
+        const ro = new ResizeObserver(measure);
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, []);
+
+    const dates = allDates(history.slice(-60));
     const innerW = W - padL - padR;
     const innerH = H - padT - padB;
     const max = Math.max(histMax, 1);
@@ -286,9 +312,6 @@ const BarChart: React.FC<{
     const visibleJails = jailNames.filter(j => !hidden.has(j));
     const ticks = yTicks(max);
     const xIdxs = xLabelIndices(dates.length, labelCountForDays(days, isHourly));
-
-    const [tip, setTip] = useState<TooltipData>(null);
-    const wrapRef = useRef<HTMLDivElement>(null);
 
     const handleEnter = useCallback((svgX: number, svgY: number, jail: string, date: string, value: number, color: string) => {
         if (!wrapRef.current) return;
@@ -301,7 +324,7 @@ const BarChart: React.FC<{
             value,
             color,
         });
-    }, []);
+    }, [W]);
 
     return (
         <div ref={wrapRef} style={{ position: 'relative' }} onMouseLeave={() => setTip(null)}>
@@ -469,6 +492,17 @@ export const BanHistoryChart: React.FC<BanHistoryChartProps> = ({
     const [collapsed, setCollapsed] = useState(false);
     const [hidden, setHidden]   = useState<Set<string>>(new Set());
 
+    // ── Previous period total (for trend badge) ────────────────────────────────
+    const [prevTotal, setPrevTotal] = useState<number | null>(null);
+    useEffect(() => {
+        if (days === -1) { setPrevTotal(null); return; }
+        api.get<{ ok: boolean; prevSummary?: { totalBans: number } | null }>(
+            `/api/plugins/fail2ban/tops?days=${days}&compare=1&limit=1`
+        ).then(res => {
+            if (res.success && res.result?.ok) setPrevTotal(res.result.prevSummary?.totalBans ?? null);
+        }).catch(() => {});
+    }, [days]);
+
     const isHourly    = granularity === 'hour';
     const periodLabel = PERIODS.find(p => p.days === days)?.label ?? `${days}j`;
     // For 24h: rolling 30-min slots ending at "now"; otherwise last 60 days
@@ -552,6 +586,8 @@ export const BanHistoryChart: React.FC<BanHistoryChartProps> = ({
         </div>
     );
 
+    const currentTotal = history.reduce((s, h) => s + h.count, 0);
+
     const chartContent = (
         <div style={{ padding: '.5rem 0 0' }}>
             {loading ? (
@@ -570,6 +606,15 @@ export const BanHistoryChart: React.FC<BanHistoryChartProps> = ({
 
     if (!showCard) return <>{controls}{chartContent}{legend}</>;
 
+    // Trend badge: compare current period total vs previous period
+    const trendBadge = days !== -1 ? (() => {
+        if (prevTotal === null) return <span style={{ fontSize: '.7rem', color: '#555d69', marginLeft: '.4rem' }}>…</span>;
+        const delta = currentTotal - prevTotal;
+        if (delta > 0) return <span style={{ fontSize: '.7rem', color: '#e86a65', marginLeft: '.4rem', fontWeight: 600 }}>▲ +{delta > 9999 ? `${(delta/1000).toFixed(1)}k` : delta}</span>;
+        if (delta < 0) return <span style={{ fontSize: '.7rem', color: '#3fb950', marginLeft: '.4rem', fontWeight: 600 }}>▼ {delta > -9999 ? delta : `-${(Math.abs(delta)/1000).toFixed(1)}k`}</span>;
+        return <span style={{ fontSize: '.7rem', color: '#8b949e', marginLeft: '.4rem' }}>= stable</span>;
+    })() : null;
+
     return (
         <div style={{ background: '#161b22', border: '1px solid #30363d', borderRadius: 8, marginBottom: '1.25rem' }}>
             <div style={{ background: '#21262d', padding: '.55rem .85rem', borderBottom: collapsed ? 'none' : '1px solid #30363d', display: 'flex', alignItems: 'center', gap: '.5rem' }}>
@@ -577,6 +622,7 @@ export const BanHistoryChart: React.FC<BanHistoryChartProps> = ({
                 <span style={{ fontWeight: 600, fontSize: '.85rem' }}>
                     Statistiques de bans
                     <span style={{ fontWeight: 400, fontSize: '.7rem', color: '#8b949e', marginLeft: '.5rem' }}>({periodLabel})</span>
+                    {trendBadge}
                 </span>
                 <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '.5rem' }}>
                     {controls}

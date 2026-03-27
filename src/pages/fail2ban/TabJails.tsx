@@ -18,6 +18,14 @@ import type { JailStatus, BanEntry } from './types';
 import { DomainInitial } from './DomainInitial';
 import { FlagImg } from './FlagImg';
 
+// ── Module-level cache (survives tab navigation) ──────────────────────────────
+const _cache: Record<string, { data: unknown; ts: number }> = {};
+const CACHE_TTL  = 30_000;
+const ENRICH_TTL = 300_000; // 5 min — jail configs rarely change
+function getCached<T>(key: string): T | null { const e = _cache[key]; return (e && Date.now() - e.ts < CACHE_TTL) ? e.data as T : null; }
+function getCachedTTL<T>(key: string, ttl: number): T | null { const e = _cache[key]; return (e && Date.now() - e.ts < ttl) ? e.data as T : null; }
+function setCached(key: string, data: unknown) { _cache[key] = { data, ts: Date.now() }; }
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface TabJailsProps {
@@ -764,11 +772,14 @@ export const TabJailsFiles: React.FC = () => {
     const [truncated, setTruncated] = useState(false);
 
     useEffect(() => {
+        const cached = getCached<{ files: string[] }>('logs:list');
+        if (cached?.files?.length) { setFiles(cached.files); setSelected(cached.files[0]); setLoading(false); }
         api.get<{ ok: boolean; files: string[]; error?: string }>('/api/plugins/fail2ban/logs').then(res => {
             if (res.success && res.result?.ok && res.result.files?.length) {
+                setCached('logs:list', { files: res.result.files });
                 setFiles(res.result.files);
-                setSelected(res.result.files[0]);
-            } else {
+                if (!cached?.files?.length) setSelected(res.result.files[0]);
+            } else if (!cached?.files?.length) {
                 setError(res.result?.error ?? 'Aucun fichier log fail2ban sous /var/log.');
             }
             setLoading(false);
@@ -868,29 +879,55 @@ interface AuditEnrichment {
 }
 
 export const TabJailsEvents: React.FC<{ onIpClick?: (ip: string) => void; days?: number }> = ({ onIpClick, days }) => {
-    const [bans, setBans]           = useState<BanEntry[]>([]);
-    const [enrichment, setEnrich]   = useState<AuditEnrichment>({ jail_actions: {}, jail_logs: {}, jail_servers: {}, jail_domains: {} });
-    const [loading, setLoading]     = useState(true);
-    const [search, setSearch]       = useState('');
-    const [type, setType]           = useState<EvtType>('all');
-    const [limit, setLimit]         = useState(25);
-    const [page, setPage]           = useState(0);
-    const [sortCol, setSortCol]     = useState<SortCol>('date');
-    const [sortDir, setSortDir]     = useState<SortDir>('desc');
+    const [bans, setBans]              = useState<BanEntry[]>(() => getCached<BanEntry[]>(`audit:bans:${days ?? 0}`) ?? []);
+    const [enrichment, setEnrich]      = useState<AuditEnrichment>(() => getCachedTTL<AuditEnrichment>('audit:enrich', ENRICH_TTL) ?? { jail_actions: {}, jail_logs: {}, jail_servers: {}, jail_domains: {} });
+    const [loading, setLoading]        = useState(() => !getCached<BanEntry[]>(`audit:bans:${days ?? 0}`));
+    const [enrichLoading, setEnrichLd] = useState(() => !getCachedTTL<AuditEnrichment>('audit:enrich', ENRICH_TTL));
+    const [search, setSearch]          = useState('');
+    const [type, setType]              = useState<EvtType>('all');
+    const [limit, setLimit]            = useState(25);
+    const [page, setPage]              = useState(0);
+    const [sortCol, setSortCol]        = useState<SortCol>('date');
+    const [sortDir, setSortDir]        = useState<SortDir>('desc');
+
+    // Inject shimmer keyframes once
+    useEffect(() => {
+        if (document.getElementById('f2b-shimmer-kf')) return;
+        const s = document.createElement('style');
+        s.id = 'f2b-shimmer-kf';
+        s.textContent = '@keyframes f2b-shimmer{0%,100%{opacity:.25}50%{opacity:.6}}';
+        document.head.appendChild(s);
+    }, []);
 
     const fetchAudit = useCallback(() => {
-        const daysQ = days && days > 0 ? `&days=${days}` : '';
-        api.get<{ ok: boolean; bans: BanEntry[] } & AuditEnrichment>(`/api/plugins/fail2ban/audit?limit=500${daysQ}`).then(res => {
+        const daysQ  = days && days > 0 ? `&days=${days}` : '';
+        const bansKey = `audit:bans:${days ?? 0}`;
+        type AuditResult = { ok: boolean; bans: BanEntry[] } & AuditEnrichment;
+
+        // Restore from separate caches immediately (bans 30s, enrich 5min)
+        const cachedBans   = getCached<BanEntry[]>(bansKey);
+        const cachedEnrich = getCachedTTL<AuditEnrichment>('audit:enrich', ENRICH_TTL);
+        if (cachedBans)   { setBans(cachedBans);     setLoading(false); }
+        else               setLoading(true);
+        if (cachedEnrich) { setEnrich(cachedEnrich); setEnrichLd(false); }
+        else               setEnrichLd(true);
+
+        api.get<AuditResult>(`/api/plugins/fail2ban/audit?limit=500${daysQ}`).then(res => {
             if (res.success && res.result?.ok) {
-                setBans(res.result.bans ?? []);
-                setEnrich({
-                    jail_actions:   res.result.jail_actions   ?? {},
-                    jail_logs:      res.result.jail_logs      ?? {},
-                    jail_servers:   res.result.jail_servers   ?? {},
-                    jail_domains:   res.result.jail_domains   ?? {},
-                });
+                const bansData: BanEntry[] = res.result.bans ?? [];
+                const enrichData: AuditEnrichment = {
+                    jail_actions: res.result.jail_actions ?? {},
+                    jail_logs:    res.result.jail_logs ?? {},
+                    jail_servers: res.result.jail_servers ?? {},
+                    jail_domains: res.result.jail_domains ?? {},
+                };
+                setCached(bansKey, bansData);
+                _cache['audit:enrich'] = { data: enrichData, ts: Date.now() };
+                setBans(bansData);
+                setEnrich(enrichData);
             }
             setLoading(false);
+            setEnrichLd(false);
         });
     }, [days]);
 
@@ -991,7 +1028,7 @@ export const TabJailsEvents: React.FC<{ onIpClick?: (ip: string) => void; days?:
                     <span onClick={() => setTypeAndReset(type === 'all' ? 'ban' : 'all')}
                         style={{ padding: '.12rem .5rem', borderRadius: 4, fontSize: '.68rem', fontWeight: 600, cursor: 'pointer',
                             background: type === 'ban' ? 'rgba(232,106,101,.3)' : 'rgba(232,106,101,.15)',
-                            color: '#e86a65',
+                            color: type === 'ban' ? '#e86a65' : '#e6edf3',
                             border: type === 'ban' ? '1px solid rgba(232,106,101,.7)' : '1px solid rgba(232,106,101,.4)',
                             outline: type === 'ban' ? '2px solid rgba(232,106,101,.35)' : 'none',
                             outlineOffset: 1 }}>
@@ -1000,7 +1037,7 @@ export const TabJailsEvents: React.FC<{ onIpClick?: (ip: string) => void; days?:
                     <span onClick={() => setTypeAndReset(type === 'unban' ? 'all' : 'unban')}
                         style={{ padding: '.12rem .5rem', borderRadius: 4, fontSize: '.68rem', fontWeight: 600, cursor: 'pointer',
                             background: type === 'unban' ? 'rgba(63,185,80,.25)' : 'rgba(63,185,80,.12)',
-                            color: '#3fb950',
+                            color: type === 'unban' ? '#3fb950' : '#e6edf3',
                             border: type === 'unban' ? '1px solid rgba(63,185,80,.7)' : '1px solid rgba(63,185,80,.4)',
                             outline: type === 'unban' ? '2px solid rgba(63,185,80,.3)' : 'none',
                             outlineOffset: 1 }}>
@@ -1009,7 +1046,7 @@ export const TabJailsEvents: React.FC<{ onIpClick?: (ip: string) => void; days?:
                     <span onClick={() => setTypeAndReset(type === 'failed' ? 'all' : 'failed')}
                         style={{ padding: '.12rem .5rem', borderRadius: 4, fontSize: '.68rem', fontWeight: 600, cursor: 'pointer',
                             background: type === 'failed' ? 'rgba(227,179,65,.25)' : 'rgba(227,179,65,.12)',
-                            color: '#e3b341',
+                            color: type === 'failed' ? '#e3b341' : '#e6edf3',
                             border: type === 'failed' ? '1px solid rgba(227,179,65,.7)' : '1px solid rgba(227,179,65,.4)',
                             outline: type === 'failed' ? '2px solid rgba(227,179,65,.3)' : 'none',
                             outlineOffset: 1 }}>
@@ -1079,7 +1116,9 @@ export const TabJailsEvents: React.FC<{ onIpClick?: (ip: string) => void; days?:
                         <tbody>
                             {displayed.map((b, i) => {
                                 const domain  = b.domain || (enrichment.jail_domains[b.jail] ?? '');
-                                const logpath = b.logfile || (enrichment.jail_logs[b.jail] ?? '');
+                                // Si le ban a un domaine spécifique, son logfile est déjà résolu par le backend.
+                                // Sinon fallback sur le log du jail (même pour tous les bans de ce jail).
+                                const logpath = b.logfile || (b.domain ? '' : (enrichment.jail_logs[b.jail] ?? ''));
                                 const logbase = logpath.replace(/.*\//, '');
                                 const srv     = enrichment.jail_servers[b.jail] ?? '';
                                 const svcInfo = SERVICE_ICONS[srv];
@@ -1149,7 +1188,9 @@ export const TabJailsEvents: React.FC<{ onIpClick?: (ip: string) => void; days?:
                                     </td>
                                     {/* Domaine */}
                                     <td style={{ padding: '.45rem .75rem' }}>
-                                        {domain ? (
+                                        {enrichLoading && !domain ? (
+                                            <span style={{ display: 'inline-block', height: 10, width: 80, borderRadius: 3, background: 'rgba(139,148,158,.18)', animation: 'f2b-shimmer 1.4s ease-in-out infinite' }} />
+                                        ) : domain ? (
                                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                                                 <img src={`https://icons.duckduckgo.com/ip3/${encodeURIComponent(domain)}.ico`} width={13} height={13} style={{ borderRadius: 2, flexShrink: 0 }} alt="" loading="lazy" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
                                                 <span style={{ fontFamily: 'monospace', fontSize: '.7rem', color: '#39c5cf', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={domain}>{domain}</span>
@@ -1160,20 +1201,24 @@ export const TabJailsEvents: React.FC<{ onIpClick?: (ip: string) => void; days?:
                                     </td>
                                     {/* Log */}
                                     <td style={{ padding: '.45rem .75rem' }}>
-                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                                            {svcInfo && (
-                                                <img
-                                                    src={`/icons/services/${svcInfo[0]}`}
-                                                    width={15} height={15}
-                                                    style={{ borderRadius: 2, flexShrink: 0, verticalAlign: '-3px' }}
-                                                    title={svcInfo[1]} alt={svcInfo[1]}
-                                                    loading="lazy"
-                                                />
-                                            )}
-                                            {logbase ? (
-                                                <span style={{ fontFamily: 'monospace', fontSize: '.7rem', color: '#8b949e', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={logpath}>{logbase}</span>
-                                            ) : <span style={{ color: '#30363d', fontSize: '.7rem' }}>—</span>}
-                                        </span>
+                                        {enrichLoading && !logbase ? (
+                                            <span style={{ display: 'inline-block', height: 10, width: 100, borderRadius: 3, background: 'rgba(139,148,158,.18)', animation: 'f2b-shimmer 1.4s ease-in-out infinite', animationDelay: '.2s' }} />
+                                        ) : (
+                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                                                {svcInfo && (
+                                                    <img
+                                                        src={`/icons/services/${svcInfo[0]}`}
+                                                        width={15} height={15}
+                                                        style={{ borderRadius: 2, flexShrink: 0, verticalAlign: '-3px' }}
+                                                        title={svcInfo[1]} alt={svcInfo[1]}
+                                                        loading="lazy"
+                                                    />
+                                                )}
+                                                {logbase ? (
+                                                    <span style={{ fontFamily: 'monospace', fontSize: '.7rem', color: '#8b949e', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={logpath}>{logbase}</span>
+                                                ) : <span style={{ color: '#30363d', fontSize: '.7rem' }}>—</span>}
+                                            </span>
+                                        )}
                                     </td>
                                 </tr>
                                 );

@@ -2,6 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../../api/client';
 import { card, cardH } from './helpers';
 
+const _cache: Record<string, { data: unknown; ts: number }> = {};
+const CACHE_TTL = 60_000;
+function getCached<T>(key: string): T | null {
+    const e = _cache[key];
+    return (e && Date.now() - e.ts < CACHE_TTL) ? e.data as T : null;
+}
+function setCached(key: string, data: unknown) { _cache[key] = { data, ts: Date.now() }; }
+
 interface TabFileListProps {
     title: string;
     endpoint: string;
@@ -17,9 +25,14 @@ export const TabFileList: React.FC<TabFileListProps> = ({ title, endpoint, icon,
     const [error, setError]       = useState<string | null>(null);
 
     useEffect(() => {
+        const cacheKey = `filelist:${endpoint}`;
+        const cached = getCached<string[]>(cacheKey);
+        if (cached) { setFiles(cached); setLoading(false); }
         api.get<{ ok: boolean; files: string[]; error?: string }>(endpoint).then(res => {
-            if (res.success && res.result?.ok) setFiles(res.result.files);
-            else setError(res.result?.error ?? 'Erreur lecture');
+            if (res.success && res.result?.ok) {
+                setCached(cacheKey, res.result.files);
+                setFiles(res.result.files);
+            } else if (!cached) setError(res.result?.error ?? 'Erreur lecture');
             setLoading(false);
         });
     }, [endpoint]);

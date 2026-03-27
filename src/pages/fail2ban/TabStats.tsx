@@ -11,6 +11,15 @@ import { api } from '../../api/client';
 import type { JailStatus, BanEntry } from './types';
 import { TabJailsEvents } from './TabJails';
 
+// ── Module-level cache (survives tab navigation) ──────────────────────────────
+const _cache: Record<string, { data: unknown; ts: number }> = {};
+const CACHE_TTL = 60_000; // 60s — show instantly on revisit, silently refresh
+function getCached<T>(key: string): T | null {
+    const e = _cache[key];
+    return (e && Date.now() - e.ts < CACHE_TTL) ? e.data as T : null;
+}
+function setCached(key: string, data: unknown) { _cache[key] = { data, ts: Date.now() }; }
+
 // ── Palette ───────────────────────────────────────────────────────────────────
 const C = {
     bg0: '#0d1117', bg1: '#161b22', bg2: '#21262d', bg3: '#2d333b',
@@ -72,20 +81,26 @@ const IpSetsSection: React.FC<{ days: number; onDaysChange: (d: number) => void 
 
     // /ipset/info: structured data + triggers daily snapshot
     useEffect(() => {
+        const cached = getCached<{ sets: { name: string; entries: number; type: string }[] }>('ipset:info');
+        if (cached) { setSets([...cached.sets].filter(s => !s.name.startsWith('docker-')).sort((a, b) => b.entries - a.entries)); setLoading(false); }
         api.get<{ ok: boolean; sets: { name: string; entries: number; type: string }[]; error?: string }>('/api/plugins/fail2ban/ipset/info')
             .then(res => {
                 if (res.success && res.result?.ok && res.result.sets.length > 0) {
+                    setCached('ipset:info', res.result);
                     setSets([...res.result.sets].filter(s => !s.name.startsWith('docker-')).sort((a, b) => b.entries - a.entries));
-                } else {
+                } else if (!cached) {
                     setError(res.result?.error ?? 'IPSet non disponible (NET_ADMIN requis)');
                 }
-            }).catch(e => setError(String(e))).finally(() => setLoading(false));
+            }).catch(e => { if (!cached) setError(String(e)); }).finally(() => setLoading(false));
     }, []);
 
     // Historical data for the line chart — synced with global period
     useEffect(() => {
+        const key = `ipset:history:${days}`;
+        const cached = getCached<{ ipset_names: string[]; ipset_days: Record<string, Record<string, number>> }>(key);
+        if (cached) setHist(cached);
         api.get<{ ok: boolean; ipset_names: string[]; ipset_days: Record<string, Record<string, number>> }>(`/api/plugins/fail2ban/ipset/history?days=${days}`)
-            .then(res => { if (res.success && res.result?.ok) setHist(res.result); })
+            .then(res => { if (res.success && res.result?.ok) { setCached(key, res.result); setHist(res.result); } })
             .catch(() => {});
     }, [days]);
 
@@ -116,6 +131,17 @@ const IpSetsSection: React.FC<{ days: number; onDaysChange: (d: number) => void 
         const rawDates = Object.keys(days_map).sort();
         const [hiddenLines, setHiddenLines] = useState<Set<string>>(new Set());
         const toggleLine = (nm: string) => setHiddenLines(prev => { const s = new Set(prev); s.has(nm) ? s.delete(nm) : s.add(nm); return s; });
+        const containerRef = useRef<HTMLDivElement>(null);
+        const [svgW, setSvgW] = useState(800);
+        useEffect(() => {
+            const el = containerRef.current;
+            if (!el) return;
+            const measure = () => setSvgW(el.clientWidth || 800);
+            measure();
+            const ro = new ResizeObserver(measure);
+            ro.observe(el);
+            return () => ro.disconnect();
+        }, []);
 
         // 24h mode: expand daily snapshot into hourly slots (0h → current hour)
         const hourly = days === 1;
@@ -161,7 +187,7 @@ const IpSetsSection: React.FC<{ days: number; onDaysChange: (d: number) => void 
                 </div>
             );
         }
-        const VW = 800, VH = 90, PAD_T = 8, PAD_B = 18;
+        const VW = svgW, VH = 90, PAD_T = 8, PAD_B = 18;
         const aH = VH - PAD_T - PAD_B;
         const n = plotDates.length;
         const xOf = (i: number) => n > 1 ? (i / (n - 1)) * VW : VW / 2;
@@ -175,7 +201,8 @@ const IpSetsSection: React.FC<{ days: number; onDaysChange: (d: number) => void 
                     <span style={{ fontSize: '.72rem', color: C.muted }}>Historique ({periodLabel})</span>
                     <PeriodBtns days={days} color={C.purple} onChange={onDaysChange} />
                 </div>
-                <svg viewBox={`0 0 ${VW} ${VH}`} preserveAspectRatio="none" style={{ width: '100%', height: 100, display: 'block', overflow: 'visible' }}>
+                <div ref={containerRef} style={{ width: '100%' }}>
+                <svg viewBox={`0 0 ${VW} ${VH}`} preserveAspectRatio="none" style={{ width: '100%', height: VH, display: 'block', overflow: 'visible' }}>
                     {/* Grid lines */}
                     {[0, 0.5, 1].map(f => {
                         const y = yOf(f * maxV);
@@ -217,6 +244,7 @@ const IpSetsSection: React.FC<{ days: number; onDaysChange: (d: number) => void 
                         <text key={dt} x={xOf(i)} y={VH - 1} fontSize={8} fill="rgba(128,128,128,.5)" textAnchor={i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'}>{xLabel(dt)}</text>
                     ))}
                 </svg>
+                </div>
                 {/* Legend — dashed-line icons, clickable to toggle */}
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.4rem .8rem', marginTop: '.5rem' }}>
                     {names.map((nm, ni) => {
@@ -308,6 +336,7 @@ interface TopsData {
     heatmapWeek: number[][];
     heatmapFailedWeek: number[][];
     summary: { totalBans: number; uniqueIps: number; topJail: string | null; topJailCount: number };
+    prevSummary?: { totalBans: number; uniqueIps: number; topJail: string | null; topJailCount: number } | null;
 }
 
 const TopCard: React.FC<{ icon: React.ReactNode; title: string; color: string; periodLabel?: string; entries: TopEntry[]; loading: boolean; labelKey: 'ip' | 'jail'; viewMode: 'bar' | 'pie'; limit: number; rowPrefix?: (label: string) => React.ReactNode; emptyMsg?: string; secondaryLabel?: string; onIpClick?: (ip: string) => void }> = ({ icon, title, color, periodLabel, entries, loading, labelKey, viewMode, limit, rowPrefix, emptyMsg, secondaryLabel, onIpClick }) => {
@@ -432,19 +461,27 @@ const TopCard: React.FC<{ icon: React.ReactNode; title: string; color: string; p
     );
 };
 
-// ── Résumé période ────────────────────────────────────────────────────────────
-const ResumePeriodeSection: React.FC<{ days: number; onDaysChange: (d: number) => void }> = ({ days, onDaysChange }) => {
-    const [data, setData]   = useState<TopsData['summary'] | null>(null);
-    const [loading, setLoading] = useState(true);
+// ── Trend marker ──────────────────────────────────────────────────────────────
+type SummaryKey = 'totalBans' | 'uniqueIps' | 'topJailCount';
+const TrendBadge: React.FC<{ curr: number; prev: number | null }> = ({ curr, prev }) => {
+    if (prev === null) return <span style={{ fontSize: '.7rem', color: '#555d69', marginLeft: '.3rem' }}>…</span>;
+    const delta = curr - prev;
+    const pct   = prev > 0 ? Math.abs(Math.round((delta / prev) * 100)) : null;
+    if (delta > 0) return <span title={`+${delta} vs période précédente`} style={{ fontSize: '.72rem', color: '#e86a65', marginLeft: '.3rem', fontWeight: 700, whiteSpace: 'nowrap' }}>▲ {pct != null ? `${pct}%` : `+${delta}`}</span>;
+    if (delta < 0) return <span title={`${delta} vs période précédente`}  style={{ fontSize: '.72rem', color: '#3bc4cf', marginLeft: '.3rem', fontWeight: 700, whiteSpace: 'nowrap' }}>▼ {pct != null ? `${pct}%` : `${delta}`}</span>;
+    return <span title="Stable vs période précédente" style={{ fontSize: '.72rem', color: '#8b949e', marginLeft: '.3rem', fontWeight: 600 }}>= stable</span>;
+};
 
-    useEffect(() => {
-        setLoading(true);
-        api.get<TopsData>(`/api/plugins/fail2ban/tops?days=${days}&limit=1`)
-            .then(res => { if (res.success && res.result?.ok) setData(res.result.summary); })
-            .catch(() => {}).finally(() => setLoading(false));
-    }, [days]);
+// ── Résumé période ────────────────────────────────────────────────────────────
+const ResumePeriodeSection: React.FC<{
+    days: number; onDaysChange: (d: number) => void;
+    data: TopsData['summary'] | null;
+    prev: { totalBans: number; uniqueIps: number; topJail: string | null; topJailCount: number } | null;
+    loading: boolean;
+}> = ({ days, onDaysChange, data, prev, loading }) => {
 
     const periodLabel = PERIODS.find(p => p.days === days)?.label ?? `${days}j`;
+    const prevLabel   = days === 1 ? 'hier' : `${days}j précédents`;
 
     return (
         <SCard icon={<Gauge style={{ width: 14, height: 14 }} />} color={C.green} title="Résumé période"
@@ -452,19 +489,25 @@ const ResumePeriodeSection: React.FC<{ days: number; onDaysChange: (d: number) =
             right={<PeriodBtns days={days} color={C.green} onChange={onDaysChange} />}
             collapsible>
             <div style={{ padding: '1rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(160px,1fr))', gap: '.75rem' }}>
-                {[
-                    { l: 'Total bans', v: data?.totalBans ?? 0, c: C.red, icon: <Ban style={{ width: 14, height: 14 }} /> },
-                    { l: 'IPs uniques', v: data?.uniqueIps ?? 0, c: C.blue, icon: <Shield style={{ width: 14, height: 14 }} /> },
-                    { l: 'Jail le + actif', v: data?.topJail ?? '—', c: C.orange, icon: <Lock style={{ width: 14, height: 14 }} />, small: true },
-                    { l: 'Bans jail #1', v: data?.topJailCount ?? 0, c: C.orange, icon: <Target style={{ width: 14, height: 14 }} /> },
-                ].map(s => (
+                {([
+                    { l: 'Total bans',      k: 'totalBans'    as SummaryKey | null, v: data?.totalBans    ?? 0,    c: C.red,    small: false, icon: <Ban    style={{ width: 14, height: 14 }} /> },
+                    { l: 'IPs uniques',     k: 'uniqueIps'    as SummaryKey | null, v: data?.uniqueIps    ?? 0,    c: C.blue,   small: false, icon: <Shield style={{ width: 14, height: 14 }} /> },
+                    { l: 'Jail le + actif', k: null                                , v: data?.topJail     ?? '—',  c: C.orange, small: true,  icon: <Lock   style={{ width: 14, height: 14 }} /> },
+                    { l: 'Bans jail #1',    k: 'topJailCount' as SummaryKey | null, v: data?.topJailCount ?? 0,    c: C.orange, small: false, icon: <Target style={{ width: 14, height: 14 }} /> },
+                ]).map(s => (
                     <div key={s.l} style={{ background: C.bg2, borderRadius: 7, padding: '1rem', display: 'flex', flexDirection: 'column', gap: '.3rem' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '.72rem', color: C.muted }}>
                             <span>{s.l}</span><span style={{ color: s.c }}>{s.icon}</span>
                         </div>
-                        <div style={{ fontSize: s.small ? '1rem' : '1.6rem', fontWeight: 700, color: s.c, lineHeight: 1.1, fontFamily: s.small ? 'monospace' : undefined, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {loading ? '…' : s.v}
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 0 }}>
+                            <span style={{ fontSize: s.small ? '1rem' : '1.6rem', fontWeight: 700, color: s.c, lineHeight: 1.1, fontFamily: s.small ? 'monospace' : undefined, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {loading ? '…' : s.v}
+                            </span>
+                            {!loading && s.k && <TrendBadge curr={s.v as number} prev={prev?.[s.k]} />}
                         </div>
+                        {!loading && s.k && prev != null && (
+                            <div style={{ fontSize: '.65rem', color: C.muted }}>vs {prevLabel}: {prev[s.k]}</div>
+                        )}
                     </div>
                 ))}
             </div>
@@ -473,18 +516,8 @@ const ResumePeriodeSection: React.FC<{ days: number; onDaysChange: (d: number) =
 };
 
 // ── Types d'attaque ───────────────────────────────────────────────────────────
-const TypesAttaqueSection: React.FC<{ days: number; onDaysChange: (d: number) => void }> = ({ days, onDaysChange }) => {
-    const [data, setData]   = useState<TopsData | null>(null);
-    const [loading, setLoading] = useState(true);
+const TypesAttaqueSection: React.FC<{ days: number; onDaysChange: (d: number) => void; data: TopsData | null; loading: boolean }> = ({ days, onDaysChange, data, loading }) => {
     const periodLabel = PERIODS.find(p => p.days === days)?.label ?? `${days}j`;
-
-    useEffect(() => {
-        setLoading(true);
-        api.get<TopsData>(`/api/plugins/fail2ban/tops?days=${days}&limit=50`)
-            .then(res => { if (res.success && res.result?.ok) setData(res.result); })
-            .catch(() => {}).finally(() => setLoading(false));
-    }, [days]);
-
     const jails = data?.topJails ?? [];
     const total = jails.reduce((s, j) => s + j.count, 0);
     let pieAcc = -90;
@@ -540,16 +573,8 @@ const HeatmapSection: React.FC<{
     days: number; onDaysChange: (d: number) => void;
     dataKey: 'heatmap' | 'heatmapFailed'; weekKey: 'heatmapWeek' | 'heatmapFailedWeek';
     title: string; icon: React.ReactNode; color: string; barRgb: string; cellRgb: string; label: string;
-}> = ({ days, onDaysChange, dataKey, weekKey, title, icon, color, barRgb, cellRgb, label }) => {
-    const [data, setData]   = useState<TopsData | null>(null);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        setLoading(true);
-        api.get<TopsData>(`/api/plugins/fail2ban/tops?days=${days}&limit=1`)
-            .then(res => { if (res.success && res.result?.ok) setData(res.result); })
-            .catch(() => {}).finally(() => setLoading(false));
-    }, [days]);
+    data: TopsData | null; loading: boolean;
+}> = ({ days, onDaysChange, dataKey, weekKey, title, icon, color, barRgb, cellRgb, label, data, loading }) => {
 
     const hours = useMemo(() => {
         const raw = data?.[dataKey] ?? [];
@@ -650,19 +675,10 @@ const HeatmapSection: React.FC<{
 // ── Tops section ──────────────────────────────────────────────────────────────
 const TOP_LIMITS = [15, 25, 50, 0];
 
-const TopsSection: React.FC<{ days: number; onDaysChange: (d: number) => void; onIpClick?: (ip: string) => void; jails: JailStatus[] }> = ({ days, onDaysChange, onIpClick, jails }) => {
-    const [data, setData]     = useState<TopsData | null>(null);
-    const [loading, setLoading] = useState(true);
+const TopsSection: React.FC<{ days: number; onDaysChange: (d: number) => void; onIpClick?: (ip: string) => void; jails: JailStatus[]; data: TopsData | null; loading: boolean }> = ({ days, onDaysChange, onIpClick, jails, data, loading }) => {
     const [viewMode, setViewMode] = useState<'bar' | 'pie'>('bar');
     const [topLimit, setTopLimit] = useState(15);
     const periodLabel = PERIODS.find(p => p.days === days)?.label ?? `${days}j`;
-
-    useEffect(() => {
-        setLoading(true);
-        api.get<TopsData>(`/api/plugins/fail2ban/tops?days=${days}&limit=100`)
-            .then(res => { if (res.success && res.result?.ok) setData(res.result); })
-            .catch(() => {}).finally(() => setLoading(false));
-    }, [days]);
 
     const topCards = [
         { icon: <Ban style={{ width: 12, height: 12 }} />, title: 'Top IPs', color: C.red, entries: (data?.topIps ?? []).map(e => ({ ...e })) as TopEntry[], labelKey: 'ip' as const },
@@ -845,6 +861,31 @@ export const TabStats: React.FC<TabStatsProps> = ({
     totalBanned, totalFailed, totalAllTime, uniqueIpsTotal, firstEventAt, activeJails,
     days, onDaysChange, onIpClick,
 }) => {
+    // ── Single unified /tops fetch (replaces 5 independent section fetches) ────
+    const [topsData, setTopsData] = useState<TopsData | null>(() => getCached<TopsData>(`tops:all:${days}`));
+    const [topsLoading, setTopsLoading] = useState(() => !getCached<TopsData>(`tops:all:${days}`));
+
+    const fetchTops = useCallback(() => {
+        api.get<TopsData>(`/api/plugins/fail2ban/tops?days=${days}&limit=100&compare=1`)
+            .then(res => {
+                if (res.success && res.result?.ok) {
+                    setCached(`tops:all:${days}`, res.result);
+                    setTopsData(res.result);
+                }
+            })
+            .catch(() => {})
+            .finally(() => setTopsLoading(false));
+    }, [days]);
+
+    useEffect(() => {
+        const cached = getCached<TopsData>(`tops:all:${days}`);
+        if (cached) { setTopsData(cached); setTopsLoading(false); }
+        else setTopsLoading(true);
+        fetchTops();
+        const id = setInterval(fetchTops, 60_000);
+        return () => clearInterval(id);
+    }, [days, fetchTops]);
+
     const statCards = [
         { label: 'Jails actifs',     value: activeJails,  icon: <Shield style={{ width: 14, height: 14 }} />,       color: C.blue },
         { label: 'Bans actifs',      value: totalBanned,  icon: <Ban style={{ width: 14, height: 14 }} />,           color: C.red },
@@ -863,11 +904,11 @@ export const TabStats: React.FC<TabStatsProps> = ({
             <IpSetsSection days={days} onDaysChange={onDaysChange} />
 
             {/* Tops section */}
-            <TopsSection days={days} onDaysChange={onDaysChange} onIpClick={onIpClick} jails={jails} />
+            <TopsSection days={days} onDaysChange={onDaysChange} onIpClick={onIpClick} jails={jails} data={topsData} loading={topsLoading} />
 
             {/* Types d'attaque | 4 stat cards | Résumé période — 3 colonnes */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1.25rem', alignItems: 'start' }}>
-                <TypesAttaqueSection days={days} onDaysChange={onDaysChange} />
+                <TypesAttaqueSection days={days} onDaysChange={onDaysChange} data={topsData} loading={topsLoading} />
                 <SCard icon={<Shield style={{ width: 14, height: 14 }} />} color={C.blue} title="État actuel">
                     <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '.75rem' }}>
@@ -897,13 +938,13 @@ export const TabStats: React.FC<TabStatsProps> = ({
                         )}
                     </div>
                 </SCard>
-                <ResumePeriodeSection days={days} onDaysChange={onDaysChange} />
+                <ResumePeriodeSection days={days} onDaysChange={onDaysChange} data={topsData?.summary ?? null} prev={topsData?.prevSummary ?? null} loading={topsLoading} />
             </div>
 
             {/* Bans par heure | Tentatives par heure | Synthèse par jail — 3 colonnes */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1.25rem', alignItems: 'start' }}>
-                <HeatmapSection dataKey="heatmap" weekKey="heatmapWeek" title="Bans par heure" icon={<Clock style={{ width: 14, height: 14 }} />} color={C.orange} barRgb="227,179,65" cellRgb="63,185,80" label="ban" days={days} onDaysChange={onDaysChange} />
-                <HeatmapSection dataKey="heatmapFailed" weekKey="heatmapFailedWeek" title="Tentatives par heure" icon={<AlertTriangle style={{ width: 14, height: 14 }} />} color={C.orange} barRgb="227,179,65" cellRgb="227,179,65" label="tentative" days={days} onDaysChange={onDaysChange} />
+                <HeatmapSection dataKey="heatmap" weekKey="heatmapWeek" title="Bans par heure" icon={<Clock style={{ width: 14, height: 14 }} />} color={C.orange} barRgb="227,179,65" cellRgb="63,185,80" label="ban" days={days} onDaysChange={onDaysChange} data={topsData} loading={topsLoading} />
+                <HeatmapSection dataKey="heatmapFailed" weekKey="heatmapFailedWeek" title="Tentatives par heure" icon={<AlertTriangle style={{ width: 14, height: 14 }} />} color={C.orange} barRgb="227,179,65" cellRgb="227,179,65" label="tentative" days={days} onDaysChange={onDaysChange} data={topsData} loading={topsLoading} />
                 <SCard icon={<Shield style={{ width: 14, height: 14 }} />} color={C.blue} title="Synthèse par jail" collapsible>
                     <div style={{ overflowX: 'auto' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.83rem' }}>

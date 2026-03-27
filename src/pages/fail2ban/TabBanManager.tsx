@@ -4,6 +4,12 @@ import { api } from '../../api/client';
 import { card, cardH, cardB } from './helpers';
 import type { JailStatus } from './types';
 
+// ── Module-level cache ────────────────────────────────────────────────────────
+const _cache: Record<string, { data: unknown; ts: number }> = {};
+const CACHE_TTL = 60_000;
+function getCached<T>(key: string): T | null { const e = _cache[key]; return (e && Date.now() - e.ts < CACHE_TTL) ? e.data as T : null; }
+function setCached(key: string, data: unknown) { _cache[key] = { data, ts: Date.now() }; }
+
 interface TabBanManagerProps {
     jails: JailStatus[];
     actionLoading: string | null;
@@ -203,14 +209,22 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
     const [ipsetAvail, setIpsetAvail] = useState<boolean | null>(null);
 
     useEffect(() => {
+        // Use cached availability to show UI instantly
+        const cf = getCached<boolean>('banmgr:avail:f2b');
+        const ci = getCached<boolean>('banmgr:avail:ipt');
+        const cs = getCached<boolean>('banmgr:avail:ipset');
+        if (cf !== null) setF2bAvail(cf);
+        if (ci !== null) setIptAvail(ci);
+        if (cs !== null) setIpsetAvail(cs);
+        // Refresh in background (already parallel — 3 independent chains)
         api.get<{ checks?: { daemon?: { ok: boolean } } }>('/api/plugins/fail2ban/check')
-            .then(r => setF2bAvail(r.success && r.result?.checks?.daemon?.ok === true))
+            .then(r => { const v = r.success && r.result?.checks?.daemon?.ok === true; setCached('banmgr:avail:f2b', v); setF2bAvail(v); })
             .catch(() => setF2bAvail(false));
         api.get<{ ok: boolean }>('/api/plugins/fail2ban/iptables')
-            .then(r => setIptAvail(r.success && r.result?.ok === true))
+            .then(r => { const v = r.success && r.result?.ok === true; setCached('banmgr:avail:ipt', v); setIptAvail(v); })
             .catch(() => setIptAvail(false));
         api.get<{ ok: boolean }>('/api/plugins/fail2ban/ipset/info')
-            .then(r => setIpsetAvail(r.success && r.result?.ok === true))
+            .then(r => { const v = r.success && r.result?.ok === true; setCached('banmgr:avail:ipset', v); setIpsetAvail(v); })
             .catch(() => setIpsetAvail(false));
     }, []);
 
@@ -230,11 +244,20 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
     const [bulkIpsetLoad,   setBulkIpsetLoad]   = useState(false);
     const [bulkIpsetResult, setBulkIpsetResult] = useState<BulkResult[]>([]);
 
-    const loadIpsets = useCallback(() => {
+    const loadIpsets = useCallback((force = false) => {
+        const cached = !force && getCached<IpsetEntry[]>('banmgr:ipsets');
+        if (cached) {
+            setIpsets(cached);
+            if (!addSet && cached[0]) setAddSet(cached[0].name);
+            if (!delSet && cached[0]) setDelSet(cached[0].name);
+            if (!bulkIpsetSet && cached[0]) setBulkIpsetSet(cached[0].name);
+            return;
+        }
         setIpsetsLoading(true);
         api.get<{ ok: boolean; sets: IpsetEntry[] }>('/api/plugins/fail2ban/ipset/sets')
             .then(res => {
                 if (res.success && res.result?.ok) {
+                    setCached('banmgr:ipsets', res.result.sets);
                     setIpsets(res.result.sets);
                     if (!addSet && res.result.sets[0]) setAddSet(res.result.sets[0].name);
                     if (!delSet && res.result.sets[0]) setDelSet(res.result.sets[0].name);
@@ -278,7 +301,7 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
         if (res.success && res.result?.ok) {
             setAddResult({ ok: true, msg: `${addEntry.trim()} ajouté à ${addSet}` });
             setAddEntry('');
-            loadIpsets();
+            loadIpsets(true);
         } else {
             setAddResult({ ok: false, msg: res.result?.error ?? 'Erreur' });
         }
@@ -293,7 +316,7 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
         if (res.success && res.result?.ok) {
             setDelResult({ ok: true, msg: `${delEntry.trim()} retiré de ${delSet}` });
             setDelEntry('');
-            loadIpsets();
+            loadIpsets(true);
         } else {
             setDelResult({ ok: false, msg: res.result?.error ?? 'Erreur' });
         }

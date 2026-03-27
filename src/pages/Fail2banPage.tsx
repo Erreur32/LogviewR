@@ -139,6 +139,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
     const [statsDays, setStatsDays]         = useState(1);
     const [lastRefreshed, setLastRefreshed] = useState<number>(0);
     const [dbFragPct, setDbFragPct] = useState<number | null>(null);
+    const [bansToday, setBansToday] = useState<{ count: number; uniqIps: number } | null>(null);
     const [npmDataPath, setNpmDataPath] = useState<string>('');
     interface BanToast { id: number; ip: string; jail: string; timeofban: number; failures: number | null }
     const [toasts, setToasts] = useState<BanToast[]>([]);
@@ -171,6 +172,18 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
         const timer = setInterval(checkConfigWarnings, 5 * 60_000);
         return () => clearInterval(timer);
     }, [checkConfigWarnings]);
+
+    // Bans du jour (depuis minuit) — refresh toutes les 60s
+    const fetchBansToday = useCallback(() => {
+        api.get<{ ok: boolean; count: number; uniqIps: number }>('/api/plugins/fail2ban/bans-today')
+            .then(res => { if (res.success && res.result?.ok) setBansToday({ count: res.result.count, uniqIps: res.result.uniqIps }); })
+            .catch(() => {});
+    }, []);
+    useEffect(() => {
+        fetchBansToday();
+        const t = setInterval(fetchBansToday, 60_000);
+        return () => clearInterval(t);
+    }, [fetchBansToday]);
 
     // Load npmDataPath from plugin config on mount
     useEffect(() => {
@@ -349,7 +362,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
                 { label: 'IPs bannies (BDD)',        value: uniqueIpsTotal, icon: <Ban style={{ width: 14, height: 14 }} />,           color: '#e86a65', spark: true,  trendVal: trend(uniqueIpsTotal, prevStats?.uniqueIpsTotal), trendCol: trendColor(uniqueIpsTotal, prevStats?.uniqueIpsTotal, true) },
                 { label: `Bans (${periodLabel})`,   value: periodBans,     icon: <Activity style={{ width: 14, height: 14 }} />,      color: '#39c5cf', spark: true,  trendVal: null },
                 { label: 'Échecs actifs',           value: totalFailed,    icon: <AlertTriangle style={{ width: 14, height: 14 }} />, color: '#e3b341', spark: true,  trendVal: null },
-                { label: `IPs uniques (${periodLabel})`, value: uniqueIpsPeriod, icon: <Shield style={{ width: 14, height: 14 }} />,   color: '#bc8cff', spark: true,  trendVal: null },
+                { label: `IPs uniques (${periodLabel})`, value: uniqueIpsPeriod, icon: <Shield style={{ width: 14, height: 14 }} />,  color: '#bc8cff', spark: true,  trendVal: null },
                 { label: 'Expirés (24h)',           value: expiredLast24h, icon: <CheckCircle style={{ width: 14, height: 14 }} />,   color: '#3fb950', spark: true,  trendVal: trend(expiredLast24h, prevStats?.expiredLast24h), trendCol: trendColor(expiredLast24h, prevStats?.expiredLast24h, false) },
             ] as { label: string; value: number; icon: React.ReactNode; color: string; spark: boolean; trendVal: string | null; trendCol?: string }[]).map(({ label, value, icon, color, spark, trendVal, trendCol }, idx) => (
                 <F2bTooltip key={label} block title={MINI_CARD_TT[idx].ttTitle} body={(MINI_CARD_TT[idx] as { ttBody?: string }).ttBody} bodyNode={(MINI_CARD_TT[idx] as { ttBodyNode?: React.ReactNode }).ttBodyNode} color={MINI_CARD_TT[idx].ttColor}>
@@ -604,10 +617,32 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
                     {/* Center: chips */}
                     <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '.4rem', flexWrap: 'wrap' }}>
                         {status?.ok && (<>
-                            <Chip color="blue"><Ban style={{ width: 11, height: 11 }} /> <strong>{jails.length}</strong><span style={{ fontWeight: 400, color: '#8b949e' }}> jails</span></Chip>
-                            <Chip color="red"><Ban style={{ width: 11, height: 11 }} /> <strong>{uniqueIpsTotal}</strong><span style={{ fontWeight: 400, color: '#8b949e' }}> bannis (BDD)</span></Chip>
-                            {totalFailed > 0 && <Chip color="orange"><AlertTriangle style={{ width: 11, height: 11 }} /> <strong>{totalFailed}</strong><span style={{ fontWeight: 400, color: '#8b949e' }}> échecs</span></Chip>}
-                            {activeJails > 0 && <Chip color="green"><Activity style={{ width: 11, height: 11 }} /> <strong>{activeJails}</strong><span style={{ fontWeight: 400, color: '#8b949e' }}> actifs</span></Chip>}
+                            <F2bTooltip title="Jails configurés" body={`${jails.length} jail${jails.length > 1 ? 's' : ''} actif${jails.length > 1 ? 's' : ''} — règles fail2ban chargées et opérationnelles`} color="blue" placement="bottom">
+                                <Chip color="blue"><Ban style={{ width: 11, height: 11 }} /> <strong>{jails.length}</strong><span style={{ fontWeight: 400, color: '#8b949e' }}> jails</span></Chip>
+                            </F2bTooltip>
+                            <F2bTooltip title="IPs bannies (BDD)" bodyNode={statTtBody(uniqueIpsTotal, 'IPs', '#e86a65', 'Total IPs distinctes bannies dans f2b_events depuis l\'installation. Inclut les bans expirés.', <span>Bans actifs en ce moment : <strong style={{ color: '#e86a65' }}>{totalBanned}</strong></span>)} color="red" placement="bottom">
+                                <Chip color="red"><Ban style={{ width: 11, height: 11 }} /> <strong>{uniqueIpsTotal}</strong><span style={{ fontWeight: 400, color: '#8b949e' }}> bannis (BDD)</span></Chip>
+                            </F2bTooltip>
+                            {totalFailed > 0 && <F2bTooltip title="Échecs actifs" bodyNode={statTtBody(totalFailed, 'tentatives', '#e3b341', 'Tentatives échouées en cours dans la fenêtre findtime — pas encore bannies. Seuil maxretry pas atteint.')} color="orange" placement="bottom">
+                                <Chip color="orange"><AlertTriangle style={{ width: 11, height: 11 }} /> <strong>{totalFailed}</strong><span style={{ fontWeight: 400, color: '#8b949e' }}> échecs</span></Chip>
+                            </F2bTooltip>}
+                            {activeJails > 0 && <F2bTooltip title="Jails actifs" bodyNode={statTtBody(activeJails, 'jails', '#3fb950', 'Jails ayant au moins un ban ou un échec en cours en ce moment.')} color="green" placement="bottom">
+                                <Chip color="green"><Activity style={{ width: 11, height: 11 }} /> <strong>{activeJails}</strong><span style={{ fontWeight: 400, color: '#8b949e' }}> actifs</span></Chip>
+                            </F2bTooltip>}
+                            {bansToday !== null && (
+                                <F2bTooltip title="Bans du jour" bodyNode={
+                                    <div style={{ fontSize: '.78rem', lineHeight: 1.6 }}>
+                                        <div><span style={{ color: '#e86a65', fontWeight: 700 }}>{bansToday.count}</span> ban{bansToday.count !== 1 ? 's' : ''} depuis minuit</div>
+                                        <div><span style={{ color: '#58a6ff', fontWeight: 700 }}>{bansToday.uniqIps}</span> IP{bansToday.uniqIps !== 1 ? 's' : ''} unique{bansToday.uniqIps !== 1 ? 's' : ''}</div>
+                                        <div style={{ color: '#8b949e', fontSize: '.7rem', marginTop: '.2rem' }}>↻ refresh toutes les 60s</div>
+                                    </div>
+                                } color="red" placement="bottom">
+                                    <Chip color="red">
+                                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: bansToday.count > 0 ? '#e86a65' : '#3fb950', display: 'inline-block', flexShrink: 0 }} />
+                                        {' '}<strong>{bansToday.count}</strong><span style={{ fontWeight: 400, color: '#8b949e' }}> bans/jour</span>
+                                    </Chip>
+                                </F2bTooltip>
+                            )}
                         </>)}
                         {actionMsg && (
                             <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', fontSize: '.78rem', padding: '.2rem .65rem', borderRadius: 6, background: actionMsg.type === 'ok' ? 'rgba(63,185,80,.1)' : 'rgba(232,106,101,.1)', color: actionMsg.type === 'ok' ? '#3fb950' : '#e86a65', border: `1px solid ${actionMsg.type === 'ok' ? 'rgba(63,185,80,.25)' : 'rgba(232,106,101,.25)'}` }}>

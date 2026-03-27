@@ -1494,6 +1494,17 @@ export class Fail2banPlugin extends BasePlugin {
             }
         }));
 
+        // GET /bans-today  — Bans depuis minuit (heure locale)
+        router.get('/bans-today', requireAuth, asyncHandler(async (req, res) => {
+            if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
+            const evDb = getDatabase();
+            const now  = new Date();
+            const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+            const since = Math.floor(midnight.getTime() / 1000);
+            const row = evDb.prepare(`SELECT COUNT(*) as total, COUNT(DISTINCT ip) as uniq FROM f2b_events WHERE event_type='ban' AND timeofban >= @since`).get({ since }) as { total: number; uniq: number };
+            res.json({ success: true, result: { ok: true, count: row?.total ?? 0, uniqIps: row?.uniq ?? 0, since } });
+        }));
+
         // GET /tops  — Top IPs, Jails, Récidivistes + heatmap
         router.get('/tops', requireAuth, asyncHandler(async (req, res) => {
             if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
@@ -1561,6 +1572,20 @@ export class Fail2banPlugin extends BasePlugin {
                 topJailCount: topJailRow?.cnt  ?? 0,
             };
 
+            // Previous period for trend comparison (compare=1, only when bounded period)
+            let prevSummary: typeof summary | null = null;
+            if (!allTime && req.query.compare === '1') {
+                const prevSince = since - days * 86400;
+                const prevRow = evDb.prepare(`SELECT COUNT(*) as total, COUNT(DISTINCT ip) as uniq FROM f2b_events WHERE event_type='ban' AND timeofban >= @s AND timeofban < @e`).get({ s: prevSince, e: since }) as { total: number; uniq: number };
+                const prevJailRow = evDb.prepare(`SELECT jail, COUNT(*) as cnt FROM f2b_events WHERE event_type='ban' AND timeofban >= @s AND timeofban < @e GROUP BY jail ORDER BY cnt DESC LIMIT 1`).get({ s: prevSince, e: since }) as { jail: string; cnt: number } | undefined;
+                prevSummary = {
+                    totalBans:    prevRow?.total ?? 0,
+                    uniqueIps:    prevRow?.uniq  ?? 0,
+                    topJail:      prevJailRow?.jail ?? null,
+                    topJailCount: prevJailRow?.cnt  ?? 0,
+                };
+            }
+
             // Top Domaines: scan NPM access logs directly for banned IPs
             // No dependency on fail2ban config — pure NPM logs + NPM DB
             const topDomains: { domain: string; count: number; failures: number }[] = [];
@@ -1627,7 +1652,7 @@ export class Fail2banPlugin extends BasePlugin {
                 } catch { /* non-critical */ }
             }
 
-            res.json({ success: true, result: { ok: true, topIps, topJails, topRecidivists, topDomains, heatmap, heatmapFailed, heatmapWeek, heatmapFailedWeek, summary } });
+            res.json({ success: true, result: { ok: true, topIps, topJails, topRecidivists, topDomains, heatmap, heatmapFailed, heatmapWeek, heatmapFailedWeek, summary, prevSummary } });
         }));
 
         // GET /audit  — historique bans (f2b_events — notre DB, historique complet) + enrichissements
@@ -1758,6 +1783,7 @@ export class Fail2banPlugin extends BasePlugin {
             })();
 
             // Strategy 3 — NPM SQLite: scan ALL logpaths to find npm_base, load full id→domain map
+            let npmLogsBase: string | null = null;
             const npmDbDomains: Record<string, string> = (() => {
                 const allLogpaths = Object.values(jail_all_logpaths).flat();
                 for (const logpath of allLogpaths) {
@@ -1778,6 +1804,7 @@ export class Fail2banPlugin extends BasePlugin {
                                 if (names.length > 0) map[String(row.id)] = names[0].replace(/^www\./, '').toLowerCase();
                             } catch { /* bad JSON */ }
                         }
+                        npmLogsBase = `${npmBase}/logs`;
                         return map;
                     } catch { /* db not accessible */ }
                     break;
@@ -1822,6 +1849,15 @@ export class Fail2banPlugin extends BasePlugin {
                 for (const lp of logpaths) {
                     const d = domainFromLogpath(lp) || domainFromSources(lp) || domainFromNpmDb(lp);
                     if (d && !domainToLogpath[d]) domainToLogpath[d] = lp;
+                }
+            }
+            // Augment with ALL NPM proxy hosts (not just those referenced by jail configs)
+            // This ensures domains from multi-host jails (wildcard) resolve to their own log
+            if (npmLogsBase) {
+                for (const [id, domain] of Object.entries(npmDbDomains)) {
+                    if (!domainToLogpath[domain]) {
+                        domainToLogpath[domain] = `${npmLogsBase}/proxy-host-${id}_access.log`;
+                    }
                 }
             }
 

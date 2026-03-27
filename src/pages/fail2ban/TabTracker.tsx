@@ -6,6 +6,12 @@ import type { TrackerEntry } from './types';
 import { GeoInfo } from './types';
 import { FlagImg } from './FlagImg';
 
+// ── Module-level cache (survives tab navigation) ──────────────────────────────
+const _cache: Record<string, { data: unknown; ts: number }> = {};
+const CACHE_TTL = 30_000;
+function getCached<T>(key: string): T | null { const e = _cache[key]; return (e && Date.now() - e.ts < CACHE_TTL) ? e.data as T : null; }
+function setCached(key: string, data: unknown) { _cache[key] = { data, ts: Date.now() }; }
+
 type SortCol = 'ip' | 'bans' | 'unbans' | 'failures' | 'jails' | 'last';
 type SortDir = 'asc' | 'desc';
 
@@ -75,13 +81,29 @@ export const TabTracker: React.FC<{ onIpClick?: (ip: string) => void; onTotalCha
     interface SyncStatus { internalEvents: number; f2bTotalBans: number | null; synced: boolean | null; lastSyncAt: string | null }
     const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
     useEffect(() => {
+        const cached = getCached<SyncStatus>('tracker:sync');
+        if (cached) setSyncStatus(cached);
         api.get<SyncStatus & { ok: boolean }>('/api/plugins/fail2ban/sync-state').then(res => {
-            if (res.success && res.result?.ok) setSyncStatus(res.result);
+            if (res.success && res.result?.ok) { setCached('tracker:sync', res.result); setSyncStatus(res.result); }
         });
     }, []);
 
     // Load all ipset entries on mount and build ip → sets map
     useEffect(() => {
+        type IpsetRow = { name: string; entries: string[] }[];
+        const buildMap = (rows: IpsetRow) => {
+            const map = new Map<string, string[]>();
+            for (const { name, entries } of rows) {
+                for (const entry of entries) {
+                    const ip = entry.replace(/\/\d+$/, '');
+                    if (!map.has(ip)) map.set(ip, []);
+                    map.get(ip)!.push(name);
+                }
+            }
+            return map;
+        };
+        const cached = getCached<IpsetRow>('tracker:ipsets');
+        if (cached) { setIpsetMembership(buildMap(cached)); }
         api.get<{ ok: boolean; sets: { name: string; entries: number }[] }>('/api/plugins/fail2ban/ipset/sets')
             .then(res => {
                 if (!res.success || !res.result?.ok) return;
@@ -90,16 +112,9 @@ export const TabTracker: React.FC<{ onIpClick?: (ip: string) => void; onTotalCha
                     api.get<{ ok: boolean; entries: string[] }>(`/api/plugins/fail2ban/ipset/entries/${encodeURIComponent(s.name)}`)
                         .then(r => ({ name: s.name, entries: r.result?.entries ?? [] as string[] }))
                         .catch(() => ({ name: s.name, entries: [] as string[] }))
-                )).then(results => {
-                    const map = new Map<string, string[]>();
-                    for (const { name, entries } of results) {
-                        for (const entry of entries) {
-                            const ip = entry.replace(/\/\d+$/, '');
-                            if (!map.has(ip)) map.set(ip, []);
-                            map.get(ip)!.push(name);
-                        }
-                    }
-                    setIpsetMembership(map);
+                )).then(rows => {
+                    setCached('tracker:ipsets', rows);
+                    setIpsetMembership(buildMap(rows));
                 });
             })
             .catch(() => {});
@@ -108,17 +123,21 @@ export const TabTracker: React.FC<{ onIpClick?: (ip: string) => void; onTotalCha
     const [dataLoaded, setDataLoaded] = useState(false);
 
     const fetchData = useCallback(() => {
-        setLoading(true);
-        api.get<{ ok: boolean; total: number; ips: TrackerEntry[] }>('/api/plugins/fail2ban/tracker')
+        type TrackerResult = { ok: boolean; total: number; ips: TrackerEntry[] };
+        const cached = getCached<TrackerResult>('tracker:ips');
+        if (cached) { setIps(cached.ips); setTotal(cached.total); onTotalChange?.(cached.total); setDataLoaded(true); setLoading(false); }
+        else setLoading(true);
+        api.get<TrackerResult>('/api/plugins/fail2ban/tracker')
             .then(res => {
                 if (res.success && res.result?.ok) {
+                    setCached('tracker:ips', res.result);
                     setIps(res.result.ips);
                     setTotal(res.result.total);
                     onTotalChange?.(res.result.total);
                     setDataLoaded(true);
                 }
             })
-            .catch(() => { /* server not ready yet — will retry on next fetchData call */ })
+            .catch(() => {})
             .finally(() => setLoading(false));
     }, [onTotalChange]);
 
