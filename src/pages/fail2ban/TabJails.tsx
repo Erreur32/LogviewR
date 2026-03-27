@@ -129,6 +129,7 @@ export const JailCard: React.FC<{
     const totalDisplay   = jail.totalBannedSqlite !== undefined ? jail.totalBannedSqlite : jail.totalBanned;
     const bansInPeriod   = jail.bansInPeriod;
     const filteredIps    = ipFilter ? jail.bannedIps.filter(ip => ip.includes(ipFilter)) : jail.bannedIps;
+    const stateColor     = jail.currentlyBanned > 0 ? '#e86a65' : jail.currentlyFailed > 0 ? '#e3b341' : '#238636';
 
     return (
         <>
@@ -159,7 +160,7 @@ export const JailCard: React.FC<{
                 </div>
             );
         })()}
-        <div style={card}>
+        <div style={{ ...card, borderLeft: `4px solid ${stateColor}` }}>
             {/* Header */}
             <div style={{ ...cardH, background: '#21262d' }}>
                 <StatusDot banned={jail.currentlyBanned} failed={jail.currentlyFailed} />
@@ -655,10 +656,11 @@ const JailsTableView: React.FC<{
                             const isInactive = j.active === false;
                             const totalDisplay = j.totalBannedSqlite !== undefined ? j.totalBannedSqlite : j.totalBanned;
                             const portTokens = j.port ? j.port.split(/[\s,]+/).filter(Boolean) : [];
+                            const stateColor = isInactive ? '#8b949e' : j.currentlyBanned > 0 ? '#e86a65' : j.currentlyFailed > 0 ? '#e3b341' : '#238636';
                             return (
                                 <React.Fragment key={j.jail}>
                                     <tr
-                                        style={{ background: isOpen ? 'rgba(88,166,255,.04)' : 'transparent', cursor: isInactive ? 'default' : 'pointer', borderBottom: '1px solid #30363d', opacity: isInactive ? 0.5 : 1 }}
+                                        style={{ background: isOpen ? 'rgba(88,166,255,.04)' : 'transparent', cursor: isInactive ? 'default' : 'pointer', borderBottom: '1px solid #30363d', opacity: isInactive ? 0.5 : 1, boxShadow: `inset 4px 0 0 ${stateColor}` }}
                                         onClick={() => { if (!isInactive) setExpanded(e => e === j.jail ? null : j.jail); }}
                                         onMouseEnter={e => { if (!isOpen) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,.02)'; }}
                                         onMouseLeave={e => { if (!isOpen) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>

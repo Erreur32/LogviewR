@@ -117,8 +117,8 @@ export const F2bTooltip: React.FC<F2bTooltipProps> = ({
 
     const accent = TT_ACCENT[color];
     const border = TT_BORDER[color];
-    const bgTitle = '#161b22';
-    const bgBody  = '#21262d';
+    const bgTitle = '#0d1117';   // --bg1 (PHP: .stats-tt-title background)
+    const bgBody  = '#161b22';   // --bg2 (PHP: .stats-tt-body background)
 
     useLayoutEffect(() => {
         if (!visible || !triggerRef.current || !boxRef.current) return;
@@ -160,12 +160,14 @@ export const F2bTooltip: React.FC<F2bTooltipProps> = ({
             <div style={{
                 position: 'relative',
                 background: bgBody,
-                border: `1px solid ${border}`,
-                borderLeftWidth: 4,
+                borderTop: `1px solid ${border}`,
+                borderRight: `1px solid ${border}`,
+                borderBottom: `1px solid ${border}`,
+                borderLeft: `4px solid ${border}`,
                 borderRadius: 8,
                 minWidth: 160,
                 maxWidth: 380,
-                boxShadow: '0 6px 24px rgba(0,0,0,.6)',
+                boxShadow: '0 10px 36px rgba(0,0,0,.65), 0 2px 8px rgba(0,0,0,.35)',
                 fontSize: '.82rem',
                 lineHeight: 1.5,
                 overflow: 'hidden',
@@ -197,13 +199,13 @@ export const F2bTooltip: React.FC<F2bTooltipProps> = ({
                 <div style={{
                     position: 'absolute',
                     left: '50%',
-                    ...(below
-                        ? { top: -7,    borderBottom: `7px solid ${bgBody}`, borderTop: 'none' }
-                        : { bottom: -7, borderTop:    `7px solid ${bgBody}`, borderBottom: 'none' }),
                     transform: 'translateX(-50%)',
                     width: 0, height: 0,
-                    borderLeft: '7px solid transparent',
-                    borderRight: '7px solid transparent',
+                    borderLeftWidth: 7, borderLeftStyle: 'solid', borderLeftColor: 'transparent',
+                    borderRightWidth: 7, borderRightStyle: 'solid', borderRightColor: 'transparent',
+                    ...(below
+                        ? { top: -7, borderBottomWidth: 7, borderBottomStyle: 'solid', borderBottomColor: bgTitle }
+                        : { bottom: -7, borderTopWidth: 7, borderTopStyle: 'solid', borderTopColor: bgBody }),
                 }} />
             </div>
         </div>,

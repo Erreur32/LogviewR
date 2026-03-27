@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
     Settings, Database, RefreshCw, Save, Play,
     Info, Shield, FileText, AlertTriangle, CheckCircle, XCircle,
-    ChevronRight, HardDrive, Stethoscope, Trash2, Copy,
+    ChevronRight, HardDrive, Stethoscope, Trash2, Copy, Terminal,
 } from 'lucide-react';
 import { api } from '../../api/client';
 import { card, cardH, cardB } from './helpers';
@@ -588,6 +588,24 @@ export const TabConfig: React.FC = () => {
                                             </div>
                                         );
                                     })}
+                                {/* Setup script hint when socket or dropin has errors */}
+                                {(['socket', 'dropin', 'sqlite'] as const).some(k => checkResult.checks[k as keyof typeof checkResult.checks] && !checkResult.checks[k as keyof typeof checkResult.checks].ok) && (
+                                    <div style={{ borderRadius: 6, border: '1px solid rgba(88,166,255,.25)', background: 'rgba(88,166,255,.05)', overflow: 'hidden' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.5rem .75rem', background: 'rgba(88,166,255,.08)', borderBottom: '1px solid rgba(88,166,255,.2)' }}>
+                                            <Terminal style={{ width: 12, height: 12, color: C.blue, flexShrink: 0 }} />
+                                            <span style={{ fontWeight: 600, fontSize: '.82rem', color: C.blue }}>Setup automatique (recommandé)</span>
+                                            <span style={{ marginLeft: 'auto', fontSize: '.7rem', color: C.muted }}>à lancer sur le host</span>
+                                        </div>
+                                        <div style={{ padding: '.6rem .75rem' }}>
+                                            <pre style={{ margin: 0, fontSize: '.75rem', fontFamily: 'monospace', color: C.cyan, lineHeight: 1.55, whiteSpace: 'pre-wrap', background: C.bg3, borderRadius: 5, padding: '.5rem .7rem', border: `1px solid ${C.border}` }}>
+                                                {'sudo bash <(curl -fsSL https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setup-fail2ban-access.sh)'}
+                                            </pre>
+                                            <p style={{ margin: '.5rem 0 0', fontSize: '.72rem', color: C.muted, lineHeight: 1.5 }}>
+                                                Crée le groupe fail2ban, installe le drop-in systemd (socket 660, SQLite 644) et détecte automatiquement le GID au démarrage du container.
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>

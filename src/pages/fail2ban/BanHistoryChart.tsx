@@ -46,7 +46,15 @@ const ChartTooltip: React.FC<{ data: TooltipData; isHourly?: boolean }> = ({ dat
     const { x, y, jail, date, value, color } = data;
     // For 30-min slots the date is already "HH:MM"; for daily it's "MM-DD"
     const dateLabel = isHourly
-        ? (date.includes(':') ? `${date}–${date.slice(0,2)}:${String(parseInt(date.slice(3)) + 30).padStart(2,'0')}` : `${date}h00`)
+        ? (() => {
+            if (!date.includes(':')) return `${date}h00`;
+            const h = parseInt(date.slice(0, 2), 10);
+            const m = parseInt(date.slice(3), 10);
+            const endM = m + 30;
+            const endH = (h + Math.floor(endM / 60)) % 24;
+            const endMin = endM % 60;
+            return `${date}–${String(endH).padStart(2,'0')}:${String(endMin).padStart(2,'0')}`;
+        })()
         : date;
     return (
         <div style={{
@@ -142,7 +150,7 @@ const LineChart: React.FC<{
 }> = ({ history, histMax, byJail, jailNames, hidden, isHourly = false, days = 30, nowSlotFrac = 0 }) => {
     if (history.length === 0) return null;
     const W = 700; const H = 170;
-    const padL = 32; const padR = 8; const padT = 8; const padB = 20;
+    const padL = 4; const padR = 4; const padT = 12; const padB = 20;
     const innerW = W - padL - padR;
     const innerH = H - padT - padB;
 
@@ -182,7 +190,12 @@ const LineChart: React.FC<{
                     return (
                         <g key={val}>
                             <line x1={padL} x2={W - padR} y1={y} y2={y} stroke="rgba(128,128,128,.13)" strokeWidth={frac === 0 ? 1 : 0.5} />
-                            {frac > 0 && <text x={padL - 3} y={y - 2} fontSize={8} fill="rgba(128,128,128,.45)" textAnchor="end">{val}</text>}
+                            {frac > 0 && (
+                                <g>
+                                    <rect x={padL + 1} y={y - 10} width={22} height={10} fill="rgba(13,17,23,.6)" rx={2} />
+                                    <text x={padL + 12} y={y - 2} fontSize={8} fontFamily="'ui-monospace','SFMono-Regular','Menlo',monospace" fill="rgba(139,148,158,.85)" textAnchor="middle">{val}</text>
+                                </g>
+                            )}
                         </g>
                     );
                 })}
@@ -222,21 +235,23 @@ const LineChart: React.FC<{
                         fill="none" stroke="#e86a65" strokeWidth={1.6} strokeLinejoin="round" strokeLinecap="round" />
                 )}
 
-                {/* X-axis labels — for 30-min mode: only label the :00 slots (on-the-hour) */}
+                {/* X-axis labels — hourly mode: every 2 hours, format "Xh" */}
                 {isHourly
                     ? dates.map((d, i) => {
                         if (!d.endsWith(':00')) return null;
+                        const hour = parseInt(d.slice(0, 2), 10);
+                        if (hour % 2 !== 0) return null;
                         const anchor = i === 0 ? 'start' : 'middle';
                         return (
-                            <text key={i} x={xOf(i)} y={H - 3} fontSize={8} fill="rgba(128,128,128,.55)" textAnchor={anchor}>
-                                {d.slice(0, 5)}
+                            <text key={i} x={xOf(i)} y={H - 3} fontSize={8} fontFamily="'ui-monospace','SFMono-Regular','Menlo',monospace" fill="rgba(139,148,158,.7)" textAnchor={anchor}>
+                                {`${hour}h`}
                             </text>
                         );
                     })
                     : xIdxs.map(i => {
                         const anchor = i === 0 ? 'start' : i === dates.length - 1 ? 'end' : 'middle';
                         return (
-                            <text key={i} x={xOf(i)} y={H - 3} fontSize={8} fill="rgba(128,128,128,.55)" textAnchor={anchor}>
+                            <text key={i} x={xOf(i)} y={H - 3} fontSize={8} fontFamily="'ui-monospace','SFMono-Regular','Menlo',monospace" fill="rgba(139,148,158,.7)" textAnchor={anchor}>
                                 {dates[i]?.slice(5) ?? ''}
                             </text>
                         );
@@ -261,7 +276,7 @@ const BarChart: React.FC<{
 }> = ({ history, histMax, byJail, jailNames, hidden, isHourly = false, days = 30, nowSlotFrac = 0 }) => {
     const dates = allDates(history.slice(-60));
     const W = 700; const H = 170;
-    const padL = 32; const padR = 8; const padT = 8; const padB = 20;
+    const padL = 4; const padR = 4; const padT = 12; const padB = 20;
     const innerW = W - padL - padR;
     const innerH = H - padT - padB;
     const max = Math.max(histMax, 1);
@@ -302,7 +317,12 @@ const BarChart: React.FC<{
                     return (
                         <g key={val}>
                             <line x1={padL} x2={W - padR} y1={y} y2={y} stroke="rgba(128,128,128,.13)" strokeWidth={frac === 0 ? 1 : 0.5} />
-                            {frac > 0 && <text x={padL - 3} y={y - 2} fontSize={8} fill="rgba(128,128,128,.45)" textAnchor="end">{val}</text>}
+                            {frac > 0 && (
+                                <g>
+                                    <rect x={padL + 1} y={y - 10} width={22} height={10} fill="rgba(13,17,23,.6)" rx={2} />
+                                    <text x={padL + 12} y={y - 2} fontSize={8} fontFamily="'ui-monospace','SFMono-Regular','Menlo',monospace" fill="rgba(139,148,158,.85)" textAnchor="middle">{val}</text>
+                                </g>
+                            )}
                         </g>
                     );
                 })}
@@ -357,21 +377,23 @@ const BarChart: React.FC<{
                     );
                 })}
 
-                {/* X-axis labels — for 30-min mode: only label :00 slots */}
+                {/* X-axis labels — hourly mode: every 2 hours, format "Xh" */}
                 {isHourly
                     ? dates.map((d, i) => {
                         if (!d.endsWith(':00')) return null;
+                        const hour = parseInt(d.slice(0, 2), 10);
+                        if (hour % 2 !== 0) return null;
                         const x = padL + i * (barW + barGap) + barW / 2;
                         return (
-                            <text key={i} x={x} y={H - 3} fontSize={8} fill="rgba(128,128,128,.55)" textAnchor="middle">
-                                {d.slice(0, 5)}
+                            <text key={i} x={x} y={H - 3} fontSize={8} fontFamily="'ui-monospace','SFMono-Regular','Menlo',monospace" fill="rgba(139,148,158,.7)" textAnchor="middle">
+                                {`${hour}h`}
                             </text>
                         );
                     })
                     : xIdxs.map(i => {
                         const x = padL + i * (barW + barGap) + barW / 2;
                         return (
-                            <text key={i} x={x} y={H - 3} fontSize={8} fill="rgba(128,128,128,.55)" textAnchor="middle">
+                            <text key={i} x={x} y={H - 3} fontSize={8} fontFamily="'ui-monospace','SFMono-Regular','Menlo',monospace" fill="rgba(139,148,158,.7)" textAnchor="middle">
                                 {dates[i]?.slice(5) ?? ''}
                             </text>
                         );
@@ -531,7 +553,7 @@ export const BanHistoryChart: React.FC<BanHistoryChartProps> = ({
     );
 
     const chartContent = (
-        <div style={{ padding: '.5rem .75rem 0' }}>
+        <div style={{ padding: '.5rem 0 0' }}>
             {loading ? (
                 <div style={{ textAlign: 'center', padding: '2rem', color: '#8b949e', fontSize: '.85rem' }}>Chargement…</div>
             ) : history.length === 0 ? (
