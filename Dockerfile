@@ -14,7 +14,7 @@ RUN apk add --no-cache python3 make g++
 # Installer toutes les dépendances (y compris devDependencies) uniquement pour compiler les modules natifs
 # Les devDependencies seront supprimées dans l'image finale (voir npm prune --production ci-dessous)
 COPY package*.json ./
-RUN npm ci
+RUN npm ci --loglevel=error
 
 # Copier le code source et builder
 COPY . .
