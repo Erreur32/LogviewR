@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.5.6] - 2026-03-27
+
+### Fixed
+
+- **Docker build output** — upgraded npm to 11.12.1 in build stage (was 10.9.7); suppressed funding notices and update notifier for clean CI output
+
+---
+
 ## [0.5.5] - 2026-03-27
 
 ### Fixed
