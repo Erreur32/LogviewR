@@ -25,6 +25,12 @@ function findF2bClient(): string {
 }
 const F2B_CLIENT = findF2bClient();
 
+/** Prepend sudo when not running as root (same pattern as IptablesService). */
+function priv(cmd: string, args: string[]): [string, string[]] {
+    const isRoot = typeof process.getuid === 'function' && process.getuid() === 0;
+    return isRoot ? [cmd, args] : ['sudo', ['-n', cmd, ...args]];
+}
+
 export interface F2bJailStatus {
     jail: string;
     currentlyFailed: number;
@@ -174,8 +180,9 @@ export class Fail2banClientExec {
     // ── Network commands (require NET_ADMIN capability) ──────────────────────
 
     private async runBin(bin: string, args: string[], largeOutput = false): Promise<F2bClientResult> {
+        const [c, a] = priv(bin, args);
         try {
-            const { stdout } = await execFileAsync(bin, args, { timeout: EXEC_TIMEOUT, maxBuffer: largeOutput ? MAX_BUF_LARGE : MAX_BUF_SMALL });
+            const { stdout } = await execFileAsync(c, a, { timeout: EXEC_TIMEOUT, maxBuffer: largeOutput ? MAX_BUF_LARGE : MAX_BUF_SMALL });
             return { ok: true, output: stdout.trim() };
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : String(err);
@@ -183,7 +190,7 @@ export class Fail2banClientExec {
             return {
                 ok: false, output: '',
                 error: missing
-                    ? `${bin} non disponible dans le container.\nAjoutez dans docker-compose.yml :\n  cap_add:\n    - NET_ADMIN\nEt dans Dockerfile :\n  RUN apk add --no-cache iptables ipset nftables`
+                    ? `${bin} non disponible.\nVérifiez que network_mode: host et cap_add: NET_ADMIN sont actifs dans docker-compose.yml.`
                     : msg,
             };
         }

@@ -1,0 +1,68 @@
+# ===========================================
+# LogviewR - Docker Compose TEST (build local)
+# ===========================================
+#
+# Build et test LOCAL sans passer par GitHub.
+# Utilise network_mode: host pour que iptables/ipset/nft
+# voient les règles du HOST (fail2ban chains, ipsets réels).
+#
+# Usage :
+#   docker compose -f docker-compose.test.yml up -d --build
+#   docker compose -f docker-compose.test.yml logs -f
+#   docker compose -f docker-compose.test.yml down
+#
+# L'app écoute sur le port HOST directement (pas de mapping) :
+#   http://IP_HOST:7502
+#
+# ⚠️  network_mode: host est INCOMPATIBLE avec ports: — on utilise
+#     PORT= pour choisir le port d'écoute de l'app directement.
+
+name: logviewr-test
+
+services:
+  logviewr-test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: logviewr-test
+    restart: "no"
+
+    # HOST network namespace — obligatoire pour lire les règles
+    # iptables/ipset/nft du host (fail2ban chains, etc.)
+    # Sans ça, le container voit son propre netns vide.
+    network_mode: host
+
+    # NET_ADMIN requis pour lire/écrire netfilter (iptables/ipset/nft) depuis le container.
+    # Combiné avec network_mode: host → accès complet aux règles du host.
+    cap_add:
+      - NET_ADMIN
+
+    environment:
+      # Port d'écoute interne (= port host car network_mode: host)
+      PORT: 7502
+      DASHBOARD_PORT: 7502
+
+      JWT_SECRET: ${JWT_SECRET:-test-secret-change-me}
+      HOST_IP: ${HOST_IP:-}
+      CONFIG_FILE_PATH: ${CONFIG_FILE_PATH:-/app/config/logviewr.conf}
+      HOST_ROOT_PATH: /host
+
+    group_add:
+      - "${ADM_GID:-4}"
+
+    volumes:
+      # Données isolées du container test (ne touche pas la prod)
+      - ./data-test:/app/data
+      # Fail2ban socket (lecture/écriture pour fail2ban-client)
+      - /var/run/fail2ban/fail2ban.sock:/var/run/fail2ban/fail2ban.sock
+      # Filesystem host en lecture seule (logs, métriques, etc.)
+      - /:/host:ro
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:7502/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s

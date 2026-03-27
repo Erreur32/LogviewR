@@ -63,8 +63,17 @@ services:
     group_add:
       - "${ADM_GID:-4}"           # adm group — read host log files
 
-    # Optional: allow iptables/ipset/nftables commands inside the container (onglets Pare-feu)
-    # ⚠️ Security: only enable if you use the IPTables/IPSet/NFTables tabs
+    # ── Pare-feu (IPTables / IPSet / NFTables) ─────────────────────────────────
+    # Pour que les onglets Pare-feu voient les règles du HOST, les deux options
+    # ci-dessous sont OBLIGATOIRES (cumulatives) :
+    #   1. network_mode: host  — partage le namespace réseau du host
+    #   2. cap_add: NET_ADMIN  — autorise les opérations netfilter kernel
+    #
+    # ⚠️  network_mode: host est INCOMPATIBLE avec ports: — retirer la section
+    #     ports: et utiliser PORT=7500 dans environment: à la place.
+    # ⚠️  Security: n'activer que si vous utilisez les onglets Pare-feu.
+    #
+    # network_mode: host
     # cap_add:
     #   - NET_ADMIN
 
