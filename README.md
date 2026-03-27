@@ -10,7 +10,7 @@
 
 <img src="LogviewR_banner.svg" alt="LogviewR" width="512" height="256" />
 
-![LogviewR](https://img.shields.io/badge/LogviewR-0.5.2-111827?style=for-the-badge)
+![LogviewR](https://img.shields.io/badge/LogviewR-0.5.3-111827?style=for-the-badge)
 ![Status](https://img.shields.io/badge/Status-DEVELOPMENT-374151?style=for-the-badge)
 ![Docker](https://img.shields.io/badge/Docker-Ready-1f2937?style=for-the-badge&logo=docker&logoColor=38bdf8)
 ![React](https://img.shields.io/badge/React-19-111827?style=for-the-badge&logo=react&logoColor=38bdf8)
@@ -159,7 +159,17 @@ sudo bash <(curl -fsSL https://raw.githubusercontent.com/Erreur32/LogviewR/main/
 > **One-time only** — survives reboots and fail2ban restarts automatically.
 > Re-run only if you reinstall fail2ban on the host.
 
-**Step 3 — Start**
+**Step 3 — Create `docker-compose.yml`**
+
+Download the production file directly:
+
+```bash
+wget -O docker-compose.yml https://raw.githubusercontent.com/Erreur32/LogviewR/main/docker-compose.yml
+```
+
+Or copy the standard / firewall mode config from the [Configuration section](#%EF%B8%8F-configuration) below.
+
+**Step 4 — Start**
 
 ```bash
 docker compose up -d
@@ -269,12 +279,6 @@ sudo chgrp adm /var/log/php8.0-fpm.log* && sudo chmod 640 /var/log/php8.0-fpm.lo
 ```
 
 </details>
-
-### Développement local
-
-```bash
-npm run dev   # démarre backend (port 3004) + frontend Vite (port 5175)
-```
 
 ---
 

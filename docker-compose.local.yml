@@ -1,30 +1,20 @@
 # ===========================================
-# LogviewR - Log Viewer Application
-# Docker Compose - Local Build
+# LogviewR - Docker Compose (Local Build)
 # ===========================================
 #
-# Docker Compose configuration for LOCAL DEVELOPMENT
-# This file builds the image locally for testing and development.
-#
-# For production deployment, use docker-compose.yml instead (uses pre-built image from registry)
+# Builds the image locally for testing without pulling from the registry.
+# For production deployment, use docker-compose.yml instead.
 #
 # Usage:
-#   1. Build and start:
-#      docker-compose -f docker-compose.local.yml up -d --build
+#   docker compose -f docker-compose.local.yml up -d --build
+#   docker compose -f docker-compose.local.yml down
 #
-#   2. With custom port (default: 7501):
-#      DASHBOARD_PORT=8080 docker-compose -f docker-compose.local.yml up -d
-#
-#   3. With environment file:
-#      docker-compose -f docker-compose.local.yml --env-file .env up -d
-#
-#   4. Stop and remove:
-#      docker-compose -f docker-compose.local.yml down
-#
-# Environment variables:
-#   DASHBOARD_PORT - Port to expose the dashboard (default: 7501)
-#   JWT_SECRET     - JWT secret for authentication (required in production)
-#   CONFIG_FILE_PATH - Path to external config file (optional)
+# Environment variables (set in .env):
+#   DASHBOARD_PORT  - Dashboard port (default: 7501)
+#   JWT_SECRET      - JWT secret (required)
+#   ADM_GID         - GID of the adm group on the host (default: 4)
+#   FAIL2BAN_GID    - GID of the fail2ban group on the host (run setup script to set)
+#   HOST_IP         - Host machine IP (optional, auto-detected if not set)
 
 services:
   logviewr-local:
@@ -32,78 +22,40 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: logviewr-local
+    restart: unless-stopped
+
     ports:
       - "${DASHBOARD_PORT:-7501}:3000"
+
     environment:
-      #- NODE_ENV=production
-      #- PORT=3000
-      - DASHBOARD_PORT=${DASHBOARD_PORT:-7501}
-      # HOST_IP: IP address of the host machine on the local network
-      # If not set, the container will try to auto-detect, but may use container IP
-      # Example: HOST_IP=192.168.1.100
-      - HOST_IP=${HOST_IP:-192.168.1.150}
-      # ⚠️ SECURITE CRITIQUE : JWT_SECRET - Secret pour signer les tokens JWT
-      # 
-      # IMPORTANT : Ne JAMAIS utiliser la valeur par défaut en production !
-      # Le secret par défaut est uniquement pour le développement.
-      #
-      # Pour générer un secret sécurisé (minimum 32 caractères) :
-      #   Linux/Mac:   openssl rand -base64 32
-      #   PowerShell:  [Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Maximum 256 }))
-      #
-      # Méthodes de configuration :
-      #   1. Fichier .env (recommandé) :
-      #      Créez un fichier .env avec : JWT_SECRET=votre_secret_genere
-      #      Puis lancez : docker-compose -f docker-compose.local.yml --env-file .env up -d --build
-      #
-      #   2. Variable d'environnement système :
-      #      export JWT_SECRET=$(openssl rand -base64 32)
-      #      docker-compose -f docker-compose.local.yml up -d --build
-      #
-      #   3. Ligne de commande :
-      #      JWT_SECRET=votre_secret docker-compose -f docker-compose.local.yml up -d --build
-      #
-      # Exemple de secret généré : aB3xK9mP2vQ7wR5tY8uI0oP1aS6dF4gH7jK2lM9nB0vC3xZ6
-      - JWT_SECRET=${JWT_SECRET:-change-me-in-production-please-use-strong-secret}
-      - CONFIG_FILE_PATH=${CONFIG_FILE_PATH:-/app/config/logviewr.conf}
-      # Host metrics access (read-only mount of host filesystem)
-      # Used to read hostname, disk usage, and system info from the host
-      - HOST_ROOT_PATH=${HOST_ROOT_PATH:-/host}
+      JWT_SECRET: ${JWT_SECRET}
+      DASHBOARD_PORT: ${DASHBOARD_PORT:-7501}
+      HOST_IP: ${HOST_IP:-}
+      CONFIG_FILE_PATH: ${CONFIG_FILE_PATH:-/app/config/logviewr.conf}
+      HOST_ROOT_PATH: ${HOST_ROOT_PATH:-/host}
+
+    # Add node user to system groups for log and fail2ban access
+    group_add:
+      - "${ADM_GID:-4}"           # adm group — read host log files
+      - "${FAIL2BAN_GID:-}"       # fail2ban group — socket access (set by setup script)
+
     volumes:
-      # Persistent storage for database
       - logviewr_data_local:/app/data
-      # Mount host filesystem (read-only) to access real host metrics
-      # NOTE: This mount creates /host directory and mounts everything including /var/log
+      # Fail2ban socket (read-write — required for ban/unban commands)
+      # PREREQUISITE: run the host setup script once before starting:
+      #   sudo bash <(curl -fsSL https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setup-fail2ban-access.sh)
+      - /var/run/fail2ban/fail2ban.sock:/var/run/fail2ban/fail2ban.sock
+      # Host filesystem (read-only) for logs and system metrics
       - /:/host:ro
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
-      # Create symlink /host/logs -> /host/var/log for backward compatibility
-      # The plugin expects /host/logs but /host/var/log is already available via /:/host:ro
-      # This is done via entrypoint script to avoid Docker mount issues
-      # Optional: Mount specific log directories for direct access
-      # Uncomment if you want plugins to access logs directly without /host/ prefix:
-      # - /var/log/apache2:/var/log/apache2:ro    # Apache logs (accessible at /var/log/apache2)
-      # - /var/log/nginx:/var/log/nginx:ro        # Nginx logs (accessible at /var/log/nginx)
-      # - /var/log/npm:/var/log/npm:ro            # NPM logs (accessible at /var/log/npm)
-      # Note: Without these mounts, plugins must use /host/var/log/... paths in configuration
 
-    restart: unless-stopped
-    # Health check (use 127.0.0.1 instead of localhost to avoid IPv6 issues)
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
-    # Uncomment to limit resources (optional)
-    # deploy:
-    #   resources:
-    #     limits:
-    #       cpus: '1'
-    #       memory: 512M
-    #     reservations:
-    #       cpus: '0.5'
-    #       memory: 256M
 
 volumes:
   logviewr_data_local:

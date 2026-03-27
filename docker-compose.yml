@@ -83,14 +83,8 @@ services:
       # - Application configuration
       - ./data:/app/data
       # Fail2ban Unix socket (read-write — needed for fail2ban-client commands: ban, unban, status)
-      # PREREQUISITE on host: systemd drop-in for socket permissions + SQLite read access:
-      #   mkdir -p /etc/systemd/system/fail2ban.service.d/
-      #   cat > /etc/systemd/system/fail2ban.service.d/docker-access.conf << 'EOF'
-      #   [Service]
-      #   ExecStartPost=/bin/sh -c 'i=0; while [ $i -lt 30 ] && ! fail2ban-client ping >/dev/null 2>&1; do sleep 0.5; i=$((i+1)); done; chmod 644 /var/lib/fail2ban/fail2ban.sqlite3 2>/dev/null'
-      #   EOF
-      #   systemctl daemon-reload && systemctl restart fail2ban
-      # NOTE: Use sh -c with a wait loop — ExecStartPost runs before the socket is created!
+      # PREREQUISITE: run the host setup script once before starting the container:
+      #   sudo bash <(curl -fsSL https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setup-fail2ban-access.sh)
       - /var/run/fail2ban/fail2ban.sock:/var/run/fail2ban/fail2ban.sock
       # Mount host filesystem (read-only) to access real host metrics
       # This allows the app to read hostname, disk usage, and other system info from the host

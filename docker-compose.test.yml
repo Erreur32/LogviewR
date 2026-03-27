@@ -1,21 +1,19 @@
 # ===========================================
-# LogviewR - Docker Compose TEST (build local)
+# LogviewR - Docker Compose (Test / Local build with firewall)
 # ===========================================
 #
-# Build et test LOCAL sans passer par GitHub.
-# Utilise network_mode: host pour que iptables/ipset/nft
-# voient les règles du HOST (fail2ban chains, ipsets réels).
+# Builds the image locally and enables firewall tab support (IPTables / IPSet / NFTables).
+# Uses network_mode: host so the container sees the host's netfilter rules.
 #
-# Usage :
+# Usage:
 #   docker compose -f docker-compose.test.yml up -d --build
 #   docker compose -f docker-compose.test.yml logs -f
 #   docker compose -f docker-compose.test.yml down
 #
-# L'app écoute sur le port HOST directement (pas de mapping) :
-#   http://IP_HOST:7502
+# App listens directly on the host port (no port mapping with network_mode: host):
+#   http://HOST_IP:7502
 #
-# ⚠️  network_mode: host est INCOMPATIBLE avec ports: — on utilise
-#     PORT= pour choisir le port d'écoute de l'app directement.
+# ⚠️  network_mode: host is INCOMPATIBLE with ports: — use PORT= instead.
 
 name: logviewr-test
 
@@ -27,35 +25,34 @@ services:
     container_name: logviewr-test
     restart: "no"
 
-    # HOST network namespace — obligatoire pour lire les règles
-    # iptables/ipset/nft du host (fail2ban chains, etc.)
-    # Sans ça, le container voit son propre netns vide.
+    # Share host network namespace — required to see host iptables/ipset/nft rules
     network_mode: host
 
-    # NET_ADMIN requis pour lire/écrire netfilter (iptables/ipset/nft) depuis le container.
-    # Combiné avec network_mode: host → accès complet aux règles du host.
+    # NET_ADMIN required to read/write netfilter (iptables/ipset/nft) from the container
     cap_add:
       - NET_ADMIN
 
     environment:
-      # Port d'écoute interne (= port host car network_mode: host)
+      # Listening port (= host port because network_mode: host)
       PORT: 7502
       DASHBOARD_PORT: 7502
-
       JWT_SECRET: ${JWT_SECRET:-test-secret-change-me}
       HOST_IP: ${HOST_IP:-}
       CONFIG_FILE_PATH: ${CONFIG_FILE_PATH:-/app/config/logviewr.conf}
       HOST_ROOT_PATH: /host
 
     group_add:
-      - "${ADM_GID:-4}"
+      - "${ADM_GID:-4}"           # adm group — read host log files
+      - "${FAIL2BAN_GID:-}"       # fail2ban group — socket access (set by setup script)
 
     volumes:
-      # Données isolées du container test (ne touche pas la prod)
+      # Isolated data directory — does not share with production
       - ./data-test:/app/data
-      # Fail2ban socket (lecture/écriture pour fail2ban-client)
+      # Fail2ban socket (read-write — required for ban/unban commands)
+      # PREREQUISITE: run the host setup script once before starting:
+      #   sudo bash <(curl -fsSL https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setup-fail2ban-access.sh)
       - /var/run/fail2ban/fail2ban.sock:/var/run/fail2ban/fail2ban.sock
-      # Filesystem host en lecture seule (logs, métriques, etc.)
+      # Host filesystem (read-only) for logs and system metrics
       - /:/host:ro
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
