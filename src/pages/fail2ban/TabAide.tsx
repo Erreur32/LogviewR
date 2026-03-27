@@ -385,6 +385,25 @@ enabled = true` },
             },
         ],
     },
+    {
+        label: 'Référence',
+        icon: '📋',
+        sections: [
+            {
+                title: 'IP publiques connues — CDN & Cloud',
+                color: '#58a6ff', border: 'rgba(88,166,255,.25)', bg: 'rgba(88,166,255,.04)',
+                span: 2,
+                collapsed: true,
+                blocks: [
+                    { type: 'text', v: 'Un ban sur ces plages est souvent légitime (bot/abus depuis CDN ou cloud). C\'est un repère informatif : ces IPs appartiennent à des fournisseurs reconnus, pas à des particuliers.' },
+                    { type: 'note', v: 'Cloudflare — 15 plages CIDR\n173.245.48.0/20 · 103.21.244.0/22 · 103.22.200.0/22 · 103.31.4.0/22 · 141.101.64.0/18\n108.162.192.0/18 · 190.93.240.0/20 · 188.114.96.0/20 · 197.234.240.0/22 · 198.41.128.0/17\n162.158.0.0/15 · 104.16.0.0/13 · 104.24.0.0/14 · 172.64.0.0/13 · 131.0.72.0/22' },
+                    { type: 'note', v: 'Google — 9 plages CIDR\n66.249.64.0/19 · 64.233.160.0/19 · 72.14.192.0/18 · 209.85.128.0/17 · 216.239.32.0/19\n74.125.0.0/16 · 108.177.0.0/17 · 172.217.0.0/16 · 142.250.0.0/15' },
+                    { type: 'note', v: 'Microsoft Azure — 4 plages CIDR\n40.64.0.0/10 · 52.96.0.0/12 · 20.36.0.0/14 · 13.64.0.0/11' },
+                    { type: 'note', v: 'Amazon AWS — 6 plages CIDR\n52.0.0.0/8 · 54.0.0.0/8 · 3.0.0.0/9 · 18.0.0.0/8 · 176.32.64.0/18 · 205.251.192.0/18' },
+                ],
+            },
+        ],
+    },
 ];
 
 // ── Group renderer ────────────────────────────────────────────────────────────

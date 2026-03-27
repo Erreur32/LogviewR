@@ -5,9 +5,24 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { X, UserPlus, AlertCircle, CheckCircle, AlertTriangle, ExternalLink } from 'lucide-react';
+import { X, UserPlus, AlertCircle, CheckCircle, AlertTriangle, Eye, EyeOff } from 'lucide-react';
 import { api } from '../../api/client';
 import { useUserAuthStore } from '../../stores/userAuthStore';
+
+const USERNAME_RE = /^[a-zA-Z0-9_.-]*$/;
+
+function pwdStrength(pwd: string): { score: number; label: string; color: string } {
+    if (!pwd) return { score: 0, label: '', color: '' };
+    let s = 0;
+    if (pwd.length >= 8) s++;
+    if (pwd.length >= 12) s++;
+    if (/[A-Z]/.test(pwd)) s++;
+    if (/[0-9]/.test(pwd)) s++;
+    if (/[^a-zA-Z0-9]/.test(pwd)) s++;
+    if (s <= 1) return { score: 1, label: 'Faible', color: '#ef4444' };
+    if (s <= 3) return { score: 2, label: 'Moyen', color: '#f59e0b' };
+    return { score: 3, label: 'Fort', color: '#22c55e' };
+}
 
 interface UserRegistrationModalProps {
     isOpen: boolean;
@@ -26,6 +41,9 @@ export const UserRegistrationModal: React.FC<UserRegistrationModalProps> = ({ is
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirm, setShowConfirm] = useState(false);
+    const [usernameError, setUsernameError] = useState<string | null>(null);
     const [jwtSecretWarning, setJwtSecretWarning] = useState<{ isDefault: boolean; message: string } | null>(null);
     
     // Check JWT_SECRET status when modal opens
@@ -65,16 +83,11 @@ export const UserRegistrationModal: React.FC<UserRegistrationModalProps> = ({ is
             setError('Tous les champs sont requis');
             return;
         }
-
-        if (formData.password.length < 8) {
-            setError('Le mot de passe doit contenir au moins 8 caractères');
-            return;
-        }
-
-        if (formData.password !== formData.confirmPassword) {
-            setError('Les mots de passe ne correspondent pas');
-            return;
-        }
+        if (formData.username.length < 3) { setError('Le nom d\'utilisateur doit contenir au moins 3 caractères'); return; }
+        if (!USERNAME_RE.test(formData.username)) { setError('Nom d\'utilisateur invalide (lettres, chiffres, _, ., - uniquement)'); return; }
+        if (formData.password.length < 8) { setError('Le mot de passe doit contenir au moins 8 caractères'); return; }
+        if (formData.password.length > 72) { setError('Le mot de passe ne peut pas dépasser 72 caractères'); return; }
+        if (formData.password !== formData.confirmPassword) { setError('Les mots de passe ne correspondent pas'); return; }
 
         setIsLoading(true);
 
@@ -203,12 +216,21 @@ export const UserRegistrationModal: React.FC<UserRegistrationModalProps> = ({ is
                                 name="username"
                                 type="text"
                                 value={formData.username}
-                                onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                                className="w-full bg-[#1a1a1a] border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                                onChange={(e) => {
+                                    const v = e.target.value;
+                                    setFormData({ ...formData, username: v });
+                                    if (v.length > 0 && v.length < 3) setUsernameError('Minimum 3 caractères');
+                                    else if (!USERNAME_RE.test(v)) setUsernameError('Lettres, chiffres, _, ., - uniquement');
+                                    else setUsernameError(null);
+                                }}
+                                className={`w-full bg-[#1a1a1a] border rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500 ${usernameError ? 'border-red-600' : 'border-gray-700'}`}
                                 required
                                 autoFocus
                                 disabled={isLoading}
+                                maxLength={30}
                             />
+                            {usernameError && <p className="text-xs text-red-400 mt-1">{usernameError}</p>}
+                            {!usernameError && <p className="text-xs text-gray-600 mt-1">3-30 caractères, lettres, chiffres, _, ., -</p>}
                         </div>
 
                         <div>
@@ -224,6 +246,7 @@ export const UserRegistrationModal: React.FC<UserRegistrationModalProps> = ({ is
                                 className="w-full bg-[#1a1a1a] border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500"
                                 required
                                 disabled={isLoading}
+                                maxLength={254}
                             />
                         </div>
 
@@ -231,34 +254,70 @@ export const UserRegistrationModal: React.FC<UserRegistrationModalProps> = ({ is
                             <label htmlFor="password" className="block text-sm text-gray-400 mb-2">
                                 Mot de passe *
                             </label>
-                            <input
-                                id="password"
-                                name="password"
-                                type="password"
-                                value={formData.password}
-                                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                                className="w-full bg-[#1a1a1a] border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500"
-                                required
-                                disabled={isLoading}
-                                minLength={8}
-                            />
-                            <p className="text-xs text-gray-500 mt-1">Minimum 8 caractères</p>
+                            <div className="relative">
+                                <input
+                                    id="password"
+                                    name="password"
+                                    type={showPassword ? 'text' : 'password'}
+                                    value={formData.password}
+                                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                                    className="w-full bg-[#1a1a1a] border border-gray-700 rounded px-3 py-2 pr-10 text-white focus:outline-none focus:border-blue-500"
+                                    required
+                                    disabled={isLoading}
+                                    minLength={8}
+                                    maxLength={72}
+                                />
+                                <button type="button" onClick={() => setShowPassword(v => !v)}
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300" tabIndex={-1}>
+                                    {showPassword ? <EyeOff size={16}/> : <Eye size={16}/>}
+                                </button>
+                            </div>
+                            {formData.password && (() => {
+                                const s = pwdStrength(formData.password);
+                                return (
+                                    <div className="mt-1.5">
+                                        <div className="flex gap-1 h-1.5">
+                                            {[1,2,3].map(i => (
+                                                <div key={i} className="flex-1 rounded-full transition-colors"
+                                                    style={{ backgroundColor: i <= s.score ? s.color : '#374151' }} />
+                                            ))}
+                                        </div>
+                                        <p className="text-xs mt-1" style={{ color: s.color }}>{s.label}</p>
+                                    </div>
+                                );
+                            })()}
+                            {!formData.password && <p className="text-xs text-gray-600 mt-1">Minimum 8 caractères</p>}
                         </div>
 
                         <div>
                             <label htmlFor="confirmPassword" className="block text-sm text-gray-400 mb-2">
                                 Confirmer le mot de passe *
                             </label>
-                            <input
-                                id="confirmPassword"
-                                name="confirmPassword"
-                                type="password"
-                                value={formData.confirmPassword}
-                                onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                                className="w-full bg-[#1a1a1a] border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500"
-                                required
-                                disabled={isLoading}
-                            />
+                            <div className="relative">
+                                <input
+                                    id="confirmPassword"
+                                    name="confirmPassword"
+                                    type={showConfirm ? 'text' : 'password'}
+                                    value={formData.confirmPassword}
+                                    onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                                    className={`w-full bg-[#1a1a1a] border rounded px-3 py-2 pr-10 text-white focus:outline-none focus:border-blue-500 ${
+                                        formData.confirmPassword && formData.confirmPassword !== formData.password
+                                            ? 'border-red-600' : 'border-gray-700'
+                                    }`}
+                                    required
+                                    disabled={isLoading}
+                                />
+                                <button type="button" onClick={() => setShowConfirm(v => !v)}
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300" tabIndex={-1}>
+                                    {showConfirm ? <EyeOff size={16}/> : <Eye size={16}/>}
+                                </button>
+                            </div>
+                            {formData.confirmPassword && formData.confirmPassword !== formData.password && (
+                                <p className="text-xs text-red-400 mt-1">Les mots de passe ne correspondent pas</p>
+                            )}
+                            {formData.confirmPassword && formData.confirmPassword === formData.password && (
+                                <p className="text-xs text-green-500 mt-1">✓ Mots de passe identiques</p>
+                            )}
                         </div>
 
                         <div className="flex gap-3 pt-2">

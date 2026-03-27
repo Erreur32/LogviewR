@@ -49,11 +49,11 @@ const SortTh: React.FC<{
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
-export const TabTracker: React.FC<{ onIpClick?: (ip: string) => void; onTotalChange?: (n: number) => void }> = ({ onIpClick, onTotalChange }) => {
+export const TabTracker: React.FC<{ onIpClick?: (ip: string) => void; onTotalChange?: (n: number) => void; initialFilter?: string }> = ({ onIpClick, onTotalChange, initialFilter }) => {
     const [ips, setIps]         = useState<TrackerEntry[]>([]);
     const [total, setTotal]     = useState(0);
     const [loading, setLoading] = useState(true);
-    const [filter, setFilter]   = useState('');
+    const [filter, setFilter]   = useState(initialFilter ?? '');
     const [perPage, setPerPage] = useState(32);
     const [page, setPage]       = useState(1);
     const [sortCol, setSortCol] = useState<SortCol>('last');

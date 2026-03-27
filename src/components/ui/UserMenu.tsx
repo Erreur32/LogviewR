@@ -10,7 +10,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Settings, LogOut, Shield, ChevronDown, User, Users } from 'lucide-react';
+import { Settings, LogOut, Shield, ChevronDown, User } from 'lucide-react';
 
 interface User {
     username: string;
@@ -189,20 +189,6 @@ export const UserMenu: React.FC<UserMenuProps> = ({
                             >
                                 <Shield size={20} className="text-blue-400" />
                                 <span className="font-medium">Administration</span>
-                            </button>
-                        )}
-
-                        {/* Utilisateurs (Admin only) */}
-                        {user.role === 'admin' && (
-                            <button
-                                onClick={() => {
-                                    setIsOpen(false);
-                                    onUsersClick?.();
-                                }}
-                                className="w-full px-4 py-2.5 text-left text-sm text-gray-300 hover:bg-[#252525] transition-colors flex items-center gap-3"
-                            >
-                                <Users size={20} className="text-gray-400" />
-                                <span>Utilisateurs</span>
                             </button>
                         )}
 

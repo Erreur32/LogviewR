@@ -502,7 +502,7 @@ router.get('/config', requireAuth, asyncHandler(async (req: AuthenticatedRequest
   const stmt = db.prepare('SELECT value FROM app_config WHERE key = ?');
   const row = stmt.get('update_check_config') as { value: string } | undefined;
   
-  let config: { enabled: boolean; frequency: number } = { enabled: false, frequency: 24 };
+  let config: { enabled: boolean; frequency: number } = { enabled: true, frequency: 24 };
   if (row) {
     try {
       const parsed = JSON.parse(row.value);

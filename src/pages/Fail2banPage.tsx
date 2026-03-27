@@ -126,6 +126,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
     const [status, setStatus]     = useState<StatusResponse | null>(null);
     const [history, setHistory]   = useState<HistoryEntry[]>([]);
     const [trackerTotal, setTrackerTotal] = useState<number | null>(null);
+    const [trackerFilter, setTrackerFilter] = useState<string>('');
     const [byJail, setByJail]     = useState<Record<string, Record<string, number>>>({});
     const [jailNames, setJailNames] = useState<string[]>([]);
     const [granularity, setGranularity] = useState<'hour' | 'day'>('day');
@@ -520,8 +521,8 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
                     )}
                     {tab === 'filtres' && <TabFiltres jails={jails} />}
                     {tab === 'actions' && <TabActions jails={jails} />}
-                    {tab === 'tracker' && <TabTracker onIpClick={(ip) => setSelectedIp(ip)} onTotalChange={setTrackerTotal} />}
-                    {tab === 'carte'   && <TabMap onGoToTracker={ip => { void ip; setTab('tracker'); }} onIpClick={ip => setSelectedIp(ip)} refreshKey={lastRefreshed} />}
+                    {tab === 'tracker' && <TabTracker onIpClick={(ip) => setSelectedIp(ip)} onTotalChange={setTrackerTotal} initialFilter={trackerFilter} />}
+                    {tab === 'carte'   && <TabMap onGoToTracker={ip => { setTrackerFilter(ip); setTab('tracker'); }} onIpClick={ip => setSelectedIp(ip)} refreshKey={lastRefreshed} />}
                     {tab === 'ban' && (
                         <TabBanManager jails={jails} actionLoading={actionLoading}
                             onBan={(jail, ip)   => doAction('/api/plugins/fail2ban/ban',   { jail, ip }, `ban-${jail}-${ip}`)}

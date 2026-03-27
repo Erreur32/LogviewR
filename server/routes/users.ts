@@ -18,6 +18,26 @@ import { metricsCollector } from '../services/metricsCollector.js';
 
 const router = Router();
 
+// ── Input validation helpers ──────────────────────────────────────────────────
+const USERNAME_RE = /^[a-zA-Z0-9_.-]+$/;
+function validateUsername(u: string): string | null {
+    if (!u || u.length < 3) return 'Le nom d\'utilisateur doit contenir au moins 3 caractères';
+    if (u.length > 30) return 'Le nom d\'utilisateur ne peut pas dépasser 30 caractères';
+    if (!USERNAME_RE.test(u)) return 'Le nom d\'utilisateur ne peut contenir que des lettres, chiffres, _, ., -';
+    return null;
+}
+function validateEmail(e: string): string | null {
+    if (!e) return 'L\'email est requis';
+    if (e.length > 254) return 'Email trop long';
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e)) return 'Format d\'email invalide';
+    return null;
+}
+function validatePassword(p: string): string | null {
+    if (!p || p.length < 8) return 'Le mot de passe doit contenir au moins 8 caractères';
+    if (p.length > 72) return 'Le mot de passe ne peut pas dépasser 72 caractères';
+    return null;
+}
+
 // GET /api/users/check - Check if any users exist (public)
 router.get('/check', asyncHandler(async (_req, res) => {
     const users = UserRepository.findAll();
@@ -34,24 +54,23 @@ router.get('/check', asyncHandler(async (_req, res) => {
 
 // POST /api/users/register - Register new user (public, but can be restricted)
 router.post('/register', asyncHandler(async (req, res) => {
-    const { username, email, password, role } = req.body;
+    const { username, email, password } = req.body;
 
-    if (!username || !email || !password) {
-        throw createError('Username, email and password are required', 400, 'MISSING_FIELDS');
-    }
+    const usernameErr = validateUsername(username);
+    if (usernameErr) throw createError(usernameErr, 400, 'INVALID_USERNAME');
 
-    // Validate password strength
-    if (password.length < 8) {
-        throw createError('Password must be at least 8 characters long', 400, 'WEAK_PASSWORD');
-    }
+    const emailErr = validateEmail(email);
+    if (emailErr) throw createError(emailErr, 400, 'INVALID_EMAIL');
+
+    const passwordErr = validatePassword(password);
+    if (passwordErr) throw createError(passwordErr, 400, 'WEAK_PASSWORD');
 
     // Check if any users exist
     const existingUsers = UserRepository.findAll();
     const isFirstUser = existingUsers.length === 0;
 
-    // If no users exist, allow admin role (first user is always admin)
-    // Otherwise, only allow 'user' role for self-registration (admin can create admins via admin route)
-    const userRole = isFirstUser ? 'admin' : (role === 'admin' ? 'user' : (role || 'user'));
+    // Self-registration is always 'user'. First user (admin creation) gets 'admin'.
+    const userRole = isFirstUser ? 'admin' : 'user';
 
     const user = await authService.register({
         username,
@@ -253,19 +272,22 @@ router.get('/:id', requireAuth, requireAdmin, asyncHandler(async (req: Authentic
 router.post('/', requireAuth, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res) => {
     const { username, email, password, role } = req.body;
 
-    if (!username || !email || !password) {
-        throw createError('Username, email and password are required', 400, 'MISSING_FIELDS');
-    }
+    const usernameErr = validateUsername(username);
+    if (usernameErr) throw createError(usernameErr, 400, 'INVALID_USERNAME');
 
-    if (password.length < 8) {
-        throw createError('Password must be at least 8 characters long', 400, 'WEAK_PASSWORD');
-    }
+    const emailErr = validateEmail(email);
+    if (emailErr) throw createError(emailErr, 400, 'INVALID_EMAIL');
+
+    const passwordErr = validatePassword(password);
+    if (passwordErr) throw createError(passwordErr, 400, 'WEAK_PASSWORD');
+
+    const safeRole = ['admin', 'user'].includes(role) ? role : 'user';
 
     const user = await authService.register({
         username,
         email,
         password,
-        role: role || 'user'
+        role: safeRole
     });
 
     await loggingService.logUserAction(
@@ -324,8 +346,10 @@ router.put('/:id', requireAuth, asyncHandler(async (req: AuthenticatedRequest, r
         updateData.avatar = req.body.avatar; // Base64 encoded image
     }
 
-    // Password change requires old password
+    // Password change requires old password + validation
     if (req.body.password && req.body.oldPassword) {
+        const pwdErr = validatePassword(req.body.password);
+        if (pwdErr) throw createError(pwdErr, 400, 'WEAK_PASSWORD');
         await authService.changePassword(userId, req.body.oldPassword, req.body.password);
     }
 

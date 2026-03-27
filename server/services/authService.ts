@@ -226,6 +226,9 @@ export class AuthService {
      * Change user password
      */
     async changePassword(userId: number, oldPassword: string, newPassword: string): Promise<boolean> {
+        if (!newPassword || newPassword.length < 8) throw new Error('Le nouveau mot de passe doit contenir au moins 8 caractères');
+        if (newPassword.length > 72) throw new Error('Le mot de passe ne peut pas dépasser 72 caractères');
+
         const user = UserRepository.findById(userId);
         if (!user) {
             throw new Error('User not found');
