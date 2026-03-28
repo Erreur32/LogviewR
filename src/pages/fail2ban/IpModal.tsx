@@ -342,14 +342,17 @@ export const IpModal: React.FC<{
     const [details,      setDetails]      = useState<IpDetails | null>(null);
     const [actionMsg,    setActionMsg]    = useState<{ ok: boolean; text: string } | null>(null);
     const [banning,      setBanning]      = useState(false);
+    const [unbanning,    setUnbanning]    = useState(false);
     const [ipsetBanning, setIpsetBanning] = useState<string | null>(null);
+    const [ipsetRemoving, setIpsetRemoving] = useState<string | null>(null);
     const [selIpset,     setSelIpset]     = useState<string>('');
+    const [selUnbanJail, setSelUnbanJail] = useState<string>('');
     const [logsOpen,     setLogsOpen]     = useState(true);
     const [expandedLogs, setExpandedLogs] = useState<Set<number>>(new Set());
     const LOG_LINES_DEFAULT = 4;
 
     useEffect(() => {
-        setHistory([]); setLoading(true); setActionMsg(null); setDetails(null); setLogsOpen(true); setExpandedLogs(new Set());
+        setHistory([]); setLoading(true); setActionMsg(null); setDetails(null); setLogsOpen(true); setExpandedLogs(new Set()); setUnbanning(false); setIpsetRemoving(null); setSelUnbanJail('');
         if (!geoProp) setGeo(null);
 
         Promise.all([
@@ -381,6 +384,8 @@ export const IpModal: React.FC<{
             if (detRes.success && detRes.result?.ok) {
                 const first = detRes.result.allIpsets?.[0] ?? '';
                 setSelIpset(s => s || first);
+                const firstJail = detRes.result.activeJails?.[0] ?? '';
+                setSelUnbanJail(s => s || firstJail);
             }
             setLoading(false);
         });
@@ -445,6 +450,24 @@ export const IpModal: React.FC<{
         setIpsetBanning(setName);
         await doAction(`${ip} ajouté dans ${setName}`, '/api/plugins/fail2ban/ipset/add', { set: setName, entry: ip });
         setIpsetBanning(null);
+    };
+
+    const unbanFromJail = async (jail: string) => {
+        setUnbanning(true);
+        await doAction(`${ip} débanni de ${jail}`, '/api/plugins/fail2ban/unban', { jail, ip });
+        setUnbanning(false);
+        // Refresh active jails after unban
+        api.get<{ ok: boolean } & IpDetails>(`/api/plugins/fail2ban/ip/${encodeURIComponent(ip)}`)
+            .then(res => { if (res.success && res.result?.ok) setDetails(d => d ? { ...d, activeJails: res.result.activeJails ?? [] } : d); });
+    };
+
+    const removeFromIpset = async (setName: string) => {
+        setIpsetRemoving(setName);
+        await doAction(`${ip} retiré de ${setName}`, '/api/plugins/fail2ban/ipset/del', { set: setName, entry: ip });
+        setIpsetRemoving(null);
+        // Refresh ipsets membership after removal
+        api.get<{ ok: boolean } & IpDetails>(`/api/plugins/fail2ban/ip/${encodeURIComponent(ip)}`)
+            .then(res => { if (res.success && res.result?.ok) setDetails(d => d ? { ...d, ipsets: res.result.ipsets ?? [] } : d); });
     };
 
     const logEntries = (details?.logEntries ?? []).map(e => ({
@@ -624,6 +647,7 @@ export const IpModal: React.FC<{
                                     <span style={{ fontWeight: 600, fontSize: '.8rem' }}>Actions rapides</span>
                                 </div>
                                 <div style={{ ...cardB, gap: '.55rem' }}>
+                                    {/* ── Bannir dans recidive ── */}
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
                                         <span style={{ fontSize: '.72rem', color: '#8b949e', minWidth: 52 }}>Recidive</span>
                                         {inRecidive
@@ -639,6 +663,38 @@ export const IpModal: React.FC<{
                                             </button>
                                         }
                                     </div>
+                                    {/* ── Débannir d'un jail ── */}
+                                    {(details?.activeJails ?? []).length > 0 && (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
+                                            <span style={{ fontSize: '.72rem', color: '#8b949e', minWidth: 52 }}>Débannir</span>
+                                            {details!.activeJails.length === 1
+                                                ? <button onClick={() => unbanFromJail(details!.activeJails[0])} disabled={unbanning}
+                                                    style={{ flex: 1, padding: '.25rem .6rem', borderRadius: 5,
+                                                        background: 'rgba(63,185,80,.08)', border: '1px solid rgba(63,185,80,.3)',
+                                                        color: '#3fb950', cursor: unbanning ? 'default' : 'pointer',
+                                                        fontSize: '.74rem', fontWeight: 600, opacity: unbanning ? .6 : 1,
+                                                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '.3rem' }}>
+                                                    {unbanning ? 'Déban…' : `− Débannir de ${details!.activeJails[0]}`}
+                                                  </button>
+                                                : <>
+                                                    <select value={selUnbanJail} onChange={e => setSelUnbanJail(e.target.value)}
+                                                        style={{ flex: 1, background: '#21262d', border: '1px solid #30363d', color: '#e6edf3',
+                                                            borderRadius: 4, padding: '.2rem .4rem', fontSize: '.74rem', outline: 'none', cursor: 'pointer' }}>
+                                                        {details!.activeJails.map(j => <option key={j} value={j} style={{ background: '#21262d' }}>{j}</option>)}
+                                                    </select>
+                                                    <button onClick={() => selUnbanJail && unbanFromJail(selUnbanJail)} disabled={!selUnbanJail || unbanning}
+                                                        style={{ padding: '.25rem .6rem', borderRadius: 5, whiteSpace: 'nowrap',
+                                                            background: 'rgba(63,185,80,.08)', border: '1px solid rgba(63,185,80,.3)',
+                                                            color: '#3fb950', cursor: (!selUnbanJail || unbanning) ? 'default' : 'pointer',
+                                                            fontSize: '.74rem', fontWeight: 600, opacity: (!selUnbanJail || unbanning) ? .5 : 1,
+                                                            display: 'flex', alignItems: 'center', gap: '.3rem' }}>
+                                                        {unbanning ? 'Déban…' : '− Débannir'}
+                                                    </button>
+                                                  </>
+                                            }
+                                        </div>
+                                    )}
+                                    {/* ── IPSet : ajouter + retirer ── */}
                                     {(details?.allIpsets ?? []).length > 0 && (
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
                                             <span style={{ fontSize: '.72rem', color: '#8b949e', minWidth: 52 }}>IPSet</span>
@@ -653,17 +709,31 @@ export const IpModal: React.FC<{
                                             </select>
                                             <button
                                                 onClick={() => selIpset && banIpset(selIpset)}
-                                                disabled={!selIpset || ipsetBanning === selIpset || (details?.ipsets ?? []).includes(selIpset)}
-                                                style={{ padding: '.25rem .6rem', borderRadius: 5, whiteSpace: 'nowrap',
+                                                disabled={!selIpset || !!ipsetBanning || (details?.ipsets ?? []).includes(selIpset)}
+                                                title="Ajouter l'IP dans ce set"
+                                                style={{ padding: '.25rem .5rem', borderRadius: 5, whiteSpace: 'nowrap',
                                                     background: (details?.ipsets ?? []).includes(selIpset) ? 'rgba(188,140,255,.06)' : 'rgba(188,140,255,.1)',
                                                     border: '1px solid rgba(188,140,255,.3)', color: '#bc8cff',
-                                                    cursor: (!selIpset || ipsetBanning === selIpset || (details?.ipsets ?? []).includes(selIpset)) ? 'default' : 'pointer',
+                                                    cursor: (!selIpset || !!ipsetBanning || (details?.ipsets ?? []).includes(selIpset)) ? 'default' : 'pointer',
                                                     fontSize: '.74rem', fontWeight: 600,
-                                                    opacity: (!selIpset || ipsetBanning === selIpset) ? .5 : 1,
+                                                    opacity: (!selIpset || !!ipsetBanning) ? .5 : 1,
                                                     display: 'flex', alignItems: 'center', gap: '.3rem' }}>
                                                 {(details?.ipsets ?? []).includes(selIpset)
-                                                    ? '✓ déjà ajouté'
+                                                    ? '✓ présent'
                                                     : ipsetBanning === selIpset ? 'Ajout…' : '+ Ajouter'}
+                                            </button>
+                                            <button
+                                                onClick={() => selIpset && removeFromIpset(selIpset)}
+                                                disabled={!selIpset || !!ipsetRemoving || !(details?.ipsets ?? []).includes(selIpset)}
+                                                title="Retirer l'IP de ce set"
+                                                style={{ padding: '.25rem .5rem', borderRadius: 5, whiteSpace: 'nowrap',
+                                                    background: !(details?.ipsets ?? []).includes(selIpset) ? 'rgba(232,106,101,.03)' : 'rgba(232,106,101,.08)',
+                                                    border: '1px solid rgba(232,106,101,.3)', color: '#e86a65',
+                                                    cursor: (!selIpset || !!ipsetRemoving || !(details?.ipsets ?? []).includes(selIpset)) ? 'default' : 'pointer',
+                                                    fontSize: '.74rem', fontWeight: 600,
+                                                    opacity: (!selIpset || !!ipsetRemoving || !(details?.ipsets ?? []).includes(selIpset)) ? .4 : 1,
+                                                    display: 'flex', alignItems: 'center', gap: '.3rem' }}>
+                                                {ipsetRemoving === selIpset ? 'Retrait…' : '− Retirer'}
                                             </button>
                                         </div>
                                     )}

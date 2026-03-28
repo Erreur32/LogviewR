@@ -7,7 +7,8 @@ import {
   HardDrive,
   Archive,
   LineChart,
-  Shield
+  Shield,
+  Timer
 } from 'lucide-react';
 import { usePluginStore } from '../../stores/pluginStore';
 import { getPluginIcon } from '../../utils/pluginIcons';
@@ -51,6 +52,17 @@ export const Footer: React.FC<FooterProps> = ({
   const { plugins } = usePluginStore();
   const [osType, setOsType] = useState<string | undefined>(undefined);
   const [logStats, setLogStats] = useState<{ readableFiles: number; totalSize: number; totalSizeGz: number } | null>(null);
+  const [loadTimeMs, setLoadTimeMs] = useState<number | null>(null);
+
+  // Listen for tab-loaded events from pages/tabs to show load time
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ms = (e as CustomEvent<{ ms: number }>).detail?.ms ?? 0;
+      setLoadTimeMs(ms);
+    };
+    window.addEventListener('tab-loaded', handler);
+    return () => window.removeEventListener('tab-loaded', handler);
+  }, []);
 
   // Load OS type for host-system plugin
   useEffect(() => {
@@ -271,6 +283,18 @@ export const Footer: React.FC<FooterProps> = ({
             </>
           )}
         </div>
+
+        {/* Load time badge */}
+        {loadTimeMs !== null && (
+          <div className="flex-shrink-0">
+            <Tooltip content="Temps de chargement du dernier onglet" position="top">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-500/10 border border-slate-500/20 text-slate-400 text-sm font-medium font-mono tabular-nums cursor-help">
+                <Timer size={13} className="flex-shrink-0" />
+                {loadTimeMs < 1000 ? `${loadTimeMs}ms` : `${(loadTimeMs / 1000).toFixed(1)}s`}
+              </span>
+            </Tooltip>
+          </div>
+        )}
 
         {/* Plugin buttons (droite) - affichés si plugins de logs activés */}
         {enabledLogPlugins.length > 0 && (

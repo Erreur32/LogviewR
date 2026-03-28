@@ -35,6 +35,7 @@ import { TabNFTables }       from './fail2ban/TabNFTables';
 import { TabFileList }       from './fail2ban/TabFileList';
 import { BanHistoryChart }   from './fail2ban/BanHistoryChart';
 import { fetchTopsPrevTotalBans } from './fail2ban/fail2banTopsPrevFlight';
+import { startTabTimer, dispatchTabLoaded } from '../utils/tabTimer';
 import type { StatusResponse, HistoryEntry, TabId } from './fail2ban/types';
 import { IpModal } from './fail2ban/IpModal';
 import { SyncProgressBanner } from './fail2ban/SyncProgressBanner';
@@ -122,6 +123,7 @@ const Sparkline: React.FC<{ data: number[]; color: string }> = ({ data, color })
 
 export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }> = ({ initialTab }) => {
     const contentRef = useRef<HTMLDivElement>(null);
+    const timedTabRef = useRef(false);
     const [tab, setTab]           = useState<TabId>(initialTab ?? 'jails');
     const [selectedIp, setSelectedIp] = useState<string | null>(null);
     const [collapsed, setCollapsed] = useState(false);
@@ -201,6 +203,14 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
     // ── URL hash sync — update hash on tab change for bookmarkable deep links ──
     useEffect(() => {
         window.history.replaceState(null, '', `#fail2ban/${tab}`);
+    }, [tab]);
+
+    // ── Tab load timer — dispatch after render (fast tabs report immediately) ──
+    useEffect(() => {
+        if (!timedTabRef.current) return;
+        timedTabRef.current = false;
+        const id = requestAnimationFrame(() => dispatchTabLoaded());
+        return () => cancelAnimationFrame(id);
     }, [tab]);
 
     // ── Ban notification polling ───────────────────────────────────────────────
@@ -646,7 +656,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
                                 const tt = navTt[id];
                                 return (
                                     <F2bTooltip key={id} title={tt?.title ?? label} bodyNode={tt?.bodyNode} color={tt?.color ?? 'blue'} block placement="bottom">
-                                    <button onClick={() => setTab(id)}
+                                    <button onClick={() => { startTabTimer(); timedTabRef.current = true; setTab(id); }}
                                         style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '.55rem', padding: collapsed ? '.52rem 0' : '.45rem 1rem', justifyContent: collapsed ? 'center' : undefined, fontSize: '.84rem', fontWeight: 500, border: 'none', borderLeft: `3px solid ${active ? color : 'transparent'}`, background: active ? `${color}18` : 'transparent', color: active ? color : '#8b949e', cursor: 'pointer', transition: 'background .12s, border-color .12s', whiteSpace: 'nowrap', overflow: 'hidden', position: 'relative' }}
                                         onMouseEnter={e => { if (!active) { (e.currentTarget as HTMLElement).style.background = '#21262d'; } }}
                                         onMouseLeave={e => { if (!active) { (e.currentTarget as HTMLElement).style.background = 'transparent'; } }}
@@ -896,7 +906,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
                 </div>
             </div>
             {selectedIp && <IpModal ip={selectedIp} onClose={() => setSelectedIp(null)} />}
-            <style>{`@keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }`}</style>
+            <style>{`@keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } } @keyframes f2b-shimmer { 0%, 100% { opacity: 0.35; } 50% { opacity: 0.65; } }`}</style>
         </div>
     );
 };

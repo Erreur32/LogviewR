@@ -1,4 +1,4 @@
-import React, { useEffect, useState, Suspense, lazy, useMemo } from 'react';
+import React, { useEffect, useState, Suspense, lazy, useMemo, useRef } from 'react';
 import { Header, Footer, type PageType } from './components/layout';
 import {
   Card,
@@ -101,6 +101,7 @@ const LogViewerTestPage = lazy(() => import('./pages/LogViewerTestPage').then(m 
 const LogViewerPage = lazy(() => import('./pages/LogViewerPage').then(m => ({ default: m.LogViewerPage })));
 const Fail2banPage = lazy(() => import('./pages/Fail2banPage').then(m => ({ default: m.Fail2banPage })));
 import { fetchEnvironmentInfo } from './constants/version';
+import { startTabTimer, dispatchTabLoaded } from './utils/tabTimer';
 import {
   useUserAuthStore,
   useConnectionStore,
@@ -151,6 +152,9 @@ const App: React.FC = () => {
   
   // Plugin store
   const { plugins, pluginStats, fetchPlugins, fetchAllStats } = usePluginStore();
+
+  // Tab load timer — tracks whether a timed navigation is pending dispatch
+  const timedNavRef = useRef(false);
 
   // Local state
   const [currentPage, setCurrentPage] = useState<PageType>('dashboard');
@@ -406,6 +410,8 @@ const App: React.FC = () => {
   };
 
   const handlePageChange = (page: PageType) => {
+    startTabTimer();
+    timedNavRef.current = true;
     // If navigating to log-viewer, check for selectedPluginId in sessionStorage FIRST
     // This ensures selectedPluginId is set before the page renders
     if (page === 'log-viewer') {
@@ -430,6 +436,14 @@ const App: React.FC = () => {
     // Change page after state is updated
     setCurrentPage(page);
   };
+
+  // Dispatch tab-loaded after page render (covers non-fail2ban pages)
+  useEffect(() => {
+    if (!timedNavRef.current) return;
+    timedNavRef.current = false;
+    const id = requestAnimationFrame(() => dispatchTabLoaded());
+    return () => cancelAnimationFrame(id);
+  }, [currentPage]);
 
   const handleHomeClick = () => {
     setCurrentPage('dashboard');

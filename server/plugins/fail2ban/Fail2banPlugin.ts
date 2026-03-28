@@ -915,6 +915,101 @@ export class Fail2banPlugin extends BasePlugin {
 
         // ── Jail configuration routes ─────────────────────────────────────────────
 
+        // GET /whitelist/stats  — global [DEFAULT] ignoreip + per-jail overrides
+        router.get('/whitelist/stats', requireAuth, asyncHandler(async (_req, res) => {
+            if (!this.isEnabled()) return res.json({ success: true, result: { ok: false, error: 'Plugin désactivé' } });
+            const confBase = this.resolveDockerPathSync('/etc/fail2ban');
+            const jailD = path.join(confBase, 'jail.d');
+            let dConfs: string[] = [];
+            let dLocals: string[] = [];
+            try {
+                const entries = fs.readdirSync(jailD).sort();
+                dConfs  = entries.filter(f => f.endsWith('.conf')).map(f => path.join(jailD, f));
+                dLocals = entries.filter(f => f.endsWith('.local')).map(f => path.join(jailD, f));
+            } catch { /* jail.d may not exist */ }
+
+            // Global DEFAULT ignoreip (merge order: jail.conf → jail.d/*.conf → jail.local → jail.d/*.local)
+            const rawDefaults: Record<string, string> = {};
+            for (const f of [path.join(confBase, 'jail.conf'), ...dConfs, path.join(confBase, 'jail.local'), ...dLocals]) {
+                parseJailIniFile(f, rawDefaults, {});
+            }
+            const globalIps = (rawDefaults['ignoreip'] ?? '').split(/\s+/).map((s: string) => s.trim()).filter(Boolean);
+            const globalSet = new Set(globalIps);
+
+            // Per-jail explicit ignoreip overrides in jail.d/*.local
+            const perJail: { jail: string; ips: string[]; extra: string[]; missing: string[] }[] = [];
+            for (const localFile of dLocals) {
+                const localRaw: Record<string, Record<string, string>> = {};
+                parseJailIniFile(localFile, {}, localRaw);
+                for (const [jailName, kv] of Object.entries(localRaw)) {
+                    if (!kv['ignoreip']) continue;
+                    const ips = kv['ignoreip'].split(/\s+/).map((s: string) => s.trim()).filter(Boolean);
+                    const ipSet = new Set(ips);
+                    const extra   = ips.filter(ip => !globalSet.has(ip));
+                    const missing = globalIps.filter(ip => !ipSet.has(ip));
+                    if (extra.length || missing.length) {
+                        perJail.push({ jail: jailName, ips, extra, missing });
+                    }
+                }
+            }
+
+            res.json({ success: true, result: { ok: true, globalIps, perJail } });
+        }));
+
+        // GET /whitelist/safe-banned  — currently-active bans that match known-safe IP ranges
+        router.get('/whitelist/safe-banned', requireAuth, asyncHandler(async (_req, res) => {
+            if (!this.isEnabled()) return res.json({ success: true, result: { ok: false, error: 'Plugin désactivé' } });
+
+            // Load safe ranges
+            interface SafeProvider { color: string; desc: string; ranges: string[] }
+            let safeRanges: Record<string, SafeProvider>;
+            try {
+                safeRanges = JSON.parse(fs.readFileSync(path.join(__dirname, 'safe-ip-ranges.json'), 'utf8'));
+            } catch { return res.json({ success: true, result: { ok: false, error: 'safe-ip-ranges.json introuvable' } }); }
+
+            // CIDR match helper (IPv4 only)
+            function ipInCidr(ip: string, cidr: string): boolean {
+                if (ip.includes(':')) return false; // skip IPv6
+                const [subnet, bits] = cidr.split('/');
+                const b = parseInt(bits, 10);
+                const toL = (s: string) => { const p = s.split('.').map(Number); return ((p[0] << 24) | (p[1] << 16) | (p[2] << 8) | p[3]) >>> 0; };
+                const mask = b === 32 ? 0xFFFFFFFF : (~(0xFFFFFFFF >>> b)) >>> 0;
+                return (toL(ip) & mask) === (toL(subnet) & mask);
+            }
+
+            // Get currently-active bans from app DB
+            const evDb = getDatabase();
+            const now = Math.floor(Date.now() / 1000);
+            const activeBans = evDb.prepare(`
+                SELECT ip, jail, timeofban, bantime
+                FROM f2b_events
+                WHERE event_type='ban' AND (bantime = -1 OR (timeofban + bantime) > ?)
+                ORDER BY timeofban DESC
+            `).all(now) as { ip: string; jail: string; timeofban: number; bantime: number }[];
+
+            // Match against safe ranges
+            interface Hit { ip: string; jail: string; timeofban: number; bantime: number; provider: string; cidr: string; color: string }
+            const hits: Hit[] = [];
+            for (const ban of activeBans) {
+                for (const [provider, info] of Object.entries(safeRanges)) {
+                    for (const cidr of info.ranges) {
+                        if (ipInCidr(ban.ip, cidr)) {
+                            hits.push({ ...ban, provider, cidr, color: info.color });
+                            break; // one match per ban is enough
+                        }
+                    }
+                    if (hits.length > 0 && hits[hits.length - 1].ip === ban.ip) break; // already matched
+                }
+            }
+
+            // Metadata for providers (colors + desc) for frontend rendering
+            const providers = Object.fromEntries(
+                Object.entries(safeRanges).map(([name, info]) => [name, { color: info.color, desc: info.desc }])
+            );
+
+            res.json({ success: true, result: { ok: true, hits, providers } });
+        }));
+
         // GET /jails/:name/params  — read current effective + local override values
         router.get('/jails/:name/params', requireAuth, asyncHandler(async (req, res) => {
             if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
@@ -1612,24 +1707,88 @@ export class Fail2banPlugin extends BasePlugin {
                         } catch { /* bad JSON */ }
                     }
 
-                    // 2. Banned IPs in period with their total failures
-                    const bannedRows = (allTime
-                        ? evDb.prepare(`SELECT ip, COALESCE(SUM(failures),0) AS tf FROM f2b_events WHERE event_type='ban' GROUP BY ip`).all()
-                        : evDb.prepare(`SELECT ip, COALESCE(SUM(failures),0) AS tf FROM f2b_events WHERE event_type='ban' AND timeofban >= ? GROUP BY ip`).all(since)
-                    ) as { ip: string; tf: number }[];
-                    const bannedIps = new Map<string, number>(bannedRows.map(r => [r.ip, r.tf]));
-
-                    // 3. Scan proxy-host-N_access.log files, read last 5 MB each
+                    // 2. Build jail → log files map from fail2ban config
+                    //    Only jails that explicitly watch a proxy-host log file are relevant here.
+                    //    This ensures SSH/recidive jails never pollute domain stats.
+                    const confBase = this.resolveDockerPathSync('/etc/fail2ban');
+                    const jailMeta = parseJailConfigs(confBase);
                     const logsDir = this.resolveDockerPathSync(`${npmDataPath}/logs`);
+
+                    // Map: proxy-host log filename → jails that watch it (direct or via glob)
+                    // A jail logpath matches a proxy-host log if:
+                    //   a) exact match after docker path resolution
+                    //   b) contains "proxy-host-N" substring (wildcard jail watching all NPM logs)
+                    const logFileToJails = new Map<string, Set<string>>();
+                    for (const [jailName, meta] of Object.entries(jailMeta)) {
+                        if (!meta.logpath) continue;
+                        // Expand comma/space separated logpaths
+                        const logpaths = meta.logpath.split(/[\s,]+/).map(s => s.trim()).filter(Boolean);
+                        for (const lp of logpaths) {
+                            const resolved = this.resolveDockerPathSync(lp);
+                            // Wildcard jail watching all proxy-host logs
+                            if (/proxy-host/i.test(resolved) && resolved.includes('*')) {
+                                // This jail is responsible for ALL proxy-host-N logs
+                                try {
+                                    const files = fs.readdirSync(logsDir)
+                                        .filter(f => /^proxy-host-(\d+)[_.-]/i.test(f) && /access/i.test(f));
+                                    for (const f of files) {
+                                        if (!logFileToJails.has(f)) logFileToJails.set(f, new Set());
+                                        logFileToJails.get(f)!.add(jailName);
+                                    }
+                                } catch { /* logs dir not readable */ }
+                            } else if (/proxy-host-(\d+)/i.test(resolved)) {
+                                // Direct reference to a specific proxy-host log
+                                const fname = path.basename(resolved);
+                                if (!logFileToJails.has(fname)) logFileToJails.set(fname, new Set());
+                                logFileToJails.get(fname)!.add(jailName);
+                            }
+                        }
+                    }
+
+                    // 3. Banned IPs per jail in the period, with their jail-specific failures
+                    const bannedRows = (allTime
+                        ? evDb.prepare(`SELECT ip, jail, COALESCE(failures,0) AS tf FROM f2b_events WHERE event_type='ban'`).all()
+                        : evDb.prepare(`SELECT ip, jail, COALESCE(failures,0) AS tf FROM f2b_events WHERE event_type='ban' AND timeofban >= ?`).all(since)
+                    ) as { ip: string; jail: string; tf: number }[];
+
+                    // jailBannedIps: jail → Map<ip, failures> (only for that jail's bans)
+                    const jailBannedIps = new Map<string, Map<string, number>>();
+                    for (const row of bannedRows) {
+                        if (!jailBannedIps.has(row.jail)) jailBannedIps.set(row.jail, new Map());
+                        const m = jailBannedIps.get(row.jail)!;
+                        m.set(row.ip, (m.get(row.ip) ?? 0) + row.tf);
+                    }
+
+                    // 4. Scan only proxy-host logs that have at least one responsible jail
+                    //    Count IPs banned by THOSE jails that appear in the log.
                     const logFiles = fs.readdirSync(logsDir)
                         .filter(f => /^proxy-host-(\d+)[_.-]/i.test(f) && /access/i.test(f));
 
                     const domainBans: Record<string, { bans: number; failures: number }> = {};
                     for (const logFile of logFiles) {
-                        const m = logFile.match(/^proxy-host-(\d+)/i);
-                        if (!m) continue;
-                        const domain = idToDomain[m[1]];
+                        const mf = logFile.match(/^proxy-host-(\d+)/i);
+                        if (!mf) continue;
+                        const domain = idToDomain[mf[1]];
                         if (!domain) continue;
+
+                        // Jails responsible for this log file
+                        const responsibleJails = logFileToJails.get(logFile);
+                        if (!responsibleJails || responsibleJails.size === 0) {
+                            // No fail2ban jail watches this domain's log → 0 bans, skip
+                            continue;
+                        }
+
+                        // Merge banned IPs from all responsible jails
+                        const candidateIps = new Map<string, number>(); // ip → failures
+                        for (const jail of responsibleJails) {
+                            const jailMap = jailBannedIps.get(jail);
+                            if (!jailMap) continue;
+                            for (const [ip, tf] of jailMap) {
+                                candidateIps.set(ip, (candidateIps.get(ip) ?? 0) + tf);
+                            }
+                        }
+                        if (candidateIps.size === 0) continue;
+
                         const filePath = path.join(logsDir, logFile);
                         try {
                             const stat = fs.statSync(filePath);
@@ -1640,7 +1799,7 @@ export class Fail2banPlugin extends BasePlugin {
                             fs.closeSync(fd);
                             const content = buf.toString('utf8');
                             let bans = 0, failures = 0;
-                            for (const [ip, tf] of bannedIps) {
+                            for (const [ip, tf] of candidateIps) {
                                 if (content.includes(ip)) { bans++; failures += tf; }
                             }
                             if (bans > 0) {
@@ -1660,6 +1819,94 @@ export class Fail2banPlugin extends BasePlugin {
             }
 
             res.json({ success: true, result: { ok: true, topIps, topJails, topRecidivists, topDomains, heatmap, heatmapFailed, heatmapWeek, heatmapFailedWeek, summary, prevSummary } });
+        }));
+
+        // GET /tops/domain-detail  — detail bans counted for one domain (same algo as topDomains)
+        router.get('/tops/domain-detail', requireAuth, asyncHandler(async (req, res) => {
+            if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
+            const domain   = String(req.query.domain ?? '').toLowerCase().trim();
+            const days     = parseInt(String(req.query.days ?? '30'), 10);
+            if (!domain) return res.json({ success: true, result: { ok: false, error: 'domain required' } });
+
+            const npmDataPath = (this.config?.settings as unknown as Fail2banPluginConfig | undefined)?.npmDataPath ?? '';
+            if (!npmDataPath) return res.json({ success: true, result: { ok: true, domain, jails: [], bans: [] } });
+
+            const evDb   = getDatabase();
+            const now    = Math.floor(Date.now() / 1000);
+            const since  = days === 0 ? 0 : now - days * 86400;
+            const allTime = days === 0;
+
+            // Build jail → log files mapping (same logic as /tops)
+            const confBase = this.resolveDockerPathSync('/etc/fail2ban');
+            const jailMeta = parseJailConfigs(confBase);
+            const logsDir  = this.resolveDockerPathSync(`${npmDataPath}/logs`);
+
+            // Find the proxy-host log file(s) for this specific domain
+            const npmDbPath = this.resolveDockerPathSync(`${npmDataPath}/database.sqlite`);
+            const idToDomain: Record<string, string> = {};
+            let domainLogFile: string | null = null;
+            try {
+                const npmDb = new (await import('better-sqlite3')).default(npmDbPath, { readonly: true, fileMustExist: true });
+                const proxyRows = npmDb.prepare('SELECT id, domain_names FROM proxy_host WHERE is_deleted=0').all() as { id: number; domain_names: string }[];
+                npmDb.close();
+                for (const row of proxyRows) {
+                    try {
+                        const ns: string[] = JSON.parse(row.domain_names);
+                        if (ns.length) {
+                            const d = ns[0].replace(/^www\./, '').toLowerCase();
+                            idToDomain[String(row.id)] = d;
+                            if (d === domain) domainLogFile = `proxy-host-${row.id}_access.log`;
+                        }
+                    } catch { /* bad JSON */ }
+                }
+            } catch { return res.json({ success: true, result: { ok: false, error: 'NPM DB inaccessible' } }); }
+
+            if (!domainLogFile) return res.json({ success: true, result: { ok: true, domain, jails: [], bans: [] } });
+
+            // Find responsible jails for this log file
+            const responsibleJails = new Set<string>();
+            for (const [jailName, meta] of Object.entries(jailMeta)) {
+                if (!meta.logpath) continue;
+                const logpaths = meta.logpath.split(/[\s,]+/).map((s: string) => s.trim()).filter(Boolean);
+                for (const lp of logpaths) {
+                    const resolved = this.resolveDockerPathSync(lp);
+                    if (/proxy-host/i.test(resolved) && resolved.includes('*')) {
+                        responsibleJails.add(jailName);
+                        break;
+                    } else if (path.basename(resolved) === domainLogFile) {
+                        responsibleJails.add(jailName);
+                        break;
+                    }
+                }
+            }
+
+            // Get all bans from responsible jails in period
+            const jailList = [...responsibleJails];
+            if (jailList.length === 0) return res.json({ success: true, result: { ok: true, domain, jails: [], bans: [] } });
+
+            const placeholders = jailList.map(() => '?').join(',');
+            const banRows = (allTime
+                ? evDb.prepare(`SELECT ip, jail, timeofban, bantime, COALESCE(failures,0) as failures FROM f2b_events WHERE event_type='ban' AND jail IN (${placeholders}) ORDER BY timeofban DESC`).all(...jailList)
+                : evDb.prepare(`SELECT ip, jail, timeofban, bantime, COALESCE(failures,0) as failures FROM f2b_events WHERE event_type='ban' AND jail IN (${placeholders}) AND timeofban >= ? ORDER BY timeofban DESC`).all(...jailList, since)
+            ) as { ip: string; jail: string; timeofban: number; bantime: number; failures: number }[];
+
+            // Scan the domain's log file for matching IPs
+            const logFilePath = path.join(logsDir, domainLogFile);
+            let content = '';
+            try {
+                const stat = fs.statSync(logFilePath);
+                const readSize = Math.min(stat.size, 5 * 1024 * 1024);
+                const buf = Buffer.alloc(readSize);
+                const fd = fs.openSync(logFilePath, 'r');
+                fs.readSync(fd, buf, 0, readSize, stat.size - readSize);
+                fs.closeSync(fd);
+                content = buf.toString('utf8');
+            } catch { return res.json({ success: true, result: { ok: true, domain, jails: jailList, bans: [] } }); }
+
+            // Filter: only IPs that appear in this domain's log
+            const matchedBans = banRows.filter(b => content.includes(b.ip));
+
+            res.json({ success: true, result: { ok: true, domain, jails: jailList, bans: matchedBans } });
         }));
 
         // GET /audit  — historique bans (f2b_events — notre DB, historique complet) + enrichissements

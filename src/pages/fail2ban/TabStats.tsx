@@ -4,13 +4,14 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
     Shield, Ban, AlertTriangle, ShieldOff, Database,
-    TrendingUp, Lock, RotateCcw, Clock, Target, BarChart2, Gauge, List, Search,
+    TrendingUp, Lock, RotateCcw, Clock, Target, BarChart2, Gauge, List, Search, X,
 } from 'lucide-react';
 import { card, PERIODS, F2bTooltip } from './helpers';
 import { api } from '../../api/client';
 import type { JailStatus, BanEntry } from './types';
 import { TabJailsEvents } from './TabJails';
 import { primeTopsPrevTotalFromFullFetch } from './fail2banTopsPrevFlight';
+import { dispatchTabLoaded } from '../../utils/tabTimer';
 
 // ── Module-level cache (survives tab navigation) ──────────────────────────────
 const _cache: Record<string, { data: unknown; ts: number }> = {};
@@ -51,9 +52,9 @@ const PeriodBtns: React.FC<{ days: number; color?: string; onChange: (d: number)
 // ── Card wrapper ──────────────────────────────────────────────────────────────
 const SCard: React.FC<{
     icon: React.ReactNode; color: string; title: string; sub?: React.ReactNode; children: React.ReactNode;
-    right?: React.ReactNode; collapsible?: boolean;
-}> = ({ icon, color, title, sub, children, right, collapsible }) => {
-    const [open, setOpen] = useState(true);
+    right?: React.ReactNode; collapsible?: boolean; defaultOpen?: boolean;
+}> = ({ icon, color, title, sub, children, right, collapsible, defaultOpen = true }) => {
+    const [open, setOpen] = useState(defaultOpen);
     return (
         <div style={{ background: C.bg1, border: `1px solid ${C.border}`, borderRadius: 8, overflow: 'hidden' }}>
             <div style={{ background: C.bg2, padding: '.65rem 1rem', borderBottom: open && !collapsible ? `1px solid ${C.border}` : open ? `1px solid ${C.border}` : 'none', display: 'flex', alignItems: 'center', gap: '.5rem', cursor: collapsible ? 'pointer' : undefined }}
@@ -67,6 +68,124 @@ const SCard: React.FC<{
                 {collapsible && <span style={{ color: C.muted, fontSize: '.72rem', marginLeft: right ? '.5rem' : 'auto', transform: open ? undefined : 'rotate(-90deg)', display: 'inline-block', transition: 'transform .15s' }}>▼</span>}
             </div>
             {open && children}
+        </div>
+    );
+};
+
+// ── Domain detail modal ───────────────────────────────────────────────────────
+interface DomainDetailBan { ip: string; jail: string; timeofban: number; bantime: number; failures: number }
+interface DomainDetailData { ok: boolean; domain: string; jails: string[]; bans: DomainDetailBan[] }
+
+const DomainDetailModal: React.FC<{
+    domain: string; days: number;
+    onClose: () => void;
+    onIpClick?: (ip: string) => void;
+}> = ({ domain, days, onClose, onIpClick }) => {
+    const [data, setData]       = useState<DomainDetailData | null>(null);
+    const [loading, setLoading] = useState(true);
+    const now = Math.floor(Date.now() / 1000);
+
+    useEffect(() => {
+        setLoading(true); setData(null);
+        api.get<DomainDetailData>(`/api/plugins/fail2ban/tops/domain-detail?domain=${encodeURIComponent(domain)}&days=${days}`)
+            .then(res => { if (res.success && res.result?.ok) setData(res.result); })
+            .finally(() => setLoading(false));
+    }, [domain, days]);
+
+    const fmtDate = (ts: number) => {
+        const d = new Date(ts * 1000);
+        const p = (n: number) => String(n).padStart(2, '0');
+        return `${p(d.getDate())}/${p(d.getMonth()+1)} ${p(d.getHours())}:${p(d.getMinutes())}`;
+    };
+    const fmtExpiry = (ban: DomainDetailBan) => {
+        if (ban.bantime === -1) return '∞';
+        const rem = ban.timeofban + ban.bantime - now;
+        if (rem <= 0) return 'expiré';
+        if (rem < 3600) return `${Math.round(rem/60)}m`;
+        if (rem < 86400) return `${Math.round(rem/3600)}h`;
+        return `${Math.round(rem/86400)}j`;
+    };
+
+    const periodLabel = PERIODS.find(p => p.days === days)?.label ?? `${days}j`;
+    const bans = data?.bans ?? [];
+    const totalFailures = bans.reduce((s, b) => s + b.failures, 0);
+
+    return (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1100, background: 'rgba(0,0,0,.72)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
+            onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+            <div style={{ background: C.bg0, border: `1px solid ${C.border}`, borderRadius: 10, width: '96vw', maxWidth: 860, maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
+                {/* Header */}
+                <div style={{ background: C.bg2, padding: '.65rem 1rem', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: '.6rem', flexShrink: 0, borderRadius: '10px 10px 0 0' }}>
+                    <img src={`https://icons.duckduckgo.com/ip3/${encodeURIComponent(domain)}.ico`} width={16} height={16} style={{ borderRadius: 3 }} alt="" onError={e => { (e.currentTarget as HTMLImageElement).style.display='none'; }} />
+                    <span style={{ fontFamily: 'monospace', fontSize: '1rem', fontWeight: 700, color: C.cyan }}>{domain}</span>
+                    <span style={{ fontSize: '.72rem', color: C.muted }}>· {periodLabel}</span>
+                    {!loading && data && (
+                        <>
+                            <span style={{ fontSize: '.72rem', color: C.cyan, background: `${C.cyan}18`, border: `1px solid ${C.cyan}33`, borderRadius: 4, padding: '.1rem .4rem' }}>{bans.length} IP{bans.length !== 1 ? 's' : ''} bannies</span>
+                            <span style={{ fontSize: '.72rem', color: C.orange, background: `${C.orange}18`, border: `1px solid ${C.orange}33`, borderRadius: 4, padding: '.1rem .4rem' }}>{totalFailures} tentatives</span>
+                        </>
+                    )}
+                    <button onClick={onClose} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: C.muted, display: 'flex', padding: '.2rem', borderRadius: 4 }}>
+                        <X style={{ width: 15, height: 15 }} />
+                    </button>
+                </div>
+
+                {/* Jails responsables */}
+                {!loading && data && data.jails.length > 0 && (
+                    <div style={{ padding: '.5rem 1rem', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: '.4rem', flexShrink: 0, flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '.68rem', color: C.muted }}>Jails fail2ban responsables :</span>
+                        {data.jails.map(j => (
+                            <span key={j} style={{ fontFamily: 'monospace', fontSize: '.68rem', background: 'rgba(63,185,80,.08)', color: C.green, border: `1px solid ${C.green}33`, borderRadius: 3, padding: '.05rem .3rem' }}>{j}</span>
+                        ))}
+                        <span style={{ fontSize: '.65rem', color: C.muted, marginLeft: '.3rem' }}>— seules les IPs bannies par ces jails ET présentes dans le log de ce domaine sont comptées</span>
+                    </div>
+                )}
+
+                {/* Content */}
+                <div style={{ overflowY: 'auto', flex: 1 }}>
+                    {loading && <div style={{ padding: '2rem', textAlign: 'center', color: C.muted, fontSize: '.85rem' }}>Chargement…</div>}
+                    {!loading && !data && <div style={{ padding: '1.5rem', color: C.orange, fontSize: '.82rem', textAlign: 'center' }}>Données non disponibles (NPM non configuré ?)</div>}
+                    {!loading && data && data.jails.length === 0 && (
+                        <div style={{ padding: '1.5rem', textAlign: 'center', fontSize: '.82rem', color: C.green }}>
+                            ✓ Aucun jail fail2ban ne surveille ce domaine — 0 bans attribuables.
+                        </div>
+                    )}
+                    {!loading && data && data.jails.length > 0 && bans.length === 0 && (
+                        <div style={{ padding: '1.5rem', textAlign: 'center', fontSize: '.82rem', color: C.green }}>
+                            ✓ Aucun IP bannie n'est apparue dans le log de ce domaine sur la période.
+                        </div>
+                    )}
+                    {!loading && data && bans.length > 0 && (
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.78rem' }}>
+                            <thead>
+                                <tr style={{ background: C.bg2, position: 'sticky', top: 0 }}>
+                                    {['IP', 'Jail', 'Ban le', 'Tentatives', 'Expiry'].map(h => (
+                                        <th key={h} style={{ padding: '.4rem .75rem', borderBottom: `1px solid ${C.border}`, fontSize: '.65rem', fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '.04em', color: C.muted, textAlign: h === 'IP' || h === 'Jail' ? 'left' : 'center', whiteSpace: 'nowrap' as const }}>{h}</th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {bans.map((b, i) => (
+                                    <tr key={`${b.ip}-${b.timeofban}`} style={{ borderBottom: `1px solid ${C.border}`, background: i % 2 === 0 ? 'transparent' : `${C.bg1}55` }}>
+                                        <td style={{ padding: '.35rem .75rem', whiteSpace: 'nowrap' as const }}>
+                                            {onIpClick
+                                                ? <button onClick={() => { onIpClick(b.ip); onClose(); }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'monospace', fontSize: '.78rem', color: C.blue, fontWeight: 600 }}>{b.ip}</button>
+                                                : <span style={{ fontFamily: 'monospace', color: C.red, fontWeight: 600 }}>{b.ip}</span>
+                                            }
+                                        </td>
+                                        <td style={{ padding: '.35rem .75rem' }}>
+                                            <span style={{ fontFamily: 'monospace', fontSize: '.72rem', color: C.green }}>{b.jail}</span>
+                                        </td>
+                                        <td style={{ padding: '.35rem .75rem', textAlign: 'center', color: C.muted, whiteSpace: 'nowrap' as const }}>{fmtDate(b.timeofban)}</td>
+                                        <td style={{ padding: '.35rem .75rem', textAlign: 'center', fontWeight: 700, color: b.failures >= 20 ? C.red : b.failures >= 5 ? C.orange : C.muted }}>{b.failures}</td>
+                                        <td style={{ padding: '.35rem .75rem', textAlign: 'center', fontSize: '.72rem', color: C.muted }}>{fmtExpiry(b)}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    )}
+                </div>
+            </div>
         </div>
     );
 };
@@ -340,7 +459,7 @@ interface TopsData {
     prevSummary?: { totalBans: number; uniqueIps: number; topJail: string | null; topJailCount: number; totalFailures: number; expiredInPeriod: number } | null;
 }
 
-const TopCard: React.FC<{ icon: React.ReactNode; title: string; color: string; periodLabel?: string; entries: TopEntry[]; loading: boolean; labelKey: 'ip' | 'jail'; viewMode: 'bar' | 'pie'; limit: number; rowPrefix?: (label: string) => React.ReactNode; emptyMsg?: string; secondaryLabel?: string; onIpClick?: (ip: string) => void }> = ({ icon, title, color, periodLabel, entries, loading, labelKey, viewMode, limit, rowPrefix, emptyMsg, secondaryLabel, onIpClick }) => {
+const TopCard: React.FC<{ icon: React.ReactNode; title: string; color: string; periodLabel?: string; entries: TopEntry[]; loading: boolean; labelKey: 'ip' | 'jail'; viewMode: 'bar' | 'pie'; limit: number; rowPrefix?: (label: string) => React.ReactNode; emptyMsg?: string; secondaryLabel?: string; onIpClick?: (ip: string) => void; onLabelClick?: (label: string) => void }> = ({ icon, title, color, periodLabel, entries, loading, labelKey, viewMode, limit, rowPrefix, emptyMsg, secondaryLabel, onIpClick, onLabelClick }) => {
     const displayed = limit === 0 ? entries : entries.slice(0, limit);
     const hasMore   = limit > 0 && entries.length > limit;
     const max   = Math.max(...entries.map(e => e.count), 1);
@@ -385,7 +504,17 @@ const TopCard: React.FC<{ icon: React.ReactNode; title: string; color: string; p
             )}
             {/* Body */}
             <div style={{ flex: 1, padding: viewMode === 'pie' ? '1rem' : '0', position: 'relative' }}>
-                {loading ? <div style={{ textAlign: 'center', padding: '1rem', color: C.muted, fontSize: '.78rem' }}>Chargement…</div>
+                {loading ? (
+                    <div style={{ padding: '.35rem 0 .5rem' }}>
+                        {Array.from({ length: 7 }, (_, i) => (
+                            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.32rem .65rem' }}>
+                                <span style={{ color: C.muted, fontSize: '.68rem', minWidth: 14, textAlign: 'right', opacity: .4 }}>{i + 1}</span>
+                                <div style={{ flex: 1, height: 9, background: C.bg3, borderRadius: 3, animation: `f2b-shimmer 1.6s ease-in-out ${(i * 0.12).toFixed(2)}s infinite` }} />
+                                <div style={{ width: 28, height: 9, background: C.bg3, borderRadius: 3, animation: `f2b-shimmer 1.6s ease-in-out ${(i * 0.12).toFixed(2)}s infinite` }} />
+                            </div>
+                        ))}
+                    </div>
+                )
                 : entries.length === 0 ? <div style={{ textAlign: 'center', padding: '1rem', color: C.muted, fontSize: '.78rem' }}>{emptyMsg ?? 'Aucune donnée'}</div>
                 : viewMode === 'pie' ? (
                     <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start', flexWrap: 'wrap' }}>
@@ -423,7 +552,8 @@ const TopCard: React.FC<{ icon: React.ReactNode; title: string; color: string; p
                     <div style={{ position: 'relative', paddingTop: '.4rem', paddingBottom: '.5rem' }}>
                         {displayed.map((e, i) => {
                             const label = labelKey === 'ip' ? e.ip! : e.jail!;
-                            const clickable = labelKey === 'ip' && !!onIpClick;
+                            const clickable = !!onLabelClick || (labelKey === 'ip' && !!onIpClick);
+                            const handleLabelClick = onLabelClick ? () => onLabelClick(label) : (onIpClick ? () => onIpClick(label) : undefined);
                             const ratio = e.count / max;
                             // Gravity gradient: full color → 55% opacity, dimmer for lower ranks
                             const rankOpacity = Math.max(0.45, 1 - (i / Math.max(displayed.length - 1, 1)) * 0.5);
@@ -432,7 +562,7 @@ const TopCard: React.FC<{ icon: React.ReactNode; title: string; color: string; p
                                     <span style={{ width: 18, fontSize: '.65rem', color: C.muted, textAlign: 'right', flexShrink: 0 }}>{i + 1}</span>
                                     {rowPrefix && <span style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>{rowPrefix(label)}</span>}
                                     {clickable ? (
-                                        <button onClick={() => onIpClick!(label)}
+                                        <button onClick={handleLabelClick}
                                             style={{ flex: 1, minWidth: 0, background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'monospace', fontSize: '.75rem', color: '#e6edf3', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'left' }}>
                                             {label}
                                         </button>
@@ -600,7 +730,44 @@ const HeatmapSection: React.FC<{
             collapsible>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', padding: '1rem 1.25rem 1.25rem' }}>
                 {loading ? (
-                    <div style={{ textAlign: 'center', padding: '1.5rem', color: C.muted, fontSize: '.85rem' }}>Chargement…</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                        {/* Skeleton bar chart */}
+                        <div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '32px repeat(24, 1fr)', gap: 3, height: 120, alignItems: 'end', width: '100%' }}>
+                                <div />
+                                {[20,35,55,80,60,45,100,90,70,55,35,45,65,55,75,95,85,65,45,35,55,45,35,20].map((h, i) => (
+                                    <div key={i} style={{ height: h, background: C.bg3, borderRadius: '3px 3px 0 0', animation: `f2b-shimmer 1.6s ease-in-out ${(i * 0.04).toFixed(2)}s infinite` }} />
+                                ))}
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '32px repeat(24, 1fr)', gap: 3, width: '100%', paddingTop: '.25rem' }}>
+                                <div />
+                                {Array.from({ length: 24 }, (_, h) => (
+                                    <div key={h} style={{ fontSize: '.58rem', color: C.muted, textAlign: 'center', lineHeight: 1, opacity: .4 }}>
+                                        {h % 6 === 0 ? `${h}h` : ''}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                        {/* Skeleton week heatmap */}
+                        <div>
+                            <div style={{ display: 'inline-grid', gridTemplateColumns: '32px repeat(24, 1fr)', gap: 3, width: '100%' }}>
+                                <div />
+                                {Array.from({ length: 24 }, (_, hr) => (
+                                    <div key={hr} style={{ fontSize: '.58rem', color: C.muted, textAlign: 'center', lineHeight: 1, opacity: .4 }}>
+                                        {hr % 6 === 0 ? `${hr}h` : ''}
+                                    </div>
+                                ))}
+                                {DAYS_FR.map((day, di) => (
+                                    <React.Fragment key={day}>
+                                        <div style={{ fontSize: '.68rem', color: C.muted, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 6, whiteSpace: 'nowrap', opacity: .5 }}>{day}</div>
+                                        {Array.from({ length: 24 }, (_, hr) => (
+                                            <div key={hr} style={{ aspectRatio: '1', minHeight: 18, background: C.bg3, borderRadius: 3, animation: `f2b-shimmer 1.8s ease-in-out ${((di * 24 + hr) * 0.005).toFixed(3)}s infinite` }} />
+                                        ))}
+                                    </React.Fragment>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
                 ) : <>
                     {/* ── Peak-hours bar chart ── */}
                     <div>
@@ -676,7 +843,7 @@ const HeatmapSection: React.FC<{
 // ── Tops section ──────────────────────────────────────────────────────────────
 const TOP_LIMITS = [15, 25, 50, 0];
 
-const TopsSection: React.FC<{ days: number; onDaysChange: (d: number) => void; onIpClick?: (ip: string) => void; jails: JailStatus[]; data: TopsData | null; loading: boolean }> = ({ days, onDaysChange, onIpClick, jails, data, loading }) => {
+const TopsSection: React.FC<{ days: number; onDaysChange: (d: number) => void; onIpClick?: (ip: string) => void; onDomainClick?: (domain: string) => void; jails: JailStatus[]; data: TopsData | null; loading: boolean }> = ({ days, onDaysChange, onIpClick, onDomainClick, jails, data, loading }) => {
     const [viewMode, setViewMode] = useState<'bar' | 'pie'>('bar');
     const [topLimit, setTopLimit] = useState(15);
     const periodLabel = PERIODS.find(p => p.days === days)?.label ?? `${days}j`;
@@ -723,6 +890,7 @@ const TopsSection: React.FC<{ days: number; onDaysChange: (d: number) => void; o
                     viewMode={viewMode}
                     limit={topLimit}
                     emptyMsg="NPM uniquement — configurez le chemin données NPM dans l'onglet Config › Intégrations"
+                    onLabelClick={onDomainClick}
                     rowPrefix={(domain) => (
                         <>
                             <img src="/icons/services/nginx-proxy-manager.svg" width={13} height={13} style={{ borderRadius: 2, objectFit: 'contain' }} alt="NPM" />
@@ -742,6 +910,7 @@ const TopsSection: React.FC<{ days: number; onDaysChange: (d: number) => void; o
                     viewMode={viewMode}
                     limit={topLimit}
                     emptyMsg="NPM uniquement — configurez le chemin données NPM dans l'onglet Config › Intégrations"
+                    onLabelClick={onDomainClick}
                     rowPrefix={(domain) => (
                         <>
                             <img src="/icons/services/nginx-proxy-manager.svg" width={13} height={13} style={{ borderRadius: 2, objectFit: 'contain' }} alt="NPM" />
@@ -817,6 +986,199 @@ const TopsSection: React.FC<{ days: number; onDaysChange: (d: number) => void; o
 };
 
 
+// ── Whitelist stats ───────────────────────────────────────────────────────────
+interface WhitelistData { ok: boolean; globalIps: string[]; perJail: { jail: string; ips: string[]; extra: string[]; missing: string[] }[] }
+
+const WhitelistStatsSection: React.FC = () => {
+    const [data, setData]       = useState<WhitelistData | null>(() => getCached<WhitelistData>('whitelist:stats'));
+    const [loading, setLoading] = useState(() => !getCached<WhitelistData>('whitelist:stats'));
+    const [error, setError]     = useState<string | null>(null);
+    const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+    useEffect(() => {
+        const cached = getCached<WhitelistData>('whitelist:stats');
+        if (cached) { setData(cached); setLoading(false); }
+        api.get<WhitelistData>('/api/plugins/fail2ban/whitelist/stats')
+            .then(res => {
+                if (res.success && res.result?.ok) { setCached('whitelist:stats', res.result); setData(res.result); }
+                else if (!cached) setError(res.result?.ok === false ? 'Données non disponibles' : 'Erreur API');
+            })
+            .catch(e => { if (!cached) setError(String(e)); })
+            .finally(() => setLoading(false));
+    }, []);
+
+    const toggleJail = (jail: string) => setExpanded(prev => {
+        const s = new Set(prev); s.has(jail) ? s.delete(jail) : s.add(jail); return s;
+    });
+
+    const global = data?.globalIps ?? [];
+    const perJail = data?.perJail ?? [];
+
+    const IpChip: React.FC<{ ip: string; color?: string }> = ({ ip, color = C.green }) => (
+        <span style={{ fontFamily: 'monospace', fontSize: '.72rem', background: `${color}18`, color, border: `1px solid ${color}33`, borderRadius: 4, padding: '.1rem .35rem', whiteSpace: 'nowrap' as const }}>{ip}</span>
+    );
+
+    return (
+        <SCard
+            icon={<ShieldOff style={{ width: 14, height: 14 }} />}
+            color={C.green}
+            title="IPs whitelistées (ignoreip)"
+            sub={!loading && !error ? <span style={{ color: C.green, fontWeight: 600 }}>{global.length} global{perJail.length > 0 ? ` · ${perJail.length} jail${perJail.length > 1 ? 's' : ''} avec override` : ''}</span> : undefined}
+            collapsible
+        >
+            {loading && <div style={{ padding: '1.25rem 1rem', textAlign: 'center', fontSize: '.85rem', color: C.muted }}>Chargement…</div>}
+            {!loading && error && <div style={{ padding: '.75rem 1rem', color: C.orange, fontSize: '.8rem', fontFamily: 'monospace' }}>{error}</div>}
+            {!loading && !error && (
+                <div style={{ padding: '.75rem 1rem 1rem', display: 'flex', flexDirection: 'column', gap: '.9rem' }}>
+                    {/* Global section */}
+                    <div>
+                        <div style={{ fontSize: '.72rem', fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.5rem', display: 'flex', alignItems: 'center', gap: '.4rem' }}>
+                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: C.green, display: 'inline-block' }} />
+                            Global [DEFAULT] — {global.length} IP{global.length !== 1 ? 's' : ''}
+                        </div>
+                        {global.length === 0
+                            ? <span style={{ fontSize: '.78rem', color: C.muted, fontStyle: 'italic' }}>Aucune IP whitelistée globalement</span>
+                            : <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.35rem' }}>{global.map(ip => <IpChip key={ip} ip={ip} />)}</div>
+                        }
+                    </div>
+
+                    {/* Per-jail overrides */}
+                    {perJail.length > 0 && (
+                        <div>
+                            <div style={{ fontSize: '.72rem', fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.5rem', display: 'flex', alignItems: 'center', gap: '.4rem' }}>
+                                <span style={{ width: 6, height: 6, borderRadius: '50%', background: C.orange, display: 'inline-block' }} />
+                                Overrides par jail
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '.45rem' }}>
+                                {perJail.map(j => {
+                                    const open = expanded.has(j.jail);
+                                    return (
+                                        <div key={j.jail} style={{ background: C.bg2, borderRadius: 6, border: `1px solid ${C.border}`, overflow: 'hidden' }}>
+                                            <div onClick={() => toggleJail(j.jail)} style={{ cursor: 'pointer', padding: '.45rem .75rem', display: 'flex', alignItems: 'center', gap: '.5rem' }}>
+                                                <span style={{ fontFamily: 'monospace', fontSize: '.8rem', flex: 1, color: C.text }}>{j.jail}</span>
+                                                {j.extra.length > 0 && <span style={{ fontSize: '.67rem', color: C.green, background: `${C.green}18`, border: `1px solid ${C.green}33`, borderRadius: 3, padding: '.05rem .3rem' }}>+{j.extra.length} extra</span>}
+                                                {j.missing.length > 0 && <span style={{ fontSize: '.67rem', color: C.red, background: `${C.red}18`, border: `1px solid ${C.red}33`, borderRadius: 3, padding: '.05rem .3rem' }}>-{j.missing.length} absent</span>}
+                                                <span style={{ color: C.muted, fontSize: '.65rem', transform: open ? undefined : 'rotate(-90deg)', display: 'inline-block', transition: 'transform .15s' }}>▼</span>
+                                            </div>
+                                            {open && (
+                                                <div style={{ padding: '.5rem .75rem .75rem', borderTop: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
+                                                    {j.extra.length > 0 && (
+                                                        <div>
+                                                            <div style={{ fontSize: '.67rem', color: C.green, marginBottom: '.3rem' }}>Uniquement dans ce jail :</div>
+                                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.3rem' }}>{j.extra.map(ip => <IpChip key={ip} ip={ip} color={C.green} />)}</div>
+                                                        </div>
+                                                    )}
+                                                    {j.missing.length > 0 && (
+                                                        <div>
+                                                            <div style={{ fontSize: '.67rem', color: C.red, marginBottom: '.3rem' }}>Absents du global (ignorés dans ce jail) :</div>
+                                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.3rem' }}>{j.missing.map(ip => <IpChip key={ip} ip={ip} color={C.red} />)}</div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+
+                    {global.length === 0 && perJail.length === 0 && (
+                        <div style={{ padding: '.5rem 0', fontSize: '.8rem', color: C.muted, textAlign: 'center' }}>
+                            Aucune IP whitelistée configurée (ignoreip vide dans jail.conf/jail.local)
+                        </div>
+                    )}
+                </div>
+            )}
+        </SCard>
+    );
+};
+
+// ── Safe-IP ban check ─────────────────────────────────────────────────────────
+interface SafeHit { ip: string; jail: string; timeofban: number; bantime: number; provider: string; cidr: string; color: string }
+interface SafeBannedData { ok: boolean; hits: SafeHit[]; providers: Record<string, { color: string; desc: string }> }
+
+const SafeBannedSection: React.FC<{ onIpClick?: (ip: string) => void }> = ({ onIpClick }) => {
+    const [data, setData]       = useState<SafeBannedData | null>(() => getCached<SafeBannedData>('whitelist:safe-banned'));
+    const [loading, setLoading] = useState(() => !getCached<SafeBannedData>('whitelist:safe-banned'));
+    const [error, setError]     = useState<string | null>(null);
+
+    useEffect(() => {
+        const cached = getCached<SafeBannedData>('whitelist:safe-banned');
+        if (cached) { setData(cached); setLoading(false); }
+        api.get<SafeBannedData>('/api/plugins/fail2ban/whitelist/safe-banned')
+            .then(res => {
+                if (res.success && res.result?.ok) { setCached('whitelist:safe-banned', res.result); setData(res.result); }
+                else if (!cached) setError('Données non disponibles');
+            })
+            .catch(e => { if (!cached) setError(String(e)); })
+            .finally(() => setLoading(false));
+    }, []);
+
+    const hits = data?.hits ?? [];
+    const allClear = !loading && !error && hits.length === 0;
+    const now = Math.floor(Date.now() / 1000);
+
+    const fmtExpiry = (ban: SafeHit) => {
+        if (ban.bantime === -1) return '∞ permanent';
+        const remaining = ban.timeofban + ban.bantime - now;
+        if (remaining <= 0) return 'expiré';
+        if (remaining < 3600) return `${Math.round(remaining / 60)}m`;
+        if (remaining < 86400) return `${Math.round(remaining / 3600)}h`;
+        return `${Math.round(remaining / 86400)}j`;
+    };
+
+    const titleSub = !loading && !error
+        ? allClear
+            ? <span style={{ color: C.green, fontWeight: 600 }}>OK</span>
+            : <span style={{ color: C.red, fontWeight: 600 }}>{hits.length} IP{hits.length > 1 ? 's' : ''} à risque</span>
+        : undefined;
+
+    return (
+        <SCard
+            icon={<AlertTriangle style={{ width: 14, height: 14 }} />}
+            color={allClear ? C.green : C.red}
+            title="Bans à vérifier"
+            sub={titleSub}
+            collapsible
+            defaultOpen={false}
+        >
+            {loading && <div style={{ padding: '1.25rem 1rem', textAlign: 'center', fontSize: '.85rem', color: C.muted }}>Chargement…</div>}
+            {!loading && error && <div style={{ padding: '.75rem 1rem', color: C.orange, fontSize: '.8rem', fontFamily: 'monospace' }}>{error}</div>}
+            {!loading && !error && allClear && (
+                <div style={{ padding: '1rem', display: 'flex', alignItems: 'center', gap: '.5rem', fontSize: '.82rem', color: C.green }}>
+                    <span style={{ fontSize: '1rem' }}>✓</span>
+                    Aucune IP légitime connue n'est actuellement bannie.
+                </div>
+            )}
+            {!loading && !error && hits.length > 0 && (
+                <div style={{ padding: '.5rem 0 .75rem' }}>
+                    <div style={{ padding: '.4rem 1rem .6rem', fontSize: '.72rem', color: C.orange, borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: '.4rem' }}>
+                        <AlertTriangle style={{ width: 11, height: 11 }} />
+                        Ces IPs sont connues comme légitimes (proxy, DNS, monitoring, SEO) — vérifier et débannir si nécessaire.
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                        {hits.map((h, i) => (
+                            <div key={`${h.ip}-${h.jail}-${i}`} style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.4rem 1rem', borderBottom: i < hits.length - 1 ? `1px solid ${C.border}` : undefined, fontSize: '.78rem' }}>
+                                <span style={{ width: 8, height: 8, borderRadius: '50%', background: h.color, flexShrink: 0 }} />
+                                <span
+                                    style={{ fontFamily: 'monospace', color: onIpClick ? C.blue : C.text, cursor: onIpClick ? 'pointer' : undefined, flexShrink: 0, minWidth: 120 }}
+                                    onClick={() => onIpClick?.(h.ip)}
+                                >{h.ip}</span>
+                                <span style={{ fontSize: '.7rem', color: h.color, background: `${h.color}18`, border: `1px solid ${h.color}33`, borderRadius: 3, padding: '.05rem .3rem', flexShrink: 0, whiteSpace: 'nowrap' as const }}>{h.provider}</span>
+                                <span style={{ fontSize: '.67rem', color: C.muted, fontFamily: 'monospace', flexShrink: 0 }}>{h.cidr}</span>
+                                <span style={{ flex: 1 }} />
+                                <span style={{ fontSize: '.7rem', color: C.muted, flexShrink: 0 }}>jail: <span style={{ color: C.purple, fontFamily: 'monospace' }}>{h.jail}</span></span>
+                                <span style={{ fontSize: '.7rem', color: C.orange, flexShrink: 0 }}>{fmtExpiry(h)}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </SCard>
+    );
+};
+
 // ── Jail ban share bars ────────────────────────────────────────────────────────
 const JailBanShareBars: React.FC<{ jails: JailStatus[] }> = ({ jails }) => {
     const rows = [...jails].sort((a, b) => (b.totalBannedSqlite ?? b.totalBanned) - (a.totalBannedSqlite ?? a.totalBanned)).slice(0, 12);
@@ -863,9 +1225,14 @@ export const TabStats: React.FC<TabStatsProps> = ({
     totalBanned, totalFailed, totalAllTime, uniqueIpsTotal, firstEventAt, activeJails,
     days, onDaysChange, onIpClick,
 }) => {
+    // ── Domain detail modal ───────────────────────────────────────────────────
+    const [domainDetail, setDomainDetail] = useState<string | null>(null);
+
     // ── Single unified /tops fetch (replaces 5 independent section fetches) ────
     const [topsData, setTopsData] = useState<TopsData | null>(() => getCached<TopsData>(`tops:all:${days}`));
     const [topsLoading, setTopsLoading] = useState(() => !getCached<TopsData>(`tops:all:${days}`));
+    // Track whether the fetch was triggered as a loading (vs. background refresh)
+    const topsWasLoadingRef = useRef(false);
 
     const fetchTops = useCallback(() => {
         api.get<TopsData>(`/api/plugins/fail2ban/tops?days=${days}&limit=100&compare=1`)
@@ -877,7 +1244,14 @@ export const TabStats: React.FC<TabStatsProps> = ({
                 }
             })
             .catch(() => {})
-            .finally(() => setTopsLoading(false));
+            .finally(() => {
+                setTopsLoading(false);
+                // Dispatch tab-loaded only for the initial fetch (not 60s auto-refresh)
+                if (topsWasLoadingRef.current) {
+                    topsWasLoadingRef.current = false;
+                    dispatchTabLoaded();
+                }
+            });
     }, [days]);
 
     useEffect(() => {
@@ -886,7 +1260,10 @@ export const TabStats: React.FC<TabStatsProps> = ({
             setTopsData(cached);
             setTopsLoading(false);
             primeTopsPrevTotalFromFullFetch(days, cached.prevSummary?.totalBans ?? null);
-        } else setTopsLoading(true);
+        } else {
+            setTopsLoading(true);
+            topsWasLoadingRef.current = true; // mark: next fetch completion should dispatch tab-loaded
+        }
         fetchTops();
         const id = setInterval(fetchTops, 60_000);
         return () => clearInterval(id);
@@ -923,8 +1300,14 @@ export const TabStats: React.FC<TabStatsProps> = ({
             {/* IPSets */}
             <IpSetsSection days={days} onDaysChange={onDaysChange} />
 
+            {/* Whitelist + Safe-ban check — 2 colonnes */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', alignItems: 'start' }}>
+                <WhitelistStatsSection />
+                <SafeBannedSection onIpClick={onIpClick} />
+            </div>
+
             {/* Tops section */}
-            <TopsSection days={days} onDaysChange={onDaysChange} onIpClick={onIpClick} jails={jails} data={topsData} loading={topsLoading} />
+            <TopsSection days={days} onDaysChange={onDaysChange} onIpClick={onIpClick} onDomainClick={setDomainDetail} jails={jails} data={topsData} loading={topsLoading} />
 
             {/* Types d'attaque | 4 stat cards | Résumé période — 3 colonnes */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1.25rem', alignItems: 'start' }}>
@@ -1008,6 +1391,16 @@ export const TabStats: React.FC<TabStatsProps> = ({
 
             {/* Derniers événements — pleine largeur */}
             <TabJailsEvents onIpClick={onIpClick} days={days} />
+
+            {/* Domain detail modal */}
+            {domainDetail && (
+                <DomainDetailModal
+                    domain={domainDetail}
+                    days={days}
+                    onClose={() => setDomainDetail(null)}
+                    onIpClick={onIpClick}
+                />
+            )}
         </div>
     );
 };
