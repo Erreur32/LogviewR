@@ -127,82 +127,84 @@ export const Fail2banPathConfig: React.FC<Fail2banPathConfigProps> = ({
         }
     };
 
-    const borderSqlite = sqliteStatus === 'ok' ? 'border-green-600' : sqliteStatus === 'error' ? 'border-red-600' : 'border-gray-700';
-    const borderNpm    = npmCheck?.ok === true ? 'border-green-600' : npmCheck?.ok === false ? 'border-red-600' : 'border-gray-700';
+    const inputStyle = (status: 'idle' | 'ok' | 'error'): React.CSSProperties => ({
+        flex: 1, padding: '.38rem .65rem', fontSize: '.82rem', fontFamily: 'monospace',
+        background: '#161b22', color: '#e6edf3', outline: 'none', borderRadius: 4,
+        border: `1px solid ${status === 'ok' ? '#3fb950' : status === 'error' ? '#e86a65' : '#30363d'}`,
+        borderBottom: `1px solid ${status === 'ok' ? '#3fb950' : status === 'error' ? '#e86a65' : '#555'}`,
+        boxSizing: 'border-box' as const,
+        boxShadow: 'inset 0 2px 4px rgba(0,0,0,.55), inset 0 1px 0 rgba(0,0,0,.4), inset 0 -1px 0 rgba(255,255,255,.04)',
+        transition: 'border-color .15s',
+    });
+
+    const btnStyle = (color: string, bg: string): React.CSSProperties => ({
+        display: 'flex', alignItems: 'center', gap: '.3rem',
+        padding: '.38rem .7rem', borderRadius: 4, cursor: 'pointer',
+        background: bg, border: `1px solid ${color}66`, color,
+        fontSize: '.75rem', whiteSpace: 'nowrap' as const, flexShrink: 0,
+    });
 
     return (
-        <div className="space-y-4">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {/* SQLite path */}
             <div>
-                <div className="flex items-center gap-2 mb-2">
-                    <Database size={13} className="text-purple-400" />
-                    <span className="text-sm font-medium text-gray-300">Chemin base SQLite</span>
-                    <span className="text-amber-400 text-xs">(optionnel)</span>
-                    {sqliteStatus === 'ok'    && <span className="inline-flex items-center gap-1 text-xs text-green-400 ml-auto"><CheckCircle size={11} /> Accessible</span>}
-                    {sqliteStatus === 'error' && <span className="inline-flex items-center gap-1 text-xs text-red-400 ml-auto"><XCircle size={11} /> {sqliteError || 'Non accessible'}</span>}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', marginBottom: '.4rem' }}>
+                    <Database size={13} style={{ color: '#bc8cff', flexShrink: 0 }} />
+                    <span style={{ fontSize: '.82rem', fontWeight: 600, color: '#e6edf3' }}>Chemin base SQLite</span>
+                    <span style={{ fontSize: '.72rem', color: '#e3b341' }}>(optionnel)</span>
+                    {sqliteStatus === 'ok'    && <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.25rem', fontSize: '.72rem', color: '#3fb950', marginLeft: 'auto' }}><CheckCircle size={11} /> Accessible</span>}
+                    {sqliteStatus === 'error' && <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.25rem', fontSize: '.72rem', color: '#e86a65', marginLeft: 'auto' }}><XCircle size={11} /> {sqliteError || 'Non accessible'}</span>}
                 </div>
-                <div className="flex gap-2">
+                <div style={{ display: 'flex', gap: '.4rem' }}>
                     <input
                         type="text"
                         value={sqliteInput}
                         onChange={e => { setSqliteInput(e.target.value); setSqliteStatus('idle'); }}
                         placeholder="/var/lib/fail2ban/fail2ban.sqlite3"
-                        className={`flex-1 px-3 py-2 bg-[#1a1a1a] border ${borderSqlite} rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 text-sm font-mono transition-colors`}
+                        style={inputStyle(sqliteStatus)}
                     />
-                    <button
-                        type="button"
-                        onClick={saveSqlitePath}
-                        disabled={sqliteSaving}
-                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-red-500/15 border border-red-500/40 text-red-300 hover:bg-red-500/25 transition-colors text-xs whitespace-nowrap disabled:opacity-50"
-                    >
-                        {sqliteSaving ? <RefreshCw size={11} className="animate-spin" /> : <Save size={11} />}
+                    <button type="button" onClick={saveSqlitePath} disabled={sqliteSaving}
+                        style={{ ...btnStyle('#e86a65', 'rgba(232,106,101,.12)'), opacity: sqliteSaving ? .5 : 1 }}>
+                        {sqliteSaving ? <RefreshCw size={11} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={11} />}
                         {sqliteSaving ? 'Vérification…' : 'Sauvegarder'}
                     </button>
                 </div>
-                <p className="text-xs text-gray-500 mt-1">
-                    Vide = chemin par défaut <code className="text-red-400">/var/lib/fail2ban/fail2ban.sqlite3</code>
+                <p style={{ fontSize: '.72rem', color: '#8b949e', marginTop: '.3rem' }}>
+                    Vide = chemin par défaut <code style={{ color: '#e86a65' }}>/var/lib/fail2ban/fail2ban.sqlite3</code>
                 </p>
             </div>
 
             {/* NPM path */}
             <div>
-                <div className="flex items-center gap-2 mb-2">
-                    <Network size={13} className="text-cyan-400" />
-                    <span className="text-sm font-medium text-gray-300">Chemin données NPM</span>
-                    <span className="text-amber-400 text-xs">(optionnel)</span>
-                    {npmCheck?.ok === true  && <span className="inline-flex items-center gap-1 text-xs text-green-400 ml-auto"><CheckCircle size={11} /> {npmCheck.domains} domaine{npmCheck.domains !== 1 ? 's' : ''}</span>}
-                    {npmCheck?.ok === false && <span className="inline-flex items-center gap-1 text-xs text-red-400 ml-auto"><XCircle size={11} /> {npmCheck.error ?? 'Chemin invalide'}</span>}
-                    {npmSaved && !npmCheck  && <span className="inline-flex items-center gap-1 text-xs text-green-400 ml-auto"><CheckCircle size={11} /> Enregistré</span>}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', marginBottom: '.4rem' }}>
+                    <Network size={13} style={{ color: '#39c5cf', flexShrink: 0 }} />
+                    <span style={{ fontSize: '.82rem', fontWeight: 600, color: '#e6edf3' }}>Chemin données NPM</span>
+                    <span style={{ fontSize: '.72rem', color: '#e3b341' }}>(optionnel)</span>
+                    {npmCheck?.ok === true  && <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.25rem', fontSize: '.72rem', color: '#3fb950', marginLeft: 'auto' }}><CheckCircle size={11} /> {npmCheck.domains} domaine{npmCheck.domains !== 1 ? 's' : ''}</span>}
+                    {npmCheck?.ok === false && <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.25rem', fontSize: '.72rem', color: '#e86a65', marginLeft: 'auto' }}><XCircle size={11} /> {npmCheck.error ?? 'Chemin invalide'}</span>}
+                    {npmSaved && !npmCheck  && <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.25rem', fontSize: '.72rem', color: '#3fb950', marginLeft: 'auto' }}><CheckCircle size={11} /> Enregistré</span>}
                 </div>
-                <div className="flex gap-2">
+                <div style={{ display: 'flex', gap: '.4rem' }}>
                     <input
                         type="text"
                         value={npmInput}
                         onChange={e => { setNpmInput(e.target.value); setNpmCheck(null); }}
                         placeholder="/data  ou  /opt/npm/data"
-                        className={`flex-1 px-3 py-2 bg-[#1a1a1a] border ${borderNpm} rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 text-sm font-mono transition-colors`}
+                        style={inputStyle(npmCheck?.ok === true ? 'ok' : npmCheck?.ok === false ? 'error' : 'idle')}
                     />
-                    <button
-                        type="button"
-                        onClick={saveNpmPath}
-                        disabled={npmSaving}
-                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-red-500/15 border border-red-500/40 text-red-300 hover:bg-red-500/25 transition-colors text-xs whitespace-nowrap disabled:opacity-50"
-                    >
-                        {npmSaving ? <RefreshCw size={11} className="animate-spin" /> : <Save size={11} />}
+                    <button type="button" onClick={saveNpmPath} disabled={npmSaving}
+                        style={{ ...btnStyle('#e86a65', 'rgba(232,106,101,.12)'), opacity: npmSaving ? .5 : 1 }}>
+                        {npmSaving ? <RefreshCw size={11} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={11} />}
                         {npmSaving ? 'Sauvegarde…' : 'Sauvegarder'}
                     </button>
-                    <button
-                        type="button"
-                        onClick={checkNpm}
-                        disabled={npmChecking || !npmInput.trim()}
-                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-green-500/15 border border-green-500/40 text-green-300 hover:bg-green-500/25 transition-colors text-xs whitespace-nowrap disabled:opacity-50"
-                    >
-                        {npmChecking ? <RefreshCw size={11} className="animate-spin" /> : <Stethoscope size={11} />}
+                    <button type="button" onClick={checkNpm} disabled={npmChecking || !npmInput.trim()}
+                        style={{ ...btnStyle('#3fb950', 'rgba(63,185,80,.12)'), opacity: npmChecking || !npmInput.trim() ? .5 : 1 }}>
+                        {npmChecking ? <RefreshCw size={11} style={{ animation: 'spin 1s linear infinite' }} /> : <Stethoscope size={11} />}
                         {npmChecking ? 'Test…' : 'Tester'}
                     </button>
                 </div>
-                <p className="text-xs text-gray-500 mt-1">
-                    Requis pour "Top Domaines" (Nginx Proxy Manager). Ex : <code className="text-orange-400">/data</code> ou <code className="text-orange-400">/opt/npm/data</code>
+                <p style={{ fontSize: '.72rem', color: '#8b949e', marginTop: '.3rem' }}>
+                    Requis pour "Top Domaines" (Nginx Proxy Manager). Ex : <code style={{ color: '#e3b341' }}>/data</code> ou <code style={{ color: '#e3b341' }}>/opt/npm/data</code>
                 </p>
             </div>
         </div>

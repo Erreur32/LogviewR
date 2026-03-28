@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.6.6] - 2026-03-28
+
+### Fixed
+- fix: Fail2ban SQLite VACUUM fails in Docker when host filesystem is mounted `:ro` — backend now detects EROFS/SQLITE_READONLY and returns `dockerReadOnly: true`; UI shows the exact docker-compose volume override to enable VACUUM
+
+### Improved
+- style: unify input field appearance across all Fail2ban tabs (`#161b22` background + 3-layer inset shadow + `borderBottom: #555`)
+- style: convert Fail2banPathConfig.tsx from Tailwind classes to inline styles matching the PHP-palette design system
+
+### Docs
+- docs: document `:ro` vs VACUUM trade-off in `docker-compose.yml`, `README.md`, and `README.fr.md` — add commented-out rw override line for enabling VACUUM
+
+---
+
 ## [0.6.5] - 2026-03-28
 
 ### Performance

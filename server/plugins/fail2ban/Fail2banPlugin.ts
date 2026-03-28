@@ -1331,18 +1331,34 @@ export class Fail2banPlugin extends BasePlugin {
         }));
 
         // POST /config/sqlite-vacuum  — run VACUUM on fail2ban SQLite DB
-        router.post('/config/sqlite-vacuum', requireAuth, asyncHandler(async (req, res) => {
+        // Note: in Docker with /:/host:ro, the DB is on a read-only mount and VACUUM will fail.
+        // The route detects this case and returns a structured error with Docker fix instructions.
+        router.post('/config/sqlite-vacuum', requireAuth, asyncHandler(async (_req, res) => {
             if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
             const confBase = this.resolveDockerPathSync('/etc/fail2ban');
             const cfg = parseGlobalConfig(confBase);
             const dbHostPath = this.resolveDockerPathSync(cfg.dbfile || '/var/lib/fail2ban/fail2ban.sqlite3');
             const BetterSqlite = (await import('better-sqlite3')).default;
-            const db = new BetterSqlite(dbHostPath, { readonly: false, fileMustExist: true });
+            let db: InstanceType<typeof BetterSqlite> | null = null;
             try {
+                db = new BetterSqlite(dbHostPath, { readonly: false, fileMustExist: true });
                 db.exec('VACUUM');
+                this._routeCache.delete('config/parsed'); // invalidate fragmentation stats
                 res.json({ success: true, result: { ok: true } });
+            } catch (e: unknown) {
+                const msg = e instanceof Error ? e.message : String(e);
+                // Read-only filesystem (Docker /:/host:ro) or SQLite readonly error
+                const isReadOnly = /EROFS|read.only|SQLITE_READONLY|CANTOPEN/i.test(msg);
+                if (isReadOnly) {
+                    return res.json({ success: true, result: {
+                        ok: false,
+                        error: 'Système de fichiers en lecture seule (Docker)',
+                        dockerReadOnly: true,
+                    } });
+                }
+                throw e;
             } finally {
-                db.close();
+                try { if (db) db.close(); } catch { /* ignore */ }
             }
         }));
 

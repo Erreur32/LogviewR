@@ -279,7 +279,7 @@ export const JailCard: React.FC<{
                         <div style={{ padding: '.35rem .75rem', borderBottom: '1px solid #30363d' }}>
                             <input type="text" value={ipFilter} onChange={e => setIpFilter(e.target.value)}
                                 placeholder={t('fail2ban.placeholders.filterIps')}
-                                style={{ width: '100%', padding: '.25rem .5rem', fontSize: '.78rem', fontFamily: 'monospace', borderRadius: 4, background: '#0d1117', border: '1px solid #30363d', color: '#e6edf3', outline: 'none', boxSizing: 'border-box' }} />
+                                style={{ width: '100%', padding: '.25rem .5rem', fontSize: '.78rem', fontFamily: 'monospace', borderRadius: 4, background: '#161b22', border: '1px solid #30363d', borderBottom: '1px solid #555', color: '#e6edf3', outline: 'none', boxSizing: 'border-box', boxShadow: 'inset 0 2px 4px rgba(0,0,0,.55), inset 0 1px 0 rgba(0,0,0,.4), inset 0 -1px 0 rgba(255,255,255,.04)' }} />
                         </div>
                     )}
                     <div style={{ maxHeight: 200, overflowY: 'auto' }}>
@@ -334,7 +334,7 @@ export const JailCard: React.FC<{
                     style={{ display: 'flex', gap: '.4rem', marginBottom: '.35rem' }}>
                     <input type="text" value={banIp} onChange={e => setBanIp(e.target.value)}
                         placeholder="IP à bannir…"
-                        style={{ flex: 1, padding: '.28rem .55rem', fontSize: '.78rem', fontFamily: 'monospace', borderRadius: 4, background: '#0d1117', border: '1px solid #30363d', color: '#e6edf3', outline: 'none', minWidth: 0 }} />
+                        style={{ flex: 1, padding: '.28rem .55rem', fontSize: '.78rem', fontFamily: 'monospace', borderRadius: 4, background: '#161b22', border: '1px solid #30363d', borderBottom: '1px solid #555', color: '#e6edf3', outline: 'none', minWidth: 0, boxShadow: 'inset 0 2px 4px rgba(0,0,0,.55), inset 0 1px 0 rgba(0,0,0,.4), inset 0 -1px 0 rgba(255,255,255,.04)' }} />
                     <button type="submit" disabled={!banIp.trim() || !!actionLoading}
                         style={{ display: 'flex', alignItems: 'center', gap: '.25rem', padding: '.28rem .65rem', borderRadius: 4, background: 'rgba(232,106,101,.1)', border: '1px solid rgba(232,106,101,.25)', color: '#e86a65', cursor: 'pointer', fontSize: '.75rem', opacity: !banIp.trim() || !!actionLoading ? .5 : 1 }}>
                         <Ban style={{ width: 10, height: 10 }} /> Ban
@@ -530,7 +530,7 @@ const JailExpandedGrid: React.FC<{
                         style={{ marginTop: '.6rem', display: 'flex', gap: '.3rem' }}>
                         <input type="text" value={banIp} onChange={e => setBanIp(e.target.value)}
                             placeholder="IP à bannir…"
-                            style={{ flex: 1, padding: '.25rem .45rem', fontSize: '.75rem', fontFamily: 'monospace', borderRadius: 4, background: '#0d1117', border: '1px solid #30363d', color: '#e6edf3', outline: 'none', minWidth: 0 }} />
+                            style={{ flex: 1, padding: '.25rem .45rem', fontSize: '.75rem', fontFamily: 'monospace', borderRadius: 4, background: '#161b22', border: '1px solid #30363d', borderBottom: '1px solid #555', color: '#e6edf3', outline: 'none', minWidth: 0, boxShadow: 'inset 0 2px 4px rgba(0,0,0,.55), inset 0 1px 0 rgba(0,0,0,.4), inset 0 -1px 0 rgba(255,255,255,.04)' }} />
                         <button type="submit" disabled={!banIp.trim() || !!actionLoading}
                             style={{ padding: '.25rem .55rem', borderRadius: 4, background: 'rgba(232,106,101,.1)', border: '1px solid rgba(232,106,101,.25)', color: '#e86a65', cursor: 'pointer', fontSize: '.72rem', opacity: !banIp.trim() || !!actionLoading ? .5 : 1 }}>
                             <Ban style={{ width: 10, height: 10 }} />
@@ -1080,7 +1080,7 @@ export const TabJailsEvents: React.FC<{ onIpClick?: (ip: string) => void; days?:
                 <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
                     <input type="text" value={search} onChange={e => setSearchAndReset(e.target.value)}
                         placeholder="🔍  IP, jail, domaine…"
-                        style={{ padding: '.28rem .6rem', fontSize: '.78rem', borderRadius: 5, background: '#0d1117', border: '1px solid #30363d', color: '#e6edf3', outline: 'none', width: 210 }} />
+                        style={{ padding: '.28rem .6rem', fontSize: '.78rem', borderRadius: 5, background: '#161b22', border: '1px solid #30363d', borderBottom: '1px solid #555', color: '#e6edf3', outline: 'none', width: 210, boxShadow: 'inset 0 2px 4px rgba(0,0,0,.55), inset 0 1px 0 rgba(0,0,0,.4), inset 0 -1px 0 rgba(255,255,255,.04)' }} />
                 </div>
 
                 {/* Per-page + pagination — droite */}

@@ -416,7 +416,7 @@ function RuleBuilder({ onAction }: { onAction: (deadline?: number) => void }) {
         } finally { setLoading(false); }
     };
 
-    const inputStyle: React.CSSProperties = { background: '#0d1117', border: '1px solid #30363d', borderRadius: 4, color: '#e6edf3', fontSize: '.8rem', padding: '.35rem .6rem', outline: 'none', fontFamily: 'monospace' };
+    const inputStyle: React.CSSProperties = { background: '#161b22', border: '1px solid #30363d', borderBottom: '1px solid #555', borderRadius: 4, color: '#e6edf3', fontSize: '.8rem', padding: '.35rem .6rem', outline: 'none', fontFamily: 'monospace', boxShadow: 'inset 0 2px 4px rgba(0,0,0,.55), inset 0 1px 0 rgba(0,0,0,.4), inset 0 -1px 0 rgba(255,255,255,.04)' };
 
     return (
         <div style={card}>

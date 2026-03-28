@@ -288,7 +288,7 @@ export const TabTracker: React.FC<{ onIpClick?: (ip: string) => void; onTotalCha
                         <span style={{ position: 'absolute', left: '.6rem', top: '50%', transform: 'translateY(-50%)', color: '#8b949e', fontSize: '.72rem', pointerEvents: 'none' }}>🔍</span>
                         <input type="search" value={filter} onChange={e => { setFilter(e.target.value); setPage(1); }}
                             placeholder={t('fail2ban.placeholders.filterIps')}
-                            style={{ width: '100%', padding: '.38rem .75rem .38rem 1.8rem', fontSize: '.82rem', background: '#0d1117', border: '1px solid #30363d', borderRadius: 6, color: '#e6edf3', outline: 'none', boxSizing: 'border-box' }} />
+                            style={{ width: '100%', padding: '.38rem .75rem .38rem 1.8rem', fontSize: '.82rem', background: '#161b22', border: '1px solid #30363d', borderBottom: '1px solid #555', borderRadius: 6, color: '#e6edf3', outline: 'none', boxSizing: 'border-box', boxShadow: 'inset 0 2px 4px rgba(0,0,0,.55), inset 0 1px 0 rgba(0,0,0,.4), inset 0 -1px 0 rgba(255,255,255,.04)' }} />
                     </div>
                 </div>
                 {/* Pagination + per-page */}

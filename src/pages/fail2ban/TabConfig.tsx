@@ -424,9 +424,10 @@ const RawFileViewer: React.FC<{
                                 style={{
                                     flex: 1, width: '100%', height: '100%', resize: 'none',
                                     borderTop: 'none', borderRight: 'none', borderBottom: 'none', outline: 'none',
-                                    background: '#0d1117', color: '#e6edf3', fontFamily: 'monospace', fontSize: '.75rem',
+                                    background: '#161b22', color: '#e6edf3', fontFamily: 'monospace', fontSize: '.75rem',
                                     lineHeight: 1.65, padding: '.75rem 1rem', boxSizing: 'border-box',
                                     borderLeft: '3px solid rgba(227,179,65,.4)',
+                                    boxShadow: 'inset 0 2px 4px rgba(0,0,0,.55), inset 0 1px 0 rgba(0,0,0,.4)',
                                 }}
                             />
                         ) : content ? (
@@ -482,15 +483,17 @@ const ShellCommand: React.FC<{ cmd: string }> = ({ cmd }) => {
 
 const VacuumAlert: React.FC<{ fragPct: number; dbPath: string; onDone: () => void }> = ({ fragPct, dbPath, onDone }) => {
     const { t } = useTranslation();
-    const [state, setState] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
+    const [state, setState] = useState<'idle' | 'running' | 'done' | 'error' | 'docker'>('idle');
     const [errMsg, setErrMsg] = useState('');
     const cmd = `sqlite3 ${dbPath} 'VACUUM'`;
     const run = async () => {
         setState('running');
         try {
-            const res = await api.post<{ ok: boolean; error?: string }>('/api/plugins/fail2ban/config/sqlite-vacuum');
+            const res = await api.post<{ ok: boolean; error?: string; dockerReadOnly?: boolean }>('/api/plugins/fail2ban/config/sqlite-vacuum');
             if (res.success && res.result?.ok) { setState('done'); onDone(); }
-            else {
+            else if (res.success && res.result?.dockerReadOnly) {
+                setState('docker');
+            } else {
                 const httpMsg = res.error?.message ?? '';
                 const is404 = httpMsg.includes('404') || res.error?.code === 'INVALID_RESPONSE';
                 const isAuth = httpMsg.includes('401') || httpMsg.includes('403');
@@ -519,7 +522,7 @@ const VacuumAlert: React.FC<{ fragPct: number; dbPath: string; onDone: () => voi
                         </span>
                     )}
                     {state === 'error' && <span style={{ color: C.red }}>{errMsg}</span>}
-                    {state !== 'done' && (
+                    {state !== 'done' && state !== 'docker' && (
                         <Btn onClick={run} loading={state === 'running'} small
                             bg="rgba(227,179,65,.15)" color={C.orange} border="rgba(227,179,65,.4)">
                             <HardDrive style={{ width: 11, height: 11 }} />
@@ -527,6 +530,14 @@ const VacuumAlert: React.FC<{ fragPct: number; dbPath: string; onDone: () => voi
                         </Btn>
                     )}
                 </div>
+                {state === 'docker' && (
+                    <div style={{ marginTop: '.5rem', padding: '.5rem .65rem', background: 'rgba(88,166,255,.07)', border: '1px solid rgba(88,166,255,.2)', borderRadius: 5, color: '#58a6ff', fontSize: '.72rem', lineHeight: 1.6 }}>
+                        <strong>Docker : montage en lecture seule</strong> — le fichier <code style={{ color: '#e3b341' }}>fail2ban.sqlite3</code> est sur <code>/host</code> monté en <code>:ro</code>.<br />
+                        Ajoutez ce volume dans votre <code>docker-compose.yml</code> pour activer le VACUUM :<br />
+                        <code style={{ color: '#3fb950', display: 'block', marginTop: '.3rem' }}>- /var/lib/fail2ban:/host/var/lib/fail2ban</code>
+                        En attendant, lancez manuellement sur l'hôte :
+                    </div>
+                )}
                 <ShellCommand cmd={cmd} />
             </div>
         </div>
@@ -826,9 +837,10 @@ export const TabConfig: React.FC<{
     const LOGLEVELS = ['CRITICAL', 'ERROR', 'WARNING', 'NOTICE', 'INFO', 'DEBUG'];
 
     const inp: React.CSSProperties = {
-        background: C.bg3, border: `1px solid ${C.border}`, borderRadius: 5,
-        color: C.text, padding: '.3rem .6rem', fontSize: '.82rem', width: '100%',
-        fontFamily: 'monospace',
+        background: '#161b22', border: `1px solid ${C.border}`, borderBottom: '1px solid #555',
+        borderRadius: 4, color: C.text, padding: '.3rem .6rem', fontSize: '.82rem', width: '100%',
+        fontFamily: 'monospace', outline: 'none',
+        boxShadow: 'inset 0 2px 4px rgba(0,0,0,.55), inset 0 1px 0 rgba(0,0,0,.4), inset 0 -1px 0 rgba(255,255,255,.04)',
     };
 
     const sel: React.CSSProperties = { ...inp };

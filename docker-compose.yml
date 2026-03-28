@@ -95,9 +95,16 @@ services:
       - /var/run/fail2ban/fail2ban.sock:/var/run/fail2ban/fail2ban.sock
 
       # Host filesystem (read-only) — provides access to logs, hostname, disk info
+      # ⚠️  :ro is recommended (more secure — prevents container writes to host filesystem)
+      #     However, :ro disables the Fail2ban SQLite VACUUM feature (read-only FS).
+      #     To enable VACUUM, add the dedicated rw override below — it takes precedence
+      #     over :ro for that specific path only.
       - /:/host:ro
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
+
+      # Optional: enable Fail2ban SQLite VACUUM (rw override — overrides :ro above)
+      # - /var/lib/fail2ban:/host/var/lib/fail2ban
 
       # Optional: mount specific log directories for direct access (without /host/ prefix)
       # - /var/log/nginx:/var/log/nginx:ro

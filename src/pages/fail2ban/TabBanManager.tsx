@@ -43,10 +43,11 @@ function isValidIpOrCidr(v: string): boolean {
 // ── Shared input / button styles ───────────────────────────────────────────────
 
 const INPUT_BASE: React.CSSProperties = {
-    width: '100%', padding: '.4rem .65rem', fontSize: '.83rem', borderRadius: 5,
-    background: '#080c12', border: '1px solid #30363d', color: '#e6edf3',
+    width: '100%', padding: '.4rem .65rem', fontSize: '.83rem', borderRadius: 4,
+    background: '#161b22', border: '1px solid #30363d', color: '#e6edf3',
     outline: 'none', boxSizing: 'border-box',
-    boxShadow: 'inset 0 2px 5px rgba(0,0,0,.65), inset 0 -1px 0 rgba(255,255,255,.03)',
+    boxShadow: 'inset 0 2px 4px rgba(0,0,0,.55), inset 0 1px 0 rgba(0,0,0,.4), inset 0 -1px 0 rgba(255,255,255,.04)',
+    borderBottom: '1px solid #555',
     transition: 'border-color .15s, box-shadow .15s',
 };
 

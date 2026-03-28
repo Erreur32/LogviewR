@@ -135,9 +135,11 @@ services:
     volumes:
       - ./data:/app/data
       - /var/run/fail2ban/fail2ban.sock:/var/run/fail2ban/fail2ban.sock
-      - /:/host:ro
+      - /:/host:ro          # :ro = plus sécurisé ; désactive le VACUUM Fail2ban (voir note ci-dessous)
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
+      # Optionnel : activer le VACUUM SQLite Fail2ban (montage rw — prioritaire sur :ro)
+      # - /var/lib/fail2ban:/host/var/lib/fail2ban
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:7500/api/health"]
       interval: 30s
@@ -227,9 +229,11 @@ services:
     volumes:
       - ./data:/app/data
       - /var/run/fail2ban/fail2ban.sock:/var/run/fail2ban/fail2ban.sock
-      - /:/host:ro
+      - /:/host:ro          # :ro = plus sécurisé ; désactive le VACUUM Fail2ban (voir note ci-dessous)
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
+      # Optionnel : activer le VACUUM SQLite Fail2ban (montage rw — prioritaire sur :ro)
+      # - /var/lib/fail2ban:/host/var/lib/fail2ban
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000/api/health"]
       interval: 30s
@@ -259,9 +263,11 @@ services:
     volumes:
       - ./data:/app/data
       - /var/run/fail2ban/fail2ban.sock:/var/run/fail2ban/fail2ban.sock
-      - /:/host:ro
+      - /:/host:ro          # :ro = plus sécurisé ; désactive le VACUUM Fail2ban (voir note ci-dessous)
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
+      # Optionnel : activer le VACUUM SQLite Fail2ban (montage rw — prioritaire sur :ro)
+      # - /var/lib/fail2ban:/host/var/lib/fail2ban
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:7500/api/health"]
       interval: 30s
@@ -269,6 +275,11 @@ services:
       retries: 3
       start_period: 40s
 ```
+
+> **VACUUM SQLite Fail2ban** : Le flag `:ro` empêche le conteneur d'écrire sur le système de fichiers hôte — recommandé pour la sécurité.
+> Cependant, il désactive la fonction de **défragmentation SQLite (VACUUM)** dans l'onglet Config de Fail2ban.
+> Pour activer le VACUUM, décommenter la ligne ci-dessus (`/var/lib/fail2ban:/host/var/lib/fail2ban`).
+> Ce montage est prioritaire sur `/:/host:ro` pour ce chemin uniquement, sans affaiblir la protection globale en lecture seule.
 
 **Changer le port** : modifier uniquement `PORT: 7500` → `PORT: 8080` (ou autre), puis pointer votre reverse proxy vers ce port.
 

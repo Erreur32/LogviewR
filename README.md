@@ -10,7 +10,7 @@
 
 <img src="LogviewR_banner.svg" alt="LogviewR" width="512" height="256" />
 
-![LogviewR](https://img.shields.io/badge/LogviewR-0.6.5-111827?style=for-the-badge)
+![LogviewR](https://img.shields.io/badge/LogviewR-0.6.6-111827?style=for-the-badge)
 ![Status](https://img.shields.io/badge/Status-DEVELOPMENT-374151?style=for-the-badge)
 ![Docker](https://img.shields.io/badge/Docker-Ready-1f2937?style=for-the-badge&logo=docker&logoColor=38bdf8)
 ![React](https://img.shields.io/badge/React-19-111827?style=for-the-badge&logo=react&logoColor=38bdf8)
@@ -136,9 +136,11 @@ services:
     volumes:
       - ./data:/app/data
       - /var/run/fail2ban/fail2ban.sock:/var/run/fail2ban/fail2ban.sock
-      - /:/host:ro
+      - /:/host:ro          # :ro = more secure; disables Fail2ban VACUUM (see note below)
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
+      # Optional: enable Fail2ban SQLite VACUUM (rw override — overrides :ro above)
+      # - /var/lib/fail2ban:/host/var/lib/fail2ban
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:7500/api/health"]
       interval: 30s
@@ -228,9 +230,11 @@ services:
     volumes:
       - ./data:/app/data
       - /var/run/fail2ban/fail2ban.sock:/var/run/fail2ban/fail2ban.sock
-      - /:/host:ro
+      - /:/host:ro          # :ro = more secure; disables Fail2ban VACUUM (see note below)
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
+      # Optional: enable Fail2ban SQLite VACUUM (rw override — overrides :ro above)
+      # - /var/lib/fail2ban:/host/var/lib/fail2ban
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000/api/health"]
       interval: 30s
@@ -260,9 +264,11 @@ services:
     volumes:
       - ./data:/app/data
       - /var/run/fail2ban/fail2ban.sock:/var/run/fail2ban/fail2ban.sock
-      - /:/host:ro
+      - /:/host:ro          # :ro = more secure; disables Fail2ban VACUUM (see note below)
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
+      # Optional: enable Fail2ban SQLite VACUUM (rw override — overrides :ro above)
+      # - /var/lib/fail2ban:/host/var/lib/fail2ban
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:7500/api/health"]
       interval: 30s
@@ -270,6 +276,11 @@ services:
       retries: 3
       start_period: 40s
 ```
+
+> **Fail2ban SQLite VACUUM**: The `:ro` flag prevents the container from writing to the host filesystem — recommended for security.
+> However, it disables the **SQLite defragmentation (VACUUM)** feature in the Fail2ban Config tab.
+> To enable VACUUM, uncomment the override line above (`/var/lib/fail2ban:/host/var/lib/fail2ban`).
+> This mount takes precedence over `/:/host:ro` for that path only, without weakening the global read-only protection.
 
 **Changing the port**: only modify `PORT: 7500` → `PORT: 8080` (or any other), then point your reverse proxy to that port.
 

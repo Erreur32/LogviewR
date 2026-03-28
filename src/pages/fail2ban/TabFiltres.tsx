@@ -126,7 +126,7 @@ const FilterModal: React.FC<FilterModalProps> = ({ name, jailsUsingIt, onClose, 
                         ? <div style={{ padding: '2rem', textAlign: 'center', color: '#8b949e', fontSize: '.85rem' }}>Chargement…</div>
                         : editing
                             ? <textarea value={edited} onChange={e => setEdited(e.target.value)}
-                                style={{ flex: 1, resize: 'none', padding: '1rem', background: '#0d1117', color: '#e6edf3', border: 'none', fontFamily: 'monospace', fontSize: '.78rem', lineHeight: 1.6, outline: 'none', overflowY: 'auto' }} />
+                                style={{ flex: 1, resize: 'none', padding: '1rem', background: '#161b22', color: '#e6edf3', border: 'none', borderBottom: '1px solid #555', fontFamily: 'monospace', fontSize: '.78rem', lineHeight: 1.6, outline: 'none', overflowY: 'auto', boxShadow: 'inset 0 2px 4px rgba(0,0,0,.55), inset 0 1px 0 rgba(0,0,0,.4)' }} />
                             : <pre style={{ flex: 1, overflowY: 'auto', padding: '1rem', fontSize: '.78rem', fontFamily: 'monospace', color: '#e6edf3', lineHeight: 1.6, whiteSpace: 'pre-wrap', margin: 0 }}>{content}</pre>
                     }
                 </div>
