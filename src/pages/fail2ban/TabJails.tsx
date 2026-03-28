@@ -31,7 +31,8 @@ function setCached(key: string, data: unknown) { _cache[key] = { data, ts: Date.
 export interface TabJailsProps {
     jails: JailStatus[];
     inactiveJails?: JailStatus[];
-    loading: boolean;
+    /** After the first /status response (success or failure); avoids blocking on /history. */
+    statusHydrated: boolean;
     statusOk?: boolean;
     statusError?: string;
     actionLoading: string | null;
@@ -724,7 +725,19 @@ const JailsTableView: React.FC<{
                                                     : <span style={{ color: '#8b949e', fontSize: '.78rem' }}>—</span>}
                                         </td>
                                         <td style={{ padding: '.5rem .6rem', textAlign: 'center' }}>
-                                            {!isInactive && <ChevronRight style={{ width: 12, height: 12, color: '#8b949e', transform: isOpen ? 'rotate(90deg)' : undefined, transition: 'transform .15s' }} />}
+                                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '.35rem' }}>
+                                                {!isInactive && (
+                                                    <button
+                                                        onClick={e => { e.stopPropagation(); setConfigJail(j.jail); }}
+                                                        title="Modifier la configuration du jail"
+                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '.1rem', display: 'flex', alignItems: 'center', color: '#8b949e', borderRadius: 3, lineHeight: 0 }}
+                                                        onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = '#58a6ff'}
+                                                        onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = '#8b949e'}>
+                                                        <Settings style={{ width: 12, height: 12 }} />
+                                                    </button>
+                                                )}
+                                                {!isInactive && <ChevronRight style={{ width: 12, height: 12, color: '#8b949e', transform: isOpen ? 'rotate(90deg)' : undefined, transition: 'transform .15s' }} />}
+                                            </div>
                                         </td>
                                     </tr>
                                     {isOpen && (
@@ -1261,7 +1274,7 @@ const viewBtnStyle = (active: boolean): React.CSSProperties => ({
 });
 
 export const TabJails: React.FC<TabJailsProps> = ({
-    jails, inactiveJails = [], loading, statusOk, statusError, actionLoading,
+    jails, inactiveJails = [], statusHydrated, statusOk, statusError, actionLoading,
     days = 1, onUnban, onBan, onReload, onIpClick,
 }) => {
     const [showAll, setShowAll]     = useState(false);
@@ -1289,8 +1302,8 @@ export const TabJails: React.FC<TabJailsProps> = ({
         try { localStorage.setItem(STORAGE_KEY, view); } catch { /* ignore */ }
     }, [view]);
 
-    if (loading && jails.length === 0) return <div style={{ textAlign: 'center', padding: '3rem', color: '#8b949e' }}>Chargement…</div>;
-    if (!loading && jails.length === 0) return (
+    if (!statusHydrated && jails.length === 0) return <div style={{ textAlign: 'center', padding: '3rem', color: '#8b949e' }}>Chargement…</div>;
+    if (statusHydrated && jails.length === 0) return (
         <div style={{ textAlign: 'center', padding: '3rem', color: '#8b949e' }}>
             {statusOk === false ? (statusError ?? 'fail2ban non disponible — vérifiez le plugin dans Paramètres') : 'Aucun jail trouvé'}
         </div>

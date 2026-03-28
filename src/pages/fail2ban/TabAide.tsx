@@ -11,7 +11,8 @@ type Block =
     | { type: 'note'; v: string }
     | { type: 'warn'; v: string }
     | { type: 'shell' | 'yaml' | 'conf'; v: string }
-    | { type: 'cmds'; subs: CmdSub[] };
+    | { type: 'cmds'; subs: CmdSub[] }
+    | { type: 'ipblocks'; providers: { name: string; color: string; desc?: string; ranges: string[] }[]; safe?: boolean };
 
 interface Section {
     title: string;
@@ -130,6 +131,48 @@ const CmdRow: React.FC<{ cmd: string; desc?: string }> = ({ cmd, desc }) => {
     );
 };
 
+// ── IP blocks (CDN/Cloud ranges) ──────────────────────────────────────────────
+
+const CidrBadge: React.FC<{ cidr: string; color: string }> = ({ cidr, color }) => {
+    const [copied, setCopied] = useState(false);
+    return (
+        <button onClick={() => doCopy(cidr, () => { setCopied(true); setTimeout(() => setCopied(false), 1200); })}
+            title={copied ? 'Copié !' : 'Copier'}
+            style={{ fontFamily: 'monospace', fontSize: '.71rem', color: copied ? color : '#c9d1d9', background: '#161b22', border: `1px solid ${copied ? color : '#21262d'}`, borderRadius: 4, padding: '.12rem .4rem', cursor: 'pointer', transition: 'border-color .15s, color .15s', whiteSpace: 'nowrap' }}>
+            {cidr}
+        </button>
+    );
+};
+
+const PALETTE_RGB: Record<string, string> = {
+    '#e3b341': '227,179,65',
+    '#58a6ff': '88,166,255',
+    '#39c5cf': '57,197,207',
+    '#e86a65': '232,106,101',
+    '#3fb950': '63,185,80',
+    '#bc8cff': '188,140,255',
+    '#8b949e': '139,148,158',
+};
+const rgb = (c: string) => PALETTE_RGB[c] ?? '139,148,158';
+
+const IpBlocks: React.FC<{ providers: { name: string; color: string; desc?: string; ranges: string[] }[]; safe?: boolean }> = ({ providers, safe }) => (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(270px, 1fr))', gap: '.75rem', marginTop: '.25rem' }}>
+        {providers.map(p => (
+            <div key={p.name} style={{ background: '#0d1117', border: `1px solid rgba(${rgb(p.color)},.25)`, borderRadius: 7, overflow: 'hidden' }}>
+                <div style={{ padding: '.38rem .65rem', background: `rgba(${rgb(p.color)},.07)`, borderBottom: `1px solid rgba(${rgb(p.color)},.2)`, display: 'flex', alignItems: 'center', gap: '.5rem' }}>
+                    {safe && <span style={{ fontSize: '.68rem', color: p.color }}>✓</span>}
+                    <span style={{ fontWeight: 700, fontSize: '.82rem', color: p.color }}>{p.name}</span>
+                    <span style={{ fontSize: '.63rem', color: '#8b949e', marginLeft: 'auto' }}>{p.ranges.length} entrée{p.ranges.length > 1 ? 's' : ''}</span>
+                </div>
+                {p.desc && <div style={{ padding: '.3rem .65rem .1rem', fontSize: '.71rem', color: '#8b949e', lineHeight: 1.4 }}>{p.desc}</div>}
+                <div style={{ padding: '.45rem .65rem', display: 'flex', flexWrap: 'wrap', gap: '.3rem' }}>
+                    {p.ranges.map(r => <CidrBadge key={r} cidr={r} color={p.color} />)}
+                </div>
+            </div>
+        ))}
+    </div>
+);
+
 const CmdList: React.FC<{ subs: CmdSub[] }> = ({ subs }) => (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.25rem 2rem', marginTop: '.5rem' }}>
         {subs.map((sub, si) => (
@@ -172,6 +215,7 @@ const SectionCard: React.FC<{ section: Section }> = ({ section: s }) => {
                         );
                         if (b.type === 'shell' || b.type === 'yaml' || b.type === 'conf') return <CodeBlock key={i} type={b.type} code={b.v} />;
                         if (b.type === 'cmds') return <CmdList key={i} subs={b.subs} />;
+                        if (b.type === 'ipblocks') return <IpBlocks key={i} providers={b.providers} safe={b.safe} />;
                         return null;
                     })}
                 </div>
@@ -200,7 +244,7 @@ systemctl daemon-reload && systemctl restart fail2ban` },
             },
             {
                 title: 'Config jail manquante (filter/port/bantime…)',
-                color: '#3fb950', border: 'rgba(63,185,80,.25)', bg: 'rgba(63,185,80,.04)', collapsed: true,
+                color: '#e86a65', border: 'rgba(232,106,101,.25)', bg: 'rgba(232,106,101,.04)', collapsed: true,
                 blocks: [
                     { type: 'text', v: 'Ces métadonnées sont lues depuis /etc/fail2ban/jail.conf + jail.d/. Montez le volume :' },
                     { type: 'yaml', v: 'volumes:\n  - /etc/fail2ban:/host/etc/fail2ban:ro' },
@@ -208,7 +252,7 @@ systemctl daemon-reload && systemctl restart fail2ban` },
             },
             {
                 title: 'SQLite non lisible',
-                color: '#bc8cff', border: 'rgba(188,140,255,.25)', bg: 'rgba(188,140,255,.04)', collapsed: true,
+                color: '#e86a65', border: 'rgba(232,106,101,.25)', bg: 'rgba(232,106,101,.04)', collapsed: true,
                 blocks: [
                     { type: 'text', v: 'La DB fail2ban est montée via /host/ dans Docker. Corrigez les permissions sur le host :' },
                     { type: 'shell', v: 'chmod o+r /var/lib/fail2ban/fail2ban.sqlite3' },
@@ -218,7 +262,7 @@ systemctl daemon-reload && systemctl restart fail2ban` },
             },
             {
                 title: 'IPTables / IPSet / NFTables vides',
-                color: '#58a6ff', border: 'rgba(88,166,255,.25)', bg: 'rgba(88,166,255,.04)', collapsed: true,
+                color: '#e86a65', border: 'rgba(232,106,101,.25)', bg: 'rgba(232,106,101,.04)', collapsed: true,
                 blocks: [
                     { type: 'text', v: 'Ces onglets nécessitent NET_ADMIN + les binaires dans le container :' },
                     { type: 'yaml', v: 'cap_add:\n  - NET_ADMIN' },
@@ -233,7 +277,7 @@ systemctl daemon-reload && systemctl restart fail2ban` },
         sections: [
             {
                 title: 'Bans actifs vs Tracker vs Total cumulé',
-                color: '#bc8cff', border: 'rgba(188,140,255,.25)', bg: 'rgba(188,140,255,.04)',
+                color: '#58a6ff', border: 'rgba(88,166,255,.25)', bg: 'rgba(88,166,255,.04)', span: 2, collapsed: true,
                 blocks: [
                     { type: 'text', v: 'Le dashboard affiche plusieurs compteurs qui mesurent des choses différentes — ils ne sont pas censés être identiques.' },
                     { type: 'text', v: '🔴 Bans actifs (header) — IPs actuellement en jail dont le ban n\'a pas encore expiré. Source : socket fail2ban en temps réel. Diminue quand un ban expire.' },
@@ -247,8 +291,44 @@ Total cumulé     = 3   (3 événements ban enregistrés)` },
                 ],
             },
             {
+                title: 'Logique fail2ban + ipset — tentatives après ban',
+                color: '#58a6ff', border: 'rgba(88,166,255,.25)', bg: 'rgba(88,166,255,.04)',
+                span: 2, collapsed: true,
+                blocks: [
+                    { type: 'text', v: 'Un tracker peut afficher 15 tentatives sur une IP déjà dans un ipset. C\'est normal — voici pourquoi.' },
+                    { type: 'conf', v: `# ① Ordre de traitement réseau
+Internet → Kernel Netfilter (ipset/iptables) → Daemon applicatif (nginx, sshd…) → fail2ban lit les logs` },
+                    { type: 'note', v: 'L\'ipset opère au niveau kernel, avant que le paquet atteigne le daemon. Fail2ban ne voit que les logs — il ne peut pas bloquer ce que le kernel n\'a pas encore intercepté.' },
+                    { type: 'conf', v: `# ② Pourquoi le compteur de tentatives reste à 15 malgré l'ipset
+#    L'ipset ne bloque pas rétroactivement les logs déjà écrits.
+
+IP fait 15 tentatives sur npm-4xx
+       ↓
+fail2ban détecte → ban iptables + ajout dans ipset blacklist
+       ↓
+À partir de maintenant : paquets droppés au niveau kernel
+       ↓
+Les 15 tentatives sont déjà dans f2b_events → compteur reste à 15` },
+                    { type: 'conf', v: `# ③ Pourquoi une IP apparaît dans 2 jails (ex: npm-4xx + blacklist)
+#    Flux recidive/blacklist classique :
+
+[npm-4xx]    ban l'IP X minutes (bantime court)
+       ↓
+[blacklist]  si l'IP récidive → jail à bantime long (semaines/∞) + action ipset
+       ↓
+Résultat : IP dans ipset = bloquée définitivement au niveau kernel` },
+                    { type: 'conf', v: `# ④ iptables seul vs + ipset
+#
+# Règle par IP  iptables = 1 règle/IP              ipset = 1 règle iptables → hash O(1)
+# Performance   se dégrade avec 1000+ IPs          constant, même avec 100k IPs
+# Niveau        Netfilter (avant routing)           Netfilter (avant routing)` },
+                    { type: 'note', v: 'Badge BANNI + IPSet sur une IP avec 15 tentatives = cohérent et correct. Tentatives = historique avant le ban. IPSet = état actuel, plus aucune tentative possible.' },
+                    { type: 'warn', v: 'Si de nouvelles tentatives apparaissent après l\'ajout dans l\'ipset → problème de config : règle iptables mal positionnée, ou log généré avant le DROP kernel.' },
+                ],
+            },
+            {
                 title: 'fail2ban.local vs jail.local',
-                color: '#39c5cf', border: 'rgba(57,197,207,.25)', bg: 'rgba(57,197,207,.04)',
+                color: '#58a6ff', border: 'rgba(88,166,255,.25)', bg: 'rgba(88,166,255,.04)', span: 2, collapsed: true,
                 blocks: [
                     { type: 'text', v: 'fail2ban.local configure le démon global : loglevel, logtarget, dbfile, dbpurgeage, dbmaxmatches.' },
                     { type: 'text', v: 'jail.local configure les jails : enabled, bantime, findtime, maxretry, filter, action, logpath.' },
@@ -276,7 +356,7 @@ enabled = true` },
         sections: [
             {
                 title: 'Fail2ban — Statut, Ban/Unban, Config, Logs',
-                color: '#58a6ff', border: 'rgba(88,166,255,.25)', bg: 'rgba(88,166,255,.04)',
+                color: '#39c5cf', border: 'rgba(57,197,207,.25)', bg: 'rgba(57,197,207,.04)',
                 span: 2,
                 collapsed: true,
                 blocks: [
@@ -314,7 +394,7 @@ enabled = true` },
             },
             {
                 title: 'Pare-feu — IPTables & IPSet',
-                color: '#e86a65', border: 'rgba(232,106,101,.25)', bg: 'rgba(232,106,101,.04)',
+                color: '#39c5cf', border: 'rgba(57,197,207,.25)', bg: 'rgba(57,197,207,.04)',
                 span: 2,
                 collapsed: true,
                 blocks: [
@@ -360,7 +440,7 @@ enabled = true` },
             },
             {
                 title: 'Diagnostic & Surveillance',
-                color: '#bc8cff', border: 'rgba(188,140,255,.25)', bg: 'rgba(188,140,255,.04)',
+                color: '#39c5cf', border: 'rgba(57,197,207,.25)', bg: 'rgba(57,197,207,.04)',
                 span: 2,
                 collapsed: true,
                 blocks: [
@@ -390,16 +470,71 @@ enabled = true` },
         icon: '📋',
         sections: [
             {
-                title: 'IP publiques connues — CDN & Cloud',
-                color: '#58a6ff', border: 'rgba(88,166,255,.25)', bg: 'rgba(88,166,255,.04)',
-                span: 2,
-                collapsed: true,
+                title: 'IPs à ne PAS bannir — Safe list',
+                color: '#3fb950', border: 'rgba(63,185,80,.25)', bg: 'rgba(63,185,80,.04)',
+                span: 2, collapsed: true,
                 blocks: [
-                    { type: 'text', v: 'Un ban sur ces plages est souvent légitime (bot/abus depuis CDN ou cloud). C\'est un repère informatif : ces IPs appartiennent à des fournisseurs reconnus, pas à des particuliers.' },
-                    { type: 'note', v: 'Cloudflare — 15 plages CIDR\n173.245.48.0/20 · 103.21.244.0/22 · 103.22.200.0/22 · 103.31.4.0/22 · 141.101.64.0/18\n108.162.192.0/18 · 190.93.240.0/20 · 188.114.96.0/20 · 197.234.240.0/22 · 198.41.128.0/17\n162.158.0.0/15 · 104.16.0.0/13 · 104.24.0.0/14 · 172.64.0.0/13 · 131.0.72.0/22' },
-                    { type: 'note', v: 'Google — 9 plages CIDR\n66.249.64.0/19 · 64.233.160.0/19 · 72.14.192.0/18 · 209.85.128.0/17 · 216.239.32.0/19\n74.125.0.0/16 · 108.177.0.0/17 · 172.217.0.0/16 · 142.250.0.0/15' },
-                    { type: 'note', v: 'Microsoft Azure — 4 plages CIDR\n40.64.0.0/10 · 52.96.0.0/12 · 20.36.0.0/14 · 13.64.0.0/11' },
-                    { type: 'note', v: 'Amazon AWS — 6 plages CIDR\n52.0.0.0/8 · 54.0.0.0/8 · 3.0.0.0/9 · 18.0.0.0/8 · 176.32.64.0/18 · 205.251.192.0/18' },
+                    { type: 'note', v: 'Bannir ces plages bloquerait du trafic légitime ou casserait des services (proxy CDN, résolveurs DNS, crawlers SEO, monitoring). Ajoutez-les dans ignoreip de vos jails.' },
+                    { type: 'ipblocks', safe: true, providers: [
+                        { name: 'Cloudflare Proxy', color: '#e3b341', desc: 'Si votre domaine est derrière Cloudflare, tout le trafic passe par ces IPs — les bannir bloque tout le monde',
+                          ranges: ['173.245.48.0/20','103.21.244.0/22','103.22.200.0/22','103.31.4.0/22','141.101.64.0/18','108.162.192.0/18','190.93.240.0/20','188.114.96.0/20','197.234.240.0/22','198.41.128.0/17','162.158.0.0/15','104.16.0.0/13','104.24.0.0/14','172.64.0.0/13','131.0.72.0/22'] },
+                        { name: 'Cloudflare DNS', color: '#e3b341', desc: 'Résolveur DNS public 1.1.1.1 — ne pas confondre avec le proxy',
+                          ranges: ['1.1.1.1/32','1.0.0.1/32','2606:4700:4700::1111/128','2606:4700:4700::1001/128'] },
+                        { name: 'Google DNS', color: '#58a6ff', desc: 'Résolveur DNS public 8.8.8.8',
+                          ranges: ['8.8.8.8/32','8.8.4.4/32','2001:4860:4860::8888/128','2001:4860:4860::8844/128'] },
+                        { name: 'Googlebot', color: '#58a6ff', desc: 'Crawler SEO Google — ban = déréférencement',
+                          ranges: ['66.249.64.0/19','66.249.80.0/20','66.249.88.0/21'] },
+                        { name: 'Bingbot', color: '#39c5cf', desc: 'Crawler Microsoft Bing',
+                          ranges: ['40.77.167.0/24','65.52.109.0/24','199.30.16.0/20','207.46.13.0/24'] },
+                        { name: 'Let\'s Encrypt', color: '#3fb950', desc: 'Validation ACME pour renouvellement SSL — ban = certificats cassés',
+                          ranges: ['66.133.109.36/32','64.78.149.164/32'] },
+                        { name: 'UptimeRobot', color: '#bc8cff', desc: 'Monitoring uptime — ban = fausses alertes down',
+                          ranges: ['216.245.221.80/28','69.162.124.224/28','63.143.42.240/28','216.245.221.80/28','178.62.52.237/32','54.36.148.0/24','87.248.104.0/22'] },
+                        { name: 'Quad9 DNS', color: '#8b949e', desc: 'Résolveur DNS public sécurisé',
+                          ranges: ['9.9.9.9/32','149.112.112.112/32','2620:fe::fe/128','2620:fe::9/128'] },
+                    ]},
+                    { type: 'conf', v: `# jail.local — ajouter dans [DEFAULT] ou par jail
+ignoreip = 127.0.0.1/8 ::1
+           173.245.48.0/20 103.21.244.0/22 162.158.0.0/15 104.16.0.0/13
+           66.249.64.0/19
+           8.8.8.8 8.8.4.4 1.1.1.1 1.0.0.1` },
+                ],
+            },
+            {
+                title: 'IP publiques connues — CDN & Cloud',
+                color: '#e3b341', border: 'rgba(227,179,65,.25)', bg: 'rgba(227,179,65,.04)',
+                span: 2, collapsed: true,
+                blocks: [
+                    { type: 'text', v: 'Un ban sur ces plages est souvent légitime (bot/abus depuis CDN ou cloud). Repère informatif — ces IPs appartiennent à des fournisseurs reconnus. Cliquer sur un CIDR pour le copier.' },
+                    { type: 'ipblocks', providers: [
+                        { name: 'Cloudflare', color: '#e3b341', desc: 'CDN mondial — bots légitimes et abus fréquents',
+                          ranges: ['173.245.48.0/20','103.21.244.0/22','103.22.200.0/22','103.31.4.0/22','141.101.64.0/18','108.162.192.0/18','190.93.240.0/20','188.114.96.0/20','197.234.240.0/22','198.41.128.0/17','162.158.0.0/15','104.16.0.0/13','104.24.0.0/14','172.64.0.0/13','131.0.72.0/22'] },
+                        { name: 'Google', color: '#58a6ff', desc: 'Crawlers, bots publicitaires, services GCP',
+                          ranges: ['66.249.64.0/19','64.233.160.0/19','72.14.192.0/18','209.85.128.0/17','216.239.32.0/19','74.125.0.0/16','108.177.0.0/17','172.217.0.0/16','142.250.0.0/15'] },
+                        { name: 'Amazon AWS', color: '#e86a65', desc: 'Cloud public — source fréquente de scans',
+                          ranges: ['3.0.0.0/9','18.0.0.0/8','52.0.0.0/8','54.0.0.0/8','176.32.64.0/18','205.251.192.0/18'] },
+                        { name: 'Microsoft Azure', color: '#39c5cf', desc: 'Cloud Microsoft / Office 365',
+                          ranges: ['13.64.0.0/11','20.36.0.0/14','40.64.0.0/10','52.96.0.0/12'] },
+                    ]},
+                ],
+            },
+            {
+                title: 'Plages régionales à risque élevé',
+                color: '#e3b341', border: 'rgba(227,179,65,.25)', bg: 'rgba(227,179,65,.04)',
+                span: 2, collapsed: true,
+                blocks: [
+                    { type: 'warn', v: 'Ces plages sont statistiquement surreprésentées dans les logs de scan/brute-force. Un ban préventif réduit le bruit. À utiliser selon votre contexte — certaines peuvent héberger des utilisateurs légitimes.' },
+                    { type: 'ipblocks', providers: [
+                        { name: 'Chine (CN)', color: '#e86a65', desc: 'Plages APNIC principales — scans massifs, brute-force SSH/HTTP',
+                          ranges: ['1.0.0.0/8','14.0.0.0/8','27.0.0.0/8','36.0.0.0/8','39.0.0.0/8','42.0.0.0/8','49.0.0.0/8','58.0.0.0/8','59.0.0.0/8','60.0.0.0/8','61.0.0.0/8','101.0.0.0/8','106.0.0.0/8','110.0.0.0/8','111.0.0.0/8','112.0.0.0/8','113.0.0.0/8','114.0.0.0/8','115.0.0.0/8','116.0.0.0/8','117.0.0.0/8','118.0.0.0/8','119.0.0.0/8','120.0.0.0/8','121.0.0.0/8','122.0.0.0/8','123.0.0.0/8','124.0.0.0/8','125.0.0.0/8','163.0.0.0/8','175.0.0.0/8','180.0.0.0/8','182.0.0.0/8','183.0.0.0/8','202.0.0.0/8','203.0.0.0/8','210.0.0.0/8','211.0.0.0/8','218.0.0.0/8','219.0.0.0/8','220.0.0.0/8','221.0.0.0/8','222.0.0.0/8','223.0.0.0/8'] },
+                        { name: 'Russie (RU)', color: '#bc8cff', desc: 'Plages RIPE NCC — botnets, ransomware, phishing',
+                          ranges: ['5.8.0.0/16','5.45.0.0/16','5.188.0.0/16','31.13.0.0/16','37.9.0.0/16','45.8.0.0/16','45.95.0.0/16','46.8.0.0/16','77.75.0.0/16','80.66.0.0/16','83.69.0.0/16','85.93.0.0/16','89.22.0.0/16','91.108.0.0/16','92.63.0.0/16','93.179.0.0/16','95.165.0.0/16','176.97.0.0/16','185.220.0.0/16','193.32.0.0/16','194.165.0.0/16','195.54.0.0/16'] },
+                        { name: 'Corée du Nord (KP)', color: '#e3b341', desc: 'Infrastructure étatique — activité malveillante documentée',
+                          ranges: ['175.45.176.0/22','210.52.109.0/24','77.94.35.0/24'] },
+                        { name: 'Iran (IR)', color: '#3fb950', desc: 'Plages ARIN/RIPE — scans, espionnage ciblé',
+                          ranges: ['2.176.0.0/12','5.22.0.0/15','5.52.0.0/14','5.106.0.0/15','5.200.0.0/14','31.2.0.0/15','31.24.0.0/14','31.40.0.0/13','37.98.0.0/15','37.156.0.0/14','46.36.0.0/14','46.100.0.0/14','46.143.0.0/16','78.38.0.0/15','78.157.0.0/16','80.191.0.0/16','82.99.0.0/16','85.9.0.0/16','85.15.0.0/16','85.133.0.0/16','91.98.0.0/15','91.108.0.0/16','91.238.0.0/16','94.74.0.0/15','95.38.0.0/15'] },
+                    ]},
+                    { type: 'note', v: 'Source : APNIC, RIPE NCC, ARIN — données publiques. Ces plages évoluent — vérifier régulièrement via whois ou les RIR.' },
                 ],
             },
         ],

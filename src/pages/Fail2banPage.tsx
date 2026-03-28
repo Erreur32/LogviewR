@@ -34,6 +34,7 @@ import { TabIPTables }       from './fail2ban/TabIPTables';
 import { TabNFTables }       from './fail2ban/TabNFTables';
 import { TabFileList }       from './fail2ban/TabFileList';
 import { BanHistoryChart }   from './fail2ban/BanHistoryChart';
+import { fetchTopsPrevTotalBans } from './fail2ban/fail2banTopsPrevFlight';
 import type { StatusResponse, HistoryEntry, TabId } from './fail2ban/types';
 import { IpModal } from './fail2ban/IpModal';
 import { SyncProgressBanner } from './fail2ban/SyncProgressBanner';
@@ -132,8 +133,13 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
     const [jailNames, setJailNames] = useState<string[]>([]);
     const [granularity, setGranularity] = useState<'hour' | 'day'>('day');
     const [slotBase, setSlotBase]       = useState<number | undefined>(undefined);
-    const [loading, setLoading]   = useState(true);
-    const hasDataRef = useRef(false);
+    /** True until the first /status request settles (success or error). Unblocks TabJails without waiting for /history. */
+    const [statusHydrated, setStatusHydrated] = useState(false);
+    /** True until the first /history request settles; drives BanHistoryChart skeleton only. */
+    const [historyLoading, setHistoryLoading] = useState(true);
+    /** True while either /status or /history request is in flight (topbar refresh hint). */
+    const [refreshBusy, setRefreshBusy] = useState(false);
+    const hasBootstrappedRef = useRef(false);
     const [actionLoading, setActionLoading] = useState<string | null>(null);
     const [actionMsg, setActionMsg]         = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
     const [statsDays, setStatsDays]         = useState(1);
@@ -229,32 +235,63 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
         return () => clearInterval(timer);
     }, []);
 
-    const fetchStatus = useCallback(async () => {
-        // Only show full-page spinner on initial load — background refreshes update data silently
-        if (!hasDataRef.current) setLoading(true);
-        try {
-            const [sRes, hRes] = await Promise.all([
-                api.get<StatusResponse>(`/api/plugins/fail2ban/status?days=${statsDays}`),
-                api.get<{ ok?: boolean; history?: HistoryEntry[]; byJail?: Record<string, Record<string, number>>; jailNames?: string[] }>(`/api/plugins/fail2ban/history?days=${statsDays}`),
-            ]);
-            if (sRes.success && sRes.result) {
-                setStatus(sRes.result);
-            }
-            if (hRes.success && hRes.result?.history && Array.isArray(hRes.result.history)) {
-                setHistory(hRes.result.history);
-                setByJail(hRes.result.byJail ?? {});
-                setJailNames(hRes.result.jailNames ?? []);
-                const r = hRes.result as { granularity?: 'hour' | 'day'; slotBase?: number };
-                setGranularity(r.granularity ?? 'day');
-                setSlotBase(r.slotBase);
-            } else {
-                setHistory([]); setByJail({}); setJailNames([]); setGranularity('day'); setSlotBase(undefined);
-            }
-        } finally {
-            hasDataRef.current = true;
-            setLoading(false);
-            setLastRefreshed(Date.now());
+    const fetchStatus = useCallback(() => {
+        const firstWave = !hasBootstrappedRef.current;
+        if (firstWave) {
+            setHistoryLoading(true);
         }
+        setRefreshBusy(true);
+
+        let pending = 2;
+        const waveDone = () => {
+            pending -= 1;
+            if (pending === 0) {
+                setRefreshBusy(false);
+                hasBootstrappedRef.current = true;
+                setLastRefreshed(Date.now());
+            }
+        };
+
+        api.get<StatusResponse>(`/api/plugins/fail2ban/status?days=${statsDays}`)
+            .then(sRes => {
+                if (sRes.success && sRes.result) {
+                    setStatus(sRes.result);
+                }
+            })
+            .catch(() => { /* keep prior status on transient errors */ })
+            .finally(() => {
+                setStatusHydrated(true);
+                waveDone();
+            });
+
+        api.get<{ ok?: boolean; history?: HistoryEntry[]; byJail?: Record<string, Record<string, number>>; jailNames?: string[] }>(`/api/plugins/fail2ban/history?days=${statsDays}`)
+            .then(hRes => {
+                if (hRes.success && hRes.result?.history && Array.isArray(hRes.result.history)) {
+                    setHistory(hRes.result.history);
+                    setByJail(hRes.result.byJail ?? {});
+                    setJailNames(hRes.result.jailNames ?? []);
+                    const r = hRes.result as { granularity?: 'hour' | 'day'; slotBase?: number };
+                    setGranularity(r.granularity ?? 'day');
+                    setSlotBase(r.slotBase);
+                } else {
+                    setHistory([]);
+                    setByJail({});
+                    setJailNames([]);
+                    setGranularity('day');
+                    setSlotBase(undefined);
+                }
+            })
+            .catch(() => {
+                setHistory([]);
+                setByJail({});
+                setJailNames([]);
+                setGranularity('day');
+                setSlotBase(undefined);
+            })
+            .finally(() => {
+                setHistoryLoading(false);
+                waveDone();
+            });
     }, [statsDays]);
 
     useEffect(() => { fetchStatus(); }, [fetchStatus]);
@@ -280,7 +317,9 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
     const totalBanned     = new Set(jails.flatMap(j => j.bannedIps ?? [])).size;
     const totalFailed     = jails.reduce((s, j) => s + j.currentlyFailed, 0);
     const totalAllTime    = jails.reduce((s, j) => s + (j.totalBannedSqlite ?? j.totalBanned), 0);
-    const activeJails     = jails.filter(j => j.currentlyBanned > 0 || j.currentlyFailed > 0).length;
+    const activeJailsList = jails.filter(j => j.currentlyBanned > 0 || j.currentlyFailed > 0);
+    const activeJails     = activeJailsList.length;
+    const topJailByPeriod = [...jails].sort((a, b) => (b.bansInPeriod ?? 0) - (a.bansInPeriod ?? 0))[0];
     const uniqueIpsTotal  = status?.uniqueIpsTotal ?? 0;
     const uniqueIpsPeriod = status?.uniqueIpsPeriod ?? 0;
     const expiredLast24h  = status?.expiredLast24h ?? 0;
@@ -289,7 +328,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
     const sparkData       = history.slice(-14).map(h => h.count);
 
     // Trend tracking (compare with previous poll for ↑ / ↓ indicators)
-    const prevStatsRef = useRef<{ totalBanned: number; uniqueIpsTotal: number; expiredLast24h: number } | null>(null);
+    const prevStatsRef = useRef<{ totalBanned: number; uniqueIpsTotal: number; expiredLast24h: number; totalFailed: number } | null>(null);
     const prevStats = prevStatsRef.current;
     const trend = (curr: number, prev: number | undefined) =>
         prev === undefined ? null : curr > prev ? '↑' : curr < prev ? '↓' : null;
@@ -299,15 +338,46 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
         return t === '↑' ? (upBad ? '#e86a65' : '#3fb950') : (upBad ? '#3fb950' : '#e86a65');
     };
 
+    // Persistent trend for Échecs actifs — keeps last arrow visible until next change
+    const [failedTrend, setFailedTrend] = useState<{ val: string; col: string } | null>(null);
+
     // Update prevStats after render (do NOT during render to avoid loops — use ref directly)
     useEffect(() => {
         if (status) {
-            prevStatsRef.current = { totalBanned, uniqueIpsTotal, expiredLast24h };
+            const prev = prevStatsRef.current;
+            if (prev !== null && prev.totalFailed !== totalFailed) {
+                setFailedTrend({
+                    val: totalFailed > prev.totalFailed ? '↑' : '↓',
+                    col: totalFailed > prev.totalFailed ? '#e86a65' : '#3fb950',
+                });
+            }
+            prevStatsRef.current = { totalBanned, uniqueIpsTotal, expiredLast24h, totalFailed };
         }
-    }, [status, totalBanned, uniqueIpsTotal, expiredLast24h]);
+    }, [status, totalBanned, uniqueIpsTotal, expiredLast24h, totalFailed]);
 
     const periodBans = history.reduce((s, h) => s + h.count, 0);
     const periodLabel = PERIODS.find(p => p.days === statsDays)?.label ?? `${statsDays}j`;
+
+    // Period summary for trend badges (current + prev period stats from /tops)
+    type PeriodSummary = { totalBans: number; uniqueIps: number; totalFailures: number; expiredInPeriod: number };
+    const [periodSummary,     setPeriodSummary]     = useState<PeriodSummary | null>(null);
+    const [prevPeriodSummary, setPrevPeriodSummary] = useState<PeriodSummary | null>(null);
+    useEffect(() => {
+        setPeriodSummary(null);
+        setPrevPeriodSummary(null);
+        if (statsDays === -1) return;
+        let cancelled = false;
+        api.get<{ ok: boolean; summary?: PeriodSummary; prevSummary?: PeriodSummary | null }>(
+            `/api/plugins/fail2ban/tops?days=${statsDays}&compare=1&limit=1`
+        ).then(res => {
+            if (!cancelled && res.success && res.result?.ok) {
+                setPeriodSummary(res.result.summary ?? null);
+                setPrevPeriodSummary(res.result.prevSummary ?? null);
+            }
+        });
+        return () => { cancelled = true; };
+    }, [statsDays]);
+    const prevPeriodBans = prevPeriodSummary?.totalBans ?? null;
 
     // ── Rich stat-box tooltip body — matches PHP stats-tt-stat-val/desc/meta style ──
     const statTtBody = (value: number, unit: string, color: string, desc: string, meta?: React.ReactNode) => (
@@ -325,6 +395,38 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
         { ttTitle: 'Jails actifs',
           ttBody: 'Jails avec au moins une règle active (enabled=true)',
           ttColor: 'blue' as const },
+        { ttTitle: `Bans (${periodLabel})`,
+          ttBodyNode: statTtBody(periodBans, 'bans', '#39c5cf',
+              `Total bans enregistrés sur la fenêtre ${periodLabel} (données du graphique).`,
+              prevPeriodBans !== null
+                  ? <span>Période précédente : <strong style={{ color: '#8b949e' }}>{prevPeriodBans}</strong> bans{periodBans !== prevPeriodBans ? <> → <strong style={{ color: periodBans > prevPeriodBans ? '#e86a65' : '#3fb950' }}>{periodBans}</strong></> : ' (stable)'}</span>
+                  : undefined),
+          ttColor: 'cyan' as const },
+        { ttTitle: 'Échecs actifs',
+          ttBodyNode: statTtBody(totalFailed, 'tentatives', '#e3b341',
+              'Tentatives échouées en cours (fenêtre findtime) — IPs pas encore bannies.'),
+          ttColor: 'orange' as const },
+        { ttTitle: `Tot. échecs (${periodLabel})`,
+          ttBodyNode: statTtBody(periodSummary?.totalFailures ?? 0, 'tentatives', '#e3b341',
+              `Somme des échecs enregistrés lors des bans sur la période ${periodLabel} (colonne failures dans f2b_events).`,
+              prevPeriodSummary !== null && periodSummary !== null
+                  ? <span>Période précédente : <strong style={{ color: '#8b949e' }}>{prevPeriodSummary.totalFailures}</strong> échecs{periodSummary.totalFailures !== prevPeriodSummary.totalFailures ? <> → <strong style={{ color: periodSummary.totalFailures > prevPeriodSummary.totalFailures ? '#e86a65' : '#3fb950' }}>{periodSummary.totalFailures}</strong></> : ' (stable)'}</span>
+                  : undefined),
+          ttColor: 'orange' as const },
+        { ttTitle: `IPs uniques (${periodLabel})`,
+          ttBodyNode: statTtBody(uniqueIpsPeriod, 'IPs distinctes', '#bc8cff',
+              `IPs distinctes ayant déclenché au moins un ban sur la période ${periodLabel} (f2b_events).`,
+              prevPeriodSummary !== null && periodSummary !== null
+                  ? <span>Période précédente : <strong style={{ color: '#8b949e' }}>{prevPeriodSummary.uniqueIps}</strong> IPs{periodSummary.uniqueIps !== prevPeriodSummary.uniqueIps ? <> → <strong style={{ color: periodSummary.uniqueIps > prevPeriodSummary.uniqueIps ? '#e86a65' : '#3fb950' }}>{periodSummary.uniqueIps}</strong></> : ' (stable)'}</span>
+                  : undefined),
+          ttColor: 'purple' as const },
+        { ttTitle: `Expirés (${periodLabel})`,
+          ttBodyNode: statTtBody(periodSummary?.expiredInPeriod ?? expiredLast24h, 'unbans', '#3fb950',
+              `Bans dont la durée a expiré sur la période ${periodLabel} (calculé via timeofban+bantime).`,
+              prevPeriodSummary !== null && periodSummary !== null
+                  ? <span>Période précédente : <strong style={{ color: '#8b949e' }}>{prevPeriodSummary.expiredInPeriod}</strong> expirés{periodSummary.expiredInPeriod !== prevPeriodSummary.expiredInPeriod ? <> → <strong style={{ color: '#3fb950' }}>{periodSummary.expiredInPeriod}</strong></> : ' (stable)'}</span>
+                  : undefined),
+          ttColor: 'green' as const },
         { ttTitle: 'IPs bannies (BDD)',
           ttBodyNode: statTtBody(uniqueIpsTotal, 'IPs uniques', '#e86a65',
               'Total IPs distinctes bannies dans f2b_events (base de données locale) — depuis l\'installation.',
@@ -334,37 +436,19 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
                   <span style={{ color: '#8b949e' }}>Inclut bans expirés · bans actifs : {totalBanned}</span>
               </span>),
           ttColor: 'red' as const },
-        { ttTitle: `Bans (${periodLabel})`,
-          ttBodyNode: statTtBody(periodBans, 'bans', '#39c5cf',
-              `Total bans enregistrés sur la fenêtre ${periodLabel} (données du graphique).`),
-          ttColor: 'cyan' as const },
-        { ttTitle: 'Échecs actifs',
-          ttBodyNode: statTtBody(totalFailed, 'tentatives', '#e3b341',
-              'Tentatives échouées en cours (fenêtre findtime) — pas encore bannies.'),
-          ttColor: 'orange' as const },
-        { ttTitle: `IPs uniques (${periodLabel})`,
-          ttBodyNode: statTtBody(uniqueIpsPeriod, 'IPs distinctes', '#bc8cff',
-              `IPs distinctes ayant déclenché au moins un ban sur la période ${periodLabel} (f2b_events).`),
-          ttColor: 'purple' as const },
-        { ttTitle: 'Expirés (24h)',
-          ttBodyNode: statTtBody(expiredLast24h, 'unbans', '#3fb950',
-              'Bans levés automatiquement dans les dernières 24 heures.',
-              prevStats?.expiredLast24h !== undefined && trend(expiredLast24h, prevStats.expiredLast24h)
-                  ? <span>Dernier refresh : {prevStats.expiredLast24h} → <strong style={{ color: '#3fb950' }}>{expiredLast24h}</strong> {trend(expiredLast24h, prevStats.expiredLast24h)}</span>
-                  : undefined),
-          ttColor: 'green' as const },
     ];
 
     const miniStatCards = (
-        <div style={{ padding: '.85rem 1rem .65rem', display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '.6rem', borderBottom: '1px solid #30363d', width: '100%', boxSizing: 'border-box' }}>
+        <div style={{ padding: '.85rem 1rem .65rem', display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '.6rem', borderBottom: '1px solid #30363d', width: '100%', boxSizing: 'border-box' }}>
             {([
-                { label: 'Jails actifs',            value: jails.length,   icon: <Shield style={{ width: 14, height: 14 }} />,       color: '#58a6ff', spark: false, trendVal: null },
-                { label: 'IPs bannies (BDD)',        value: uniqueIpsTotal, icon: <Ban style={{ width: 14, height: 14 }} />,           color: '#e86a65', spark: true,  trendVal: trend(uniqueIpsTotal, prevStats?.uniqueIpsTotal), trendCol: trendColor(uniqueIpsTotal, prevStats?.uniqueIpsTotal, true) },
-                { label: `Bans (${periodLabel})`,   value: periodBans,     icon: <Activity style={{ width: 14, height: 14 }} />,      color: '#39c5cf', spark: true,  trendVal: null },
-                { label: 'Échecs actifs',           value: totalFailed,    icon: <AlertTriangle style={{ width: 14, height: 14 }} />, color: '#e3b341', spark: true,  trendVal: null },
-                { label: `IPs uniques (${periodLabel})`, value: uniqueIpsPeriod, icon: <Shield style={{ width: 14, height: 14 }} />,  color: '#bc8cff', spark: true,  trendVal: null },
-                { label: 'Expirés (24h)',           value: expiredLast24h, icon: <CheckCircle style={{ width: 14, height: 14 }} />,   color: '#3fb950', spark: true,  trendVal: trend(expiredLast24h, prevStats?.expiredLast24h), trendCol: trendColor(expiredLast24h, prevStats?.expiredLast24h, false) },
-            ] as { label: string; value: number; icon: React.ReactNode; color: string; spark: boolean; trendVal: string | null; trendCol?: string }[]).map(({ label, value, icon, color, spark, trendVal, trendCol }, idx) => (
+                { label: 'Jails actifs',                    value: jails.length,                                    icon: <Shield style={{ width: 14, height: 14 }} />,       color: '#58a6ff', spark: false, trendVal: null, sub: firstEventAt ? <span style={{ fontSize: '.6rem', color: '#555d69', display: 'block', marginTop: '.2rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>BDD depuis {new Date(firstEventAt * 1000).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}</span> : null },
+                { label: `Bans (${periodLabel})`,           value: periodBans,                                      icon: <Activity style={{ width: 14, height: 14 }} />,      color: '#39c5cf', spark: true,  trendVal: prevPeriodBans === null ? null : periodBans > prevPeriodBans ? `▲ +${periodBans - prevPeriodBans}` : periodBans < prevPeriodBans ? `▼ ${periodBans - prevPeriodBans}` : null, trendCol: prevPeriodBans === null ? undefined : periodBans > prevPeriodBans ? '#e86a65' : '#3fb950' },
+                { label: 'Échecs actifs',                   value: totalFailed,                                     icon: <AlertTriangle style={{ width: 14, height: 14 }} />, color: '#e3b341', spark: true,  trendVal: failedTrend?.val ?? null, trendCol: failedTrend?.col },
+                { label: `Tot. échecs (${periodLabel})`,    value: periodSummary?.totalFailures ?? 0,               icon: <AlertTriangle style={{ width: 14, height: 14 }} />, color: '#e3b341', spark: true,  trendVal: prevPeriodSummary && periodSummary ? periodSummary.totalFailures > prevPeriodSummary.totalFailures ? `▲ +${periodSummary.totalFailures - prevPeriodSummary.totalFailures}` : periodSummary.totalFailures < prevPeriodSummary.totalFailures ? `▼ ${periodSummary.totalFailures - prevPeriodSummary.totalFailures}` : null : null, trendCol: prevPeriodSummary && periodSummary ? periodSummary.totalFailures > prevPeriodSummary.totalFailures ? '#e86a65' : '#3fb950' : undefined },
+                { label: `IPs uniques (${periodLabel})`,    value: uniqueIpsPeriod,                                 icon: <Shield style={{ width: 14, height: 14 }} />,       color: '#bc8cff', spark: true,  trendVal: prevPeriodSummary && periodSummary ? periodSummary.uniqueIps > prevPeriodSummary.uniqueIps ? `▲ +${periodSummary.uniqueIps - prevPeriodSummary.uniqueIps}` : periodSummary.uniqueIps < prevPeriodSummary.uniqueIps ? `▼ ${periodSummary.uniqueIps - prevPeriodSummary.uniqueIps}` : null : null, trendCol: prevPeriodSummary && periodSummary ? periodSummary.uniqueIps > prevPeriodSummary.uniqueIps ? '#e86a65' : '#3fb950' : undefined },
+                { label: `Expirés (${periodLabel})`,        value: periodSummary?.expiredInPeriod ?? expiredLast24h, icon: <CheckCircle style={{ width: 14, height: 14 }} />,  color: '#3fb950', spark: true,  trendVal: prevPeriodSummary && periodSummary ? periodSummary.expiredInPeriod > prevPeriodSummary.expiredInPeriod ? `▲ +${periodSummary.expiredInPeriod - prevPeriodSummary.expiredInPeriod}` : periodSummary.expiredInPeriod < prevPeriodSummary.expiredInPeriod ? `▼ ${periodSummary.expiredInPeriod - prevPeriodSummary.expiredInPeriod}` : null : null, trendCol: '#3fb950' },
+                { label: 'IPs bannies (BDD)',                value: uniqueIpsTotal,                                  icon: <Ban style={{ width: 14, height: 14 }} />,           color: '#e86a65', spark: true,  trendVal: trend(uniqueIpsTotal, prevStats?.uniqueIpsTotal), trendCol: trendColor(uniqueIpsTotal, prevStats?.uniqueIpsTotal, true) },
+            ] as { label: string; value: number; icon: React.ReactNode; color: string; spark: boolean; trendVal: string | null; trendCol?: string; sub?: React.ReactNode }[]).map(({ label, value, icon, color, spark, trendVal, trendCol, sub }, idx) => (
                 <F2bTooltip key={label} block title={MINI_CARD_TT[idx].ttTitle} body={(MINI_CARD_TT[idx] as { ttBody?: string }).ttBody} bodyNode={(MINI_CARD_TT[idx] as { ttBodyNode?: React.ReactNode }).ttBodyNode} color={MINI_CARD_TT[idx].ttColor}>
                     <div style={{ background: '#0d1117', border: '1px solid #30363d', borderRadius: 7, padding: '.65rem .8rem', minWidth: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '.68rem', color: '#8b949e' }}>
@@ -376,6 +460,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
                             {trendVal && <span style={{ fontSize: '.78rem', fontWeight: 700, color: trendCol, marginBottom: '.1rem' }}>{trendVal}</span>}
                         </div>
                         {spark && <Sparkline data={sparkData} color={color} />}
+                        {sub}
                     </div>
                 </F2bTooltip>
             ))}
@@ -515,7 +600,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
 
     const badges: Partial<Record<TabId, number>> = {
         jails:   jails.length,
-        tracker: trackerTotal ?? uniqueIpsTotal,
+        tracker: totalBanned,
         ...(configBadge > 0 ? { config: configBadge } : {}),
     };
 
@@ -570,19 +655,25 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
                                         <Icon style={{ width: 15, height: 15, flexShrink: 0, color }} />
                                         {!collapsed && <span style={{ flex: 1, textAlign: 'left', color: active ? color : '#c9d1d9' }}>{label}</span>}
                                         {!collapsed && badge !== undefined && badge > 0 && (
-                                            <span title={
-                                                id === 'config'  ? `${badge} warning${badge > 1 ? 's' : ''} — voir onglet Config` :
-                                                id === 'tracker' ? `${badge} IPs uniques (historique f2b_events — bans actifs : ${totalBanned})` :
-                                                id === 'jails'   ? `${badge} jail${badge > 1 ? 's' : ''} configuré${badge > 1 ? 's' : ''}` :
+                                            id === 'tracker'
+                                            ? <span title={`${totalBanned} bannis actifs · ${trackerTotal ?? uniqueIpsTotal} total historique`}
+                                                style={{ display: 'inline-flex', alignItems: 'baseline', fontSize: '.65rem', fontWeight: 700, borderRadius: 999, padding: '.05rem .4rem', background: 'rgba(232,106,101,.15)', border: '1px solid rgba(232,106,101,.25)', whiteSpace: 'nowrap' }}>
+                                                <span style={{ color: '#e86a65' }}>{totalBanned}</span>
+                                                <span style={{ color: '#484f58', fontSize: '.6rem', margin: '0 .1rem' }}>/</span>
+                                                <span style={{ color: '#8b949e' }}>{trackerTotal ?? uniqueIpsTotal}</span>
+                                              </span>
+                                            : <span title={
+                                                id === 'config' ? `${badge} warning${badge > 1 ? 's' : ''} — voir onglet Config` :
+                                                id === 'jails'  ? `${badge} jail${badge > 1 ? 's' : ''} configuré${badge > 1 ? 's' : ''}` :
                                                 String(badge)
-                                            } style={{ background: id === 'config' ? '#e3b341' : id === 'jails' ? '#58a6ff' : '#e86a65', color: id === 'config' ? '#0d1117' : '#fff', fontSize: '.65rem', borderRadius: 999, padding: '.05rem .45rem', fontWeight: 700 }}>
+                                              } style={{ background: id === 'config' ? '#e3b341' : id === 'jails' ? '#58a6ff' : '#e86a65', color: id === 'config' ? '#0d1117' : '#fff', fontSize: '.65rem', borderRadius: 999, padding: '.05rem .45rem', fontWeight: 700 }}>
                                                 {id === 'config' ? '!' : badge}
-                                            </span>
+                                              </span>
                                         )}
                                         {collapsed && badge !== undefined && badge > 0 && (
                                             <span title={
                                                 id === 'config'  ? `${badge} warning${badge > 1 ? 's' : ''} — voir Config` :
-                                                id === 'tracker' ? `${badge} IPs uniques (f2b_events · actifs : ${totalBanned})` :
+                                                id === 'tracker' ? `${totalBanned} bannis actifs · ${trackerTotal ?? uniqueIpsTotal} total historique` :
                                                 id === 'jails'   ? `${badge} jails` :
                                                 String(badge)
                                             } style={{ position: 'absolute', top: 3, right: 3, background: id === 'config' ? '#e3b341' : id === 'jails' ? '#58a6ff' : '#e86a65', color: id === 'config' ? '#0d1117' : '#fff', fontSize: '.55rem', borderRadius: 6, padding: '0 .25rem', lineHeight: 1.6, zIndex: 1 }}>
@@ -617,32 +708,79 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
                     {/* Center: chips */}
                     <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '.4rem', flexWrap: 'wrap' }}>
                         {status?.ok && (<>
-                            <F2bTooltip title="Jails configurés" body={`${jails.length} jail${jails.length > 1 ? 's' : ''} actif${jails.length > 1 ? 's' : ''} — règles fail2ban chargées et opérationnelles`} color="blue" placement="bottom">
-                                <Chip color="blue"><Ban style={{ width: 11, height: 11 }} /> <strong>{jails.length}</strong><span style={{ fontWeight: 400, color: '#8b949e' }}> jails</span></Chip>
-                            </F2bTooltip>
-                            <F2bTooltip title="IPs bannies (BDD)" bodyNode={statTtBody(uniqueIpsTotal, 'IPs', '#e86a65', 'Total IPs distinctes bannies dans f2b_events depuis l\'installation. Inclut les bans expirés.', <span>Bans actifs en ce moment : <strong style={{ color: '#e86a65' }}>{totalBanned}</strong></span>)} color="red" placement="bottom">
-                                <Chip color="red"><Ban style={{ width: 11, height: 11 }} /> <strong>{uniqueIpsTotal}</strong><span style={{ fontWeight: 400, color: '#8b949e' }}> bannis (BDD)</span></Chip>
-                            </F2bTooltip>
-                            {totalFailed > 0 && <F2bTooltip title="Échecs actifs" bodyNode={statTtBody(totalFailed, 'tentatives', '#e3b341', 'Tentatives échouées en cours dans la fenêtre findtime — pas encore bannies. Seuil maxretry pas atteint.')} color="orange" placement="bottom">
-                                <Chip color="orange"><AlertTriangle style={{ width: 11, height: 11 }} /> <strong>{totalFailed}</strong><span style={{ fontWeight: 400, color: '#8b949e' }}> échecs</span></Chip>
-                            </F2bTooltip>}
-                            {activeJails > 0 && <F2bTooltip title="Jails actifs" bodyNode={statTtBody(activeJails, 'jails', '#3fb950', 'Jails ayant au moins un ban ou un échec en cours en ce moment.')} color="green" placement="bottom">
-                                <Chip color="green"><Activity style={{ width: 11, height: 11 }} /> <strong>{activeJails}</strong><span style={{ fontWeight: 400, color: '#8b949e' }}> actifs</span></Chip>
-                            </F2bTooltip>}
+                            {/* 1. Bans du jour + actifs */}
                             {bansToday !== null && (
                                 <F2bTooltip title="Bans du jour" bodyNode={
                                     <div style={{ fontSize: '.78rem', lineHeight: 1.6 }}>
                                         <div><span style={{ color: '#e86a65', fontWeight: 700 }}>{bansToday.count}</span> ban{bansToday.count !== 1 ? 's' : ''} depuis minuit</div>
                                         <div><span style={{ color: '#58a6ff', fontWeight: 700 }}>{bansToday.uniqIps}</span> IP{bansToday.uniqIps !== 1 ? 's' : ''} unique{bansToday.uniqIps !== 1 ? 's' : ''}</div>
-                                        <div style={{ color: '#8b949e', fontSize: '.7rem', marginTop: '.2rem' }}>↻ refresh toutes les 60s</div>
+                                        <div style={{ marginTop: '.25rem', paddingTop: '.25rem', borderTop: '1px solid #30363d' }}><span style={{ color: '#e86a65', fontWeight: 700 }}>{totalBanned}</span> IP{totalBanned !== 1 ? 's' : ''} actuellement bannie{totalBanned !== 1 ? 's' : ''}</div>
+                                        <div style={{ color: '#8b949e', fontSize: '.7rem', marginTop: '.15rem' }}>↻ refresh toutes les 60s</div>
                                     </div>
                                 } color="red" placement="bottom">
                                     <Chip color="red">
                                         <span style={{ width: 6, height: 6, borderRadius: '50%', background: bansToday.count > 0 ? '#e86a65' : '#3fb950', display: 'inline-block', flexShrink: 0 }} />
                                         {' '}<strong>{bansToday.count}</strong><span style={{ fontWeight: 400, color: '#8b949e' }}> bans/jour</span>
+                                        <span style={{ color: '#484f58', margin: '0 .2rem', fontWeight: 400 }}>·</span>
+                                        <strong style={{ color: totalBanned > 0 ? '#e86a65' : '#8b949e' }}>{totalBanned}</strong><span style={{ fontWeight: 400, color: '#8b949e' }}> actifs</span>
                                     </Chip>
                                 </F2bTooltip>
                             )}
+                            {/* 2. Jail le plus actif sur la période */}
+                            {topJailByPeriod && (topJailByPeriod.bansInPeriod ?? 0) > 0 && (
+                                <F2bTooltip title={`Top jail (${periodLabel})`} bodyNode={
+                                    <div>
+                                        <div style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '.88rem', color: '#e3b341', marginBottom: '.2rem' }}>{topJailByPeriod.jail}</div>
+                                        <div style={{ fontSize: '.72rem', color: '#e6edf3' }}><strong style={{ color: '#e3b341' }}>{topJailByPeriod.bansInPeriod}</strong> bans sur la période {periodLabel}</div>
+                                        {topJailByPeriod.currentlyBanned > 0 && <div style={{ fontSize: '.7rem', color: '#e86a65', marginTop: '.15rem' }}>{topJailByPeriod.currentlyBanned} IP{topJailByPeriod.currentlyBanned > 1 ? 's' : ''} actuellement bannie{topJailByPeriod.currentlyBanned > 1 ? 's' : ''}</div>}
+                                    </div>
+                                } color="orange" placement="bottom">
+                                    <Chip color="orange">
+                                        <Shield style={{ width: 11, height: 11 }} />
+                                        {' '}<span style={{ fontFamily: 'monospace', maxWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis', display: 'inline-block', verticalAlign: 'bottom' }}>{topJailByPeriod.jail}</span>
+                                        <span style={{ fontWeight: 400, color: '#8b949e' }}> ×{topJailByPeriod.bansInPeriod}</span>
+                                    </Chip>
+                                </F2bTooltip>
+                            )}
+                            {/* 3. Échecs actifs */}
+                            <F2bTooltip title="Échecs actifs" bodyNode={statTtBody(totalFailed, 'tentatives', '#e3b341', 'Tentatives échouées en cours dans la fenêtre findtime — pas encore bannies. Seuil maxretry pas atteint.')} color="orange" placement="bottom">
+                                <Chip color={totalFailed > 0 ? 'orange' : 'muted'}>
+                                    <AlertTriangle style={{ width: 11, height: 11 }} />
+                                    {' '}<strong>{totalFailed}</strong><span style={{ fontWeight: 400, color: '#8b949e' }}> échecs</span>
+                                </Chip>
+                            </F2bTooltip>
+                            {/* 4. Jails actifs — tooltip liste les jails avec activité */}
+                            <F2bTooltip title="Jails actifs" bodyNode={
+                                <div>
+                                    <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#3fb950', lineHeight: 1.1, marginBottom: '.3rem' }}>
+                                        {activeJails} <span style={{ fontSize: '.68rem', fontWeight: 600, opacity: .7 }}>jail{activeJails !== 1 ? 's' : ''}</span>
+                                    </div>
+                                    {activeJailsList.length > 0 ? (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '.18rem', marginTop: '.25rem' }}>
+                                            {activeJailsList.map(j => (
+                                                <div key={j.jail} style={{ display: 'flex', alignItems: 'center', gap: '.4rem', fontSize: '.72rem' }}>
+                                                    <span style={{ fontFamily: 'monospace', color: '#e6edf3', flex: 1 }}>{j.jail}</span>
+                                                    {j.currentlyBanned > 0 && <span style={{ color: '#e86a65', fontWeight: 700 }}>{j.currentlyBanned} bannis</span>}
+                                                    {j.currentlyFailed > 0 && <span style={{ color: '#e3b341' }}>{j.currentlyFailed} échecs</span>}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div style={{ fontSize: '.72rem', color: '#8b949e', marginTop: '.2rem' }}>Aucun jail avec activité</div>
+                                    )}
+                                </div>
+                            } color="green" placement="bottom">
+                                <Chip color={activeJails > 0 ? 'green' : 'muted'}>
+                                    <Activity style={{ width: 11, height: 11 }} />
+                                    {' '}<strong>{activeJails}</strong><span style={{ fontWeight: 400, color: '#8b949e' }}> jails actifs</span>
+                                </Chip>
+                            </F2bTooltip>
+                            {/* 5. Total bans BDD */}
+                            {(() => { const bddTotal = trackerTotal ?? uniqueIpsTotal; return (
+                            <F2bTooltip title="IPs bannies (BDD)" bodyNode={statTtBody(bddTotal, 'IPs', '#e86a65', 'Total IPs distinctes bannies dans f2b_events depuis l\'installation. Inclut les bans expirés.', <span>Bans actifs en ce moment : <strong style={{ color: '#e86a65' }}>{totalBanned}</strong></span>)} color="red" placement="bottom">
+                                <Chip color="red"><Ban style={{ width: 11, height: 11 }} /> <strong>{bddTotal}</strong><span style={{ fontWeight: 400, color: '#8b949e' }}> bannis (BDD)</span></Chip>
+                            </F2bTooltip>
+                            ); })()}
                         </>)}
                         {actionMsg && (
                             <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', fontSize: '.78rem', padding: '.2rem .65rem', borderRadius: 6, background: actionMsg.type === 'ok' ? 'rgba(63,185,80,.1)' : 'rgba(232,106,101,.1)', color: actionMsg.type === 'ok' ? '#3fb950' : '#e86a65', border: `1px solid ${actionMsg.type === 'ok' ? 'rgba(63,185,80,.25)' : 'rgba(232,106,101,.25)'}` }}>
@@ -652,19 +790,20 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
                             </div>
                         )}
                     </div>
-                    {/* Right: refresh badge */}
-                    <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '.4rem', justifyContent: 'flex-end' }}>
-                        {loading && (
-                            <span style={{ fontSize: '.67rem', color: '#8b949e', whiteSpace: 'nowrap' }}>↻ …</span>
-                        )}
-                        {lastRefreshed > 0 && !loading && (
-                            <span title="Auto-refresh actif toutes les 30s"
-                                style={{ display: 'inline-flex', alignItems: 'center', gap: '.3rem', padding: '.15rem .5rem', borderRadius: 5, border: '1px solid #30363d', background: '#161b22', fontSize: '.67rem', color: '#8b949e', whiteSpace: 'nowrap', cursor: 'default', width: '11.5rem', flexShrink: 0, overflow: 'hidden' }}>
-                                ↻
+                    {/* Right: refresh badge — fixed width to prevent center badges from shifting */}
+                    <div style={{ flexShrink: 0, width: '11.5rem', display: 'flex', justifyContent: 'flex-end' }}>
+                        <span title="Auto-refresh actif toutes les 30s"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '.3rem', padding: '.15rem .5rem', borderRadius: 5, border: '1px solid #30363d', background: '#161b22', fontSize: '.67rem', color: '#8b949e', whiteSpace: 'nowrap', cursor: 'default', width: '100%', overflow: 'hidden' }}>
+                            <span style={{ flexShrink: 0 }}>{refreshBusy ? '↻' : '↻'}</span>
+                            {refreshBusy ? (
+                                <span style={{ fontFamily: 'monospace', color: '#555d69' }}>refresh…</span>
+                            ) : lastRefreshed > 0 ? (<>
                                 <span style={{ fontFamily: 'monospace', color: '#c9d1d9', flexShrink: 0 }}>{new Date(lastRefreshed).toLocaleTimeString('fr-FR')}</span>
-                                <span style={{ color: '#8b949e', overflow: 'hidden', textOverflow: 'ellipsis' }}>({fmtAge(lastRefreshed)})</span>
-                            </span>
-                        )}
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>({fmtAge(lastRefreshed)})</span>
+                            </>) : (
+                                <span style={{ color: '#555d69' }}>—</span>
+                            )}
+                        </span>
                     </div>
                 </div>
                 {/* Ban toast notifications */}
@@ -704,7 +843,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
                 )}
 
                 {/* Error banner */}
-                {!loading && status && !status.ok && (
+                {statusHydrated && status && !status.ok && (
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: '.5rem', padding: '.6rem 1rem', background: 'rgba(227,179,65,.07)', borderBottom: '1px solid rgba(227,179,65,.25)', fontSize: '.78rem', color: '#e3b341', flexShrink: 0 }}>
                         <AlertTriangle style={{ width: 13, height: 13, flexShrink: 0, marginTop: 2 }} />
                         <div style={{ minWidth: 0 }}>
@@ -720,11 +859,11 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
                     {/* Shared stats card: shown for jails + stats tabs */}
                     {(tab === 'jails' || tab === 'stats') && (
                         <BanHistoryChart history={history} histMax={histMax} days={statsDays} onDaysChange={setStatsDays}
-                            loading={loading} card headerExtra={miniStatCards}
+                            loading={historyLoading} card headerExtra={miniStatCards}
                             byJail={byJail} jailNames={jailNames} granularity={granularity} slotBase={slotBase} />
                     )}
                     {tab === 'jails' && (
-                        <TabJails jails={jails} inactiveJails={inactiveJails} loading={loading} statusOk={status?.ok} statusError={status?.error}
+                        <TabJails jails={jails} inactiveJails={inactiveJails} statusHydrated={statusHydrated} statusOk={status?.ok} statusError={status?.error}
                             actionLoading={actionLoading} days={statsDays}
                             onUnban={(jail, ip) => doAction('/api/plugins/fail2ban/unban', { jail, ip }, `unban-${jail}-${ip}`)}
                             onBan={(jail, ip)   => doAction('/api/plugins/fail2ban/ban',   { jail, ip }, `ban-${jail}-${ip}`)}
@@ -742,7 +881,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
                             onIpClick={(ip) => setSelectedIp(ip)} />
                     )}
                     {tab === 'stats' && (
-                        <TabStats jails={jails} loading={loading}
+                        <TabStats jails={jails} statusHydrated={statusHydrated}
                             totalBanned={totalBanned} totalFailed={totalFailed} totalAllTime={totalAllTime} uniqueIpsTotal={uniqueIpsTotal} firstEventAt={firstEventAt} activeJails={activeJails}
                             days={statsDays} onDaysChange={setStatsDays}
                             onIpClick={(ip) => setSelectedIp(ip)} />

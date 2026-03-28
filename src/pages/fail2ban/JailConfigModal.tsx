@@ -1,12 +1,14 @@
 /**
  * JailConfigModal — "Modifier la config" for a fail2ban jail.
- * Two tabs: Paramètres (bantime/findtime/maxretry/filter/actions/regex) and Avancé (ignoreip/usedns/logpath/port).
- * Matches the PHP medit-jail modal.
+ * Two tabs:
+ *  - "À chaud"       : bantime / findtime / maxretry / ignoreip / usedns  (applied live via fail2ban-client)
+ *  - "Reload requis" : logpath / port / filter / actions                   (writes jail.local then reloads)
  */
 import React, { useState, useEffect, useCallback } from 'react';
 import {
     X, Save, Square, Play, Settings, Terminal,
     Shield, ChevronDown, ChevronRight, Plus, Trash2, CheckCircle, XCircle,
+    Zap, RefreshCw,
 } from 'lucide-react';
 import { api } from '../../api/client';
 import { fmtSecs } from './helpers';
@@ -139,7 +141,7 @@ export interface JailConfigModalProps {
 }
 
 export const JailConfigModal: React.FC<JailConfigModalProps> = ({ jailName, isActive = true, onClose, onRefreshNeeded }) => {
-    const [tab,       setTab]       = useState<'basic' | 'advanced'>('basic');
+    const [tab,       setTab]       = useState<'live' | 'reload'>('live');
     const [params,    setParams]    = useState<JailParams | null>(null);
     const [loading,   setLoading]   = useState(true);
     const [saving,    setSaving]    = useState(false);
@@ -253,13 +255,18 @@ export const JailConfigModal: React.FC<JailConfigModalProps> = ({ jailName, isAc
 
                 {/* Tabs */}
                 <div style={{ display: 'flex', background: '#21262d', borderBottom: '1px solid #30363d', flexShrink: 0 }}>
-                    {(['basic', 'advanced'] as const).map(t => (
-                        <button key={t} onClick={() => setTab(t)} style={{
+                    {([
+                        { key: 'live',   label: 'À chaud',       Icon: Zap,        color: '#3fb950' },
+                        { key: 'reload', label: 'Reload requis',  Icon: RefreshCw,  color: '#e3b341' },
+                    ] as const).map(({ key, label, Icon: TabIcon, color }) => (
+                        <button key={key} onClick={() => setTab(key)} style={{
                             padding: '.5rem 1rem', fontSize: '.8rem', fontWeight: 600, border: 'none', cursor: 'pointer',
-                            background: 'transparent', borderBottom: `2px solid ${tab === t ? '#58a6ff' : 'transparent'}`,
-                            color: tab === t ? '#58a6ff' : '#8b949e',
+                            background: 'transparent', borderBottom: `2px solid ${tab === key ? color : 'transparent'}`,
+                            color: tab === key ? color : '#8b949e',
+                            display: 'flex', alignItems: 'center', gap: '.3rem',
                         }}>
-                            {t === 'basic' ? 'Paramètres' : 'Avancé'}
+                            <TabIcon style={{ width: 11, height: 11 }} />
+                            {label}
                         </button>
                     ))}
                 </div>
@@ -275,9 +282,10 @@ export const JailConfigModal: React.FC<JailConfigModalProps> = ({ jailName, isAc
                 <div style={{ flex: 1, overflowY: 'auto', padding: '1.25rem 1.25rem .75rem' }}>
                     {loading ? (
                         <div style={{ color: '#8b949e', fontSize: '.85rem' }}>Chargement…</div>
-                    ) : tab === 'basic' ? (
+                    ) : tab === 'live' ? (
+                        /* ── À chaud : bantime / findtime / maxretry / ignoreip / usedns ── */
                         <div>
-                            {/* Timing params */}
+                            {/* Timings */}
                             <div style={{ marginBottom: '.85rem' }}>
                                 <div style={{ fontSize: '.72rem', fontWeight: 700, color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: '.65rem', display: 'flex', alignItems: 'center', gap: '.35rem' }}>
                                     <Settings style={{ width: 11, height: 11 }} /> Timings
@@ -298,8 +306,76 @@ export const JailConfigModal: React.FC<JailConfigModalProps> = ({ jailName, isAc
                                 </div>
                             </div>
 
-                            {/* Filter + Actions */}
+                            {/* Whitelist IP */}
                             <div style={{ borderTop: '1px solid #30363d', paddingTop: '.85rem', marginBottom: '.85rem' }}>
+                                <div style={{ fontSize: '.72rem', fontWeight: 700, color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: '.55rem' }}>
+                                    Whitelist IP (ignoreip)
+                                </div>
+                                {ignoreipList.length > 0 ? (
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.3rem', marginBottom: '.5rem' }}>
+                                        {ignoreipList.map(ip => (
+                                            <span key={ip} style={{ display: 'inline-flex', alignItems: 'center', gap: '.3rem', padding: '.18rem .5rem', borderRadius: 4, fontSize: '.75rem', fontFamily: 'monospace', background: 'rgba(63,185,80,.1)', border: '1px solid rgba(63,185,80,.3)', color: '#3fb950' }}>
+                                                {ip}
+                                                <button onClick={() => setIgnoreipList(l => l.filter(x => x !== ip))}
+                                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#e86a65', padding: 0, display: 'flex', alignItems: 'center' }}>
+                                                    <Trash2 style={{ width: 10, height: 10 }} />
+                                                </button>
+                                            </span>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div style={{ fontSize: '.78rem', color: '#8b949e', fontStyle: 'italic', marginBottom: '.5rem' }}>Aucune IP en whitelist</div>
+                                )}
+                                <div style={{ display: 'flex', gap: '.4rem' }}>
+                                    <input type="text" value={ignoreipInput} onChange={e => setIgnoreipInput(e.target.value)}
+                                        placeholder="IP ou CIDR (ex: 192.168.1.0/24)"
+                                        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addIgnoreip(); } }}
+                                        style={{ ...inputStyle, flex: 1 }} />
+                                    <button onClick={addIgnoreip} style={{ ...btnBase, borderColor: 'rgba(63,185,80,.4)', background: 'rgba(63,185,80,.1)', color: '#3fb950' }}>
+                                        <Plus style={{ width: 12, height: 12 }} /> Ajouter
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* usedns */}
+                            <div style={{ borderTop: '1px solid #30363d', paddingTop: '.75rem' }}>
+                                <label style={{ fontSize: '.72rem', fontWeight: 700, color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.05em', display: 'block', marginBottom: '.55rem' }}>
+                                    Résolution DNS (usedns)
+                                </label>
+                                <select value={usedns} onChange={e => setUsedns(e.target.value)}
+                                    style={{ ...inputStyle, width: '100%', cursor: 'pointer' }}>
+                                    {USEDNS_OPTIONS.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
+                                </select>
+                            </div>
+                        </div>
+                    ) : (
+                        /* ── Reload requis : logpath / port / filter / actions ── */
+                        <div>
+                            {/* logpath */}
+                            <div style={{ marginBottom: '.85rem' }}>
+                                <label htmlFor="logpath" style={{ fontSize: '.72rem', fontWeight: 700, color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.05em', display: 'block', marginBottom: '.55rem' }}>
+                                    Logpath
+                                </label>
+                                <input id="logpath" type="text" value={logpath} onChange={e => setLogpath(e.target.value)}
+                                    placeholder="/var/log/nginx/access.log"
+                                    style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }} />
+                                <div style={{ fontSize: '.68rem', color: '#8b949e', marginTop: '.3rem' }}>
+                                    Chemin(s) séparés par des espaces. Écrasera la valeur dans jail.conf.
+                                </div>
+                            </div>
+
+                            {/* port */}
+                            <div style={{ borderTop: '1px solid #30363d', paddingTop: '.75rem', marginBottom: '.85rem' }}>
+                                <label htmlFor="port-input" style={{ fontSize: '.72rem', fontWeight: 700, color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.05em', display: 'block', marginBottom: '.55rem' }}>
+                                    Port(s)
+                                </label>
+                                <input id="port-input" type="text" value={port} onChange={e => setPort(e.target.value)}
+                                    placeholder="http,https ou 80,443"
+                                    style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }} />
+                            </div>
+
+                            {/* Filter + Actions */}
+                            <div style={{ borderTop: '1px solid #30363d', paddingTop: '.85rem' }}>
                                 <div style={{ fontSize: '.72rem', fontWeight: 700, color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: '.65rem', display: 'flex', alignItems: 'center', gap: '.35rem' }}>
                                     <Terminal style={{ width: 11, height: 11 }} /> Filtre &amp; Actions
                                 </div>
@@ -341,74 +417,6 @@ export const JailConfigModal: React.FC<JailConfigModalProps> = ({ jailName, isAc
                                 </div>
                             </div>
                         </div>
-                    ) : (
-                        /* Advanced tab */
-                        <div>
-                            {/* ignoreip */}
-                            <div style={{ marginBottom: '.85rem' }}>
-                                <div style={{ fontSize: '.72rem', fontWeight: 700, color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: '.55rem' }}>
-                                    Whitelist IP (ignoreip)
-                                </div>
-                                {ignoreipList.length > 0 ? (
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.3rem', marginBottom: '.5rem' }}>
-                                        {ignoreipList.map(ip => (
-                                            <span key={ip} style={{ display: 'inline-flex', alignItems: 'center', gap: '.3rem', padding: '.18rem .5rem', borderRadius: 4, fontSize: '.75rem', fontFamily: 'monospace', background: 'rgba(63,185,80,.1)', border: '1px solid rgba(63,185,80,.3)', color: '#3fb950' }}>
-                                                {ip}
-                                                <button onClick={() => setIgnoreipList(l => l.filter(x => x !== ip))}
-                                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#e86a65', padding: 0, display: 'flex', alignItems: 'center' }}>
-                                                    <Trash2 style={{ width: 10, height: 10 }} />
-                                                </button>
-                                            </span>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <div style={{ fontSize: '.78rem', color: '#8b949e', fontStyle: 'italic', marginBottom: '.5rem' }}>Aucune IP en whitelist</div>
-                                )}
-                                <div style={{ display: 'flex', gap: '.4rem' }}>
-                                    <input type="text" value={ignoreipInput} onChange={e => setIgnoreipInput(e.target.value)}
-                                        placeholder="IP ou CIDR (ex: 192.168.1.0/24)"
-                                        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addIgnoreip(); } }}
-                                        style={{ ...inputStyle, flex: 1 }} />
-                                    <button onClick={addIgnoreip} style={{ ...btnBase, borderColor: 'rgba(63,185,80,.4)', background: 'rgba(63,185,80,.1)', color: '#3fb950' }}>
-                                        <Plus style={{ width: 12, height: 12 }} /> Ajouter
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* usedns */}
-                            <div style={{ borderTop: '1px solid #30363d', paddingTop: '.75rem', marginBottom: '.85rem' }}>
-                                <label style={{ fontSize: '.72rem', fontWeight: 700, color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.05em', display: 'block', marginBottom: '.55rem' }}>
-                                    Résolution DNS (usedns)
-                                </label>
-                                <select value={usedns} onChange={e => setUsedns(e.target.value)}
-                                    style={{ ...inputStyle, width: '100%', cursor: 'pointer' }}>
-                                    {USEDNS_OPTIONS.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
-                                </select>
-                            </div>
-
-                            {/* logpath */}
-                            <div style={{ borderTop: '1px solid #30363d', paddingTop: '.75rem', marginBottom: '.85rem' }}>
-                                <label htmlFor="logpath" style={{ fontSize: '.72rem', fontWeight: 700, color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.05em', display: 'block', marginBottom: '.55rem' }}>
-                                    Logpath
-                                </label>
-                                <input id="logpath" type="text" value={logpath} onChange={e => setLogpath(e.target.value)}
-                                    placeholder="/var/log/nginx/access.log"
-                                    style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }} />
-                                <div style={{ fontSize: '.68rem', color: '#8b949e', marginTop: '.3rem' }}>
-                                    Chemin(s) séparés par des espaces. Écrasera la valeur dans jail.conf.
-                                </div>
-                            </div>
-
-                            {/* port */}
-                            <div style={{ borderTop: '1px solid #30363d', paddingTop: '.75rem' }}>
-                                <label htmlFor="port-input" style={{ fontSize: '.72rem', fontWeight: 700, color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.05em', display: 'block', marginBottom: '.55rem' }}>
-                                    Port(s)
-                                </label>
-                                <input id="port-input" type="text" value={port} onChange={e => setPort(e.target.value)}
-                                    placeholder="http,https ou 80,443"
-                                    style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }} />
-                            </div>
-                        </div>
                     )}
                 </div>
 
@@ -431,8 +439,8 @@ export const JailConfigModal: React.FC<JailConfigModalProps> = ({ jailName, isAc
                         Annuler
                     </button>
                     <button onClick={handleSave} disabled={saving}
-                        style={{ ...btnBase, borderColor: 'rgba(63,185,80,.4)', background: 'rgba(63,185,80,.12)', color: '#3fb950', opacity: saving ? .6 : 1 }}>
-                        <Save style={{ width: 12, height: 12 }} /> {saving ? 'Enregistrement…' : 'Appliquer'}
+                        style={{ ...btnBase, borderColor: tab === 'reload' ? 'rgba(227,179,65,.4)' : 'rgba(63,185,80,.4)', background: tab === 'reload' ? 'rgba(227,179,65,.12)' : 'rgba(63,185,80,.12)', color: tab === 'reload' ? '#e3b341' : '#3fb950', opacity: saving ? .6 : 1 }}>
+                        <Save style={{ width: 12, height: 12 }} /> {saving ? 'Enregistrement…' : tab === 'reload' ? 'Appliquer + Reload' : 'Appliquer'}
                     </button>
                 </div>
             </div>

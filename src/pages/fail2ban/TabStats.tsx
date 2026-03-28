@@ -10,6 +10,7 @@ import { card, PERIODS, F2bTooltip } from './helpers';
 import { api } from '../../api/client';
 import type { JailStatus, BanEntry } from './types';
 import { TabJailsEvents } from './TabJails';
+import { primeTopsPrevTotalFromFullFetch } from './fail2banTopsPrevFlight';
 
 // ── Module-level cache (survives tab navigation) ──────────────────────────────
 const _cache: Record<string, { data: unknown; ts: number }> = {};
@@ -335,8 +336,8 @@ interface TopsData {
     heatmapFailed: { hour: number; count: number }[];
     heatmapWeek: number[][];
     heatmapFailedWeek: number[][];
-    summary: { totalBans: number; uniqueIps: number; topJail: string | null; topJailCount: number };
-    prevSummary?: { totalBans: number; uniqueIps: number; topJail: string | null; topJailCount: number } | null;
+    summary: { totalBans: number; uniqueIps: number; topJail: string | null; topJailCount: number; totalFailures: number; expiredInPeriod: number };
+    prevSummary?: { totalBans: number; uniqueIps: number; topJail: string | null; topJailCount: number; totalFailures: number; expiredInPeriod: number } | null;
 }
 
 const TopCard: React.FC<{ icon: React.ReactNode; title: string; color: string; periodLabel?: string; entries: TopEntry[]; loading: boolean; labelKey: 'ip' | 'jail'; viewMode: 'bar' | 'pie'; limit: number; rowPrefix?: (label: string) => React.ReactNode; emptyMsg?: string; secondaryLabel?: string; onIpClick?: (ip: string) => void }> = ({ icon, title, color, periodLabel, entries, loading, labelKey, viewMode, limit, rowPrefix, emptyMsg, secondaryLabel, onIpClick }) => {
@@ -844,7 +845,8 @@ const JailBanShareBars: React.FC<{ jails: JailStatus[] }> = ({ jails }) => {
 // ── Main component ────────────────────────────────────────────────────────────
 interface TabStatsProps {
     jails: JailStatus[];
-    loading: boolean;
+    /** True after first /status completes; jail-based stat cards do not wait on /history. */
+    statusHydrated: boolean;
     totalBanned: number;
     totalFailed: number;
     totalAllTime: number;
@@ -857,7 +859,7 @@ interface TabStatsProps {
 }
 
 export const TabStats: React.FC<TabStatsProps> = ({
-    jails, loading,
+    jails, statusHydrated,
     totalBanned, totalFailed, totalAllTime, uniqueIpsTotal, firstEventAt, activeJails,
     days, onDaysChange, onIpClick,
 }) => {
@@ -871,6 +873,7 @@ export const TabStats: React.FC<TabStatsProps> = ({
                 if (res.success && res.result?.ok) {
                     setCached(`tops:all:${days}`, res.result);
                     setTopsData(res.result);
+                    primeTopsPrevTotalFromFullFetch(days, res.result.prevSummary?.totalBans ?? null);
                 }
             })
             .catch(() => {})
@@ -879,16 +882,33 @@ export const TabStats: React.FC<TabStatsProps> = ({
 
     useEffect(() => {
         const cached = getCached<TopsData>(`tops:all:${days}`);
-        if (cached) { setTopsData(cached); setTopsLoading(false); }
-        else setTopsLoading(true);
+        if (cached) {
+            setTopsData(cached);
+            setTopsLoading(false);
+            primeTopsPrevTotalFromFullFetch(days, cached.prevSummary?.totalBans ?? null);
+        } else setTopsLoading(true);
         fetchTops();
         const id = setInterval(fetchTops, 60_000);
         return () => clearInterval(id);
     }, [days, fetchTops]);
 
-    const statCards = [
+    const statCards: { label: string; value: number; icon: React.ReactNode; color: string; tt?: React.ReactNode }[] = [
         { label: 'Jails actifs',     value: activeJails,  icon: <Shield style={{ width: 14, height: 14 }} />,       color: C.blue },
-        { label: 'Bans actifs',      value: totalBanned,  icon: <Ban style={{ width: 14, height: 14 }} />,           color: C.red },
+        { label: 'Bans actifs',      value: totalBanned,  icon: <Ban style={{ width: 14, height: 14 }} />,           color: C.red,
+          tt: (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '.3rem' }}>
+                <div style={{ fontSize: '1.2rem', fontWeight: 800, color: C.red, lineHeight: 1.1 }}>{totalBanned} IPs</div>
+                <div style={{ fontSize: '.75rem', color: '#e6edf3', lineHeight: 1.5 }}>
+                    IPs <strong>actuellement</strong> en jail — snapshot en temps réel de fail2ban.
+                </div>
+                <div style={{ fontSize: '.69rem', color: C.muted, borderTop: '1px solid rgba(255,255,255,.06)', paddingTop: '.28rem', lineHeight: 1.5 }}>
+                    <div>Source : <code style={{ color: '#58a6ff' }}>fail2ban-client status &lt;jail&gt;</code> → <em>Currently banned</em>, sommé sur tous les jails actifs.</div>
+                    <div style={{ marginTop: '.2rem' }}>Période : <strong style={{ color: '#e6edf3' }}>maintenant</strong> — une IP est comptée tant que son <code style={{ color: '#e3b341' }}>bantime</code> n'a pas expiré et qu'elle n'a pas été débannie manuellement.</div>
+                    <div style={{ marginTop: '.2rem' }}>≠ total cumulé BDD — ce chiffre baisse quand les bans expirent.</div>
+                </div>
+            </div>
+          )
+        },
         { label: 'Échecs actifs',    value: totalFailed,  icon: <AlertTriangle style={{ width: 14, height: 14 }} />, color: C.orange },
         { label: 'Total bans cumul', value: totalAllTime, icon: <ShieldOff style={{ width: 14, height: 14 }} />,     color: C.purple },
     ];
@@ -912,16 +932,21 @@ export const TabStats: React.FC<TabStatsProps> = ({
                 <SCard icon={<Shield style={{ width: 14, height: 14 }} />} color={C.blue} title="État actuel">
                     <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '.75rem' }}>
-                            {statCards.map(({ label, value, icon, color }) => (
-                                <div key={label} style={{ background: C.bg2, borderRadius: 7, padding: '1rem' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '.35rem', fontSize: '.72rem', color: C.muted }}>
-                                        <span>{label}</span><span style={{ color }}>{icon}</span>
+                            {statCards.map(({ label, value, icon, color, tt }) => {
+                                const inner = (
+                                    <div key={label} style={{ background: C.bg2, borderRadius: 7, padding: '1rem' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '.35rem', fontSize: '.72rem', color: C.muted }}>
+                                            <span>{label}</span><span style={{ color }}>{icon}</span>
+                                        </div>
+                                        <div style={{ fontSize: '1.75rem', fontWeight: 700, color, lineHeight: 1.1 }}>
+                                            {!statusHydrated ? '…' : value}
+                                        </div>
                                     </div>
-                                    <div style={{ fontSize: '1.75rem', fontWeight: 700, color, lineHeight: 1.1 }}>
-                                        {loading ? '…' : value}
-                                    </div>
-                                </div>
-                            ))}
+                                );
+                                return tt
+                                    ? <F2bTooltip key={label} title={label} bodyNode={tt} color="red">{inner}</F2bTooltip>
+                                    : inner;
+                            })}
                         </div>
                         {firstEventAt && (
                             <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', padding: '.45rem .65rem', background: C.bg2, borderRadius: 6, fontSize: '.72rem', color: C.muted, borderTop: `1px solid ${C.border}` }}>

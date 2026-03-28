@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { api } from '../../api/client';
-import { card, cardH } from './helpers';
+import { card, cardH, F2bTooltip } from './helpers';
 import { List, Shield } from 'lucide-react';
 import type { TrackerEntry } from './types';
 import { GeoInfo } from './types';
@@ -64,6 +64,7 @@ export const TabTracker: React.FC<{ onIpClick?: (ip: string) => void; onTotalCha
     const [page, setPage]       = useState(1);
     const [sortCol, setSortCol] = useState<SortCol>('last');
     const [sortDir, setSortDir] = useState<SortDir>('desc');
+    const [viewMode, setViewMode] = useState<'active' | 'history'>('active');
 
     // Geo cache: ip → GeoInfo (or null on error)
     const geoCache = useRef<Map<string, GeoInfo | null>>(new Map());
@@ -196,16 +197,20 @@ export const TabTracker: React.FC<{ onIpClick?: (ip: string) => void; onTotalCha
         });
     }, []);
 
+    const activeCount  = useMemo(() => ips.filter(e => e.currentlyBanned).length, [ips]);
+    const historyCount = total;
+
     const filtered = useMemo(() => {
+        const base = viewMode === 'active' ? ips.filter(e => e.currentlyBanned) : ips;
         const q = filter.trim().toLowerCase();
-        return q ? ips.filter(e =>
+        return q ? base.filter(e =>
             e.ip.includes(q) ||
             e.jails.some(j => j.includes(q)) ||
             (e.hostname ?? '').toLowerCase().includes(q) ||
             (geoData.get(e.ip)?.country ?? '').toLowerCase().includes(q) ||
             (geoData.get(e.ip)?.city ?? '').toLowerCase().includes(q)
-        ) : ips;
-    }, [ips, filter, geoData]);
+        ) : base;
+    }, [ips, filter, geoData, viewMode]);
 
     const sorted = useMemo(() => {
         return [...filtered].sort((a, b) => {
@@ -253,12 +258,28 @@ export const TabTracker: React.FC<{ onIpClick?: (ip: string) => void; onTotalCha
             {/* ── Top bar ── */}
             <div style={{ ...cardH, flexWrap: 'wrap', gap: '.5rem', alignItems: 'center' }}>
                 {/* Title */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', fontWeight: 600, fontSize: '.9rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', fontWeight: 600, fontSize: '.9rem', flexShrink: 0 }}>
                     <List style={{ width: 14, height: 14, color: '#e3b341' }} />
-                    <strong style={{ color: '#e86a65' }}>{total}</strong>
-                    <span style={{ color: '#e6edf3' }}>IP{total !== 1 ? 's' : ''} suivie{total !== 1 ? 's' : ''}</span>
+                    <strong style={{ color: viewMode === 'active' ? '#e86a65' : '#58a6ff', minWidth: '2.5em', display: 'inline-block', textAlign: 'right' }}>{viewMode === 'active' ? activeCount : historyCount}</strong>
+                    <span style={{ color: '#e6edf3' }}>IPs</span>
                 </div>
-                <span style={{ fontSize: '.72rem', color: '#8b949e', padding: '.15rem .55rem', borderRadius: 4, border: '1px solid #30363d' }}>Tout l'historique</span>
+                {/* View mode toggle — fixed-width buttons to prevent layout shift */}
+                <div style={{ display: 'flex', flexShrink: 0, borderRadius: 5, border: '1px solid #30363d', overflow: 'hidden' }}>
+                    {([['active', 'Bannis actifs', activeCount, '#e86a65', 'rgba(232,106,101,.15)', 'rgba(232,106,101,.2)'], ['history', 'Historique', historyCount, '#58a6ff', 'rgba(88,166,255,.1)', 'rgba(88,166,255,.18)']] as const).map(([mode, label, count, col, bg, countBg]) => (
+                        <button key={mode} onClick={() => { setViewMode(mode); setPage(1); }}
+                            style={{
+                                width: 118, padding: '.2rem .65rem', fontSize: '.72rem', fontWeight: 600, cursor: 'pointer',
+                                background: viewMode === mode ? bg : 'transparent',
+                                color: viewMode === mode ? col : '#8b949e',
+                                border: 'none', borderRight: mode === 'active' ? '1px solid #30363d' : 'none',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '.3rem',
+                                whiteSpace: 'nowrap',
+                            }}>
+                            {label}
+                            <span style={{ minWidth: '2em', textAlign: 'center', padding: '.0rem .3rem', borderRadius: 3, fontSize: '.65rem', background: viewMode === mode ? countBg : 'rgba(48,54,61,.5)', color: viewMode === mode ? col : '#8b949e', fontWeight: 700 }}>{count}</span>
+                        </button>
+                    ))}
+                </div>
                 {/* Search — centré */}
                 <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
                     <div style={{ position: 'relative', width: 220 }}>
@@ -303,22 +324,24 @@ export const TabTracker: React.FC<{ onIpClick?: (ip: string) => void; onTotalCha
             {loading
                 ? <div style={{ textAlign: 'center', padding: '3rem', color: '#8b949e' }}>Chargement…</div>
                 : filtered.length === 0
-                ? <div style={{ textAlign: 'center', padding: '3rem', color: '#3fb950' }}>✓ Aucune IP trouvée</div>
+                ? <div style={{ textAlign: 'center', padding: '3rem', color: viewMode === 'active' ? '#3fb950' : '#8b949e' }}>
+                    {viewMode === 'active' ? '✓ Aucune IP actuellement bannie' : 'Aucune IP dans l\'historique'}
+                  </div>
                 : (
                     <div style={{ overflowX: 'auto' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 750 }}>
                             <thead>
                                 <tr>
                                     <th style={{ ...thStyle, width: 32 }}>#</th>
-                                    <SortTh col="last" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} style={thStyle}>Dernier vu</SortTh>
-                                    <SortTh col="ip"   sortCol={sortCol} sortDir={sortDir} onSort={handleSort} style={thStyle}>IP</SortTh>
-                                    <th style={thStyle}>Pays</th>
-                                    <th style={thStyle}>Géoloc</th>
-                                    <SortTh col="failures" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} style={{ ...thStyle, textAlign: 'center' }}>Tentatives</SortTh>
-                                    <SortTh col="bans"   sortCol={sortCol} sortDir={sortDir} onSort={handleSort} style={{ ...thStyle, textAlign: 'center' }}><span style={{ color: '#e86a65' }}>Bans</span></SortTh>
-                                    <SortTh col="unbans" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} style={{ ...thStyle, textAlign: 'center' }}><span style={{ color: '#3fb950' }}>Débans</span></SortTh>
-                                    <SortTh col="jails"  sortCol={sortCol} sortDir={sortDir} onSort={handleSort} style={thStyle}>Jail(s)</SortTh>
-                                    <th style={thStyle}>IPSet(s)</th>
+                                    <SortTh col="last" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} style={{ ...thStyle, width: 110 }}>Dernier vu</SortTh>
+                                    <SortTh col="ip"   sortCol={sortCol} sortDir={sortDir} onSort={handleSort} style={{ ...thStyle, width: 130 }}>IP</SortTh>
+                                    <th style={{ ...thStyle, width: 46 }}>Pays</th>
+                                    <th style={{ ...thStyle, width: 100 }}>Géoloc</th>
+                                    <SortTh col="failures" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} style={{ ...thStyle, width: 80, textAlign: 'center' }}>Tentatives</SortTh>
+                                    <SortTh col="bans"   sortCol={sortCol} sortDir={sortDir} onSort={handleSort} style={{ ...thStyle, width: 60, textAlign: 'center' }}><span style={{ color: '#e86a65' }}>Bans</span></SortTh>
+                                    <SortTh col="unbans" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} style={{ ...thStyle, width: 60, textAlign: 'center' }}><span style={{ color: '#3fb950' }}>Débans</span></SortTh>
+                                    <SortTh col="jails"  sortCol={sortCol} sortDir={sortDir} onSort={handleSort} style={{ ...thStyle, width: 320, paddingLeft: '1.2rem', borderLeft: '1px solid #30363d' }}>Jail(s)</SortTh>
+                                    <th style={{ ...thStyle, width: 180 }}>IPSet(s)</th>
                                     <th style={thStyle}>Hostname</th>
                                 </tr>
                             </thead>
@@ -341,16 +364,37 @@ export const TabTracker: React.FC<{ onIpClick?: (ip: string) => void; onTotalCha
                                             </td>
                                             <td style={{ padding: '.4rem .65rem', whiteSpace: 'nowrap' }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '.35rem' }}>
-                                                    {inRecidive && <span title="Récidive" style={{ color: '#e3b341', fontSize: '.72rem' }}>⚠</span>}
+                                                    {inRecidive && (
+                                                        <F2bTooltip title="IP récidiviste" color="orange" placement="bottom"
+                                                            bodyNode={<div style={{ fontSize: '.78rem', lineHeight: 1.6 }}>
+                                                                <div>Cette IP a été bannie <strong style={{ color: '#e3b341' }}>plusieurs fois</strong> et a déclenché le jail <span style={{ fontFamily: 'monospace', color: '#e86a65' }}>recidive</span>.</div>
+                                                                <div style={{ color: '#8b949e', fontSize: '.72rem', marginTop: '.25rem' }}>Le jail recidive applique une durée de ban prolongée aux multi-récidivistes.</div>
+                                                            </div>}>
+                                                            <span style={{ color: '#e3b341', fontSize: '.72rem', cursor: 'default' }}>⚠</span>
+                                                        </F2bTooltip>
+                                                    )}
                                                     <button onClick={() => onIpClick?.(e.ip)}
                                                         title="Voir historique détaillé"
                                                         style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'monospace', fontSize: '.85rem', color: '#e6edf3', fontWeight: 600 }}>
                                                         {e.ip}
                                                     </button>
                                                     {e.currentlyBanned && (
-                                                        <span title="Actuellement banni" style={{ display: 'inline-flex', alignItems: 'center', padding: '.05rem .3rem', borderRadius: 3, fontSize: '.6rem', fontWeight: 700, background: 'rgba(232,106,101,.15)', color: '#e86a65', border: '1px solid rgba(232,106,101,.3)', letterSpacing: '.03em' }}>
-                                                            <Shield style={{ width: 8, height: 8, marginRight: 2 }} />BANNI
-                                                        </span>
+                                                        <F2bTooltip title="IP actuellement bannie" color="red" placement="bottom"
+                                                            bodyNode={<div style={{ fontSize: '.78rem', lineHeight: 1.6 }}>
+                                                                <div>Cette IP est <strong style={{ color: '#e86a65' }}>activement bannie</strong> par fail2ban en ce moment.</div>
+                                                                <div style={{ color: '#8b949e', fontSize: '.72rem', marginTop: '.25rem' }}>Source : <span style={{ fontFamily: 'monospace' }}>fail2ban-client status</span> → Currently banned.</div>
+                                                                <div style={{ color: '#8b949e', fontSize: '.72rem' }}>Le bantime n'est pas encore expiré — tout paquet entrant de cette IP est rejeté.</div>
+                                                                {e.jails.length > 0 && <div style={{ marginTop: '.35rem' }}>
+                                                                    <div style={{ color: '#8b949e', fontSize: '.68rem', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: '.2rem' }}>Jail(s) actif(s)</div>
+                                                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.25rem' }}>
+                                                                        {e.jails.map(j => <span key={j} style={{ fontFamily: 'monospace', fontSize: '.78rem', color: j === 'recidive' ? '#e86a65' : '#3fb950' }}>{j}</span>)}
+                                                                    </div>
+                                                                </div>}
+                                                            </div>}>
+                                                            <span style={{ display: 'inline-flex', alignItems: 'center', padding: '.05rem .3rem', borderRadius: 3, fontSize: '.6rem', fontWeight: 700, background: 'rgba(232,106,101,.15)', color: '#e86a65', border: '1px solid rgba(232,106,101,.3)', letterSpacing: '.03em', cursor: 'default' }}>
+                                                                <Shield style={{ width: 8, height: 8, marginRight: 2 }} />BANNI
+                                                            </span>
+                                                        </F2bTooltip>
                                                     )}
                                                 </div>
                                             </td>
@@ -383,28 +427,79 @@ export const TabTracker: React.FC<{ onIpClick?: (ip: string) => void; onTotalCha
                                                 {e.failures !== undefined ? <span style={{ color: '#e3b341', fontWeight: 700 }}>{e.failures}</span> : <span style={{ color: '#8b949e' }}>—</span>}
                                             </td>
                                             <td style={{ padding: '.4rem .65rem', textAlign: 'center', fontSize: '.78rem' }}>
-                                                {e.bans !== undefined ? <span style={{ color: e.bans >= 5 ? '#e86a65' : e.bans >= 2 ? '#e3b341' : '#58a6ff', fontWeight: 700 }}>{e.bans}</span> : <span style={{ color: '#8b949e' }}>—</span>}
+                                                {e.bans !== undefined
+                                                    ? <F2bTooltip title="Compteur de bans" placement="bottom"
+                                                        color={e.bans >= 5 ? 'red' : e.bans >= 2 ? 'orange' : 'blue'}
+                                                        bodyNode={<div style={{ fontSize: '.78rem', lineHeight: 1.6 }}>
+                                                            <div>IP bannie <strong style={{ color: e.bans >= 5 ? '#e86a65' : e.bans >= 2 ? '#e3b341' : '#58a6ff' }}>{e.bans} fois</strong> au total.</div>
+                                                            <div style={{ marginTop: '.25rem', fontSize: '.72rem', color: '#8b949e' }}>
+                                                                {e.bans >= 5 ? '● Récidiviste dangereux — 5 bans ou plus' : e.bans >= 2 ? '● Menace modérée — 2 à 4 bans' : '● Activité faible — moins de 2 bans'}
+                                                            </div>
+                                                        </div>}>
+                                                        <span style={{ color: e.bans >= 5 ? '#e86a65' : e.bans >= 2 ? '#e3b341' : '#58a6ff', fontWeight: 700, cursor: 'default' }}>{e.bans}</span>
+                                                    </F2bTooltip>
+                                                    : <span style={{ color: '#8b949e' }}>—</span>}
                                             </td>
                                             <td style={{ padding: '.4rem .65rem', textAlign: 'center', fontSize: '.78rem' }}>
                                                 {e.unbans !== undefined ? <span style={{ color: '#3fb950', fontWeight: 600 }}>{e.unbans}</span> : <span style={{ color: '#8b949e' }}>—</span>}
                                             </td>
-                                            <td style={{ padding: '.4rem .65rem' }}>
-                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.3rem' }}>
-                                                    {e.jails.map(j => (
-                                                        <span key={j} style={{ padding: '.18rem .5rem', borderRadius: 4, fontSize: '.75rem', fontWeight: 600, ...(j === 'recidive' ? { background: 'rgba(232,106,101,.08)', color: '#e86a65', border: '1px solid rgba(232,106,101,.2)' } : { background: 'rgba(63,185,80,.1)', color: '#3fb950', border: '1px solid rgba(63,185,80,.25)' }) }}>
-                                                            {j === 'recidive' && <span style={{ color: '#e3b341' }}>⚠ </span>}{j}
-                                                        </span>
-                                                    ))}
-                                                </div>
-                                            </td>
-                                            <td style={{ padding: '.4rem .65rem' }}>
-                                                {ipsets.length > 0 ? (
-                                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.25rem' }}>
-                                                        {ipsets.map(s => (
-                                                            <span key={s} style={{ padding: '.12rem .4rem', borderRadius: 4, fontSize: '.68rem', fontWeight: 600, background: 'rgba(188,140,255,.1)', color: '#bc8cff', border: '1px solid rgba(188,140,255,.25)', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{s}</span>
+                                            <td style={{ padding: '.4rem .65rem .4rem 1.2rem', maxWidth: 320, borderLeft: '1px solid rgba(48,54,61,.5)' }}>
+                                                {e.jails.length === 0
+                                                    ? <span style={{ color: '#8b949e', fontSize: '.75rem' }}>—</span>
+                                                    : <div style={{ display: 'flex', flexWrap: 'nowrap', alignItems: 'center', gap: '.2rem', overflow: 'hidden' }}>
+                                                        {e.jails.slice(0, 3).map(j => (
+                                                            <F2bTooltip key={j}
+                                                                title={j === 'recidive' ? 'Jail récidiviste' : `Jail : ${j}`}
+                                                                color={j === 'recidive' ? 'red' : 'green'}
+                                                                placement="bottom"
+                                                                body={j === 'recidive'
+                                                                    ? 'Ce jail cible les IP multi-récidivistes. Fail2ban y place les IP déjà bannies plusieurs fois pour leur appliquer un bantime prolongé.'
+                                                                    : `Cette IP a déclenché le filtre du jail « ${j} » et a été bannie.`}>
+                                                                <span style={{ whiteSpace: 'nowrap', display: 'inline-block', padding: '.15rem .35rem', borderRadius: 4, fontSize: '.7rem', fontWeight: 600, cursor: 'default', flexShrink: 0, ...(j === 'recidive' ? { background: 'rgba(232,106,101,.08)', color: '#e86a65', border: '1px solid rgba(232,106,101,.2)' } : { background: 'rgba(63,185,80,.1)', color: '#3fb950', border: '1px solid rgba(63,185,80,.25)' }) }}>
+                                                                    {j === 'recidive' && <span style={{ color: '#e3b341' }}>⚠ </span>}{j}
+                                                                </span>
+                                                            </F2bTooltip>
                                                         ))}
+                                                        {e.jails.length > 3 && (
+                                                            <F2bTooltip
+                                                                title={`${e.jails.length} jails`}
+                                                                color="muted"
+                                                                placement="bottom"
+                                                                bodyNode={<div style={{ display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
+                                                                    {e.jails.map(j => <span key={j} style={{ fontFamily: 'monospace', fontSize: '.78rem', color: j === 'recidive' ? '#e86a65' : '#3fb950' }}>{j}</span>)}
+                                                                </div>}>
+                                                                <span style={{ padding: '.15rem .35rem', borderRadius: 4, fontSize: '.68rem', fontWeight: 700, background: 'rgba(139,148,158,.1)', color: '#8b949e', border: '1px solid rgba(139,148,158,.2)', cursor: 'default', flexShrink: 0 }}>+{e.jails.length - 3}</span>
+                                                            </F2bTooltip>
+                                                        )}
                                                     </div>
-                                                ) : <span style={{ color: '#8b949e', fontSize: '.75rem' }}>—</span>}
+                                                }
+                                            </td>
+                                            <td style={{ padding: '.4rem .65rem', maxWidth: 180 }}>
+                                                {ipsets.length === 0
+                                                    ? <span style={{ color: '#8b949e', fontSize: '.75rem' }}>—</span>
+                                                    : <div style={{ display: 'flex', flexWrap: 'nowrap', alignItems: 'center', gap: '.2rem', overflow: 'hidden' }}>
+                                                        {ipsets.slice(0, 2).map(s => (
+                                                            <F2bTooltip key={s}
+                                                                title={`IPSet : ${s}`}
+                                                                color="purple"
+                                                                placement="bottom"
+                                                                body={`Cette IP est dans l'ipset kernel « ${s} ». Elle est bloquée au niveau netfilter — avant même d'atteindre les règles iptables.`}>
+                                                                <span style={{ whiteSpace: 'nowrap', display: 'inline-block', padding: '.12rem .35rem', borderRadius: 4, fontSize: '.68rem', fontWeight: 600, background: 'rgba(188,140,255,.1)', color: '#bc8cff', border: '1px solid rgba(188,140,255,.25)', fontFamily: 'monospace', cursor: 'default', flexShrink: 0 }}>{s}</span>
+                                                            </F2bTooltip>
+                                                        ))}
+                                                        {ipsets.length > 2 && (
+                                                            <F2bTooltip
+                                                                title={`${ipsets.length} ipsets`}
+                                                                color="purple"
+                                                                placement="bottom"
+                                                                bodyNode={<div style={{ display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
+                                                                    {ipsets.map(s => <span key={s} style={{ fontFamily: 'monospace', fontSize: '.78rem', color: '#bc8cff' }}>{s}</span>)}
+                                                                </div>}>
+                                                                <span style={{ padding: '.12rem .35rem', borderRadius: 4, fontSize: '.68rem', fontWeight: 700, background: 'rgba(188,140,255,.1)', color: '#bc8cff', border: '1px solid rgba(188,140,255,.2)', cursor: 'default', flexShrink: 0 }}>+{ipsets.length - 2}</span>
+                                                            </F2bTooltip>
+                                                        )}
+                                                    </div>
+                                                }
                                             </td>
                                             <td style={{ padding: '.4rem .65rem', fontSize: '.78rem', color: hostname ? '#c9d1d9' : '#8b949e', fontFamily: 'monospace' }}>{hostname ?? '—'}</td>
                                         </tr>

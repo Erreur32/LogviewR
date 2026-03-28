@@ -1557,32 +1557,39 @@ export class Fail2banPlugin extends BasePlugin {
                 : evDb.prepare(`SELECT (CAST(strftime('%w',timeofban,'unixepoch') AS INTEGER)+6)%7 as dow, CAST(strftime('%H',timeofban,'unixepoch') AS INTEGER) as hour, COALESCE(SUM(failures),0) as count FROM f2b_events WHERE event_type='ban' AND timeofban >= @since GROUP BY dow, hour`).all({ since })
             ) as { dow: number; hour: number; count: number }[]);
 
+            const now = Math.floor(Date.now() / 1000);
             const summaryRow = (allTime
-                ? evDb.prepare(`SELECT COUNT(*) as total, COUNT(DISTINCT ip) as uniq FROM f2b_events WHERE event_type='ban'`).get()
-                : evDb.prepare(`SELECT COUNT(*) as total, COUNT(DISTINCT ip) as uniq FROM f2b_events WHERE event_type='ban' AND timeofban >= @since`).get({ since })
-            ) as { total: number; uniq: number };
+                ? evDb.prepare(`SELECT COUNT(*) as total, COUNT(DISTINCT ip) as uniq, COALESCE(SUM(failures),0) as failures FROM f2b_events WHERE event_type='ban'`).get()
+                : evDb.prepare(`SELECT COUNT(*) as total, COUNT(DISTINCT ip) as uniq, COALESCE(SUM(failures),0) as failures FROM f2b_events WHERE event_type='ban' AND timeofban >= @since`).get({ since })
+            ) as { total: number; uniq: number; failures: number };
             const topJailRow = (allTime
                 ? evDb.prepare(`SELECT jail, COUNT(*) as cnt FROM f2b_events WHERE event_type='ban' GROUP BY jail ORDER BY cnt DESC LIMIT 1`).get()
                 : evDb.prepare(`SELECT jail, COUNT(*) as cnt FROM f2b_events WHERE event_type='ban' AND timeofban >= @since GROUP BY jail ORDER BY cnt DESC LIMIT 1`).get({ since })
             ) as { jail: string; cnt: number } | undefined;
+            const expiredRow = allTime ? { n: 0 } : (evDb.prepare(`SELECT COUNT(*) as n FROM f2b_events WHERE event_type='ban' AND bantime > 0 AND (timeofban+bantime) >= @s AND (timeofban+bantime) <= @e`).get({ s: since, e: now }) as { n: number });
             const summary = {
-                totalBans:    summaryRow?.total ?? 0,
-                uniqueIps:    summaryRow?.uniq  ?? 0,
-                topJail:      topJailRow?.jail ?? null,
-                topJailCount: topJailRow?.cnt  ?? 0,
+                totalBans:        summaryRow?.total    ?? 0,
+                uniqueIps:        summaryRow?.uniq     ?? 0,
+                topJail:          topJailRow?.jail     ?? null,
+                topJailCount:     topJailRow?.cnt      ?? 0,
+                totalFailures:    summaryRow?.failures ?? 0,
+                expiredInPeriod:  expiredRow.n,
             };
 
             // Previous period for trend comparison (compare=1, only when bounded period)
             let prevSummary: typeof summary | null = null;
             if (!allTime && req.query.compare === '1') {
                 const prevSince = since - days * 86400;
-                const prevRow = evDb.prepare(`SELECT COUNT(*) as total, COUNT(DISTINCT ip) as uniq FROM f2b_events WHERE event_type='ban' AND timeofban >= @s AND timeofban < @e`).get({ s: prevSince, e: since }) as { total: number; uniq: number };
+                const prevRow = evDb.prepare(`SELECT COUNT(*) as total, COUNT(DISTINCT ip) as uniq, COALESCE(SUM(failures),0) as failures FROM f2b_events WHERE event_type='ban' AND timeofban >= @s AND timeofban < @e`).get({ s: prevSince, e: since }) as { total: number; uniq: number; failures: number };
                 const prevJailRow = evDb.prepare(`SELECT jail, COUNT(*) as cnt FROM f2b_events WHERE event_type='ban' AND timeofban >= @s AND timeofban < @e GROUP BY jail ORDER BY cnt DESC LIMIT 1`).get({ s: prevSince, e: since }) as { jail: string; cnt: number } | undefined;
+                const prevExpiredRow = evDb.prepare(`SELECT COUNT(*) as n FROM f2b_events WHERE event_type='ban' AND bantime > 0 AND (timeofban+bantime) >= @s AND (timeofban+bantime) < @e`).get({ s: prevSince, e: since }) as { n: number };
                 prevSummary = {
-                    totalBans:    prevRow?.total ?? 0,
-                    uniqueIps:    prevRow?.uniq  ?? 0,
-                    topJail:      prevJailRow?.jail ?? null,
-                    topJailCount: prevJailRow?.cnt  ?? 0,
+                    totalBans:        prevRow?.total    ?? 0,
+                    uniqueIps:        prevRow?.uniq     ?? 0,
+                    topJail:          prevJailRow?.jail ?? null,
+                    topJailCount:     prevJailRow?.cnt  ?? 0,
+                    totalFailures:    prevRow?.failures ?? 0,
+                    expiredInPeriod:  prevExpiredRow.n,
                 };
             }
 

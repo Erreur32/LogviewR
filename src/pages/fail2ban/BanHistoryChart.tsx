@@ -7,7 +7,7 @@ import { Activity } from 'lucide-react';
 import { PERIODS, F2bTooltip } from './helpers';
 import type { F2bTtColor } from './helpers';
 import type { HistoryEntry } from './types';
-import { api } from '../../api/client';
+import { fetchTopsPrevTotalBans } from './fail2banTopsPrevFlight';
 
 // ── Palette (same as PHP JAIL_COLORS) ─────────────────────────────────────────
 const JAIL_COLORS = ['#58a6ff','#3fb950','#bc8cff','#e3b341','#79c0ff','#56d364','#f28a84','#e86a65','#39c5cf','#d2a8ff'];
@@ -42,10 +42,24 @@ type TooltipData = {
 } | null;
 
 // ── ChartTooltip component (stats-tt PHP style, inline styles only) ───────────
-const ChartTooltip: React.FC<{ data: TooltipData; isHourly?: boolean }> = ({ data, isHourly = false }) => {
+const TT_W = 152; // estimated tooltip width (px)
+const TT_H = 82;  // estimated tooltip height (px)
+const TT_OFF = 20; // offset from cursor
+
+const ChartTooltip: React.FC<{ data: TooltipData; cw: number; ch: number; isHourly?: boolean }> = ({ data, cw, ch, isHourly = false }) => {
     if (!data) return null;
     const { x, y, jail, date, value, color } = data;
-    // For 30-min slots the date is already "HH:MM"; for daily it's "MM-DD"
+
+    // Vertical: show above by default, below if near top
+    const above = y - TT_OFF - TT_H >= 4;
+    const top   = above ? y - TT_OFF - TT_H : y + TT_OFF;
+
+    // Horizontal: center on cursor, clamp to container bounds
+    const left  = Math.max(4, Math.min(x - TT_W / 2, cw - TT_W - 4));
+
+    // Arrow horizontal position (relative to tooltip box)
+    const arrowLeft = Math.max(12, Math.min(x - left, TT_W - 12));
+
     const dateLabel = isHourly
         ? (() => {
             if (!date.includes(':')) return `${date}h00`;
@@ -57,56 +71,56 @@ const ChartTooltip: React.FC<{ data: TooltipData; isHourly?: boolean }> = ({ dat
             return `${date}–${String(endH).padStart(2,'0')}:${String(endMin).padStart(2,'0')}`;
         })()
         : date;
+
     return (
         <div style={{
             position: 'absolute',
-            left: x,
-            top: y - 8,
-            transform: 'translate(-50%, -100%)',
+            left,
+            top,
+            width: TT_W,
             pointerEvents: 'none',
             zIndex: 9999,
-            borderRadius: 10,
-            overflow: 'hidden',
+            borderRadius: 8,
+            overflow: 'visible',
             boxShadow: '0 10px 36px rgba(0,0,0,.65), 0 2px 8px rgba(0,0,0,.35)',
             border: `1px solid ${color}`,
             borderLeftWidth: 4,
-            minWidth: 140,
         }}>
-            {/* Title area */}
+            {/* Arrow — points toward cursor */}
+            {above ? (
+                // Tooltip above cursor → arrow points down
+                <div style={{
+                    position: 'absolute', left: arrowLeft, bottom: -7, transform: 'translateX(-50%)',
+                    width: 0, height: 0,
+                    borderLeft: '6px solid transparent', borderRight: '6px solid transparent',
+                    borderTop: '7px solid #21262d',
+                }} />
+            ) : (
+                // Tooltip below cursor → arrow points up
+                <div style={{
+                    position: 'absolute', left: arrowLeft, top: -7, transform: 'translateX(-50%)',
+                    width: 0, height: 0,
+                    borderLeft: '6px solid transparent', borderRight: '6px solid transparent',
+                    borderBottom: '7px solid #161b22',
+                }} />
+            )}
+            {/* Title */}
             <div style={{
-                background: '#161b22',
-                padding: '.45rem .9rem .35rem',
+                background: '#161b22', padding: '.4rem .75rem .3rem',
                 borderBottom: '1px solid rgba(255,255,255,.07)',
-                fontWeight: 700,
-                fontSize: '.85rem',
-                fontFamily: 'monospace',
-                color,
+                fontWeight: 700, fontSize: '.82rem', fontFamily: 'monospace', color,
+                borderRadius: '7px 4px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             }}>
                 {jail}
             </div>
-            {/* Body area */}
-            <div style={{
-                background: '#21262d',
-                padding: '.4rem .9rem .5rem',
-            }}>
-                <div style={{ color: '#bc8cff', fontWeight: 600, fontSize: '.73rem' }}>{dateLabel}</div>
-                <div style={{ marginTop: '.15rem' }}>
-                    <span style={{ color, fontWeight: 700, fontSize: '.95rem' }}>{value}</span>
-                    <span style={{ color: '#8b949e', fontSize: '.8rem' }}> ban{value !== 1 ? 's' : ''}</span>
+            {/* Body */}
+            <div style={{ background: '#21262d', padding: '.35rem .75rem .45rem', borderRadius: '0 0 4px 4px' }}>
+                <div style={{ color: '#bc8cff', fontWeight: 600, fontSize: '.7rem' }}>{dateLabel}</div>
+                <div style={{ marginTop: '.1rem' }}>
+                    <span style={{ color, fontWeight: 700, fontSize: '.92rem' }}>{value}</span>
+                    <span style={{ color: '#8b949e', fontSize: '.78rem' }}> ban{value !== 1 ? 's' : ''}</span>
                 </div>
             </div>
-            {/* Downward arrow */}
-            <div style={{
-                position: 'absolute',
-                left: '50%',
-                bottom: -7,
-                transform: 'translateX(-50%)',
-                width: 0,
-                height: 0,
-                borderLeft: '7px solid transparent',
-                borderRight: '7px solid transparent',
-                borderTop: '7px solid #21262d',
-            }} />
         </div>
     );
 };
@@ -180,17 +194,10 @@ const LineChart: React.FC<{
     const ticks = yTicks(maxVal);
     const xIdxs = xLabelIndices(dates.length, labelCountForDays(days, isHourly));
 
-    const handleEnter = useCallback((svgX: number, svgY: number, jail: string, date: string, value: number, color: string) => {
+    const handleEnter = useCallback((e: React.MouseEvent, jail: string, date: string, value: number, color: string) => {
         if (!wrapRef.current) return;
         const rect = wrapRef.current.getBoundingClientRect();
-        setTip({
-            x: (svgX / W) * rect.width,
-            y: (svgY / H) * rect.height,
-            jail,
-            date,
-            value,
-            color,
-        });
+        setTip({ x: e.clientX - rect.left, y: e.clientY - rect.top, jail, date, value, color });
     }, []);
 
     return (
@@ -231,7 +238,8 @@ const LineChart: React.FC<{
                                         <circle
                                             cx={cx} cy={cy} r={8} fill="transparent"
                                             style={{ cursor: 'crosshair' }}
-                                            onMouseEnter={() => handleEnter(cx, cy, jail, dt, v, color)}
+                                            onMouseEnter={e => handleEnter(e, jail, dt, v, color)}
+                                            onMouseMove={e => handleEnter(e, jail, dt, v, color)}
                                         />
                                     </g>
                                 ) : null;
@@ -270,7 +278,7 @@ const LineChart: React.FC<{
                     })
                 }
             </svg>
-            <ChartTooltip data={tip} isHourly={isHourly} />
+            <ChartTooltip data={tip} cw={W} ch={H} isHourly={isHourly} />
         </div>
     );
 };
@@ -313,18 +321,11 @@ const BarChart: React.FC<{
     const ticks = yTicks(max);
     const xIdxs = xLabelIndices(dates.length, labelCountForDays(days, isHourly));
 
-    const handleEnter = useCallback((svgX: number, svgY: number, jail: string, date: string, value: number, color: string) => {
+    const handleEnter = useCallback((e: React.MouseEvent, jail: string, date: string, value: number, color: string) => {
         if (!wrapRef.current) return;
         const rect = wrapRef.current.getBoundingClientRect();
-        setTip({
-            x: (svgX / W) * rect.width,
-            y: (svgY / H) * rect.height,
-            jail,
-            date,
-            value,
-            color,
-        });
-    }, [W]);
+        setTip({ x: e.clientX - rect.left, y: e.clientY - rect.top, jail, date, value, color });
+    }, []);
 
     return (
         <div ref={wrapRef} style={{ position: 'relative' }} onMouseLeave={() => setTip(null)}>
@@ -375,7 +376,8 @@ const BarChart: React.FC<{
                                         x={x} y={Math.max(yBase, padT)} width={barW} height={Math.max(bh, 1)}
                                         fill={color} opacity={0.85} rx={1}
                                         style={{ cursor: 'crosshair' }}
-                                        onMouseEnter={() => handleEnter(colMidX, barMidY, jail, dt, v, color)}
+                                        onMouseEnter={e => handleEnter(e, jail, dt, v, color)}
+                                        onMouseMove={e => handleEnter(e, jail, dt, v, color)}
                                     />
                                 );
                             })}
@@ -393,7 +395,8 @@ const BarChart: React.FC<{
                                     x={x} y={padT} width={barW} height={innerH}
                                     fill="transparent"
                                     style={{ cursor: 'crosshair' }}
-                                    onMouseEnter={() => handleEnter(colMidX, colTopY, 'Total', dt, colTotal, '#8b949e')}
+                                    onMouseEnter={e => handleEnter(e, 'Total', dt, colTotal, '#8b949e')}
+                                    onMouseMove={e => handleEnter(e, 'Total', dt, colTotal, '#8b949e')}
                                 />
                             )}
                         </g>
@@ -423,7 +426,7 @@ const BarChart: React.FC<{
                     })
                 }
             </svg>
-            <ChartTooltip data={tip} isHourly={isHourly} />
+            <ChartTooltip data={tip} cw={W} ch={H} isHourly={isHourly} />
         </div>
     );
 };
@@ -495,12 +498,15 @@ export const BanHistoryChart: React.FC<BanHistoryChartProps> = ({
     // ── Previous period total (for trend badge) ────────────────────────────────
     const [prevTotal, setPrevTotal] = useState<number | null>(null);
     useEffect(() => {
-        if (days === -1) { setPrevTotal(null); return; }
-        api.get<{ ok: boolean; prevSummary?: { totalBans: number } | null }>(
-            `/api/plugins/fail2ban/tops?days=${days}&compare=1&limit=1`
-        ).then(res => {
-            if (res.success && res.result?.ok) setPrevTotal(res.result.prevSummary?.totalBans ?? null);
-        }).catch(() => {});
+        if (days === -1) {
+            setPrevTotal(null);
+            return;
+        }
+        let cancelled = false;
+        fetchTopsPrevTotalBans(days).then(v => {
+            if (!cancelled) setPrevTotal(v);
+        });
+        return () => { cancelled = true; };
     }, [days]);
 
     const isHourly    = granularity === 'hour';
@@ -622,7 +628,6 @@ export const BanHistoryChart: React.FC<BanHistoryChartProps> = ({
                 <span style={{ fontWeight: 600, fontSize: '.85rem' }}>
                     Statistiques de bans
                     <span style={{ fontWeight: 400, fontSize: '.7rem', color: '#8b949e', marginLeft: '.5rem' }}>({periodLabel})</span>
-                    {trendBadge}
                 </span>
                 <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '.5rem' }}>
                     {controls}
