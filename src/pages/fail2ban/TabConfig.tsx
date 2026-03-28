@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { api } from '../../api/client';
 import { card, cardH, cardB } from './helpers';
+import { useNotificationStore } from '../../stores/notificationStore';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -730,15 +731,12 @@ export const TabConfig: React.FC<{
         setFwLoading(false);
     }, []);
 
-    // Feedback toasts
-    const [toasts, setToasts] = useState<{ id: number; msg: string; ok: boolean }[]>([]);
+    const { addAction } = useNotificationStore();
     const [saving, setSaving] = useState<string | null>(null);
 
     const toast = useCallback((msg: string, ok: boolean) => {
-        const id = Date.now();
-        setToasts(prev => [...prev, { id, msg, ok }]);
-        setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000);
-    }, []);
+        addAction(msg, ok);
+    }, [addAction]);
 
     const loadParsed = useCallback(async () => {
         const res = await api.get<ParsedConfigResult>('/api/plugins/fail2ban/config/parsed');
@@ -869,23 +867,6 @@ export const TabConfig: React.FC<{
 
     return (
         <div style={{ paddingBottom: '2rem' }}>
-
-            {/* ── Toast notifications ─────────────────────────────────────── */}
-            <div style={{ position: 'fixed', bottom: 24, right: 24, display: 'flex', flexDirection: 'column', gap: 8, zIndex: 9999 }}>
-                {toasts.map(t => (
-                    <div key={t.id} style={{
-                        background: t.ok ? 'rgba(63,185,80,.18)' : 'rgba(232,106,101,.18)',
-                        border: `1px solid ${t.ok ? 'rgba(63,185,80,.4)' : 'rgba(232,106,101,.4)'}`,
-                        color: t.ok ? C.green : C.red,
-                        borderRadius: 7, padding: '.5rem .9rem', fontSize: '.82rem',
-                        display: 'flex', alignItems: 'center', gap: '.5rem',
-                        boxShadow: '0 4px 12px rgba(0,0,0,.4)',
-                    }}>
-                        {t.ok ? <CheckCircle style={{ width: 13, height: 13 }} /> : <AlertTriangle style={{ width: 13, height: 13 }} />}
-                        {t.msg}
-                    </div>
-                ))}
-            </div>
 
             {/* ── Raw File Modal ────────────────────────────────────────────── */}
             {openRawModal && (

@@ -21,17 +21,75 @@ interface TabBanManagerProps {
 interface IpsetEntry { name: string; entries: number }
 interface BulkResult { ip: string; ok: boolean; error?: string }
 
+// ── IP / CIDR validation ───────────────────────────────────────────────────────
+
+function isValidIpOrCidr(v: string): boolean {
+    const s = v.trim();
+    // IPv4
+    if (/^(\d{1,3}\.){3}\d{1,3}$/.test(s))
+        return s.split('.').every(n => +n >= 0 && +n <= 255);
+    // IPv4 CIDR
+    const m4 = s.match(/^((\d{1,3}\.){3}\d{1,3})\/(\d{1,2})$/);
+    if (m4) return m4[1].split('.').every(n => +n <= 255) && +m4[3] <= 32;
+    // IPv6 (simplified — contains at least one colon)
+    if (s.includes(':') && /^[0-9a-fA-F:]{2,39}$/.test(s)) return true;
+    // IPv6 CIDR
+    const m6 = s.match(/^([0-9a-fA-F:]+)\/(\d{1,3})$/);
+    if (m6 && m6[1].includes(':')) return +m6[2] <= 128;
+    return false;
+}
+
 // ── Shared input / button styles ───────────────────────────────────────────────
 
-const inputSt: React.CSSProperties = {
+const INPUT_BASE: React.CSSProperties = {
     width: '100%', padding: '.4rem .65rem', fontSize: '.83rem', borderRadius: 5,
-    background: '#0d1117', border: '1px solid #30363d', color: '#e6edf3',
+    background: '#080c12', border: '1px solid #30363d', color: '#e6edf3',
     outline: 'none', boxSizing: 'border-box',
+    boxShadow: 'inset 0 2px 5px rgba(0,0,0,.65), inset 0 -1px 0 rgba(255,255,255,.03)',
+    transition: 'border-color .15s, box-shadow .15s',
 };
-const taSt: React.CSSProperties = {
-    ...inputSt, fontFamily: 'monospace', resize: 'vertical', minHeight: 80,
-    lineHeight: 1.45, fontSize: '.76rem',
-};
+
+function StyledInput({ value, onChange, placeholder, extraStyle, onKeyDown, hasError }: {
+    value: string;
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+    placeholder?: string;
+    extraStyle?: React.CSSProperties;
+    onKeyDown?: React.KeyboardEventHandler<HTMLInputElement>;
+    hasError?: boolean;
+}) {
+    const [focused, setFocused] = React.useState(false);
+    const borderColor = hasError ? '#e86a65' : focused ? '#58a6ff' : '#30363d';
+    const shadow = hasError
+        ? (focused ? 'inset 0 1px 3px rgba(0,0,0,.45), 0 0 0 3px rgba(232,106,101,.18)' : 'inset 0 1px 3px rgba(0,0,0,.45), 0 0 0 2px rgba(232,106,101,.12)')
+        : (focused ? 'inset 0 1px 3px rgba(0,0,0,.45), 0 0 0 3px rgba(88,166,255,.14)' : INPUT_BASE.boxShadow as string);
+    return (
+        <input type="text" value={value} onChange={onChange} placeholder={placeholder}
+            onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
+            onKeyDown={onKeyDown}
+            style={{ ...INPUT_BASE, fontFamily: 'monospace', borderColor, boxShadow: shadow, ...extraStyle }} />
+    );
+}
+
+function StyledTextarea({ value, onChange, placeholder }: {
+    value: string;
+    onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
+    placeholder?: string;
+}) {
+    const [focused, setFocused] = React.useState(false);
+    return (
+        <textarea value={value} onChange={onChange} placeholder={placeholder}
+            onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
+            style={{
+                ...INPUT_BASE,
+                fontFamily: 'monospace', resize: 'vertical', minHeight: 80,
+                lineHeight: 1.45, fontSize: '.76rem',
+                borderColor: focused ? '#58a6ff' : '#30363d',
+                boxShadow: focused
+                    ? 'inset 0 1px 3px rgba(0,0,0,.45), 0 0 0 3px rgba(88,166,255,.14)'
+                    : INPUT_BASE.boxShadow as string,
+            }} />
+    );
+}
 
 // ── Styled select with dark chevron ───────────────────────────────────────────
 
@@ -271,11 +329,12 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
 
     // ── Fail2ban bulk ban ──────────────────────────────────────────────────────
     const doBulkBan = async () => {
-        const ips = bulkIps.split('\n').map(l => l.trim()).filter(Boolean);
-        if (!ips.length || !bulkJail) return;
+        const lines = bulkIps.split('\n').map(l => l.trim()).filter(Boolean);
+        if (!lines.length || !bulkJail) return;
         setBulkLoading(true); setBulkResults([]);
         const results: BulkResult[] = [];
-        for (const ip of ips) {
+        for (const ip of lines) {
+            if (!isValidIpOrCidr(ip)) { results.push({ ip, ok: false, error: 'Format IP/CIDR invalide' }); continue; }
             const res = await api.post<{ ok: boolean; error?: string }>('/api/plugins/fail2ban/ban', { jail: bulkJail, ip });
             results.push({ ip, ok: !!(res.success && res.result?.ok), error: res.result?.error });
         }
@@ -329,6 +388,7 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
         setBulkIpsetLoad(true); setBulkIpsetResult([]);
         const results: BulkResult[] = [];
         for (const entry of entries) {
+            if (!isValidIpOrCidr(entry)) { results.push({ ip: entry, ok: false, error: 'Format IP/CIDR invalide' }); continue; }
             const res = await api.post<{ ok: boolean; error?: string }>('/api/plugins/fail2ban/ipset/add', { set: bulkIpsetSet, entry });
             results.push({ ip: entry, ok: !!(res.success && res.result?.ok), error: res.result?.error });
         }
@@ -359,7 +419,7 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
                         header={<><Ban style={{ width: 14, height: 14, color: '#e3b341' }} /><span style={{ fontWeight: 600, fontSize: '.88rem' }}>Bannir via Fail2Ban</span></>}
                         action={
                             <ActionBtn color="#e3b341" border="rgba(227,179,65,.25)" bg="rgba(227,179,65,.1)"
-                                disabled={!banIp.trim() || !banJail || !!actionLoading}
+                                disabled={!banIp.trim() || !isValidIpOrCidr(banIp) || !banJail || !!actionLoading}
                                 onClick={() => { if (banIp.trim() && banJail) { onBan(banJail, banIp.trim()); setBanIp(''); } }}>
                                 <Ban style={{ width: 13, height: 13 }} /> Bannir l'IP
                             </ActionBtn>
@@ -369,8 +429,8 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
                             <option value="" style={{ background: '#21262d', color: '#8b949e' }}>— Sélectionner —</option>
                             {jails.map(j => <option key={j.jail} value={j.jail} style={{ background: '#21262d', color: '#e6edf3' }}>{j.jail}</option>)}
                         </StyledSelect>
-                        <input type="text" value={banIp} onChange={e => setBanIp(e.target.value)}
-                            placeholder="ex: 1.2.3.4" style={{ ...inputSt, fontFamily: 'monospace' }} />
+                        <StyledInput value={banIp} onChange={e => setBanIp(e.target.value)} placeholder="ex: 1.2.3.4"
+                            hasError={banIp.trim().length > 0 && !isValidIpOrCidr(banIp)} />
                     </ActionCard>
 
                     {/* Bulk ban F2B */}
@@ -391,8 +451,7 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
                             <option value="" style={{ background: '#21262d', color: '#8b949e' }}>— Sélectionner —</option>
                             {jails.map(j => <option key={j.jail} value={j.jail} style={{ background: '#21262d', color: '#e6edf3' }}>{j.jail}</option>)}
                         </StyledSelect>
-                        <textarea value={bulkIps} onChange={e => setBulkIps(e.target.value)}
-                            placeholder={"1.2.3.4\n5.6.7.8"} style={taSt} />
+                        <StyledTextarea value={bulkIps} onChange={e => setBulkIps(e.target.value)} placeholder={"1.2.3.4\n5.6.7.8"} />
                         <FileBtn onChange={loadBulkFile} />
                     </ActionCard>
 
@@ -401,7 +460,7 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
                         header={<><Unlock style={{ width: 14, height: 14, color: '#3fb950' }} /><span style={{ fontWeight: 600, fontSize: '.88rem' }}>Débannir via Fail2Ban</span></>}
                         action={
                             <ActionBtn color="#3fb950" border="rgba(63,185,80,.25)" bg="rgba(63,185,80,.1)"
-                                disabled={!unbanIp.trim() || !unbanJail || !!actionLoading}
+                                disabled={!unbanIp.trim() || !isValidIpOrCidr(unbanIp) || !unbanJail || !!actionLoading}
                                 onClick={() => { if (unbanIp.trim() && unbanJail) { onUnban(unbanJail, unbanIp.trim()); setUnbanIp(''); } }}>
                                 <Unlock style={{ width: 13, height: 13 }} /> Débannir l'IP
                             </ActionBtn>
@@ -411,8 +470,8 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
                             <option value="" style={{ background: '#21262d', color: '#8b949e' }}>— Sélectionner —</option>
                             {jails.map(j => <option key={j.jail} value={j.jail} style={{ background: '#21262d', color: '#e6edf3' }}>{j.jail}</option>)}
                         </StyledSelect>
-                        <input type="text" value={unbanIp} onChange={e => setUnbanIp(e.target.value)}
-                            placeholder="ex: 1.2.3.4" style={{ ...inputSt, fontFamily: 'monospace' }} />
+                        <StyledInput value={unbanIp} onChange={e => setUnbanIp(e.target.value)} placeholder="ex: 1.2.3.4"
+                            hasError={unbanIp.trim().length > 0 && !isValidIpOrCidr(unbanIp)} />
                     </ActionCard>
                 </div>
             </div>
@@ -442,7 +501,7 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
                                         </div>
                                     )}
                                     <ActionBtn color="#e86a65" border="rgba(232,106,101,.25)" bg="rgba(232,106,101,.1)"
-                                        disabled={addLoading || !addSet || !addEntry.trim()}
+                                        disabled={addLoading || !addSet || !addEntry.trim() || !isValidIpOrCidr(addEntry)}
                                         onClick={doIpsetAdd}>
                                         <Ban style={{ width: 13, height: 13 }} />{addLoading ? 'Blocage…' : 'Bloquer IP / Plage'}
                                     </ActionBtn>
@@ -453,8 +512,8 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
                                 <option value="" style={{ background: '#21262d', color: '#8b949e' }}>— Sélectionner —</option>
                                 {ipsets.map(s => <option key={s.name} value={s.name} style={{ background: '#21262d', color: '#e6edf3' }}>{s.name} ({s.entries} entrées)</option>)}
                             </StyledSelect>
-                            <input type="text" value={addEntry} onChange={e => setAddEntry(e.target.value)}
-                                placeholder="ex: 1.2.3.4 ou 1.2.0.0/16" style={{ ...inputSt, fontFamily: 'monospace' }} />
+                            <StyledInput value={addEntry} onChange={e => setAddEntry(e.target.value)} placeholder="ex: 1.2.3.4 ou 1.2.0.0/16"
+                                hasError={addEntry.trim().length > 0 && !isValidIpOrCidr(addEntry)} />
                         </ActionCard>
 
                         {/* IPSet bulk add */}
@@ -475,8 +534,7 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
                                 <option value="" style={{ background: '#21262d', color: '#8b949e' }}>— Sélectionner —</option>
                                 {ipsets.map(s => <option key={s.name} value={s.name} style={{ background: '#21262d', color: '#e6edf3' }}>{s.name}</option>)}
                             </StyledSelect>
-                            <textarea value={bulkIpsetList} onChange={e => setBulkIpsetList(e.target.value)}
-                                placeholder={"1.2.3.4\n10.0.0.0/24"} style={taSt} />
+                            <StyledTextarea value={bulkIpsetList} onChange={e => setBulkIpsetList(e.target.value)} placeholder={"1.2.3.4\n10.0.0.0/24"} />
                             <FileBtn onChange={loadIpsetFile} />
                         </ActionCard>
 
@@ -492,7 +550,7 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
                                         </div>
                                     )}
                                     <ActionBtn color="#3fb950" border="rgba(63,185,80,.25)" bg="rgba(63,185,80,.1)"
-                                        disabled={delLoading || !delSet || !delEntry.trim()}
+                                        disabled={delLoading || !delSet || !delEntry.trim() || !isValidIpOrCidr(delEntry)}
                                         onClick={doIpsetDel}>
                                         <Unlock style={{ width: 13, height: 13 }} />{delLoading ? 'Suppression…' : 'Retirer l\'entrée'}
                                     </ActionBtn>
@@ -503,8 +561,8 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
                                 <option value="" style={{ background: '#21262d', color: '#8b949e' }}>— Sélectionner —</option>
                                 {ipsets.map(s => <option key={s.name} value={s.name} style={{ background: '#21262d', color: '#e6edf3' }}>{s.name} ({s.entries} entrées)</option>)}
                             </StyledSelect>
-                            <input type="text" value={delEntry} onChange={e => setDelEntry(e.target.value)}
-                                placeholder="ex: 1.2.3.4 ou 1.2.0.0/16" style={{ ...inputSt, fontFamily: 'monospace' }} />
+                            <StyledInput value={delEntry} onChange={e => setDelEntry(e.target.value)} placeholder="ex: 1.2.3.4 ou 1.2.0.0/16"
+                                hasError={delEntry.trim().length > 0 && !isValidIpOrCidr(delEntry)} />
                         </ActionCard>
                     </div>
                 )}
@@ -535,7 +593,7 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
                                     </div>
                                 )}
                                 <ActionBtn color="#e86a65" border="rgba(232,106,101,.25)" bg="rgba(232,106,101,.1)"
-                                    disabled={iptBanLoading || !iptBanIp.trim()}
+                                    disabled={iptBanLoading || !iptBanIp.trim() || !isValidIpOrCidr(iptBanIp)}
                                     onClick={doIptBan}>
                                     <Ban style={{ width: 13, height: 13 }} />{iptBanLoading ? 'Blocage…' : 'Bloquer (DROP)'}
                                 </ActionBtn>
@@ -545,9 +603,9 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
                         <StyledSelect value={iptBanChain} onChange={e => setIptBanChain(e.target.value)}>
                             {IPT_CHAINS.map(c => <option key={c} value={c} style={{ background: '#21262d', color: '#e6edf3' }}>{c}</option>)}
                         </StyledSelect>
-                        <input type="text" value={iptBanIp} onChange={e => setIptBanIp(e.target.value)}
-                            placeholder="ex: 1.2.3.4 ou 1.2.0.0/24" style={{ ...inputSt, fontFamily: 'monospace' }}
-                            onKeyDown={e => { if (e.key === 'Enter') doIptBan(); }} />
+                        <StyledInput value={iptBanIp} onChange={e => setIptBanIp(e.target.value)} placeholder="ex: 1.2.3.4 ou 1.2.0.0/24"
+                            onKeyDown={e => { if (e.key === 'Enter') doIptBan(); }}
+                            hasError={iptBanIp.trim().length > 0 && !isValidIpOrCidr(iptBanIp)} />
                     </ActionCard>
 
                     {/* IPTables unban */}
@@ -562,7 +620,7 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
                                     </div>
                                 )}
                                 <ActionBtn color="#39c5cf" border="rgba(57,197,207,.25)" bg="rgba(57,197,207,.1)"
-                                    disabled={iptUnbanLoad || !iptUnbanIp.trim()}
+                                    disabled={iptUnbanLoad || !iptUnbanIp.trim() || !isValidIpOrCidr(iptUnbanIp)}
                                     onClick={doIptUnban}>
                                     <Unlock style={{ width: 13, height: 13 }} />{iptUnbanLoad ? 'Déblocage…' : 'Retirer le blocage'}
                                 </ActionBtn>
@@ -572,9 +630,9 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
                         <StyledSelect value={iptUnbanChain} onChange={e => setIptUnbanChain(e.target.value)}>
                             {IPT_CHAINS.map(c => <option key={c} value={c} style={{ background: '#21262d', color: '#e6edf3' }}>{c}</option>)}
                         </StyledSelect>
-                        <input type="text" value={iptUnbanIp} onChange={e => setIptUnbanIp(e.target.value)}
-                            placeholder="ex: 1.2.3.4 ou 1.2.0.0/24" style={{ ...inputSt, fontFamily: 'monospace' }}
-                            onKeyDown={e => { if (e.key === 'Enter') doIptUnban(); }} />
+                        <StyledInput value={iptUnbanIp} onChange={e => setIptUnbanIp(e.target.value)} placeholder="ex: 1.2.3.4 ou 1.2.0.0/24"
+                            onKeyDown={e => { if (e.key === 'Enter') doIptUnban(); }}
+                            hasError={iptUnbanIp.trim().length > 0 && !isValidIpOrCidr(iptUnbanIp)} />
                     </ActionCard>
 
                 </div>

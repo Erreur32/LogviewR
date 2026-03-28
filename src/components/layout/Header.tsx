@@ -1,10 +1,12 @@
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
-import { FileText, RefreshCw, Code, ChevronDown, History, Play, Square, Download, X as XIcon } from 'lucide-react';
+import { FileText, RefreshCw, Code, ChevronDown, History, Play, Square, Download, X as XIcon, Ban, CheckCircle, AlertTriangle } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import logviewrLogo from '../../icons/logviewr.svg';
 import { UserMenu, Clock } from '../ui';
 import { useFavicon } from '../../hooks/useFavicon';
 import { useUpdateStore } from '../../stores/updateStore';
+import { useNotificationStore } from '../../stores/notificationStore';
+import type { AppNotification } from '../../stores/notificationStore';
 import { usePluginStore } from '../../stores/pluginStore';
 import { getVersionString } from '../../constants/version';
 import { LogFileSelectorModal } from '../modals/LogFileSelectorModal';
@@ -19,6 +21,104 @@ import type { LogFileInfo } from '../../types/logViewer';
 export type LiveMode = 'off' | 'live' | 'auto';
 
 const LOGFILE_HISTORY_MAX = 50;
+
+// ── Notification zone ─────────────────────────────────────────────────────────
+
+function fmtAge(ts: number): string {
+  const s = Math.floor((Date.now() - ts * 1000) / 1000);
+  if (s < 5)   return 'à l\'instant';
+  if (s < 60)  return `${s}s`;
+  if (s < 3600) return `${Math.floor(s / 60)}min`;
+  return `${Math.floor(s / 3600)}h`;
+}
+
+const NotifCard: React.FC<{ n: AppNotification; onDismiss: () => void }> = ({ n, onDismiss }) => {
+  const isRecidive = n.type === 'ban' && n.jail === 'recidive';
+  const banColor   = isRecidive ? '#e3b341' : '#e86a65';
+  const banBorder  = isRecidive ? 'rgba(227,179,65,.45)' : 'rgba(232,106,101,.4)';
+
+  const handleBanClick = () => {
+    if (n.ip) window.dispatchEvent(new CustomEvent('open-ip-modal', { detail: { ip: n.ip } }));
+    onDismiss();
+  };
+
+  if (n.type === 'ban') {
+    return (
+      <div style={{
+        display: 'flex', alignItems: 'stretch',
+        background: '#161b22', border: `1px solid ${banBorder}`,
+        borderRadius: 8, overflow: 'hidden',
+        boxShadow: '0 2px 12px rgba(0,0,0,.5)',
+        animation: 'notif-slide-in .18s ease-out',
+        flexShrink: 0,
+        maxWidth: 260,
+      }}>
+        <div style={{ width: 3, flexShrink: 0, background: banColor }} />
+        <button onClick={handleBanClick} title="Voir le détail de l'IP"
+          style={{ flex: 1, background: 'none', border: 'none', cursor: 'pointer', padding: '.45rem .6rem', textAlign: 'left', minWidth: 0, display: 'flex', alignItems: 'center', gap: '.45rem' }}>
+          <Ban style={{ width: 11, height: 11, color: banColor, flexShrink: 0 }} />
+          <span style={{ fontFamily: 'monospace', fontSize: '.8rem', fontWeight: 700, color: '#e6edf3', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.ip}</span>
+          <span style={{ fontSize: '.65rem', padding: '.05rem .3rem', borderRadius: 3, background: isRecidive ? 'rgba(227,179,65,.12)' : 'rgba(63,185,80,.1)', color: isRecidive ? '#e3b341' : '#3fb950', border: `1px solid ${isRecidive ? 'rgba(227,179,65,.25)' : 'rgba(63,185,80,.2)'}`, fontFamily: 'monospace', flexShrink: 0, whiteSpace: 'nowrap' }}>{n.jail}</span>
+          {n.failures !== null && n.failures !== undefined && n.failures > 0 && (
+            <span style={{ fontSize: '.62rem', color: '#8b949e', flexShrink: 0, whiteSpace: 'nowrap' }}>{n.failures}✕</span>
+          )}
+          <span style={{ fontSize: '.62rem', color: '#555d69', flexShrink: 0, marginLeft: 'auto', whiteSpace: 'nowrap' }}>
+            {n.timeofban ? fmtAge(n.timeofban) : ''}
+          </span>
+        </button>
+        <button onClick={onDismiss} title="Masquer"
+          style={{ background: 'none', border: 'none', borderLeft: '1px solid #21262d', color: '#555d69', cursor: 'pointer', padding: '0 .5rem', flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+          <XIcon size={11} />
+        </button>
+      </div>
+    );
+  }
+
+  // action notification
+  const okColor = n.ok ? '#3fb950' : '#e86a65';
+  const okBg    = n.ok ? 'rgba(63,185,80,.12)' : 'rgba(232,106,101,.12)';
+  const okBord  = n.ok ? 'rgba(63,185,80,.35)' : 'rgba(232,106,101,.35)';
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: '.45rem',
+      background: okBg, border: `1px solid ${okBord}`,
+      borderRadius: 8, padding: '.45rem .65rem',
+      boxShadow: '0 2px 12px rgba(0,0,0,.4)',
+      animation: 'notif-slide-in .18s ease-out',
+      flexShrink: 0, maxWidth: 320,
+    }}>
+      {n.ok
+        ? <CheckCircle style={{ width: 12, height: 12, color: okColor, flexShrink: 0 }} />
+        : <AlertTriangle style={{ width: 12, height: 12, color: okColor, flexShrink: 0 }} />}
+      <span style={{ fontSize: '.78rem', color: okColor, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.message}</span>
+      <button onClick={onDismiss} title="Masquer"
+        style={{ background: 'none', border: 'none', color: '#555d69', cursor: 'pointer', padding: 0, marginLeft: '.2rem', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+        <XIcon size={11} />
+      </button>
+    </div>
+  );
+};
+
+const NotificationZone: React.FC = () => {
+  const { notifications, dismiss } = useNotificationStore();
+  if (notifications.length === 0) return null;
+  return (
+    <div style={{
+      position: 'absolute', left: '50%', top: '50%',
+      transform: 'translate(-50%, -50%)',
+      display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center',
+      maxWidth: 'min(64vw, 840px)',
+      zIndex: 45,
+      pointerEvents: 'none',
+    }}>
+      {notifications.slice(-5).map(n => (
+        <div key={n.id} style={{ pointerEvents: 'auto' }}>
+          <NotifCard n={n} onDismiss={() => dismiss(n.id)} />
+        </div>
+      ))}
+    </div>
+  );
+};
 
 interface HeaderProps {
   pageType?: PageType;
@@ -614,6 +714,10 @@ export const Header: React.FC<HeaderProps> = ({
           />
         )}
       </div>
+
+      {/* Centered notification zone — absolutely positioned to avoid disturbing flex layout */}
+      <NotificationZone />
+      <style>{`@keyframes notif-slide-in { from { opacity:0; transform:translateY(-6px) scale(.96); } to { opacity:1; transform:translateY(0) scale(1); } }`}</style>
     </header>
     {updateBanner?.show && (
       <div style={{

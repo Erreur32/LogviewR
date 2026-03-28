@@ -2,6 +2,7 @@
  * TabStats — Statistiques Fail2ban, aligné sur tabs/stats.php du projet PHP.
  */
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
     Shield, Ban, AlertTriangle, ShieldOff, Database,
     TrendingUp, Lock, RotateCcw, Clock, Target, BarChart2, Gauge, List, Search, X,
@@ -53,16 +54,22 @@ const PeriodBtns: React.FC<{ days: number; color?: string; onChange: (d: number)
 const SCard: React.FC<{
     icon: React.ReactNode; color: string; title: string; sub?: React.ReactNode; children: React.ReactNode;
     right?: React.ReactNode; collapsible?: boolean; defaultOpen?: boolean;
-}> = ({ icon, color, title, sub, children, right, collapsible, defaultOpen = true }) => {
+    titleTooltip?: { bodyNode: React.ReactNode; color?: import('./helpers').F2bTtColor };
+}> = ({ icon, color, title, sub, children, right, collapsible, defaultOpen = true, titleTooltip }) => {
     const [open, setOpen] = useState(defaultOpen);
+    const titleEl = (
+        <span style={{ fontWeight: 600, fontSize: '.9rem' }}>{title}
+            {sub && <span style={{ fontWeight: 400, fontSize: '.72rem', color: C.muted, marginLeft: '.4rem' }}>{sub}</span>}
+        </span>
+    );
     return (
         <div style={{ background: C.bg1, border: `1px solid ${C.border}`, borderRadius: 8, overflow: 'hidden' }}>
             <div style={{ background: C.bg2, padding: '.65rem 1rem', borderBottom: open && !collapsible ? `1px solid ${C.border}` : open ? `1px solid ${C.border}` : 'none', display: 'flex', alignItems: 'center', gap: '.5rem', cursor: collapsible ? 'pointer' : undefined }}
                 onClick={collapsible ? () => setOpen(o => !o) : undefined}>
                 <span style={{ color }}>{icon}</span>
-                <span style={{ fontWeight: 600, fontSize: '.9rem' }}>{title}
-                    {sub && <span style={{ fontWeight: 400, fontSize: '.72rem', color: C.muted, marginLeft: '.4rem' }}>{sub}</span>}
-                </span>
+                {titleTooltip
+                    ? <F2bTooltip title={title} bodyNode={titleTooltip.bodyNode} color={titleTooltip.color ?? 'blue'}>{titleEl}</F2bTooltip>
+                    : titleEl}
                 {right && <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '.4rem' }}
                     onClick={e => collapsible && e.stopPropagation()}>{right}</div>}
                 {collapsible && <span style={{ color: C.muted, fontSize: '.72rem', marginLeft: right ? '.5rem' : 'auto', transform: open ? undefined : 'rotate(-90deg)', display: 'inline-block', transition: 'transform .15s' }}>▼</span>}
@@ -719,13 +726,56 @@ const HeatmapSection: React.FC<{
         return Array.from({ length: 7 }, () => new Array(24).fill(0));
     }, [data, weekKey]);
 
-    const maxH   = Math.max(...hours, 1);
-    const maxW   = Math.max(...week.flat(), 1);
-    const peakH  = hours.indexOf(Math.max(...hours));
+    const maxH        = Math.max(...hours, 1);
+    const maxW        = Math.max(...week.flat(), 1);
+    const peakHIdx    = hours.indexOf(Math.max(...hours));
+    const total       = hours.reduce((s, c) => s + c, 0);
+    const avg         = total > 0 ? total / 24 : 0;
+    const dayTotals   = week.map(row => row.reduce((s, c) => s + c, 0));
+    const peakDayIdx  = dayTotals.indexOf(Math.max(...dayTotals));
+    const quietH      = hours.map((c, h) => ({ c, h })).filter(x => x.c > 0).sort((a, b) => a.c - b.c)[0];
     const periodLabel = PERIODS.find(p => p.days === days)?.label ?? `${days}j`;
 
+    // ── Single hover tooltip state (shared by bars + cells) ───────────────────
+    const [tip, setTip] = useState<{ x: number; y: number; content: React.ReactNode } | null>(null);
+
+    const titleTooltipBody = total === 0 ? (
+        <div style={{ fontSize: '.78rem', color: C.muted }}>Aucune donnée sur la période {periodLabel}.</div>
+    ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '.3rem' }}>
+            <div style={{ fontSize: '1.2rem', fontWeight: 800, color, lineHeight: 1.1 }}>
+                {total.toLocaleString()} <span style={{ fontSize: '.72rem', fontWeight: 600, opacity: .75 }}>{label}s</span>
+            </div>
+            <div style={{ fontSize: '.75rem', color: '#e6edf3', lineHeight: 1.5 }}>
+                Répartition sur la période {periodLabel}.
+            </div>
+            <div style={{ fontSize: '.69rem', color: '#8b949e', borderTop: '1px solid rgba(255,255,255,.06)', paddingTop: '.28rem', display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
+                <div>Heure de pic&nbsp;: <strong style={{ color }}>{peakHIdx}h</strong> — {hours[peakHIdx]} {label}s
+                    {total > 0 && <span style={{ color: '#555d69' }}> ({Math.round(hours[peakHIdx] / total * 100)}% du total)</span>}
+                </div>
+                <div>Moyenne horaire&nbsp;: <strong style={{ color: '#8b949e' }}>{avg.toFixed(1)}</strong> {label}s/h</div>
+                {quietH && (
+                    <div>Heure la plus calme&nbsp;: <strong style={{ color: C.green }}>{quietH.h}h</strong> — {quietH.c} {label}{quietH.c > 1 ? 's' : ''}</div>
+                )}
+                {dayTotals[peakDayIdx] > 0 && (
+                    <div>Jour le plus actif&nbsp;: <strong style={{ color }}>{DAYS_FR[peakDayIdx]}</strong> — {dayTotals[peakDayIdx]} {label}s</div>
+                )}
+                <div style={{ display: 'flex', gap: '.5rem', marginTop: '.1rem' }}>
+                    {dayTotals.map((d, i) => (
+                        <span key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '.1rem' }}>
+                            <span style={{ fontSize: '.62rem', color: C.muted }}>{DAYS_FR[i]}</span>
+                            <span style={{ fontSize: '.68rem', fontWeight: 600, color: d === dayTotals[peakDayIdx] ? color : '#e6edf3' }}>{d}</span>
+                        </span>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+
     return (
+        <>
         <SCard icon={icon} color={color} title={title} sub={`(${periodLabel})`}
+            titleTooltip={{ bodyNode: titleTooltipBody, color: color === C.red ? 'red' : color === C.orange ? 'orange' : 'blue' }}
             right={<PeriodBtns days={days} color={color} onChange={onDaysChange} />}
             collapsible>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', padding: '1rem 1.25rem 1.25rem' }}>
@@ -778,7 +828,22 @@ const HeatmapSection: React.FC<{
                                 const barH = cnt === 0 ? 5 : Math.max(8, Math.round(cnt / maxH * 120));
                                 const alpha = cnt === 0 ? 0 : 0.2 + (cnt / maxH) * 0.8;
                                 const bg = cnt === 0 ? C.bg3 : `rgba(${barRgb},${alpha.toFixed(2)})`;
-                                return <div key={h} title={`${h}h | ${cnt} ${label}`} style={{ height: barH, background: bg, borderRadius: '3px 3px 0 0' }} />;
+                                const isPeak = h === peakHIdx && cnt > 0;
+                                return (
+                                    <div key={h}
+                                        style={{ height: barH, background: bg, borderRadius: '3px 3px 0 0', cursor: cnt > 0 ? 'default' : undefined, outline: isPeak ? `1px solid rgba(${barRgb},.7)` : undefined }}
+                                        onMouseMove={e => setTip({ x: e.clientX, y: e.clientY, content: (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '.18rem' }}>
+                                                <div style={{ fontWeight: 700, color, fontSize: '.85rem' }}>{h}h — {h + 1}h</div>
+                                                <div style={{ fontSize: '.78rem', color: '#e6edf3' }}>{cnt} {label}{cnt > 1 ? 's' : ''}</div>
+                                                {total > 0 && cnt > 0 && <div style={{ fontSize: '.7rem', color: C.muted }}>{Math.round(cnt / total * 100)}% du total · {Math.round(cnt / maxH * 100)}% du pic</div>}
+                                                {isPeak && <div style={{ fontSize: '.7rem', color, fontWeight: 600 }}>▲ Heure de pic</div>}
+                                                {cnt === 0 && <div style={{ fontSize: '.7rem', color: C.muted }}>Aucun {label}</div>}
+                                            </div>
+                                        )})}
+                                        onMouseLeave={() => setTip(null)}
+                                    />
+                                );
                             })}
                         </div>
                         {/* hour labels */}
@@ -791,7 +856,7 @@ const HeatmapSection: React.FC<{
                             ))}
                         </div>
                         <div style={{ paddingTop: '.45rem', fontSize: '.78rem', color: C.muted }}>
-                            Pic&nbsp;: <strong style={{ color }}>{peakH}h</strong>&nbsp;&nbsp;{hours[peakH]} {label}
+                            Pic&nbsp;: <strong style={{ color }}>{peakHIdx}h</strong>&nbsp;&nbsp;{hours[peakHIdx]} {label}
                         </div>
                     </div>
 
@@ -815,10 +880,25 @@ const HeatmapSection: React.FC<{
                                         const bg    = cnt === 0 ? C.bg3 : `rgba(${cellRgb},${(0.12 + ratio * 0.88).toFixed(2)})`;
                                         const bord  = cnt > 0 ? `1px solid rgba(${cellRgb},${(ratio * 0.4).toFixed(2)})` : '1px solid transparent';
                                         return (
-                                            <div key={hr} title={`${day} ${hr}h | ${cnt} ${label}`}
-                                                style={{ aspectRatio: '1', minHeight: 18, background: bg, border: bord, borderRadius: 3, transition: 'transform .1s', cursor: 'default' }}
-                                                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1.4)'; (e.currentTarget as HTMLElement).style.zIndex = '2'; }}
-                                                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = ''; (e.currentTarget as HTMLElement).style.zIndex = ''; }}
+                                            <div key={hr}
+                                                style={{ aspectRatio: '1', minHeight: 18, background: bg, border: bord, borderRadius: 3, transition: 'transform .1s', cursor: cnt > 0 ? 'default' : undefined }}
+                                                onMouseMove={e => {
+                                                    (e.currentTarget as HTMLElement).style.transform = 'scale(1.4)';
+                                                    (e.currentTarget as HTMLElement).style.zIndex = '2';
+                                                    setTip({ x: e.clientX, y: e.clientY, content: (
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '.18rem' }}>
+                                                            <div style={{ fontWeight: 700, color, fontSize: '.85rem' }}>{day} · {hr}h — {hr + 1}h</div>
+                                                            <div style={{ fontSize: '.78rem', color: '#e6edf3' }}>{cnt} {label}{cnt > 1 ? 's' : ''}</div>
+                                                            {cnt > 0 && <div style={{ fontSize: '.7rem', color: C.muted }}>{Math.round(ratio * 100)}% du maximum</div>}
+                                                            {cnt === 0 && <div style={{ fontSize: '.7rem', color: C.muted }}>Aucun {label}</div>}
+                                                        </div>
+                                                    )});
+                                                }}
+                                                onMouseLeave={e => {
+                                                    (e.currentTarget as HTMLElement).style.transform = '';
+                                                    (e.currentTarget as HTMLElement).style.zIndex = '';
+                                                    setTip(null);
+                                                }}
                                             />
                                         );
                                     })}
@@ -837,6 +917,24 @@ const HeatmapSection: React.FC<{
                 </>}
             </div>
         </SCard>
+        {/* Single floating tooltip for bars + cells */}
+        {tip && createPortal(
+            <div style={{
+                position: 'fixed', left: tip.x, top: tip.y - 14,
+                transform: 'translate(-50%, -100%)',
+                zIndex: 10050, pointerEvents: 'none',
+                background: '#161b22',
+                border: `1px solid rgba(${barRgb},.45)`,
+                borderLeft: `4px solid rgba(${barRgb},.9)`,
+                borderRadius: 8, padding: '.5rem .75rem',
+                boxShadow: '0 8px 28px rgba(0,0,0,.6)',
+                minWidth: 130,
+            }}>
+                {tip.content}
+            </div>,
+            document.body
+        )}
+        </>
     );
 };
 
@@ -1269,8 +1367,16 @@ export const TabStats: React.FC<TabStatsProps> = ({
         return () => clearInterval(id);
     }, [days, fetchTops]);
 
-    const statCards: { label: string; value: number; icon: React.ReactNode; color: string; tt?: React.ReactNode }[] = [
-        { label: 'Jails actifs',     value: activeJails,  icon: <Shield style={{ width: 14, height: 14 }} />,       color: C.blue },
+    const topActiveJail = jails
+        .filter(j => j.currentlyBanned > 0)
+        .sort((a, b) => b.currentlyBanned - a.currentlyBanned)[0]?.jail ?? null;
+
+    const statCards: { label: string; value: number; icon: React.ReactNode; color: string; tt?: React.ReactNode; valueSub?: React.ReactNode }[] = [
+        { label: 'Jails actifs', value: activeJails, icon: <Shield style={{ width: 14, height: 14 }} />, color: C.blue,
+          valueSub: topActiveJail ? (
+              <span style={{ fontSize: '.68rem', fontWeight: 500, color: C.muted, marginLeft: '.45rem', fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 90 }}>{topActiveJail}</span>
+          ) : undefined,
+        },
         { label: 'Bans actifs',      value: totalBanned,  icon: <Ban style={{ width: 14, height: 14 }} />,           color: C.red,
           tt: (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '.3rem' }}>
@@ -1315,14 +1421,17 @@ export const TabStats: React.FC<TabStatsProps> = ({
                 <SCard icon={<Shield style={{ width: 14, height: 14 }} />} color={C.blue} title="État actuel">
                     <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '.75rem' }}>
-                            {statCards.map(({ label, value, icon, color, tt }) => {
+                            {statCards.map(({ label, value, icon, color, tt, valueSub }) => {
                                 const inner = (
                                     <div key={label} style={{ background: C.bg2, borderRadius: 7, padding: '1rem' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '.35rem', fontSize: '.72rem', color: C.muted }}>
                                             <span>{label}</span><span style={{ color }}>{icon}</span>
                                         </div>
-                                        <div style={{ fontSize: '1.75rem', fontWeight: 700, color, lineHeight: 1.1 }}>
-                                            {!statusHydrated ? '…' : value}
+                                        <div style={{ display: 'flex', alignItems: 'baseline', minWidth: 0 }}>
+                                            <span style={{ fontSize: '1.75rem', fontWeight: 700, color, lineHeight: 1.1, flexShrink: 0 }}>
+                                                {!statusHydrated ? '…' : value}
+                                            </span>
+                                            {statusHydrated && valueSub}
                                         </div>
                                     </div>
                                 );
@@ -1351,7 +1460,7 @@ export const TabStats: React.FC<TabStatsProps> = ({
 
             {/* Bans par heure | Tentatives par heure | Synthèse par jail — 3 colonnes */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1.25rem', alignItems: 'start' }}>
-                <HeatmapSection dataKey="heatmap" weekKey="heatmapWeek" title="Bans par heure" icon={<Clock style={{ width: 14, height: 14 }} />} color={C.orange} barRgb="227,179,65" cellRgb="63,185,80" label="ban" days={days} onDaysChange={onDaysChange} data={topsData} loading={topsLoading} />
+                <HeatmapSection dataKey="heatmap" weekKey="heatmapWeek" title="Bans par heure" icon={<Clock style={{ width: 14, height: 14 }} />} color={C.red} barRgb="232,106,101" cellRgb="232,106,101" label="ban" days={days} onDaysChange={onDaysChange} data={topsData} loading={topsLoading} />
                 <HeatmapSection dataKey="heatmapFailed" weekKey="heatmapFailedWeek" title="Tentatives par heure" icon={<AlertTriangle style={{ width: 14, height: 14 }} />} color={C.orange} barRgb="227,179,65" cellRgb="227,179,65" label="tentative" days={days} onDaysChange={onDaysChange} data={topsData} loading={topsLoading} />
                 <SCard icon={<Shield style={{ width: 14, height: 14 }} />} color={C.blue} title="Synthèse par jail" collapsible>
                     <div style={{ overflowX: 'auto' }}>

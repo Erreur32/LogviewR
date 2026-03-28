@@ -52,7 +52,7 @@ export const SyncProgressBanner: React.FC = () => {
                     setStatus(s);
                     setVisible(true);
                 } else if (visible) {
-                    // Keep showing for 2s after going idle
+                    // Wait for CSS bar transition to finish (0.5s) + brief pause (1.5s) before hiding
                     if (!hideTimer.current) {
                         hideTimer.current = setTimeout(() => {
                             setVisible(false);
@@ -72,15 +72,12 @@ export const SyncProgressBanner: React.FC = () => {
         };
     }, [visible]);
 
-    // Animate progress bar smoothly
+    // Sync progress to animProgress — CSS transition on the bar handles the smooth animation.
+    // Previously used JS easing (prev + (target-prev)*0.3) which never actually reaches 100.
     useEffect(() => {
-        if (!status) return;
-        const target = status.progress >= 0 ? status.progress : 0;
-        setAnimProgress(prev => {
-            if (status.progress < 0) return prev < 100 ? prev + 1 : 0; // indeterminate loop
-            return prev + (target - prev) * 0.3;
-        });
-    }, [status]);
+        if (!status || status.progress < 0) return;
+        setAnimProgress(status.progress); // jump straight to target; CSS width transition does the smoothing
+    }, [status?.progress]);
 
     // Indeterminate animation for progress < 0
     useEffect(() => {
