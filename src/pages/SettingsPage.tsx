@@ -2596,6 +2596,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   // Check sessionStorage on mount in case initialAdminTab wasn't passed correctly
   const storedAdminTab = sessionStorage.getItem('adminTab');
   const [activeAdminTab, setActiveAdminTab] = useState<AdminTab>(() => toAdminTab(storedAdminTab || initialAdminTab));
+  const [pluginSubTab, setPluginSubTab] = useState<'plugins' | 'regex'>('plugins');
 
   // Update activeAdminTab when initialAdminTab changes (e.g., from navigation)
   // Also check sessionStorage on mount
@@ -3000,11 +3001,31 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             )}
 
 
-            {/* Plugins Management Section (includes Regex as a sub-category) */}
+            {/* Plugins Management Section */}
             {activeAdminTab === 'plugins' && (
-              <div className="space-y-6">
-                <PluginsManagementSection />
-                <RegexManagementSection />
+              <div className="space-y-4">
+                {/* Sub-tab bar */}
+                <div className="flex gap-1 p-1 bg-[#111] border border-gray-800 rounded-lg w-fit">
+                  {([
+                    { id: 'plugins' as const, label: 'Gestion des plugins' },
+                    { id: 'regex'   as const, label: 'Regex' },
+                  ] as const).map(st => (
+                    <button
+                      key={st.id}
+                      onClick={() => setPluginSubTab(st.id)}
+                      className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                        pluginSubTab === st.id
+                          ? 'bg-blue-500/15 border border-blue-500/40 text-blue-400'
+                          : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
+                      }`}
+                    >
+                      {st.label}
+                    </button>
+                  ))}
+                </div>
+
+                {pluginSubTab === 'plugins' && <PluginsManagementSection />}
+                {pluginSubTab === 'regex'   && <RegexManagementSection />}
               </div>
             )}
           

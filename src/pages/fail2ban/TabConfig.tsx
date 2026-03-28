@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { api } from '../../api/client';
 import { card, cardH, cardB } from './helpers';
+import { Fail2banPathConfig } from './Fail2banPathConfig';
 import { useNotificationStore } from '../../stores/notificationStore';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -622,7 +623,9 @@ export const TabConfig: React.FC<{
     onWarningsChange?: (count: number) => void;
     npmDataPath?: string;
     onNpmDataPathChange?: (v: string) => void;
-}> = ({ onWarningsChange, npmDataPath = '', onNpmDataPathChange }) => {
+    sqliteDbPath?: string;
+    onSqliteDbPathChange?: (v: string) => void;
+}> = ({ onWarningsChange, npmDataPath = '', onNpmDataPathChange, sqliteDbPath = '', onSqliteDbPathChange }) => {
     const [parsed, setParsed]       = useState<ParsedConfigResult | null>(null);
     const [rawFiles, setRawFiles]   = useState<RawFiles | null>(null);
     const [loading, setLoading]     = useState(true);
@@ -644,40 +647,6 @@ export const TabConfig: React.FC<{
         const res = await api.get<typeof syncStatus>('/api/plugins/fail2ban/sync-state');
         if (res.success && res.result) setSyncStatus(res.result);
         setSyncChecking(false);
-    };
-
-    // Intégrations — NPM logpath (synced with parent via props)
-    const [npmInput, setNpmInput] = useState(npmDataPath);
-    const [npmSaving, setNpmSaving] = useState(false);
-    const [npmSaved, setNpmSaved]   = useState(false);
-    type NpmCheckResult = { ok: boolean; step: string; error: string | null; resolvedPath: string; domains: number; jailMatches: number; jailLogpaths?: Record<string, string>; proxyHostJails?: { jail: string; logpath: string }[] };
-    const [npmCheck, setNpmCheck] = useState<NpmCheckResult | null>(null);
-    const [npmChecking, setNpmChecking] = useState(false);
-    // Keep local input in sync when parent prop updates (e.g. initial load)
-    useEffect(() => { setNpmInput(npmDataPath); }, [npmDataPath]);
-
-    const saveNpmSettings = async () => {
-        setNpmSaving(true);
-        setNpmCheck(null);
-        setNpmSaved(false);
-        const res = await api.post<{ ok: boolean }>('/api/plugins/fail2ban/config', { settings: { npmDataPath: npmInput.trim() } });
-        setNpmSaving(false);
-        if (res.success) {
-            onNpmDataPathChange?.(npmInput.trim());
-            setNpmSaved(true);
-            setTimeout(() => setNpmSaved(false), 4000);
-        } else {
-            toast('Erreur lors de l\'enregistrement', false);
-        }
-    };
-
-    const checkNpm = async () => {
-        setNpmChecking(true);
-        setNpmCheck(null);
-        const res = await api.get<NpmCheckResult>('/api/plugins/fail2ban/check-npm');
-        setNpmChecking(false);
-        if (res.success && res.result) setNpmCheck(res.result);
-        else setNpmCheck({ ok: false, step: 'request', error: res.error?.message ?? 'Erreur réseau', resolvedPath: '', domains: 0, jailMatches: 0 });
     };
 
     // Maintenance
@@ -1304,7 +1273,7 @@ export const TabConfig: React.FC<{
                         );
                     })()}
 
-                    {/* Card: Intégrations — NPM */}
+                    {/* Card: Intégrations — chemins SQLite & NPM */}
                     <div style={{ ...card, borderColor: npmDataPath ? 'transparent' : 'rgba(227,179,65,.4)' }}>
                         <div style={{ ...cardH, background: npmDataPath ? undefined : 'rgba(227,179,65,.06)' }}>
                             <Network style={{ width: 14, height: 14, color: npmDataPath ? C.cyan : C.orange }} />
@@ -1313,7 +1282,6 @@ export const TabConfig: React.FC<{
                             <span style={{ marginLeft: 'auto', fontSize: '.65rem', background: 'rgba(57,197,207,.08)', color: C.cyan, border: `1px solid ${C.cyan}40`, borderRadius: 4, padding: '.08rem .4rem' }}>Nginx Proxy Manager</span>
                         </div>
                         <div style={{ ...cardB }}>
-                            {/* Warning banner when not configured */}
                             {!npmDataPath && (
                                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: '.5rem', padding: '.5rem .7rem', borderRadius: 6, background: 'rgba(227,179,65,.08)', border: '1px solid rgba(227,179,65,.3)', marginBottom: '.75rem' }}>
                                     <AlertTriangle style={{ width: 14, height: 14, color: C.orange, flexShrink: 0, marginTop: 1 }} />
@@ -1322,73 +1290,12 @@ export const TabConfig: React.FC<{
                                     </span>
                                 </div>
                             )}
-                            <p style={{ fontSize: '.8rem', color: C.muted, lineHeight: 1.6, marginBottom: '.75rem' }}>
-                                Les <strong style={{ color: C.text }}>Top Domaines</strong> fonctionnent uniquement avec <strong style={{ color: C.cyan }}>Nginx Proxy Manager</strong>.
-                                LogviewR lit le fichier <code style={{ fontFamily: 'monospace', fontSize: '.78rem', color: C.orange }}>database.sqlite</code> de NPM
-                                pour résoudre les <code style={{ fontFamily: 'monospace', fontSize: '.78rem' }}>proxy-host-N</code> en noms de domaine.
-                            </p>
-                            <div style={{ fontSize: '.78rem', color: C.muted, marginBottom: '.35rem', fontWeight: 600 }}>
-                                Chemin du répertoire données NPM{' '}
-                                <span style={{ fontWeight: 400, color: C.orange, fontSize: '.72rem' }}>(optionnel)</span>
-                                {' '}<span style={{ fontWeight: 400, color: C.muted }}>(dossier contenant <code style={{ fontFamily: 'monospace' }}>database.sqlite</code>)</span>
-                            </div>
-                            <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
-                                <input
-                                    value={npmInput}
-                                    onChange={e => { setNpmInput(e.target.value); setNpmCheck(null); }}
-                                    placeholder="/data  ou  /opt/npm/data"
-                                    style={{ flex: 1, background: C.bg3, border: `1px solid ${npmDataPath ? C.border : 'rgba(227,179,65,.4)'}`, borderRadius: 5, color: C.text, fontFamily: 'monospace', fontSize: '.8rem', padding: '.35rem .6rem', outline: 'none' }}
-                                />
-                                <button onClick={saveNpmSettings} disabled={npmSaving}
-                                    style={{ padding: '.3rem .7rem', borderRadius: 5, background: 'rgba(57,197,207,.12)', border: `1px solid ${C.cyan}50`, color: C.cyan, cursor: 'pointer', fontSize: '.78rem', display: 'flex', alignItems: 'center', gap: '.3rem', opacity: npmSaving ? .5 : 1, whiteSpace: 'nowrap' }}>
-                                    <Save style={{ width: 11, height: 11 }} /> {npmSaving ? 'Sauvegarde…' : 'Enregistrer'}
-                                </button>
-                                <button onClick={checkNpm} disabled={npmChecking || !npmDataPath}
-                                    style={{ padding: '.3rem .7rem', borderRadius: 5, background: 'rgba(63,185,80,.1)', border: `1px solid rgba(63,185,80,.35)`, color: C.green, cursor: npmDataPath ? 'pointer' : 'not-allowed', fontSize: '.78rem', display: 'flex', alignItems: 'center', gap: '.3rem', opacity: (npmChecking || !npmDataPath) ? .5 : 1, whiteSpace: 'nowrap' }}>
-                                    <Stethoscope style={{ width: 11, height: 11 }} /> {npmChecking ? 'Test…' : 'Tester'}
-                                </button>
-                            </div>
-                            {npmSaved && (
-                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '.35rem', marginTop: '.4rem', fontSize: '.78rem', color: C.green, background: 'rgba(63,185,80,.1)', border: '1px solid rgba(63,185,80,.3)', borderRadius: 5, padding: '.25rem .6rem' }}>
-                                    <CheckCircle style={{ width: 12, height: 12 }} /> Chemin NPM enregistré
-                                </div>
-                            )}
-                            <div style={{ fontSize: '.72rem', color: C.muted, marginTop: '.4rem', lineHeight: 1.5 }}>
-                                Exemple Docker : <code style={{ fontFamily: 'monospace', color: C.orange }}>/host/data</code> si NPM monte ses données dans <code style={{ fontFamily: 'monospace' }}>/data</code>.
-                                Laissez vide pour détection automatique via les logpaths fail2ban.
-                            </div>
-                            {npmCheck && (
-                                <div style={{ marginTop: '.6rem', padding: '.5rem .75rem', borderRadius: 6, background: npmCheck.ok ? 'rgba(63,185,80,.07)' : 'rgba(232,106,101,.07)', border: `1px solid ${npmCheck.ok ? 'rgba(63,185,80,.3)' : 'rgba(232,106,101,.3)'}`, fontSize: '.78rem', display: 'flex', flexDirection: 'column', gap: '.25rem' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', fontWeight: 600, color: npmCheck.ok ? C.green : C.red }}>
-                                        {npmCheck.ok
-                                            ? <><CheckCircle style={{ width: 13, height: 13 }} /> DB NPM accessible — {npmCheck.domains} domaine{npmCheck.domains > 1 ? 's' : ''} trouvé{npmCheck.domains > 1 ? 's' : ''}</>
-                                            : <><XCircle style={{ width: 13, height: 13 }} /> Échec ({npmCheck.step})</>}
-                                    </div>
-                                    {npmCheck.error && <div style={{ color: C.orange, fontFamily: 'monospace', fontSize: '.73rem' }}>{npmCheck.error}</div>}
-                                    {npmCheck.resolvedPath && <div style={{ color: C.muted, fontFamily: 'monospace', fontSize: '.7rem' }}>→ {npmCheck.resolvedPath}</div>}
-                                    {npmCheck.ok && <div style={{ color: C.muted, fontSize: '.73rem' }}>{npmCheck.jailMatches} jail{npmCheck.jailMatches > 1 ? 's' : ''} résolu{npmCheck.jailMatches > 1 ? 's' : ''} en cache (f2b_jail_domain)</div>}
-                                    {npmCheck.ok && npmCheck.jailMatches === 0 && (
-                                        <>
-                                            <div style={{ color: C.orange, fontSize: '.73rem', marginTop: '.15rem' }}>⚠ Aucun jail résolu — logpaths fail2ban sans pattern <code style={{ fontFamily: 'monospace' }}>proxy-host-N</code></div>
-                                            {npmCheck.jailLogpaths && Object.keys(npmCheck.jailLogpaths).length > 0 ? (
-                                                <div style={{ marginTop: '.4rem' }}>
-                                                    <div style={{ fontSize: '.7rem', color: C.muted, marginBottom: '.2rem', fontWeight: 600 }}>Logpaths détectés ({Object.keys(npmCheck.jailLogpaths).length} jails) :</div>
-                                                    <div style={{ maxHeight: 120, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '.15rem' }}>
-                                                        {Object.entries(npmCheck.jailLogpaths).map(([jail, lp]) => (
-                                                            <div key={jail} style={{ fontSize: '.68rem', fontFamily: 'monospace', color: C.muted, display: 'flex', gap: '.5rem' }}>
-                                                                <span style={{ color: C.blue, flexShrink: 0 }}>{jail}</span>
-                                                                <span style={{ color: /proxy-host/i.test(lp) ? C.green : C.muted }}>{lp}</span>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <div style={{ fontSize: '.7rem', color: C.red, marginTop: '.2rem' }}>Aucun logpath trouvé dans /etc/fail2ban — configs non accessibles ?</div>
-                                            )}
-                                        </>
-                                    )}
-                                </div>
-                            )}
+                            <Fail2banPathConfig
+                                sqliteDbPath={sqliteDbPath}
+                                onSqliteDbPathChange={v => onSqliteDbPathChange?.(v)}
+                                npmDataPath={npmDataPath}
+                                onNpmDataPathChange={v => onNpmDataPathChange?.(v)}
+                            />
                         </div>
                     </div>
 

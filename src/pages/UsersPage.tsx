@@ -6,15 +6,27 @@
 
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, Plus, Trash2, Edit2, Shield, User as UserIcon, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Trash2, Shield, User as UserIcon, Mail, Calendar, Clock, CheckCircle, XCircle } from 'lucide-react';
 import { api } from '../api/client';
 import { useUserAuthStore, type User } from '../stores/userAuthStore';
 import { Card } from '../components/widgets/Card';
-import { Button } from '../components/ui/Button';
+import { Badge } from '../components/ui/Badge';
 
 interface UsersPageProps {
     onBack: () => void;
 }
+
+const formatDate = (dateString?: string): string => {
+    if (!dateString) return '—';
+    try { return new Date(dateString).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }); }
+    catch { return '—'; }
+};
+
+const getRoleLabel = (role: string): string =>
+    role === 'admin' ? 'Administrateur' : role === 'user' ? 'Utilisateur' : 'Lecteur';
+
+const getRoleBadgeVariant = (role: string): 'success' | 'info' | 'warning' | 'default' =>
+    role === 'admin' ? 'info' : role === 'user' ? 'success' : 'default';
 
 export const UsersPage: React.FC<UsersPageProps> = ({ onBack }) => {
     const { t } = useTranslation();
@@ -122,14 +134,68 @@ export const UsersPage: React.FC<UsersPageProps> = ({ onBack }) => {
                         <ArrowLeft size={20} />
                     </button>
                     <h1 className="text-2xl font-semibold">{t('admin.usersPage.title')}</h1>
-                    <button
-                        onClick={fetchUsers}
-                        className="ml-auto p-2 hover:bg-[#1a1a1a] rounded transition-colors"
-                        title={t('admin.usersPage.refresh')}
-                    >
-                        <RefreshCw size={20} />
-                    </button>
                 </div>
+
+                {/* Current User Profile */}
+                {currentUser && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                        {/* Identity card */}
+                        <div className="bg-[#121212] rounded-xl border border-gray-800 p-5">
+                            <div className="flex items-center gap-4 mb-4">
+                                <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg shrink-0">
+                                    {currentUser.username.slice(0, 2).toUpperCase()}
+                                </div>
+                                <div className="min-w-0">
+                                    <div className="font-semibold text-gray-100 text-lg truncate">{currentUser.username}</div>
+                                    <Badge variant={getRoleBadgeVariant(currentUser.role)} size="sm">{getRoleLabel(currentUser.role)}</Badge>
+                                </div>
+                            </div>
+                            <div className="space-y-2 text-sm">
+                                <div className="flex items-center gap-2 text-gray-400">
+                                    <Mail size={14} className="text-gray-500 shrink-0" />
+                                    <span className="truncate">{currentUser.email || '—'}</span>
+                                </div>
+                                <div className="flex items-center gap-2 text-gray-400">
+                                    <Calendar size={14} className="text-gray-500 shrink-0" />
+                                    <span>{formatDate(currentUser.createdAt)}</span>
+                                </div>
+                                <div className="flex items-center gap-2 text-gray-400">
+                                    <Clock size={14} className="text-gray-500 shrink-0" />
+                                    <span>{formatDate(currentUser.lastLogin)}</span>
+                                </div>
+                            </div>
+                        </div>
+                        {/* Status card */}
+                        <div className="bg-[#121212] rounded-xl border border-gray-800 p-5">
+                            <div className="text-xs text-gray-500 uppercase tracking-wider mb-4">Informations du compte</div>
+                            <div className="space-y-3 text-sm">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-gray-500">ID</span>
+                                    <span className="text-gray-300 font-mono">#{currentUser.id}</span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <span className="text-gray-500">Rôle</span>
+                                    <Badge variant={getRoleBadgeVariant(currentUser.role)} size="sm">{getRoleLabel(currentUser.role)}</Badge>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <span className="text-gray-500">Statut</span>
+                                    <div className="flex items-center gap-1.5">
+                                        {currentUser.enabled
+                                            ? <><CheckCircle size={14} className="text-green-400" /><span className="text-green-400">Actif</span></>
+                                            : <><XCircle size={14} className="text-red-400" /><span className="text-red-400">Désactivé</span></>
+                                        }
+                                    </div>
+                                </div>
+                                {currentUser.lastLoginIp && (
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-gray-500">Dernière IP</span>
+                                        <span className="text-gray-300 font-mono text-xs">{currentUser.lastLoginIp}</span>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {error && (
                     <div className="mb-4 p-3 bg-red-900/30 border border-red-700 rounded text-red-400 text-sm">

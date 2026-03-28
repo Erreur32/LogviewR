@@ -641,7 +641,7 @@
     "helpSectionHide": "Hide help",
     "timeRange": "Time range",
     "timeRange1h": "1 hour",
-    "timeRange24h": "24 hours",
+    "timeRange24h": "1 day",
     "timeRange7d": "7 days",
     "timeRange30d": "30 days",
     "timeRangeCustom": "Custom",
@@ -707,8 +707,8 @@
     "sunday": "Sun"
   },
   "analytics": {
-    "title": "Analytics",
-    "subtitle": "Statistics and detailed information",
+    "title": "Application Statistics",
+    "subtitle": "System statistics and technical information",
     "pluginStatsTitle": "Quick Plugin Statistics",
     "pluginStatsDesc": "Status and statistics of active log plugins",
     "activePlugins": "Active plugins",
@@ -819,7 +819,7 @@
     "hideEmptyFilesTooltip": "Hide .gz and empty files (0 bytes)"
   },
   "footer": {
-    "analyticsTooltip": "Statistics and detailed info",
+    "analyticsTooltip": "Application Statistics",
     "goaccessStatsTooltip": "Log charts and statistics",
     "administrationTooltip": "Settings and administration",
     "statsReadableFilesTooltip": "Readable log files – Total number of .log (and equivalent) files detected and readable by the application, across all enabled log plugins (System, Apache, Nginx, NPM). Excludes files with denied access or unrecognized format.",

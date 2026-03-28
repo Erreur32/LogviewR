@@ -32,6 +32,7 @@ interface FooterProps {
   onPageChange?: (page: PageType) => void;
   onLogout?: () => void;
   userRole?: 'admin' | 'user' | 'viewer';
+  selectedPluginId?: string | null;
 }
 
 // Internal pages (handled within the dashboard)
@@ -46,7 +47,8 @@ export const Footer: React.FC<FooterProps> = ({
   currentPage = 'dashboard',
   onPageChange,
   onLogout,
-  userRole
+  userRole,
+  selectedPluginId
 }) => {
   const { t } = useTranslation();
   const { plugins } = usePluginStore();
@@ -191,18 +193,23 @@ export const Footer: React.FC<FooterProps> = ({
           {visibleTabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = currentPage === tab.id;
-            const iconOnly = tab.id === 'analytics' || tab.id === 'goaccess-stats';
+            const iconOnly = tab.id === 'analytics' || tab.id === 'goaccess-stats' || tab.id === 'dashboard';
+            const tooltipLabel = tab.id === 'goaccess-stats'
+              ? t('footer.goaccessStatsTooltip')
+              : tab.id === 'analytics'
+              ? t('footer.analyticsTooltip')
+              : tab.label;
 
             return (
-              <Tooltip key={tab.id} content={iconOnly ? (tab.id === 'goaccess-stats' ? t('footer.goaccessStatsTooltip') : t('footer.analyticsTooltip')) : tab.label} position="top">
+              <Tooltip key={tab.id} content={iconOnly ? tooltipLabel : tab.label} position="top">
                 <button
                   onClick={() => handleTabClick(tab.id)}
                   className={`flex items-center gap-3 rounded-lg border transition-all duration-150 active:brightness-90 ${
                     iconOnly ? 'p-3' : 'px-4 py-3'
                   } ${
                     isActive
-                      ? 'btn-theme-active border-theme-hover text-theme-primary'
-                      : 'btn-theme border-transparent text-theme-secondary hover:bg-theme-tertiary hover:text-theme-primary'
+                      ? 'bg-blue-500/15 border-blue-500/40 text-blue-400'
+                      : 'bg-transparent border-transparent text-theme-secondary hover:bg-theme-tertiary hover:text-theme-primary'
                   }`}
                 >
                   <Icon size={18} />
@@ -219,8 +226,8 @@ export const Footer: React.FC<FooterProps> = ({
                 onClick={() => onPageChange?.('fail2ban')}
                 className={`flex items-center p-3 rounded-lg border transition-all duration-150 active:brightness-90 ${
                   currentPage === 'fail2ban'
-                    ? 'btn-theme-active border-theme-hover text-theme-primary'
-                    : 'btn-theme border-transparent text-theme-secondary hover:bg-theme-tertiary hover:text-theme-primary'
+                    ? 'bg-blue-500/15 border-blue-500/40 text-blue-400'
+                    : 'bg-transparent border-transparent text-theme-secondary hover:bg-theme-tertiary hover:text-theme-primary'
                 }`}
               >
                 <Shield size={18} />
@@ -236,7 +243,11 @@ export const Footer: React.FC<FooterProps> = ({
                   sessionStorage.setItem('adminMode', 'true');
                   onPageChange?.('settings');
                 }}
-                className="flex items-center p-3 rounded-lg border transition-all duration-150 active:brightness-90 btn-theme border-transparent text-theme-secondary hover:bg-theme-tertiary hover:text-theme-primary"
+                className={`flex items-center p-3 rounded-lg border transition-all duration-150 active:brightness-90 ${
+                    currentPage === 'settings'
+                      ? 'bg-blue-500/15 border-blue-500/40 text-blue-400'
+                      : 'bg-transparent border-transparent text-theme-secondary hover:bg-theme-tertiary hover:text-theme-primary'
+                  }`}
               >
                 <Settings size={18} />
               </button>
@@ -301,7 +312,7 @@ export const Footer: React.FC<FooterProps> = ({
           <div className="flex items-center gap-2 pl-2 flex-1 min-w-0 justify-end">
             {enabledLogPlugins.map((plugin) => {
               const pluginName = getPluginName(plugin.id);
-              const isActive = currentPage === 'log-viewer' && sessionStorage.getItem('selectedPluginId') === plugin.id;
+              const isActive = currentPage === 'log-viewer' && selectedPluginId === plugin.id;
               const pluginIconSrc = getPluginIcon(plugin.id, plugin.id === 'host-system' ? osType : undefined);
 
               return (
@@ -310,8 +321,8 @@ export const Footer: React.FC<FooterProps> = ({
                   onClick={() => handlePluginClick(plugin.id)}
                   className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all duration-150 active:brightness-90 ${
                     isActive
-                      ? 'btn-theme-active border-theme-hover text-theme-primary bg-theme-tertiary'
-                      : 'btn-theme border-transparent text-theme-secondary hover:bg-theme-tertiary hover:text-theme-primary'
+                      ? 'bg-blue-500/15 border-blue-500/40 text-blue-400'
+                      : 'bg-transparent border-transparent text-theme-secondary hover:bg-theme-tertiary hover:text-theme-primary'
                   }`}
                   title={`Voir les logs ${pluginName}`}
                 >

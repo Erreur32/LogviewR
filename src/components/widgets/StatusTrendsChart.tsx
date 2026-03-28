@@ -32,76 +32,15 @@ const SERIES_CONFIG = [
     { key: 's2xx' as const, color: '#10b981', gradient: ['#10b981', '#064e3b'], label: '2xx' }
 ];
 
-function buildSmoothPath(
+function buildLinearPath(
     points: { x: number; y: number }[],
     basePoints: { x: number; y: number }[]
 ): string {
     const n = points.length;
     if (n === 0) return '';
-    if (n === 1) return '';
-
-    const topLine = monotoneCubicPath(points);
-    // Close with linear segments along the baseline (right → left).
-    // A reversed cubic spline through the same points produces different tangents,
-    // causing visible seams between stacked layers. Linear closure avoids this.
-    const baseClose = [...basePoints]
-        .reverse()
-        .map((p) => `L ${p.x} ${p.y}`)
-        .join(' ');
-    return `${topLine} ${baseClose} Z`;
-}
-
-function monotoneCubicPath(pts: { x: number; y: number }[]): string {
-    const n = pts.length;
-    if (n < 2) return `M ${pts[0]?.x ?? 0} ${pts[0]?.y ?? 0}`;
-    if (n === 2) return `M ${pts[0].x} ${pts[0].y} L ${pts[1].x} ${pts[1].y}`;
-
-    const dx: number[] = [];
-    const dy: number[] = [];
-    const m: number[] = [];
-
-    for (let i = 0; i < n - 1; i++) {
-        dx.push(pts[i + 1].x - pts[i].x);
-        dy.push(pts[i + 1].y - pts[i].y);
-        m.push(dy[i] / (dx[i] || 1));
-    }
-
-    const tangents: number[] = [m[0]];
-    for (let i = 1; i < n - 1; i++) {
-        if (m[i - 1] * m[i] <= 0) {
-            tangents.push(0);
-        } else {
-            tangents.push((m[i - 1] + m[i]) / 2);
-        }
-    }
-    tangents.push(m[n - 2]);
-
-    for (let i = 0; i < n - 1; i++) {
-        if (Math.abs(m[i]) < 1e-6) {
-            tangents[i] = 0;
-            tangents[i + 1] = 0;
-        } else {
-            const a = tangents[i] / m[i];
-            const b = tangents[i + 1] / m[i];
-            const s = a * a + b * b;
-            if (s > 9) {
-                const t = 3 / Math.sqrt(s);
-                tangents[i] = t * a * m[i];
-                tangents[i + 1] = t * b * m[i];
-            }
-        }
-    }
-
-    let d = `M ${pts[0].x} ${pts[0].y}`;
-    for (let i = 0; i < n - 1; i++) {
-        const seg = dx[i] / 3;
-        const cp1x = pts[i].x + seg;
-        const cp1y = pts[i].y + tangents[i] * seg;
-        const cp2x = pts[i + 1].x - seg;
-        const cp2y = pts[i + 1].y - tangents[i + 1] * seg;
-        d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${pts[i + 1].x} ${pts[i + 1].y}`;
-    }
-    return d;
+    const top = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+    const base = [...basePoints].reverse().map((p) => `L ${p.x} ${p.y}`).join(' ');
+    return `${top} ${base} Z`;
 }
 
 function formatAxisValue(v: number): string {
@@ -159,7 +98,7 @@ export const StatusTrendsChart: React.FC<StatusTrendsChartProps> = ({
                 basePts.push({ x, y: yBase });
             }
 
-            const d = buildSmoothPath(topPts, basePts);
+            const d = buildLinearPath(topPts, basePts);
             result.push({ key: series.key, color: series.color, gradient: series.gradient, d });
 
             for (let i = 0; i < n; i++) {

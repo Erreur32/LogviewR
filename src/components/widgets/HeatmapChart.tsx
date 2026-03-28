@@ -2,8 +2,8 @@
  * HeatmapChart - GitHub-contributions-style calendar heatmap.
  *
  * Renders a grid: columns = weeks, rows = days of the week (Mon-Sun).
- * Cell intensity is proportional to the request count for that day.
- * Pure SVG, no external dependencies.
+ * RGBA alpha-based coloring, follow-mouse tooltip with rich content, legend.
+ * Modelled after fail2ban TabStats HeatmapSection.
  */
 
 import React, { useMemo, useState } from 'react';
@@ -18,26 +18,15 @@ interface HeatmapChartProps {
     data: HeatmapDataPoint[];
     noDataText?: string;
     dayLabels?: string[];
+    /** RGB triplet for cell color, e.g. '16, 185, 129' (emerald) */
+    cellRgb?: string;
+    accentColor?: string;
+    requestsLabel?: string;
 }
 
 const DEFAULT_DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
-const COLOR_SCALE = [
-    'rgb(22, 27, 34)',
-    'rgb(14, 68, 41)',
-    'rgb(0, 109, 50)',
-    'rgb(38, 166, 65)',
-    'rgb(57, 211, 83)'
-];
-
-function getColorForCount(count: number, maxCount: number): string {
-    if (count === 0 || maxCount === 0) return COLOR_SCALE[0];
-    const ratio = count / maxCount;
-    if (ratio <= 0.25) return COLOR_SCALE[1];
-    if (ratio <= 0.50) return COLOR_SCALE[2];
-    if (ratio <= 0.75) return COLOR_SCALE[3];
-    return COLOR_SCALE[4];
-}
+const DEFAULT_RGB        = '16, 185, 129'; // emerald-500
+const DEFAULT_COLOR      = '#10b981';
 
 interface WeekCell {
     date: Date;
@@ -48,10 +37,13 @@ interface WeekCell {
 
 export const HeatmapChart: React.FC<HeatmapChartProps> = ({
     data,
-    noDataText = 'No data',
-    dayLabels = DEFAULT_DAY_LABELS
+    noDataText    = 'No data',
+    dayLabels     = DEFAULT_DAY_LABELS,
+    cellRgb       = DEFAULT_RGB,
+    accentColor   = DEFAULT_COLOR,
+    requestsLabel = 'Requests',
 }) => {
-    const [tooltip, setTooltip] = useState<{ cell: WeekCell; rect: DOMRect } | null>(null);
+    const [tip, setTip] = useState<{ x: number; y: number; content: React.ReactNode } | null>(null);
 
     const { cells, weeks, maxCount, monthLabels } = useMemo(() => {
         if (!data.length) return { cells: [], weeks: 0, maxCount: 0, monthLabels: [] };
@@ -64,7 +56,7 @@ export const HeatmapChart: React.FC<HeatmapChartProps> = ({
 
         const dates = Array.from(dateMap.keys()).sort();
         const firstDate = new Date(dates[0] + 'T00:00:00');
-        const lastDate = new Date(dates[dates.length - 1] + 'T00:00:00');
+        const lastDate  = new Date(dates[dates.length - 1] + 'T00:00:00');
 
         const startDay = firstDate.getDay();
         const mondayOffset = startDay === 0 ? -6 : 1 - startDay;
@@ -74,135 +66,124 @@ export const HeatmapChart: React.FC<HeatmapChartProps> = ({
         const result: WeekCell[] = [];
         let weekIdx = 0;
         const current = new Date(gridStart);
-
         const months: { label: string; weekIdx: number }[] = [];
         let lastMonth = -1;
 
         while (current <= lastDate || current.getDay() !== 1) {
             if (current > lastDate && current.getDay() === 1) break;
-
             const dayOfWeek = current.getDay() === 0 ? 6 : current.getDay() - 1;
             const key = current.toISOString().slice(0, 10);
             const count = dateMap.get(key) ?? 0;
-
             const m = current.getMonth();
             if (m !== lastMonth) {
-                months.push({
-                    label: current.toLocaleString('default', { month: 'short' }),
-                    weekIdx
-                });
+                months.push({ label: current.toLocaleString('default', { month: 'short' }), weekIdx });
                 lastMonth = m;
             }
-
             result.push({ date: new Date(current), count, dayOfWeek, weekIdx });
-
             current.setDate(current.getDate() + 1);
             if (current.getDay() === 1) weekIdx++;
         }
 
-        const maxC = Math.max(...result.map((c) => c.count), 0);
+        const maxC = Math.max(...result.map(c => c.count), 0);
         return { cells: result, weeks: weekIdx + 1, maxCount: maxC, monthLabels: months };
     }, [data]);
 
+    const total = useMemo(() => cells.reduce((s, c) => s + c.count, 0), [cells]);
+
     if (!data.length || cells.length === 0) {
-        return (
-            <div className="h-32 flex items-center justify-center text-gray-500 text-sm">
-                {noDataText}
-            </div>
-        );
+        return <div className="h-32 flex items-center justify-center text-gray-500 text-sm">{noDataText}</div>;
     }
 
-    const cellSize = 14;
-    const cellGap = 3;
-    const step = cellSize + cellGap;
-    const labelWidth = 32;
-    const topPadding = 20;
-    const svgWidth = labelWidth + weeks * step + 4;
-    const svgHeight = topPadding + 7 * step + 4;
+    const cellSize  = 14;
+    const cellGap   = 3;
+    const step      = cellSize + cellGap;
+    const labelW    = 32;
+    const topPad    = 20;
+    const svgWidth  = labelW + weeks * step + 4;
+    const svgHeight = topPad + 7 * step + 4;
 
     return (
         <div className="overflow-x-auto">
             <svg width={svgWidth} height={svgHeight} className="block">
                 {monthLabels.map((m, i) => (
-                    <text
-                        key={`month-${i}`}
-                        x={labelWidth + m.weekIdx * step + step / 2}
-                        y={12}
-                        className="fill-gray-500"
-                        fontSize={10}
-                        textAnchor="start"
-                    >
+                    <text key={`month-${i}`}
+                        x={labelW + m.weekIdx * step + step / 2} y={12}
+                        className="fill-gray-500" fontSize={10} textAnchor="start">
                         {m.label}
                     </text>
                 ))}
-
-                {dayLabels.map((label, i) => (
+                {dayLabels.map((label, i) =>
                     i % 2 === 0 ? (
-                        <text
-                            key={`day-${i}`}
-                            x={labelWidth - 6}
-                            y={topPadding + i * step + cellSize / 2 + 4}
-                            className="fill-gray-500"
-                            fontSize={10}
-                            textAnchor="end"
-                        >
+                        <text key={`day-${i}`}
+                            x={labelW - 6} y={topPad + i * step + cellSize / 2 + 4}
+                            className="fill-gray-500" fontSize={10} textAnchor="end">
                             {label}
                         </text>
                     ) : null
-                ))}
-
-                {cells.map((cell, i) => (
-                    <rect
-                        key={i}
-                        x={labelWidth + cell.weekIdx * step}
-                        y={topPadding + cell.dayOfWeek * step}
-                        width={cellSize}
-                        height={cellSize}
-                        rx={2}
-                        fill={getColorForCount(cell.count, maxCount)}
-                        className="transition-opacity hover:opacity-80 cursor-pointer"
-                        onMouseEnter={(e) => {
-                            setTooltip({ cell, rect: (e.target as SVGRectElement).getBoundingClientRect() });
-                        }}
-                        onMouseLeave={() => setTooltip(null)}
-                    />
-                ))}
+                )}
+                {cells.map((cell, i) => {
+                    const ratio = maxCount > 0 ? cell.count / maxCount : 0;
+                    const bg = cell.count === 0
+                        ? '#1f2937'
+                        : `rgba(${cellRgb},${(0.15 + ratio * 0.85).toFixed(2)})`;
+                    return (
+                        <rect key={i}
+                            x={labelW + cell.weekIdx * step}
+                            y={topPad + cell.dayOfWeek * step}
+                            width={cellSize} height={cellSize} rx={2}
+                            fill={bg}
+                            style={{ cursor: cell.count > 0 ? 'default' : undefined }}
+                            onMouseMove={e => setTip({ x: e.clientX, y: e.clientY, content: (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '.18rem' }}>
+                                    <div style={{ fontWeight: 700, color: accentColor, fontSize: '.85rem' }}>
+                                        {cell.date.toLocaleDateString('default', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
+                                    </div>
+                                    <div style={{ fontSize: '.78rem', color: '#e6edf3' }}>
+                                        {cell.count} {requestsLabel.toLowerCase()}
+                                    </div>
+                                    {cell.count > 0 && total > 0 && (
+                                        <div style={{ fontSize: '.7rem', color: '#6b7280' }}>
+                                            {Math.round(ratio * 100)}% du maximum
+                                        </div>
+                                    )}
+                                    {cell.count === 0 && (
+                                        <div style={{ fontSize: '.7rem', color: '#6b7280' }}>Aucune activité</div>
+                                    )}
+                                </div>
+                            )})}
+                            onMouseLeave={() => setTip(null)}
+                        />
+                    );
+                })}
             </svg>
 
-            {/* Legend */}
-            <div className="flex items-center gap-2 mt-2 text-[10px] text-gray-500">
-                <span>Less</span>
-                {COLOR_SCALE.map((color, i) => (
-                    <div
-                        key={i}
-                        className="w-3 h-3 rounded-sm"
-                        style={{ backgroundColor: color }}
-                    />
+            {/* legend */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', marginTop: '.5rem', fontSize: '.68rem', color: '#6b7280' }}>
+                <span>Moins</span>
+                {[0, 0.25, 0.5, 0.75, 1].map(v => (
+                    <div key={v} style={{
+                        width: 13, height: 13,
+                        background: v === 0 ? '#1f2937' : `rgba(${cellRgb},${(0.15 + v * 0.85).toFixed(2)})`,
+                        borderRadius: 2, flexShrink: 0,
+                    }} />
                 ))}
-                <span>More</span>
+                <span>Plus</span>
             </div>
 
-            {tooltip && createPortal(
-                <div
-                    className="fixed z-[99999] px-3 py-2 border border-gray-700 rounded-lg shadow-xl text-sm pointer-events-none"
-                    style={{
-                        left: tooltip.rect.left + tooltip.rect.width / 2,
-                        top: tooltip.rect.top - 8,
-                        transform: 'translate(-50%, -100%)',
-                        backgroundColor: 'rgb(17, 24, 39)'
-                    }}
-                >
-                    <div className="font-medium text-white">
-                        {tooltip.cell.date.toLocaleDateString('default', {
-                            weekday: 'short',
-                            year: 'numeric',
-                            month: 'short',
-                            day: 'numeric'
-                        })}
-                    </div>
-                    <div className="text-emerald-400">
-                        {tooltip.cell.count} {tooltip.cell.count === 1 ? 'request' : 'requests'}
-                    </div>
+            {/* follow-mouse tooltip */}
+            {tip && createPortal(
+                <div style={{
+                    position: 'fixed', left: tip.x, top: tip.y - 14,
+                    transform: 'translate(-50%, -100%)',
+                    zIndex: 10050, pointerEvents: 'none',
+                    background: '#161b22',
+                    border: `1px solid rgba(${cellRgb},.45)`,
+                    borderLeft: `4px solid rgba(${cellRgb},.9)`,
+                    borderRadius: 8, padding: '.5rem .75rem',
+                    boxShadow: '0 8px 28px rgba(0,0,0,.6)',
+                    minWidth: 150,
+                }}>
+                    {tip.content}
                 </div>,
                 document.body
             )}

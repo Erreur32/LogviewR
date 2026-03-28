@@ -427,10 +427,31 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
         </span>
     );
 
+    const getPeriodLabel = (): string => {
+        if (timeRange === 'custom') {
+            if (!customFrom || !customTo) return '—';
+            try {
+                const f = new Date(customFrom);
+                const t2 = new Date(customTo);
+                const fmt = (d: Date) => `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`;
+                return `${fmt(f)} → ${fmt(t2)}`;
+            } catch { return '—'; }
+        }
+        const labels: Record<string, string> = { '1h': '1h', '24h': '1 j', '7d': '7 j', '30d': '30 j' };
+        return labels[timeRange] ?? timeRange;
+    };
+
+    const PeriodBadge: React.FC = () => (
+        <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold border bg-sky-500/10 text-sky-400 border-sky-500/25 font-mono">
+            {getPeriodLabel()}
+        </span>
+    );
+
     const SectionHeading: React.FC<{ children: React.ReactNode }> = ({ children }) => (
         <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2.5">
             <span>{children}</span>
             <SourceBadge />
+            <PeriodBadge />
         </h3>
     );
 
@@ -488,6 +509,44 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
         }
         if (first > last) return timeseries;
         return timeseries.slice(first, last + 1);
+    }, [timeseries]);
+
+    // ── Stats summary computed from timeseries ─────────────────────────────────
+    const timeseriesStats = useMemo(() => {
+        if (!timeseries.length) return null;
+        const total = timeseries.reduce((s, b) => s + b.count, 0);
+        const totalVisitors = timeseries.reduce((s, b) => s + (b.uniqueVisitors ?? 0), 0);
+
+        // Peak day of week
+        const byDay = new Array(7).fill(0);
+        // Peak hour of day
+        const byHour = new Array(24).fill(0);
+        // Distinct days for avg/day
+        const distinctDays = new Set<string>();
+
+        for (const b of timeseries) {
+            if (b.count === 0) continue;
+            try {
+                let s = b.label;
+                if (s.length === 10) s += 'T00:00:00';
+                else if (s.length === 13) s += ':00:00';
+                else if (s.length === 16) s += ':00';
+                const d = new Date(s);
+                if (isNaN(d.getTime())) continue;
+                const jsDay = d.getDay();
+                byDay[jsDay === 0 ? 6 : jsDay - 1] += b.count;
+                byHour[d.getHours()] += b.count;
+                distinctDays.add(b.label.slice(0, 10));
+            } catch { /* skip */ }
+        }
+
+        const peakDayIdx  = byDay.indexOf(Math.max(...byDay));
+        const peakHourIdx = byHour.indexOf(Math.max(...byHour));
+        const nDays       = Math.max(distinctDays.size, 1);
+        const avgPerDay   = total / nDays;
+        const avgPerHour  = total / 24;
+
+        return { total, totalVisitors, peakDayIdx, peakHourIdx, avgPerDay, avgPerHour, peakDayCount: byDay[peakDayIdx], peakHourCount: byHour[peakHourIdx] };
     }, [timeseries]);
 
     const formatDateRange = (from?: string, to?: string): string => {
@@ -798,83 +857,25 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                             </div>
                             {statsKpiVisible && (
                             <div className="px-5 py-4">
-                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-                                    <div className="p-3 rounded-lg bg-[#0a0a0a] border border-gray-800/50" title={t('goaccessStats.tipTotalRequests')}>
-                                        <div className="flex items-center gap-2 text-gray-500 text-xs mb-1.5">
-                                            <Activity size={13} className="text-emerald-400" />
-                                            {t('goaccessStats.totalRequests')}
+                                <div className="flex flex-wrap gap-2">
+                                    {[
+                                        { icon: <Activity size={12} className="text-emerald-400" />, label: t('goaccessStats.totalRequests'), value: (overview?.totalRequests ?? 0).toLocaleString(), color: 'text-white', tip: t('goaccessStats.tipTotalRequests') },
+                                        { icon: <Globe size={12} className="text-blue-400" />, label: t('goaccessStats.uniqueVisitors'), value: (overview?.uniqueIps ?? 0).toLocaleString(), color: 'text-blue-300', tip: t('goaccessStats.tipUniqueVisitors') },
+                                        { icon: <Activity size={12} className="text-emerald-500" />, label: t('goaccessStats.validRequests'), value: (overview?.validRequests ?? 0).toLocaleString(), color: 'text-emerald-400', tip: t('goaccessStats.tipValidRequests') },
+                                        { icon: <AlertTriangle size={12} className="text-red-400" />, label: t('goaccessStats.failedRequests'), value: (overview?.failedRequests ?? 0).toLocaleString(), color: 'text-red-400', tip: t('goaccessStats.tipFailedRequests') },
+                                        { icon: <AlertTriangle size={12} className="text-amber-400" />, label: t('goaccessStats.status4xx'), value: (overview?.status4xx ?? 0).toLocaleString(), color: 'text-amber-400', tip: t('goaccessStats.tipStatus4xx') },
+                                        { icon: <ServerCrash size={12} className="text-red-400" />, label: t('goaccessStats.status5xx'), value: (overview?.status5xx ?? 0).toLocaleString(), color: 'text-red-400', tip: t('goaccessStats.tipStatus5xx') },
+                                        { icon: <AlertTriangle size={12} className="text-amber-400" />, label: t('goaccessStats.notFound'), value: (overview?.notFound ?? 0).toLocaleString(), color: 'text-amber-300', tip: t('goaccessStats.tipNotFound') },
+                                        { icon: <FileText size={12} className="text-cyan-400" />, label: t('goaccessStats.staticFiles'), value: (overview?.staticFiles ?? 0).toLocaleString(), color: 'text-cyan-300', tip: t('goaccessStats.tipStaticFiles') },
+                                        { icon: <HardDrive size={12} className="text-purple-400" />, label: t('goaccessStats.totalBytes'), value: overview ? formatBytes(overview.totalBytes) : '0 B', color: 'text-purple-300', tip: t('goaccessStats.tipTotalBytes') },
+                                        { icon: <FileText size={12} className="text-cyan-400" />, label: t('goaccessStats.filesAnalyzed'), value: (overview?.filesAnalyzed ?? 0).toLocaleString(), color: 'text-cyan-300', tip: t('goaccessStats.tipFilesAnalyzed') },
+                                    ].map((item, i) => (
+                                        <div key={i} className="flex-1 min-w-[120px] p-2.5 rounded-lg bg-[#0a0a0a] border border-gray-800/50" title={item.tip}>
+                                            <div className="flex items-center gap-1.5 text-gray-500 text-[11px] mb-1">{item.icon}{item.label}</div>
+                                            <div className={`text-base font-bold ${item.color}`}>{item.value}</div>
                                         </div>
-                                        <div className="text-xl font-bold text-white">{overview?.totalRequests ?? 0}</div>
-                                    </div>
-                                    <div className="p-3 rounded-lg bg-[#0a0a0a] border border-gray-800/50" title={t('goaccessStats.tipUniqueVisitors')}>
-                                        <div className="flex items-center gap-2 text-gray-500 text-xs mb-1.5">
-                                            <Globe size={13} className="text-blue-400" />
-                                            {t('goaccessStats.uniqueVisitors')}
-                                        </div>
-                                        <div className="text-xl font-bold text-white">{overview?.uniqueIps ?? 0}</div>
-                                    </div>
-                                    <div className="p-3 rounded-lg bg-[#0a0a0a] border border-gray-800/50" title={t('goaccessStats.tipStatus4xx')}>
-                                        <div className="flex items-center gap-2 text-gray-500 text-xs mb-1.5">
-                                            <AlertTriangle size={13} className="text-amber-400" />
-                                            {t('goaccessStats.status4xx')}
-                                        </div>
-                                        <div className="text-xl font-bold text-amber-400">{overview?.status4xx ?? 0}</div>
-                                    </div>
-                                    <div className="p-3 rounded-lg bg-[#0a0a0a] border border-gray-800/50" title={t('goaccessStats.tipStatus5xx')}>
-                                        <div className="flex items-center gap-2 text-gray-500 text-xs mb-1.5">
-                                            <ServerCrash size={13} className="text-red-400" />
-                                            {t('goaccessStats.status5xx')}
-                                        </div>
-                                        <div className="text-xl font-bold text-red-400">{overview?.status5xx ?? 0}</div>
-                                    </div>
-                                    <div className="p-3 rounded-lg bg-[#0a0a0a] border border-gray-800/50" title={t('goaccessStats.tipTotalBytes')}>
-                                        <div className="flex items-center gap-2 text-gray-500 text-xs mb-1.5">
-                                            <HardDrive size={13} className="text-purple-400" />
-                                            {t('goaccessStats.totalBytes')}
-                                        </div>
-                                        <div className="text-xl font-bold text-purple-300">{overview ? formatBytes(overview.totalBytes) : '0 B'}</div>
-                                    </div>
-                                    <div className="p-3 rounded-lg bg-[#0a0a0a] border border-gray-800/50" title={t('goaccessStats.tipFilesAnalyzed')}>
-                                        <div className="flex items-center gap-2 text-gray-500 text-xs mb-1.5">
-                                            <FileText size={13} className="text-cyan-400" />
-                                            {t('goaccessStats.filesAnalyzed')}
-                                        </div>
-                                        <div className="text-xl font-bold text-cyan-300">{overview?.filesAnalyzed ?? 0}</div>
-                                    </div>
+                                    ))}
                                 </div>
-
-                                {overview && (
-                                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mt-3 pt-3 border-t border-gray-800/40">
-                                        <div className="p-2.5 rounded-lg bg-[#0a0a0a] border border-gray-800/40" title={t('goaccessStats.tipValidRequests')}>
-                                            <div className="flex items-center gap-2 text-gray-500 text-xs mb-1">
-                                                <Activity size={12} className="text-emerald-500" />
-                                                {t('goaccessStats.validRequests')}
-                                            </div>
-                                            <div className="font-bold text-emerald-400">{overview.validRequests ?? 0}</div>
-                                        </div>
-                                        <div className="p-2.5 rounded-lg bg-[#0a0a0a] border border-gray-800/40" title={t('goaccessStats.tipFailedRequests')}>
-                                            <div className="flex items-center gap-2 text-gray-500 text-xs mb-1">
-                                                <AlertTriangle size={12} className="text-red-400" />
-                                                {t('goaccessStats.failedRequests')}
-                                            </div>
-                                            <div className="font-bold text-red-400">{overview.failedRequests ?? 0}</div>
-                                        </div>
-                                        <div className="p-2.5 rounded-lg bg-[#0a0a0a] border border-gray-800/40" title={t('goaccessStats.tipNotFound')}>
-                                            <div className="flex items-center gap-2 text-gray-500 text-xs mb-1">
-                                                <AlertTriangle size={12} className="text-amber-400" />
-                                                {t('goaccessStats.notFound')}
-                                            </div>
-                                            <div className="font-bold text-amber-400">{overview.notFound ?? 0}</div>
-                                        </div>
-                                        <div className="p-2.5 rounded-lg bg-[#0a0a0a] border border-gray-800/40" title={t('goaccessStats.tipStaticFiles')}>
-                                            <div className="flex items-center gap-2 text-gray-500 text-xs mb-1">
-                                                <FileText size={12} className="text-cyan-400" />
-                                                {t('goaccessStats.staticFiles')}
-                                            </div>
-                                            <div className="font-bold text-cyan-300">{overview.staticFiles ?? 0}</div>
-                                        </div>
-                                    </div>
-                                )}
                             </div>
                             )}
                         </div>
@@ -905,44 +906,6 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                         {/* === TAB: Graphs === */}
                         {activeTab === 'graphs' && (
                         <>
-                        {/* Timeline - Requêtes dans le temps (bar/curve + date/time axis) */}
-                        <div id="section-timeline" className="bg-[#121212] rounded-xl border border-gray-800 p-6 w-full scroll-mt-24">
-                            <SectionHeading>{t('goaccessStats.requestsOverTime')}</SectionHeading>
-                            {trimmedTimeseries.length > 0 ? (
-                                <div className="w-full min-w-0">
-                                    <TimelineChart
-                                        data={trimmedTimeseries.map((b) => ({ label: b.label, count: b.count }))}
-                                        color="#10b981"
-                                        height={140}
-                                        formatLabel={(l) => formatTsLabel(l, getCurrentBucket())}
-                                        valueLabel={t('goaccessStats.requests')}
-                                        xAxisTicks={6}
-                                        barLabel={t('goaccessStats.viewBars')}
-                                        curveLabel={t('goaccessStats.viewCurve')}
-                                    />
-                                </div>
-                            ) : (
-                                <div className="h-32 flex items-center justify-center text-gray-500 text-sm">
-                                    {t('goaccessStats.noData')}
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Calendar Heatmap - only when bucket is day */}
-                        {getCurrentBucket() === 'day' && trimmedTimeseries.length > 0 && (
-                            <div id="section-heatmap" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
-                                <SectionHeading>{t('goaccessStats.heatmapTitle')}</SectionHeading>
-                                <HeatmapChart
-                                    data={trimmedTimeseries.map((b) => ({ label: b.label, count: b.count }))}
-                                    noDataText={t('goaccessStats.noData')}
-                                    dayLabels={[
-                                        t('goaccessStats.monday'), t('goaccessStats.tuesday'), t('goaccessStats.wednesday'),
-                                        t('goaccessStats.thursday'), t('goaccessStats.friday'), t('goaccessStats.saturday'), t('goaccessStats.sunday')
-                                    ]}
-                                />
-                            </div>
-                        )}
-
                         {/* Time Distribution & Unique Visitors (dual-line charts) */}
                         <div id="section-time-dist" className="grid grid-cols-1 lg:grid-cols-2 gap-6 scroll-mt-24">
                             <div className="bg-[#121212] rounded-xl border border-gray-800 p-6">
@@ -991,22 +954,11 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                             </div>
                         </div>
 
-                        {/* Peak Hours (needs hour/minute granularity) */}
-                        {trimmedTimeseries.length > 0 && getCurrentBucket() !== 'day' && (
-                            <div id="section-peak-hours" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
-                                <SectionHeading>{t('goaccessStats.peakHoursTitle')}</SectionHeading>
-                                <PeakHoursChart
-                                    data={timeseries.map((b) => ({ label: b.label, count: b.count }))}
-                                    noDataText={t('goaccessStats.noData')}
-                                    requestsLabel={t('goaccessStats.requests')}
-                                />
-                            </div>
-                        )}
-
-                        {/* Day of Week + Hour x Day Heatmap combined */}
+                        {/* Day of Week + Peak Hours + Calendar Heatmap + Hour×Day Heatmap — 2×2 grid */}
                         {trimmedTimeseries.length > 0 && (
                             <div id="section-hour-day" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                    {/* Top-left: Day of week */}
                                     <div>
                                         <SectionHeading>{t('goaccessStats.dayOfWeekTitle')}</SectionHeading>
                                         <DayOfWeekChart
@@ -1019,20 +971,62 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                                             requestsLabel={t('goaccessStats.requests')}
                                         />
                                     </div>
-                                    {getCurrentBucket() !== 'day' && (
-                                        <div>
-                                            <SectionHeading>{t('goaccessStats.hourDayHeatmapTitle')}</SectionHeading>
-                                            <HourDayHeatmap
-                                                data={timeseries.map((b) => ({ label: b.label, count: b.count }))}
-                                                noDataText={t('goaccessStats.noData')}
-                                                dayLabels={[
-                                                    t('goaccessStats.monday'), t('goaccessStats.tuesday'), t('goaccessStats.wednesday'),
-                                                    t('goaccessStats.thursday'), t('goaccessStats.friday'), t('goaccessStats.saturday'), t('goaccessStats.sunday')
-                                                ]}
-                                                requestsLabel={t('goaccessStats.requests')}
-                                            />
+                                    {/* Top-right: Peak hours */}
+                                    <div>
+                                        <SectionHeading>{t('goaccessStats.peakHoursTitle')}</SectionHeading>
+                                        <PeakHoursChart
+                                            data={timeseries.map((b) => ({ label: b.label, count: b.count }))}
+                                            noDataText={t('goaccessStats.noData')}
+                                            requestsLabel={t('goaccessStats.requests')}
+                                        />
+                                    </div>
+                                    {/* Bottom-left: HeatmapChart + stats tiles côte à côte */}
+                                    <div className="flex flex-col gap-3">
+                                        <SectionHeading>{t('goaccessStats.heatmapTitle')}</SectionHeading>
+                                        <div className="flex gap-3 items-center">
+                                            <div className="overflow-x-auto flex-1 min-w-0">
+                                                <HeatmapChart
+                                                    data={trimmedTimeseries.map((b) => ({ label: b.label, count: b.count }))}
+                                                    noDataText={t('goaccessStats.noData')}
+                                                    dayLabels={[
+                                                        t('goaccessStats.monday'), t('goaccessStats.tuesday'), t('goaccessStats.wednesday'),
+                                                        t('goaccessStats.thursday'), t('goaccessStats.friday'), t('goaccessStats.saturday'), t('goaccessStats.sunday')
+                                                    ]}
+                                                />
+                                            </div>
+                                            {timeseriesStats && (
+                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.4rem', flexShrink: 0, width: 196 }}>
+                                                    {[
+                                                        { label: t('goaccessStats.totalRequests'), value: timeseriesStats.total.toLocaleString(), color: '#10b981' },
+                                                        { label: t('goaccessStats.uniqueVisitors'), value: timeseriesStats.totalVisitors.toLocaleString(), color: '#60a5fa' },
+                                                        { label: 'Moy. / jour', value: Math.round(timeseriesStats.avgPerDay).toLocaleString(), color: '#34d399' },
+                                                        { label: 'Moy. / heure', value: Math.round(timeseriesStats.avgPerHour).toLocaleString(), color: '#22d3ee' },
+                                                        { label: 'Pic (jour)', value: [t('goaccessStats.monday'),t('goaccessStats.tuesday'),t('goaccessStats.wednesday'),t('goaccessStats.thursday'),t('goaccessStats.friday'),t('goaccessStats.saturday'),t('goaccessStats.sunday')][timeseriesStats.peakDayIdx] ?? '—', sub: timeseriesStats.peakDayCount.toLocaleString() + ' req.', color: '#f59e0b' },
+                                                        { label: 'Pic (heure)', value: `${timeseriesStats.peakHourIdx}h`, sub: timeseriesStats.peakHourCount.toLocaleString() + ' req.', color: '#a78bfa' },
+                                                    ].map((stat, i) => (
+                                                        <div key={i} style={{ background: '#0a0a0a', border: '1px solid #1f2937', borderRadius: 8, padding: '.45rem .5rem', textAlign: 'center' }}>
+                                                            <div style={{ fontSize: '.58rem', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: '.2rem' }}>{stat.label}</div>
+                                                            <div style={{ fontSize: '.9rem', fontWeight: 700, color: stat.color, lineHeight: 1 }}>{stat.value}</div>
+                                                            {'sub' in stat && stat.sub && <div style={{ fontSize: '.58rem', color: '#6b7280', marginTop: '.15rem' }}>{stat.sub}</div>}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
                                         </div>
-                                    )}
+                                    </div>
+                                    {/* Bottom-right: HourDayHeatmap */}
+                                    <div>
+                                        <SectionHeading>{t('goaccessStats.hourDayHeatmapTitle')}</SectionHeading>
+                                        <HourDayHeatmap
+                                            data={timeseries.map((b) => ({ label: b.label, count: b.count }))}
+                                            noDataText={t('goaccessStats.noData')}
+                                            dayLabels={[
+                                                t('goaccessStats.monday'), t('goaccessStats.tuesday'), t('goaccessStats.wednesday'),
+                                                t('goaccessStats.thursday'), t('goaccessStats.friday'), t('goaccessStats.saturday'), t('goaccessStats.sunday')
+                                            ]}
+                                            requestsLabel={t('goaccessStats.requests')}
+                                        />
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -1050,6 +1044,29 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                                 />
                             </div>
                         )}
+
+                        {/* Timeline - Requêtes dans le temps (bar/curve + date/time axis) */}
+                        <div id="section-timeline" className="bg-[#121212] rounded-xl border border-gray-800 p-6 w-full scroll-mt-24">
+                            <SectionHeading>{t('goaccessStats.requestsOverTime')}</SectionHeading>
+                            {trimmedTimeseries.length > 0 ? (
+                                <div className="w-full min-w-0">
+                                    <TimelineChart
+                                        data={trimmedTimeseries.map((b) => ({ label: b.label, count: b.count }))}
+                                        color="#10b981"
+                                        height={140}
+                                        formatLabel={(l) => formatTsLabel(l, getCurrentBucket())}
+                                        valueLabel={t('goaccessStats.requests')}
+                                        xAxisTicks={6}
+                                        barLabel={t('goaccessStats.viewBars')}
+                                        curveLabel={t('goaccessStats.viewCurve')}
+                                    />
+                                </div>
+                            ) : (
+                                <div className="h-32 flex items-center justify-center text-gray-500 text-sm">
+                                    {t('goaccessStats.noData')}
+                                </div>
+                            )}
+                        </div>
 
                         {/* Bandwidth over time */}
                         {trimmedTimeseries.length > 0 && trimmedTimeseries.some((b) => (b.totalBytes ?? 0) > 0) && (

@@ -179,7 +179,7 @@ export const TimelineChart: React.FC<TimelineChartProps> = ({
 }) => {
     const [mode, setMode] = useState<'bar' | 'curve'>('curve');
     const width = 100;
-    const padding = 4;
+    const padding = 0;
 
     const xAxisLabels = useMemo(() => {
         if (!data || data.length < 2 || xAxisTicks < 2) {
@@ -248,20 +248,32 @@ export const TimelineChart: React.FC<TimelineChartProps> = ({
                         fadeFromBottom
                     />
                 ) : (
-                    <CurveChartWithTooltip
-                        data={data}
-                        values={values}
-                        width={width}
-                        padding={padding}
-                        curvePath={curvePath}
-                        areaPath={areaPath}
-                        gradientId={gradientId}
-                        color={color}
-                        formatLabel={formatLabel}
-                        valueLabel={valueLabel}
-                        chartHeight={height - 28}
-                        xAxisLabels={xAxisLabels}
-                    />
+                    <div className="flex gap-1">
+                        {/* Y-axis labels */}
+                        <div className="flex flex-col justify-between shrink-0 w-9 text-right pr-1" style={{ height: height - 28 }}>
+                            {[maxVal, Math.round(maxVal * 0.5), 0].map((v, i) => (
+                                <span key={i} className="text-[9px] text-gray-600 font-mono leading-none">
+                                    {v >= 1_000_000 ? `${(v/1_000_000).toFixed(1)}M` : v >= 1_000 ? `${(v/1_000).toFixed(1)}k` : String(v)}
+                                </span>
+                            ))}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <CurveChartWithTooltip
+                                data={data}
+                                values={values}
+                                width={width}
+                                padding={padding}
+                                curvePath={curvePath}
+                                areaPath={areaPath}
+                                gradientId={gradientId}
+                                color={color}
+                                formatLabel={formatLabel}
+                                valueLabel={valueLabel}
+                                chartHeight={height - 28}
+                                xAxisLabels={xAxisLabels}
+                            />
+                        </div>
+                    </div>
                 )}
 
                 {/* X-axis date/time labels */}
@@ -269,11 +281,19 @@ export const TimelineChart: React.FC<TimelineChartProps> = ({
                     {xAxisLabels.map((x, i) => {
                         const pct = data.length > 1 ? (x.idx / (data.length - 1)) * 100 : 0;
                         const display = formatLabel ? formatLabel(x.label) : x.label;
+                        const isFirst = i === 0;
+                        const isLast = i === xAxisLabels.length - 1;
                         return (
                             <span
                                 key={i}
-                                className="absolute text-[10px] text-gray-500 -translate-x-1/2 whitespace-nowrap max-w-[4rem] truncate"
-                                style={{ left: `${pct}%` }}
+                                className="absolute text-[10px] text-gray-500 whitespace-nowrap max-w-[5rem] truncate"
+                                style={{
+                                    ...(isFirst
+                                        ? { left: 0 }
+                                        : isLast
+                                        ? { right: 0 }
+                                        : { left: `${pct}%`, transform: 'translateX(-50%)' }),
+                                }}
                                 title={x.label}
                             >
                                 {display}

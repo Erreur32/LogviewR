@@ -356,9 +356,10 @@ export const Header: React.FC<HeaderProps> = ({
       {/* Logo / Box identifier with Search icon */}
       <div className="flex items-center gap-2">
         {/* Logo badge - cliquable pour retour dashboard */}
-        {onHomeClick && pageType !== 'dashboard' ? (
+        {onHomeClick ? (
           <button
             onClick={onHomeClick}
+            title="Retour au dashboard"
             className="flex items-center gap-2 bg-theme-secondary px-2.5 py-1.5 rounded-lg border border-theme hover:bg-theme-primary transition-colors"
           >
             <img src={logviewrLogo} alt="LogviewR" className="w-6 h-6 flex-shrink-0" />

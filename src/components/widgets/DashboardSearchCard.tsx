@@ -5,13 +5,13 @@
  * Supports plugin filters, case sensitivity, and regex options.
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Search, Filter, ExternalLink, Loader2 } from 'lucide-react';
 import { api } from '../../api/client';
 import { getPluginIcon } from '../../utils/pluginIcons';
 
-const LOG_SOURCE_PLUGIN_IDS = ['host-system', 'apache', 'npm', 'nginx'] as const;
+const LOG_SOURCE_PLUGIN_IDS = ['host-system', 'apache', 'npm', 'nginx', 'fail2ban'] as const;
 
 export interface LogSearchMatch {
     pluginId: string;
@@ -46,6 +46,21 @@ interface DashboardSearchCardProps {
     enabledPluginIds?: string[];
 }
 
+// Small dark toggle switch (no native checkbox styling)
+const Toggle: React.FC<{ checked: boolean; onChange: (v: boolean) => void; label: string }> = ({ checked, onChange, label }) => (
+    <label className="flex items-center gap-2 cursor-pointer select-none group">
+        <div
+            role="switch"
+            aria-checked={checked}
+            onClick={() => onChange(!checked)}
+            className={`relative w-8 h-4 rounded-full transition-colors duration-150 shrink-0 ${checked ? 'bg-cyan-500' : 'bg-gray-700 group-hover:bg-gray-600'}`}
+        >
+            <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform duration-150 ${checked ? 'translate-x-4' : 'translate-x-0.5'}`} />
+        </div>
+        <span className="text-xs text-gray-400 group-hover:text-gray-300 transition-colors">{label}</span>
+    </label>
+);
+
 export const DashboardSearchCard: React.FC<DashboardSearchCardProps> = ({ onOpenFile, osType, enabledPluginIds }) => {
     const { t } = useTranslation();
     const [query, setQuery] = useState('');
@@ -57,6 +72,14 @@ export const DashboardSearchCard: React.FC<DashboardSearchCardProps> = ({ onOpen
     const [result, setResult] = useState<LogSearchResult | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [optionsExpanded, setOptionsExpanded] = useState(false);
+    const [resolvedOsType, setResolvedOsType] = useState<string | undefined>(osType);
+
+    useEffect(() => {
+        if (osType) { setResolvedOsType(osType); return; }
+        api.get<{ type: string }>('/api/log-viewer/os-type')
+            .then((res) => { if (res.success && res.result) setResolvedOsType(res.result.type); })
+            .catch(() => {});
+    }, [osType]);
 
     const hasContentToShow = optionsExpanded || result || error || isSearching;
 
@@ -97,7 +120,11 @@ export const DashboardSearchCard: React.FC<DashboardSearchCardProps> = ({ onOpen
         );
     };
 
-    const pluginLabel = (id: string) => (id === 'host-system' ? 'Host System' : id);
+    const pluginLabel = (id: string) => {
+        if (id === 'host-system') return 'System';
+        if (id === 'fail2ban') return 'Fail2ban';
+        return id;
+    };
 
     /** Color class for the count number only (low=green, medium=amber, high=red) */
     const getCountColor = (count: number) => {
@@ -201,7 +228,7 @@ export const DashboardSearchCard: React.FC<DashboardSearchCardProps> = ({ onOpen
                                             }`}
                                         >
                                             <img
-                                                src={getPluginIcon(id, id === 'host-system' ? osType : undefined)}
+                                                src={getPluginIcon(id, id === 'host-system' ? resolvedOsType : undefined)}
                                                 alt=""
                                                 className="w-3.5 h-3.5 opacity-80"
                                             />
@@ -211,33 +238,9 @@ export const DashboardSearchCard: React.FC<DashboardSearchCardProps> = ({ onOpen
                                 </div>
                             </div>
                             <div className="flex flex-wrap gap-4">
-                                <label className="flex items-center gap-2 cursor-pointer text-xs text-gray-400">
-                                    <input
-                                        type="checkbox"
-                                        checked={caseSensitive}
-                                        onChange={(e) => setCaseSensitive(e.target.checked)}
-                                        className="rounded border-gray-600 bg-theme-primary text-cyan-500 focus:ring-cyan-500/50"
-                                    />
-                                    {t('dashboard.searchCaseSensitive')}
-                                </label>
-                                <label className="flex items-center gap-2 cursor-pointer text-xs text-gray-400">
-                                    <input
-                                        type="checkbox"
-                                        checked={useRegex}
-                                        onChange={(e) => setUseRegex(e.target.checked)}
-                                        className="rounded border-gray-600 bg-theme-primary text-cyan-500 focus:ring-cyan-500/50"
-                                    />
-                                    {t('dashboard.searchRegex')}
-                                </label>
-                                <label className="flex items-center gap-2 cursor-pointer text-xs text-gray-400">
-                                    <input
-                                        type="checkbox"
-                                        checked={includeCompressed}
-                                        onChange={(e) => setIncludeCompressed(e.target.checked)}
-                                        className="rounded border-gray-600 bg-theme-primary text-cyan-500 focus:ring-cyan-500/50"
-                                    />
-                                    {t('dashboard.searchIncludeGz')}
-                                </label>
+                                <Toggle checked={caseSensitive} onChange={setCaseSensitive} label={t('dashboard.searchCaseSensitive')} />
+                                <Toggle checked={useRegex} onChange={setUseRegex} label={t('dashboard.searchRegex')} />
+                                <Toggle checked={includeCompressed} onChange={setIncludeCompressed} label={t('dashboard.searchIncludeGz')} />
                             </div>
                         </div>
                     )}
@@ -292,7 +295,7 @@ export const DashboardSearchCard: React.FC<DashboardSearchCardProps> = ({ onOpen
                                             {pid && (
                                                 <p className="text-xs font-medium text-cyan-400 flex items-center gap-1.5">
                                                     <img
-                                                        src={getPluginIcon(pid, pid === 'host-system' ? osType : undefined)}
+                                                        src={getPluginIcon(pid, pid === 'host-system' ? resolvedOsType : undefined)}
                                                         alt=""
                                                         className="w-3.5 h-3.5 opacity-80"
                                                     />
@@ -327,9 +330,15 @@ export const DashboardSearchCard: React.FC<DashboardSearchCardProps> = ({ onOpen
                                                                 </div>
                                                                 <button
                                                                     type="button"
-                                                                    onClick={() => onOpenFile(m.pluginId, m.filePath, m.logType)}
+                                                                    onClick={() => {
+                                                                        if (m.pluginId === 'fail2ban') {
+                                                                            window.dispatchEvent(new CustomEvent('open-ip-modal', { detail: { ip: m.filePath } }));
+                                                                        } else {
+                                                                            onOpenFile(m.pluginId, m.filePath, m.logType);
+                                                                        }
+                                                                    }}
                                                                     className="p-1.5 rounded hover:bg-cyan-500/20 text-gray-400 hover:text-cyan-400 shrink-0"
-                                                                    title={t('dashboard.openInLogViewer')}
+                                                                    title={m.pluginId === 'fail2ban' ? 'Voir le détail de l\'IP' : t('dashboard.openInLogViewer')}
                                                                 >
                                                                     <ExternalLink size={14} />
                                                                 </button>

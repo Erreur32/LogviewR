@@ -8,12 +8,13 @@
 import { pluginManager } from './pluginManager.js';
 import { logReaderService } from './logReaderService.js';
 import { PluginConfigRepository } from '../database/models/PluginConfig.js';
+import { getDatabase } from '../database/connection.js';
 import { logger } from '../utils/logger.js';
 import type { LogSourcePlugin } from '../plugins/base/LogSourcePluginInterface.js';
 import * as path from 'path';
 import * as fsSync from 'fs';
 
-const LOG_SOURCE_PLUGINS = ['host-system', 'apache', 'npm', 'nginx'] as const;
+const LOG_SOURCE_PLUGINS = ['host-system', 'apache', 'npm', 'nginx', 'fail2ban'] as const;
 
 /** Detect if running in Docker (same logic as BasePlugin). */
 function isDocker(): boolean {
@@ -182,6 +183,38 @@ export async function searchAllLogs(options: LogSearchOptions): Promise<LogSearc
         const config = PluginConfigRepository.findByPluginId(pluginId);
         // When user selected "All": only search enabled plugins. When user selected specific plugin(s): search them even if disabled.
         if (!explicitPluginFilter && !config?.enabled) continue;
+
+        // ── Fail2ban: search f2b_events table (ip / jail) ──────────────────────
+        if (pluginId === 'fail2ban') {
+            try {
+                const db = getDatabase();
+                const rows = db.prepare(
+                    `SELECT id, ip, jail, timeofban, failures FROM f2b_events ORDER BY timeofban DESC LIMIT 50000`
+                ).all() as { id: number; ip: string; jail: string; timeofban: number; failures: number | null }[];
+
+                for (const row of rows) {
+                    if (matches.length >= maxResults) break;
+                    const date = new Date(row.timeofban * 1000).toISOString().replace('T', ' ').slice(0, 16);
+                    const line = `[ban] ${row.ip} | jail: ${row.jail} | failures: ${row.failures ?? 0} | ${date}`;
+                    if (testFn(line)) {
+                        const fileKey = `fail2ban:${row.ip}`;
+                        matchCountByFile.set(fileKey, (matchCountByFile.get(fileKey) ?? 0) + 1);
+                        matches.push({
+                            pluginId: 'fail2ban',
+                            filePath: row.ip,
+                            fileName: row.jail,
+                            logType: 'ban',
+                            lineNumber: row.id,
+                            content: line
+                        });
+                    }
+                }
+                filesSearched++;
+            } catch (err) {
+                logger.warn('LogSearch', 'fail2ban f2b_events search failed:', err);
+            }
+            continue;
+        }
 
         const plugin = pluginManager.getPlugin(pluginId);
         if (!plugin || !isLogSourcePlugin(plugin)) continue;

@@ -155,10 +155,12 @@ function formatFileSize(bytes: number): string {
     return `${bytes} B`;
 }
 
-/** Exclude compressed/archive paths (.gz, .tar.gz, .tgz) from error summary scan. */
+/** Exclude compressed/archive paths (.gz, .tar.gz, .tgz) and rotated logs (.log.1, .log.2, …) from error summary scan. */
 function isCompressedOrArchivePath(path: string): boolean {
     const lower = path.toLowerCase();
-    return lower.endsWith('.gz') || lower.endsWith('.tgz');
+    if (lower.endsWith('.gz') || lower.endsWith('.tgz')) return true;
+    if (/\.log\.\d+$/.test(lower)) return true;
+    return false;
 }
 
 /** In-memory cache for error summary to avoid heavy work on every dashboard load */

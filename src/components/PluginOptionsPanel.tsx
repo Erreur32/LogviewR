@@ -8,6 +8,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Settings, CheckCircle, XCircle, RefreshCw, AlertCircle, Save, Eye, EyeOff, Plus, Trash2, FileText, Code, ChevronUp, ChevronDown, RotateCw, Shield, ShieldAlert, Terminal, Database, Cpu, Layers, Network } from 'lucide-react';
+import { Fail2banPathConfig } from '../pages/fail2ban/Fail2banPathConfig';
 import { usePluginStore, type Plugin } from '../stores/pluginStore';
 import { Button } from './ui/Button';
 import { api } from '../api/client';
@@ -2374,45 +2375,12 @@ const Fail2banConfigPanel: React.FC<Fail2banConfigPanelProps> = ({ sqliteDbPath,
                     <Settings size={18} />
                     Configuration Fail2ban
                 </h4>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    {/* SQLite path */}
-                    <div>
-                        <label htmlFor="f2b-sqlite-path" className="block text-sm font-medium text-gray-300 mb-2">
-                            Chemin base SQLite{' '}
-                            <span className="text-amber-400 font-normal text-xs">(optionnel)</span>
-                        </label>
-                        <input
-                            id="f2b-sqlite-path"
-                            type="text"
-                            value={sqliteDbPath}
-                            onChange={(e) => onSqliteDbPathChange(e.target.value)}
-                            placeholder="/var/lib/fail2ban/fail2ban.sqlite3"
-                            className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500 text-sm font-mono"
-                        />
-                        <p className="text-xs text-gray-500 mt-1">
-                            Vide = chemin par défaut <code className="text-red-400">/var/lib/fail2ban/fail2ban.sqlite3</code>.
-                        </p>
-                    </div>
-
-                    {/* NPM data path */}
-                    <div>
-                        <label htmlFor="f2b-npm-path" className="block text-sm font-medium text-gray-300 mb-2">
-                            Chemin données NPM{' '}
-                            <span className="text-amber-400 font-normal text-xs">(optionnel)</span>
-                        </label>
-                        <input
-                            id="f2b-npm-path"
-                            type="text"
-                            value={npmDataPath}
-                            onChange={(e) => onNpmDataPathChange(e.target.value)}
-                            placeholder="/data/nginx-proxy-manager"
-                            className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500 text-sm font-mono"
-                        />
-                        <p className="text-xs text-gray-500 mt-1">
-                            Requis pour "Top Domaines" (Nginx Proxy Manager uniquement). Ex&nbsp;: <code className="text-orange-400">/data/nginx-proxy-manager</code>
-                        </p>
-                    </div>
-                </div>
+                <Fail2banPathConfig
+                    sqliteDbPath={sqliteDbPath}
+                    onSqliteDbPathChange={onSqliteDbPathChange}
+                    npmDataPath={npmDataPath}
+                    onNpmDataPathChange={onNpmDataPathChange}
+                />
             </div>
 
             {/* Diagnostic */}

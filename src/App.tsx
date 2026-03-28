@@ -446,6 +446,7 @@ const App: React.FC = () => {
   }, [currentPage]);
 
   const handleHomeClick = () => {
+    window.history.replaceState(null, '', window.location.pathname);
     setCurrentPage('dashboard');
   };
 
@@ -556,6 +557,7 @@ const App: React.FC = () => {
         onPageChange={handlePageChange}
         onLogout={handleLogout}
         userRole={user?.role}
+        selectedPluginId={selectedPluginId}
       />
     </>
   );
@@ -564,9 +566,10 @@ const App: React.FC = () => {
   if (currentPage === 'goaccess-stats') {
     return wrapWithBackground(renderPageWithFooter(
       <>
-        <Header 
+        <Header
           pageType="goaccess-stats"
           user={user || undefined}
+          onHomeClick={handleHomeClick}
           onSettingsClick={handleSettingsClick}
           onAdminClick={handleAdminClick}
           onProfileClick={handleProfileClick}
@@ -587,9 +590,10 @@ const App: React.FC = () => {
   if (currentPage === 'analytics') {
     return wrapWithBackground(renderPageWithFooter(
       <>
-        <Header 
+        <Header
           pageType="analytics"
           user={user || undefined}
+          onHomeClick={handleHomeClick}
           onSettingsClick={handleSettingsClick}
           onAdminClick={handleAdminClick}
           onProfileClick={handleProfileClick}
@@ -679,6 +683,7 @@ const App: React.FC = () => {
           pageType="log-viewer"
           user={user || undefined}
           onHomeClick={() => {
+            window.history.replaceState(null, '', window.location.pathname);
             setCurrentPage('dashboard');
             setSelectedPluginId(null);
             setPluginHeaderData(null);
@@ -732,6 +737,7 @@ const App: React.FC = () => {
           onPageChange={handlePageChange}
           onLogout={handleLogout}
           userRole={user?.role}
+          selectedPluginId={selectedPluginId}
         />
       </div>
     );
@@ -744,6 +750,7 @@ const App: React.FC = () => {
         <Header
           pageType="fail2ban"
           user={user || undefined}
+          onHomeClick={handleHomeClick}
           onSettingsClick={handleSettingsClick}
           onAdminClick={handleAdminClick}
           onProfileClick={handleProfileClick}
@@ -765,6 +772,7 @@ const App: React.FC = () => {
           onPageChange={handlePageChange}
           onLogout={handleLogout}
           userRole={user?.role}
+          selectedPluginId={selectedPluginId}
         />
       </div>,
       true, // fullscreen: prevent window scroll (no pb-20)
@@ -775,9 +783,10 @@ const App: React.FC = () => {
   if (currentPage === 'dashboard') {
     return wrapWithBackground(renderPageWithFooter(
       <>
-        <Header 
+        <Header
           pageType="dashboard"
           user={user || undefined}
+          onHomeClick={handleHomeClick}
           onSettingsClick={handleSettingsClick}
           onAdminClick={handleAdminClick}
           onProfileClick={handleProfileClick}
@@ -811,9 +820,12 @@ const App: React.FC = () => {
                     setCurrentPage('log-viewer');
                   }}
                   osType={pluginHeaderData?.osType}
-                  enabledPluginIds={plugins
-                    .filter((p) => p.enabled && ['host-system', 'apache', 'npm', 'nginx'].includes(p.id))
-                    .map((p) => p.id)}
+                  enabledPluginIds={[
+                    ...plugins
+                      .filter((p) => p.enabled && ['host-system', 'apache', 'npm', 'nginx'].includes(p.id))
+                      .map((p) => p.id),
+                    'fail2ban'
+                  ]}
                 />
               </div>
 

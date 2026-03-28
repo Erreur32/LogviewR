@@ -69,9 +69,12 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onBack }) => {
     isCompressed: boolean;
   }>>([]);
   const [isLoadingLargestFiles, setIsLoadingLargestFiles] = useState(true);
-  
+  const [filesShowAll, setFilesShowAll] = useState(false);
+  const [filesHideGz, setFilesHideGz] = useState(false);
+  const [filesHideRotated, setFilesHideRotated] = useState(false);
+
   // Collapsible sections state
-  const [isPluginStatsExpanded, setIsPluginStatsExpanded] = useState(true); // Open by default
+  const [isPluginStatsExpanded, setIsPluginStatsExpanded] = useState(false);
   const [isLargestFilesExpanded, setIsLargestFilesExpanded] = useState(false);
   const [isDatabaseExpanded, setIsDatabaseExpanded] = useState(false);
   const [isUserExpanded, setIsUserExpanded] = useState(false);
@@ -167,6 +170,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onBack }) => {
     const fetchLargestFiles = async (quick: boolean = false) => {
       setIsLoadingLargestFiles(true);
       try {
+        const limit = filesShowAll ? 500 : 10;
         const quickParam = quick ? '&quick=true' : '';
         const response = await api.get<{
           files: Array<{
@@ -179,13 +183,12 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onBack }) => {
             isCompressed: boolean;
           }>;
           total: number;
-        }>(`/api/log-viewer/largest-files?limit=10${quickParam}`);
-        
+        }>(`/api/log-viewer/largest-files?limit=${limit}${quickParam}`);
+
         if (response.success && response.result) {
           setLargestFiles(response.result.files);
           setIsLoadingLargestFiles(false);
-          
-          // If quick mode, load complete data in background
+
           if (quick) {
             fetchLargestFiles(false).catch(err => {
               console.warn('Failed to load complete largest files:', err);
@@ -198,9 +201,8 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onBack }) => {
       }
     };
 
-    // Load quick first, then complete in background
     fetchLargestFiles(true);
-  }, []);
+  }, [filesShowAll]);
 
   // Format file size
   const formatFileSize = (bytes: number): string => {
@@ -471,6 +473,42 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onBack }) => {
 
           {isLargestFilesExpanded && (
             <div className="px-6 pb-6">
+              {/* Filter bar */}
+              <div className="flex flex-wrap items-center gap-3 mb-4">
+                <label className="flex items-center gap-2 cursor-pointer select-none group">
+                  <div
+                    role="switch" aria-checked={filesShowAll}
+                    onClick={() => setFilesShowAll(v => !v)}
+                    className={`relative w-8 h-4 rounded-full transition-colors duration-150 shrink-0 ${filesShowAll ? 'bg-cyan-500' : 'bg-gray-700 group-hover:bg-gray-600'}`}
+                  >
+                    <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform duration-150 ${filesShowAll ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                  </div>
+                  <span className="text-xs text-gray-400 group-hover:text-gray-300">Tout afficher</span>
+                </label>
+                <div className="w-px h-4 bg-gray-700" />
+                <label className="flex items-center gap-2 cursor-pointer select-none group">
+                  <div
+                    role="switch" aria-checked={filesHideGz}
+                    onClick={() => setFilesHideGz(v => !v)}
+                    className={`relative w-8 h-4 rounded-full transition-colors duration-150 shrink-0 ${filesHideGz ? 'bg-amber-500' : 'bg-gray-700 group-hover:bg-gray-600'}`}
+                  >
+                    <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform duration-150 ${filesHideGz ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                  </div>
+                  <span className="text-xs text-gray-400 group-hover:text-gray-300">Masquer .gz</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer select-none group">
+                  <div
+                    role="switch" aria-checked={filesHideRotated}
+                    onClick={() => setFilesHideRotated(v => !v)}
+                    className={`relative w-8 h-4 rounded-full transition-colors duration-150 shrink-0 ${filesHideRotated ? 'bg-amber-500' : 'bg-gray-700 group-hover:bg-gray-600'}`}
+                  >
+                    <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform duration-150 ${filesHideRotated ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                  </div>
+                  <span className="text-xs text-gray-400 group-hover:text-gray-300">Masquer .log.1</span>
+                </label>
+                {isLoadingLargestFiles && <RefreshCw size={13} className="text-gray-500 animate-spin ml-auto" />}
+              </div>
+
               {isLoadingLargestFiles ? (
                 <div className="flex items-center justify-center py-8">
                   <RefreshCw className="w-6 h-6 text-gray-500 animate-spin" />
@@ -480,7 +518,14 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onBack }) => {
                 <div className="bg-[#0a0a0a] rounded-lg p-4 border border-gray-700">
                   <div className="text-sm text-gray-500">{t('analytics.noFilesFound')}</div>
                 </div>
-              ) : (
+              ) : (() => {
+                const filtered = largestFiles.filter(f => {
+                  const lower = f.path.toLowerCase();
+                  if (filesHideGz && (lower.endsWith('.gz') || lower.endsWith('.tgz'))) return false;
+                  if (filesHideRotated && /\.log\.\d+$/.test(lower)) return false;
+                  return true;
+                });
+                return (
                 <div className="bg-[#0a0a0a] rounded-lg border border-gray-700 overflow-hidden">
                   <div className="overflow-x-auto">
                     <table className="w-full">
@@ -494,7 +539,9 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onBack }) => {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-800">
-                        {largestFiles.map((file, index) => (
+                        {filtered.length === 0 ? (
+                          <tr><td colSpan={5} className="px-4 py-6 text-center text-sm text-gray-500">Aucun fichier à afficher avec ces filtres</td></tr>
+                        ) : filtered.map((file, index) => (
                           <tr key={index} className="hover:bg-[#0f0f0f] transition-colors">
                             <td className="px-4 py-3 text-sm text-gray-400 font-mono">
                               {index + 1}
@@ -536,192 +583,18 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onBack }) => {
                       </tbody>
                     </table>
                   </div>
-                </div>
-              )}
-            </div>
-          )}
-        </section>
-
-        {/* Database Statistics Section - Collapsible */}
-        <section className="bg-[#121212] rounded-xl border border-gray-800 overflow-hidden">
-          <button
-            onClick={() => setIsDatabaseExpanded(!isDatabaseExpanded)}
-            className="w-full flex items-center justify-between p-6 hover:bg-[#1a1a1a] transition-colors"
-          >
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-500/20 rounded-lg">
-                <Database size={24} className="text-blue-400" />
-              </div>
-              <div className="text-left">
-                <h2 className="text-lg font-semibold text-white">{t('analytics.dbStatsTitle')}</h2>
-                <p className="text-sm text-gray-500">{t('analytics.dbStatsDesc')}</p>
-              </div>
-            </div>
-            {isDatabaseExpanded ? (
-              <ChevronUp size={20} className="text-gray-400" />
-            ) : (
-              <ChevronDown size={20} className="text-gray-400" />
-            )}
-          </button>
-
-          {isDatabaseExpanded && (
-            <div className="px-6 pb-6">
-              {isLoadingDbStats ? (
-                <div className="flex items-center justify-center py-8">
-                  <RefreshCw className="w-6 h-6 text-gray-500 animate-spin" />
-                  <span className="ml-2 text-gray-500">{t('analytics.loading')}</span>
-                </div>
-              ) : (
-                <div className="bg-[#0a0a0a] rounded-lg p-4 border border-gray-700">
-                  <div className="flex items-center gap-2 text-yellow-400">
-                    <AlertCircle size={20} />
-                    <span className="text-sm font-medium">{t('analytics.featureInDev')}</span>
-                  </div>
-                  <p className="text-sm text-gray-500 mt-2">
-                    {t('analytics.dbStatsComingSoon')}
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-        </section>
-
-        {/* User Information Section - Collapsible */}
-        <section className="bg-[#121212] rounded-xl border border-gray-800 overflow-hidden">
-          <button
-            onClick={() => setIsUserExpanded(!isUserExpanded)}
-            className="w-full flex items-center justify-between p-6 hover:bg-[#1a1a1a] transition-colors"
-          >
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-green-500/20 rounded-lg">
-                <User size={24} className="text-green-400" />
-              </div>
-              <div className="text-left">
-                <h2 className="text-lg font-semibold text-white">{t('analytics.userInfoTitle')}</h2>
-                <p className="text-sm text-gray-500">{t('analytics.userInfoDesc')}</p>
-              </div>
-            </div>
-            {isUserExpanded ? (
-              <ChevronUp size={20} className="text-gray-400" />
-            ) : (
-              <ChevronDown size={20} className="text-gray-400" />
-            )}
-          </button>
-
-          {isUserExpanded && (
-            <div className="px-6 pb-6">
-              {user ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* User Details Card */}
-              <div className="bg-[#0a0a0a] rounded-lg p-6 border border-gray-700">
-                <div className="flex items-center gap-4 mb-4">
-                  <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-blue-500 rounded-full flex items-center justify-center">
-                    <User size={32} className="text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-bold text-white">{user.username}</h3>
-                    <Badge variant={getRoleBadgeVariant(user.role)} className="mt-1">
-                      {getRoleLabel(user.role)}
-                    </Badge>
-                  </div>
-                </div>
-
-                <div className="space-y-3 mt-6">
-                  <div className="flex items-center gap-3">
-                    <Mail size={18} className="text-gray-500" />
-                    <div>
-                      <div className="text-xs text-gray-500">{t('analytics.email')}</div>
-                      <div className="text-white">{user.email || 'N/A'}</div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <Shield size={18} className="text-gray-500" />
-                    <div>
-                      <div className="text-xs text-gray-500">{t('analytics.status')}</div>
-                      <div className="flex items-center gap-2">
-                        {user.enabled ? (
-                          <>
-                            <CheckCircle size={16} className="text-green-400" />
-                            <span className="text-green-400">{t('analytics.active')}</span>
-                          </>
-                        ) : (
-                          <>
-                            <XCircle size={16} className="text-red-400" />
-                            <span className="text-red-400">{t('analytics.disabled')}</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <Calendar size={18} className="text-gray-500" />
-                    <div>
-                      <div className="text-xs text-gray-500">{t('analytics.accountCreated')}</div>
-                      <div className="text-white">{formatDate(user.createdAt)}</div>
-                    </div>
-                  </div>
-
-                  {user.lastLogin && (
-                    <div className="flex items-center gap-3">
-                      <Clock size={18} className="text-gray-500" />
-                      <div>
-                        <div className="text-xs text-gray-500">{t('analytics.lastLogin')}</div>
-                        <div className="text-white">{formatDate(user.lastLogin)}</div>
-                        {user.lastLoginIp && (
-                          <div className="text-xs text-gray-500 mt-1">{t('analytics.lastLoginIp', { ip: user.lastLoginIp })}</div>
-                        )}
-                      </div>
+                  {filesShowAll && (
+                    <div className="px-4 py-2 border-t border-gray-800 text-xs text-gray-600">
+                      {filtered.length} fichier{filtered.length !== 1 ? 's' : ''} affiché{filtered.length !== 1 ? 's' : ''}
                     </div>
                   )}
                 </div>
-              </div>
-
-              {/* User Stats Card */}
-              <div className="bg-[#0a0a0a] rounded-lg p-6 border border-gray-700">
-                <h3 className="text-lg font-semibold text-white mb-4">{t('analytics.statistics')}</h3>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between p-3 bg-[#121212] rounded-lg">
-                    <span className="text-gray-400">{t('analytics.userId')}</span>
-                    <span className="text-white font-mono">#{user.id}</span>
-                  </div>
-                  <div className="flex items-center justify-between p-3 bg-[#121212] rounded-lg">
-                    <span className="text-gray-400">{t('analytics.role')}</span>
-                    <Badge variant={getRoleBadgeVariant(user.role)}>
-                      {getRoleLabel(user.role)}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center justify-between p-3 bg-[#121212] rounded-lg">
-                    <span className="text-gray-400">{t('analytics.status')}</span>
-                    <div className="flex items-center gap-2">
-                      {user.enabled ? (
-                        <>
-                          <CheckCircle size={16} className="text-green-400" />
-                          <span className="text-green-400">{t('analytics.active')}</span>
-                        </>
-                      ) : (
-                        <>
-                          <XCircle size={16} className="text-red-400" />
-                          <span className="text-red-400">{t('analytics.disabled')}</span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="bg-[#0a0a0a] rounded-lg p-4 border border-gray-700">
-              <div className="flex items-center gap-2 text-yellow-400">
-                <AlertCircle size={20} />
-                <span className="text-sm">{t('analytics.noUserInfo')}</span>
-              </div>
-            </div>
-          )}
+                );
+              })()}
             </div>
           )}
         </section>
+
       </div>
     </div>
   );

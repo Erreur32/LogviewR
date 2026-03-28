@@ -95,3 +95,6 @@ Thumbs.db
 .AppleDouble
 .LSOverride
 ._*
+
+# MCP config (contains tokens)
+.mcp.json

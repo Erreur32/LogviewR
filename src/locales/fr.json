@@ -641,7 +641,7 @@
     "helpSectionHide": "Masquer l'aide",
     "timeRange": "Période",
     "timeRange1h": "1 heure",
-    "timeRange24h": "24 heures",
+    "timeRange24h": "1 jour",
     "timeRange7d": "7 jours",
     "timeRange30d": "30 jours",
     "timeRangeCustom": "Personnalisé",
@@ -707,8 +707,8 @@
     "sunday": "Dim"
   },
   "analytics": {
-    "title": "Analytique",
-    "subtitle": "Statistiques et informations détaillées",
+    "title": "Statistiques Application",
+    "subtitle": "Statistiques système et informations techniques",
     "pluginStatsTitle": "Statistiques Rapides des Plugins",
     "pluginStatsDesc": "État et statistiques des plugins de logs actifs",
     "activePlugins": "Plugins actifs",
@@ -819,7 +819,7 @@
     "hideEmptyFilesTooltip": "Masquer les fichiers .gz et les fichiers vides (0 octets)"
   },
   "footer": {
-    "analyticsTooltip": "Statistiques et infos détaillées",
+    "analyticsTooltip": "Statistiques Application",
     "goaccessStatsTooltip": "Graphiques et statistiques des logs",
     "administrationTooltip": "Paramètres et administration",
     "statsReadableFilesTooltip": "Fichiers de logs accessibles en lecture – Nombre total de fichiers .log (et équivalents) détectés et lisibles par l'application, tous plugins de logs activés confondus (System, Apache, Nginx, NPM). Exclut les fichiers dont l'accès est refusé ou le format non reconnu.",

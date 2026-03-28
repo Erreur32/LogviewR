@@ -149,7 +149,8 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
     const [lastRefreshed, setLastRefreshed] = useState<number>(0);
     const [dbFragPct, setDbFragPct] = useState<number | null>(null);
     const [bansToday, setBansToday] = useState<{ count: number; uniqIps: number } | null>(null);
-    const [npmDataPath, setNpmDataPath] = useState<string>('');
+    const [npmDataPath, setNpmDataPath]       = useState<string>('');
+    const [sqliteDbPath, setSqliteDbPath]     = useState<string>('');
     const { addBan } = useNotificationStore();
     const lastRowidRef = useRef<number>(-1); // -1 = not bootstrapped yet
     // ticker: re-render every 5s so "il y a Xs" stays fresh
@@ -192,10 +193,15 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
         return () => clearInterval(t);
     }, [fetchBansToday]);
 
-    // Load npmDataPath from plugin config on mount
+    // Load path settings from plugin config on mount
     useEffect(() => {
-        api.get<{ settings?: { npmDataPath?: string } }>('/api/plugins/fail2ban')
-            .then(res => { if (res.success) setNpmDataPath(res.result?.settings?.npmDataPath ?? ''); })
+        api.get<{ settings?: { npmDataPath?: string; sqliteDbPath?: string } }>('/api/plugins/fail2ban')
+            .then(res => {
+                if (res.success) {
+                    setNpmDataPath(res.result?.settings?.npmDataPath ?? '');
+                    setSqliteDbPath(res.result?.settings?.sqliteDbPath ?? '');
+                }
+            })
             .catch(() => {});
     }, []);
 
@@ -670,16 +676,11 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
             <SyncProgressBanner />
 
             {/* ── Left sidebar ── */}
-            <aside style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', background: '#161b22', borderRight: '1px solid #30363d', transition: 'width .2s ease', overflow: 'hidden', width: collapsed ? 46 : 220 }}>
+            <aside style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', background: '#161b22', borderRight: '1px solid #30363d', transition: 'width .2s ease', overflow: 'hidden', width: collapsed ? 54 : 185 }}>
                 {/* Brand */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', padding: '.75rem .75rem', borderBottom: '1px solid #30363d', flexShrink: 0 }}>
                     <img src={fail2banIcon} alt="fail2ban" style={{ width: 18, height: 18, flexShrink: 0 }} />
                     {!collapsed && <span style={{ fontWeight: 700, fontSize: '.9rem', color: '#e6edf3', whiteSpace: 'nowrap' }}>Fail2ban</span>}
-                    {!collapsed && status && (
-                        <span style={{ fontSize: '.68rem', padding: '.1rem .45rem', borderRadius: 999, fontWeight: 600, background: status.ok ? 'rgba(63,185,80,.15)' : 'rgba(232,106,101,.15)', color: status.ok ? '#3fb950' : '#e86a65' }}>
-                            {status.ok ? '✓' : '✗'}
-                        </span>
-                    )}
                     <button onClick={() => setCollapsed(c => !c)} title={collapsed ? 'Développer' : 'Réduire'}
                         style={{ marginLeft: 'auto', flexShrink: 0, background: 'transparent', border: '1px solid #30363d', borderRadius: 4, color: '#8b949e', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, fontSize: '.8rem', transition: 'background .12s, color .12s' }}
                         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#30363d'; (e.currentTarget as HTMLElement).style.color = '#e6edf3'; }}
@@ -735,7 +736,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
                                                 id === 'jails'   ? `${badge} jails` :
                                                 String(badge)
                                             } style={{ position: 'absolute', top: 3, right: 3, background: id === 'config' ? '#e3b341' : id === 'jails' ? '#58a6ff' : '#e86a65', color: id === 'config' ? '#0d1117' : '#fff', fontSize: '.55rem', borderRadius: 6, padding: '0 .25rem', lineHeight: 1.6, zIndex: 1 }}>
-                                                {id === 'config' ? '!' : badge > 9 ? '9+' : badge}
+                                                {id === 'config' ? '!' : badge}
                                             </span>
                                         )}
                                     </button>
@@ -911,7 +912,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
                     {tab === 'iptables' && <TabIPTables />}
                     {tab === 'ipset'    && <TabIPSet onIpClick={ip => setSelectedIp(ip)} />}
                     {tab === 'nftables' && <TabNFTables />}
-                    {tab === 'config'   && <TabConfig onWarningsChange={setDbFragPct} npmDataPath={npmDataPath} onNpmDataPathChange={setNpmDataPath} />}
+                    {tab === 'config'   && <TabConfig onWarningsChange={setDbFragPct} npmDataPath={npmDataPath} onNpmDataPathChange={setNpmDataPath} sqliteDbPath={sqliteDbPath} onSqliteDbPathChange={setSqliteDbPath} />}
                     {tab === 'audit'    && <TabAudit />}
                     {tab === 'backup'   && <TabBackup />}
                     {tab === 'aide'     && <TabAide />}
