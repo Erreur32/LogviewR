@@ -10,7 +10,7 @@
 
 <img src="LogviewR_banner.svg" alt="LogviewR" width="512" height="256" />
 
-![LogviewR](https://img.shields.io/badge/LogviewR-0.6.8-111827?style=for-the-badge)
+![LogviewR](https://img.shields.io/badge/LogviewR-0.6.9-111827?style=for-the-badge)
 ![Status](https://img.shields.io/badge/Status-DEVELOPMENT-374151?style=for-the-badge)
 ![Docker](https://img.shields.io/badge/Docker-Ready-1f2937?style=for-the-badge&logo=docker&logoColor=38bdf8)
 ![React](https://img.shields.io/badge/React-19-111827?style=for-the-badge&logo=react&logoColor=38bdf8)
@@ -172,7 +172,7 @@ echo "JWT_SECRET=$(openssl rand -base64 32)" > .env
 **Step 2 — Fail2ban host setup** *(one-time — required only if using the Fail2ban plugin)*
 
 ```bash
-sudo bash <(curl -fsSL https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setup-fail2ban-access.sh)
+curl -fsSL https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setup-fail2ban-access.sh | sudo bash
 ```
 
 > Run this **before** `docker compose up`, directly on the Docker host (not inside the container).

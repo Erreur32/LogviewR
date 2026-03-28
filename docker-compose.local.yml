@@ -43,7 +43,7 @@ services:
       - logviewr_data_local:/app/data
       # Fail2ban socket (read-write — required for ban/unban commands)
       # PREREQUISITE: run the host setup script once before starting:
-      #   sudo bash <(curl -fsSL https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setup-fail2ban-access.sh)
+      #   curl -fsSL https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setup-fail2ban-access.sh | sudo bash
       - /var/run/fail2ban/fail2ban.sock:/var/run/fail2ban/fail2ban.sock
       # Host filesystem (read-only) for logs and system metrics
       - /:/host:ro

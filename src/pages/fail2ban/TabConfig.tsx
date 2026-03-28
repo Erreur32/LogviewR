@@ -944,7 +944,7 @@ export const TabConfig: React.FC<{
                                         </div>
                                         <div style={{ padding: '.6rem .75rem' }}>
                                             <pre style={{ margin: 0, fontSize: '.75rem', fontFamily: 'monospace', color: C.cyan, lineHeight: 1.55, whiteSpace: 'pre-wrap', background: C.bg3, borderRadius: 5, padding: '.5rem .7rem', border: `1px solid ${C.border}` }}>
-                                                {'sudo bash <(curl -fsSL https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setup-fail2ban-access.sh)'}
+                                                {'curl -fsSL https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setup-fail2ban-access.sh | sudo bash'}
                                             </pre>
                                             <p style={{ margin: '.5rem 0 0', fontSize: '.72rem', color: C.muted, lineHeight: 1.5 }}>
                                                 Crée le groupe fail2ban, installe le drop-in systemd (socket 660, SQLite 644) et détecte automatiquement le GID au démarrage du container.

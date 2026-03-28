@@ -81,7 +81,7 @@ const FW_CHECKS: FwCheck[] = [
     },
 ];
 
-const SETUP_SCRIPT = 'sudo bash <(curl -fsSL https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setup-fail2ban-access.sh)';
+const SETUP_SCRIPT = 'curl -fsSL https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setup-fail2ban-access.sh | sudo bash';
 
 const DOCKER_PREREQ = `# docker-compose.yml
 network_mode: host    # partage le namespace réseau du host

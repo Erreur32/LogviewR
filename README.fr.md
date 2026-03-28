@@ -171,7 +171,7 @@ echo "JWT_SECRET=$(openssl rand -base64 32)" > .env
 **Étape 2 — Configuration hôte Fail2ban** *(une seule fois — requis uniquement si vous utilisez le plugin Fail2ban)*
 
 ```bash
-sudo bash <(curl -fsSL https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setup-fail2ban-access.sh)
+curl -fsSL https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setup-fail2ban-access.sh | sudo bash
 ```
 
 > À exécuter **avant** `docker compose up`, directement sur l'hôte Docker (pas dans le conteneur).
