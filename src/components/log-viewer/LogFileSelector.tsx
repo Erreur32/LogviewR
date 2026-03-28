@@ -6,6 +6,7 @@
  */
 
 import { useMemo, useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ChevronDown, ChevronRight, FileText, Folder, FolderOpen, Eye, EyeOff, Lock, Menu, X, Archive } from 'lucide-react';
 import type { LogFileInfo } from '../../types/logViewer.js';
 import { Tooltip } from '../ui/Tooltip.js';
@@ -32,20 +33,6 @@ interface LogFileSelectorProps {
     /** When true: show only non-.gz files with size > 0 (hide empty files) */
     showOnlyNonGzWithData?: boolean;
 }
-
-// Map log types to display names
-const TYPE_LABELS: Record<string, string> = {
-    'syslog': 'Syslog',
-    'auth': 'Authentification',
-    'kern': 'Kernel',
-    'daemon': 'Démon',
-    'mail': 'Mail',
-    'access': 'Accès',
-    'error': 'Erreur',
-    'custom': 'Autre',
-    'journald': 'Journald',
-    'subdomain': 'Sous-domaines'
-};
 
 // Types that have parsers (known and functional)
 const PARSED_TYPES = ['syslog', 'journald', 'auth', 'kern', 'daemon', 'mail', 'access', 'error'];
@@ -124,6 +111,7 @@ export function LogFileSelector({
     fileSearchQuery = '',
     showOnlyNonGzWithData = false
 }: LogFileSelectorProps) {
+    const { t } = useTranslation();
     const { plugins } = usePluginStore();
     const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set([...CATEGORY_ORDER.filter(cat => PARSED_TYPES.includes(cat)), 'subdomain', 'unparsed']));
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
@@ -567,7 +555,7 @@ export function LogFileSelector({
                                     if (categoryFiles.length === 0) return null;
 
                             const isCategoryExpanded = expandedCategories.has(category);
-                            const categoryLabel = TYPE_LABELS[category] || category;
+                            const categoryLabel = t(`logViewer.types.${category}`, { defaultValue: category });
 
                             return (
                                 <div key={category} className="bg-[#0a0a0a]">

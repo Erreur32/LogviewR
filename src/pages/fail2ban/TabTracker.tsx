@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api } from '../../api/client';
 import { card, cardH, F2bTooltip } from './helpers';
 import { List, Shield } from 'lucide-react';
@@ -56,6 +57,7 @@ const SortTh: React.FC<{
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export const TabTracker: React.FC<{ onIpClick?: (ip: string) => void; onTotalChange?: (n: number) => void; initialFilter?: string }> = ({ onIpClick, onTotalChange, initialFilter }) => {
+    const { t } = useTranslation();
     const [ips, setIps]         = useState<TrackerEntry[]>([]);
     const [total, setTotal]     = useState(0);
     const [loading, setLoading] = useState(true);
@@ -265,7 +267,7 @@ export const TabTracker: React.FC<{ onIpClick?: (ip: string) => void; onTotalCha
                 </div>
                 {/* View mode toggle — fixed-width buttons to prevent layout shift */}
                 <div style={{ display: 'flex', flexShrink: 0, borderRadius: 5, border: '1px solid #30363d', overflow: 'hidden' }}>
-                    {([['active', 'Bannis actifs', activeCount, '#e86a65', 'rgba(232,106,101,.15)', 'rgba(232,106,101,.2)'], ['history', 'Historique', historyCount, '#58a6ff', 'rgba(88,166,255,.1)', 'rgba(88,166,255,.18)']] as const).map(([mode, label, count, col, bg, countBg]) => (
+                    {([['active', t('fail2ban.status.bansActive'), activeCount, '#e86a65', 'rgba(232,106,101,.15)', 'rgba(232,106,101,.2)'], ['history', t('fail2ban.tracker.banHistory'), historyCount, '#58a6ff', 'rgba(88,166,255,.1)', 'rgba(88,166,255,.18)']] as const).map(([mode, label, count, col, bg, countBg]) => (
                         <button key={mode} onClick={() => { setViewMode(mode); setPage(1); }}
                             style={{
                                 width: 118, padding: '.2rem .65rem', fontSize: '.72rem', fontWeight: 600, cursor: 'pointer',
@@ -285,7 +287,7 @@ export const TabTracker: React.FC<{ onIpClick?: (ip: string) => void; onTotalCha
                     <div style={{ position: 'relative', width: 220 }}>
                         <span style={{ position: 'absolute', left: '.6rem', top: '50%', transform: 'translateY(-50%)', color: '#8b949e', fontSize: '.72rem', pointerEvents: 'none' }}>🔍</span>
                         <input type="search" value={filter} onChange={e => { setFilter(e.target.value); setPage(1); }}
-                            placeholder="Rechercher…"
+                            placeholder={t('fail2ban.placeholders.filterIps')}
                             style={{ width: '100%', padding: '.38rem .75rem .38rem 1.8rem', fontSize: '.82rem', background: '#0d1117', border: '1px solid #30363d', borderRadius: 6, color: '#e6edf3', outline: 'none', boxSizing: 'border-box' }} />
                     </div>
                 </div>
@@ -302,7 +304,7 @@ export const TabTracker: React.FC<{ onIpClick?: (ip: string) => void; onTotalCha
                     )}
                     <div style={{ display: 'flex', gap: '.2rem' }}>
                         {[16, 32, 50, 100].map(pp => ppBtn(pp, String(pp)))}
-                        {ppBtn(0, 'Tous')}
+                        {ppBtn(0, t('fail2ban.periods.allShort'))}
                     </div>
                 </div>
             </div>
@@ -322,7 +324,7 @@ export const TabTracker: React.FC<{ onIpClick?: (ip: string) => void; onTotalCha
 
             {/* ── Table ── */}
             {loading
-                ? <div style={{ textAlign: 'center', padding: '3rem', color: '#8b949e' }}>Chargement…</div>
+                ? <div style={{ textAlign: 'center', padding: '3rem', color: '#8b949e' }}>{t('common.loading')}</div>
                 : filtered.length === 0
                 ? <div style={{ textAlign: 'center', padding: '3rem', color: viewMode === 'active' ? '#3fb950' : '#8b949e' }}>
                     {viewMode === 'active' ? '✓ Aucune IP actuellement bannie' : 'Aucune IP dans l\'historique'}
@@ -335,9 +337,9 @@ export const TabTracker: React.FC<{ onIpClick?: (ip: string) => void; onTotalCha
                                     <th style={{ ...thStyle, width: 32 }}>#</th>
                                     <SortTh col="last" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} style={{ ...thStyle, width: 110 }}>Dernier vu</SortTh>
                                     <SortTh col="ip"   sortCol={sortCol} sortDir={sortDir} onSort={handleSort} style={{ ...thStyle, width: 130 }}>IP</SortTh>
-                                    <th style={{ ...thStyle, width: 46 }}>Pays</th>
-                                    <th style={{ ...thStyle, width: 100 }}>Géoloc</th>
-                                    <SortTh col="failures" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} style={{ ...thStyle, width: 80, textAlign: 'center' }}>Tentatives</SortTh>
+                                    <th style={{ ...thStyle, width: 46 }}>{t('fail2ban.labels.country')}</th>
+                                    <th style={{ ...thStyle, width: 100 }}>{t('fail2ban.labels.city')}</th>
+                                    <SortTh col="failures" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} style={{ ...thStyle, width: 80, textAlign: 'center' }}>{t('fail2ban.labels.attempts')}</SortTh>
                                     <SortTh col="bans"   sortCol={sortCol} sortDir={sortDir} onSort={handleSort} style={{ ...thStyle, width: 60, textAlign: 'center' }}><span style={{ color: '#e86a65' }}>Bans</span></SortTh>
                                     <SortTh col="unbans" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} style={{ ...thStyle, width: 60, textAlign: 'center' }}><span style={{ color: '#3fb950' }}>Débans</span></SortTh>
                                     <SortTh col="jails"  sortCol={sortCol} sortDir={sortDir} onSort={handleSort} style={{ ...thStyle, width: 320, paddingLeft: '1.2rem', borderLeft: '1px solid #30363d' }}>Jail(s)</SortTh>

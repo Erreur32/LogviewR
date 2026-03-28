@@ -4,6 +4,7 @@
  */
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { usePolling } from '../hooks/usePolling';
 import {
     Shield, AlertTriangle, CheckCircle,
@@ -45,46 +46,37 @@ import { SyncProgressBanner } from './fail2ban/SyncProgressBanner';
 
 const NAV_GROUPS = [
     {
-        label: 'Fail2ban',
+        labelKey: 'Fail2ban',
         items: [
-            { id: 'jails'   as TabId, label: 'Jails',      icon: Shield,       color: '#58a6ff' },
-            { id: 'filtres' as TabId, label: 'Filtres',     icon: Filter,       color: '#3fb950' },
-            { id: 'actions' as TabId, label: 'Actions',     icon: Zap,          color: '#e3b341' },
-            { id: 'tracker' as TabId, label: 'Tracker IPs', icon: List,         color: '#e3b341' },
-            { id: 'carte'   as TabId, label: 'Carte',       icon: MapIcon,      color: '#39c5cf' },
-            { id: 'ban'     as TabId, label: 'Ban Manager', icon: Ban,          color: '#e86a65' },
-            { id: 'stats'   as TabId, label: 'Stats',       icon: Activity,     color: '#58a6ff' },
+            { id: 'jails'   as TabId, labelKey: 'fail2ban.tabs.jails',      icon: Shield,       color: '#58a6ff' },
+            { id: 'filtres' as TabId, labelKey: 'fail2ban.tabs.filters',    icon: Filter,       color: '#3fb950' },
+            { id: 'actions' as TabId, labelKey: 'fail2ban.tabs.actions',    icon: Zap,          color: '#e3b341' },
+            { id: 'tracker' as TabId, labelKey: 'fail2ban.tabs.tracker',    icon: List,         color: '#e3b341' },
+            { id: 'carte'   as TabId, labelKey: 'fail2ban.tabs.map',        icon: MapIcon,      color: '#39c5cf' },
+            { id: 'ban'     as TabId, labelKey: 'fail2ban.tabs.banManager', icon: Ban,          color: '#e86a65' },
+            { id: 'stats'   as TabId, labelKey: 'fail2ban.tabs.stats',      icon: Activity,     color: '#58a6ff' },
         ],
     },
     {
-        label: 'Pare-feu',
+        labelKey: 'fail2ban.tabs.firewall',
         items: [
-            { id: 'iptables' as TabId, label: 'IPTables', icon: Network,  color: '#39c5cf' },
-            { id: 'ipset'    as TabId, label: 'IPSet',    icon: Database, color: '#bc8cff' },
-            { id: 'nftables' as TabId, label: 'NFTables', icon: Server,   color: '#e3b341' },
+            { id: 'iptables' as TabId, labelKey: 'fail2ban.tabs.iptables', icon: Network,  color: '#39c5cf' },
+            { id: 'ipset'    as TabId, labelKey: 'fail2ban.tabs.ipset',    icon: Database, color: '#bc8cff' },
+            { id: 'nftables' as TabId, labelKey: 'fail2ban.tabs.nftables', icon: Server,   color: '#e3b341' },
         ],
     },
     {
-        label: 'Outils',
+        labelKey: 'fail2ban.tabs.tools',
         items: [
-            { id: 'config'  as TabId, label: 'Config',  icon: Settings,      color: '#8b949e' },
-            { id: 'audit'   as TabId, label: 'Audit',   icon: ClipboardList, color: '#8b949e' },
-            { id: 'backup'  as TabId, label: 'Backup',  icon: Archive,       color: '#58a6ff' },
-            { id: 'aide'    as TabId, label: 'Aide',    icon: HelpCircle,    color: '#8b949e' },
+            { id: 'config'  as TabId, labelKey: 'fail2ban.tabs.config',  icon: Settings,      color: '#8b949e' },
+            { id: 'audit'   as TabId, labelKey: 'fail2ban.tabs.audit',   icon: ClipboardList, color: '#8b949e' },
+            { id: 'backup'  as TabId, labelKey: 'fail2ban.tabs.backup',  icon: Archive,       color: '#58a6ff' },
+            { id: 'aide'    as TabId, labelKey: 'fail2ban.tabs.aide',    icon: HelpCircle,    color: '#8b949e' },
         ],
     },
-] as const;
+];
 
-// ── Age formatter ─────────────────────────────────────────────────────────────
-
-function fmtAge(ts: number): string {
-    const secs = Math.floor((Date.now() - ts) / 1000);
-    if (secs < 5)   return 'à l\'instant';
-    if (secs < 60)  return `il y a ${secs}s`;
-    const mins = Math.floor(secs / 60);
-    if (mins < 60)  return `il y a ${mins}min`;
-    return `il y a ${Math.floor(mins / 60)}h`;
-}
+// ── Age formatter — defined inside component to capture t() ──────────────────
 
 // ── Topbar chip (PHP .chip style) ─────────────────────────────────────────────
 
@@ -123,6 +115,17 @@ const Sparkline: React.FC<{ data: number[]; color: string }> = ({ data, color })
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }> = ({ initialTab }) => {
+    const { t } = useTranslation();
+
+    const fmtAge = (ts: number): string => {
+        const secs = Math.floor((Date.now() - ts) / 1000);
+        if (secs < 5)  return t('fail2ban.timeAgo.now');
+        if (secs < 60) return t('fail2ban.timeAgo.secondsAgo', { count: secs });
+        const mins = Math.floor(secs / 60);
+        if (mins < 60) return t('fail2ban.timeAgo.minutesAgo', { count: mins });
+        return t('fail2ban.timeAgo.hoursAgo', { count: Math.floor(mins / 60) });
+    };
+
     const contentRef = useRef<HTMLDivElement>(null);
     const timedTabRef = useRef(false);
     const [tab, setTab]           = useState<TabId>(initialTab ?? 'jails');
@@ -392,7 +395,8 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
     }, [status, totalBanned, uniqueIpsTotal, expiredLast24h, totalFailed]);
 
     const periodBans = history.reduce((s, h) => s + h.count, 0);
-    const periodLabel = PERIODS.find(p => p.days === statsDays)?.label ?? `${statsDays}j`;
+    const _periodEntry = PERIODS.find(p => p.days === statsDays);
+    const periodLabel = _periodEntry ? t(_periodEntry.labelKey) : `${statsDays}j`;
 
     // Period summary for trend badges (current + prev period stats from /tops)
     type PeriodSummary = { totalBans: number; uniqueIps: number; totalFailures: number; expiredInPeriod: number };
@@ -668,7 +672,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
         ...(configBadge > 0 ? { config: configBadge } : {}),
     };
 
-    const allNavItems = ([] as { id: TabId; label: string; color: string }[]).concat(...NAV_GROUPS.map(g => g.items as unknown as { id: TabId; label: string; color: string }[]));
+    const allNavItems = ([] as { id: TabId; labelKey: string; color: string }[]).concat(...NAV_GROUPS.map(g => g.items as unknown as { id: TabId; labelKey: string; color: string }[]));
     const activeColor = allNavItems.find(i => i.id === tab)?.color ?? '#58a6ff';
 
     return (
@@ -692,14 +696,15 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
                 {/* Nav */}
                 <nav style={{ flex: 1, overflowY: 'auto', padding: '.35rem 0' }}>
                     {NAV_GROUPS.map(group => (
-                        <div key={group.label} style={{ marginBottom: '.1rem' }}>
+                        <div key={group.labelKey} style={{ marginBottom: '.1rem' }}>
                             {!collapsed && (
                                 <div style={{ padding: '.35rem 1rem .1rem', fontSize: '.63rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', color: '#8b949e', opacity: .6 }}>
-                                    {group.label}
+                                    {group.labelKey.startsWith('fail2ban.') ? t(group.labelKey) : group.labelKey}
                                 </div>
                             )}
                             {collapsed && <div style={{ height: 1, margin: '.25rem .45rem', background: '#30363d' }} />}
-                            {group.items.map(({ id, label, icon: Icon, color }) => {
+                            {group.items.map(({ id, labelKey, icon: Icon, color }) => {
+                                const label = t(labelKey);
                                 const badge = badges[id];
                                 const active = tab === id;
                                 const tt = navTt[id];

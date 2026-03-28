@@ -72,11 +72,11 @@
         "defaultLogFile": "Fichier de log par défaut",
         "defaultLogFileDescription": "Fichier de log à afficher par défaut pour ce plugin",
         "selectFile": "Sélectionner un fichier",
-      "loadingFiles": "Chargement des fichiers...",
-      "autoSaveInProgress": "Sauvegarde automatique en cours...",
-      "logViewerMaxLinesTitle": "Visualiseur de logs – lignes maximum par fichier",
-      "logViewerMaxLinesDescription": "Nombre maximum de lignes que le visualiseur de logs lira par requête (vue parsée et brute). Une valeur plus élevée affiche plus d'historique mais peut ralentir l'affichage sur des fichiers énormes.",
-      "logViewerMaxLinesUnit": "lignes"
+        "loadingFiles": "Chargement des fichiers...",
+        "autoSaveInProgress": "Sauvegarde automatique en cours...",
+        "logViewerMaxLinesTitle": "Visualiseur de logs – lignes maximum par fichier",
+        "logViewerMaxLinesDescription": "Nombre maximum de lignes que le visualiseur de logs lira par requête (vue parsée et brute). Une valeur plus élevée affiche plus d'historique mais peut ralentir l'affichage sur des fichiers énormes.",
+        "logViewerMaxLinesUnit": "lignes"
       },
       "network": {
         "publicUrlLabel": "URL publique (Domaine)",
@@ -816,7 +816,19 @@
     "methodHttp": "Méthode HTTP",
     "methodTooltip": "Méthode HTTP : {{method}} - {{desc}}",
     "hideEmptyFiles": "Sans vides",
-    "hideEmptyFilesTooltip": "Masquer les fichiers .gz et les fichiers vides (0 octets)"
+    "hideEmptyFilesTooltip": "Masquer les fichiers .gz et les fichiers vides (0 octets)",
+    "types": {
+      "syslog": "Syslog",
+      "auth": "Authentification",
+      "kern": "Kernel",
+      "daemon": "Démon",
+      "mail": "Mail",
+      "access": "Accès",
+      "error": "Erreur",
+      "custom": "Autre",
+      "journald": "Journald",
+      "subdomain": "Sous-domaines"
+    }
   },
   "footer": {
     "analyticsTooltip": "Statistiques Application",
@@ -1070,13 +1082,331 @@
     "error": "Erreur",
     "info": "Information",
     "themes": {
-      "dark": { "name": "Dark", "description": "Thème sombre (pas trop noir)" },
-      "glass": { "name": "Dark Glass", "description": "Effet glassmorphism avec transparence" },
-      "modern": { "name": "Moderne", "description": "Thème coloré avec dégradés modernes" },
-      "nightly": { "name": "Nightly", "description": "Thème très sombre pour une utilisation nocturne" },
-      "neon": { "name": "Neon", "description": "Thème néon avec effets lumineux et bordures colorées" },
-      "elegant": { "name": "Élégant", "description": "Thème animé avec dégradés élégants et animations subtiles" },
-      "full-animation": { "name": "Full animation", "description": "Arrière-plan animé avec choix d'animation (étoiles, circuit, rubans, vagues)" }
+      "dark": {
+        "name": "Dark",
+        "description": "Thème sombre (pas trop noir)"
+      },
+      "glass": {
+        "name": "Dark Glass",
+        "description": "Effet glassmorphism avec transparence"
+      },
+      "modern": {
+        "name": "Moderne",
+        "description": "Thème coloré avec dégradés modernes"
+      },
+      "nightly": {
+        "name": "Nightly",
+        "description": "Thème très sombre pour une utilisation nocturne"
+      },
+      "neon": {
+        "name": "Neon",
+        "description": "Thème néon avec effets lumineux et bordures colorées"
+      },
+      "elegant": {
+        "name": "Élégant",
+        "description": "Thème animé avec dégradés élégants et animations subtiles"
+      },
+      "full-animation": {
+        "name": "Full animation",
+        "description": "Arrière-plan animé avec choix d'animation (étoiles, circuit, rubans, vagues)"
+      }
+    }
+  },
+  "common": {
+    "loading": "Chargement...",
+    "saving": "Enregistrement...",
+    "saved": "Enregistré",
+    "error": "Erreur",
+    "close": "Fermer",
+    "cancel": "Annuler",
+    "confirm": "Confirmer",
+    "hide": "Masquer",
+    "show": "Afficher",
+    "refresh": "Actualiser",
+    "save": "Sauvegarder",
+    "edit": "Modifier",
+    "delete": "Supprimer",
+    "test": "Tester",
+    "active": "Actif",
+    "errors": {
+      "loadFailed": "Erreur lors du chargement",
+      "saveFailed": "Erreur lors de la sauvegarde",
+      "unknown": "Erreur inconnue"
+    },
+    "savedSuccessfully": "Enregistré avec succès",
+    "loadingConfig": "Chargement de la configuration...",
+    "loadingFiles": "Chargement des fichiers..."
+  },
+  "header": {
+    "backToDashboard": "Retour au dashboard",
+    "newVersionAvailable": "Nouvelle version disponible",
+    "chooseLogFile": "Choisir un fichier de log à afficher",
+    "logFiles": "Fichiers de logs",
+    "filesShort": "Fichiers",
+    "logFileHistory": "Historique des fichiers de logs déjà demandés",
+    "editCustomRegex": "Éditer la regex personnalisée",
+    "liveRealtime": "Live (temps réel)",
+    "autoRefresh": "Refresh auto",
+    "stopLive": "Arrêter le suivi Live",
+    "stopAutoRefresh": "Arrêter le refresh auto ({{interval}}s)",
+    "reloadLogs": "Recharger les logs du fichier affiché",
+    "switchToParsed": "Passer en mode parsé (colonnes structurées)",
+    "switchToRaw": "Passer en mode brut (texte brut)",
+    "startLiveTracking": "Démarrer le suivi des logs (Live ou Refresh auto)",
+    "seeIpDetail": "Voir le détail de l'IP",
+    "currentPlugin": "Actif",
+    "pageTitles": {
+      "settings": "Paramètres - LogviewR",
+      "plugins": "Plugins - LogviewR",
+      "users": "Utilisateurs - LogviewR",
+      "logs": "Logs - LogviewR"
+    }
+  },
+  "permissions": {
+    "labels": {
+      "calls": "Accès au journal d'appels",
+      "camera": "Accès aux caméras",
+      "contacts": "Accès à la base de contacts",
+      "downloader": "Accès au gestionnaire de téléchargements",
+      "explorer": "Accès aux fichiers",
+      "home": "Gestion de l'alarme et maison connectée",
+      "parental": "Accès au contrôle parental",
+      "player": "Contrôle du player",
+      "profile": "Gestion des profils utilisateur",
+      "pvr": "Programmation des enregistrements",
+      "settings": "Modification des réglages",
+      "tv": "Accès au guide TV",
+      "vm": "Contrôle de la VM",
+      "wdo": "Provisionnement des équipements"
+    },
+    "errorRequired": "Le droit d'accès \"{{label}}\" est requis.",
+    "errorInstructions": "Ajoutez-le dans les paramètres de l'application",
+    "shortError": "Permission \"{{label}}\" requise",
+    "openFreeboxSettings": "Ouvrir les paramètres Freebox"
+  },
+  "fail2ban": {
+    "tabs": {
+      "jails": "Jails",
+      "filters": "Filtres",
+      "actions": "Actions",
+      "tracker": "Tracker IPs",
+      "map": "Carte",
+      "banManager": "Ban Manager",
+      "stats": "Stats",
+      "iptables": "IPTables",
+      "ipset": "IPSet",
+      "nftables": "NFTables",
+      "config": "Config",
+      "backup": "Backup",
+      "audit": "Audit",
+      "aide": "Aide",
+      "firewall": "Pare-feu",
+      "tools": "Outils"
+    },
+    "status": {
+      "active": "Actif",
+      "inactive": "Inactif",
+      "banned": "Banni",
+      "bansActive": "Bans actifs",
+      "failuresCurrent": "Échecs en cours",
+      "totalBans": "Total bans",
+      "uniqueIps": "IPs uniques",
+      "expired24h": "Expirés 24h",
+      "activeJails": "Jails actifs",
+      "connected": "Connecté",
+      "notConnected": "Non connecté",
+      "loading": "Chargement...",
+      "noData": "Aucune donnée"
+    },
+    "actions": {
+      "ban": "Bannir",
+      "unban": "Débannir",
+      "reload": "Recharger",
+      "banInRecidive": "Bannir dans recidive",
+      "refresh": "Actualiser",
+      "save": "Sauvegarder",
+      "close": "Fermer",
+      "cancel": "Annuler",
+      "confirm": "Confirmer",
+      "test": "Tester",
+      "reset": "Réinitialiser",
+      "import": "Importer",
+      "export": "Exporter",
+      "add": "Ajouter",
+      "remove": "Supprimer",
+      "apply": "Appliquer",
+      "enable": "Activer",
+      "disable": "Désactiver"
+    },
+    "labels": {
+      "jail": "Jail",
+      "jails": "Jails",
+      "ip": "IP",
+      "bantime": "Bantime",
+      "findtime": "Findtime",
+      "maxretry": "Maxretry",
+      "filter": "Filtre",
+      "action": "Action",
+      "failures": "Échecs",
+      "attempts": "Tentatives",
+      "lastBan": "Dernier ban",
+      "firstBan": "Premier ban",
+      "totalBans": "Total bans",
+      "duration": "Durée",
+      "country": "Pays",
+      "organization": "Organisation",
+      "asn": "ASN",
+      "isp": "ISP",
+      "city": "Ville",
+      "recidivist": "Récidiviste",
+      "date": "Date",
+      "type": "Type",
+      "status": "Statut",
+      "source": "Source",
+      "domain": "Domaine",
+      "port": "Port",
+      "protocol": "Protocole",
+      "chain": "Chaîne",
+      "target": "Cible",
+      "size": "Taille",
+      "packets": "Paquets"
+    },
+    "tooltips": {
+      "bantime": "Durée du bannissement — l'IP reste bannie pendant ce délai",
+      "findtime": "Fenêtre de détection — les échecs sont comptés dans cette période",
+      "maxretry": "Nombre maximal d'échecs avant bannissement",
+      "reload": "Recharger la configuration fail2ban",
+      "ban": "Bannir cette IP",
+      "unban": "Lever le bannissement de cette IP"
+    },
+    "placeholders": {
+      "filterIps": "Filtrer les IPs…",
+      "filterJails": "Filtrer les jails…",
+      "ipToBan": "IP à bannir…",
+      "addIpCidr": "Ajouter IP ou CIDR (ex: 1.2.3.4)",
+      "search": "Rechercher…"
+    },
+    "errors": {
+      "fileNotAvailable": "Fichier non disponible",
+      "fileNotFound": "Fichier non trouvé",
+      "unknown": "Erreur inconnue",
+      "readError": "Erreur de lecture du fichier",
+      "connectionError": "Erreur de connexion",
+      "permissionDenied": "Accès refusé",
+      "banFailed": "Échec du ban",
+      "unbanFailed": "Échec du déban"
+    },
+    "messages": {
+      "saved": "Sauvegardé.",
+      "banSuccess": "IP bannie avec succès",
+      "unbanSuccess": "IP débannie avec succès",
+      "reloadSuccess": "Configuration rechargée",
+      "noActiveJails": "Aucun jail actif",
+      "noBannedIps": "Aucune IP bannie",
+      "noEvents": "Aucun événement",
+      "noFilters": "Aucun filtre",
+      "noActions": "Aucune action",
+      "syncInProgress": "Synchronisation en cours…",
+      "loadingMap": "Chargement de la carte…",
+      "loadingData": "Chargement des données…"
+    },
+    "periods": {
+      "last24h": "Dernières 24h",
+      "last7d": "7 derniers jours",
+      "last30d": "30 derniers jours",
+      "last6m": "6 derniers mois",
+      "last1y": "1 an",
+      "all": "Toutes les données disponibles (SQLite)",
+      "allShort": "Toutes",
+      "bans24h": "Bans des dernières 24h",
+      "bans7d": "Bans des 7 derniers jours"
+    },
+    "attackCategories": {
+      "sshBruteforce": "Brute-force SSH",
+      "recidivist": "Récidiviste",
+      "bot": "Bot / Crawler",
+      "wordpress": "Scan WordPress",
+      "portscan": "Port scan",
+      "ddos": "DDoS / Flood",
+      "other": "Autre",
+      "httpBruteforce": "Brute-force HTTP",
+      "smtpBruteforce": "Brute-force SMTP",
+      "ftpBruteforce": "Brute-force FTP"
+    },
+    "timeAgo": {
+      "now": "à l'instant",
+      "secondsAgo": "il y a {{count}}s",
+      "minutesAgo": "il y a {{count}}min",
+      "hoursAgo": "il y a {{count}}h",
+      "daysAgo": "il y a {{count}}j"
+    },
+    "views": {
+      "cards": "Cartes",
+      "table": "Tableau",
+      "events": "Événements",
+      "logs": "Logs",
+      "map": "Carte"
+    },
+    "config": {
+      "sqlitePath": "Chemin SQLite",
+      "npmPath": "Chemin NPM",
+      "jailConf": "jail.conf",
+      "jailLocal": "jail.local",
+      "saveAndCheck": "Sauvegarder et vérifier",
+      "pathValid": "Chemin valide",
+      "pathInvalid": "Chemin invalide",
+      "domainsFound": "domaines trouvés",
+      "requiresFix": "Nécessite une correction"
+    },
+    "jails": {
+      "activeOnly": "Actifs uniquement",
+      "allJails": "Tous les jails",
+      "expandConfig": "Voir la configuration",
+      "collapseConfig": "Masquer la configuration",
+      "currentlyBanned": "IPs bannies actives",
+      "recentBans": "Bans < 5 min",
+      "logFile": "Fichier de log",
+      "backendFilter": "Filtre backend",
+      "noLogFile": "Aucun fichier de log configuré"
+    },
+    "tracker": {
+      "dns": "DNS",
+      "dnsCached": "DNS (cache)",
+      "noReverse": "Pas de reverse DNS",
+      "geolocate": "Géolocaliser",
+      "geoloading": "Géolocalisation…",
+      "ipsets": "IPSets",
+      "viewHistory": "Voir l'historique",
+      "banHistory": "Historique des bans"
+    },
+    "map": {
+      "zoom": "Zoom",
+      "filterByCountry": "Filtrer par pays",
+      "allCountries": "Tous les pays",
+      "bannedIps": "IPs bannies",
+      "loading": "Chargement de la carte…",
+      "leafletError": "Erreur de chargement Leaflet"
+    },
+    "backup": {
+      "exportDb": "Exporter la base de données",
+      "importDb": "Importer une base de données",
+      "exportConfig": "Exporter la configuration",
+      "importConfig": "Importer la configuration",
+      "selectFile": "Sélectionner un fichier",
+      "inProgress": "En cours…",
+      "success": "Succès",
+      "maintenanceReset": "Réinitialisation de maintenance"
+    },
+    "stats": {
+      "topIps": "Top IPs",
+      "topJails": "Top Jails",
+      "heatmap": "Heatmap bans/tentatives",
+      "byJail": "Répartition par jail",
+      "jailSummary": "Synthèse par jail",
+      "periodSummary": "Résumé de la période",
+      "attackTypes": "Types d'attaque",
+      "lastEvents": "Derniers événements",
+      "totalBansCumul": "Total bans (cumul)"
     }
   }
 }

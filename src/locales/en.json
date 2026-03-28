@@ -72,11 +72,11 @@
         "defaultLogFile": "Default log file",
         "defaultLogFileDescription": "Log file to display by default for this plugin",
         "selectFile": "Select a file",
-      "loadingFiles": "Loading files...",
-      "autoSaveInProgress": "Auto-save in progress...",
-      "logViewerMaxLinesTitle": "Log viewer – maximum lines per file",
-      "logViewerMaxLinesDescription": "Maximum number of lines the log viewer will read per request (parsed and raw views). Higher values show more history but may slow down display on very large files.",
-      "logViewerMaxLinesUnit": "lines"
+        "loadingFiles": "Loading files...",
+        "autoSaveInProgress": "Auto-save in progress...",
+        "logViewerMaxLinesTitle": "Log viewer – maximum lines per file",
+        "logViewerMaxLinesDescription": "Maximum number of lines the log viewer will read per request (parsed and raw views). Higher values show more history but may slow down display on very large files.",
+        "logViewerMaxLinesUnit": "lines"
       },
       "network": {
         "publicUrlLabel": "Public URL (Domain)",
@@ -816,7 +816,19 @@
     "methodHttp": "HTTP method",
     "methodTooltip": "HTTP method: {{method}} - {{desc}}",
     "hideEmptyFiles": "Hide empty",
-    "hideEmptyFilesTooltip": "Hide .gz and empty files (0 bytes)"
+    "hideEmptyFilesTooltip": "Hide .gz and empty files (0 bytes)",
+    "types": {
+      "syslog": "Syslog",
+      "auth": "Authentication",
+      "kern": "Kernel",
+      "daemon": "Daemon",
+      "mail": "Mail",
+      "access": "Access",
+      "error": "Error",
+      "custom": "Other",
+      "journald": "Journald",
+      "subdomain": "Subdomains"
+    }
   },
   "footer": {
     "analyticsTooltip": "Application Statistics",
@@ -1070,13 +1082,331 @@
     "error": "Error",
     "info": "Information",
     "themes": {
-      "dark": { "name": "Dark", "description": "Dark theme (not too black)" },
-      "glass": { "name": "Dark Glass", "description": "Glassmorphism with transparency" },
-      "modern": { "name": "Modern", "description": "Colorful theme with modern gradients" },
-      "nightly": { "name": "Nightly", "description": "Very dark theme for night use" },
-      "neon": { "name": "Neon", "description": "Neon theme with glow and colored borders" },
-      "elegant": { "name": "Elegant", "description": "Animated theme with elegant gradients" },
-      "full-animation": { "name": "Full animation", "description": "Animated background with choice of animation (stars, circuit, ribbons, waves)" }
+      "dark": {
+        "name": "Dark",
+        "description": "Dark theme (not too black)"
+      },
+      "glass": {
+        "name": "Dark Glass",
+        "description": "Glassmorphism with transparency"
+      },
+      "modern": {
+        "name": "Modern",
+        "description": "Colorful theme with modern gradients"
+      },
+      "nightly": {
+        "name": "Nightly",
+        "description": "Very dark theme for night use"
+      },
+      "neon": {
+        "name": "Neon",
+        "description": "Neon theme with glow and colored borders"
+      },
+      "elegant": {
+        "name": "Elegant",
+        "description": "Animated theme with elegant gradients"
+      },
+      "full-animation": {
+        "name": "Full animation",
+        "description": "Animated background with choice of animation (stars, circuit, ribbons, waves)"
+      }
+    }
+  },
+  "common": {
+    "loading": "Loading...",
+    "saving": "Saving...",
+    "saved": "Saved",
+    "error": "Error",
+    "close": "Close",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "hide": "Hide",
+    "show": "Show",
+    "refresh": "Refresh",
+    "save": "Save",
+    "edit": "Edit",
+    "delete": "Delete",
+    "test": "Test",
+    "active": "Active",
+    "errors": {
+      "loadFailed": "Failed to load",
+      "saveFailed": "Failed to save",
+      "unknown": "Unknown error"
+    },
+    "savedSuccessfully": "Saved successfully",
+    "loadingConfig": "Loading configuration...",
+    "loadingFiles": "Loading files..."
+  },
+  "header": {
+    "backToDashboard": "Back to dashboard",
+    "newVersionAvailable": "New version available",
+    "chooseLogFile": "Choose a log file to display",
+    "logFiles": "Log files",
+    "filesShort": "Files",
+    "logFileHistory": "Previously opened log files",
+    "editCustomRegex": "Edit custom regex",
+    "liveRealtime": "Live (real-time)",
+    "autoRefresh": "Auto refresh",
+    "stopLive": "Stop Live tracking",
+    "stopAutoRefresh": "Stop auto refresh ({{interval}}s)",
+    "reloadLogs": "Reload logs from current file",
+    "switchToParsed": "Switch to parsed mode (structured columns)",
+    "switchToRaw": "Switch to raw mode (plain text)",
+    "startLiveTracking": "Start log tracking (Live or Auto refresh)",
+    "seeIpDetail": "See IP details",
+    "currentPlugin": "Active",
+    "pageTitles": {
+      "settings": "Settings - LogviewR",
+      "plugins": "Plugins - LogviewR",
+      "users": "Users - LogviewR",
+      "logs": "Logs - LogviewR"
+    }
+  },
+  "permissions": {
+    "labels": {
+      "calls": "Call log access",
+      "camera": "Camera access",
+      "contacts": "Contacts access",
+      "downloader": "Download manager access",
+      "explorer": "File explorer access",
+      "home": "Home alarm and smart home management",
+      "parental": "Parental control access",
+      "player": "Player control",
+      "profile": "User profile management",
+      "pvr": "Recording scheduling",
+      "settings": "Settings modification",
+      "tv": "TV guide access",
+      "vm": "VM control",
+      "wdo": "Device provisioning"
+    },
+    "errorRequired": "The \"{{label}}\" permission is required.",
+    "errorInstructions": "Add it in the application settings",
+    "shortError": "Permission \"{{label}}\" required",
+    "openFreeboxSettings": "Open Freebox settings"
+  },
+  "fail2ban": {
+    "tabs": {
+      "jails": "Jails",
+      "filters": "Filters",
+      "actions": "Actions",
+      "tracker": "IP Tracker",
+      "map": "Map",
+      "banManager": "Ban Manager",
+      "stats": "Stats",
+      "iptables": "IPTables",
+      "ipset": "IPSet",
+      "nftables": "NFTables",
+      "config": "Config",
+      "backup": "Backup",
+      "audit": "Audit",
+      "aide": "Help",
+      "firewall": "Firewall",
+      "tools": "Tools"
+    },
+    "status": {
+      "active": "Active",
+      "inactive": "Inactive",
+      "banned": "Banned",
+      "bansActive": "Active bans",
+      "failuresCurrent": "Current failures",
+      "totalBans": "Total bans",
+      "uniqueIps": "Unique IPs",
+      "expired24h": "Expired 24h",
+      "activeJails": "Active jails",
+      "connected": "Connected",
+      "notConnected": "Not connected",
+      "loading": "Loading...",
+      "noData": "No data"
+    },
+    "actions": {
+      "ban": "Ban",
+      "unban": "Unban",
+      "reload": "Reload",
+      "banInRecidive": "Ban in recidive",
+      "refresh": "Refresh",
+      "save": "Save",
+      "close": "Close",
+      "cancel": "Cancel",
+      "confirm": "Confirm",
+      "test": "Test",
+      "reset": "Reset",
+      "import": "Import",
+      "export": "Export",
+      "add": "Add",
+      "remove": "Remove",
+      "apply": "Apply",
+      "enable": "Enable",
+      "disable": "Disable"
+    },
+    "labels": {
+      "jail": "Jail",
+      "jails": "Jails",
+      "ip": "IP",
+      "bantime": "Bantime",
+      "findtime": "Findtime",
+      "maxretry": "Maxretry",
+      "filter": "Filter",
+      "action": "Action",
+      "failures": "Failures",
+      "attempts": "Attempts",
+      "lastBan": "Last ban",
+      "firstBan": "First ban",
+      "totalBans": "Total bans",
+      "duration": "Duration",
+      "country": "Country",
+      "organization": "Organization",
+      "asn": "ASN",
+      "isp": "ISP",
+      "city": "City",
+      "recidivist": "Recidivist",
+      "date": "Date",
+      "type": "Type",
+      "status": "Status",
+      "source": "Source",
+      "domain": "Domain",
+      "port": "Port",
+      "protocol": "Protocol",
+      "chain": "Chain",
+      "target": "Target",
+      "size": "Size",
+      "packets": "Packets"
+    },
+    "tooltips": {
+      "bantime": "Ban duration — the IP remains banned for this period",
+      "findtime": "Detection window — failures are counted within this period",
+      "maxretry": "Maximum number of failures before a ban",
+      "reload": "Reload fail2ban configuration",
+      "ban": "Ban this IP",
+      "unban": "Unban this IP"
+    },
+    "placeholders": {
+      "filterIps": "Filter IPs…",
+      "filterJails": "Filter jails…",
+      "ipToBan": "IP to ban…",
+      "addIpCidr": "Add IP or CIDR (e.g. 1.2.3.4)",
+      "search": "Search…"
+    },
+    "errors": {
+      "fileNotAvailable": "File not available",
+      "fileNotFound": "File not found",
+      "unknown": "Unknown error",
+      "readError": "File read error",
+      "connectionError": "Connection error",
+      "permissionDenied": "Permission denied",
+      "banFailed": "Ban failed",
+      "unbanFailed": "Unban failed"
+    },
+    "messages": {
+      "saved": "Saved.",
+      "banSuccess": "IP banned successfully",
+      "unbanSuccess": "IP unbanned successfully",
+      "reloadSuccess": "Configuration reloaded",
+      "noActiveJails": "No active jails",
+      "noBannedIps": "No banned IPs",
+      "noEvents": "No events",
+      "noFilters": "No filters",
+      "noActions": "No actions",
+      "syncInProgress": "Synchronisation in progress…",
+      "loadingMap": "Loading map…",
+      "loadingData": "Loading data…"
+    },
+    "periods": {
+      "last24h": "Last 24h",
+      "last7d": "Last 7 days",
+      "last30d": "Last 30 days",
+      "last6m": "Last 6 months",
+      "last1y": "1 year",
+      "all": "All available data (SQLite)",
+      "allShort": "All",
+      "bans24h": "Bans in the last 24h",
+      "bans7d": "Bans in the last 7 days"
+    },
+    "attackCategories": {
+      "sshBruteforce": "SSH Brute-force",
+      "recidivist": "Recidivist",
+      "bot": "Bot / Crawler",
+      "wordpress": "WordPress Scan",
+      "portscan": "Port scan",
+      "ddos": "DDoS / Flood",
+      "other": "Other",
+      "httpBruteforce": "HTTP Brute-force",
+      "smtpBruteforce": "SMTP Brute-force",
+      "ftpBruteforce": "FTP Brute-force"
+    },
+    "timeAgo": {
+      "now": "just now",
+      "secondsAgo": "{{count}}s ago",
+      "minutesAgo": "{{count}}min ago",
+      "hoursAgo": "{{count}}h ago",
+      "daysAgo": "{{count}}d ago"
+    },
+    "views": {
+      "cards": "Cards",
+      "table": "Table",
+      "events": "Events",
+      "logs": "Logs",
+      "map": "Map"
+    },
+    "config": {
+      "sqlitePath": "SQLite path",
+      "npmPath": "NPM path",
+      "jailConf": "jail.conf",
+      "jailLocal": "jail.local",
+      "saveAndCheck": "Save and check",
+      "pathValid": "Path valid",
+      "pathInvalid": "Path invalid",
+      "domainsFound": "domains found",
+      "requiresFix": "Requires fix"
+    },
+    "jails": {
+      "activeOnly": "Active only",
+      "allJails": "All jails",
+      "expandConfig": "View configuration",
+      "collapseConfig": "Hide configuration",
+      "currentlyBanned": "Currently banned IPs",
+      "recentBans": "Bans < 5 min",
+      "logFile": "Log file",
+      "backendFilter": "Backend filter",
+      "noLogFile": "No log file configured"
+    },
+    "tracker": {
+      "dns": "DNS",
+      "dnsCached": "DNS (cached)",
+      "noReverse": "No reverse DNS",
+      "geolocate": "Geolocate",
+      "geoloading": "Geolocating…",
+      "ipsets": "IPSets",
+      "viewHistory": "View history",
+      "banHistory": "Ban history"
+    },
+    "map": {
+      "zoom": "Zoom",
+      "filterByCountry": "Filter by country",
+      "allCountries": "All countries",
+      "bannedIps": "Banned IPs",
+      "loading": "Loading map…",
+      "leafletError": "Leaflet load error"
+    },
+    "backup": {
+      "exportDb": "Export database",
+      "importDb": "Import database",
+      "exportConfig": "Export configuration",
+      "importConfig": "Import configuration",
+      "selectFile": "Select a file",
+      "inProgress": "In progress…",
+      "success": "Success",
+      "maintenanceReset": "Maintenance reset"
+    },
+    "stats": {
+      "topIps": "Top IPs",
+      "topJails": "Top Jails",
+      "heatmap": "Bans/attempts heatmap",
+      "byJail": "Distribution by jail",
+      "jailSummary": "Jail summary",
+      "periodSummary": "Period summary",
+      "attackTypes": "Attack types",
+      "lastEvents": "Latest events",
+      "totalBansCumul": "Total bans (cumulative)"
     }
   }
 }

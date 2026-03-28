@@ -45,7 +45,6 @@ import {
 } from 'lucide-react';
 import { api } from '../api/client';
 import { API_ROUTES, formatBytes } from '../utils/constants';
-import { getPermissionErrorMessage } from '../utils/permissions';
 import { usePluginStore } from '../stores/pluginStore';
 import { useUserAuthStore, type User } from '../stores/userAuthStore';
 import { ExporterSection } from '../components/ExporterSection';
@@ -147,6 +146,7 @@ type PluginPriorityConfig = {
 };
 
 const PluginPrioritySection: React.FC = () => {
+  const { t } = useTranslation();
   const { plugins } = usePluginStore();
   const [config, setConfig] = useState<PluginPriorityConfig>({
     hostnamePriority: [],
@@ -172,11 +172,11 @@ const PluginPrioritySection: React.FC = () => {
         setConfig(response.result);
         setMessage(null);
       } else {
-        setMessage({ type: 'error', text: response.error?.message || 'Erreur lors du chargement de la configuration' });
+        setMessage({ type: 'error', text: response.error?.message || t('common.errors.loadFailed') });
       }
     } catch (error: any) {
       console.error('Failed to load plugin priority config:', error);
-      setMessage({ type: 'error', text: 'Erreur lors du chargement de la configuration' });
+      setMessage({ type: 'error', text: t('common.errors.loadFailed') });
     } finally {
       setIsLoading(false);
     }
@@ -188,14 +188,14 @@ const PluginPrioritySection: React.FC = () => {
     try {
       const response = await api.post('/api/network-scan/plugin-priority-config', config);
       if (response.success) {
-        setMessage({ type: 'success', text: 'Configuration sauvegardée avec succès' });
+        setMessage({ type: 'success', text: t('common.savedSuccessfully') });
         setTimeout(() => setMessage(null), 3000);
       } else {
-        setMessage({ type: 'error', text: response.error?.message || 'Erreur lors de la sauvegarde' });
+        setMessage({ type: 'error', text: response.error?.message || t('common.errors.saveFailed') });
       }
     } catch (error: any) {
       console.error('Failed to save plugin priority config:', error);
-      setMessage({ type: 'error', text: 'Erreur lors de la sauvegarde' });
+      setMessage({ type: 'error', text: t('common.errors.saveFailed') });
     } finally {
       setIsSaving(false);
     }
@@ -401,6 +401,7 @@ type DatabaseConfig = {
 };
 
 const DatabasePerformanceSection: React.FC = () => {
+  const { t } = useTranslation();
   const [dbConfig, setDbConfig] = useState<DatabaseConfig>({
     walMode: 'WAL',
     walCheckpointInterval: 1000,
@@ -426,11 +427,11 @@ const DatabasePerformanceSection: React.FC = () => {
       if (response.success && response.result) {
         setDbConfig(response.result);
       } else {
-        setMessage({ type: 'error', text: response.error?.message || 'Erreur lors du chargement de la configuration' });
+        setMessage({ type: 'error', text: response.error?.message || t('common.errors.loadFailed') });
       }
     } catch (error: any) {
       console.error('Failed to load DB config:', error);
-      setMessage({ type: 'error', text: 'Erreur lors du chargement de la configuration' });
+      setMessage({ type: 'error', text: t('common.errors.loadFailed') });
     } finally {
       setIsLoading(false);
     }
@@ -443,13 +444,13 @@ const DatabasePerformanceSection: React.FC = () => {
       const response = await api.post<DatabaseConfig>('/api/database/config', dbConfig);
       if (response.success && response.result) {
         setDbConfig(response.result);
-        setMessage({ type: 'success', text: 'Configuration de performance sauvegardée' });
+        setMessage({ type: 'success', text: t('common.savedSuccessfully') });
         setTimeout(() => setMessage(null), 3000);
       } else {
-        setMessage({ type: 'error', text: response.error?.message || 'Erreur lors de la sauvegarde' });
+        setMessage({ type: 'error', text: response.error?.message || t('common.errors.saveFailed') });
       }
     } catch (error: any) {
-      setMessage({ type: 'error', text: 'Erreur lors de la sauvegarde' });
+      setMessage({ type: 'error', text: t('common.errors.saveFailed') });
     } finally {
       setIsSaving(false);
     }
@@ -467,7 +468,7 @@ const DatabasePerformanceSection: React.FC = () => {
     return (
       <div className="py-4 text-center text-gray-500">
         <Loader2 size={24} className="animate-spin mx-auto mb-2" />
-        Chargement de la configuration...
+        {t('common.loadingConfig')}
       </div>
     );
   }
@@ -956,6 +957,7 @@ const UPDATE_FREQUENCIES = [
 
 // Update Check Section Component (for Administration > General tab)
 const UpdateCheckSection: React.FC = () => {
+  const { t } = useTranslation();
   const { updateConfig, updateInfo, loadConfig, setConfig, checkForUpdates, isLoading, lastCheck } = useUpdateStore();
   const [isSaving, setIsSaving] = useState(false);
 
@@ -1086,7 +1088,7 @@ const UpdateCheckSection: React.FC = () => {
           {/* Error */}
           {updateInfo?.error && (
             <div className="px-3 py-2">
-              <p className="text-xs text-red-400">Erreur : {updateInfo.error}</p>
+              <p className="text-xs text-red-400">{`${t('common.error')} : ${updateInfo.error}`}</p>
             </div>
           )}
 
@@ -1429,15 +1431,15 @@ const GeneralNetworkSection: React.FC = () => {
         publicUrl: publicUrl.trim() || ''
       });
       if (response.success) {
-        setMessage({ type: 'success', text: response.result?.message || 'Configuration sauvegardée avec succès' });
+        setMessage({ type: 'success', text: response.result?.message || t('common.savedSuccessfully') });
         setTimeout(() => setMessage(null), 3000);
         // Update initial values after save
         setInitialPublicUrl(publicUrl.trim() || '');
       }
     } catch (error: any) {
-      setMessage({ 
-        type: 'error', 
-        text: error?.response?.data?.error?.message || 'Erreur lors de la sauvegarde' 
+      setMessage({
+        type: 'error',
+        text: error?.response?.data?.error?.message || t('common.errors.saveFailed')
       });
     } finally {
       setIsSaving(false);

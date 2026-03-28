@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { FileText, RefreshCw, Code, ChevronDown, History, Play, Square, Download, X as XIcon, Ban, CheckCircle, AlertTriangle } from 'lucide-react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import logviewrLogo from '../../icons/logviewr.svg';
 import { UserMenu, Clock } from '../ui';
 import { useFavicon } from '../../hooks/useFavicon';
@@ -33,6 +34,7 @@ function fmtAge(ts: number): string {
 }
 
 const NotifCard: React.FC<{ n: AppNotification; onDismiss: () => void }> = ({ n, onDismiss }) => {
+  const { t } = useTranslation();
   const isRecidive = n.type === 'ban' && n.jail === 'recidive';
   const banColor   = isRecidive ? '#e3b341' : '#e86a65';
   const banBorder  = isRecidive ? 'rgba(227,179,65,.45)' : 'rgba(232,106,101,.4)';
@@ -54,7 +56,7 @@ const NotifCard: React.FC<{ n: AppNotification; onDismiss: () => void }> = ({ n,
         maxWidth: 260,
       }}>
         <div style={{ width: 3, flexShrink: 0, background: banColor }} />
-        <button onClick={handleBanClick} title="Voir le détail de l'IP"
+        <button onClick={handleBanClick} title={t('header.seeIpDetail')}
           style={{ flex: 1, background: 'none', border: 'none', cursor: 'pointer', padding: '.45rem .6rem', textAlign: 'left', minWidth: 0, display: 'flex', alignItems: 'center', gap: '.45rem' }}>
           <Ban style={{ width: 11, height: 11, color: banColor, flexShrink: 0 }} />
           <span style={{ fontFamily: 'monospace', fontSize: '.8rem', fontWeight: 700, color: '#e6edf3', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.ip}</span>
@@ -66,7 +68,7 @@ const NotifCard: React.FC<{ n: AppNotification; onDismiss: () => void }> = ({ n,
             {n.timeofban ? fmtAge(n.timeofban) : ''}
           </span>
         </button>
-        <button onClick={onDismiss} title="Masquer"
+        <button onClick={onDismiss} title={t('common.hide')}
           style={{ background: 'none', border: 'none', borderLeft: '1px solid #21262d', color: '#555d69', cursor: 'pointer', padding: '0 .5rem', flexShrink: 0, display: 'flex', alignItems: 'center' }}>
           <XIcon size={11} />
         </button>
@@ -91,7 +93,7 @@ const NotifCard: React.FC<{ n: AppNotification; onDismiss: () => void }> = ({ n,
         ? <CheckCircle style={{ width: 12, height: 12, color: okColor, flexShrink: 0 }} />
         : <AlertTriangle style={{ width: 12, height: 12, color: okColor, flexShrink: 0 }} />}
       <span style={{ fontSize: '.78rem', color: okColor, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.message}</span>
-      <button onClick={onDismiss} title="Masquer"
+      <button onClick={onDismiss} title={t('common.hide')}
         style={{ background: 'none', border: 'none', color: '#555d69', cursor: 'pointer', padding: 0, marginLeft: '.2rem', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
         <XIcon size={11} />
       </button>
@@ -194,6 +196,8 @@ export const Header: React.FC<HeaderProps> = ({
   autoRefreshIntervalMs = 5000,
   updateBanner,
 }) => {
+  const { t } = useTranslation();
+
   const [isFileSelectorModalOpen, setIsFileSelectorModalOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [isRegexEditorOpen, setIsRegexEditorOpen] = useState(false);
@@ -279,13 +283,13 @@ export const Header: React.FC<HeaderProps> = ({
     } else if (pageType === 'goaccess-stats') {
       document.title = 'Stats Logs - LogviewR';
     } else if (pageType === 'settings') {
-      document.title = 'Paramètres - LogviewR';
+      document.title = t('header.pageTitles.settings');
     } else if (pageType === 'plugins') {
-      document.title = 'Plugins - LogviewR';
+      document.title = t('header.pageTitles.plugins');
     } else if (pageType === 'users') {
-      document.title = 'Utilisateurs - LogviewR';
+      document.title = t('header.pageTitles.users');
     } else if (pageType === 'logs') {
-      document.title = 'Logs - LogviewR';
+      document.title = t('header.pageTitles.logs');
     } else if (pageType === 'fail2ban') {
       document.title = 'Fail2ban - LogviewR';
     } else {
@@ -359,7 +363,7 @@ export const Header: React.FC<HeaderProps> = ({
         {onHomeClick ? (
           <button
             onClick={onHomeClick}
-            title="Retour au dashboard"
+            title={t('header.backToDashboard')}
             className="flex items-center gap-2 bg-theme-secondary px-2.5 py-1.5 rounded-lg border border-theme hover:bg-theme-primary transition-colors"
           >
             <img src={logviewrLogo} alt="LogviewR" className="w-6 h-6 flex-shrink-0" />
@@ -369,7 +373,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <span className="text-[10px] text-gray-400 font-normal">{getVersionString()}</span>
                 {updateInfo?.updateAvailable && updateInfo.enabled && (
                   <span className="text-[9px] font-semibold text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-400/30">
-                    Nouvelle version disponible
+                    {t('header.newVersionAvailable')}
                   </span>
                 )}
               </div>
@@ -384,7 +388,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <span className="text-[10px] text-gray-400 font-normal">{getVersionString()}</span>
                 {updateInfo?.updateAvailable && updateInfo.enabled && (
                   <span className="text-[9px] font-semibold text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-400/30">
-                    Nouvelle version disponible
+                    {t('header.newVersionAvailable')}
                   </span>
                 )}
               </div>
@@ -487,7 +491,7 @@ export const Header: React.FC<HeaderProps> = ({
                           />
                           <span className="flex-1">{plugin.name}</span>
                           {isCurrentPlugin && (
-                            <span className="text-xs text-blue-400">Actif</span>
+                            <span className="text-xs text-blue-400">{t('header.currentPlugin')}</span>
                           )}
                         </button>
                       );
@@ -504,19 +508,19 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               type="button"
               onClick={() => setIsFileSelectorModalOpen(true)}
-              title="Choisir un fichier de log à afficher"
+              title={t('header.chooseLogFile')}
               className="flex items-center gap-2 px-4 py-2 bg-theme-secondary hover:bg-theme-primary border border-theme-border rounded-lg text-theme-primary text-sm transition-colors"
             >
               <FileText size={18} />
               <span className="hidden sm:inline">
-                {selectedFilePath ? selectedFilePath.split('/').pop() : 'Fichiers de logs'}
+                {selectedFilePath ? selectedFilePath.split('/').pop() : t('header.logFiles')}
               </span>
-              <span className="sm:hidden">Fichiers</span>
+              <span className="sm:hidden">{t('header.filesShort')}</span>
             </button>
             <button
               type="button"
               onClick={() => setIsHistoryModalOpen(true)}
-              title="Historique des fichiers de logs déjà demandés"
+              title={t('header.logFileHistory')}
               className="p-2 bg-theme-secondary hover:bg-theme-primary border border-theme-border rounded-lg text-theme-primary transition-colors"
             >
               <History size={18} />
@@ -525,7 +529,7 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 type="button"
                 onClick={() => setIsRegexEditorOpen(true)}
-                title="Éditer la regex personnalisée"
+                title={t('header.editCustomRegex')}
                 className="p-2 bg-theme-secondary hover:bg-theme-primary border border-theme-border rounded-lg text-theme-primary transition-colors"
               >
                 <Code size={18} />
@@ -542,7 +546,7 @@ export const Header: React.FC<HeaderProps> = ({
                   <button
                     type="button"
                     onClick={() => setIsPlayMenuOpen((open) => !open)}
-                    title="Démarrer le suivi des logs (Live ou Refresh auto)"
+                    title={t('header.startLiveTracking')}
                     className="p-2 bg-theme-secondary hover:bg-theme-primary border border-theme-border rounded-lg text-theme-primary transition-colors flex items-center justify-center"
                     aria-expanded={isPlayMenuOpen}
                     aria-haspopup="true"
@@ -570,10 +574,10 @@ export const Header: React.FC<HeaderProps> = ({
                           }}
                         >
                           <Play size={14} />
-                          Live (temps réel)
+                          {t('header.liveRealtime')}
                         </button>
                         <div className="border-t border-theme-border my-2" />
-                        <div className="px-4 py-2 text-xs text-theme-secondary mb-1">Refresh auto</div>
+                        <div className="px-4 py-2 text-xs text-theme-secondary mb-1">{t('header.autoRefresh')}</div>
                         <div className="flex flex-wrap gap-1 px-2">
                           {AUTO_REFRESH_INTERVALS_MS.map((ms) => (
                             <button
@@ -598,7 +602,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <button
                   type="button"
                   onClick={onStop}
-                  title={liveMode === 'live' ? 'Arrêter le suivi Live' : `Arrêter le refresh auto (${autoRefreshIntervalMs / 1000}s)`}
+                  title={liveMode === 'live' ? t('header.stopLive') : t('header.stopAutoRefresh', { interval: autoRefreshIntervalMs / 1000 })}
                   className="p-2 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/50 rounded-lg text-emerald-400 transition-colors flex items-center justify-center"
                 >
                   <Square size={16} />
@@ -610,7 +614,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <button
                   type="button"
                   onClick={onRefresh}
-                  title="Recharger les logs du fichier affiché"
+                  title={t('header.reloadLogs')}
                   className="p-2 bg-theme-secondary hover:bg-theme-primary border border-theme-border rounded-lg text-theme-primary transition-colors flex items-center justify-center"
                 >
                   <RefreshCw size={16} />
@@ -622,7 +626,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <button
                   type="button"
                   onClick={onToggleViewMode}
-                  title={viewMode === 'raw' ? 'Passer en mode parsé (colonnes structurées)' : 'Passer en mode brut (texte brut)'}
+                  title={viewMode === 'raw' ? t('header.switchToParsed') : t('header.switchToRaw')}
                   className={`p-2 border rounded-lg transition-colors flex items-center justify-center ${
                     viewMode === 'raw'
                       ? 'bg-purple-500/20 border-purple-500/50 text-purple-400'
@@ -729,7 +733,7 @@ export const Header: React.FC<HeaderProps> = ({
       }}>
         <Download size={14} style={{ color: '#f59e0b', flexShrink: 0 }} />
         <span style={{ color: '#fbbf24', fontWeight: 600 }}>
-          Nouvelle version disponible : v{updateBanner.latestVersion}
+          {t('header.newVersionAvailable')} : v{updateBanner.latestVersion}
         </span>
         <span style={{ color: '#9ca3af', fontSize: '.75rem' }}>
           — Image Docker prête ·
@@ -742,7 +746,7 @@ export const Header: React.FC<HeaderProps> = ({
         </code>
         <button
           onClick={updateBanner.onDismiss}
-          title="Masquer"
+          title={t('common.hide')}
           style={{
             marginLeft: 'auto', background: 'none', border: 'none',
             cursor: 'pointer', color: '#6b7280', padding: '.15rem',

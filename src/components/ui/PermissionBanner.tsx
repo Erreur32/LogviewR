@@ -1,5 +1,6 @@
 import React from 'react';
 import { AlertTriangle, ExternalLink } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { getPermissionErrorMessage, getFreeboxSettingsUrl } from '../../utils/permissions';
 
 interface PermissionBannerProps {
@@ -8,6 +9,7 @@ interface PermissionBannerProps {
 }
 
 export const PermissionBanner: React.FC<PermissionBannerProps> = ({ permission, freeboxUrl }) => {
+  const { t } = useTranslation();
   const settingsUrl = getFreeboxSettingsUrl(freeboxUrl);
 
   return (
@@ -15,14 +17,14 @@ export const PermissionBanner: React.FC<PermissionBannerProps> = ({ permission, 
       <div className="flex items-start gap-3">
         <AlertTriangle className="text-amber-400 flex-shrink-0 mt-0.5" size={20} />
         <div className="flex-1">
-          <p className="text-amber-400 text-sm">{getPermissionErrorMessage(permission)}</p>
+          <p className="text-amber-400 text-sm">{getPermissionErrorMessage(permission, t)}</p>
           <a
             href={settingsUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1 mt-2 text-amber-300 hover:text-amber-200 text-sm underline"
           >
-            Ouvrir les paramètres Freebox
+            {t('permissions.openFreeboxSettings')}
             <ExternalLink size={12} />
           </a>
         </div>

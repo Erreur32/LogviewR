@@ -811,7 +811,7 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
             {selectedPluginId && availableFiles.length > 0 && (
                 <div className="mb-6">
                     {isLoading ? (
-                        <div className="text-theme-secondary p-8 text-center">Chargement des fichiers...</div>
+                        <div className="text-theme-secondary p-8 text-center">{t('common.loadingFiles')}</div>
                     ) : (
                         <div className="space-y-6">
                             {selectedFilePath ? (
@@ -822,7 +822,7 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
                                             {isLoading ? (
                                                 <div className="p-12 text-center">
                                                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-500 mx-auto mb-4"></div>
-                                                    <div className="text-gray-400">Chargement des logs bruts...</div>
+                                                    <div className="text-gray-400">{t('common.loading')}</div>
                                                 </div>
                                             ) : rawLogs.length > 0 ? (
                                                 <>
@@ -973,7 +973,7 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
             {/* Error Display */}
             {error && (
                 <div className="mb-6 p-4 bg-red-500/10 border border-red-500/50 text-red-400 rounded-xl">
-                    <div className="font-semibold mb-1">Erreur</div>
+                    <div className="font-semibold mb-1">{t('common.error')}</div>
                     <div className="text-sm">{error}</div>
                 </div>
             )}

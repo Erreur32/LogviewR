@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Archive, UploadCloud, AlertTriangle, CheckCircle, XCircle, FolderOpen, RefreshCw, Save, RotateCcw, Trash2, Layers, Shield, FileJson } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { api } from '../../api/client';
 import { card, cardH, cardB, F2bTooltip } from './helpers';
 
@@ -72,6 +73,7 @@ const Alert: React.FC<{ type: 'error' | 'warn' | 'ok'; children: React.ReactNode
 // ── IPTables Backup Panel ─────────────────────────────────────────────────────
 
 const IptBackupPanel: React.FC = () => {
+    const { t } = useTranslation();
     const [backups, setBackups]     = useState<IptBackupEntry[]>([]);
     const [loading, setLoading]     = useState(false);
     const [creating, setCreating]   = useState(false);
@@ -97,10 +99,10 @@ const IptBackupPanel: React.FC = () => {
                 '/api/plugins/fail2ban/iptables/backup', { label: label.trim() || undefined }
             );
             if (res.success && res.result?.ok) {
-                setMsg({ ok: true, text: `Sauvegardé : ${res.result.filename}` });
+                setMsg({ ok: true, text: `${t('fail2ban.messages.saved')} ${res.result.filename}` });
                 setLabel(''); fetchBackups();
             } else {
-                setMsg({ ok: false, text: res.result?.error ?? 'Erreur' });
+                setMsg({ ok: false, text: res.result?.error ?? t('fail2ban.errors.unknown') });
             }
         } finally { setCreating(false); }
     };
@@ -113,7 +115,7 @@ const IptBackupPanel: React.FC = () => {
                 `/api/plugins/fail2ban/iptables/restore/${encodeURIComponent(filename)}`, {}
             );
             if (res.success && res.result?.ok) setMsg({ ok: true, text: `Restauré : ${filename}` });
-            else setMsg({ ok: false, text: res.result?.error ?? 'Erreur' });
+            else setMsg({ ok: false, text: res.result?.error ?? t('fail2ban.errors.unknown') });
         } finally { setRestoring(null); }
     };
 
@@ -155,7 +157,7 @@ const IptBackupPanel: React.FC = () => {
                         {msg.text}
                     </div>
                 )}
-                {loading && <div style={{ color: '#8b949e', fontSize: '.82rem' }}>Chargement…</div>}
+                {loading && <div style={{ color: '#8b949e', fontSize: '.82rem' }}>{t('fail2ban.messages.loadingData')}</div>}
                 {!loading && backups.length === 0 && <div style={{ color: '#555d69', fontSize: '.8rem' }}>Aucune sauvegarde IPTables</div>}
                 {backups.length > 0 && (
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.78rem' }}>
@@ -203,6 +205,7 @@ const IptBackupPanel: React.FC = () => {
 // ── IPSet Backup Panel ────────────────────────────────────────────────────────
 
 const IpsetBackupPanel: React.FC = () => {
+    const { t } = useTranslation();
     const [backups, setBackups]     = useState<IptBackupEntry[]>([]);
     const [loading, setLoading]     = useState(false);
     const [creating, setCreating]   = useState(false);
@@ -228,10 +231,10 @@ const IpsetBackupPanel: React.FC = () => {
                 '/api/plugins/fail2ban/ipset/backup', { label: label.trim() || undefined }
             );
             if (res.success && res.result?.ok) {
-                setMsg({ ok: true, text: `Sauvegardé : ${res.result.filename}` });
+                setMsg({ ok: true, text: `${t('fail2ban.messages.saved')} ${res.result.filename}` });
                 setLabel(''); fetchBackups();
             } else {
-                setMsg({ ok: false, text: res.result?.error ?? 'Erreur' });
+                setMsg({ ok: false, text: res.result?.error ?? t('fail2ban.errors.unknown') });
             }
         } finally { setCreating(false); }
     };
@@ -244,7 +247,7 @@ const IpsetBackupPanel: React.FC = () => {
                 `/api/plugins/fail2ban/ipset/restore/${encodeURIComponent(filename)}`, {}
             );
             if (res.success && res.result?.ok) setMsg({ ok: true, text: `Restauré : ${filename}` });
-            else setMsg({ ok: false, text: res.result?.error ?? 'Erreur' });
+            else setMsg({ ok: false, text: res.result?.error ?? t('fail2ban.errors.unknown') });
         } finally { setRestoring(null); }
     };
 
@@ -286,7 +289,7 @@ const IpsetBackupPanel: React.FC = () => {
                         {msg.text}
                     </div>
                 )}
-                {loading && <div style={{ color: '#8b949e', fontSize: '.82rem' }}>Chargement…</div>}
+                {loading && <div style={{ color: '#8b949e', fontSize: '.82rem' }}>{t('fail2ban.messages.loadingData')}</div>}
                 {!loading && backups.length === 0 && <div style={{ color: '#555d69', fontSize: '.8rem' }}>Aucune sauvegarde IPSet</div>}
                 {backups.length > 0 && (
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.78rem' }}>
@@ -353,6 +356,7 @@ cap_add:
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export const TabBackup: React.FC = () => {
+    const { t } = useTranslation();
     // Firewall availability
     const [iptAvail, setIptAvail] = useState<boolean | null>(null);
     const [ipsetAvail, setIpsetAvail] = useState<boolean | null>(null);
@@ -420,7 +424,7 @@ export const TabBackup: React.FC = () => {
                 setBackup(d);
             } catch { setFileErr('Impossible de lire le fichier JSON'); }
         };
-        reader.onerror = () => setFileErr('Erreur de lecture du fichier');
+        reader.onerror = () => setFileErr(t('fail2ban.errors.readError'));
         reader.readAsText(file);
     };
 
@@ -441,7 +445,7 @@ export const TabBackup: React.FC = () => {
                 body: JSON.stringify(backup),
             });
             const json = await resp.json() as { success: boolean; error?: string; result?: typeof restoreResult };
-            if (!json.success) throw new Error(json.error ?? 'Erreur inconnue');
+            if (!json.success) throw new Error(json.error ?? t('fail2ban.errors.unknown'));
             setRestoreResult(json.result ?? null);
         } catch (err: unknown) {
             setRestoreErr(err instanceof Error ? err.message : String(err));
@@ -616,7 +620,7 @@ export const TabBackup: React.FC = () => {
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', alignItems: 'start' }}>
                 <div>
-                    {iptAvail === null && <div style={{ color: C.muted, fontSize: '.8rem', padding: '.5rem' }}>Vérification…</div>}
+                    {iptAvail === null && <div style={{ color: C.muted, fontSize: '.8rem', padding: '.5rem' }}>{t('fail2ban.messages.loadingData')}</div>}
                     {iptAvail === true  && <IptBackupPanel />}
                     {iptAvail === false && (
                         <UnavailablePanel tool="IPTables" color={C.cyan}
@@ -624,7 +628,7 @@ export const TabBackup: React.FC = () => {
                     )}
                 </div>
                 <div>
-                    {ipsetAvail === null && <div style={{ color: C.muted, fontSize: '.8rem', padding: '.5rem' }}>Vérification…</div>}
+                    {ipsetAvail === null && <div style={{ color: C.muted, fontSize: '.8rem', padding: '.5rem' }}>{t('fail2ban.messages.loadingData')}</div>}
                     {ipsetAvail === true  && <IpsetBackupPanel />}
                     {ipsetAvail === false && (
                         <UnavailablePanel tool="IPSet" color={C.purple}

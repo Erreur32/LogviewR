@@ -1,5 +1,6 @@
 import React, { useState, useRef, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 
 // ── Formatters ────────────────────────────────────────────────────────────────
 
@@ -29,12 +30,12 @@ export const cardB: React.CSSProperties = { padding: '1rem' };
 // ── Period selector config ────────────────────────────────────────────────────
 
 export const PERIODS = [
-    { label: '24h',  days: 1,   title: 'Bans des dernières 24h' },
-    { label: '7j',   days: 7,   title: 'Bans des 7 derniers jours' },
-    { label: '30j',  days: 30,  title: 'Bans des 30 derniers jours' },
-    { label: '6m',   days: 180, title: 'Bans des 6 derniers mois' },
-    { label: '1an',  days: 365, title: "Bans de l'année passée" },
-    { label: 'Tous', days: -1,  title: 'Toutes les données disponibles (SQLite)' },
+    { label: '24h',  labelKey: 'fail2ban.periods.last24h',  days: 1,   title: 'Bans des dernières 24h',             titleKey: 'fail2ban.periods.bans24h' },
+    { label: '7j',   labelKey: 'fail2ban.periods.last7d',   days: 7,   title: 'Bans des 7 derniers jours',           titleKey: 'fail2ban.periods.bans7d' },
+    { label: '30j',  labelKey: 'fail2ban.periods.last30d',  days: 30,  title: 'Bans des 30 derniers jours',          titleKey: 'fail2ban.periods.last30d' },
+    { label: '6m',   labelKey: 'fail2ban.periods.last6m',   days: 180, title: 'Bans des 6 derniers mois',            titleKey: 'fail2ban.periods.last6m' },
+    { label: '1an',  labelKey: 'fail2ban.periods.last1y',   days: 365, title: "Bans de l'année passée",              titleKey: 'fail2ban.periods.last1y' },
+    { label: 'Tous', labelKey: 'fail2ban.periods.allShort', days: -1,  title: 'Toutes les données disponibles (SQLite)', titleKey: 'fail2ban.periods.all' },
 ] as const;
 
 export type PeriodDays = (typeof PERIODS)[number]['days'];
@@ -67,8 +68,9 @@ export const Badge: React.FC<{ color: BadgeColor; children: React.ReactNode }> =
 // ── Status dot (like PHP jd-dot) ─────────────────────────────────────────────
 
 export const StatusDot: React.FC<{ banned: number; failed: number }> = ({ banned, failed }) => {
+    const { t } = useTranslation();
     const color = banned > 0 ? '#e86a65' : failed > 0 ? '#e3b341' : '#3fb950';
-    const title = banned > 0 ? 'Bans actifs' : failed > 0 ? 'Échecs en cours' : 'OK';
+    const title = banned > 0 ? t('fail2ban.status.bansActive') : failed > 0 ? t('fail2ban.status.failuresCurrent') : 'OK';
     return (
         <span title={title} style={{
             display: 'inline-block', width: 8, height: 8, borderRadius: '50%',

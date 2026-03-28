@@ -1,50 +1,50 @@
 # LogviewR - Log Viewer Application
 > [!IMPORTANT]
->  PRE-REALEASE BETA , NOT FINISH !
+>  PRE-RELEASE BETA , NOT FINISHED !
 
 
 <div align="center">
 
-‼️ En cour de developpement ACTIF , Version BETA ‼️
+‼️ Active Development, BETA version ‼️
 
 
 <img src="LogviewR_banner.svg" alt="LogviewR" width="512" height="256" />
 
-![LogviewR](https://img.shields.io/badge/LogviewR-0.6.3-111827?style=for-the-badge)
+![LogviewR](https://img.shields.io/badge/LogviewR-0.6.4-111827?style=for-the-badge)
 ![Status](https://img.shields.io/badge/Status-DEVELOPMENT-374151?style=for-the-badge)
 ![Docker](https://img.shields.io/badge/Docker-Ready-1f2937?style=for-the-badge&logo=docker&logoColor=38bdf8)
 ![React](https://img.shields.io/badge/React-19-111827?style=for-the-badge&logo=react&logoColor=38bdf8)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-111827?style=for-the-badge&logo=typescript&logoColor=60a5fa)
 ![License](https://img.shields.io/badge/License-MIT-111827?style=for-the-badge&color=111827&labelColor=111827&logoColor=white)
 
-**Application de visualisation de logs en temps réel pour Apache, Nginx, NPM, logs système et Fail2ban**
+**Real-time log viewer for Apache, Nginx, NPM, system logs and Fail2ban**
 
-[Installation](#-installation) | [Plugins](#-plugins) | [Configuration](#-configuration) | [Documentation](#-documentation)
+[README en Français](README.fr.md) | [Installation](#-installation) | [Plugins](#-plugins) | [Configuration](#-configuration) | [Documentation](#-documentation)
 
 </div>
 
 
 ---
 
-## 📋 Table des matières
+## 📋 Table of Contents
 
 - [Installation](#-installation)
 - [Plugins](#-plugins)
 - [Configuration](#-configuration)
 - [Documentation](#-documentation)
 - [Contribution](#-contribution)
-- [Licence](#-licence)
+- [License](#-license)
 
 ---
 
-## 🎯 À propos
+## 🎯 About
 
-**LogviewR** — visualisation de logs en temps réel pour Apache, Nginx, NPM, logs système et Fail2ban.
+**LogviewR** — real-time log viewer for Apache, Nginx, NPM, system logs and Fail2ban.
 
-- 🚀 **Temps réel** via WebSocket
-- 🔍 **Filtres** : niveau, date, IP, méthode HTTP…
-- 📊 **Statistiques** et tableaux de bord par plugin
-- 🔐 **Auth JWT**, gestion des rôles
+- 🚀 **Real-time** via WebSocket
+- 🔍 **Filters**: level, date, IP, HTTP method…
+- 📊 **Statistics** and dashboards per plugin
+- 🔐 **JWT auth**, role management
 - 🐳 **Docker-ready**
 
 ---
@@ -52,46 +52,46 @@
 ## 🔌 Plugins
 
 <details>
-<summary><strong>🖥️ Host System</strong> — logs système Linux/Unix</summary>
+<summary><strong>🖥️ Host System</strong> — Linux/Unix system logs</summary>
 
-- Syslog, auth, kernel, daemon, mail, logs personnalisés
-- Détection automatique de l'environnement Docker
-- Support RFC 3164 / RFC 5424
-- Chemin de base configurable (`/var/log` ou `/host/logs` en Docker)
+- Syslog, auth, kernel, daemon, mail, custom logs
+- Automatic Docker environment detection
+- RFC 3164 / RFC 5424 support
+- Configurable base path (`/var/log` or `/host/logs` in Docker)
 
 </details>
 
 <details>
-<summary><strong>🌐 Apache</strong> — logs Apache HTTP Server</summary>
+<summary><strong>🌐 Apache</strong> — Apache HTTP Server logs</summary>
 
 - Access logs (Combined, Common, VHost) + Error logs
-- Extraction IP, timestamp, méthode HTTP, code statut, referer, user-agent
-- Regex par défaut modifiables, support `.gz`
+- IP, timestamp, HTTP method, status code, referer, user-agent extraction
+- Editable default regex, `.gz` support
 
 </details>
 
 <details>
-<summary><strong>🚀 Nginx</strong> — logs Nginx</summary>
+<summary><strong>🚀 Nginx</strong> — Nginx logs</summary>
 
 - Access logs (Combined, Common, Main, Extended) + Error logs
-- Parsing timestamps avec gestion timezones
-- Regex compatibles fail2ban et ELK, support `.gz`
+- Timestamp parsing with timezone handling
+- Fail2ban and ELK compatible regex, `.gz` support
 
 </details>
 
 <details>
-<summary><strong>🔄 Nginx Proxy Manager (NPM)</strong> — logs NPM</summary>
+<summary><strong>🔄 Nginx Proxy Manager (NPM)</strong> — NPM logs</summary>
 
-- 5 formats supportés avec détection automatique
-- Champs : cache, upstream status, gzip ratio, sous-domaines
-- Support `.gz`
+- 5 supported formats with automatic detection
+- Fields: cache, upstream status, gzip ratio, subdomains
+- `.gz` support
 
 </details>
 
 <details>
-<summary><strong>🛡️ Fail2ban</strong> — surveillance des jails et IPs bannies</summary>
+<summary><strong>🛡️ Fail2ban</strong> — jail monitoring and banned IPs</summary>
 
-**Onglets** : Jails · Filtres · Actions · Tracker IPs · Carte · Ban Manager · Stats · IPTables · IPSet · NFTables · Config · Audit
+**Tabs**: Jails · Filters · Actions · IP Tracker · Map · Ban Manager · Stats · IPTables · IPSet · NFTables · Config · Audit
 
 **Requirements:** fail2ban installed and active on the host. Host setup required — see [Installation Step 2](#-installation).
 
@@ -99,11 +99,11 @@ To verify: **Administration → Plugins → Fail2ban → Diagnostic**.
 
 ---
 
-**Onglets Pare-feu en Docker (IPTables · IPSet · NFTables)**
+**Firewall tabs in Docker (IPTables · IPSet · NFTables)**
 
-Ces onglets nécessitent deux conditions **cumulatives** — ni l'une ni l'autre seule ne suffit :
+These tabs require two **cumulative** conditions — neither alone is sufficient:
 
-| Condition | Rôle |
+| Condition | Role |
 |-----------|------|
 | `network_mode: host` | Shares host network namespace — container sees host iptables/ipset/nft rules |
 | `cap_add: NET_ADMIN` | Linux capability required by the kernel for netfilter read/write |
@@ -113,7 +113,7 @@ Ces onglets nécessitent deux conditions **cumulatives** — ni l'une ni l'autre
 > - `security_opt: no-new-privileges:true` is **incompatible with firewall tabs** — `sudo` cannot elevate with this flag, breaking iptables/ipset/nft commands
 > - To change the listen port: set `PORT=8080` in `.env` and point your reverse proxy to `127.0.0.1:8080`
 
-Configuration `docker-compose.yml` avec les onglets Pare-feu activés :
+`docker-compose.yml` configuration with Firewall tabs enabled:
 
 ```yaml
 services:
@@ -147,7 +147,7 @@ services:
       start_period: 40s
 ```
 
-Sans ces options, les onglets IPTables/IPSet/NFTables afficheront une erreur `Permission denied` ou `no new privileges`.
+Without these options, IPTables/IPSet/NFTables tabs will show a `Permission denied` or `no new privileges` error.
 
 </details>
 
@@ -195,21 +195,21 @@ Dashboard available at `http://your-ip:7500`
 
 ## ⚙️ Configuration
 
-### Variables d'environnement
+### Environment Variables
 
-| Variable | Description | Défaut | Requis |
-|----------|-------------|--------|--------|
-| `JWT_SECRET` | Secret pour signer les tokens JWT | — | ✅ Oui |
-| `DASHBOARD_PORT` | Port du dashboard (mode bridge avec `ports:`) | `7500` | Non |
-| `PORT` | Port d'écoute direct (mode `network_mode: host`) | `3000` | Non |
-| `HOST_IP` | IP de la machine hôte | Auto-détection | Non |
-| `CONFIG_FILE_PATH` | Chemin du fichier de configuration externe | `/app/config/logviewr.conf` | Non |
-| `ADM_GID` | GID du groupe `adm` sur l'hôte (logs système) | `4` | Non |
-| `HOST_ROOT_PATH` | Chemin racine hôte monté dans le conteneur | `/host` | Non |
+| Variable | Description | Default | Required |
+|----------|-------------|---------|----------|
+| `JWT_SECRET` | Secret used to sign JWT tokens | — | ✅ Yes |
+| `DASHBOARD_PORT` | Dashboard port (bridge mode with `ports:`) | `7500` | No |
+| `PORT` | Direct listen port (`network_mode: host` mode) | `3000` | No |
+| `HOST_IP` | Host machine IP address | Auto-detect | No |
+| `CONFIG_FILE_PATH` | Path to external configuration file | `/app/config/logviewr.conf` | No |
+| `ADM_GID` | GID of the `adm` group on the host (system logs) | `4` | No |
+| `HOST_ROOT_PATH` | Host root path mounted in the container | `/host` | No |
 
 ### docker-compose.yml
 
-**Mode standard** (sans onglets Pare-feu) :
+**Standard mode** (without Firewall tabs):
 
 ```yaml
 services:
@@ -224,7 +224,7 @@ services:
       DASHBOARD_PORT: ${DASHBOARD_PORT:-7500}
       HOST_IP: ${HOST_IP:-}
     group_add:
-      - "${ADM_GID:-4}"           # groupe adm — lecture des logs système
+      - "${ADM_GID:-4}"           # adm group — system log read access
     volumes:
       - ./data:/app/data
       - /var/run/fail2ban/fail2ban.sock:/var/run/fail2ban/fail2ban.sock
@@ -239,7 +239,7 @@ services:
       start_period: 40s
 ```
 
-**Mode Pare-feu** (onglets IPTables · IPSet · NFTables activés) — remplacer `ports:` par `network_mode: host` :
+**Firewall mode** (IPTables · IPSet · NFTables tabs enabled) — replace `ports:` with `network_mode: host`:
 
 ```yaml
 services:
@@ -271,18 +271,18 @@ services:
       start_period: 40s
 ```
 
-**Changer le port** : modifiez uniquement `PORT: 7500` → `PORT: 8080` (ou autre), puis pointez votre reverse proxy vers ce port.
+**Changing the port**: only modify `PORT: 7500` → `PORT: 8080` (or any other), then point your reverse proxy to that port.
 
-**Reverse proxy** (Nginx Proxy Manager, Caddy, Traefik…) avec `network_mode: host` :
+**Reverse proxy** (Nginx Proxy Manager, Caddy, Traefik…) with `network_mode: host`:
 
-Le conteneur écoute directement sur le host — le reverse proxy se connecte via `127.0.0.1` :
+The container listens directly on the host — the reverse proxy connects via `127.0.0.1`:
 
 ```
 # Nginx Proxy Manager
 Forward Hostname : 127.0.0.1
-Forward Port     : 7500        ← doit correspondre à PORT=
+Forward Port     : 7500        ← must match PORT=
 
-# Nginx manuel
+# Manual Nginx
 location / {
     proxy_pass http://127.0.0.1:7500;
     proxy_http_version 1.1;
@@ -295,24 +295,24 @@ location / {
 reverse_proxy 127.0.0.1:7500
 ```
 
-> Le fichier complet avec tous les commentaires est dans [`docker-compose.yml`](docker-compose.yml) à la racine du projet.
+> The complete file with all comments is in [`docker-compose.yml`](docker-compose.yml) at the project root.
 
-### Accès aux logs système
+### System Log Access
 
-Le plugin **Host System** nécessite l'accès aux fichiers appartenant à `root:adm` (permissions `640`).
-Le conteneur ajoute automatiquement `node` au groupe `adm` (GID 4).
+The **Host System** plugin requires access to files owned by `root:adm` (permissions `640`).
+The container automatically adds `node` to the `adm` group (GID 4).
 
-Si votre système utilise un GID différent :
+If your system uses a different GID:
 ```bash
-getent group adm | cut -d: -f3   # vérifier le GID sur le host
-echo "ADM_GID=votre_gid" >> .env
+getent group adm | cut -d: -f3   # check the GID on the host
+echo "ADM_GID=your_gid" >> .env
 ```
 
 <details>
-<summary>Fichiers avec permissions restrictives (600)</summary>
+<summary>Files with restrictive permissions (600)</summary>
 
-Certains fichiers (`/var/log/php8.0-fpm.log`, `/var/log/rkhunter.log`) appartiennent à `root:root 600`.
-Solution :
+Some files (`/var/log/php8.0-fpm.log`, `/var/log/rkhunter.log`) are owned by `root:root 600`.
+Solution:
 ```bash
 sudo chgrp adm /var/log/php8.0-fpm.log* && sudo chmod 640 /var/log/php8.0-fpm.log*
 ```
@@ -323,28 +323,28 @@ sudo chgrp adm /var/log/php8.0-fpm.log* && sudo chmod 640 /var/log/php8.0-fpm.lo
 
 ## 📚 Documentation
 
-- **[Guides des parsers](server/plugins/PARSERS_HELP.md)** — formats supportés et regex
-- **[NPM Parser Help](server/plugins/npm/NPM_PARSER_HELP.md)** — formats NPM
-- **[Nginx Parser Help](server/plugins/nginx/NGINX_PARSER_HELP.md)** — formats Nginx
-- **[Audit intégration host-system](Doc_Dev/AUDIT_ERROR_SUMMARY_HOST_SYSTEM.md)** — scan erreurs/warnings
+- **[Parser guides](server/plugins/PARSERS_HELP.md)** — supported formats and regex
+- **[NPM Parser Help](server/plugins/npm/NPM_PARSER_HELP.md)** — NPM formats
+- **[Nginx Parser Help](server/plugins/nginx/NGINX_PARSER_HELP.md)** — Nginx formats
+- **[Host-system integration audit](Doc_Dev/AUDIT_ERROR_SUMMARY_HOST_SYSTEM.md)** — error/warning scan
 
 ---
 
 ## 🤝 Contribution
 
-Les contributions sont les bienvenues !
+Contributions are welcome!
 
 ---
 
-## 📄 Licence
+## 📄 License
 
-Ce projet est sous licence MIT. Voir [LICENSE](LICENSE).
+This project is licensed under the MIT License. See [LICENSE](LICENSE).
 
 ---
 
 <div align="center">
 
-**Fait avec ❤️ pour les administrateurs système et développeurs**
+**Made with ❤️ for system administrators and developers**
 
 [Issues](https://github.com/Erreur32/LogviewR/issues) | [Discussions](https://github.com/Erreur32/LogviewR/discussions) | [Wiki](https://github.com/Erreur32/LogviewR/wiki)
 
