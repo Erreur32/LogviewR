@@ -51,8 +51,8 @@ const STORAGE_KEY = 'logviewr-fail2ban-jails-view';
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
 const timingBadge = (label: string, value: string | number, color: string): React.ReactNode => (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.2rem', padding: '.12rem .45rem', borderRadius: 4, fontSize: '.7rem', border: `1px solid rgba(${color === '#e86a65' ? '232,106,101' : color === '#e3b341' ? '227,179,65' : '88,166,255'},.3)`, background: `rgba(${color === '#e86a65' ? '232,106,101' : color === '#e3b341' ? '227,179,65' : '88,166,255'},.08)`, color }}>
-        <span style={{ fontSize: '.62rem', color: '#8b949e' }}>{label}</span>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.18rem', padding: '2px 6px', borderRadius: 4, fontSize: '.67rem', border: `1px solid rgba(${color === '#e86a65' ? '232,106,101' : color === '#e3b341' ? '227,179,65' : '88,166,255'},.3)`, background: `rgba(${color === '#e86a65' ? '232,106,101' : color === '#e3b341' ? '227,179,65' : '88,166,255'},.08)`, color }}>
+        <span style={{ color: '#8b949e' }}>{label}</span>
         <strong>{value}</strong>
     </span>
 );
@@ -173,7 +173,7 @@ export const JailCard: React.FC<{
                 </div>
             );
         })()}
-        <div style={{ ...card, borderLeft: `4px solid ${stateColor}` }}>
+        <div style={{ ...card, borderLeft: `4px solid ${stateColor}`, display: 'flex', flexDirection: 'column' }}>
             {/* Header */}
             <div style={{ ...cardH, background: '#21262d' }}>
                 <StatusDot banned={jail.currentlyBanned} failed={jail.currentlyFailed} />
@@ -222,14 +222,16 @@ export const JailCard: React.FC<{
             {/* Meta badges */}
             {(jail.filter || jail.port || (jail.actions?.length ?? 0) > 0 || jail.banaction || jail.fileList) && (
                 <div style={{ padding: '.4rem .75rem', borderBottom: '1px solid #30363d', display: 'flex', flexDirection: 'column', gap: '.3rem' }}>
-                    {(jail.filter || jail.port) && (
+                    {jail.filter && (
+                        <div>
+                            <span onClick={() => setEditor({ type: 'filter', name: jail.filter!, jails: [jail.jail] })} style={{ cursor: 'pointer' }} title="Voir / éditer le filtre">
+                                <Badge color="green">{jail.filter}</Badge>
+                            </span>
+                        </div>
+                    )}
+                    {jail.port && (
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.3rem' }}>
-                            {jail.filter && (
-                                <span onClick={() => setEditor({ type: 'filter', name: jail.filter!, jails: [jail.jail] })} style={{ cursor: 'pointer' }} title="Voir / éditer le filtre">
-                                    <Badge color="green">⚙ {jail.filter}</Badge>
-                                </span>
-                            )}
-                            {jail.port && jail.port.split(/[\s,]+/).filter(Boolean).map(p => <Badge key={p} color="blue">⬡ {p}</Badge>)}
+                            {jail.port.split(/[\s,]+/).filter(Boolean).map(p => <Badge key={p} color="blue">⬡ {p}</Badge>)}
                         </div>
                     )}
                     {(jail.actions?.length || jail.banaction) && (
@@ -288,7 +290,6 @@ export const JailCard: React.FC<{
                                 <tr style={{ background: '#1c2128' }}>
                                     <th style={{ padding: '.25rem .5rem', borderBottom: '1px solid #30363d', color: '#8b949e', fontSize: '.65rem', fontWeight: 700, textTransform: 'uppercase', textAlign: 'left', width: 28 }}>#</th>
                                     <th style={{ padding: '.25rem .5rem', borderBottom: '1px solid #30363d', color: '#8b949e', fontSize: '.65rem', fontWeight: 700, textTransform: 'uppercase', textAlign: 'left' }}>IP</th>
-                                    <th style={{ padding: '.25rem .5rem', borderBottom: '1px solid #30363d', color: '#8b949e', fontSize: '.65rem', fontWeight: 700, textTransform: 'uppercase', textAlign: 'left' }}>Hostname</th>
                                     <th style={{ padding: '.25rem .5rem', borderBottom: '1px solid #30363d', width: 48 }} />
                                 </tr>
                             </thead>
@@ -304,9 +305,6 @@ export const JailCard: React.FC<{
                                                 {ip}
                                             </button>
                                         </td>
-                                        <td style={{ padding: '.3rem .5rem', fontFamily: 'monospace', fontSize: '.72rem', color: '#8b949e', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                            {hostnames[ip] || '—'}
-                                        </td>
                                         <td style={{ padding: '.3rem .5rem', textAlign: 'right' }}>
                                             <button onClick={() => onUnban(ip)} disabled={actionLoading === `unban-${jail.jail}-${ip}`}
                                                 style={{ display: 'inline-flex', alignItems: 'center', gap: '.2rem', padding: '.18rem .4rem', borderRadius: 4, background: 'rgba(63,185,80,.1)', border: '1px solid rgba(63,185,80,.25)', color: '#3fb950', cursor: 'pointer', fontSize: '.68rem', opacity: actionLoading === `unban-${jail.jail}-${ip}` ? .5 : 1 }}>
@@ -316,7 +314,7 @@ export const JailCard: React.FC<{
                                     </tr>
                                 ))}
                                 {filteredIps.length === 0 && ipFilter && (
-                                    <tr><td colSpan={4} style={{ padding: '.5rem', textAlign: 'center', color: '#8b949e', fontSize: '.77rem' }}>Aucun résultat</td></tr>
+                                    <tr><td colSpan={3} style={{ padding: '.5rem', textAlign: 'center', color: '#8b949e', fontSize: '.77rem' }}>Aucun résultat</td></tr>
                                 )}
                             </tbody>
                         </table>
@@ -328,13 +326,15 @@ export const JailCard: React.FC<{
                 </div>
             )}
 
-            {/* Ban IP form */}
-            <div style={{ padding: '.5rem .75rem', borderTop: '1px solid #30363d', background: 'rgba(13,17,23,.3)' }}>
+            {/* Ban IP form — always at bottom */}
+            <div style={{ padding: '.5rem .75rem', borderTop: '1px solid #30363d', background: 'rgba(13,17,23,.3)', marginTop: 'auto' }}>
                 <form onSubmit={e => { e.preventDefault(); if (banIp.trim()) { onBan(banIp.trim()); setBanIp(''); } }}
-                    style={{ display: 'flex', gap: '.4rem', marginBottom: '.35rem' }}>
+                    style={{ display: 'flex', gap: '.4rem' }}>
                     <input type="text" value={banIp} onChange={e => setBanIp(e.target.value)}
                         placeholder="IP à bannir…"
-                        style={{ flex: 1, padding: '.28rem .55rem', fontSize: '.78rem', fontFamily: 'monospace', borderRadius: 4, background: '#161b22', border: '1px solid #30363d', borderBottom: '1px solid #555', color: '#e6edf3', outline: 'none', minWidth: 0, boxShadow: 'inset 0 2px 4px rgba(0,0,0,.55), inset 0 1px 0 rgba(0,0,0,.4), inset 0 -1px 0 rgba(255,255,255,.04)' }} />
+                        style={{ flex: 1, padding: '.28rem .55rem', fontSize: '.78rem', fontFamily: 'monospace', borderRadius: 4, background: '#161b22', border: '1px solid #30363d', borderBottom: '1px solid #555', color: '#e6edf3', outline: 'none', minWidth: 0, boxShadow: 'inset 0 2px 4px rgba(0,0,0,.55), inset 0 1px 0 rgba(0,0,0,.4), inset 0 -1px 0 rgba(255,255,255,.04)', transition: 'border-color .15s' }}
+                        onFocus={e => (e.currentTarget.style.borderColor = '#58a6ff')}
+                        onBlur={e => (e.currentTarget.style.borderColor = '#30363d')} />
                     <button type="submit" disabled={!banIp.trim() || !!actionLoading}
                         style={{ display: 'flex', alignItems: 'center', gap: '.25rem', padding: '.28rem .65rem', borderRadius: 4, background: 'rgba(232,106,101,.1)', border: '1px solid rgba(232,106,101,.25)', color: '#e86a65', cursor: 'pointer', fontSize: '.75rem', opacity: !banIp.trim() || !!actionLoading ? .5 : 1 }}>
                         <Ban style={{ width: 10, height: 10 }} /> Ban
@@ -345,9 +345,6 @@ export const JailCard: React.FC<{
                     </button>
                 </form>
             </div>
-
-            {/* Règles de détection */}
-            {jail.filter && <RulesToggle filter={jail.filter} />}
         </div>
         </>
     );
@@ -367,11 +364,13 @@ const JailExpandedGrid: React.FC<{
     onIpClick?: (ip: string) => void;
 }> = ({ jail, actionLoading, bansInPeriodLabel, onUnban, onBan, onReload, onUnbanAll, onOpenConfig, onIpClick }) => {
     const { t } = useTranslation();
-    const [banIp, setBanIp]           = useState('');
-    const [showAllIps, setShowAllIps] = useState(false);
+    const [banIp, setBanIp]               = useState('');
+    const [showAllIps, setShowAllIps]     = useState(false);
+    const [showAllRecent, setShowAllRecent] = useState(false);
     const [recentBans, setRecentBans] = useState<BanEntry[]>([]);
     const [logsOpen, setLogsOpen]     = useState(false);
     const [hostnames, setHostnames]   = useState<Record<string, string>>({});
+    const [editor, setEditor]         = useState<ConfEditorTarget | null>(null);
     const reloadKey = `reload-${jail.jail}`;
 
     useEffect(() => {
@@ -399,8 +398,8 @@ const JailExpandedGrid: React.FC<{
             });
     }, [jail.jail]);
 
-    const bannedShow = jail.bannedIps.slice(0, 8);
-    const bannedRest = jail.bannedIps.slice(8);
+    const bannedShow = jail.bannedIps.slice(0, 10);
+    const bannedRest = jail.bannedIps.slice(10);
 
     // Exact PHP .jdp-pill style
     const PILLS = {
@@ -410,11 +409,10 @@ const JailExpandedGrid: React.FC<{
         blue:   { bg: 'rgba(88,166,255,.15)',  color: '#58a6ff', border: 'rgba(88,166,255,.3)'   },
         purple: { bg: 'rgba(188,140,255,.15)', color: '#bc8cff', border: 'rgba(188,140,255,.3)'  },
     };
-    const pill = (p: keyof typeof PILLS, icon: React.ReactNode, lbl: string, val: React.ReactNode) => (
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 6, fontSize: '.72rem', fontWeight: 600, border: `1px solid ${PILLS[p].border}`, background: PILLS[p].bg, color: PILLS[p].color }}>
-            {icon}
-            <span style={{ color: '#8b949e', fontWeight: 400, marginRight: 1 }}>{lbl}</span>
-            {val}
+    const pill = (_p: keyof typeof PILLS, _icon: React.ReactNode, lbl: string, val: React.ReactNode) => (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.18rem', padding: '2px 6px', borderRadius: 4, fontSize: '.67rem', border: `1px solid ${PILLS[_p].border}`, background: PILLS[_p].bg, color: PILLS[_p].color }}>
+            <span style={{ color: '#8b949e' }}>{lbl}</span>
+            <strong>{val}</strong>
         </span>
     );
 
@@ -426,33 +424,33 @@ const JailExpandedGrid: React.FC<{
 
     return (
         <>
-        <div style={{ background: 'rgba(13,17,23,.6)', borderTop: '1px solid #30363d', padding: '0' }}>
-            {/* Pills header — exact PHP .jdp-pill style */}
-            <div style={{ padding: '.55rem 1rem', borderBottom: '1px solid #30363d', display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
-                {pill('red',    <Ban style={{ width: 10, height: 10 }} />,           'Actifs',  jail.currentlyBanned)}
-                {pill('orange', <AlertTriangle style={{ width: 10, height: 10 }} />, 'Échecs',  jail.currentlyFailed)}
-                {pill('green',  <Clock style={{ width: 10, height: 10 }} />,         '<5min',   recentBans.length || '—')}
-                <span style={{ color: '#30363d', margin: '0 2px' }}>·</span>
-                {pill('blue',   <Clock style={{ width: 10, height: 10 }} />,         bansInPeriodLabel, jail.bansInPeriod !== undefined ? jail.bansInPeriod : '—')}
-                {pill('purple', <Shield style={{ width: 10, height: 10 }} />,        'Total',   totalDisplay || '—')}
-            </div>
+        {editor && <ConfEditorModal target={editor} onClose={() => setEditor(null)} />}
+        <div style={{ background: 'rgba(20,30,48,.95)', padding: '0' }}>
 
             {/* 4-column grid */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0', borderBottom: '1px solid #30363d' }}>
 
                 {/* Col 1: Configuration */}
                 <div style={{ padding: '.75rem 1rem', borderRight: '1px solid #30363d' }}>
-                    {colTitle('Configuration', '#8b949e', <Settings style={{ width: 11, height: 11 }} />)}
+                    <div style={{ fontSize: '.75rem', fontWeight: 700, color: '#8b949e', marginBottom: '.6rem', display: 'flex', alignItems: 'center', gap: '.35rem', textTransform: 'uppercase', letterSpacing: '.04em' }}>
+                        <Settings style={{ width: 11, height: 11 }} /> Configuration
+                        <button onClick={onOpenConfig}
+                            style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '.25rem', padding: '.2rem .5rem', borderRadius: 4, background: 'rgba(188,140,255,.08)', border: '1px solid rgba(188,140,255,.3)', color: '#bc8cff', cursor: 'pointer', fontSize: '.7rem', fontWeight: 600, textTransform: 'none', letterSpacing: 'normal' }}>
+                            <Settings style={{ width: 9, height: 9 }} /> Configurer
+                        </button>
+                    </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '.35rem', fontSize: '.78rem' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <span style={{ color: '#8b949e' }}>Filtre</span>
-                            {jail.filter ? <Badge color="green">⚙ {jail.filter}</Badge> : <span style={{ color: '#8b949e' }}>—</span>}
+                            {jail.filter
+                                ? <span onClick={() => setEditor({ type: 'filter', name: jail.filter!, jails: [jail.jail] })} style={{ cursor: 'pointer' }} title="Voir / éditer le filtre"><Badge color="green">{jail.filter}</Badge></span>
+                                : <span style={{ color: '#8b949e' }}>—</span>}
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '.3rem' }}>
                             <span style={{ color: '#8b949e', flexShrink: 0 }}>Action</span>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.2rem', justifyContent: 'flex-end' }}>
-                                {jail.actions?.map(a => <Badge key={a} color="orange">⚡ {a}</Badge>)}
-                                {!jail.actions?.length && jail.banaction && <Badge color="orange">⚡ {jail.banaction}</Badge>}
+                                {jail.actions?.map(a => <span key={a} onClick={() => setEditor({ type: 'action', name: a, jails: [jail.jail] })} style={{ cursor: 'pointer' }} title="Voir / éditer l'action"><Badge color="orange">⚡ {a}</Badge></span>)}
+                                {!jail.actions?.length && jail.banaction && <span onClick={() => setEditor({ type: 'action', name: jail.banaction!, jails: [jail.jail] })} style={{ cursor: 'pointer' }} title="Voir / éditer l'action"><Badge color="orange">⚡ {jail.banaction}</Badge></span>}
                                 {!jail.actions?.length && !jail.banaction && <span style={{ color: '#8b949e' }}>—</span>}
                             </div>
                         </div>
@@ -463,7 +461,14 @@ const JailExpandedGrid: React.FC<{
                             </span>
                         </div>
                     </div>
-                    <div style={{ borderTop: '1px solid #30363d', margin: '.55rem 0', paddingTop: '.45rem', display: 'flex', gap: '.3rem', flexWrap: 'wrap' }}>
+                    <div style={{ borderTop: '1px solid #30363d', margin: '.55rem 0', paddingTop: '.45rem', display: 'flex', gap: '.3rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                        {pill('red',    <Ban style={{ width: 10, height: 10 }} />,           'Actifs',  jail.currentlyBanned)}
+                        {pill('orange', <AlertTriangle style={{ width: 10, height: 10 }} />, 'Échecs',  jail.currentlyFailed)}
+                        {pill('green',  <Clock style={{ width: 10, height: 10 }} />,         '<5min',   recentBans.length || '—')}
+                        <span style={{ color: '#30363d', margin: '0 2px' }}>·</span>
+                        {pill('blue',   <Clock style={{ width: 10, height: 10 }} />,         bansInPeriodLabel, jail.bansInPeriod !== undefined ? jail.bansInPeriod : '—')}
+                        {pill('purple', <Shield style={{ width: 10, height: 10 }} />,        'Total',   totalDisplay || '—')}
+                        <span style={{ flex: 1 }} />
                         {jail.bantime  !== undefined && timingBadge('ban',   fmtSecs(jail.bantime),  '#e86a65')}
                         {jail.findtime !== undefined && timingBadge('find',  fmtSecs(jail.findtime), '#e3b341')}
                         {jail.maxretry !== undefined && timingBadge('retry', `${jail.maxretry}×`,    '#58a6ff')}
@@ -488,12 +493,6 @@ const JailExpandedGrid: React.FC<{
                             </div>
                         );
                     })()}
-                    <div style={{ marginTop: '.6rem' }}>
-                        <button onClick={onOpenConfig}
-                            style={{ display: 'flex', alignItems: 'center', gap: '.3rem', padding: '.3rem .65rem', borderRadius: 4, background: 'rgba(188,140,255,.08)', border: '1px solid rgba(188,140,255,.3)', color: '#bc8cff', cursor: 'pointer', fontSize: '.72rem' }}>
-                            <Settings style={{ width: 10, height: 10 }} /> Configurer
-                        </button>
-                    </div>
                 </div>
 
                 {/* Col 2: Tentatives actives */}
@@ -530,7 +529,9 @@ const JailExpandedGrid: React.FC<{
                         style={{ marginTop: '.6rem', display: 'flex', gap: '.3rem' }}>
                         <input type="text" value={banIp} onChange={e => setBanIp(e.target.value)}
                             placeholder="IP à bannir…"
-                            style={{ flex: 1, padding: '.25rem .45rem', fontSize: '.75rem', fontFamily: 'monospace', borderRadius: 4, background: '#161b22', border: '1px solid #30363d', borderBottom: '1px solid #555', color: '#e6edf3', outline: 'none', minWidth: 0, boxShadow: 'inset 0 2px 4px rgba(0,0,0,.55), inset 0 1px 0 rgba(0,0,0,.4), inset 0 -1px 0 rgba(255,255,255,.04)' }} />
+                            style={{ flex: 1, padding: '.25rem .45rem', fontSize: '.75rem', fontFamily: 'monospace', borderRadius: 4, background: '#161b22', border: '1px solid #30363d', borderBottom: '1px solid #555', color: '#e6edf3', outline: 'none', minWidth: 0, boxShadow: 'inset 0 2px 4px rgba(0,0,0,.55), inset 0 1px 0 rgba(0,0,0,.4), inset 0 -1px 0 rgba(255,255,255,.04)', transition: 'border-color .15s' }}
+                            onFocus={e => (e.currentTarget.style.borderColor = '#58a6ff')}
+                            onBlur={e => (e.currentTarget.style.borderColor = '#30363d')} />
                         <button type="submit" disabled={!banIp.trim() || !!actionLoading}
                             style={{ padding: '.25rem .55rem', borderRadius: 4, background: 'rgba(232,106,101,.1)', border: '1px solid rgba(232,106,101,.25)', color: '#e86a65', cursor: 'pointer', fontSize: '.72rem', opacity: !banIp.trim() || !!actionLoading ? .5 : 1 }}>
                             <Ban style={{ width: 10, height: 10 }} />
@@ -544,17 +545,41 @@ const JailExpandedGrid: React.FC<{
                     {recentBans.length === 0 ? (
                         <div style={{ color: '#3fb950', fontSize: '.78rem' }}>✓ Aucun ban récent</div>
                     ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '.3rem' }}>
-                            {recentBans.slice(0, 6).map((b, i) => (
-                                <button key={i} onClick={() => onIpClick?.(b.ip)}
-                                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'monospace', fontSize: '.75rem', color: '#e6edf3', fontWeight: 600, textAlign: 'left' }}>
-                                    {b.ip}
-                                </button>
-                            ))}
-                            {recentBans.length > 6 && (
-                                <span style={{ fontSize: '.7rem', color: '#8b949e' }}>+{recentBans.length - 6} autre(s)</span>
-                            )}
+                        <>
+                        <div style={{ maxHeight: 220, overflowY: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.72rem' }}>
+                                <thead>
+                                    <tr style={{ borderBottom: '1px solid #30363d' }}>
+                                        <th style={{ textAlign: 'left', padding: '.15rem .3rem', color: '#8b949e', fontWeight: 600, fontSize: '.65rem', textTransform: 'uppercase', letterSpacing: '.03em' }}>IP</th>
+                                        <th style={{ textAlign: 'right', padding: '.15rem .3rem', color: '#8b949e', fontWeight: 600, fontSize: '.65rem', textTransform: 'uppercase', letterSpacing: '.03em' }}>Il y a</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {(showAllRecent ? recentBans : recentBans.slice(0, 10)).map((b, i) => {
+                                        const ago = Math.floor((Date.now() / 1000) - b.timeofban);
+                                        const agoStr = ago < 60 ? `${ago}s` : `${Math.floor(ago / 60)}min`;
+                                        return (
+                                            <tr key={i} style={{ borderBottom: '1px solid rgba(48,54,61,.5)' }}>
+                                                <td style={{ padding: '.2rem .3rem' }}>
+                                                    <button onClick={() => onIpClick?.(b.ip)}
+                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'monospace', fontSize: '.72rem', color: '#e6edf3', fontWeight: 600, textAlign: 'left' }}>
+                                                        {b.ip}
+                                                    </button>
+                                                </td>
+                                                <td style={{ padding: '.2rem .3rem', textAlign: 'right', color: '#8b949e', whiteSpace: 'nowrap' }}>{agoStr}</td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
                         </div>
+                        {recentBans.length > 10 && (
+                            <button onClick={() => setShowAllRecent(v => !v)}
+                                style={{ marginTop: '.3rem', width: '100%', padding: '.2rem', fontSize: '.72rem', borderRadius: 4, border: '1px solid #30363d', background: 'transparent', color: '#8b949e', cursor: 'pointer' }}>
+                                {showAllRecent ? '▲ Masquer' : `▾ + ${recentBans.length - 10} ban(s)…`}
+                            </button>
+                        )}
+                        </>
                     )}
                 </div>
 
@@ -565,22 +590,37 @@ const JailExpandedGrid: React.FC<{
                         <div style={{ color: '#3fb950', fontSize: '.78rem' }}>✓ Aucune IP bannie</div>
                     ) : (
                         <div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '.3rem' }}>
-                                {(showAllIps ? jail.bannedIps : bannedShow).map(ip => (
-                                    <div key={ip} style={{ display: 'flex', alignItems: 'center', gap: '.4rem' }}>
-                                        <div style={{ flex: 1, overflow: 'hidden' }}>
-                                            <button onClick={() => onIpClick?.(ip)}
-                                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'monospace', fontSize: '.77rem', color: '#e6edf3', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block', maxWidth: '100%', textAlign: 'left' }}>
-                                                {ip}
-                                            </button>
-                                            {hostnames[ip] && <div style={{ fontFamily: 'monospace', fontSize: '.65rem', color: '#8b949e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{hostnames[ip]}</div>}
-                                        </div>
-                                        <button onClick={() => onUnban(ip)} disabled={actionLoading === `unban-${jail.jail}-${ip}`}
-                                            style={{ flexShrink: 0, padding: '.15rem .35rem', borderRadius: 4, background: 'rgba(63,185,80,.08)', border: '1px solid rgba(63,185,80,.2)', color: '#3fb950', cursor: 'pointer', fontSize: '.65rem', opacity: actionLoading === `unban-${jail.jail}-${ip}` ? .5 : 1 }}>
-                                            <Unlock style={{ width: 9, height: 9 }} />
-                                        </button>
-                                    </div>
-                                ))}
+                            <div style={{ maxHeight: 160, overflowY: 'auto' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.72rem' }}>
+                                    <thead>
+                                        <tr style={{ borderBottom: '1px solid #30363d' }}>
+                                            <th style={{ textAlign: 'left', padding: '.15rem .3rem', color: '#8b949e', fontWeight: 600, fontSize: '.65rem', textTransform: 'uppercase', letterSpacing: '.03em' }}>IP</th>
+                                            <th style={{ textAlign: 'left', padding: '.15rem .3rem', color: '#8b949e', fontWeight: 600, fontSize: '.65rem', textTransform: 'uppercase', letterSpacing: '.03em' }}>Hôte</th>
+                                            <th style={{ padding: '.15rem .3rem' }} />
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {(showAllIps ? jail.bannedIps : bannedShow).map(ip => (
+                                            <tr key={ip} style={{ borderBottom: '1px solid rgba(48,54,61,.5)' }}>
+                                                <td style={{ padding: '.2rem .3rem', whiteSpace: 'nowrap' }}>
+                                                    <button onClick={() => onIpClick?.(ip)}
+                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'monospace', fontSize: '.72rem', color: '#e6edf3', fontWeight: 600, textAlign: 'left' }}>
+                                                        {ip}
+                                                    </button>
+                                                </td>
+                                                <td style={{ padding: '.2rem .3rem', fontFamily: 'monospace', fontSize: '.65rem', color: '#8b949e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 90 }}>
+                                                    {hostnames[ip] ?? '—'}
+                                                </td>
+                                                <td style={{ padding: '.2rem .3rem', textAlign: 'right' }}>
+                                                    <button onClick={() => onUnban(ip)} disabled={actionLoading === `unban-${jail.jail}-${ip}`}
+                                                        style={{ padding: '.12rem .3rem', borderRadius: 3, background: 'rgba(63,185,80,.08)', border: '1px solid rgba(63,185,80,.2)', color: '#3fb950', cursor: 'pointer', fontSize: '.62rem', opacity: actionLoading === `unban-${jail.jail}-${ip}` ? .5 : 1 }}>
+                                                        <Unlock style={{ width: 8, height: 8 }} />
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
                             </div>
                             {bannedRest.length > 0 && (
                                 <button onClick={() => setShowAllIps(v => !v)}
@@ -653,15 +693,51 @@ const JailsTableView: React.FC<{
                     <thead>
                         <tr style={{ background: '#21262d' }}>
                             <th style={{ ...thStyle, width: 10 }} />
-                            <th style={{ ...thStyle, textAlign: 'left' }}>Jail</th>
-                            <th style={{ ...thStyle, textAlign: 'left' }}>Port / Service</th>
-                            <th style={{ ...thStyle, textAlign: 'center', color: '#e3b341', width: 58 }}>Échecs</th>
-                            <th style={{ ...thStyle, textAlign: 'center', color: '#e86a65', width: 58 }}>Bannis</th>
-                            <th style={{ ...thStyle, textAlign: 'center', color: '#39c5cf', width: 72 }}>Bans {bansLabel}</th>
-                            <th style={{ ...thStyle, textAlign: 'center', color: '#58a6ff', width: 58 }}>Total</th>
-                            <th style={{ ...thStyle, textAlign: 'center', width: 74 }}>Bantime</th>
-                            <th style={{ ...thStyle, textAlign: 'left', width: 1 }}>Filtre</th>
-                            <th style={{ ...thStyle, textAlign: 'left' }}>Action</th>
+                            <th style={{ ...thStyle, textAlign: 'left' }}>
+                                <F2bTooltip title="Jail" body="Nom du jail fail2ban — chaque jail surveille un service spécifique (ssh, nginx, apache…) et applique ses propres règles de ban." color="blue" placement="bottom">
+                                    <span style={{ cursor: 'default' }}>Jail</span>
+                                </F2bTooltip>
+                            </th>
+                            <th style={{ ...thStyle, textAlign: 'left' }}>
+                                <F2bTooltip title="Port / Service" body="Port(s) réseau surveillé(s) par ce jail. Les connexions suspectes sur ces ports déclenchent la détection." color="blue" placement="bottom">
+                                    <span style={{ cursor: 'default' }}>Port / Service</span>
+                                </F2bTooltip>
+                            </th>
+                            <th style={{ ...thStyle, textAlign: 'center', color: '#e3b341', width: 58 }}>
+                                <F2bTooltip title="Échecs actifs" body="Nombre d'IPs actuellement en cours de surveillance — elles ont déclenché des tentatives mais n'ont pas encore atteint le seuil maxretry. Remis à zéro quand le findtime expire ou que l'IP est bannie." color="orange" placement="bottom">
+                                    <span style={{ cursor: 'default' }}>Échecs</span>
+                                </F2bTooltip>
+                            </th>
+                            <th style={{ ...thStyle, textAlign: 'center', color: '#e86a65', width: 58 }}>
+                                <F2bTooltip title="Bannis actifs" body="Nombre d'IPs actuellement bannies dans ce jail — leur trafic est bloqué par iptables/nftables jusqu'à expiration du bantime." color="red" placement="bottom">
+                                    <span style={{ cursor: 'default' }}>Bannis</span>
+                                </F2bTooltip>
+                            </th>
+                            <th style={{ ...thStyle, textAlign: 'center', color: '#39c5cf', width: 72 }}>
+                                <F2bTooltip title={`Bans sur la période (${bansLabel})`} body={`Nombre de bans enregistrés dans la base SQLite sur la période sélectionnée (${bansLabel}). Inclut les bans expirés — mesure l'activité récente du jail.`} color="cyan" placement="bottom">
+                                    <span style={{ cursor: 'default' }}>Bans {bansLabel}</span>
+                                </F2bTooltip>
+                            </th>
+                            <th style={{ ...thStyle, textAlign: 'center', color: '#58a6ff', width: 58 }}>
+                                <F2bTooltip title="Total historique" body="Nombre total de bans depuis l'origine dans la base SQLite (toutes périodes confondues). Indicateur de l'exposition globale du service." color="blue" placement="bottom">
+                                    <span style={{ cursor: 'default' }}>Total</span>
+                                </F2bTooltip>
+                            </th>
+                            <th style={{ ...thStyle, textAlign: 'center', width: 74 }}>
+                                <F2bTooltip title="Bantime" body="Durée pendant laquelle l'IP reste bannie après avoir atteint maxretry. -1 = ban permanent. Au-delà de 30 jours = ban très long." color="cyan" placement="bottom">
+                                    <span style={{ cursor: 'default' }}>Bantime</span>
+                                </F2bTooltip>
+                            </th>
+                            <th style={{ ...thStyle, textAlign: 'left', width: 1 }}>
+                                <F2bTooltip title="Filtre" body="Fichier de filtre fail2ban utilisé par ce jail — contient les expressions régulières qui détectent les tentatives dans les logs." color="green" placement="bottom">
+                                    <span style={{ cursor: 'default' }}>Filtre</span>
+                                </F2bTooltip>
+                            </th>
+                            <th style={{ ...thStyle, textAlign: 'left' }}>
+                                <F2bTooltip title="Action" body="Action(s) exécutée(s) lors d'un ban — généralement iptables-multiport, nftables ou une action personnalisée qui bloque l'IP au niveau réseau." color="orange" placement="bottom">
+                                    <span style={{ cursor: 'default' }}>Action</span>
+                                </F2bTooltip>
+                            </th>
                             <th style={{ ...thStyle, width: 20 }} />
                         </tr>
                     </thead>
@@ -675,7 +751,7 @@ const JailsTableView: React.FC<{
                             return (
                                 <React.Fragment key={j.jail}>
                                     <tr
-                                        style={{ background: isOpen ? 'rgba(88,166,255,.04)' : 'transparent', cursor: isInactive ? 'default' : 'pointer', borderBottom: '1px solid #30363d', opacity: isInactive ? 0.5 : 1, boxShadow: `inset 4px 0 0 ${stateColor}` }}
+                                        style={{ background: isOpen ? 'rgba(88,166,255,.13)' : 'transparent', cursor: isInactive ? 'default' : 'pointer', borderBottom: isOpen ? 'none' : '1px solid #30363d', opacity: isInactive ? 0.5 : 1, boxShadow: `inset 4px 0 0 ${stateColor}` }}
                                         onClick={() => { if (!isInactive) setExpanded(e => e === j.jail ? null : j.jail); }}
                                         onMouseEnter={e => { if (!isOpen) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,.02)'; }}
                                         onMouseLeave={e => { if (!isOpen) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
@@ -710,7 +786,7 @@ const JailsTableView: React.FC<{
                                         </td>
                                         <td style={{ padding: '.5rem .5rem', whiteSpace: 'nowrap' }}>
                                             {j.filter
-                                                ? <span onClick={e => { e.stopPropagation(); openFilter(j.filter!, j.jail); }} style={{ cursor: 'pointer' }} title="Voir / éditer le filtre"><Badge color="green">⚙ {j.filter}</Badge></span>
+                                                ? <span onClick={e => { e.stopPropagation(); openFilter(j.filter!, j.jail); }} style={{ cursor: 'pointer' }} title="Voir / éditer le filtre"><Badge color="green">{j.filter}</Badge></span>
                                                 : <span style={{ color: '#8b949e', fontSize: '.78rem' }}>—</span>}
                                         </td>
                                         <td style={{ padding: '.5rem .5rem', whiteSpace: 'nowrap' }}>
@@ -746,8 +822,9 @@ const JailsTableView: React.FC<{
                                         </td>
                                     </tr>
                                     {isOpen && (
-                                        <tr style={{ borderBottom: '1px solid #30363d' }}>
-                                            <td colSpan={11} style={{ padding: 0 }}>
+                                        <tr style={{ background: 'rgba(88,166,255,.05)', borderBottom: '2px solid rgba(88,166,255,.25)' }}>
+                                            <td colSpan={11} style={{ padding: '.4rem .6rem' }}>
+                                                <div style={{ border: '1px solid rgba(88,166,255,.2)', borderRadius: 8, overflow: 'hidden', boxShadow: '0 4px 16px rgba(0,0,0,.3)' }}>
                                                 <JailExpandedGrid
                                                     jail={j}
                                                     actionLoading={actionLoading}
@@ -759,6 +836,7 @@ const JailsTableView: React.FC<{
                                                     onOpenConfig={() => setConfigJail(j.jail)}
                                                     onIpClick={onIpClick}
                                                 />
+                                                </div>
                                             </td>
                                         </tr>
                                     )}
@@ -778,9 +856,63 @@ const JailsTableView: React.FC<{
 
 // ── Vue fichiers log ──────────────────────────────────────────────────────────
 
+// ── Log colorizer ─────────────────────────────────────────────────────────────
+const LOG_TOKEN_RE = /(^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}[,\.]\d*|fail2ban\.\w+(?:\.\w+)*|\[\d+\]:\s*|\bBan\b|\bUnban\b|\bFound\b|\bERROR\b|\bWARNING\b|\bWARN\b|\bNOTICE\b|\bINFO\b|\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b|\[[a-zA-Z][a-zA-Z0-9_-]*\])/g;
+
+function tokenColor(tok: string): string {
+    if (/^\d{4}-\d{2}-\d{2}/.test(tok))                     return '#555d68';
+    if (/^fail2ban\./.test(tok))                              return '#444c56';
+    if (/^\[\d+\]/.test(tok))                                 return '#444c56';
+    if (tok === 'Ban')                                        return '#e86a65';
+    if (tok === 'Unban')                                      return '#3fb950';
+    if (tok === 'Found')                                      return '#58a6ff';
+    if (tok === 'ERROR')                                      return '#e86a65';
+    if (tok === 'WARNING' || tok === 'WARN')                  return '#e3b341';
+    if (tok === 'NOTICE')                                     return '#39c5cf';
+    if (tok === 'INFO')                                       return '#8b949e';
+    if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(tok))  return '#bc8cff';
+    if (/^\[[a-zA-Z]/.test(tok))                             return '#e3b341';
+    return '#e6edf3';
+}
+
+function lineBg(line: string): string | undefined {
+    if (/\bBan\b/.test(line))     return 'rgba(232,106,101,.05)';
+    if (/\bUnban\b/.test(line))   return 'rgba(63,185,80,.04)';
+    if (/\bERROR\b/.test(line))   return 'rgba(232,106,101,.07)';
+    if (/\bWARNING\b/.test(line)) return 'rgba(227,179,65,.04)';
+    return undefined;
+}
+
+function colorizeLine(line: string, idx: number): React.ReactNode {
+    const bg = lineBg(line);
+    const parts: React.ReactNode[] = [];
+    let last = 0;
+    let m: RegExpExecArray | null;
+    LOG_TOKEN_RE.lastIndex = 0;
+    while ((m = LOG_TOKEN_RE.exec(line)) !== null) {
+        if (m.index > last) parts.push(line.slice(last, m.index));
+        parts.push(<span key={m.index} style={{ color: tokenColor(m[0]) }}>{m[0]}</span>);
+        last = m.index + m[0].length;
+    }
+    if (last < line.length) parts.push(line.slice(last));
+    return (
+        <span key={idx} style={{ display: 'block', background: bg, borderRadius: bg ? 2 : undefined }}>
+            {parts}
+        </span>
+    );
+}
+
+interface LogFileInfo { name: string; mtime: number; size: number; }
+
+function fmtSize(b: number): string {
+    if (b < 1024)             return `${b}B`;
+    if (b < 1024 * 1024)      return `${(b / 1024).toFixed(1)}K`;
+    return `${(b / 1024 / 1024).toFixed(1)}M`;
+}
+
 export const TabJailsFiles: React.FC = () => {
     const { t } = useTranslation();
-    const [files, setFiles]         = useState<string[]>([]);
+    const [files, setFiles]         = useState<LogFileInfo[]>([]);
     const [selected, setSelected]   = useState<string | null>(null);
     const [content, setContent]     = useState('');
     const [lines, setLines]         = useState(400);
@@ -791,13 +923,13 @@ export const TabJailsFiles: React.FC = () => {
     const [truncated, setTruncated] = useState(false);
 
     useEffect(() => {
-        const cached = getCached<{ files: string[] }>('logs:list');
-        if (cached?.files?.length) { setFiles(cached.files); setSelected(cached.files[0]); setLoading(false); }
-        api.get<{ ok: boolean; files: string[]; error?: string }>('/api/plugins/fail2ban/logs').then(res => {
+        const cached = getCached<{ files: LogFileInfo[] }>('logs:list');
+        if (cached?.files?.length) { setFiles(cached.files); setSelected(cached.files[0].name); setLoading(false); }
+        api.get<{ ok: boolean; files: LogFileInfo[]; error?: string }>('/api/plugins/fail2ban/logs').then(res => {
             if (res.success && res.result?.ok && res.result.files?.length) {
                 setCached('logs:list', { files: res.result.files });
                 setFiles(res.result.files);
-                if (!cached?.files?.length) setSelected(res.result.files[0]);
+                if (!cached?.files?.length) setSelected(res.result.files[0].name);
             } else if (!cached?.files?.length) {
                 setError(res.result?.error ?? 'Aucun fichier log fail2ban sous /var/log.');
             }
@@ -823,9 +955,12 @@ export const TabJailsFiles: React.FC = () => {
 
     useEffect(() => { if (selected) fetchTail(selected, lines); }, [selected, lines, fetchTail]);
 
+    const selectedFile = files.find(f => f.name === selected) ?? null;
+    const colorized = content ? content.split('\n').map((line, i) => colorizeLine(line, i)) : null;
+
     return (
         <div style={{ display: 'flex', gap: '.75rem', height: 'calc(100vh - 220px)', minHeight: 400 }}>
-            <div style={{ ...card, width: 220, flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
+            <div style={{ ...card, width: 230, flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
                 <div style={{ ...cardH, fontSize: '.83rem', fontWeight: 600 }}>
                     <ScrollText style={{ width: 13, height: 13, color: '#8b949e' }} />
                     Fichiers log
@@ -835,9 +970,13 @@ export const TabJailsFiles: React.FC = () => {
                     {loading ? <div style={{ padding: '1rem', fontSize: '.8rem', color: '#8b949e' }}>{t('fail2ban.status.loading')}</div>
                     : error && !files.length ? <div style={{ padding: '1rem', fontSize: '.8rem', color: '#e86a65' }}>{error}</div>
                     : files.map(f => (
-                        <button key={f} onClick={() => setSelected(f)}
-                            style={{ width: '100%', textAlign: 'left', padding: '.4rem .75rem', fontSize: '.79rem', fontFamily: 'monospace', background: selected === f ? 'rgba(88,166,255,.08)' : 'transparent', color: selected === f ? '#58a6ff' : '#e6edf3', border: 'none', cursor: 'pointer' }}>
-                            {f}
+                        <button key={f.name} onClick={() => setSelected(f.name)}
+                            style={{ width: '100%', textAlign: 'left', padding: '.4rem .75rem', background: selected === f.name ? 'rgba(88,166,255,.08)' : 'transparent', color: selected === f.name ? '#58a6ff' : '#e6edf3', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '.15rem' }}>
+                            <span style={{ fontSize: '.79rem', fontFamily: 'monospace' }}>{f.name}</span>
+                            <span style={{ fontSize: '.67rem', color: selected === f.name ? 'rgba(88,166,255,.7)' : '#6e7681', fontVariantNumeric: 'tabular-nums', display: 'flex', justifyContent: 'space-between' }}>
+                                <span>{new Date(f.mtime).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+                                <span>{fmtSize(f.size)}</span>
+                            </span>
                         </button>
                     ))}
                 </div>
@@ -848,6 +987,11 @@ export const TabJailsFiles: React.FC = () => {
                         {selected ? `/var/log/${selected}` : 'Sélectionnez un fichier'}
                     </span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
+                        {selectedFile && (
+                            <span style={{ fontSize: '.68rem', color: '#6e7681', whiteSpace: 'nowrap' }}>
+                                modifié {new Date(selectedFile.mtime).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                        )}
                         {tailLoadedAt > 0 && !tailLoading && (
                             <span style={{ fontSize: '.68rem', color: '#8b949e', whiteSpace: 'nowrap' }}>
                                 ↻ {new Date(tailLoadedAt).toLocaleTimeString('fr-FR')}
@@ -865,8 +1009,10 @@ export const TabJailsFiles: React.FC = () => {
                         Fichier volumineux — affichage des dernières lignes uniquement.
                     </div>
                 )}
-                <pre style={{ flex: 1, overflowY: 'auto', padding: '1rem', fontSize: '.78rem', fontFamily: 'monospace', color: '#e6edf3', lineHeight: 1.6, margin: 0, whiteSpace: 'pre-wrap' }}>
-                    {tailLoading && !content ? t('fail2ban.status.loading') : content || (selected ? '' : 'Sélectionnez un fichier')}
+                <pre style={{ flex: 1, overflowY: 'auto', padding: '1rem', fontSize: '.78rem', fontFamily: 'monospace', lineHeight: 1.6, margin: 0, whiteSpace: 'pre-wrap', color: '#e6edf3' }}>
+                    {tailLoading && !content
+                        ? t('fail2ban.status.loading')
+                        : colorized ?? (selected ? '' : 'Sélectionnez un fichier')}
                 </pre>
             </div>
         </div>

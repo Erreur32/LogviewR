@@ -154,8 +154,9 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
     const [bansToday, setBansToday] = useState<{ count: number; uniqIps: number } | null>(null);
     const [npmDataPath, setNpmDataPath]       = useState<string>('');
     const [sqliteDbPath, setSqliteDbPath]     = useState<string>('');
-    const { addBan } = useNotificationStore();
+    const { addBan, addAttempt } = useNotificationStore();
     const lastRowidRef = useRef<number>(-1); // -1 = not bootstrapped yet
+    const prevFailedRef = useRef<Record<string, number>>({}); // jail → currentlyFailed snapshot
     // ticker: re-render every 5s so "il y a Xs" stays fresh
     const [, setTick] = useState(0);
     const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -298,6 +299,20 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
             .then(sRes => {
                 if (sRes.success && sRes.result) {
                     setStatus(sRes.result);
+                    // Detect attempt spikes: compare currentlyFailed per jail vs last snapshot
+                    const prev = prevFailedRef.current;
+                    const isBootstrap = Object.keys(prev).length === 0;
+                    for (const j of (sRes.result.jails ?? [])) {
+                        const cur = j.currentlyFailed ?? 0;
+                        const old = prev[j.jail] ?? 0;
+                        const delta = cur - old;
+                        // Only notify on subsequent polls (not on first load) and if delta > 0
+                        if (!isBootstrap && delta > 0 && cur > 0) {
+                            addAttempt({ jail: j.jail, delta, total: cur });
+                        }
+                        prev[j.jail] = cur;
+                    }
+                    prevFailedRef.current = prev;
                 }
             })
             .catch(() => { /* keep prior status on transient errors */ })
@@ -776,7 +791,14 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
                     {/* Center: chips */}
                     <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '.4rem', flexWrap: 'wrap' }}>
                         {status?.ok && (<>
-                            {/* 1. Bans du jour + actifs */}
+                            {/* 1. Échecs actifs */}
+                            <F2bTooltip title="Échecs actifs" bodyNode={statTtBody(totalFailed, 'tentatives', '#e3b341', 'Tentatives échouées en cours dans la fenêtre findtime — pas encore bannies. Seuil maxretry pas atteint.')} color="orange" placement="bottom">
+                                <Chip color={totalFailed > 0 ? 'orange' : 'muted'}>
+                                    <AlertTriangle style={{ width: 11, height: 11 }} />
+                                    {' '}<strong>{totalFailed}</strong><span style={{ fontWeight: 400, color: '#8b949e' }}> échecs</span>
+                                </Chip>
+                            </F2bTooltip>
+                            {/* 2. Bans du jour */}
                             {bansToday !== null && (
                                 <F2bTooltip title="Bans du jour" bodyNode={
                                     <div style={{ fontSize: '.78rem', lineHeight: 1.6 }}>
@@ -789,12 +811,10 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
                                     <Chip color="red">
                                         <span style={{ width: 6, height: 6, borderRadius: '50%', background: bansToday.count > 0 ? '#e86a65' : '#3fb950', display: 'inline-block', flexShrink: 0 }} />
                                         {' '}<strong>{bansToday.count}</strong><span style={{ fontWeight: 400, color: '#8b949e' }}> bans/jour</span>
-                                        <span style={{ color: '#484f58', margin: '0 .2rem', fontWeight: 400 }}>·</span>
-                                        <strong style={{ color: totalBanned > 0 ? '#e86a65' : '#8b949e' }}>{totalBanned}</strong><span style={{ fontWeight: 400, color: '#8b949e' }}> actifs</span>
                                     </Chip>
                                 </F2bTooltip>
                             )}
-                            {/* 2. Jail le plus actif sur la période */}
+                            {/* 3. Jail le plus actif sur la période */}
                             {topJailByPeriod && (topJailByPeriod.bansInPeriod ?? 0) > 0 && (
                                 <F2bTooltip title={`Top jail (${periodLabel})`} bodyNode={
                                     <div>
@@ -810,13 +830,6 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
                                     </Chip>
                                 </F2bTooltip>
                             )}
-                            {/* 3. Échecs actifs */}
-                            <F2bTooltip title="Échecs actifs" bodyNode={statTtBody(totalFailed, 'tentatives', '#e3b341', 'Tentatives échouées en cours dans la fenêtre findtime — pas encore bannies. Seuil maxretry pas atteint.')} color="orange" placement="bottom">
-                                <Chip color={totalFailed > 0 ? 'orange' : 'muted'}>
-                                    <AlertTriangle style={{ width: 11, height: 11 }} />
-                                    {' '}<strong>{totalFailed}</strong><span style={{ fontWeight: 400, color: '#8b949e' }}> échecs</span>
-                                </Chip>
-                            </F2bTooltip>
                             {/* 4. Jails actifs — tooltip liste les jails avec activité */}
                             <F2bTooltip title="Jails actifs" bodyNode={
                                 <div>
@@ -843,10 +856,14 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
                                     {' '}<strong>{activeJails}</strong><span style={{ fontWeight: 400, color: '#8b949e' }}> jails actifs</span>
                                 </Chip>
                             </F2bTooltip>
-                            {/* 5. Total bans BDD */}
+                            {/* 5. Bans actifs + BDD */}
                             {(() => { const bddTotal = trackerTotal ?? uniqueIpsTotal; return (
                             <F2bTooltip title="IPs bannies (BDD)" bodyNode={statTtBody(bddTotal, 'IPs', '#e86a65', 'Total IPs distinctes bannies dans f2b_events depuis l\'installation. Inclut les bans expirés.', <span>Bans actifs en ce moment : <strong style={{ color: '#e86a65' }}>{totalBanned}</strong></span>)} color="red" placement="bottom">
-                                <Chip color="red"><Ban style={{ width: 11, height: 11 }} /> <strong>{bddTotal}</strong><span style={{ fontWeight: 400, color: '#8b949e' }}> bannis (BDD)</span></Chip>
+                                <Chip color="red">
+                                    <strong style={{ color: totalBanned > 0 ? '#e86a65' : '#8b949e' }}>{totalBanned}</strong><span style={{ fontWeight: 400, color: '#8b949e' }}> actifs</span>
+                                    <span style={{ color: '#484f58', margin: '0 .2rem', fontWeight: 400 }}>·</span>
+                                    <Database style={{ width: 11, height: 11 }} />{' '}<strong>{bddTotal}</strong><span style={{ fontWeight: 400, color: '#8b949e' }}> BDD</span>
+                                </Chip>
                             </F2bTooltip>
                             ); })()}
                         </>)}

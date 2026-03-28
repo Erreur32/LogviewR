@@ -2518,16 +2518,21 @@ export class Fail2banPlugin extends BasePlugin {
             if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
             const dir = this.resolveDockerPathSync('/var/log');
             try {
-                const names = fs.readdirSync(dir).filter((f) => {
-                    if (!FAIL2BAN_LOG_NAME.test(f)) return false;
-                    try {
-                        return fs.statSync(path.join(dir, f)).isFile();
-                    } catch {
-                        return false;
-                    }
-                });
-                names.sort();
-                res.json({ success: true, result: { ok: true, dir: '/var/log', files: names } });
+                const files = fs.readdirSync(dir)
+                    .filter(f => FAIL2BAN_LOG_NAME.test(f))
+                    .flatMap(f => {
+                        try {
+                            const st = fs.statSync(path.join(dir, f));
+                            if (!st.isFile()) return [];
+                            return [{ name: f, mtime: st.mtimeMs, size: st.size }];
+                        } catch { return []; }
+                    })
+                    .sort((a, b) => {
+                        if (a.name === 'fail2ban.log') return -1;
+                        if (b.name === 'fail2ban.log') return 1;
+                        return a.name.localeCompare(b.name, undefined, { numeric: true });
+                    });
+                res.json({ success: true, result: { ok: true, dir: '/var/log', files } });
             } catch (e) {
                 res.json({
                     success: true,

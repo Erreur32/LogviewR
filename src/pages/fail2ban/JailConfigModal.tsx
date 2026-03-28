@@ -67,8 +67,15 @@ const btnBase: React.CSSProperties = {
 
 const inputStyle: React.CSSProperties = {
     padding: '.3rem .55rem', fontSize: '.8rem', borderRadius: 5,
-    background: '#0d1117', border: '1px solid #30363d', color: '#e6edf3',
-    outline: 'none', fontFamily: 'monospace',
+    background: '#161b22', border: '1px solid #30363d', borderBottom: '1px solid #555',
+    color: '#e6edf3', outline: 'none', fontFamily: 'monospace',
+    boxShadow: 'inset 0 2px 4px rgba(0,0,0,.55), inset 0 1px 0 rgba(0,0,0,.4), inset 0 -1px 0 rgba(255,255,255,.04)',
+    transition: 'border-color .15s',
+};
+
+const inputFocus = {
+    onFocus: (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => { e.currentTarget.style.borderColor = '#58a6ff'; },
+    onBlur:  (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => { e.currentTarget.style.borderColor = '#30363d'; },
 };
 
 // ── Failregex collapsible ─────────────────────────────────────────────────────
@@ -119,7 +126,7 @@ const ParamRow: React.FC<{ label: string; hint: string; id: string; value: strin
             <label htmlFor={id} style={{ fontSize: '.8rem', color: '#8b949e', fontWeight: 600 }}>{label}</label>
             <div style={{ display: 'flex', gap: '.3rem', alignItems: 'center' }}>
                 <input id={id} type="number" min={min} value={value} onChange={e => onChange(e.target.value)}
-                    style={{ ...inputStyle, width: '100%' }} />
+                    style={{ ...inputStyle, width: '100%' }} {...inputFocus} />
                 <span style={{ fontSize: '.7rem', color: numVal < 0 ? '#e86a65' : '#8b949e', whiteSpace: 'nowrap', minWidth: 60 }}>{hintStr}</span>
             </div>
             <div style={{ display: 'flex', gap: '.2rem' }}>
@@ -298,7 +305,7 @@ export const JailConfigModal: React.FC<JailConfigModalProps> = ({ jailName, isAc
                                     <label htmlFor="maxretry" style={{ fontSize: '.8rem', color: '#8b949e', fontWeight: 600 }}>Maxretry</label>
                                     <div style={{ display: 'flex', gap: '.3rem', alignItems: 'center' }}>
                                         <input id="maxretry" type="number" min={1} value={maxretry} onChange={e => setMaxretry(e.target.value)}
-                                            style={{ ...inputStyle, width: '100%' }} />
+                                            style={{ ...inputStyle, width: '100%' }} {...inputFocus} />
                                         <span style={{ fontSize: '.7rem', color: '#8b949e', whiteSpace: 'nowrap', minWidth: 60 }}>tentatives</span>
                                     </div>
                                     <div style={{ display: 'flex', gap: '.2rem' }}>
@@ -332,7 +339,7 @@ export const JailConfigModal: React.FC<JailConfigModalProps> = ({ jailName, isAc
                                     <input type="text" value={ignoreipInput} onChange={e => setIgnoreipInput(e.target.value)}
                                         placeholder="IP ou CIDR (ex: 192.168.1.0/24)"
                                         onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addIgnoreip(); } }}
-                                        style={{ ...inputStyle, flex: 1 }} />
+                                        style={{ ...inputStyle, flex: 1 }} {...inputFocus} />
                                     <button onClick={addIgnoreip} style={{ ...btnBase, borderColor: 'rgba(63,185,80,.4)', background: 'rgba(63,185,80,.1)', color: '#3fb950' }}>
                                         <Plus style={{ width: 12, height: 12 }} /> Ajouter
                                     </button>
@@ -345,7 +352,7 @@ export const JailConfigModal: React.FC<JailConfigModalProps> = ({ jailName, isAc
                                     Résolution DNS (usedns)
                                 </label>
                                 <select value={usedns} onChange={e => setUsedns(e.target.value)}
-                                    style={{ ...inputStyle, width: '100%', cursor: 'pointer' }}>
+                                    style={{ ...inputStyle, width: '100%', cursor: 'pointer' }} {...inputFocus}>
                                     {USEDNS_OPTIONS.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
                                 </select>
                             </div>
@@ -360,7 +367,7 @@ export const JailConfigModal: React.FC<JailConfigModalProps> = ({ jailName, isAc
                                 </label>
                                 <input id="logpath" type="text" value={logpath} onChange={e => setLogpath(e.target.value)}
                                     placeholder="/var/log/nginx/access.log"
-                                    style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }} />
+                                    style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }} {...inputFocus} />
                                 <div style={{ fontSize: '.68rem', color: '#8b949e', marginTop: '.3rem' }}>
                                     Chemin(s) séparés par des espaces. Écrasera la valeur dans jail.conf.
                                 </div>
@@ -373,7 +380,7 @@ export const JailConfigModal: React.FC<JailConfigModalProps> = ({ jailName, isAc
                                 </label>
                                 <input id="port-input" type="text" value={port} onChange={e => setPort(e.target.value)}
                                     placeholder="http,https ou 80,443"
-                                    style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }} />
+                                    style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }} {...inputFocus} />
                             </div>
 
                             {/* Filter + Actions */}

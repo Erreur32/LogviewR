@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { CheckCircle, XCircle, RefreshCw, AlertTriangle, Shield, Network, Layers, Database, Server } from 'lucide-react';
+import { CheckCircle, XCircle, RefreshCw, AlertTriangle, Shield, Network, Layers, Database, Server, FileText } from 'lucide-react';
 import { api } from '../../api/client';
 import { card, cardH } from './helpers';
 import { TabJailsFiles } from './TabJails';
@@ -338,9 +338,28 @@ export const TabAudit: React.FC = () => {
                 )}
             </div>
 
-            {/* ══ Section : Fichiers de config ══════════════════════════════════ */}
-            <SectionHeader icon={<Database style={{ width: 13, height: 13 }} />} label="Fail2ban service log" color={C.muted} avail={logAvail} />
-            <TabJailsFiles />
+            {/* ══ Section : Fail2ban service log ════════════════════════════════ */}
+            <SectionHeader icon={<FileText style={{ width: 13, height: 13 }} />} label="Fail2ban service log" color={C.muted} />
+
+            <div style={card}>
+                <div style={{ ...cardH }}>
+                    <FileText style={{ width: 14, height: 14, color: C.muted }} />
+                    <span style={{ fontWeight: 600, fontSize: '.9rem' }}>Fichiers de log</span>
+                    <span style={{ marginLeft: 'auto' }}>
+                        {logAvail === true && (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '.72rem', padding: '2px 8px', borderRadius: 4, background: 'rgba(63,185,80,.12)', color: C.green, border: '1px solid rgba(63,185,80,.3)' }}>
+                                <CheckCircle style={{ width: 10, height: 10 }} /> Accessible
+                            </span>
+                        )}
+                        {logAvail === false && (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '.72rem', padding: '2px 8px', borderRadius: 4, background: 'rgba(232,106,101,.12)', color: C.red, border: '1px solid rgba(232,106,101,.3)' }}>
+                                <XCircle style={{ width: 10, height: 10 }} /> Non accessible
+                            </span>
+                        )}
+                    </span>
+                </div>
+                <TabJailsFiles />
+            </div>
         </div>
     );
 };
