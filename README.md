@@ -1,11 +1,11 @@
 # LogviewR - Log Viewer Application
 > [!IMPORTANT]
->  PRE-RELEASE BETA , NOT FINISHED !
+>  PRE-RELEASE BETA  
 
 
 <div align="center">
 
-‼️ Active Development, BETA version ‼️
+ 
 
 
 <img src="LogviewR_banner.svg" alt="LogviewR" width="512" height="256" />
