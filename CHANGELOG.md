@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.6.9] - 2026-03-28
+
+### Fixed
+- fix: replace `sudo bash <(curl ...)` with `curl ... | sudo bash` everywhere — process substitution fails when `/dev/fd` is unavailable (TabConfig UI, TabAudit UI, README.md, README.fr.md, docker-compose.yml, docker-compose.local.yml)
+
+---
+
 ## [0.6.8] - 2026-03-28
 
 ### Docs
