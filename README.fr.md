@@ -1,11 +1,10 @@
 # LogviewR - Application de visualisation de logs
 > [!IMPORTANT]
->  PRÉ-VERSION BÊTA , NON TERMINÉ !
+>  PRÉ-VERSION BÊTA 
 
 
 <div align="center">
-
-‼️ En cours de développement ACTIF , Version BÊTA ‼️
+ 
 
 
 <img src="LogviewR_banner.svg" alt="LogviewR" width="512" height="256" />
