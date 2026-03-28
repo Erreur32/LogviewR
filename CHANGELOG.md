@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.6.8] - 2026-03-28
+
+### Docs
+- docs: fix VACUUM docker-compose example — short-form mount `- /var/lib/fail2ban:/host/var/lib/fail2ban` cannot override a `:ro` parent mount; correct syntax uses `type: bind` with `propagation: shared`
+- docs: update `docker-compose.yml`, `README.md`, `README.fr.md` with working VACUUM override and explanation
+
+---
+
 ## [0.6.7] - 2026-03-28
 
 ### Fixed
