@@ -776,7 +776,7 @@ export class Fail2banPlugin extends BasePlugin {
             const recentBans = evDb.prepare(`SELECT ip, jail, timeofban, bantime, failures FROM f2b_events WHERE event_type='ban' ORDER BY timeofban DESC LIMIT 50`).all();
             const _sFallbackResult = {
                 ok: true, source: 'sqlite', days,
-                jails: jailsMap, recentBans, totalBanned: activeBanRows.length,
+                jails: Object.values(jailsMap), recentBans, totalBanned: activeBanRows.length,
                 uniqueIpsTotal, uniqueIpsPeriod, expiredLast24h, firstEventAt,
             };
             this._cachePut(_sCacheKey, _sFallbackResult);
