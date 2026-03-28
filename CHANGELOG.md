@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.6.5] - 2026-03-28
+
+### Performance
+- perf: add TTL route cache to Fail2banPlugin for slow endpoints (/status 8s, /history 30s, /tops 30s, /bans-today 5s, /config/parsed 60s)
+- perf: /tops always computes 100 items (STORE_LIMIT) regardless of `limit` param — deduplicates concurrent TabStats (limit=100) and BanHistoryChart (limit=1) requests via shared cache key
+- perf: delay initial checkConfigWarnings() call by 4s so /config/parsed (~6s) does not compete with /status+/history during first-load wave
+
+---
+
 ## [0.6.4] - 2026-03-28
 
 ### Added
