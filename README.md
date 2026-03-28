@@ -238,11 +238,12 @@ services:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
       # Optional: enable Fail2ban SQLite VACUUM (long-form bind required — short-form does not override :ro)
-      # - type: bind
-      #   source: /var/lib/fail2ban
-      #   target: /host/var/lib/fail2ban
-      #   bind:
-      #     propagation: shared
+      - type: bind
+        source: /var/lib/fail2ban
+        target: /host/var/lib/fail2ban
+        bind:
+          propagation: shared
+
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000/api/health"]
       interval: 30s
