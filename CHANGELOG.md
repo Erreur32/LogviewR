@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.6.7] - 2026-03-28
+
+### Fixed
+- fix: `TypeError: ae.flatMap is not a function` on Fail2ban page in Docker — fallback SQLite path in `/status` route returned `jails` as a Record object instead of an array; changed to `Object.values(jailsMap)`
+
+---
+
 ## [0.6.6] - 2026-03-28
 
 ### Fixed
