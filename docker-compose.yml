@@ -97,14 +97,20 @@ services:
       # Host filesystem (read-only) — provides access to logs, hostname, disk info
       # ⚠️  :ro is recommended (more secure — prevents container writes to host filesystem)
       #     However, :ro disables the Fail2ban SQLite VACUUM feature (read-only FS).
-      #     To enable VACUUM, add the dedicated rw override below — it takes precedence
-      #     over :ro for that specific path only.
+      #     To enable VACUUM, uncomment the type:bind block below.
+      #     Note: a simple "- /var/lib/fail2ban:/host/var/lib/fail2ban" does NOT work
+      #     because Docker cannot override a :ro subdirectory with a rw short-form mount.
+      #     The long-form bind with propagation: shared is required.
       - /:/host:ro
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
 
-      # Optional: enable Fail2ban SQLite VACUUM (rw override — overrides :ro above)
-      # - /var/lib/fail2ban:/host/var/lib/fail2ban
+      # Optional: enable Fail2ban SQLite VACUUM (rw override — requires long-form syntax)
+      # - type: bind
+      #   source: /var/lib/fail2ban
+      #   target: /host/var/lib/fail2ban
+      #   bind:
+      #     propagation: shared
 
       # Optional: mount specific log directories for direct access (without /host/ prefix)
       # - /var/log/nginx:/var/log/nginx:ro

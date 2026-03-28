@@ -139,8 +139,12 @@ services:
       - /:/host:ro          # :ro = more secure; disables Fail2ban VACUUM (see note below)
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
-      # Optional: enable Fail2ban SQLite VACUUM (rw override — overrides :ro above)
-      # - /var/lib/fail2ban:/host/var/lib/fail2ban
+      # Optional: enable Fail2ban SQLite VACUUM (long-form bind required — short-form does not override :ro)
+      # - type: bind
+      #   source: /var/lib/fail2ban
+      #   target: /host/var/lib/fail2ban
+      #   bind:
+      #     propagation: shared
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:7500/api/health"]
       interval: 30s
@@ -233,8 +237,12 @@ services:
       - /:/host:ro          # :ro = more secure; disables Fail2ban VACUUM (see note below)
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
-      # Optional: enable Fail2ban SQLite VACUUM (rw override — overrides :ro above)
-      # - /var/lib/fail2ban:/host/var/lib/fail2ban
+      # Optional: enable Fail2ban SQLite VACUUM (long-form bind required — short-form does not override :ro)
+      # - type: bind
+      #   source: /var/lib/fail2ban
+      #   target: /host/var/lib/fail2ban
+      #   bind:
+      #     propagation: shared
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000/api/health"]
       interval: 30s
@@ -267,8 +275,12 @@ services:
       - /:/host:ro          # :ro = more secure; disables Fail2ban VACUUM (see note below)
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
-      # Optional: enable Fail2ban SQLite VACUUM (rw override — overrides :ro above)
-      # - /var/lib/fail2ban:/host/var/lib/fail2ban
+      # Optional: enable Fail2ban SQLite VACUUM (long-form bind required — short-form does not override :ro)
+      # - type: bind
+      #   source: /var/lib/fail2ban
+      #   target: /host/var/lib/fail2ban
+      #   bind:
+      #     propagation: shared
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:7500/api/health"]
       interval: 30s
@@ -279,8 +291,9 @@ services:
 
 > **Fail2ban SQLite VACUUM**: The `:ro` flag prevents the container from writing to the host filesystem — recommended for security.
 > However, it disables the **SQLite defragmentation (VACUUM)** feature in the Fail2ban Config tab.
-> To enable VACUUM, uncomment the override line above (`/var/lib/fail2ban:/host/var/lib/fail2ban`).
-> This mount takes precedence over `/:/host:ro` for that path only, without weakening the global read-only protection.
+> To enable VACUUM, uncomment the `type: bind` block above (`source: /var/lib/fail2ban`).
+> A simple short-form mount (`- /var/lib/fail2ban:/host/var/lib/fail2ban`) does **not** work — Docker cannot override a `:ro` parent mount with a short-form rw entry.
+> The long-form syntax with `propagation: shared` is required. It takes precedence over `/:/host:ro` for that path only.
 
 **Changing the port**: only modify `PORT: 7500` → `PORT: 8080` (or any other), then point your reverse proxy to that port.
 
