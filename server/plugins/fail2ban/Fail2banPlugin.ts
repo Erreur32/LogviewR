@@ -408,6 +408,19 @@ export class Fail2banPlugin extends BasePlugin {
     private ipt_rollbackSnapshot: string | null = null;
     private ipt_rollbackDeadline: number | null = null;
 
+    // ── Route-level TTL cache — avoids re-running expensive socket/SQLite work ──
+    // Key: opaque string (endpoint + params). Value: {data, ts}.
+    // Cache is intentionally per-plugin-instance (process lifetime).
+    private readonly _routeCache = new Map<string, { data: unknown; ts: number }>();
+
+    private _cachePeek<T>(key: string, ttlMs: number): T | null {
+        const e = this._routeCache.get(key);
+        return (e && Date.now() - e.ts < ttlMs) ? e.data as T : null;
+    }
+    private _cachePut(key: string, data: unknown): void {
+        this._routeCache.set(key, { data, ts: Date.now() });
+    }
+
     constructor() {
         super('fail2ban', 'Fail2ban', '1.0.0');
     }
@@ -650,6 +663,11 @@ export class Fail2banPlugin extends BasePlugin {
             const rawDays = parseInt(String(req.query.days ?? '1'), 10);
             const days = Number.isNaN(rawDays) ? 1 : rawDays;
 
+            // TTL cache: 8s (short — live ban counts change frequently)
+            const _sCacheKey = `status:${days}`;
+            const _sCached = this._cachePeek<unknown>(_sCacheKey, 8_000);
+            if (_sCached) return res.json({ success: true, result: _sCached });
+
             // Jail config metadata (read-only file parse, no socket needed)
             const confBase = this.resolveDockerPathSync('/etc/fail2ban');
             const jailMeta = parseJailConfigs(confBase);
@@ -732,7 +750,9 @@ export class Fail2banPlugin extends BasePlugin {
                         totalBannedSqlite: totalsByJail[name] ?? undefined,
                         active: false,
                     }));
-                return res.json({ success: true, result: { ok: true, source: 'client', days, jails, inactiveJails, uniqueIpsTotal, uniqueIpsPeriod, expiredLast24h, firstEventAt } });
+                const _sResult = { ok: true, source: 'client', days, jails, inactiveJails, uniqueIpsTotal, uniqueIpsPeriod, expiredLast24h, firstEventAt };
+                this._cachePut(_sCacheKey, _sResult);
+                return res.json({ success: true, result: _sResult });
             }
 
             // Fallback: no fail2ban-client — build jail snapshots from f2b_events
@@ -754,11 +774,13 @@ export class Fail2banPlugin extends BasePlugin {
                 else jailsMap[jail].totalBanned = cnt;
             }
             const recentBans = evDb.prepare(`SELECT ip, jail, timeofban, bantime, failures FROM f2b_events WHERE event_type='ban' ORDER BY timeofban DESC LIMIT 50`).all();
-            return res.json({ success: true, result: {
+            const _sFallbackResult = {
                 ok: true, source: 'sqlite', days,
                 jails: jailsMap, recentBans, totalBanned: activeBanRows.length,
                 uniqueIpsTotal, uniqueIpsPeriod, expiredLast24h, firstEventAt,
-            } });
+            };
+            this._cachePut(_sCacheKey, _sFallbackResult);
+            return res.json({ success: true, result: _sFallbackResult });
         }));
 
         // GET /api/plugins/fail2ban/history?days=30
@@ -766,6 +788,11 @@ export class Fail2banPlugin extends BasePlugin {
             if (!this.isEnabled()) throw createError('Fail2ban plugin not enabled', 503, 'PLUGIN_DISABLED');
             const raw  = parseInt(String(req.query.days ?? '30'), 10);
             const days = Number.isNaN(raw) ? 30 : raw;
+
+            // TTL cache: 30s — ban history is slow to query and doesn't change second-by-second
+            const _hCacheKey = `history:${days}`;
+            const _hCached = this._cachePeek<unknown>(_hCacheKey, 30_000);
+            if (_hCached) return res.json({ success: true, result: _hCached });
 
             const evDb    = getDatabase();
             const SLOT    = 1800; // 30-min slots for 24h view
@@ -826,7 +853,9 @@ export class Fail2banPlugin extends BasePlugin {
             );
             const granularity: 'hour' | 'day' = halfHour ? 'hour' : 'day';
 
-            res.json({ success: true, result: { ok: true, days, history, byJail, jailNames, granularity, slotBase: halfHour ? since : undefined } });
+            const _hResult = { ok: true, days, history, byJail, jailNames, granularity, slotBase: halfHour ? since : undefined };
+            this._cachePut(_hCacheKey, _hResult);
+            res.json({ success: true, result: _hResult });
         }));
 
         // GET /events/since?rowid=N  — new ban events from internal f2b_events since rowid
@@ -1235,6 +1264,11 @@ export class Fail2banPlugin extends BasePlugin {
         // GET /config/parsed  — parsed global config values + DB info
         router.get('/config/parsed', requireAuth, asyncHandler(async (_req, res) => {
             if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
+
+            // TTL cache: 60s — opens fail2ban.sqlite3 for PRAGMA integrity_check (slow)
+            const _cpCached = this._cachePeek<unknown>('config/parsed', 60_000);
+            if (_cpCached) return res.json({ success: true, result: _cpCached });
+
             const confBase = this.resolveDockerPathSync('/etc/fail2ban');
             const cfg = parseGlobalConfig(confBase);
 
@@ -1291,7 +1325,9 @@ export class Fail2banPlugin extends BasePlugin {
             let internalDbStats = null;
             try { internalDbStats = Fail2banSyncService.getInternalStats(); } catch {}
 
-            res.json({ success: true, result: { ok: true, cfg, version, dbInfo, dbHostPath, appDbInfo, internalDbStats } });
+            const _cpResult = { ok: true, cfg, version, dbInfo, dbHostPath, appDbInfo, internalDbStats };
+            this._cachePut('config/parsed', _cpResult);
+            res.json({ success: true, result: _cpResult });
         }));
 
         // POST /config/sqlite-vacuum  — run VACUUM on fail2ban SQLite DB
@@ -1590,14 +1626,21 @@ export class Fail2banPlugin extends BasePlugin {
         }));
 
         // GET /bans-today  — Bans depuis minuit (heure locale)
-        router.get('/bans-today', requireAuth, asyncHandler(async (req, res) => {
+        router.get('/bans-today', requireAuth, asyncHandler(async (_req, res) => {
             if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
+
+            // TTL cache: 5s — counter updates frequently but SQLite contention is costly
+            const _btCached = this._cachePeek<unknown>('bans-today', 5_000);
+            if (_btCached) return res.json({ success: true, result: _btCached });
+
             const evDb = getDatabase();
             const now  = new Date();
             const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
             const since = Math.floor(midnight.getTime() / 1000);
             const row = evDb.prepare(`SELECT COUNT(*) as total, COUNT(DISTINCT ip) as uniq FROM f2b_events WHERE event_type='ban' AND timeofban >= @since`).get({ since }) as { total: number; uniq: number };
-            res.json({ success: true, result: { ok: true, count: row?.total ?? 0, uniqIps: row?.uniq ?? 0, since } });
+            const _btResult = { ok: true, count: row?.total ?? 0, uniqIps: row?.uniq ?? 0, since };
+            this._cachePut('bans-today', _btResult);
+            res.json({ success: true, result: _btResult });
         }));
 
         // GET /tops  — Top IPs, Jails, Récidivistes + heatmap
@@ -1605,27 +1648,46 @@ export class Fail2banPlugin extends BasePlugin {
             if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
             const days  = parseInt(String(req.query.days  ?? '30'), 10);
             const limit = Math.min(parseInt(String(req.query.limit ?? '10'), 10), 100);
+            const compareFlag = req.query.compare === '1' ? 1 : 0;
+
+            // TTL cache: 30s — cache key ignores `limit` (full dataset stored, sliced on return).
+            // This deduplicates concurrent TabStats (limit=100) and BanHistoryChart (limit=1) requests.
+            const _tCacheKey = `tops:${days}:${compareFlag}`;
+            type TopsPayload = { ok: boolean; topIps: unknown[]; topJails: unknown[]; topRecidivists: unknown[]; topDomains: unknown[]; heatmap: unknown; heatmapFailed: unknown; heatmapWeek: unknown; heatmapFailedWeek: unknown; summary: unknown; prevSummary: unknown };
+            const _tCached = this._cachePeek<TopsPayload>(_tCacheKey, 30_000);
+            if (_tCached) {
+                return res.json({ success: true, result: {
+                    ..._tCached,
+                    topIps:         _tCached.topIps.slice(0, limit),
+                    topJails:       _tCached.topJails.slice(0, limit),
+                    topRecidivists: _tCached.topRecidivists.slice(0, limit),
+                    topDomains:     _tCached.topDomains.slice(0, limit),
+                } });
+            }
+
             // All stats from our f2b_events (dashboard.db) — never purged unlike fail2ban's own DB.
             // One shared connection, all queries in the same session.
+            // STORE_LIMIT: always fetch 100 items for cache storage; `limit` is applied on the response.
+            const STORE_LIMIT = 100;
             const evDb   = getDatabase();
             const allTime = days <= 0;
             const since  = allTime ? 0 : Math.floor(Date.now() / 1000) - days * 86400;
 
             const topIps = (allTime
-                ? evDb.prepare(`SELECT ip, COUNT(*) as count FROM f2b_events WHERE event_type='ban' GROUP BY ip ORDER BY count DESC LIMIT @limit`).all({ limit })
-                : evDb.prepare(`SELECT ip, COUNT(*) as count FROM f2b_events WHERE event_type='ban' AND timeofban >= @since GROUP BY ip ORDER BY count DESC LIMIT @limit`).all({ since, limit })
+                ? evDb.prepare(`SELECT ip, COUNT(*) as count FROM f2b_events WHERE event_type='ban' GROUP BY ip ORDER BY count DESC LIMIT @limit`).all({ limit: STORE_LIMIT })
+                : evDb.prepare(`SELECT ip, COUNT(*) as count FROM f2b_events WHERE event_type='ban' AND timeofban >= @since GROUP BY ip ORDER BY count DESC LIMIT @limit`).all({ since, limit: STORE_LIMIT })
             ) as { ip: string; count: number }[];
 
             const topJailsWF = (allTime
-                ? evDb.prepare(`SELECT jail, COUNT(*) as bans, COALESCE(SUM(failures),0) as failures FROM f2b_events WHERE event_type='ban' GROUP BY jail ORDER BY bans DESC LIMIT @limit`).all({ limit })
-                : evDb.prepare(`SELECT jail, COUNT(*) as bans, COALESCE(SUM(failures),0) as failures FROM f2b_events WHERE event_type='ban' AND timeofban >= @since GROUP BY jail ORDER BY bans DESC LIMIT @limit`).all({ since, limit })
+                ? evDb.prepare(`SELECT jail, COUNT(*) as bans, COALESCE(SUM(failures),0) as failures FROM f2b_events WHERE event_type='ban' GROUP BY jail ORDER BY bans DESC LIMIT @limit`).all({ limit: STORE_LIMIT })
+                : evDb.prepare(`SELECT jail, COUNT(*) as bans, COALESCE(SUM(failures),0) as failures FROM f2b_events WHERE event_type='ban' AND timeofban >= @since GROUP BY jail ORDER BY bans DESC LIMIT @limit`).all({ since, limit: STORE_LIMIT })
             ) as { jail: string; bans: number; failures: number }[];
             const topJails = topJailsWF.map(j => ({ jail: j.jail, count: j.bans }));
 
             const topRecidivists = (allTime
                 ? evDb.prepare(`SELECT ip, COUNT(*) as count FROM f2b_events WHERE event_type='ban' GROUP BY ip HAVING count >= 2 ORDER BY count DESC LIMIT 100`).all()
                 : evDb.prepare(`SELECT ip, COUNT(*) as count FROM f2b_events WHERE event_type='ban' AND timeofban >= @since GROUP BY ip HAVING count >= 2 ORDER BY count DESC LIMIT 100`).all({ since })
-            ).slice(0, limit) as { ip: string; count: number }[];
+            ) as { ip: string; count: number }[];
 
             const heatmap = (allTime
                 ? evDb.prepare(`SELECT CAST(strftime('%H',timeofban,'unixepoch') AS INTEGER) as hour, COUNT(*) as count FROM f2b_events WHERE event_type='ban' GROUP BY hour ORDER BY hour`).all()
@@ -1812,13 +1874,22 @@ export class Fail2banPlugin extends BasePlugin {
 
                     for (const [domain, { bans, failures }] of Object.entries(domainBans)
                             .sort((a, b) => b[1].bans - a[1].bans)
-                            .slice(0, limit)) {
+                            .slice(0, STORE_LIMIT)) {
                         topDomains.push({ domain, count: bans, failures });
                     }
                 } catch { /* non-critical */ }
             }
 
-            res.json({ success: true, result: { ok: true, topIps, topJails, topRecidivists, topDomains, heatmap, heatmapFailed, heatmapWeek, heatmapFailedWeek, summary, prevSummary } });
+            // Cache the full dataset (STORE_LIMIT items), then slice to `limit` for the response.
+            const _tResult: TopsPayload = { ok: true, topIps, topJails, topRecidivists, topDomains, heatmap, heatmapFailed, heatmapWeek, heatmapFailedWeek, summary, prevSummary };
+            this._cachePut(_tCacheKey, _tResult);
+            res.json({ success: true, result: {
+                ..._tResult,
+                topIps:         topIps.slice(0, limit),
+                topJails:       topJails.slice(0, limit),
+                topRecidivists: topRecidivists.slice(0, limit),
+                topDomains:     topDomains.slice(0, limit),
+            } });
         }));
 
         // GET /tops/domain-detail  — detail bans counted for one domain (same algo as topDomains)

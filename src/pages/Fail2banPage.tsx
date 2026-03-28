@@ -179,9 +179,13 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
             .catch(() => {});
     }, []);
     useEffect(() => {
-        checkConfigWarnings();
+        // Delay initial call by 4s so /config/parsed (integrity_check, ~6s) does not compete
+        // with /status and /history during the critical first-load wave.
+        const delay = setTimeout(() => {
+            checkConfigWarnings();
+        }, 4_000);
         const timer = setInterval(checkConfigWarnings, 5 * 60_000);
-        return () => clearInterval(timer);
+        return () => { clearTimeout(delay); clearInterval(timer); };
     }, [checkConfigWarnings]);
 
     // Bans du jour (depuis minuit) — refresh toutes les 60s
