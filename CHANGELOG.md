@@ -9,6 +9,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.6.4] - 2026-03-28
+
+### Added
+
+- **README.fr.md** — French mirror of the main README; link added at the top of `README.md`
+- **i18n: `common` namespace** — shared keys for loading, saving, error, close, cancel, hide, refresh, save, edit, delete and their variants; used across all pages
+- **i18n: `header` namespace** — all Header.tsx button titles, page titles, live/auto-refresh labels, update badge
+- **i18n: `logViewer.types` namespace** — log file type labels (auth, daemon, access, error, syslog, subdomain…) now translated instead of hardcoded
+- **i18n: `permissions` namespace** — Freebox permission labels and error messages
+- **i18n: `fail2ban` namespace** — 150+ strings across 11 files now fully translated (tabs, status, actions, labels, tooltips, placeholders, errors, periods, attack categories, time-ago, views, config, jails, tracker, map, backup, stats)
+
+### Changed
+
+- **README.md** — fully translated to English (was French/English mix); French version moved to `README.md.fr`
+- **CHANGELOG.md** — all French-language entries translated to English
+- **`Header.tsx`** — 20+ hardcoded French strings replaced with `t()` calls; `useTranslation` added
+- **`LogFileSelector.tsx`** — static `TYPE_LABELS` constant replaced with dynamic `t('logViewer.types.*')` calls
+- **`permissions.ts`** — `PERMISSION_LABELS` replaced with i18n key lookups; `getPermissionErrorMessage` and `getPermissionShortError` now accept `TFunction` parameter
+- **`PermissionBanner.tsx`** — uses `useTranslation`; hardcoded French string replaced
+- **`SettingsPage.tsx`** — error/loading messages in 4 sub-components replaced with `common.errors.*` keys
+- **`LogViewerPage.tsx`** — loading and error strings replaced with `common.*` keys
+- **Fail2ban — `Fail2banPage.tsx`** — tab labels, time-ago strings, period labels migrated to i18n
+- **Fail2ban — `TabJails.tsx`** — filter placeholders, view toggles, status labels, tooltips migrated
+- **Fail2ban — `TabStats.tsx`** — stat card labels, section titles, loading states migrated
+- **Fail2ban — `TabBackup.tsx`** — backup/import/export labels and error messages migrated
+- **Fail2ban — `TabConfig.tsx`** — config labels, error messages migrated
+- **Fail2ban — `TabMap.tsx`** — map loading, country filter labels migrated
+- **Fail2ban — `IpModal.tsx`** — attack categories, geo labels, table headers migrated
+- **Fail2ban — `TabTracker.tsx`** — DNS mode, geo, column headers migrated
+- **Fail2ban — `TabBanManager.tsx`** — placeholders and error messages migrated
+- **Fail2ban — `TabIPTables.tsx`** — chain/rule labels migrated
+- **Fail2ban — `JailConfigModal.tsx`** — error and loading strings migrated
+- **Fail2ban — `helpers.tsx`** — `StatusDot` status strings migrated
+
+---
+
 ## [0.5.7] - 2026-03-27
 
 ### Fixed
@@ -59,107 +95,107 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.4.9] - 2026-03-26
 
-### Pour les utilisateurs
+### For users
 
-> Graphique 24h en temps réel, colonne Domaine fonctionnelle et rafraîchissement automatique des événements Fail2ban.
+> Real-time 24h chart, functional Domain column, and automatic refresh of Fail2ban events.
 
-- **Graphique 24h glissant** — Le graphique ne montre plus les 24 heures fixes (00h–23h) mais toujours les **dernières 24 heures** à partir de maintenant, avec des points toutes les 30 minutes. L'axe X affiche les heures exactes (ex. `14:00`, `15:00`…) et se met à jour en continu.
-- **Colonne Domaine dans les Événements** — La colonne "Domaine" du tableau Événements (onglet Jails) affiche maintenant le nom de domaine du site attaqué pour les jails liées à Nginx Proxy Manager. La résolution utilise directement la base de données de NPM — plus fiable que les fichiers de config qui peuvent ne pas exister.
-- **Événements rafraîchis automatiquement** — Le tableau des événements Fail2ban se recharge toutes les 30 secondes en arrière-plan (pause si l'onglet est masqué).
-- **Scrollbar double corrigée** — La page Jails n'affichait parfois deux barres de défilement simultanées ; c'est corrigé.
+- **Rolling 24h chart** — The chart no longer shows fixed 24-hour slots (00h–23h) but always displays the **last 24 hours** from now, with data points every 30 minutes. The X axis shows exact times (e.g. `14:00`, `15:00`…) and updates continuously.
+- **Domain column in Events** — The "Domain" column of the Events table (Jails tab) now displays the domain name of the attacked site for jails linked to Nginx Proxy Manager. Resolution uses the NPM database directly — more reliable than config files that may not exist.
+- **Automatically refreshed events** — The Fail2ban events table reloads every 30 seconds in the background (paused when the tab is hidden).
+- **Fixed double scrollbar** — The Jails page sometimes displayed two simultaneous scrollbars; this is now fixed.
 
 ---
 
-### Technique
+### Technical
 
 #### Backend — Fail2ban
 
-- **`Fail2banPlugin.ts`** — Stratégie 3 domaine remplacée : lecture de `<npm_base>/database.sqlite` (`proxy_host.domain_names`) via `better-sqlite3` en lecture seule, au lieu des fichiers `.conf` nginx qui peuvent ne pas exister pour des hôtes supprimés. Import `better-sqlite3` ajouté. Champ `_debug_domains` supprimé de la réponse `/audit`.
-- **`Fail2banSqliteReader.ts`** — `SLOT_SECS = 1800` (30 min). Pour `days=1`, `since` aligné sur la borne 30-min (`Math.floor(rawSince / 1800) * 1800`), slots indexés par `CAST((timeofban - since) / 1800 AS INTEGER)`, labels `HH:MM`. `slotBase` renvoyé dans la réponse pour synchronisation frontend.
+- **`Fail2banPlugin.ts`** — Strategy 3 domain replaced: reads `<npm_base>/database.sqlite` (`proxy_host.domain_names`) via `better-sqlite3` in read-only mode, instead of nginx `.conf` files that may not exist for deleted hosts. `better-sqlite3` import added. `_debug_domains` field removed from `/audit` response.
+- **`Fail2banSqliteReader.ts`** — `SLOT_SECS = 1800` (30 min). For `days=1`, `since` aligned to the 30-min boundary (`Math.floor(rawSince / 1800) * 1800`), slots indexed by `CAST((timeofban - since) / 1800 AS INTEGER)`, labels `HH:MM`. `slotBase` returned in response for frontend synchronization.
 
 #### Frontend — Fail2ban
 
-- **`BanHistoryChart.tsx`** — `buildHourlySlots()` remplacé par `buildRollingSlots(history, slotBase)` : 48 slots de 30 min depuis `slotBase` jusqu'à maintenant, recalculés en temps réel via un ticker 5s. Labels X affichés uniquement sur les slots `:00` (une étiquette par heure). Ligne verticale "now" supprimée.
-- **`Fail2banPage.tsx`** — État `slotBase` ajouté, alimenté depuis `fetchStatus`, transmis à `BanHistoryChart`.
-- **`TabJails.tsx`** — `AuditEnrichment._debug_domains` supprimé ; panneau debug retiré. `fetchAudit` repoll toutes les 30s avec guard `document.hidden`. Résolution domaine via `enrichment.jail_domains[b.jail]`.
+- **`BanHistoryChart.tsx`** — `buildHourlySlots()` replaced by `buildRollingSlots(history, slotBase)`: 48 slots of 30 min from `slotBase` to now, recalculated in real time via a 5s ticker. X labels displayed only on `:00` slots (one label per hour). Vertical "now" line removed.
+- **`Fail2banPage.tsx`** — `slotBase` state added, fed from `fetchStatus`, passed to `BanHistoryChart`.
+- **`TabJails.tsx`** — `AuditEnrichment._debug_domains` removed; debug panel removed. `fetchAudit` re-polls every 30s with `document.hidden` guard. Domain resolution via `enrichment.jail_domains[b.jail]`.
 
 #### Frontend — Global
 
-- **`App.tsx`** — `wrapWithBackground(content, fullscreen=true)` : variante `h-screen overflow-hidden` sans `pb-20` pour la page Fail2ban → supprime la double scrollbar.
-- **`TabAudit.tsx`** — Simplifié : le sous-onglet switcher Événements/Logs supprimé ; l'onglet Audit affiche uniquement `TabJailsFiles` (les Événements ont leur propre entrée dans la nav).
-- **`TabBanManager.tsx`** — Composant `FileBtn` (bouton fichier stylisé masquant le `<input type="file">` natif) ; grille responsive `minmax(min(100%,420px),1fr)`.
-- **`TabConfig.tsx`** — Champ `local_exists` dans `GlobalConfig` ; stats DB étendues (`bans`, `jails`, `logs`) ; état `resetting` pour le bouton maintenance.
+- **`App.tsx`** — `wrapWithBackground(content, fullscreen=true)`: `h-screen overflow-hidden` variant without `pb-20` for the Fail2ban page → removes the double scrollbar.
+- **`TabAudit.tsx`** — Simplified: the Events/Logs sub-tab switcher removed; the Audit tab now only shows `TabJailsFiles` (Events have their own nav entry).
+- **`TabBanManager.tsx`** — `FileBtn` component (styled file button hiding the native `<input type="file">`); responsive grid `minmax(min(100%,420px),1fr)`.
+- **`TabConfig.tsx`** — `local_exists` field in `GlobalConfig`; extended DB stats (`bans`, `jails`, `logs`); `resetting` state for the maintenance button.
 
 ---
 
 ## [0.4.8] - 2026-03-25
 
-### Pour les utilisateurs
+### For users
 
-> Interface Fail2ban affinée : header plus compact, graphique 24h par heure, correctifs bantime et carte.
+> Refined Fail2ban interface: more compact header, 24h chart by hour, bantime and map fixes.
 
-- **Header plus compact** — La barre de navigation principale est plus fine ; les badges Horloge et Utilisateur prennent moins de place pour laisser plus de surface aux contenus.
-- **Menu Fail2ban élargi** — La barre latérale gauche du plugin Fail2ban est légèrement plus large pour afficher les infobulles en entier ; la flèche de réduction est toujours positionnée à droite.
-- **Notifications de ban au centre** — Les alertes de ban apparaissent maintenant en haut au centre de l'écran, bien visibles sans gêner la navigation.
-- **Graphique 24h : axe par heure** — En mode filtre « 24h », l'axe X affiche les 24 heures (00h–23h) pour voir précisément à quelle heure les bans ont eu lieu. Les autres périodes adaptent automatiquement le nombre d'étiquettes (7j → 7 labels, 1an → ~13 labels…).
-- **Légende du graphique corrigée** — Cliquer sur le nom d'une jail dans la légende masque réellement sa courbe/barre et recalcule l'échelle Y en conséquence.
-- **Bantime coloré** — La colonne Bantime de l'onglet Jails affiche une couleur selon la durée : vert (< 1h), bleu (1h–24h), orange (1j–30j), rouge (≥ 30j ou permanent).
-- **Bantime exact pour toutes les jails** — Les jails dont la durée de ban ne figurait pas dans les fichiers de config (ex. `recidive`, `apache-shellshock`) récupèrent désormais la valeur réelle via le socket Fail2ban.
-- **Sections Regex repliées par défaut** — Les deux sections de gestion des regex dans les Paramètres sont maintenant fermées au chargement pour alléger la page ; un badge affiche le nombre de regex configurées.
-- **Carte : crash au premier chargement corrigé** — La carte Leaflet ne plante plus au premier affichage en mode développement (race condition Leaflet/MarkerCluster résolue).
+- **More compact header** — The main navigation bar is slimmer; the Clock and User badges take up less space to leave more room for content.
+- **Wider Fail2ban menu** — The left sidebar of the Fail2ban plugin is slightly wider to display tooltips in full; the collapse arrow is always positioned on the right.
+- **Centered ban notifications** — Ban alerts now appear at the top center of the screen, clearly visible without obstructing navigation.
+- **24h chart: axis by hour** — In "24h" filter mode, the X axis displays all 24 hours (00h–23h) to see precisely what time bans occurred. Other periods automatically adapt the number of labels (7d → 7 labels, 1yr → ~13 labels…).
+- **Fixed chart legend** — Clicking a jail name in the legend now actually hides its curve/bar and recalculates the Y scale accordingly.
+- **Colored bantime** — The Bantime column in the Jails tab displays a color based on duration: green (< 1h), blue (1h–24h), orange (1d–30d), red (≥ 30d or permanent).
+- **Exact bantime for all jails** — Jails whose ban duration was not present in config files (e.g. `recidive`, `apache-shellshock`) now retrieve the actual value via the Fail2ban socket.
+- **Regex sections collapsed by default** — The two regex management sections in Settings are now closed on load to lighten the page; a badge shows the number of configured regexes.
+- **Map: crash on first load fixed** — The Leaflet map no longer crashes on first display in development mode (Leaflet/MarkerCluster race condition resolved).
 
 ---
 
-### Technique
+### Technical
 
 #### Frontend — Fail2ban
 
-- **`BanHistoryChart.tsx`** — Prop `isHourly` passée aux sous-composants `BarChart`/`LineChart` ; `effectiveMax` recalculé depuis les jails visibles uniquement (fix légende) ; `labelCountForDays()` adapte le nombre de labels selon la période ; `buildHourlySlots()` génère 24 slots "00"–"23" pour `days=1`.
-- **`Fail2banPage.tsx`** — État `granularity` transmis à `BanHistoryChart` ; toasts de ban recentrés (`position:fixed, top:5rem, left:50%, transform:translateX(-50%)`) ; sidebar élargie à 220px ; bouton `›`/`‹` toujours aligné à droite.
-- **`TabJails.tsx`** — Badge bantime coloré : `bantime < 0 || >= 2592000` → rouge, `>= 86400` → orange, `>= 3600` → bleu, sinon vert.
-- **`TabMap.tsx`** — `loadScript()` corrigé pour React Strict Mode : si le `<script>` est déjà dans le DOM, attend l'événement `load` (via `_loaded` flag) au lieu de résoudre immédiatement → fix `L.markerClusterGroup is not a function`.
+- **`BanHistoryChart.tsx`** — `isHourly` prop passed to `BarChart`/`LineChart` sub-components; `effectiveMax` recalculated from visible jails only (legend fix); `labelCountForDays()` adapts label count by period; `buildHourlySlots()` generates 24 slots "00"–"23" for `days=1`.
+- **`Fail2banPage.tsx`** — `granularity` state passed to `BanHistoryChart`; ban toasts recentered (`position:fixed, top:5rem, left:50%, transform:translateX(-50%)`); sidebar widened to 220px; `›`/`‹` button always aligned to the right.
+- **`TabJails.tsx`** — Colored bantime badge: `bantime < 0 || >= 2592000` → red, `>= 86400` → orange, `>= 3600` → blue, otherwise green.
+- **`TabMap.tsx`** — `loadScript()` fixed for React Strict Mode: if the `<script>` is already in the DOM, waits for the `load` event (via `_loaded` flag) instead of resolving immediately → fixes `L.markerClusterGroup is not a function`.
 
 #### Backend — Fail2ban
 
-- **`Fail2banPlugin.ts`** — `parseNum()` : regex `^(-?\d+...)` gère les bantimes négatifs (`-1` = permanent) et l'unité `w` (semaines) ; pour les jails dont `bantime/findtime/maxretry` est absent des fichiers de config, `getJailParam()` est appelé en fallback via le socket.
-- **`Fail2banClientExec.ts`** — Nouvelle méthode `getJailParam(jail, param)` : exécute `fail2ban-client get <jail> <param>` et parse la valeur numérique retournée.
-- **`Fail2banSqliteReader.ts`** — `getBanHistoryByJail()` et `getBanHistory()` : quand `days=1`, requête SQL utilise `strftime('%H', timeofban, 'unixepoch')` pour un regroupement horaire ; retourne `granularity: 'hour' | 'day'`.
+- **`Fail2banPlugin.ts`** — `parseNum()`: regex `^(-?\d+...)` handles negative bantimes (`-1` = permanent) and the `w` unit (weeks); for jails whose `bantime/findtime/maxretry` is absent from config files, `getJailParam()` is called as fallback via the socket.
+- **`Fail2banClientExec.ts`** — New method `getJailParam(jail, param)`: executes `fail2ban-client get <jail> <param>` and parses the returned numeric value.
+- **`Fail2banSqliteReader.ts`** — `getBanHistoryByJail()` and `getBanHistory()`: when `days=1`, SQL query uses `strftime('%H', timeofban, 'unixepoch')` for hourly grouping; returns `granularity: 'hour' | 'day'`.
 
 #### Frontend — Global
 
-- **`Header.tsx`** — Padding réduit (`p-4` → `px-4 py-2`), logo `w-8 h-8` → `w-6 h-6`, icônes plugins `w-5 h-5` → `w-4 h-4`.
-- **`Clock.tsx`** — Conteneur `px-4 py-2` → `px-2.5 py-1.5`, dot LED `w-2 h-2` → `w-1.5 h-1.5`, texte heure `text-sm` → `text-xs`.
-- **`UserMenu.tsx`** — Bouton `px-3 py-2` → `px-2 py-1.5`, avatar `w-10 h-10` → `w-6 h-6`.
-- **`SettingsSection.tsx`** — Props `collapsible`, `defaultCollapsed`, `badge` ajoutées à `<Section>` avec animation chevron.
-- **`RegexManagementSection.tsx`** — Les deux sections (`customTitle`, `generatorTitle`) passent `collapsible defaultCollapsed` ; badge compteur sur la section custom.
-- **`SettingsPage.tsx`** — Suppression du `<Section>` wrapper redondant autour de `<RegexManagementSection />`.
+- **`Header.tsx`** — Reduced padding (`p-4` → `px-4 py-2`), logo `w-8 h-8` → `w-6 h-6`, plugin icons `w-5 h-5` → `w-4 h-4`.
+- **`Clock.tsx`** — Container `px-4 py-2` → `px-2.5 py-1.5`, LED dot `w-2 h-2` → `w-1.5 h-1.5`, time text `text-sm` → `text-xs`.
+- **`UserMenu.tsx`** — Button `px-3 py-2` → `px-2 py-1.5`, avatar `w-10 h-10` → `w-6 h-6`.
+- **`SettingsSection.tsx`** — `collapsible`, `defaultCollapsed`, `badge` props added to `<Section>` with chevron animation.
+- **`RegexManagementSection.tsx`** — Both sections (`customTitle`, `generatorTitle`) pass `collapsible defaultCollapsed`; counter badge on the custom section.
+- **`SettingsPage.tsx`** — Removed redundant `<Section>` wrapper around `<RegexManagementSection />`.
 
 #### Documentation
 
-- **`README.md`** — Simplifié : section installation rapide en tête, section Fail2ban avec une seule commande curl, tableau env nettoyé.
+- **`README.md`** — Simplified: quick install section at the top, Fail2ban section with a single curl command, cleaned env table.
 
 ---
 
 ## [0.4.7] - 2026-03-25
 
-### Pour les utilisateurs
+### For users
 
-> Le plugin Fail2ban fonctionne désormais automatiquement en Docker, sans configuration manuelle du groupe.
+> The Fail2ban plugin now works automatically in Docker, without manual group configuration.
 
-- **Accès socket Fail2ban automatique** — Le conteneur détecte maintenant lui-même les permissions du socket Fail2ban au démarrage et s'y adapte. Plus besoin de configurer `FAIL2BAN_GID` dans le fichier `.env` : le plugin s'active dès que `setup-fail2ban-access.sh` a été lancé une fois sur le host.
+- **Automatic Fail2ban socket access** — The container now detects Fail2ban socket permissions at startup and adapts automatically. No longer need to configure `FAIL2BAN_GID` in the `.env` file: the plugin activates as soon as `setup-fail2ban-access.sh` has been run once on the host.
 
 ---
 
-### Technique
+### Technical
 
 #### Docker — `docker-entrypoint.sh`
 
-- **Détection dynamique du GID socket** — Remplace l'ancien `chmod 660` statique. À chaque démarrage du conteneur : `stat -c "%g"` lit le GID réel du socket, crée le groupe correspondant dans Alpine (`addgroup -g $SOCK_GID fail2ban`), puis ajoute `node` à ce groupe. Fonctionne quel que soit le GID utilisé sur le host, sans aucune variable d'environnement.
-- **Message de log explicite** — Si `gid=0` (socket encore en `root:root`), affiche un message orientant vers `setup-fail2ban-access.sh`.
+- **Dynamic GID detection** — Replaces the old static `chmod 660`. On each container start: `stat -c "%g"` reads the real GID of the socket, creates the corresponding group in Alpine (`addgroup -g $SOCK_GID fail2ban`), then adds `node` to that group. Works regardless of the GID used on the host, without any environment variable.
+- **Explicit log message** — If `gid=0` (socket still `root:root`), displays a message pointing to `setup-fail2ban-access.sh`.
 
 #### Docker — `docker-compose.yml`
 
-- **Suppression de `FAIL2BAN_GID` dans `group_add`** — Ce mécanisme `group_add` était inopérant car le groupe `fail2ban` n'existe pas dans l'image Alpine de base (Docker ignore silencieusement les GIDs absents de `/etc/group`). L'entrée a été retirée ; l'entrypoint gère désormais tout dynamiquement.
+- **Removal of `FAIL2BAN_GID` from `group_add`** — This `group_add` mechanism was inoperative because the `fail2ban` group does not exist in the base Alpine image (Docker silently ignores GIDs absent from `/etc/group`). The entry has been removed; the entrypoint now handles everything dynamically.
 
 ---
 
@@ -242,25 +278,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **BanHistoryChart** — Suppression de `overflow: hidden` sur le wrapper carte qui masquait le graphe SVG lors des changements de vue.
-- **BanHistoryChart** — Le clic sur l'en-tête de carte ne replie plus le graphe accidentellement ; le toggle collapse est désormais uniquement sur le bouton `▾/▸` dédié.
-- **Fail2ban — Défilement** — Changement d'onglet principal (Fail2banPage) et changement de vue dans TabJails (Cartes/Tableau/Événements) remontent automatiquement en haut de page ; le graphe était invisible car masqué au-dessus du viewport.
-- **Barres de recherche** — Centrage correct dans les toolbars de TabJails, TabJailsEvents, TabFiltres, TabActions, TabTracker, TabStats (pattern `flex:1; justify-content:center`).
-- **Tableaux Jails** — Suppression des `overflowX: auto` et des `minWidth` excessifs sur les tableaux Événements et Tableau pour éviter le scroll horizontal non voulu.
+- **BanHistoryChart** — Removed `overflow: hidden` on the card wrapper that was masking the SVG chart on view changes.
+- **BanHistoryChart** — Clicking the card header no longer accidentally collapses the chart; the collapse toggle is now only on the dedicated `▾/▸` button.
+- **Fail2ban — Scrolling** — Switching main tab (Fail2banPage) and switching view in TabJails (Cards/Table/Events) now automatically scrolls back to the top of the page; the chart was invisible because it was hidden above the viewport.
+- **Search bars** — Correct centering in the toolbars of TabJails, TabJailsEvents, TabFiltres, TabActions, TabTracker, TabStats (pattern `flex:1; justify-content:center`).
+- **Jails tables** — Removed `overflowX: auto` and excessive `minWidth` on the Events and Table tables to avoid unwanted horizontal scroll.
 
 ### Added
 
-- **IpModal partagé** (`src/pages/fail2ban/IpModal.tsx`) — Nouvelle modale de détail IP commune à tous les onglets :
-  - En-tête : IP (monospace rouge), badge récidiviste si présent dans jail `recidive`, drapeau + ville/pays + organisation.
-  - Bloc 2 colonnes : Statistiques (total bans, jail(s), dernier ban, 1er ban, tentatives) | Whois/Réseau (pays, organisation, ASN, ISP, ville).
-  - Bouton **Bannir dans recidive** (masqué si déjà récidiviste), avec retour visuel succès/erreur.
-  - Tableau historique scrollable (date, jail, durée, tentatives) avec en-têtes sticky.
-  - Auto-fetch géolocalisation si non fournie par le contexte appelant.
-  - Exports : `IpModal`, `GeoInfo`, `toFlag`, `fmtBantime`.
-- **IPs cliquables — TabTracker** — Mise à jour pour utiliser le nouveau `IpModal` partagé (suppression du composant local) ; passage des jails connus à la modale.
-- **IPs cliquables — TabJailsEvents** — Les IPs dans le tableau Événements ouvrent désormais la modale de détail.
-- **IPs cliquables — JailCard (vue Cartes)** — Les IPs bannies dans le tableau de la carte jail ouvrent la modale de détail.
-- **IPs cliquables — JailExpandedGrid (vue Tableau)** — Les IPs dans les colonnes « Bans < 5 min » et « IPs bannies actives » ouvrent la modale de détail.
+- **Shared IpModal** (`src/pages/fail2ban/IpModal.tsx`) — New IP detail modal shared across all tabs:
+  - Header: IP (red monospace), recidivist badge if present in `recidive` jail, flag + city/country + organization.
+  - 2-column block: Statistics (total bans, jail(s), last ban, first ban, attempts) | Whois/Network (country, organization, ASN, ISP, city).
+  - **Ban in recidive** button (hidden if already a recidivist), with success/error visual feedback.
+  - Scrollable history table (date, jail, duration, attempts) with sticky headers.
+  - Auto-fetch geolocation if not provided by the calling context.
+  - Exports: `IpModal`, `GeoInfo`, `toFlag`, `fmtBantime`.
+- **Clickable IPs — TabTracker** — Updated to use the new shared `IpModal` (local component removed); known jails passed to the modal.
+- **Clickable IPs — TabJailsEvents** — IPs in the Events table now open the detail modal.
+- **Clickable IPs — JailCard (Cards view)** — Banned IPs in the jail card table now open the detail modal.
+- **Clickable IPs — JailExpandedGrid (Table view)** — IPs in the "Bans < 5 min" and "Active banned IPs" columns open the detail modal.
 
 ---
 
@@ -268,46 +304,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-#### Plugin Fail2ban — Intégration complète
+#### Fail2ban Plugin — Full integration
 
-Nouveau plugin de surveillance Fail2ban avec une interface multi-onglets complète, alignée visuellement sur le projet de référence PHP `fail2ban-web`.
+New Fail2ban monitoring plugin with a complete multi-tab interface, visually aligned with the PHP reference project `fail2ban-web`.
 
 **Backend (`server/plugins/fail2ban/`)**
-- `Fail2banPlugin.ts` — Plugin Express avec 20+ routes REST couvrant statut, historique, jails, bans, filtres, actions, tracker, carte, IPTables, IPSet, NFTables, configuration, audit.
-- `Fail2banSqliteReader.ts` — Lecture directe de la base SQLite fail2ban (`fail2ban.sqlite3`) en mode read-only ; stats actives, historique par jour, top IPs/jails, heatmap horaire, IPs uniques, bans expirés.
-- `Fail2banClientExec.ts` — Exécution des commandes `fail2ban-client` via socket Unix (ban, unban, reload, status) et des utilitaires système (iptables, ipset, nftables).
-- `fail2banSyncService.ts` — Service de synchronisation périodique SQLite → DB applicative.
-- Table `f2b_ip_geo` en base SQLite applicative : cache géolocalisation IP avec TTL 30 jours.
+- `Fail2banPlugin.ts` — Express plugin with 20+ REST routes covering status, history, jails, bans, filters, actions, tracker, map, IPTables, IPSet, NFTables, configuration, audit.
+- `Fail2banSqliteReader.ts` — Direct read of the fail2ban SQLite database (`fail2ban.sqlite3`) in read-only mode; active stats, daily history, top IPs/jails, hourly heatmap, unique IPs, expired bans.
+- `Fail2banClientExec.ts` — Execution of `fail2ban-client` commands via Unix socket (ban, unban, reload, status) and system utilities (iptables, ipset, nftables).
+- `fail2banSyncService.ts` — Periodic synchronization service SQLite → application DB.
+- `f2b_ip_geo` table in application SQLite DB: IP geolocation cache with 30-day TTL.
 
 **Frontend (`src/pages/Fail2banPage.tsx` + `src/pages/fail2ban/`)**
-- **TabJails** — Vue tableau/cartes/événements/fichiers log des jails actifs ; expansion inline avec config détaillée (bantime, findtime, maxretry, filtre, actions, IPs bannies) ; toggle Actifs/Tous pour afficher les jails configurés mais arrêtés (semi-transparents) ; filtre de recherche intégré ; actions ban/unban/reload par jail.
-- **TabStats** — Statistiques globales : top IPs, top jails, heatmap bans/tentatives par heure, répartition par jail, synthèse par jail, résumé période, types d'attaque, derniers événements, IPSets.
-- **TabTracker** — Tableau des IPs actuellement bannies enrichi : résolution DNS inverse (avec cache 10 min), appartenance IPSet par IP, géolocalisation à la demande (ip-api.com), modale de détail par IP avec historique de bans.
-- **TabMap** — Carte Leaflet (CDN, dark tile CartoCDN) avec clustering MarkerCluster ; géolocalisation progressive ; panneau latéral filtre pays/région avec heat-colors ; popup IP avec lien vers Tracker.
-- **TabBanManager** — Interface de ban/unban manuel avec sélection jail + saisie IP.
-- **TabFiltres / TabActions** — Vue des filtres et actions configurés par jail avec badges colorés.
-- **TabConfig** — Éditeur de configuration fail2ban (jail.conf, jail.local, jail.d/) avec diff visuel et rechargement.
-- **TabAudit** — Tail du fichier fail2ban.log en temps réel avec coloration syntaxique.
-- **TabNetworkRaw** — Affichage brut IPTables / IPSet / NFTables.
-- **TabAide** — Documentation intégrée.
-- **BanHistoryChart** — Graphique partagé (barres ou courbes) affiché une seule fois pour les onglets Jails et Stats ; période sélectionnable (24h, 7j, 30j, 6m, 1an, Tous).
-- **Topbar chips** — Badges en temps réel : jails actifs (bleu), bannis (rouge), échecs (orange), actifs (vert).
-- **Notifications toast** — Détection automatique des nouveaux bans à chaque poll (toutes les 30 s) avec toast animé.
-- **Badge refresh** — Heure exacte du dernier rafraîchissement + âge relatif dans la barre de titre.
-- **Sidebar rétractable** — Menu gauche réductible (icônes seules) avec toggle dans l'en-tête et en bas de menu.
-- **Mini stat cards** — 6 cartes (Jails actifs, Bans actifs, Échecs actifs, Total bans cumul, IPs uniques, Expirés 24h) avec sparklines et indicateurs de tendance ↑/↓.
-- **Interpolation de variables** — Résolution de `%(__name__)s` et `%(var)s` dans les badges filtre/banaction des jails inactifs.
-- **JailConfigModal** — Modale d'édition rapide des paramètres bantime / findtime / maxretry avec slider et boutons pas.
+- **TabJails** — Table/cards/events/log files view of active jails; inline expansion with detailed config (bantime, findtime, maxretry, filter, actions, banned IPs); Active/All toggle to show configured but stopped jails (semi-transparent); integrated search filter; ban/unban/reload actions per jail.
+- **TabStats** — Global statistics: top IPs, top jails, ban/attempt heatmap by hour, jail distribution, jail summary, period summary, attack types, latest events, IPSets.
+- **TabTracker** — Table of currently banned IPs enriched with: reverse DNS resolution (with 10-min cache), IPSet membership per IP, on-demand geolocation (ip-api.com), IP detail modal with ban history.
+- **TabMap** — Leaflet map (CDN, dark CartoCDN tile) with MarkerCluster clustering; progressive geolocation; country/region filter side panel with heat-colors; IP popup with link to Tracker.
+- **TabBanManager** — Manual ban/unban interface with jail selection + IP input.
+- **TabFiltres / TabActions** — View of filters and actions configured per jail with colored badges.
+- **TabConfig** — Fail2ban configuration editor (jail.conf, jail.local, jail.d/) with visual diff and reload.
+- **TabAudit** — Real-time tail of fail2ban.log with syntax highlighting.
+- **TabNetworkRaw** — Raw IPTables / IPSet / NFTables display.
+- **TabAide** — Integrated documentation.
+- **BanHistoryChart** — Shared chart (bars or curves) displayed once for the Jails and Stats tabs; selectable period (24h, 7d, 30d, 6m, 1yr, All).
+- **Topbar chips** — Real-time badges: active jails (blue), banned (red), failures (orange), active (green).
+- **Toast notifications** — Automatic detection of new bans on each poll (every 30s) with animated toast.
+- **Refresh badge** — Exact time of last refresh + relative age in the title bar.
+- **Collapsible sidebar** — Left menu collapsible (icons only) with toggle in header and at bottom of menu.
+- **Mini stat cards** — 6 cards (Active Jails, Active Bans, Active Failures, Total cumulative bans, Unique IPs, Expired 24h) with sparklines and ↑/↓ trend indicators.
+- **Variable interpolation** — Resolution of `%(__name__)s` and `%(var)s` in filter/banaction badges of inactive jails.
+- **JailConfigModal** — Quick edit modal for bantime / findtime / maxretry parameters with slider and step buttons.
 
 **Design**
-- Palette PHP exacte : `bg0=#0d1117`, `bg1=#161b22`, `bg2=#21262d`, `border=#30363d`, `green=#3fb950`, `blue=#58a6ff`, `red=#e86a65`, `orange=#e3b341`, `purple=#bc8cff`, `cyan=#39c5cf`.
-- Pills style PHP `.jdp-pill` (`border-radius: 6px`) dans la vue expandée jail.
-- Chips style PHP `.chip` (`border-radius: 20px`, fond transparent) dans la topbar.
+- Exact PHP palette: `bg0=#0d1117`, `bg1=#161b22`, `bg2=#21262d`, `border=#30363d`, `green=#3fb950`, `blue=#58a6ff`, `red=#e86a65`, `orange=#e3b341`, `purple=#bc8cff`, `cyan=#39c5cf`.
+- PHP-style pills `.jdp-pill` (`border-radius: 6px`) in the expanded jail view.
+- PHP-style chips `.chip` (`border-radius: 20px`, transparent background) in the topbar.
 
 **Infrastructure**
-- Socket Unix `/var/run/fail2ban/fail2ban.sock` monté en RW dans docker-compose.
-- `docker-entrypoint.sh` : `chmod 660` automatique sur le socket au démarrage.
-- Icône SVG Fail2ban (`src/icons/fail2ban.svg`).
+- Unix socket `/var/run/fail2ban/fail2ban.sock` mounted RW in docker-compose.
+- `docker-entrypoint.sh`: automatic `chmod 660` on socket at startup.
+- Fail2ban SVG icon (`src/icons/fail2ban.svg`).
 
 ---
 
@@ -315,15 +351,15 @@ Nouveau plugin de surveillance Fail2ban avec une interface multi-onglets complè
 
 ### Added
 
-#### Log Viewer – Filtre IP (Apache, NPM, Nginx)
-- **IP ou plages à masquer** : Option dans la configuration des plugins (Réglages > Plugins et modal de config) pour définir des IP ou CIDR à exclure de l’affichage (une par ligne ou séparées par virgule/point-virgule).
-- **Masquage par défaut** : Les lignes dont l’IP (colonnes ip, ipaddress, clientip, remoteip) correspond à la liste sont masquées ; clic sur le badge « Filtrées: N » pour afficher ou masquer ces lignes.
-- **Badge dans la barre de stats** : Badge « Filtrées: {{count}} » (ou « Filtered: {{count}} ») à côté des indicateurs total/valides/filtrées/illisibles ; le chiffre indique le nombre de lignes actuellement masquées par le filtre IP (0 lorsque tout est affiché).
-- **Clic sur une IP → modale** : En cliquant sur une cellule IP dans le tableau, une modale propose d’ajouter cette IP à la liste des IP exclues ; confirmation enregistre la config du plugin et rafraîchit la liste.
-- **Utilitaire** : `src/utils/ipFilterUtils.ts` (parseExcludedIps, isIpInExcludedList, isLogExcludedByIp, prise en charge IPv4 et CIDR).
+#### Log Viewer – IP Filter (Apache, NPM, Nginx)
+- **IPs or ranges to hide**: Option in plugin configuration (Settings > Plugins and config modal) to define IPs or CIDRs to exclude from display (one per line or separated by comma/semicolon).
+- **Hidden by default**: Lines whose IP (columns ip, ipaddress, clientip, remoteip) matches the list are hidden; click the "Filtered: N" badge to show or hide these lines.
+- **Badge in stats bar**: "Filtered: {{count}}" badge (or "Filtered: {{count}}") next to total/valid/filtered/unreadable indicators; the number indicates how many lines are currently hidden by the IP filter (0 when everything is shown).
+- **Click on IP → modal**: Clicking an IP cell in the table, a modal offers to add this IP to the excluded IPs list; confirmation saves the plugin config and refreshes the list.
+- **Utility**: `src/utils/ipFilterUtils.ts` (parseExcludedIps, isIpInExcludedList, isLogExcludedByIp, IPv4 and CIDR support).
 
-#### Traductions (i18n)
-- Clés `excludedIpsLabel`, `excludedIpsPlaceholder`, `excludedIpsHelp` (pluginConfig) ; `ipFilterBadgeHidden`, `ipFilterBadgeAll`, `ipFilterTooltipShow`/`Hide`, `addIpToFilterTitle`/`Message`/`Confirm`/`Cancel` (logViewer).
+#### Translations (i18n)
+- Keys `excludedIpsLabel`, `excludedIpsPlaceholder`, `excludedIpsHelp` (pluginConfig); `ipFilterBadgeHidden`, `ipFilterBadgeAll`, `ipFilterTooltipShow`/`Hide`, `addIpToFilterTitle`/`Message`/`Confirm`/`Cancel` (logViewer).
 
 ---
 
@@ -331,7 +367,7 @@ Nouveau plugin de surveillance Fail2ban avec une interface multi-onglets complè
 
 ### Security
 
-- **Dépendance `tar`** : Override mis à jour `>=7.5.9` → `>=7.5.10` pour corriger la vulnérabilité de path sanitization (Dependabot PR #6, `isaacs/node-tar@7bc755d`). Fermeture du PR #6 (corrigé directement via override).
+- **`tar` dependency**: Override updated `>=7.5.9` → `>=7.5.10` to fix the path sanitization vulnerability (Dependabot PR #6, `isaacs/node-tar@7bc755d`). Closed PR #6 (fixed directly via override).
 
 ---
 
@@ -339,53 +375,53 @@ Nouveau plugin de surveillance Fail2ban avec une interface multi-onglets complè
 
 ### Added
 
-#### Stats Logs – Nouveaux graphiques et visualisations
-- **Heatmap mensuelle** : Composant `HeatmapChart` (style GitHub contributions) pour visualiser la densité de requêtes par jour sur le mois, affiché en granularité jour.
-- **Peak Hours** : Composant `PeakHoursChart` – distribution des requêtes par heure de la journée (barres, granularité heure/minute uniquement).
-- **Traffic by Day of Week** : Composant `DayOfWeekChart` – répartition du trafic par jour de la semaine.
-- **Hour × Day Heatmap** : Composant `HourDayHeatmap` – heatmap croisée heure/jour pour identifier les pics d'activité (granularité heure/minute).
-- **HTTP Status Trends** : Composant `StatusTrendsChart` – graphe stacked area avec interpolation spline monotone, dégradés SVG, axe X temps, axe Y valeurs, tooltip détaillé (temps, valeurs par code, pourcentage, total).
-- **Bandwidth Over Time** : Graphe timeline de la bande passante cumulée par bucket via `totalBytes` dans les timeseries.
-- **Bot vs Human Traffic** : Composant `DonutChart` + détection bot/humain côté backend (`computeBotVsHuman`), affiché en premier dans l'onglet HTTP.
-- **Top 404 URLs** : Fonction backend `computeTop404Urls` + panneau DualBarChart dans l'onglet HTTP.
-- **Response Time Distribution** : Composant `ResponseTimeChart` (avg, p50, p95, p99, max, buckets) + `computeResponseTimeDistribution` côté backend.
+#### Log Stats – New charts and visualizations
+- **Monthly heatmap**: `HeatmapChart` component (GitHub contributions style) to visualize request density by day over the month, displayed at day granularity.
+- **Peak Hours**: `PeakHoursChart` component – request distribution by hour of day (bars, hour/minute granularity only).
+- **Traffic by Day of Week**: `DayOfWeekChart` component – traffic distribution by day of the week.
+- **Hour × Day Heatmap**: `HourDayHeatmap` component – hour/day cross heatmap to identify activity peaks (hour/minute granularity).
+- **HTTP Status Trends**: `StatusTrendsChart` component – stacked area chart with monotone spline interpolation, SVG gradients, time X axis, value Y axis, detailed tooltip (time, values per code, percentage, total).
+- **Bandwidth Over Time**: Bandwidth timeline chart cumulated per bucket via `totalBytes` in timeseries.
+- **Bot vs Human Traffic**: `DonutChart` component + backend bot/human detection (`computeBotVsHuman`), displayed first in the HTTP tab.
+- **Top 404 URLs**: Backend `computeTop404Urls` function + DualBarChart panel in the HTTP tab.
+- **Response Time Distribution**: `ResponseTimeChart` component (avg, p50, p95, p99, max, buckets) + `computeResponseTimeDistribution` on backend.
 
-#### Stats Logs – Organisation par onglets
-- **Tabs Graphiques / HTTP / Top & Rankings** : Navigation par onglets (icônes TrendingUp, Shield, Trophy) pour regrouper les contenus par catégorie.
-- **Menu de navigation flottant** : Mis à jour dynamiquement selon l'onglet actif.
+#### Log Stats – Organization by tabs
+- **Charts / HTTP / Top & Rankings tabs**: Tab navigation (TrendingUp, Shield, Trophy icons) to group content by category.
+- **Floating navigation menu**: Updated dynamically based on active tab.
 
-#### Stats Logs – Indicateur de source
-- **Badge source par section** : Chaque graphe, tableau et TopPanel affiche un badge coloré indiquant la source des données (Apache = rouge, NPM = vert, Tous = bleu).
-- **Composants `SourceBadge` et `SectionHeading`** : Composants réutilisables pour uniformiser l'affichage du badge source sur toutes les sections.
+#### Log Stats – Source indicator
+- **Source badge per section**: Each chart, table and TopPanel displays a colored badge indicating the data source (Apache = red, NPM = green, All = blue).
+- **`SourceBadge` and `SectionHeading` components**: Reusable components to standardize source badge display across all sections.
 
-#### Backend – Enrichissement analytics
-- **`statusGroups` par bucket** : `computeTimeseries` agrège les codes HTTP (s2xx, s3xx, s4xx, s5xx) par tranche de temps.
-- **`totalBytes` par bucket** : Bande passante cumulée par bucket dans les timeseries.
-- **`computeTop404Urls`** : Agrégation des URLs retournant un code 404.
-- **`computeBotVsHuman`** : Classification user-agent (bot/humain) avec pourcentage et top bots.
-- **`computeResponseTimeDistribution`** : Calcul avg, percentiles (p50, p95, p99), max et buckets de distribution des temps de réponse.
-- **Types** : Nouveaux types `AnalyticsStatusGroups`, `AnalyticsBotVsHuman`, `AnalyticsResponseTimeBucket`, `AnalyticsResponseTimeDistribution`.
+#### Backend – Analytics enrichment
+- **`statusGroups` per bucket**: `computeTimeseries` aggregates HTTP codes (s2xx, s3xx, s4xx, s5xx) per time slot.
+- **`totalBytes` per bucket**: Cumulated bandwidth per bucket in timeseries.
+- **`computeTop404Urls`**: Aggregation of URLs returning a 404 code.
+- **`computeBotVsHuman`**: User-agent classification (bot/human) with percentage and top bots.
+- **`computeResponseTimeDistribution`**: Calculation of avg, percentiles (p50, p95, p99), max and distribution buckets of response times.
+- **Types**: New types `AnalyticsStatusGroups`, `AnalyticsBotVsHuman`, `AnalyticsResponseTimeBucket`, `AnalyticsResponseTimeDistribution`.
 
 ### Changed
 
-#### Stats Logs – KPI unifiés
-- **Bloc KPI unique** : Fusion des deux sections KPI en un seul bloc avec badge source, plage de dates colorée (bleu/ambre), et bouton hide/show intégré dans le header.
-- **Tooltip KPI** : Le titre « Stats KPI » affiche au survol l'explication de ce que sont les KPI (texte de `kpiModalIntro`).
-- **Suppression de la modale « Understanding the numbers »** et de la section help dépliable (état, localStorage, API).
+#### Log Stats – Unified KPIs
+- **Single KPI block**: Merged two KPI sections into a single block with source badge, colored date range (blue/amber), and hide/show button integrated in the header.
+- **KPI tooltip**: The "Stats KPI" title shows an explanation of what KPIs are on hover (text from `kpiModalIntro`).
+- **Removed "Understanding the numbers" modal** and the expandable help section (state, localStorage, API).
 
-#### Stats Logs – Regroupement des sections
-- **HTTP Codes + Methods** : Les 3 anciennes sections HTTP consolidées en 2 panneaux (Codes HTTP avec table + distribution, Méthodes + Codes par domaine).
-- **Day of Week + Hour/Day Heatmap** : Regroupés dans un même cadre (grid 2 colonnes).
-- **Dates colorées** : Les dates de la plage (barre KPI) sont en bleu ciel (début) et ambre (fin).
+#### Log Stats – Section grouping
+- **HTTP Codes + Methods**: The 3 old HTTP sections consolidated into 2 panels (HTTP Codes with table + distribution, Methods + Codes by domain).
+- **Day of Week + Hour/Day Heatmap**: Grouped in the same frame (2-column grid).
+- **Colored dates**: The dates in the range (KPI bar) are sky blue (start) and amber (end).
 
-#### Stats Logs – HTTP Status Trends amélioré
-- **Couleurs modernes** : 2xx vert émeraude, 3xx bleu vif, 4xx ambre, 5xx rouge vif avec dégradés verticaux.
-- **Courbes spline** : Interpolation monotone cubique au lieu de lignes droites.
-- **Axes temps et valeurs** : Axe X avec labels formatés (6 ticks), axe Y avec échelle (K/M), grille horizontale et verticale.
-- **Tooltip enrichi** : Temps en bleu, total, valeur par code + pourcentage, point blanc et ligne pointillée au survol.
+#### Log Stats – Improved HTTP Status Trends
+- **Modern colors**: 2xx emerald green, 3xx bright blue, 4xx amber, 5xx bright red with vertical gradients.
+- **Spline curves**: Monotone cubic interpolation instead of straight lines.
+- **Time and value axes**: X axis with formatted labels (6 ticks), Y axis with scale (K/M), horizontal and vertical grid.
+- **Enriched tooltip**: Time in blue, total, value per code + percentage, white dot and dashed line on hover.
 
-#### Traductions (i18n)
-- Ajout de toutes les clés pour les nouveaux graphiques, onglets, jours de la semaine, métriques bot/humain, temps de réponse, navigation, et source.
+#### Translations (i18n)
+- Added all keys for new charts, tabs, days of the week, bot/human metrics, response times, navigation, and source.
 
 ---
 
@@ -393,28 +429,28 @@ Nouveau plugin de surveillance Fail2ban avec une interface multi-onglets complè
 
 ### Added
 
-#### Dashboard – Recherche globale
-- **Filtres plugins actifs** : Les boutons de filtre n'affichent que les plugins activés dans l'application.
-- **Résultats par catégorie** : Affichage groupé par plugin (Host System, Apache, NPM, Nginx).
-- **Chemins déclarés host-system** : Utilisation des fichiers configurés (systemBaseFiles, autoDetectedFiles, customFiles) en plus du scan, aligné avec le Log Viewer.
-- **Comptage par fichier** : Badge coloré (vert/orange/rouge) pour le nombre d'occurrences par fichier ; une seule ligne d'exemple par fichier.
-- **Option fichiers .gz** : Case « Inclure les fichiers .gz » (décochée par défaut) pour exclure ou inclure les fichiers compressés dans la recherche.
-- **API** : Paramètre `includeCompressed` pour `POST /api/log-viewer/search-all` ; réponse enrichie (`filesWithMatches`, `matchCountPerFile`, `matchesByPlugin`).
+#### Dashboard – Global search
+- **Active plugin filters**: Filter buttons only show plugins enabled in the application.
+- **Results by category**: Grouped display by plugin (Host System, Apache, NPM, Nginx).
+- **Declared host-system paths**: Uses configured files (systemBaseFiles, autoDetectedFiles, customFiles) in addition to scanning, aligned with the Log Viewer.
+- **Count per file**: Colored badge (green/orange/red) for the number of occurrences per file; a single example line per file.
+- **`.gz` files option**: "Include .gz files" checkbox (unchecked by default) to exclude or include compressed files in the search.
+- **API**: `includeCompressed` parameter for `POST /api/log-viewer/search-all`; enriched response (`filesWithMatches`, `matchCountPerFile`, `matchesByPlugin`).
 
 ### Changed
 
-#### Dashboard – Recherche globale
-- **Badges occurrences** : Seul le chiffre est coloré (vert ≤3, orange ≤10, rouge >10), le reste du badge reste neutre.
-- **Recherche par plugin explicite** : Lorsqu'un ou plusieurs plugins sont sélectionnés, la recherche s'exécute même si le plugin est désactivé en config.
+#### Dashboard – Global search
+- **Occurrence badges**: Only the number is colored (green ≤3, orange ≤10, red >10), the rest of the badge remains neutral.
+- **Explicit plugin search**: When one or more plugins are selected, the search runs even if the plugin is disabled in config.
 
 #### Build
-- **Chunks Vite** : Suppression des chunks `vendor-icons` et `vendor-state` pour éliminer les avertissements « Circular chunk » (fusion dans `vendor`).
-- **Dépendances** : `npm audit fix` – correction des vulnérabilités minimatch et rollup (0 vulnérabilités).
+- **Vite chunks**: Removed `vendor-icons` and `vendor-state` chunks to eliminate "Circular chunk" warnings (merged into `vendor`).
+- **Dependencies**: `npm audit fix` – fix minimatch and rollup vulnerabilities (0 vulnerabilities).
 
 ### Fixed
 
-#### Dashboard – Recherche globale
-- **includeCompressed** : Variable manquante dans la destructuration des options du service de recherche.
+#### Dashboard – Global search
+- **includeCompressed**: Missing variable in the search service options destructuring.
 
 ---
 
@@ -422,15 +458,15 @@ Nouveau plugin de surveillance Fail2ban avec une interface multi-onglets complè
 
 ### Changed
 
-#### Dashboard – Carte Analyse / Journaux d'erreur
-- **Collapse par défaut** : seule la ligne header visible (titre + nombre d'erreurs) ; clic pour déplier.
-- **Résultats du scan** : pliage supprimé, résultats toujours affichés quand la carte est dépliée.
-- **Fichiers non analysés (trop volumineux)** : pliage conservé.
+#### Dashboard – Analysis / Error logs card
+- **Collapsed by default**: only the header line visible (title + error count); click to expand.
+- **Scan results**: folding removed, results always shown when the card is expanded.
+- **Unanalyzed files (too large)**: folding kept.
 
-#### Log Viewer – IPv6 dans les tableaux
-- **Troncature IPv6** : affichage « début…fin » pour tenir dans les cellules (ex. `2001:0db8:85…0370:7334`).
-- **Tooltip** : IP complète au survol (colonnes ip, ipaddress, clientip, remoteip, upstream).
-- **Utilitaire** : `src/utils/ipUtils.ts` (isIPv6, truncateIPv6ForDisplay).
+#### Log Viewer – IPv6 in tables
+- **IPv6 truncation**: "start…end" display to fit in cells (e.g. `2001:0db8:85…0370:7334`).
+- **Tooltip**: Full IP on hover (columns ip, ipaddress, clientip, remoteip, upstream).
+- **Utility**: `src/utils/ipUtils.ts` (isIPv6, truncateIPv6ForDisplay).
 
 ---
 
@@ -438,25 +474,25 @@ Nouveau plugin de surveillance Fail2ban avec une interface multi-onglets complè
 
 ### Added
 
-#### Dashboard – Recherche globale
-- **Cadre Recherche** : Nouveau bloc « Recherche » en haut du dashboard pour rechercher dans tous les logs des plugins actifs.
-- **Filtres plugins** : Boutons pour limiter la recherche à des plugins spécifiques (Host System, Apache, NPM, Nginx) ou tous.
-- **Options** : Sensible à la casse, expression régulière (regex).
-- **Résultats** : Affichage des correspondances avec plugin, fichier, numéro de ligne et extrait ; clic pour ouvrir dans le visualiseur de logs.
-- **API** : `POST /api/log-viewer/search-all` (query, pluginIds, caseSensitive, useRegex, maxResults).
-- **UX compacte** : Barre de recherche seule visible par défaut (pas de cadre vide) ; icône recherche à gauche ; contenu (filtres, résultats) affiché uniquement quand pertinent.
+#### Dashboard – Global search
+- **Search frame**: New "Search" block at the top of the dashboard to search across all active plugin logs.
+- **Plugin filters**: Buttons to limit the search to specific plugins (Host System, Apache, NPM, Nginx) or all.
+- **Options**: Case sensitive, regular expression (regex).
+- **Results**: Display of matches with plugin, file, line number and excerpt; click to open in the log viewer.
+- **API**: `POST /api/log-viewer/search-all` (query, pluginIds, caseSensitive, useRegex, maxResults).
+- **Compact UX**: Only the search bar visible by default (no empty frame); search icon on the left; content (filters, results) shown only when relevant.
 
 ### Changed
 
-#### Administration – Réorganisation des onglets
-- **Onglet Regex** : déplacé dans l’onglet Plugins comme catégorie séparée (section « Regex »).
-- **Onglet Debug** : déplacé dans l’onglet Info comme catégorie séparée (sections Logs app, Niveaux de log, Diagnostics).
-- **Nouvel ordre des onglets** : General, Plugins, Analyse, Notification, Theme, Security, Exporter, Database, Info.
-- **Redirection** : les anciennes URLs/liens vers `adminTab=regex` ou `adminTab=debug` redirigent automatiquement vers Plugins ou Info.
+#### Administration – Tab reorganization
+- **Regex tab**: moved into the Plugins tab as a separate category (section "Regex").
+- **Debug tab**: moved into the Info tab as a separate category (sections App Logs, Log Levels, Diagnostics).
+- **New tab order**: General, Plugins, Analysis, Notification, Theme, Security, Exporter, Database, Info.
+- **Redirect**: old URLs/links to `adminTab=regex` or `adminTab=debug` automatically redirect to Plugins or Info.
 
-#### Dashboard – Fichiers non analysés (trop volumineux)
-- **Affichage enrichi** : Plugin (Host System, Apache, NPM, Nginx), taille, chemin complet ; regroupement par catégorie plugin distincte.
-- **Bouton Analyser** : Notification succès/erreur ; indication « Analyse en cours… » pendant l'exécution ; tooltip explicatif ; expansion automatique des résultats ; fichier retiré de la liste une fois analysé.
+#### Dashboard – Unanalyzed files (too large)
+- **Enriched display**: Plugin (Host System, Apache, NPM, Nginx), size, full path; grouping by distinct plugin category.
+- **Analyze button**: Success/error notification; "Analyzing…" indication during execution; explanatory tooltip; automatic expansion of results; file removed from the list once analyzed.
 
 ---
 
@@ -464,10 +500,10 @@ Nouveau plugin de surveillance Fail2ban avec une interface multi-onglets complè
 
 ### Security
 
-- **Dépendances (npm overrides)** : Correction des vulnérabilités signalées par Dependabot et `npm audit`.
-  - **minimatch** : override `>=10.2.1` pour corriger le ReDoS (CVE, patterns avec wildcards répétés). Dépendance transitive via bcrypt → node-pre-gyp → rimraf → glob → minimatch.
-  - **tar** : override `>=7.5.9` pour corriger l’arbitrary file read/write via hardlink (CVE). Dépendance transitive via bcrypt → node-pre-gyp → tar.
-  - Après `npm install`, `npm audit` affiche 0 vulnérabilités.
+- **Dependencies (npm overrides)**: Fix vulnerabilities reported by Dependabot and `npm audit`.
+  - **minimatch**: override `>=10.2.1` to fix ReDoS (CVE, patterns with repeated wildcards). Transitive dependency via bcrypt → node-pre-gyp → rimraf → glob → minimatch.
+  - **tar**: override `>=7.5.9` to fix arbitrary file read/write via hardlink (CVE). Transitive dependency via bcrypt → node-pre-gyp → tar.
+  - After `npm install`, `npm audit` shows 0 vulnerabilities.
 
 ---
 
@@ -475,34 +511,34 @@ Nouveau plugin de surveillance Fail2ban avec une interface multi-onglets complè
 
 ### Added
 
-#### Analyse / Journaux d'erreur – Intégration logs système (host-system)
-- **Inclusion host-system dans le scan** : Les fichiers du plugin host-system (syslog, auth.log, kern.log, daemon.log, mail.log, etc.) sont scannés lorsque le plugin est coché dans Paramètres > Analyse. Voir [Doc_Dev/AUDIT_ERROR_SUMMARY_HOST_SYSTEM.md](Doc_Dev/AUDIT_ERROR_SUMMARY_HOST_SYSTEM.md).
-- **Recherche error/warn pour les logs système** : Détection étendue aux formats syslog/journald (mots entiers `error`, `err`, `warn`, `warning`) en plus des tags `[error]`/`[warn]` (Apache/Nginx/NPM).
+#### Analysis / Error logs – System log integration (host-system)
+- **Include host-system in scan**: host-system plugin files (syslog, auth.log, kern.log, daemon.log, mail.log, etc.) are scanned when the plugin is checked in Settings > Analysis. See [Doc_Dev/AUDIT_ERROR_SUMMARY_HOST_SYSTEM.md](Doc_Dev/AUDIT_ERROR_SUMMARY_HOST_SYSTEM.md).
+- **Error/warn search for system logs**: Detection extended to syslog/journald formats (whole words `error`, `err`, `warn`, `warning`) in addition to `[error]`/`[warn]` tags (Apache/Nginx/NPM).
 
-#### Analyse / Journaux d'erreur – Fichiers access et codes HTTP
-- **Fichiers access inclus** : Pour Apache, Nginx et NPM, les fichiers access (en plus des error) sont scannés ; comptage des codes HTTP 3xx, 4xx, 5xx.
-- **Badges 4xx/5xx et error/warn** : Par colonne plugin (Apache/Nginx/NPM : 4xx, 5xx ; NPM/Nginx/Host : error, warn). Au clic sur un fichier, détail « Répartition pour ce fichier » (4xx, 5xx, 3xx, error, warn).
+#### Analysis / Error logs – Access files and HTTP codes
+- **Access files included**: For Apache, Nginx and NPM, access files (in addition to error files) are scanned; 3xx, 4xx, 5xx HTTP code counts.
+- **4xx/5xx and error/warn badges**: Per plugin column (Apache/Nginx/NPM: 4xx, 5xx; NPM/Nginx/Host: error, warn). On clicking a file, details "Breakdown for this file" (4xx, 5xx, 3xx, error, warn).
 
-#### Analyse / Journaux d'erreur – UX et rescan
-- **Résultats par plugin en colonnes** : Affichage en grille (host-system, apache, npm, nginx) avec section « Résultats du scan » pliable (repliée par défaut).
-- **Ordre des plugins** : Système, Apache, NPM, Nginx (résultats et options Paramètres > Analyse).
-- **Rescan explicite** : `POST /api/log-viewer/error-summary/invalidate` ; bouton Actualiser de la carte invalide le cache et relance un scan. Message après sauvegarde Analyse invitant à actualiser la carte.
+#### Analysis / Error logs – UX and rescan
+- **Results per plugin in columns**: Grid display (host-system, apache, npm, nginx) with collapsible "Scan results" section (collapsed by default).
+- **Plugin order**: System, Apache, NPM, Nginx (results and Settings > Analysis options).
+- **Explicit rescan**: `POST /api/log-viewer/error-summary/invalidate`; the card's Refresh button invalidates the cache and restarts a scan. Message after saving Analysis inviting to refresh the card.
 
-#### Paramètres > Analyse
-- **Texte explicatif** : « Recherche actuelle » (fichiers error + access, [error]/[warn] et 3xx/4xx/5xx) ; description sous « Vérification sécurité ». Mise en deux colonnes (Error summary | Security check).
-- **Plugins à inclure** : Icônes des plugins (host-system, apache, npm, nginx) à côté des toggles. Note sur Apache/Nginx (plugin activé + chemin contenant des error logs).
+#### Settings > Analysis
+- **Explanatory text**: "Current search" (error + access files, [error]/[warn] and 3xx/4xx/5xx); description under "Security check". Two-column layout (Error summary | Security check).
+- **Plugins to include**: Plugin icons (host-system, apache, npm, nginx) next to toggles. Note on Apache/Nginx (plugin enabled + path containing error logs).
 
 #### Administration
-- **User management** : Cadre déplacé de l’onglet General vers l’onglet Security (affiché en premier, admin uniquement).
-- **Security** : Sections « Blocked IPs and accounts » et « CORS configuration » affichées en deux colonnes (grille `lg:grid-cols-2`).
+- **User management**: Frame moved from General tab to Security tab (displayed first, admin only).
+- **Security**: "Blocked IPs and accounts" and "CORS configuration" sections displayed in two columns (grid `lg:grid-cols-2`).
 
 #### Documentation
-- **Audits** : [Doc_Dev/AUDIT_ERROR_SUMMARY_HOST_SYSTEM.md](Doc_Dev/AUDIT_ERROR_SUMMARY_HOST_SYSTEM.md), [Doc_Dev/AUDIT_ADMIN_OPTIONS.md](Doc_Dev/AUDIT_ADMIN_OPTIONS.md). README : section Analyse / Journaux d’erreur, lien audit host-system ; Documentation > Audits et conception.
+- **Audits**: [Doc_Dev/AUDIT_ERROR_SUMMARY_HOST_SYSTEM.md](Doc_Dev/AUDIT_ERROR_SUMMARY_HOST_SYSTEM.md), [Doc_Dev/AUDIT_ADMIN_OPTIONS.md](Doc_Dev/AUDIT_ADMIN_OPTIONS.md). README: Analysis / Error logs section, host-system audit link; Documentation > Audits and design.
 
 ### Changed
 
-#### Analyse / Journaux d'erreur
-- **Backend** : Comptages par fichier avec détail `count4xx`, `count5xx`, `count3xx`, `countErrorTag`, `countWarnTag` ; `countLevelFromRawLineBreakdown()` pour tags et codes HTTP.
+#### Analysis / Error logs
+- **Backend**: Per-file counts with detail `count4xx`, `count5xx`, `count3xx`, `countErrorTag`, `countWarnTag`; `countLevelFromRawLineBreakdown()` for tags and HTTP codes.
 
 ---
 
@@ -510,24 +546,24 @@ Nouveau plugin de surveillance Fail2ban avec une interface multi-onglets complè
 
 ### Fixed
 
-#### Log Viewer – Fichiers volumineux
-- **Stack overflow sur gros fichiers** : avec des logs de 45 Mo ou plus, le calcul de la plage de dates (`logDateRange`) provoquait « Maximum call stack size exceeded » à cause de `Math.min(...timestamps)`. Remplacement par une boucle `for` pour éviter le dépassement de pile.
+#### Log Viewer – Large files
+- **Stack overflow on large files**: with logs of 45 MB or more, the date range calculation (`logDateRange`) caused "Maximum call stack size exceeded" due to `Math.min(...timestamps)`. Replaced by a `for` loop to avoid stack overflow.
 
 ### Added
 
-#### Log Viewer – Fichier par défaut à la première utilisation
-- **Sélection automatique** : pour NPM, Nginx et Apache, un fichier access log par défaut est sélectionné lorsque l’utilisateur ouvre le visualiseur pour la première fois (sans dernier fichier ni réglage personnalisé).
-- **Priorité par plugin** : NPM → `default-host_access.log` ou premier `proxy-host-*_access.log` ; Nginx/Apache → `access.log`.
+#### Log Viewer – Default file on first use
+- **Automatic selection**: for NPM, Nginx and Apache, a default access log file is selected when the user opens the viewer for the first time (without a last file or custom setting).
+- **Priority by plugin**: NPM → `default-host_access.log` or first `proxy-host-*_access.log`; Nginx/Apache → `access.log`.
 
-#### Sélecteur de fichiers – Option « Sans vides »
-- **Toggle « Sans vides »** : remplace la checkbox « Masquer fichiers vides » par un toggle moderne (style Stats Logs).
-- **Valeur par défaut** : activé par défaut (masque les fichiers .gz et 0 octets).
-- **Persistance** : préférence utilisateur enregistrée dans `localStorage` (`logviewr_hide_empty_files`).
+#### File selector – "Hide empty" option
+- **"Hide empty" toggle**: replaces the "Hide empty files" checkbox with a modern toggle (Log Stats style).
+- **Default value**: enabled by default (hides .gz files and 0-byte files).
+- **Persistence**: user preference saved in `localStorage` (`logviewr_hide_empty_files`).
 
 ### Changed
 
 #### Log Viewer – UX
-- **Libellé raccourci** : « Sans vides » (FR) / « Hide empty » (EN) au lieu de « Masquer fichiers vides ».
+- **Shortened label**: "Sans vides" (FR) / "Hide empty" (EN) instead of "Masquer fichiers vides".
 
 ---
 
@@ -535,15 +571,15 @@ Nouveau plugin de surveillance Fail2ban avec une interface multi-onglets complè
 
 ### Added
 
-#### Stats Logs – Stats KPI et modal explicatif
-- **Modal « Qu'est-ce qu'un KPI ? »** : bouton Info à côté du titre Stats KPI ouvre un modal explicatif (définition, contexte des logs HTTP, cas d'usage). Fermeture par clic extérieur, touche Escape ou bouton Fermer.
-- **Traductions** : `kpiModalTitle`, `kpiModalIntro`, `kpiModalLogs`, `kpiModalUse`, `kpiModalClose` (fr/en).
+#### Log Stats – Stats KPI and explanatory modal
+- **"What is a KPI?" modal**: Info button next to the Stats KPI title opens an explanatory modal (definition, HTTP log context, use cases). Closed by clicking outside, Escape key or Close button.
+- **Translations**: `kpiModalTitle`, `kpiModalIntro`, `kpiModalLogs`, `kpiModalUse`, `kpiModalClose` (fr/en).
 
 ### Changed
 
-#### Stats Logs – Affichage et UX
-- **Stats KPI améliorés** : chaque indicateur dans une carte avec bordure, icônes (Activity, Globe, AlertTriangle, FileText, HardDrive), grille 2/3/5 colonnes selon écran, valeurs en `text-lg`.
-- **Requêtes dans le temps** : affichage par défaut en mode **courbe** au lieu des barres (TimelineChart).
+#### Log Stats – Display and UX
+- **Improved Stats KPI**: each indicator in a card with border, icons (Activity, Globe, AlertTriangle, FileText, HardDrive), 2/3/5-column grid based on screen, values in `text-lg`.
+- **Requests over time**: default display in **curve** mode instead of bars (TimelineChart).
 
 ---
 
@@ -551,20 +587,20 @@ Nouveau plugin de surveillance Fail2ban avec une interface multi-onglets complè
 
 ### Added
 
-#### Stats Logs – Tooltips et panneaux
-- **Tooltips via portail** : tous les tooltips (Top URLs, Top Referrers, Top IPs, Top HTTP codes, Top Browsers, Top User-Agents, Referrer URLs, HTTP Status Codes, Requested Files) sont rendus via `createPortal` dans `document.body` pour éviter tout masquage par overflow ou z-index.
-- **Tooltips toujours visibles** : z-index 99999, position fixe, fond opaque (`rgb(17, 24, 39)`) pour éviter la transparence imposée par le thème (`themes.css` remplace `bg-gray-900` par `var(--bg-tertiary)`).
-- **Bouton bascule vue** : icône Maximize2/Minimize2 dans chaque panneau Top pour afficher 5 résultats ou la liste complète.
-- **Traductions** : `showAllItems` (Tout afficher), `showLimitedItems` (Vue limitée (5)).
+#### Log Stats – Tooltips and panels
+- **Portal tooltips**: all tooltips (Top URLs, Top Referrers, Top IPs, Top HTTP codes, Top Browsers, Top User-Agents, Referrer URLs, HTTP Status Codes, Requested Files) are rendered via `createPortal` in `document.body` to avoid any masking by overflow or z-index.
+- **Always-visible tooltips**: z-index 99999, fixed position, opaque background (`rgb(17, 24, 39)`) to avoid transparency imposed by the theme (`themes.css` replaces `bg-gray-900` with `var(--bg-tertiary)`).
+- **View toggle button**: Maximize2/Minimize2 icon in each Top panel to display 5 results or the full list.
+- **Translations**: `showAllItems` (Show all), `showLimitedItems` (Limited view (5)).
 
 ### Changed
 
-#### Stats Logs – Layout et affichage
-- **Distribution HTTP Status / Methods** : barres plus fines (`h-3`), count et pourcentage sur une seule ligne (`whitespace-nowrap`), alignement des barres avec colonne count fixe (`min-w-[5.5rem] text-right`), label adapté (4rem pour codes, 7rem pour méthodes).
-- **Top panels** : Top URLs et Top Referrers sur la première ligne (2 colonnes) ; Top IPs, Top Status, Top Browsers sur la deuxième ligne ; Top User-Agents sur une ligne dédiée (même largeur que Top Referrers).
-- **TopPanel par défaut** : affichage de 5 résultats sans scroll ; clic sur l’icône pour afficher tout.
-- **TopPanel extrait** : composant déplacé au niveau du module pour éviter la réinitialisation de l’état (`showAll`) à chaque rendu du parent.
-- **Tooltips enrichis** : contenu (Hits, Total %), séparateur, padding et bordures améliorés.
+#### Log Stats – Layout and display
+- **HTTP Status / Methods distribution**: thinner bars (`h-3`), count and percentage on a single line (`whitespace-nowrap`), bar alignment with fixed count column (`min-w-[5.5rem] text-right`), adapted label (4rem for codes, 7rem for methods).
+- **Top panels**: Top URLs and Top Referrers on the first row (2 columns); Top IPs, Top Status, Top Browsers on the second row; Top User-Agents on a dedicated row (same width as Top Referrers).
+- **Default TopPanel**: display of 5 results without scroll; click the icon to show all.
+- **Extracted TopPanel**: component moved to module level to avoid resetting `showAll` state on each parent render.
+- **Enriched tooltips**: content (Hits, Total %), separator, improved padding and borders.
 
 ---
 
@@ -572,22 +608,22 @@ Nouveau plugin de surveillance Fail2ban avec une interface multi-onglets complè
 
 ### Added
 
-#### Stats Logs (style GoAccess)
-- **Page plein écran** : Statistiques graphiques des logs (KPI, Stats KPI, timeline, Time Distribution, Unique Visitors, HTTP Status Codes, Referring Sites, Virtual Hosts, Referrer URLs, Requested Files, top panels), inspirée de [GoAccess for Nginx Proxy Manager](https://github.com/xavier-hernandez/goaccess-for-nginxproxymanager).
-- **Bouton footer** : Accès à la page Stats Logs à côté d'Analytique.
-- **API analytics** : Endpoint `GET /api/log-viewer/analytics` avec `pluginId`, `from`, `to`, `bucket`, `topLimit`, `fileScope`, `includeCompressed`.
-- **Filtre plugin** : Tous (NPM + Apache), NPM ou Apache.
-- **Plage temporelle** : 1h, 24h, 7j, 30j + personnalisé (datetime-local).
-- **Scope fichiers** : Dernier fichier uniquement ou tous les fichiers (access.log, .1, .2, etc.).
-- **Option .gz** : Inclusion des fichiers compressés (si activé dans Réglages > Plugins).
-- **Requêtes dans le temps** : Bascule Barres / Courbe + axe X avec labels date/heure espacés.
-- **Axes X lisibles** : Repères temporels (6 graduations) et grille verticale sur Distribution temporelle et Visiteurs uniques.
-- **Courbes duales** : Time Distribution et Unique Visitors (DualLineChart).
-- **Panels tableau** : HTTP Status Codes, Referring Sites, Virtual Hosts, Referrer URLs (label gauche, barres droite).
-- **Codes HTTP par domaine** : Panel détaillé host + status.
-- **Stats KPI étendus** : valid requests, failed requests, not found, static files.
-- **Infos et tooltips** : Section « Comprendre les chiffres » + tooltips sur les badges.
-- **Documentation** : `Doc_Dev/LOG_ANALYTICS_GRAPHS_GOACCESS.md`.
+#### Log Stats (GoAccess style)
+- **Full-screen page**: Graphical log statistics (KPI, Stats KPI, timeline, Time Distribution, Unique Visitors, HTTP Status Codes, Referring Sites, Virtual Hosts, Referrer URLs, Requested Files, top panels), inspired by [GoAccess for Nginx Proxy Manager](https://github.com/xavier-hernandez/goaccess-for-nginxproxymanager).
+- **Footer button**: Access to Log Stats page next to Analytics.
+- **Analytics API**: Endpoint `GET /api/log-viewer/analytics` with `pluginId`, `from`, `to`, `bucket`, `topLimit`, `fileScope`, `includeCompressed`.
+- **Plugin filter**: All (NPM + Apache), NPM or Apache.
+- **Time range**: 1h, 24h, 7d, 30d + custom (datetime-local).
+- **File scope**: Last file only or all files (access.log, .1, .2, etc.).
+- **.gz option**: Include compressed files (if enabled in Settings > Plugins).
+- **Requests over time**: Toggle Bars / Curve + X axis with spaced date/time labels.
+- **Readable X axes**: Time markers (6 graduations) and vertical grid on Time Distribution and Unique Visitors.
+- **Dual curves**: Time Distribution and Unique Visitors (DualLineChart).
+- **Table panels**: HTTP Status Codes, Referring Sites, Virtual Hosts, Referrer URLs (left label, right bars).
+- **HTTP codes by domain**: Detailed host + status panel.
+- **Extended Stats KPI**: valid requests, failed requests, not found, static files.
+- **Info and tooltips**: "Understanding the numbers" section + tooltips on badges.
+- **Documentation**: `Doc_Dev/LOG_ANALYTICS_GRAPHS_GOACCESS.md`.
 
 ---
 
@@ -595,34 +631,34 @@ Nouveau plugin de surveillance Fail2ban avec une interface multi-onglets complè
 
 ### Fixed
 
-#### Header – Flickering des icônes de choix de logs
-- **Tremblement au survol** : les boutons (Fichiers, Historique, Regex, Play, Stop, Actualiser, Mode parsé/brut) étaient enveloppés dans un composant `Tooltip` (span inline-flex), provoquant des entrées/sorties de survol et un flickering. Remplacement par l’attribut natif `title` sur les boutons. Suppression de l’animation `fadeInDown` du menu déroulant plugin et de la `transition-transform` du chevron.
+#### Header – Log selector icon flickering
+- **Hover flicker**: buttons (Files, History, Regex, Play, Stop, Refresh, Parsed/Raw mode) were wrapped in a `Tooltip` component (inline-flex span), causing hover enter/exit events and flickering. Replaced with native `title` attribute on buttons. Removed `fadeInDown` animation from plugin dropdown and `transition-transform` from chevron.
 
-#### Changelog en version Docker
-- **Changelog non disponible dans Admin > Info** : `CHANGELOG.md` n’était pas copié dans l’image Docker finale. Ajout d’un `COPY` dans le Dockerfile pour inclure `CHANGELOG.md` à la racine du conteneur (`/app/CHANGELOG.md`), afin que la route `GET /api/info/changelog` renvoie le contenu en Docker.
+#### Changelog in Docker version
+- **Changelog unavailable in Admin > Info**: `CHANGELOG.md` was not copied into the final Docker image. Added a `COPY` in the Dockerfile to include `CHANGELOG.md` at the container root (`/app/CHANGELOG.md`), so the `GET /api/info/changelog` route returns content in Docker.
 
-#### Vue logs bruts – Hauteur du cadre
-- **Cadre trop petit** : la zone scrollable des logs bruts avait une hauteur fixe `max-h-[600px]`. Remplacement par `min-h-[400px] h-[calc(100vh-15rem)]` pour adapter la hauteur au viewport tout en conservant le choix « Lignes par page » et la pagination.
+#### Raw logs view – Frame height
+- **Frame too small**: the scrollable raw logs area had a fixed height `max-h-[600px]`. Replaced with `min-h-[400px] h-[calc(100vh-15rem)]` to adapt height to viewport while keeping the "Lines per page" choice and pagination.
 
 ### Changed
 
-#### Admin > Info – Texte « À propos »
-- **Tagline et description (EN/FR)** : formulation mise à jour pour préciser que LogviewR **lit les fichiers de logs locaux** (machine ou conteneur) et qu’**aucune connexion sortante** vers les serveurs n’est nécessaire, ce qui est préférable pour la sécurité. Les clés `tagline` et `aboutDescription` ont été modifiées dans `en.json` et `fr.json`.
+#### Admin > Info – "About" text
+- **Tagline and description (EN/FR)**: wording updated to clarify that LogviewR **reads local log files** (machine or container) and that **no outbound connection** to servers is required, which is preferable for security. The `tagline` and `aboutDescription` keys were modified in `en.json` and `fr.json`.
 
-#### Apache – Regex personnalisées et affichage des options
-- **Regex custom utilisée pour le parsing** : lorsqu’une regex personnalisée est enregistrée pour un fichier Apache (access), le backend utilisait `CustomLogParser` sans mapping des colonnes. Désormais, pour le plugin Apache et le type access, la regex custom est passée à `ApacheParser.parseAccessLineWithCustomRegex()` : les colonnes (ip, vhost, method, url, status, size, referer, userAgent) sont correctement remplies.
-- **Default regex access** : la regex par défaut pour Apache access (éditeur et API default-regex) est désormais `APACHE_ACCESS_VHOST_COMBINED_REGEX` (format vhost_combined avec `%t` en premier).
-- **Options regex : 3 entrées génériques + Custom** : dans « Fichiers détectés avec regex » (Réglages > Plugins > Apache), affichage de seulement **access.log**, **error.log** et **access_*.log** (édition générique). Les fichiers dont la regex a été éditée via le header du visualiseur apparaissent en **Custom** ; une entrée Custom remplace l’entrée générique correspondante (pas de doublon). Bouton **Réinitialiser** affiché pour toute entrée Custom ou lorsque la regex diffère du défaut.
-- **Reconnaissance access.\*.log** : les fichiers du type `access.home32.myoueb.fr.log` ou `access.ip.myoueb.fr.log` sont désormais rattachés au slot **access_*.log** pour l’application de la regex vhost_combined (correction de l’affichage VIRTUAL HOST / STATUS / METHOD / URL).
+#### Apache – Custom regexes and option display
+- **Custom regex used for parsing**: when a custom regex is saved for an Apache file (access), the backend was using `CustomLogParser` without column mapping. Now, for the Apache plugin and the access type, the custom regex is passed to `ApacheParser.parseAccessLineWithCustomRegex()`: columns (ip, vhost, method, url, status, size, referer, userAgent) are correctly populated.
+- **Default access regex**: the default regex for Apache access (editor and default-regex API) is now `APACHE_ACCESS_VHOST_COMBINED_REGEX` (vhost_combined format with `%t` first).
+- **Regex options: 3 generic entries + Custom**: in "Files detected with regex" (Settings > Plugins > Apache), display of only **access.log**, **error.log** and **access_*.log** (generic editing). Files whose regex was edited via the viewer header appear as **Custom**; a Custom entry replaces the corresponding generic entry (no duplicate). **Reset** button shown for any Custom entry or when the regex differs from the default.
+- **access.\*.log recognition**: files of type `access.home32.myoueb.fr.log` or `access.ip.myoueb.fr.log` are now assigned to the **access_*.log** slot for applying the vhost_combined regex (fix for VIRTUAL HOST / STATUS / METHOD / URL display).
 
-#### NPM – Regroupement des options regex
-- **Options regex : 10 entrées génériques + Custom** : dans « Fichiers détectés avec regex » pour NPM, affichage de **proxy-host-*_access.log**, **proxy-host-*_error.log**, **dead-host-*_access/error**, **default-host_access/error**, **fallback_access/error**, **letsencrypt-requests_access/error**. Une regex enregistrée pour une entrée s’applique à tous les fichiers correspondants. Même logique Custom que pour Apache (remplacement du générique, pas de doublon). Résolution de la regex par clé via `getNpmRegexKeyForPath()`.
+#### NPM – Regex option grouping
+- **Regex options: 10 generic entries + Custom**: in "Files detected with regex" for NPM, display of **proxy-host-*_access.log**, **proxy-host-*_error.log**, **dead-host-*_access/error**, **default-host_access/error**, **fallback_access/error**, **letsencrypt-requests_access/error**. A regex saved for an entry applies to all matching files. Same Custom logic as Apache (replace generic, no duplicate). Regex resolution by key via `getNpmRegexKeyForPath()`.
 
-#### Nginx – Regroupement des options regex
-- **Options regex : 2 entrées génériques + Custom** : pour Nginx, affichage de **access.log** et **error.log** uniquement ; une regex par type s’applique à tous les fichiers access/error. Résolution par `getNginxRegexKeyForPath()`.
+#### Nginx – Regex option grouping
+- **Regex options: 2 generic entries + Custom**: for Nginx, display of **access.log** and **error.log** only; one regex per type applies to all access/error files. Resolution via `getNginxRegexKeyForPath()`.
 
 #### i18n
-- **Hints options regex** : ajout de `apacheRegexHint`, `npmRegexHint` et `nginxRegexHint` dans les locales (fr/en), affichés au-dessus de la liste dans la section « Fichiers détectés avec regex » pour Apache, NPM et Nginx.
+- **Regex option hints**: added `apacheRegexHint`, `npmRegexHint` and `nginxRegexHint` in locales (fr/en), displayed above the list in the "Files detected with regex" section for Apache, NPM and Nginx.
 
 ---
 
@@ -631,11 +667,11 @@ Nouveau plugin de surveillance Fail2ban avec une interface multi-onglets complè
 ### Changed
 
 #### Script update-version.sh
-- **Intégration de `commit-message.txt` dans `--tag-push`** : le mode `--tag-push` utilise désormais `git commit -F commit-message.txt` au lieu du message générique `"release: v$NEW"`. Si le fichier est absent ou ne mentionne pas la version, fallback automatique avec avertissement.
-- **Ajout de `server/routes/system.ts`** (step 5) : le fallback `appVersion` dans `system.ts` est maintenant mis à jour automatiquement par le script (il était oublié auparavant).
-- **Détection intelligente du commit-message.txt** : après le bump, le script vérifie si `commit-message.txt` existe et mentionne la bonne version (check vert / avertissement jaune / génération de template).
-- **Sortie améliorée** : commandes numérotées 1-2-3 en fin de script, option "re-run with --tag-push", all-in-one avec `git commit -F commit-message.txt`.
-- **Parsing d'arguments flexible** : l'ordre `--tag-push` / version n'a plus d'importance.
+- **Integration of `commit-message.txt` in `--tag-push`**: the `--tag-push` mode now uses `git commit -F commit-message.txt` instead of the generic message `"release: v$NEW"`. If the file is absent or does not mention the version, automatic fallback with warning.
+- **Addition of `server/routes/system.ts`** (step 5): the `appVersion` fallback in `system.ts` is now automatically updated by the script (it was previously forgotten).
+- **Intelligent detection of commit-message.txt**: after the bump, the script checks if `commit-message.txt` exists and mentions the correct version (green check / yellow warning / template generation).
+- **Improved output**: numbered commands 1-2-3 at the end of the script, option "re-run with --tag-push", all-in-one with `git commit -F commit-message.txt`.
+- **Flexible argument parsing**: the order of `--tag-push` / version no longer matters.
 
 ---
 
@@ -643,22 +679,22 @@ Nouveau plugin de surveillance Fail2ban avec une interface multi-onglets complè
 
 ### Fixed
 
-#### Plugin NPM – Parsing des fichiers error.log
-- **Fichiers `proxy-host-*_error.log` non affichés dans le tableau** : la méthode `determineLogType()` dans `NpmLogPlugin.ts` vérifiait `proxy-host` avant `error` dans le nom du fichier. Un fichier `proxy-host-12_error.log` était classifié comme `access` au lieu de `error`, le parser access échouait sur les lignes d'erreur Nginx, et toutes les lignes restaient non parsées. L'ordre de vérification est maintenant inversé : `error` est testé en premier.
-- **Parser error NPM sans support PID/TID** : `NpmParser.parseErrorLine()` n'avait qu'une seule regex basique qui ne gérait pas le format `497#497:` (PID/TID) omniprésent dans les logs d'erreur Nginx. Ajout du format PID/TID comme dans `NginxParser`, avec extraction de `pid` et `tid`.
-- **Colonnes `pid`/`tid` manquantes pour les error logs NPM** : `getColumns('error')` retournait `['timestamp', 'level', 'message']`. Aligné sur Nginx avec `['timestamp', 'level', 'pid', 'tid', 'message']`.
+#### NPM Plugin – error.log file parsing
+- **`proxy-host-*_error.log` files not shown in table**: the `determineLogType()` method in `NpmLogPlugin.ts` checked `proxy-host` before `error` in the filename. A `proxy-host-12_error.log` file was classified as `access` instead of `error`, the access parser failed on Nginx error lines, and all lines remained unparsed. The check order is now reversed: `error` is tested first.
+- **NPM error parser without PID/TID support**: `NpmParser.parseErrorLine()` had only one basic regex that didn't handle the `497#497:` (PID/TID) format ubiquitous in Nginx error logs. Added the PID/TID format as in `NginxParser`, with extraction of `pid` and `tid`.
+- **Missing `pid`/`tid` columns for NPM error logs**: `getColumns('error')` returned `['timestamp', 'level', 'message']`. Aligned with Nginx with `['timestamp', 'level', 'pid', 'tid', 'message']`.
 
-#### LogTable – Débordement du badge timestamp
-- **Badge timestamp qui déborde de la colonne** : la largeur timestamp était de 146px (access) et 158px (error), insuffisante pour le badge mono fr-FR "08/02/2026 13:30:06" (~149px de badge + 32px de padding cellule = 181px minimum). Largeur unifiée à 185px pour tous les plugins et logTypes.
+#### LogTable – Timestamp badge overflow
+- **Timestamp badge overflowing the column**: timestamp width was 146px (access) and 158px (error), insufficient for the mono fr-FR badge "08/02/2026 13:30:06" (~149px badge + 32px cell padding = 181px minimum). Width unified to 185px for all plugins and logTypes.
 
 ### Changed
 
-#### LogTable – Unification des colonnes
-- **Largeurs de colonnes centralisées** : remplacement des ~110 lignes de `if/else` dupliquées (branche error vs non-error) dans le `colgroup` par un objet unique `COLUMN_WIDTHS` (source de vérité unique pour les 30+ colonnes). Toute colonne commune a désormais la même largeur quel que soit le plugin ou le logType.
-- **Padding cellule unifié** : suppression du padding spécial `px-5` pour les error logs. Toutes les cellules et headers utilisent `px-4 py-3` uniformément.
-- **`getColumnType` complété** : ajout de `port` dans les colonnes numériques, `action` dans les colonnes badge.
-- **`getColumnDisplayName` complété** : ajout des noms d'affichage manquants (`tid` → TID, `protocol` → Protocol) et des alias défensifs (`severity`, `statuscode`, `httpcode`, `urlpath`, `user-agent`).
-- **`COLUMN_WIDTHS` avec alias défensifs** : ajout des variantes de noms de colonnes (`severity`, `statuscode`, `httpcode`, `urlpath`, `user-agent`) pour garantir des largeurs correctes même avec des parsers custom.
+#### LogTable – Column unification
+- **Centralized column widths**: replacement of ~110 lines of duplicated `if/else` (error vs non-error branch) in `colgroup` by a single `COLUMN_WIDTHS` object (single source of truth for 30+ columns). Any common column now has the same width regardless of plugin or logType.
+- **Unified cell padding**: removed special `px-5` padding for error logs. All cells and headers use `px-4 py-3` uniformly.
+- **Completed `getColumnType`**: added `port` in numeric columns, `action` in badge columns.
+- **Completed `getColumnDisplayName`**: added missing display names (`tid` → TID, `protocol` → Protocol) and defensive aliases (`severity`, `statuscode`, `httpcode`, `urlpath`, `user-agent`).
+- **`COLUMN_WIDTHS` with defensive aliases**: added column name variants (`severity`, `statuscode`, `httpcode`, `urlpath`, `user-agent`) to ensure correct widths even with custom parsers.
 
 ---
 
@@ -666,29 +702,29 @@ Nouveau plugin de surveillance Fail2ban avec une interface multi-onglets complè
 
 ### Added
 
-#### Internationalisation (i18n)
-- **Traduction complète de l’administration** : namespaces et clés pour tous les onglets (Exporter, Database, Analysis, Notifications, Debug, Info). Tous les textes utilisent `t()` avec `fr.json` / `en.json`.
-- **Page Analytique** : namespace `analytics` (titres, sections plugins, plus gros fichiers, base de données, infos utilisateur, rôles). Composant `AnalyticsPage` entièrement traduit.
-- **Vue Log (LogTable)** : namespace `logViewer` pour la pagination (lignes par page, page X sur Y), les stats (lignes totales/valides/filtrées/illisibles), les tooltips des cellules (codes HTTP, taille, GZIP, upstream, temps de réponse, niveau, méthode HTTP). S’applique à Apache, Nginx, NPM et System.
-- **Footer** : namespace `footer` pour les tooltips des boutons Analytique et Administration, et les tooltips détaillés des badges de stats (fichiers lisibles, taille totale, taille .gz).
+#### Internationalization (i18n)
+- **Complete administration translation**: namespaces and keys for all tabs (Exporter, Database, Analysis, Notifications, Debug, Info). All texts use `t()` with `fr.json` / `en.json`.
+- **Analytics page**: `analytics` namespace (titles, plugin sections, largest files, database, user info, roles). `AnalyticsPage` component fully translated.
+- **Log View (LogTable)**: `logViewer` namespace for pagination (lines per page, page X of Y), stats (total/valid/filtered/unreadable lines), cell tooltips (HTTP codes, size, GZIP, upstream, response time, level, HTTP method). Applies to Apache, Nginx, NPM and System.
+- **Footer**: `footer` namespace for Analytics and Administration button tooltips, and detailed tooltips for stats badges (readable files, total size, .gz size).
 
 #### Footer – UX
-- **Tooltips sur les boutons** : tooltips au survol pour le bouton Analytique (« Statistiques et infos détaillées ») et Administration (« Paramètres et administration »). Tooltips détaillés pour les badges de stats (fichiers, taille, .gz).
-- **Boutons icône seule** : boutons Analytique et Administration affichés en icône uniquement (sans texte) pour un footer plus compact.
-- **Effet au clic** : retour visuel au clic sur les boutons de navigation (Analytique, Administration, plugins) via `active:brightness-90`, sans décalage des autres boutons.
+- **Button tooltips**: hover tooltips for Analytics button ("Statistics and detailed info") and Administration button ("Settings and administration"). Detailed tooltips for stats badges (files, size, .gz).
+- **Icon-only buttons**: Analytics and Administration buttons displayed as icon only (no text) for a more compact footer.
+- **Click effect**: visual feedback on click for navigation buttons (Analytics, Administration, plugins) via `active:brightness-90`, without shifting other buttons.
 
-#### Composant Tooltip
-- **Affichage fiable** : rendu du tooltip dans un portail (`createPortal` vers `document.body`) pour éviter tout masquage par le footer (overflow, z-index). Z-index porté à 10000.
-- **Position** : calcul de la position en `useLayoutEffect` avant affichage pour éviter un flash en (0,0). Contraintes pour rester dans le viewport.
-- **Option `wrap`** : tooltips longs (badges stats) avec retour à la ligne et `max-w-sm`.
+#### Tooltip component
+- **Reliable display**: tooltip rendered in a portal (`createPortal` to `document.body`) to avoid any masking by the footer (overflow, z-index). Z-index raised to 10000.
+- **Position**: position calculated in `useLayoutEffect` before display to avoid a flash at (0,0). Constraints to stay within viewport.
+- **`wrap` option**: long tooltips (stats badges) with line wrapping and `max-w-sm`.
 
 ### Changed
 
-#### Licence
-- **Licence projet** : affichage dans l’onglet Info passé de « Privée » à « Public, MIT » (fr.json / en.json, clé `info.licenseValue`).
+#### License
+- **Project license**: display in the Info tab changed from "Private" to "Public, MIT" (fr.json / en.json, key `info.licenseValue`).
 
 #### Versions
-- **Fallback version serveur** : valeur par défaut dans `server/index.ts` et `server/routes/system.ts` alignée sur `0.2.0` lorsque `package.json` n’est pas lisible.
+- **Server version fallback**: default value in `server/index.ts` and `server/routes/system.ts` aligned on `0.2.0` when `package.json` is not readable.
 
 ---
 
@@ -696,24 +732,24 @@ Nouveau plugin de surveillance Fail2ban avec une interface multi-onglets complè
 
 ### Fixed
 
-#### Dashboard / Footer – Stats des plugins en Docker
-- **Stats à 0 en Docker** : les routes `GET /plugins/:pluginId/stats` et l’agrégation « tous les plugins » utilisaient `getDefaultBasePath()` au lieu du chemin sauvegardé en base. Elles utilisent désormais `getEffectiveBasePath()` : les statistiques (Total, Lisibles, Taille) du dashboard et du footer reflètent le chemin configuré (ex. `/home/docker/nginx_proxy/data/logs` pour NPM).
+#### Dashboard / Footer – Plugin stats in Docker
+- **Stats at 0 in Docker**: the `GET /plugins/:pluginId/stats` routes and the "all plugins" aggregation were using `getDefaultBasePath()` instead of the saved path in database. They now use `getEffectiveBasePath()`: statistics (Total, Readable, Size) in the dashboard and footer reflect the configured path (e.g. `/home/docker/nginx_proxy/data/logs` for NPM).
 
-#### Thème – Réglages d’animation en direct
-- **Curseurs sans effet** : en passant au fond une seconde instance des paramètres (`animationParametersForBackground`), les sliders (vitesse, couleurs, etc.) ne mettaient à jour que le contexte, pas l’animation affichée. Quand une seule animation est sélectionnée, le fond reçoit maintenant les mêmes paramètres que le panneau Réglages (`backgroundParams` = paramètres du contexte), donc les réglages s’appliquent en direct.
-- **Vitesse et animation non synchronisées (même onglet)** : `StorageEvent` ne se déclenche pas dans l’onglet qui modifie le `localStorage`. Événements personnalisés ajoutés (`logviewr_animation_speed_sync`, `logviewr_full_animation_id_sync`) pour que toutes les instances du hook `useBackgroundAnimation` (App + Réglages) reçoivent les changements de vitesse et de sélection d’animation en temps réel.
+#### Theme – Live animation settings
+- **Sliders without effect**: by passing a second instance of the settings (`animationParametersForBackground`) to the background, sliders (speed, colors, etc.) were only updating the context, not the displayed animation. When a single animation is selected, the background now receives the same parameters as the Settings panel (`backgroundParams` = context parameters), so settings apply in real time.
+- **Speed and animation out of sync (same tab)**: `StorageEvent` does not fire in the tab that modifies `localStorage`. Custom events added (`logviewr_animation_speed_sync`, `logviewr_full_animation_id_sync`) so that all instances of the `useBackgroundAnimation` hook (App + Settings) receive speed and animation selection changes in real time.
 
 ### Added
 
-#### Thème – Animations
-- **Bouton « Réinitialiser »** : à côté du titre « Paramètres de l’animation », un bouton remet tous les paramètres de l’animation courante aux valeurs par défaut (idéales).
-- **Animation Étoiles** : paramètre **Couleur des étoiles (palette)** (`starColor`, type color, défaut `#6eb5ff`) ; si défini, dégradé et fond utilisent cette couleur (avec helper `hexToDarkHsl` pour les tons sombres).
-- **Animation Sidelined** : paramètre **Couleur des lignes (palette)** (`lineColor`, type color, défaut `#a78bfa`) ; si défini, traits et glow utilisent cette couleur.
+#### Theme – Animations
+- **"Reset" button**: next to the "Animation settings" title, a button resets all current animation parameters to their default (ideal) values.
+- **Stars animation**: **Star color (palette)** parameter (`starColor`, color type, default `#6eb5ff`); if set, gradient and background use this color (with `hexToDarkHsl` helper for dark tones).
+- **Sidelined animation**: **Line color (palette)** parameter (`lineColor`, color type, default `#a78bfa`); if set, strokes and glow use this color.
 
 ### Changed
 
-#### Thème – Vagues de particules
-- **Vitesse max et réactivité** : paramètre Vitesse étendu (max 8 → 15, défaut 0.5 → 0.8) ; diviseur de temps 5000 ms → 1500 ms ; phase des vagues amplifiée (`phaseSpeed = waveSpeed * 2.5`) pour un effet visible à vitesse max. Le curseur Vitesse (et le multiplicateur global) ont un impact net sur l’animation.
+#### Theme – Particle waves
+- **Max speed and responsiveness**: Speed parameter extended (max 8 → 15, default 0.5 → 0.8); time divisor 5000 ms → 1500 ms; wave phase amplified (`phaseSpeed = waveSpeed * 2.5`) for a visible effect at max speed. The Speed slider (and global multiplier) has a clear impact on the animation.
 
 ---
 
@@ -721,16 +757,16 @@ Nouveau plugin de surveillance Fail2ban avec une interface multi-onglets complè
 
 ### Fixed
 
-#### Docker – Plugin NPM et chemin personnalisé
-- **Liste de fichiers vide en Docker** : lorsque la page Log Viewer appelle l’API sans envoyer le paramètre `basePath` (route `files-direct`), le backend utilisait toujours le chemin par défaut du plugin (`/var/log/npm`) au lieu du chemin enregistré en base (ex. `/home/docker/nginx_proxy/data/logs`). Une fonction `getEffectiveBasePath()` a été ajoutée : priorité 1) valeur de la requête, 2) chemin sauvegardé en base (config du plugin), 3) défaut du plugin. Les routes `files`, `files-direct`, `scan` et `detected-files` utilisent désormais ce chemin effectif. Le chemin configuré dans Réglages → plugin NPM est ainsi respecté en Docker sans avoir à déclarer de volume supplémentaire.
+#### Docker – NPM plugin and custom path
+- **Empty file list in Docker**: when the Log Viewer page calls the API without sending the `basePath` parameter (`files-direct` route), the backend was always using the plugin's default path (`/var/log/npm`) instead of the saved path in database (e.g. `/home/docker/nginx_proxy/data/logs`). A `getEffectiveBasePath()` function has been added: priority 1) request value, 2) saved path in database (plugin config), 3) plugin default. The `files`, `files-direct`, `scan` and `detected-files` routes now use this effective path. The path configured in Settings → NPM plugin is thus respected in Docker without having to declare an additional volume.
 
 ### Changed
 
-#### Thème – Animation de fond
-- **Slider « Vitesse » (cycle Toutes)** : affichage de la valeur avec unité multiplicateur (×), plage 0,3× à 3,0× ; libellé et tooltip explicatifs (lent/rapide) ; utilisation de `speedToMultiplier` depuis `useBackgroundAnimation`.
+#### Theme – Background animation
+- **"Speed" slider (All cycle)**: display of value with multiplier unit (×), range 0.3× to 3.0×; explanatory label and tooltip (slow/fast); use of `speedToMultiplier` from `useBackgroundAnimation`.
 
 #### Docker
-- **docker-compose.yml** : commentaire ajouté précisant que le chemin personnalisé NPM (ex. `/home/docker/nginx_proxy/data/logs`) n’a pas besoin d’être déclaré en volume : le montage `/: /host:ro` expose déjà tout l’hôte, l’app résout le chemin automatiquement.
+- **docker-compose.yml**: comment added clarifying that the custom NPM path (e.g. `/home/docker/nginx_proxy/data/logs`) does not need to be declared as a volume: the `/: /host:ro` mount already exposes the entire host, the app resolves the path automatically.
 
 ---
 
@@ -738,15 +774,15 @@ Nouveau plugin de surveillance Fail2ban avec une interface multi-onglets complè
 
 ### Fixed
 
-#### Docker – Chemins des plugins
-- **Chemins absolus hôte dans les options** : en Docker, tout chemin absolu saisi dans les options d’un plugin (ex. `/home/docker/nginx_proxy/data/logs`) est désormais préfixé par `HOST_ROOT_PATH` (`/host` par défaut). Le conteneur accède ainsi au bon répertoire (ex. `/host/home/docker/nginx_proxy/data/logs`), notamment quand `/var/log/npm` sur l’hôte est un symlink vers un autre répertoire.
-- **Plugin NPM** : utilisation de `resolveDockerPathSync` (test des deux variantes `/host/logs/npm` et `/host/var/log/npm`) et logs de diagnostic en cas d’échec de `testConnection` ou de `scanLogFiles` (chemin testé + commande `docker exec` pour vérifier).
+#### Docker – Plugin paths
+- **Absolute host paths in options**: in Docker, any absolute path entered in a plugin's options (e.g. `/home/docker/nginx_proxy/data/logs`) is now prefixed by `HOST_ROOT_PATH` (`/host` by default). The container thus accesses the correct directory (e.g. `/host/home/docker/nginx_proxy/data/logs`), notably when `/var/log/npm` on the host is a symlink to another directory.
+- **NPM plugin**: use of `resolveDockerPathSync` (testing both variants `/host/logs/npm` and `/host/var/log/npm`) and diagnostic logs on `testConnection` or `scanLogFiles` failure (tested path + `docker exec` command to verify).
 
 ### Changed
 
-#### Plugins Apache et NPM
-- **Alignement Apache / NPM** : Apache utilise désormais `resolveDockerPathSync` et les mêmes messages de diagnostic que NPM en cas d’échec de connexion ou de scan. Les deux plugins partagent la même logique de résolution de chemin et de regex pour les fichiers (rotation `.log.1`, compression `.gz`/`.bz2`/`.xz`).
-- **BasePlugin** : `resolveDockerPathSync` étendu pour gérer tout chemin absolu de l’hôte (pas seulement `/var/log`) en le préfixant par `/host` lorsque l’app tourne en Docker.
+#### Apache and NPM plugins
+- **Apache / NPM alignment**: Apache now uses `resolveDockerPathSync` and the same diagnostic messages as NPM on connection or scan failure. Both plugins share the same path resolution logic and regex for files (rotation `.log.1`, compression `.gz`/`.bz2`/`.xz`).
+- **BasePlugin**: `resolveDockerPathSync` extended to handle any absolute host path (not just `/var/log`) by prefixing it with `/host` when the app runs in Docker.
 
 ---
 
@@ -755,17 +791,17 @@ Nouveau plugin de surveillance Fail2ban avec une interface multi-onglets complè
 ### Added
 
 #### Docker
-- **Indication HOST_IP au démarrage** : en Docker, si `HOST_IP` n’est pas défini, un message dans les logs rappelle de définir `HOST_IP` dans le `.env` (ex. `HOST_IP=192.168.32.150`) pour afficher l’IP de la machine hôte dans le bandeau au lieu de la passerelle Docker
+- **HOST_IP indication at startup**: in Docker, if `HOST_IP` is not defined, a message in the logs reminds to define `HOST_IP` in the `.env` (e.g. `HOST_IP=192.168.32.150`) to display the host machine's IP in the banner instead of the Docker gateway
 
 ### Fixed
 
-#### Plugin NPM (Docker)
-- **Fichiers NPM visibles en Docker** : le plugin NPM applique désormais `convertToDockerPath()` sur le `basePath` (comme Apache et Nginx), afin que `/var/log/npm` soit converti en `/host/logs/npm` ou `/host/var/log/npm` et que les fichiers de logs NPM s’affichent correctement
+#### NPM Plugin (Docker)
+- **NPM files visible in Docker**: the NPM plugin now applies `convertToDockerPath()` on the `basePath` (like Apache and Nginx), so that `/var/log/npm` is converted to `/host/logs/npm` or `/host/var/log/npm` and NPM log files display correctly
 
 ### Changed
 
 #### Docker
-- **docker-compose.yml** : commentaires renforcés pour `HOST_IP` (recommandation et exemple 192.168.32.150)
+- **docker-compose.yml**: reinforced comments for `HOST_IP` (recommendation and example 192.168.32.150)
 
 ---
 
@@ -773,19 +809,19 @@ Nouveau plugin de surveillance Fail2ban avec une interface multi-onglets complè
 
 ### Added
 
-#### Log Viewer – Mode Live et Refresh auto
-- **Bouton Play dans le header** : une fois un fichier sélectionné, affichage d’un bouton Play ouvrant un menu
-  - **Live (temps réel)** : suivi WebSocket existant (tail -f)
-  - **Refresh auto** : rechargement HTTP périodique avec intervalle choisi (2s, 5s, 10s, 15s, 30s)
-- **Bouton Square (Stop)** : arrête le mode Live ou le Refresh auto
-- **Persistance** : l’intervalle choisi pour le Refresh auto est sauvegardé dans `localStorage` (`logviewer_auto_refresh_interval_ms`)
-- Constantes `AUTO_REFRESH_INTERVALS_MS`, `AUTO_REFRESH_DEFAULT_MS` et `AUTO_REFRESH_STORAGE_KEY` dans `src/utils/constants.ts`
-- Compatible mode parsé et mode brut (raw) : le refresh auto utilise la même logique que le bouton Actualiser
+#### Log Viewer – Live mode and Auto-refresh
+- **Play button in header**: once a file is selected, display a Play button opening a menu
+  - **Live (real-time)**: existing WebSocket follow (tail -f)
+  - **Auto-refresh**: periodic HTTP reload with chosen interval (2s, 5s, 10s, 15s, 30s)
+- **Square button (Stop)**: stops Live mode or Auto-refresh
+- **Persistence**: the chosen interval for Auto-refresh is saved in `localStorage` (`logviewer_auto_refresh_interval_ms`)
+- Constants `AUTO_REFRESH_INTERVALS_MS`, `AUTO_REFRESH_DEFAULT_MS` and `AUTO_REFRESH_STORAGE_KEY` in `src/utils/constants.ts`
+- Compatible with parsed mode and raw mode: auto-refresh uses the same logic as the Refresh button
 
 ### Changed
 
-#### Sécurité des dépendances
-- **Overrides npm** : `tar` >= 7.5.7 et `esbuild` >= 0.25.0 pour corriger les vulnérabilités (Dependabot) sans passage à bcrypt 6 ni vitest 4
+#### Dependency security
+- **npm overrides**: `tar` >= 7.5.7 and `esbuild` >= 0.25.0 to fix vulnerabilities (Dependabot) without upgrading to bcrypt 6 or vitest 4
 
 ---
 
@@ -794,29 +830,29 @@ Nouveau plugin de surveillance Fail2ban avec une interface multi-onglets complè
 ### Added
 
 #### Footer
-- **Badge taille des .gz**: Nouveau badge affichant la taille totale des fichiers de logs compressés (.gz)
-  - Affiché uniquement si au moins un plugin a des fichiers .gz (et option "Lire les .gz" activée)
-  - Style vert (emerald), icône Archive, tooltip explicatif
-  - Calcul via double appel stats (quick=true pour non .gz, sans quick pour total) puis différence
+- **`.gz` size badge**: New badge displaying the total size of compressed log files (.gz)
+  - Displayed only if at least one plugin has .gz files (and "Read .gz" option enabled)
+  - Green style (emerald), Archive icon, explanatory tooltip
+  - Calculation via double stats call (quick=true for non-.gz, without quick for total) then difference
 
 #### Scripts
-- **update-version.sh**: Script de mise à jour de version adapté au projet LogviewR
-  - Met à jour `package.json`, `src/constants/version.ts` et `README.md` (badge, lien release, texte)
-  - Lecture de la version courante depuis `package.json` ; suggestion de version patch si aucun argument
-  - Rappel d’ajouter une entrée dans `CHANGELOG.md` et commandes git suggérées
-  - Portable macOS/Linux (sed in-place), couleurs ANSI si TTY
+- **update-version.sh**: Version update script adapted for the LogviewR project
+  - Updates `package.json`, `src/constants/version.ts` and `README.md` (badge, release link, text)
+  - Reads current version from `package.json`; suggests patch version if no argument
+  - Reminder to add an entry in `CHANGELOG.md` and suggested git commands
+  - Portable macOS/Linux (sed in-place), ANSI colors if TTY
 
 ### Changed
 
 #### Header / Clock
-- **Indicateur LED de l’horloge**: Couleur et animation alignées sur le thème
-  - Couleur jaune fixe remplacée par `var(--accent-primary)` (suit le thème)
-  - Nouvelle animation `clockLedGlow` (respiration 2s) : opacité et halo (box-shadow) en boucle
-  - Définition de l’animation dans `src/index.css`, appliquée sur le point du composant Clock
+- **Clock LED indicator**: Color and animation aligned with theme
+  - Fixed yellow color replaced by `var(--accent-primary)` (follows theme)
+  - New `clockLedGlow` animation (2s breathing): opacity and halo (box-shadow) in loop
+  - Animation defined in `src/index.css`, applied on the Clock component dot
 
 #### Footer
-- **Libellés des badges stats**: Tooltip du badge « taille » précisé : « Taille totale des fichiers de logs non compressés »
-  - État des stats étendu avec `totalSizeGz` pour le nouveau badge .gz
+- **Stats badge labels**: "size" badge tooltip clarified: "Total size of uncompressed log files"
+  - Stats state extended with `totalSizeGz` for the new .gz badge
 
 ---
 

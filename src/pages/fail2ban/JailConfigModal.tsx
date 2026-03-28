@@ -5,6 +5,7 @@
  *  - "Reload requis" : logpath / port / filter / actions                   (writes jail.local then reloads)
  */
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
     X, Save, Square, Play, Settings, Terminal,
     Shield, ChevronDown, ChevronRight, Plus, Trash2, CheckCircle, XCircle,
@@ -141,6 +142,7 @@ export interface JailConfigModalProps {
 }
 
 export const JailConfigModal: React.FC<JailConfigModalProps> = ({ jailName, isActive = true, onClose, onRefreshNeeded }) => {
+    const { t } = useTranslation();
     const [tab,       setTab]       = useState<'live' | 'reload'>('live');
     const [params,    setParams]    = useState<JailParams | null>(null);
     const [loading,   setLoading]   = useState(true);
@@ -204,7 +206,7 @@ export const JailConfigModal: React.FC<JailConfigModalProps> = ({ jailName, isAc
             setMsg({ ok: true, text: 'Paramètres sauvegardés et jail rechargé.' });
             onRefreshNeeded?.();
         } else {
-            setMsg({ ok: false, text: res.result?.error ?? 'Erreur inconnue' });
+            setMsg({ ok: false, text: res.result?.error ?? t('fail2ban.errors.unknown') });
         }
         setSaving(false);
     };
@@ -281,7 +283,7 @@ export const JailConfigModal: React.FC<JailConfigModalProps> = ({ jailName, isAc
                 {/* Body */}
                 <div style={{ flex: 1, overflowY: 'auto', padding: '1.25rem 1.25rem .75rem' }}>
                     {loading ? (
-                        <div style={{ color: '#8b949e', fontSize: '.85rem' }}>Chargement…</div>
+                        <div style={{ color: '#8b949e', fontSize: '.85rem' }}>{t('common.loading')}</div>
                     ) : tab === 'live' ? (
                         /* ── À chaud : bantime / findtime / maxretry / ignoreip / usedns ── */
                         <div>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Shield, Trash2, RotateCcw, Plus, AlertTriangle, CheckCircle, Network, Code, Table2, ChevronDown, ChevronRight, Archive } from 'lucide-react';
 import { api } from '../../api/client';
 import { card, cardH, cardB, F2bTooltip } from './helpers';
@@ -103,6 +104,7 @@ function parsePkts(s: string): number {
 }
 
 function ChainCard({ chain, onDelete, deleting, hiddenDockerRules, onToggleDocker }: { chain: IptChain; onDelete: (chain: string, num: number) => void; deleting: string | null; hiddenDockerRules?: number; onToggleDocker?: () => void }) {
+    const { t } = useTranslation();
     const [collapsed, setCollapsed] = useState(false);
     const [sortKey, setSortKey]     = useState<SortKey>('num');
     const [sortAsc, setSortAsc]     = useState(true);
@@ -192,13 +194,13 @@ function ChainCard({ chain, onDelete, deleting, hiddenDockerRules, onToggleDocke
                                 <thead>
                                     <tr>
                                         {TH('num',      '#',           { textAlign: 'right' })}
-                                        {TH('target',   'Cible')}
-                                        {TH('prot',     'Proto')}
+                                        {TH('target',   t('fail2ban.labels.target'))}
+                                        {TH('prot',     t('fail2ban.labels.protocol'))}
                                         {TH('iface_in', 'In')}
                                         {TH('iface_out','Out')}
-                                        {TH('source',   'Source')}
+                                        {TH('source',   t('fail2ban.labels.source'))}
                                         {TH('dest',     'Destination')}
-                                        {TH('pkts',     'Paquets',     { textAlign: 'right' })}
+                                        {TH('pkts',     t('fail2ban.labels.packets'),     { textAlign: 'right' })}
                                         {TH('options',  'Options')}
                                         <th style={{ padding: '.3rem .65rem', borderBottom: '1px solid #30363d' }}></th>
                                     </tr>
@@ -271,6 +273,7 @@ function applyDockerFilter(chains: IptChain[]): { visible: IptChain[]; hiddenRul
 }
 
 function RulesetViewer({ refreshToken, onAction }: { refreshToken?: number; onAction: (deadline?: number) => void }) {
+    const { t } = useTranslation();
     const [selTable, setSelTable] = useState('filter');
     const [viewMode, setViewMode] = useState<'table' | 'raw'>('table');
     const [chains, setChains]   = useState<IptChain[]>([]);
@@ -288,11 +291,11 @@ function RulesetViewer({ refreshToken, onAction }: { refreshToken?: number; onAc
             if (mode === 'table') {
                 const res = await api.get<{ ok: boolean; chains?: IptChain[]; error?: string }>(`/api/plugins/fail2ban/iptables/parsed?table=${encodeURIComponent(table)}`);
                 if (res.success && res.result?.ok) { setChains(res.result.chains ?? []); setLastLoaded(Date.now()); }
-                else setError(res.result?.error ?? res.error?.message ?? 'Erreur');
+                else setError(res.result?.error ?? res.error?.message ?? t('fail2ban.errors.unknown'));
             } else {
                 const res = await api.get<{ ok: boolean; output: string; error?: string }>(`/api/plugins/fail2ban/iptables/rules?table=${encodeURIComponent(table)}`);
                 if (res.success && res.result?.ok) { setRawOutput(res.result.output ?? ''); setLastLoaded(Date.now()); }
-                else setError(res.result?.error ?? res.error?.message ?? 'Erreur');
+                else setError(res.result?.error ?? res.error?.message ?? t('fail2ban.errors.unknown'));
             }
         } finally { setLoading(false); }
     }, []);
@@ -348,7 +351,7 @@ function RulesetViewer({ refreshToken, onAction }: { refreshToken?: number; onAc
                 </div>
             </div>
             <div style={cardB}>
-                {loading && <div style={{ color: '#8b949e', fontSize: '.82rem' }}>Chargement…</div>}
+                {loading && <div style={{ color: '#8b949e', fontSize: '.82rem' }}>{t('common.loading')}</div>}
                 {error && (
                     <div style={{ background: 'rgba(227,179,65,.07)', border: '1px solid rgba(227,179,65,.25)', borderRadius: 6, padding: '.75rem 1rem' }}>
                         <div style={{ display: 'flex', gap: '.4rem', alignItems: 'center', color: '#e3b341', fontSize: '.82rem', marginBottom: '.4rem' }}>
@@ -389,6 +392,7 @@ function RulesetViewer({ refreshToken, onAction }: { refreshToken?: number; onAc
 // ── Rule Builder ───────────────────────────────────────────────────────────────
 
 function RuleBuilder({ onAction }: { onAction: (deadline?: number) => void }) {
+    const { t } = useTranslation();
     const [table, setTable] = useState('filter');
     const [chain, setChain] = useState('INPUT');
     const [rule, setRule]   = useState('');
@@ -407,7 +411,7 @@ function RuleBuilder({ onAction }: { onAction: (deadline?: number) => void }) {
                 setRule('');
                 onAction(res.result.rollbackDeadline);
             } else {
-                setMsg({ ok: false, text: res.result?.error ?? 'Erreur' });
+                setMsg({ ok: false, text: res.result?.error ?? t('fail2ban.errors.unknown') });
             }
         } finally { setLoading(false); }
     };

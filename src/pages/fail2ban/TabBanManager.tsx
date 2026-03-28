@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Ban, Unlock, Database, Shield, ListChecks, AlertTriangle, CheckCircle, FolderOpen, ChevronDown, Network } from 'lucide-react';
 import { api } from '../../api/client';
 import { card, cardH, cardB } from './helpers';
@@ -217,6 +218,7 @@ function ActionCard({ header, children, action }: {
 const IPT_CHAINS = ['INPUT', 'OUTPUT', 'FORWARD'];
 
 export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoading, onBan, onUnban, onIpClick }) => {
+    const { t } = useTranslation();
     // ── Fail2ban single ────────────────────────────────────────────────────────
     const [banJail,   setBanJail]   = useState(jails[0]?.jail ?? '');
     const [banIp,     setBanIp]     = useState('');
@@ -241,7 +243,7 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
         );
         setIptBanLoading(false);
         if (res.success && res.result?.ok) { setIptBanResult({ ok: true, msg: `${ip} bloqué dans ${iptBanChain}` }); setIptBanIp(''); }
-        else setIptBanResult({ ok: false, msg: res.result?.error ?? 'Erreur' });
+        else setIptBanResult({ ok: false, msg: res.result?.error ?? t('fail2ban.errors.unknown') });
     };
 
     const doIptUnban = async () => {
@@ -252,7 +254,7 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
         );
         setIptUnbanLoad(false);
         if (res.success && res.result?.ok) { setIptUnbanResult({ ok: true, msg: `${ip} débloqué dans ${iptUnbanChain}` }); setIptUnbanIp(''); }
-        else setIptUnbanResult({ ok: false, msg: res.result?.error ?? 'Erreur' });
+        else setIptUnbanResult({ ok: false, msg: res.result?.error ?? t('fail2ban.errors.unknown') });
     };
 
     // ── Fail2ban bulk ──────────────────────────────────────────────────────────
@@ -362,7 +364,7 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
             setAddEntry('');
             loadIpsets(true);
         } else {
-            setAddResult({ ok: false, msg: res.result?.error ?? 'Erreur' });
+            setAddResult({ ok: false, msg: res.result?.error ?? t('fail2ban.errors.unknown') });
         }
     };
 
@@ -377,7 +379,7 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
             setDelEntry('');
             loadIpsets(true);
         } else {
-            setDelResult({ ok: false, msg: res.result?.error ?? 'Erreur' });
+            setDelResult({ ok: false, msg: res.result?.error ?? t('fail2ban.errors.unknown') });
         }
     };
 

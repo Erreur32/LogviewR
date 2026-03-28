@@ -1,32 +1,38 @@
 // Centralized permission messages and labels
+import type { TFunction } from 'i18next';
 
-export const PERMISSION_LABELS: Record<string, string> = {
-  calls: 'Accès au journal d\'appels',
-  camera: 'Accès aux caméras',
-  contacts: 'Accès à la base de contacts',
-  downloader: 'Accès au gestionnaire de téléchargements',
-  explorer: 'Accès aux fichiers',
-  home: 'Gestion de l\'alarme et maison connectée',
-  parental: 'Accès au contrôle parental',
-  player: 'Contrôle du player',
-  profile: 'Gestion des profils utilisateur',
-  pvr: 'Programmation des enregistrements',
-  settings: 'Modification des réglages',
-  tv: 'Accès au guide TV',
-  vm: 'Contrôle de la VM',
-  wdo: 'Provisionnement des équipements'
+// Maps permission keys to their i18n translation key suffix
+export const PERMISSION_KEYS: Record<string, string> = {
+  calls: 'calls',
+  camera: 'camera',
+  contacts: 'contacts',
+  downloader: 'downloader',
+  explorer: 'explorer',
+  home: 'home',
+  parental: 'parental',
+  player: 'player',
+  profile: 'profile',
+  pvr: 'pvr',
+  settings: 'settings',
+  tv: 'tv',
+  vm: 'vm',
+  wdo: 'wdo'
 };
 
-export const getPermissionErrorMessage = (permission: string): string => {
-  const label = PERMISSION_LABELS[permission] || permission;
-  const baseMessage = `Le droit d'accès "${label}" est requis.`;
-  const instructions = 'Ajoutez-le dans les paramètres de l\'application';
-  return `${baseMessage} ${instructions}`;
+export const getPermissionLabel = (permission: string, t: TFunction): string => {
+  const key = PERMISSION_KEYS[permission];
+  if (key) return t(`permissions.labels.${key}`);
+  return permission;
 };
 
-export const getPermissionShortError = (permission: string): string => {
-  const label = PERMISSION_LABELS[permission] || permission;
-  return `Permission "${label}" requise`;
+export const getPermissionErrorMessage = (permission: string, t: TFunction): string => {
+  const label = getPermissionLabel(permission, t);
+  return `${t('permissions.errorRequired', { label })} ${t('permissions.errorInstructions')}`;
+};
+
+export const getPermissionShortError = (permission: string, t: TFunction): string => {
+  const label = getPermissionLabel(permission, t);
+  return t('permissions.shortError', { label });
 };
 
 /** Base URL of the Freebox (e.g. http://mafreebox.freebox.fr) → link toward management UI */

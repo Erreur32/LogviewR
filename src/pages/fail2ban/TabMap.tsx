@@ -15,6 +15,7 @@ import iconRetinaUrl  from 'leaflet/dist/images/marker-icon-2x.png';
 import shadowUrl      from 'leaflet/dist/images/marker-shadow.png';
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({ iconUrl, iconRetinaUrl, shadowUrl });
+import { useTranslation } from 'react-i18next';
 import { api } from '../../api/client';
 import { card, cardH, F2bTooltip } from './helpers';
 import { Map as MapIcon, SlidersHorizontal } from 'lucide-react';
@@ -55,6 +56,7 @@ interface TabMapProps {
 }
 
 export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker, onIpClick, refreshKey }) => {
+    const { t } = useTranslation();
     const mapContainerRef  = useRef<HTMLDivElement>(null);
     const mapRef           = useRef<any>(null);       // Leaflet map instance
     const clusterRef       = useRef<any>(null);       // MarkerCluster layer
@@ -123,7 +125,7 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker, onIpClick, refres
                     setPoints(res.result.points);
                     if (res.result.resolveDelayMs) setResolveDelayMs(Math.max(120, Math.min(2000, res.result.resolveDelayMs)));
                 } else {
-                    setError(res.result?.error ?? 'Erreur chargement carte');
+                    setError(res.result?.error ?? t('fail2ban.map.loading'));
                 }
             })
             .catch(e => setError(String(e)))
@@ -224,7 +226,7 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker, onIpClick, refres
             if (mapContainerRef.current) ro.observe(mapContainerRef.current);
             return () => { ro.disconnect(); };
         } catch (e) {
-            setError(`Erreur initialisation carte : ${e instanceof Error ? e.message : String(e)}`);
+            setError(`${t('fail2ban.map.leafletError')} : ${e instanceof Error ? e.message : String(e)}`);
         }
     }, [mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -330,7 +332,7 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker, onIpClick, refres
             <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', flexShrink: 0 }}>
                 <MapIcon style={{ width: 15, height: 15, color: '#58a6ff' }} />
                 <span style={{ fontWeight: 600, fontSize: '.88rem', color: '#58a6ff' }}>
-                    {loading ? 'Chargement…' : `${total} IP${total > 1 ? 's' : ''} sur la carte`}
+                    {loading ? t('fail2ban.map.loading') : `${total} IP${total > 1 ? 's' : ''} sur la carte`}
                 </span>
                 {!loading && total > 0 && mapReady && resolved < total && (
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.4rem', padding: '.18rem .6rem', borderRadius: 20, background: 'rgba(227,179,65,.1)', border: '1px solid rgba(227,179,65,.25)' }}>
@@ -393,7 +395,7 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker, onIpClick, refres
                         <div ref={mapContainerRef} style={{ width: '100%', height: '100%', background: '#0d1117' }} />
                         {loading && (
                             <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(13,17,23,.7)', fontSize: '.85rem', color: '#8b949e', zIndex: 500 }}>
-                                Chargement…
+                                {t('fail2ban.map.loading')}
                             </div>
                         )}
                         {/* Toggle aside FAB */}
@@ -414,7 +416,7 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker, onIpClick, refres
                             {/* Country section */}
                             <div style={{ borderBottom: '1px solid #30363d' }}>
                                 <div style={{ padding: '.5rem .75rem .35rem', fontSize: '.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: '#8b949e', display: 'flex', alignItems: 'center', gap: '.35rem' }}>
-                                    <span style={{ fontSize: '.85rem' }}>🌍</span> Répartition par pays
+                                    <span style={{ fontSize: '.85rem' }}>🌍</span> {t('fail2ban.map.filterByCountry')}
                                 </div>
                                 <div style={{ padding: '0 .5rem .5rem' }}>
                                     {countryCodes.length === 0

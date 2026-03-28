@@ -55,20 +55,20 @@ const dateColor = (ts: number): string => {
     return '#8b949e';
 };
 
-/** Infer attack category from jail name */
-const attackCategory = (jail: string): string => {
+/** Infer attack category i18n key from jail name */
+const attackCategoryKey = (jail: string): string => {
     const j = jail.toLowerCase();
-    if (/ssh|sshd/.test(j))                    return 'Brute-force SSH';
-    if (/recidive/.test(j))                    return 'Récidiviste';
-    if (/apache|http-auth|nginx.*auth/.test(j)) return 'Brute-force HTTP Auth';
-    if (/nginx|npm|proxy/.test(j))             return 'Scan web / NPM';
-    if (/badbots?|crawler/.test(j))            return 'Bot / Crawler';
-    if (/wp|wordpress/.test(j))                return 'Scan WordPress';
-    if (/mail|postfix|dovecot|smtp/.test(j))   return 'Brute-force Mail';
-    if (/ftp/.test(j))                         return 'Brute-force FTP';
-    if (/scan|portscan/.test(j))               return 'Port scan';
-    if (/ddos|flood/.test(j))                  return 'DDoS / Flood';
-    return 'Autre';
+    if (/ssh|sshd/.test(j))                    return 'fail2ban.attackCategories.sshBruteforce';
+    if (/recidive/.test(j))                    return 'fail2ban.attackCategories.recidivist';
+    if (/apache|http-auth|nginx.*auth/.test(j)) return 'fail2ban.attackCategories.httpBruteforce';
+    if (/nginx|npm|proxy/.test(j))             return 'fail2ban.attackCategories.httpBruteforce';
+    if (/badbots?|crawler/.test(j))            return 'fail2ban.attackCategories.bot';
+    if (/wp|wordpress/.test(j))                return 'fail2ban.attackCategories.wordpress';
+    if (/mail|postfix|dovecot|smtp/.test(j))   return 'fail2ban.attackCategories.smtpBruteforce';
+    if (/ftp/.test(j))                         return 'fail2ban.attackCategories.ftpBruteforce';
+    if (/scan|portscan/.test(j))               return 'fail2ban.attackCategories.portscan';
+    if (/ddos|flood/.test(j))                  return 'fail2ban.attackCategories.ddos';
+    return 'fail2ban.attackCategories.other';
 };
 
 /** Tokenizes a log line into colored segments for React rendering (no dangerouslySetInnerHTML) */
@@ -284,6 +284,7 @@ const extractPaths = (lines: string[]): string[] => {
 };
 
 import { DomainInitial } from './DomainInitial';
+import { useTranslation } from 'react-i18next';
 
 const isKnownBotHostname = (hostname: string | null): string | null => {
     if (!hostname) return null;
@@ -336,6 +337,7 @@ export const IpModal: React.FC<{
     geo?: GeoInfo | null;
     jails?: string[];
 }> = ({ ip, onClose, geo: geoProp, jails: jailsProp }) => {
+    const { t } = useTranslation();
     const [history,      setHistory]      = useState<IpHistEntry[]>([]);
     const [loading,      setLoading]      = useState(true);
     const [geo,          setGeo]          = useState<GeoInfo | null>(geoProp ?? null);
@@ -406,7 +408,7 @@ export const IpModal: React.FC<{
     // Attack category distribution from ban history
     const categoryMap: Record<string, number> = {};
     for (const b of bans) {
-        const cat = attackCategory(b.jail);
+        const cat = attackCategoryKey(b.jail);
         categoryMap[cat] = (categoryMap[cat] ?? 0) + 1;
     }
     const categories = Object.entries(categoryMap).sort((a, b) => b[1] - a[1]);
@@ -429,7 +431,7 @@ export const IpModal: React.FC<{
     // Bot detection
     const knownBot = isKnownBotHostname(details?.hostname ?? null);
     const isKnownProvider = !!details?.knownProvider;
-    const isBotLike = knownBot || isKnownProvider || (bans.length >= 5 && categories.some(([c]) => c.includes('Scan') || c.includes('Bot') || c.includes('SSH')));
+    const isBotLike = knownBot || isKnownProvider || (bans.length >= 5 && categories.some(([c]) => c.includes('wordpress') || c.includes('bot') || c.includes('ssh')));
 
     const doAction = async (label: string, endpoint: string, body: Record<string, string>) => {
         setActionMsg(null);
@@ -553,17 +555,17 @@ export const IpModal: React.FC<{
                                 {geo.org && <div style={{ fontSize: '.7rem', color: '#8b949e', marginTop: '.05rem' }}>{geo.org}</div>}
                             </div>
                         </div>
-                    ) : loading ? <span style={{ fontSize: '.73rem', color: '#8b949e', fontStyle: 'italic' }}>Chargement géo…</span> : null}
+                    ) : loading ? <span style={{ fontSize: '.73rem', color: '#8b949e', fontStyle: 'italic' }}>{t('fail2ban.tracker.geoloading')}</span> : null}
 
                     {details?.whois && <div style={{ width: 1, height: 32, background: '#30363d', flexShrink: 0 }} />}
                     {details?.whois ? (
                         <div style={{ display: 'flex', gap: '1.25rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                            {details.whois.org && <div><div style={{ fontSize: '.6rem', color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.1rem' }}>Organisation</div><div style={{ fontSize: '.74rem', fontFamily: 'monospace', color: '#e6edf3' }}>{details.whois.org}</div></div>}
-                            {details.whois.asn && <div><div style={{ fontSize: '.6rem', color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.1rem' }}>ASN</div><div style={{ fontSize: '.74rem', fontFamily: 'monospace', color: '#bc8cff' }}>{details.whois.asn}</div></div>}
+                            {details.whois.org && <div><div style={{ fontSize: '.6rem', color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.1rem' }}>{t('fail2ban.labels.organization')}</div><div style={{ fontSize: '.74rem', fontFamily: 'monospace', color: '#e6edf3' }}>{details.whois.org}</div></div>}
+                            {details.whois.asn && <div><div style={{ fontSize: '.6rem', color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.1rem' }}>{t('fail2ban.labels.asn')}</div><div style={{ fontSize: '.74rem', fontFamily: 'monospace', color: '#bc8cff' }}>{details.whois.asn}</div></div>}
                             {details.whois.cidr && <div><div style={{ fontSize: '.6rem', color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.1rem' }}>CIDR</div><div style={{ fontSize: '.74rem', fontFamily: 'monospace', color: '#8b949e' }}>{details.whois.cidr}</div></div>}
                             {details.whois.netname && <div><div style={{ fontSize: '.6rem', color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.1rem' }}>Netname</div><div style={{ fontSize: '.74rem', fontFamily: 'monospace', color: '#8b949e' }}>{details.whois.netname}</div></div>}
                         </div>
-                    ) : loading ? <span style={{ fontSize: '.73rem', color: '#8b949e', fontStyle: 'italic' }}>Chargement whois…</span> : null}
+                    ) : loading ? <span style={{ fontSize: '.73rem', color: '#8b949e', fontStyle: 'italic' }}>{t('common.loading')}</span> : null}
 
                     {geo?.isp && geo.isp !== geo.org && <><div style={{ width: 1, height: 32, background: '#30363d', flexShrink: 0 }} /><div><div style={{ fontSize: '.6rem', color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.1rem' }}>ISP</div><div style={{ fontSize: '.74rem', fontFamily: 'monospace', color: '#8b949e' }}>{geo.isp}</div></div></>}
                     {details?.hostname && <><div style={{ width: 1, height: 32, background: '#30363d', flexShrink: 0 }} /><div><div style={{ fontSize: '.6rem', color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.1rem' }}>Hostname</div><div style={{ fontSize: '.74rem', fontFamily: 'monospace', color: '#8b949e' }}>{details.hostname}</div></div></>}
@@ -659,7 +661,7 @@ export const IpModal: React.FC<{
                                                     fontSize: '.74rem', fontWeight: 600, opacity: banning ? .6 : 1,
                                                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '.3rem' }}>
                                                 <Shield style={{ width: 10, height: 10 }} />
-                                                {banning ? 'Bannissement…' : 'Bannir dans recidive'}
+                                                {banning ? 'Bannissement…' : t('fail2ban.actions.banInRecidive')}
                                             </button>
                                         }
                                     </div>
@@ -758,7 +760,7 @@ export const IpModal: React.FC<{
                                 <span style={{ fontWeight: 600, fontSize: '.8rem' }}>Statistiques</span>
                             </div>
                             <div style={{ ...cardB, gap: '.4rem' }}>
-                                <Row label="Bans total">
+                                <Row label={t('fail2ban.labels.totalBans')}>
                                     <strong style={{ color: bans.length >= 5 ? '#e86a65' : bans.length >= 2 ? '#e3b341' : '#58a6ff', fontSize: '.95rem' }}>
                                         {bans.length}
                                     </strong>
@@ -779,21 +781,21 @@ export const IpModal: React.FC<{
                                     </Row>
                                 )}
                                 {lastBan && (
-                                    <Row label="Dernier ban">
+                                    <Row label={t('fail2ban.labels.lastBan')}>
                                         <span style={{ fontFamily: 'monospace', fontSize: '.73rem', color: dateColor(lastBan.timeofban) }}>
                                             {fmtDate(lastBan.timeofban)}
                                         </span>
                                     </Row>
                                 )}
                                 {firstBan && (
-                                    <Row label="1er ban">
+                                    <Row label={t('fail2ban.labels.firstBan')}>
                                         <span style={{ fontFamily: 'monospace', fontSize: '.73rem', color: '#8b949e' }}>
                                             {fmtDate(firstBan.timeofban)}
                                         </span>
                                     </Row>
                                 )}
                                 {(lastBan?.failures ?? 0) > 0 && (
-                                    <Row label="Tentatives">
+                                    <Row label={t('fail2ban.labels.attempts')}>
                                         <strong style={{ color: '#e3b341' }}>{lastBan!.failures}</strong>
                                         <span style={{ color: '#8b949e', fontSize: '.7rem', marginLeft: '.2rem' }}>(dernier ban)</span>
                                     </Row>
@@ -845,7 +847,7 @@ export const IpModal: React.FC<{
                                                 return (
                                                     <div key={cat}>
                                                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '.2rem' }}>
-                                                            <span style={{ fontSize: '.74rem', color: '#e6edf3' }}>{cat}</span>
+                                                            <span style={{ fontSize: '.74rem', color: '#e6edf3' }}>{t(cat)}</span>
                                                             <span style={{ fontSize: '.7rem', color: '#e3b341', fontWeight: 600 }}>
                                                                 {count}× <span style={{ color: '#8b949e', fontWeight: 400 }}>({pct}%)</span>
                                                             </span>
@@ -880,7 +882,7 @@ export const IpModal: React.FC<{
                             )}
                         </div>
                         {loading ? (
-                            <div style={{ textAlign: 'center', padding: '2rem', color: '#8b949e', fontSize: '.85rem' }}>Chargement…</div>
+                            <div style={{ textAlign: 'center', padding: '2rem', color: '#8b949e', fontSize: '.85rem' }}>{t('common.loading')}</div>
                         ) : history.length === 0 ? (
                             <div style={{ textAlign: 'center', padding: '2rem', color: '#3fb950', fontSize: '.85rem' }}>
                                 Aucun historique interne trouvé
@@ -890,7 +892,7 @@ export const IpModal: React.FC<{
                                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                                     <thead>
                                         <tr style={{ position: 'sticky', top: 0, background: '#161b22', zIndex: 1 }}>
-                                            {['Date', 'Action', 'Jail', 'Durée', 'Tentatives'].map(h => (
+                                            {[t('fail2ban.labels.date'), t('fail2ban.labels.type'), t('fail2ban.labels.jail'), t('fail2ban.labels.duration'), t('fail2ban.labels.attempts')].map(h => (
                                                 <th key={h} style={{ padding: '.4rem .85rem', borderBottom: '1px solid #30363d',
                                                     fontSize: '.67rem', fontWeight: 700, textTransform: 'uppercase',
                                                     letterSpacing: '.05em', color: '#8b949e', textAlign: 'left', whiteSpace: 'nowrap' }}>

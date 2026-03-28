@@ -7,6 +7,7 @@ import {
     Shield, Ban, AlertTriangle, ShieldOff, Database,
     TrendingUp, Lock, RotateCcw, Clock, Target, BarChart2, Gauge, List, Search, X,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { card, PERIODS, F2bTooltip } from './helpers';
 import { api } from '../../api/client';
 import type { JailStatus, BanEntry } from './types';
@@ -88,6 +89,7 @@ const DomainDetailModal: React.FC<{
     onClose: () => void;
     onIpClick?: (ip: string) => void;
 }> = ({ domain, days, onClose, onIpClick }) => {
+    const { t } = useTranslation();
     const [data, setData]       = useState<DomainDetailData | null>(null);
     const [loading, setLoading] = useState(true);
     const now = Math.floor(Date.now() / 1000);
@@ -150,7 +152,7 @@ const DomainDetailModal: React.FC<{
 
                 {/* Content */}
                 <div style={{ overflowY: 'auto', flex: 1 }}>
-                    {loading && <div style={{ padding: '2rem', textAlign: 'center', color: C.muted, fontSize: '.85rem' }}>Chargement…</div>}
+                    {loading && <div style={{ padding: '2rem', textAlign: 'center', color: C.muted, fontSize: '.85rem' }}>{t('fail2ban.messages.loadingData')}</div>}
                     {!loading && !data && <div style={{ padding: '1.5rem', color: C.orange, fontSize: '.82rem', textAlign: 'center' }}>Données non disponibles (NPM non configuré ?)</div>}
                     {!loading && data && data.jails.length === 0 && (
                         <div style={{ padding: '1.5rem', textAlign: 'center', fontSize: '.82rem', color: C.green }}>
@@ -201,6 +203,7 @@ const DomainDetailModal: React.FC<{
 interface IpSetInfo { name: string; entries: number; type: string }
 
 const IpSetsSection: React.FC<{ days: number; onDaysChange: (d: number) => void }> = ({ days, onDaysChange }) => {
+    const { t } = useTranslation();
     const [sets, setSets]       = useState<IpSetInfo[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError]     = useState<string | null>(null);
@@ -397,7 +400,7 @@ const IpSetsSection: React.FC<{ days: number; onDaysChange: (d: number) => void 
             {/* Historical line chart */}
             <HistChart />
             <div style={{ padding: '.5rem 0 .75rem' }}>
-                {loading && <div style={{ textAlign: 'center', padding: '1.5rem', color: C.muted, fontSize: '.85rem' }}>Chargement…</div>}
+                {loading && <div style={{ textAlign: 'center', padding: '1.5rem', color: C.muted, fontSize: '.85rem' }}>{t('fail2ban.messages.loadingData')}</div>}
                 {!loading && error && <div style={{ padding: '.75rem 1rem', color: C.orange, fontSize: '.8rem', fontFamily: 'monospace' }}>{error}</div>}
                 {!loading && !error && sets.length === 0 && <div style={{ padding: '1.5rem 1rem', color: C.muted, fontSize: '.85rem', textAlign: 'center' }}>Aucun IPSet fail2ban à afficher</div>}
                 {!loading && !error && sets.length > 0 && (
@@ -617,19 +620,20 @@ const ResumePeriodeSection: React.FC<{
     prev: { totalBans: number; uniqueIps: number; topJail: string | null; topJailCount: number } | null;
     loading: boolean;
 }> = ({ days, onDaysChange, data, prev, loading }) => {
+    const { t } = useTranslation();
 
     const periodLabel = PERIODS.find(p => p.days === days)?.label ?? `${days}j`;
     const prevLabel   = days === 1 ? 'hier' : `${days}j précédents`;
 
     return (
-        <SCard icon={<Gauge style={{ width: 14, height: 14 }} />} color={C.green} title="Résumé période"
+        <SCard icon={<Gauge style={{ width: 14, height: 14 }} />} color={C.green} title={t('fail2ban.stats.periodSummary')}
             sub={`(${periodLabel})`}
             right={<PeriodBtns days={days} color={C.green} onChange={onDaysChange} />}
             collapsible>
             <div style={{ padding: '1rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(160px,1fr))', gap: '.75rem' }}>
                 {([
-                    { l: 'Total bans',      k: 'totalBans'    as SummaryKey | null, v: data?.totalBans    ?? 0,    c: C.red,    small: false, icon: <Ban    style={{ width: 14, height: 14 }} /> },
-                    { l: 'IPs uniques',     k: 'uniqueIps'    as SummaryKey | null, v: data?.uniqueIps    ?? 0,    c: C.blue,   small: false, icon: <Shield style={{ width: 14, height: 14 }} /> },
+                    { l: t('fail2ban.status.totalBans'),      k: 'totalBans'    as SummaryKey | null, v: data?.totalBans    ?? 0,    c: C.red,    small: false, icon: <Ban    style={{ width: 14, height: 14 }} /> },
+                    { l: t('fail2ban.status.uniqueIps'),     k: 'uniqueIps'    as SummaryKey | null, v: data?.uniqueIps    ?? 0,    c: C.blue,   small: false, icon: <Shield style={{ width: 14, height: 14 }} /> },
                     { l: 'Jail le + actif', k: null                                , v: data?.topJail     ?? '—',  c: C.orange, small: true,  icon: <Lock   style={{ width: 14, height: 14 }} /> },
                     { l: 'Bans jail #1',    k: 'topJailCount' as SummaryKey | null, v: data?.topJailCount ?? 0,    c: C.orange, small: false, icon: <Target style={{ width: 14, height: 14 }} /> },
                 ]).map(s => (
@@ -655,6 +659,7 @@ const ResumePeriodeSection: React.FC<{
 
 // ── Types d'attaque ───────────────────────────────────────────────────────────
 const TypesAttaqueSection: React.FC<{ days: number; onDaysChange: (d: number) => void; data: TopsData | null; loading: boolean }> = ({ days, onDaysChange, data, loading }) => {
+    const { t } = useTranslation();
     const periodLabel = PERIODS.find(p => p.days === days)?.label ?? `${days}j`;
     const jails = data?.topJails ?? [];
     const total = jails.reduce((s, j) => s + j.count, 0);
@@ -674,8 +679,8 @@ const TypesAttaqueSection: React.FC<{ days: number; onDaysChange: (d: number) =>
             right={<PeriodBtns days={days} color={C.red} onChange={onDaysChange} />}
             collapsible>
             <div style={{ padding: '1rem' }}>
-                {loading && <div style={{ textAlign: 'center', padding: '1.5rem', color: C.muted, fontSize: '.85rem' }}>Chargement…</div>}
-                {!loading && jails.length === 0 && <div style={{ textAlign: 'center', padding: '1.5rem', color: C.muted, fontSize: '.85rem' }}>Aucune donnée</div>}
+                {loading && <div style={{ textAlign: 'center', padding: '1.5rem', color: C.muted, fontSize: '.85rem' }}>{t('fail2ban.messages.loadingData')}</div>}
+                {!loading && jails.length === 0 && <div style={{ textAlign: 'center', padding: '1.5rem', color: C.muted, fontSize: '.85rem' }}>{t('fail2ban.status.noData')}</div>}
                 {!loading && jails.length > 0 && (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2rem', alignItems: 'flex-start' }}>
                         {total > 0 && <svg viewBox="0 0 160 160" style={{ width: 160, height: 160, flexShrink: 0 }}>
@@ -942,14 +947,15 @@ const HeatmapSection: React.FC<{
 const TOP_LIMITS = [15, 25, 50, 0];
 
 const TopsSection: React.FC<{ days: number; onDaysChange: (d: number) => void; onIpClick?: (ip: string) => void; onDomainClick?: (domain: string) => void; jails: JailStatus[]; data: TopsData | null; loading: boolean }> = ({ days, onDaysChange, onIpClick, onDomainClick, jails, data, loading }) => {
+    const { t } = useTranslation();
     const [viewMode, setViewMode] = useState<'bar' | 'pie'>('bar');
     const [topLimit, setTopLimit] = useState(15);
     const periodLabel = PERIODS.find(p => p.days === days)?.label ?? `${days}j`;
 
     const topCards = [
-        { icon: <Ban style={{ width: 12, height: 12 }} />, title: 'Top IPs', color: C.red, entries: (data?.topIps ?? []).map(e => ({ ...e })) as TopEntry[], labelKey: 'ip' as const },
-        { icon: <RotateCcw style={{ width: 12, height: 12 }} />, title: 'Top Récidivistes', color: C.red, entries: (data?.topRecidivists ?? []).map(e => ({ ...e })) as TopEntry[], labelKey: 'ip' as const },
-        { icon: <Lock style={{ width: 12, height: 12 }} />, title: 'Top Jails', color: C.orange, entries: (data?.topJails ?? []).map(e => ({ ip: undefined, jail: e.jail, count: e.count })) as TopEntry[], labelKey: 'jail' as const },
+        { icon: <Ban style={{ width: 12, height: 12 }} />, title: t('fail2ban.stats.topIps'), color: C.red, entries: (data?.topIps ?? []).map(e => ({ ...e })) as TopEntry[], labelKey: 'ip' as const },
+        { icon: <RotateCcw style={{ width: 12, height: 12 }} />, title: t('fail2ban.attackCategories.recidivist'), color: C.red, entries: (data?.topRecidivists ?? []).map(e => ({ ...e })) as TopEntry[], labelKey: 'ip' as const },
+        { icon: <Lock style={{ width: 12, height: 12 }} />, title: t('fail2ban.stats.topJails'), color: C.orange, entries: (data?.topJails ?? []).map(e => ({ ip: undefined, jail: e.jail, count: e.count })) as TopEntry[], labelKey: 'jail' as const },
     ];
     const domainBanEntries: TopEntry[] = (data?.topDomains ?? []).map(e => ({ ip: e.domain, count: e.count }));
     const domainFailEntries: TopEntry[] = [...(data?.topDomains ?? [])]
@@ -1088,6 +1094,7 @@ const TopsSection: React.FC<{ days: number; onDaysChange: (d: number) => void; o
 interface WhitelistData { ok: boolean; globalIps: string[]; perJail: { jail: string; ips: string[]; extra: string[]; missing: string[] }[] }
 
 const WhitelistStatsSection: React.FC = () => {
+    const { t } = useTranslation();
     const [data, setData]       = useState<WhitelistData | null>(() => getCached<WhitelistData>('whitelist:stats'));
     const [loading, setLoading] = useState(() => !getCached<WhitelistData>('whitelist:stats'));
     const [error, setError]     = useState<string | null>(null);
@@ -1099,11 +1106,11 @@ const WhitelistStatsSection: React.FC = () => {
         api.get<WhitelistData>('/api/plugins/fail2ban/whitelist/stats')
             .then(res => {
                 if (res.success && res.result?.ok) { setCached('whitelist:stats', res.result); setData(res.result); }
-                else if (!cached) setError(res.result?.ok === false ? 'Données non disponibles' : 'Erreur API');
+                else if (!cached) setError(res.result?.ok === false ? t('fail2ban.status.noData') : t('fail2ban.errors.unknown'));
             })
             .catch(e => { if (!cached) setError(String(e)); })
             .finally(() => setLoading(false));
-    }, []);
+    }, [t]);
 
     const toggleJail = (jail: string) => setExpanded(prev => {
         const s = new Set(prev); s.has(jail) ? s.delete(jail) : s.add(jail); return s;
@@ -1124,7 +1131,7 @@ const WhitelistStatsSection: React.FC = () => {
             sub={!loading && !error ? <span style={{ color: C.green, fontWeight: 600 }}>{global.length} global{perJail.length > 0 ? ` · ${perJail.length} jail${perJail.length > 1 ? 's' : ''} avec override` : ''}</span> : undefined}
             collapsible
         >
-            {loading && <div style={{ padding: '1.25rem 1rem', textAlign: 'center', fontSize: '.85rem', color: C.muted }}>Chargement…</div>}
+            {loading && <div style={{ padding: '1.25rem 1rem', textAlign: 'center', fontSize: '.85rem', color: C.muted }}>{t('fail2ban.messages.loadingData')}</div>}
             {!loading && error && <div style={{ padding: '.75rem 1rem', color: C.orange, fontSize: '.8rem', fontFamily: 'monospace' }}>{error}</div>}
             {!loading && !error && (
                 <div style={{ padding: '.75rem 1rem 1rem', display: 'flex', flexDirection: 'column', gap: '.9rem' }}>
@@ -1197,6 +1204,7 @@ interface SafeHit { ip: string; jail: string; timeofban: number; bantime: number
 interface SafeBannedData { ok: boolean; hits: SafeHit[]; providers: Record<string, { color: string; desc: string }> }
 
 const SafeBannedSection: React.FC<{ onIpClick?: (ip: string) => void }> = ({ onIpClick }) => {
+    const { t } = useTranslation();
     const [data, setData]       = useState<SafeBannedData | null>(() => getCached<SafeBannedData>('whitelist:safe-banned'));
     const [loading, setLoading] = useState(() => !getCached<SafeBannedData>('whitelist:safe-banned'));
     const [error, setError]     = useState<string | null>(null);
@@ -1207,11 +1215,11 @@ const SafeBannedSection: React.FC<{ onIpClick?: (ip: string) => void }> = ({ onI
         api.get<SafeBannedData>('/api/plugins/fail2ban/whitelist/safe-banned')
             .then(res => {
                 if (res.success && res.result?.ok) { setCached('whitelist:safe-banned', res.result); setData(res.result); }
-                else if (!cached) setError('Données non disponibles');
+                else if (!cached) setError(t('fail2ban.status.noData'));
             })
             .catch(e => { if (!cached) setError(String(e)); })
             .finally(() => setLoading(false));
-    }, []);
+    }, [t]);
 
     const hits = data?.hits ?? [];
     const allClear = !loading && !error && hits.length === 0;
@@ -1241,7 +1249,7 @@ const SafeBannedSection: React.FC<{ onIpClick?: (ip: string) => void }> = ({ onI
             collapsible
             defaultOpen={false}
         >
-            {loading && <div style={{ padding: '1.25rem 1rem', textAlign: 'center', fontSize: '.85rem', color: C.muted }}>Chargement…</div>}
+            {loading && <div style={{ padding: '1.25rem 1rem', textAlign: 'center', fontSize: '.85rem', color: C.muted }}>{t('fail2ban.messages.loadingData')}</div>}
             {!loading && error && <div style={{ padding: '.75rem 1rem', color: C.orange, fontSize: '.8rem', fontFamily: 'monospace' }}>{error}</div>}
             {!loading && !error && allClear && (
                 <div style={{ padding: '1rem', display: 'flex', alignItems: 'center', gap: '.5rem', fontSize: '.82rem', color: C.green }}>
@@ -1279,11 +1287,12 @@ const SafeBannedSection: React.FC<{ onIpClick?: (ip: string) => void }> = ({ onI
 
 // ── Jail ban share bars ────────────────────────────────────────────────────────
 const JailBanShareBars: React.FC<{ jails: JailStatus[] }> = ({ jails }) => {
+    const { t } = useTranslation();
     const rows = [...jails].sort((a, b) => (b.totalBannedSqlite ?? b.totalBanned) - (a.totalBannedSqlite ?? a.totalBanned)).slice(0, 12);
     const max  = Math.max(...rows.map(j => j.totalBannedSqlite ?? j.totalBanned), 1);
     if (rows.length === 0) return null;
     return (
-        <SCard icon={<BarChart2 style={{ width: 14, height: 14 }} />} color={C.blue} title="Répartition des bans (total par jail)">
+        <SCard icon={<BarChart2 style={{ width: 14, height: 14 }} />} color={C.blue} title={t('fail2ban.stats.byJail')}>
             <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
                 {rows.map(j => {
                     const total = j.totalBannedSqlite ?? j.totalBanned;
@@ -1323,6 +1332,7 @@ export const TabStats: React.FC<TabStatsProps> = ({
     totalBanned, totalFailed, totalAllTime, uniqueIpsTotal, firstEventAt, activeJails,
     days, onDaysChange, onIpClick,
 }) => {
+    const { t } = useTranslation();
     // ── Domain detail modal ───────────────────────────────────────────────────
     const [domainDetail, setDomainDetail] = useState<string | null>(null);
 
@@ -1372,12 +1382,12 @@ export const TabStats: React.FC<TabStatsProps> = ({
         .sort((a, b) => b.currentlyBanned - a.currentlyBanned)[0]?.jail ?? null;
 
     const statCards: { label: string; value: number; icon: React.ReactNode; color: string; tt?: React.ReactNode; valueSub?: React.ReactNode }[] = [
-        { label: 'Jails actifs', value: activeJails, icon: <Shield style={{ width: 14, height: 14 }} />, color: C.blue,
+        { label: t('fail2ban.status.activeJails'), value: activeJails, icon: <Shield style={{ width: 14, height: 14 }} />, color: C.blue,
           valueSub: topActiveJail ? (
               <span style={{ fontSize: '.68rem', fontWeight: 500, color: C.muted, marginLeft: '.45rem', fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 90 }}>{topActiveJail}</span>
           ) : undefined,
         },
-        { label: 'Bans actifs',      value: totalBanned,  icon: <Ban style={{ width: 14, height: 14 }} />,           color: C.red,
+        { label: t('fail2ban.status.bansActive'),      value: totalBanned,  icon: <Ban style={{ width: 14, height: 14 }} />,           color: C.red,
           tt: (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '.3rem' }}>
                 <div style={{ fontSize: '1.2rem', fontWeight: 800, color: C.red, lineHeight: 1.1 }}>{totalBanned} IPs</div>
@@ -1392,15 +1402,15 @@ export const TabStats: React.FC<TabStatsProps> = ({
             </div>
           )
         },
-        { label: 'Échecs actifs',    value: totalFailed,  icon: <AlertTriangle style={{ width: 14, height: 14 }} />, color: C.orange },
-        { label: 'Total bans cumul', value: totalAllTime, icon: <ShieldOff style={{ width: 14, height: 14 }} />,     color: C.purple },
+        { label: t('fail2ban.status.failuresCurrent'),    value: totalFailed,  icon: <AlertTriangle style={{ width: 14, height: 14 }} />, color: C.orange },
+        { label: t('fail2ban.stats.totalBansCumul'), value: totalAllTime, icon: <ShieldOff style={{ width: 14, height: 14 }} />,     color: C.purple },
     ];
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             {/* Topbar */}
             <h2 style={{ fontSize: '.78rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.07em', color: C.muted, margin: 0 }}>
-                Statistiques fail2ban
+                {t('fail2ban.tabs.stats')}
             </h2>
 
             {/* IPSets */}
@@ -1462,19 +1472,19 @@ export const TabStats: React.FC<TabStatsProps> = ({
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1.25rem', alignItems: 'start' }}>
                 <HeatmapSection dataKey="heatmap" weekKey="heatmapWeek" title="Bans par heure" icon={<Clock style={{ width: 14, height: 14 }} />} color={C.red} barRgb="232,106,101" cellRgb="232,106,101" label="ban" days={days} onDaysChange={onDaysChange} data={topsData} loading={topsLoading} />
                 <HeatmapSection dataKey="heatmapFailed" weekKey="heatmapFailedWeek" title="Tentatives par heure" icon={<AlertTriangle style={{ width: 14, height: 14 }} />} color={C.orange} barRgb="227,179,65" cellRgb="227,179,65" label="tentative" days={days} onDaysChange={onDaysChange} data={topsData} loading={topsLoading} />
-                <SCard icon={<Shield style={{ width: 14, height: 14 }} />} color={C.blue} title="Synthèse par jail" collapsible>
+                <SCard icon={<Shield style={{ width: 14, height: 14 }} />} color={C.blue} title={t('fail2ban.stats.jailSummary')} collapsible>
                     <div style={{ overflowX: 'auto' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.83rem' }}>
                             <thead>
                                 <tr style={{ background: C.bg2 }}>
-                                    {['Jail', 'Bannis', 'Total', 'Période', 'Échecs', 'Tot.échecs'].map(h => (
-                                        <th key={h} style={{ padding: '.4rem .55rem', borderBottom: `1px solid ${C.border}`, fontSize: '.65rem', fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '.04em', color: C.muted, textAlign: h === 'Jail' ? 'left' : 'center', whiteSpace: 'nowrap' as const }}>{h}</th>
+                                    {[t('fail2ban.labels.jail'), t('fail2ban.status.bansActive'), 'Total', t('fail2ban.status.expired24h'), t('fail2ban.status.failuresCurrent'), t('fail2ban.labels.failures')].map(h => (
+                                        <th key={h} style={{ padding: '.4rem .55rem', borderBottom: `1px solid ${C.border}`, fontSize: '.65rem', fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '.04em', color: C.muted, textAlign: h === t('fail2ban.labels.jail') ? 'left' : 'center', whiteSpace: 'nowrap' as const }}>{h}</th>
                                     ))}
                                 </tr>
                             </thead>
                             <tbody>
                                 {jails.length === 0 ? (
-                                    <tr><td colSpan={6} style={{ padding: '2rem', textAlign: 'center', color: C.muted, fontSize: '.85rem' }}>Aucun jail</td></tr>
+                                    <tr><td colSpan={6} style={{ padding: '2rem', textAlign: 'center', color: C.muted, fontSize: '.85rem' }}>{t('fail2ban.messages.noActiveJails')}</td></tr>
                                 ) : jails.map(j => {
                                     const total = j.totalBannedSqlite ?? j.totalBanned;
                                     return (

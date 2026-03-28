@@ -6,6 +6,7 @@ import {
     ChevronRight, ChevronDown, HardDrive, Stethoscope, Trash2, Copy, Terminal,
     Pencil, X, Layers, Network,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { api } from '../../api/client';
 import { card, cardH, cardB } from './helpers';
 import { Fail2banPathConfig } from './Fail2banPathConfig';
@@ -208,6 +209,7 @@ const RawFileViewer: React.FC<{
     height?: number | string;
     onSaved?: (filename: string, content: string) => void;
 }> = ({ rawFiles, rawTab, onTabChange, height = 480, onSaved }) => {
+    const { t } = useTranslation();
     const [copied, setCopied]       = useState(false);
     const [editMode, setEditMode]   = useState(false);
     const [editContent, setEditContent] = useState('');
@@ -257,7 +259,7 @@ const RawFileViewer: React.FC<{
         const res = await api.post<TestResult>('/api/plugins/fail2ban/config/test-raw', { filename: rawTab, content: editContent });
         setTesting(false);
         if (res.success && res.result) setTestResult(res.result);
-        else setTestResult({ ok: false, errors: [res.error?.message ?? 'Erreur réseau'], warnings: [] });
+        else setTestResult({ ok: false, errors: [res.error?.message ?? t('fail2ban.errors.connectionError')], warnings: [] });
     };
 
     const saveConfig = async () => {
@@ -273,7 +275,7 @@ const RawFileViewer: React.FC<{
                 setTestResult(null);
             }
         } else {
-            setSaveResult({ ok: false, reloadOk: false, reloadOutput: '', error: res.error?.message ?? 'Erreur réseau' });
+            setSaveResult({ ok: false, reloadOk: false, reloadOutput: '', error: res.error?.message ?? t('fail2ban.errors.connectionError') });
         }
     };
 
@@ -449,7 +451,7 @@ const RawFileViewer: React.FC<{
                                     ) : (
                                         <span style={{ fontStyle: 'italic' }}>Ce fichier n'existe pas sur ce système</span>
                                     )
-                                ) : 'Chargement…'}
+                                ) : t('fail2ban.messages.loadingData')}
                             </div>
                         )}
                     </div>
@@ -479,6 +481,7 @@ const ShellCommand: React.FC<{ cmd: string }> = ({ cmd }) => {
 };
 
 const VacuumAlert: React.FC<{ fragPct: number; dbPath: string; onDone: () => void }> = ({ fragPct, dbPath, onDone }) => {
+    const { t } = useTranslation();
     const [state, setState] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
     const [errMsg, setErrMsg] = useState('');
     const cmd = `sqlite3 ${dbPath} 'VACUUM'`;
@@ -493,14 +496,14 @@ const VacuumAlert: React.FC<{ fragPct: number; dbPath: string; onDone: () => voi
                 const isAuth = httpMsg.includes('401') || httpMsg.includes('403');
                 setErrMsg(
                     is404  ? 'Route introuvable (404) — redémarrez le serveur pour activer cette fonctionnalité' :
-                    isAuth ? 'Accès refusé — authentification requise' :
-                    res.result?.error ?? (httpMsg || 'Erreur inconnue')
+                    isAuth ? t('fail2ban.errors.permissionDenied') :
+                    res.result?.error ?? (httpMsg || t('fail2ban.errors.unknown'))
                 );
                 setState('error');
             }
         } catch (e: unknown) {
             setState('error');
-            setErrMsg(e instanceof Error ? e.message : 'Erreur réseau');
+            setErrMsg(e instanceof Error ? e.message : t('fail2ban.errors.connectionError'));
         }
     };
     return (
@@ -533,6 +536,7 @@ const VacuumAlert: React.FC<{ fragPct: number; dbPath: string; onDone: () => voi
 // ── VacuumAlert for dashboard.db ──────────────────────────────────────────────
 
 const DashboardVacuumAlert: React.FC<{ fragPct: number; onDone: () => void }> = ({ fragPct, onDone }) => {
+    const { t } = useTranslation();
     const [state, setState] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
     const [errMsg, setErrMsg] = useState('');
     const run = async () => {
@@ -541,12 +545,12 @@ const DashboardVacuumAlert: React.FC<{ fragPct: number; onDone: () => void }> = 
             const res = await api.post<{ ok: boolean; error?: string }>('/api/plugins/fail2ban/config/dashboard-vacuum');
             if (res.success && res.result?.ok) { setState('done'); onDone(); }
             else {
-                setErrMsg(res.result?.error ?? res.error?.message ?? 'Erreur inconnue');
+                setErrMsg(res.result?.error ?? res.error?.message ?? t('fail2ban.errors.unknown'));
                 setState('error');
             }
         } catch (e: unknown) {
             setState('error');
-            setErrMsg(e instanceof Error ? e.message : 'Erreur réseau');
+            setErrMsg(e instanceof Error ? e.message : t('fail2ban.errors.connectionError'));
         }
     };
     return (
@@ -626,6 +630,7 @@ export const TabConfig: React.FC<{
     sqliteDbPath?: string;
     onSqliteDbPathChange?: (v: string) => void;
 }> = ({ onWarningsChange, npmDataPath = '', onNpmDataPathChange, sqliteDbPath = '', onSqliteDbPathChange }) => {
+    const { t } = useTranslation();
     const [parsed, setParsed]       = useState<ParsedConfigResult | null>(null);
     const [rawFiles, setRawFiles]   = useState<RawFiles | null>(null);
     const [loading, setLoading]     = useState(true);
@@ -766,8 +771,8 @@ export const TabConfig: React.FC<{
             toast('Paramètres runtime appliqués ✓', true);
             await loadParsed();
         } else {
-            const errs = res.result?.results ? Object.values(res.result.results).filter(r => !r.ok).map(r => r.error).join(', ') : 'Erreur inconnue';
-            toast(`Erreur: ${errs}`, false);
+            const errs = res.result?.results ? Object.values(res.result.results).filter(r => !r.ok).map(r => r.error).join(', ') : t('fail2ban.errors.unknown');
+            toast(`${t('fail2ban.errors.unknown')}: ${errs}`, false);
         }
     };
 
@@ -782,7 +787,7 @@ export const TabConfig: React.FC<{
             toast(`Persisté dans fail2ban.local: ${res.result.written.join(', ')} ✓`, true);
             await loadParsed();
         } else {
-            toast(`Erreur: ${res.result?.errors?.join(', ') ?? 'Erreur'}`, false);
+            toast(`${t('fail2ban.errors.unknown')}: ${res.result?.errors?.join(', ') ?? t('fail2ban.errors.unknown')}`, false);
         }
     };
 
@@ -797,7 +802,7 @@ export const TabConfig: React.FC<{
             toast(`Persisté dans fail2ban.local: ${res.result.written.join(', ')} ✓`, true);
             await loadParsed();
         } else {
-            toast(`Erreur: ${res.result?.errors?.join(', ') ?? 'Erreur'}`, false);
+            toast(`${t('fail2ban.errors.unknown')}: ${res.result?.errors?.join(', ') ?? t('fail2ban.errors.unknown')}`, false);
         }
     };
 
@@ -807,10 +812,10 @@ export const TabConfig: React.FC<{
         const res = await api.post<{ ok: boolean }>('/api/plugins/fail2ban/config/maintenance/reset', {});
         setResetting(false);
         if (res.success && res.result?.ok) {
-            toast('Données fail2ban réinitialisées ✓', true);
+            toast(`${t('fail2ban.backup.maintenanceReset')} ✓`, true);
             await loadParsed();
         } else {
-            toast('Erreur lors de la réinitialisation', false);
+            toast(t('fail2ban.errors.unknown'), false);
         }
     };
 
@@ -940,7 +945,7 @@ export const TabConfig: React.FC<{
                     </div>
 
                     {loading ? (
-                        <div style={{ color: C.muted, fontSize: '.85rem', textAlign: 'center', padding: '2rem' }}>Chargement…</div>
+                        <div style={{ color: C.muted, fontSize: '.85rem', textAlign: 'center', padding: '2rem' }}>{t('fail2ban.messages.loadingData')}</div>
                     ) : cfg ? (
                         <>
                             {/* Card: Infos système — replié par défaut */}
