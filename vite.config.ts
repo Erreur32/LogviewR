@@ -13,8 +13,10 @@ if (process.env.NODE_ENV !== 'production') {
       message.includes('[vite] ws proxy error') ||
       message.includes('This socket has been ended by the other party') ||
       (message.includes('[vite]') && message.includes('proxy error') && message.includes('socket')) ||
-      // Suppress HTTP proxy errors during backend restart
-      (message.includes('[vite] http proxy error') && message.includes('ECONNREFUSED')) ||
+      // Suppress HTTP proxy errors during backend restart — Vite logs two separate messages:
+      // 1) "[vite] http proxy error: /api/..."  2) "Error: connect ECONNREFUSED ..."
+      message.includes('[vite] http proxy error') ||
+      message.includes('ECONNREFUSED') ||
       // Suppress WebSocket connection errors
       message.includes('WebSocket connection to') && message.includes('failed') ||
       message.includes('Invalid frame header')
