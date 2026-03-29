@@ -196,6 +196,8 @@ function tokenizeConfLine(line: string): ConfToken[] {
     // key = value
     const kvM = trimmed.match(/^([A-Za-z_][A-Za-z0-9_./-]*)(\s*=\s*)(.*)/);
     if (kvM) return [...pre, { t: 'key', v: kvM[1] }, { t: 'eq', v: kvM[2] }, { t: 'value', v: kvM[3] }];
+    // continuation line (indented value — no = sign, not a section, not a comment)
+    if (indent && trimmed && !trimmed.startsWith('[')) return [...pre, { t: 'value', v: trimmed }];
     return [...pre, { t: 'plain', v: trimmed }];
 }
 

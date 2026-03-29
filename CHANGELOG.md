@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.7.6] - 2026-03-29
+
+### Fixed
+- **`parseJailIniFile` — multi-line values**: continuation lines (indented with whitespace) were silently dropped; the parser now detects them before trimming and appends them to the previous key's value — `ignoreip` with 20+ IPs spread across multiple lines is now fully read
+- **Syntax highlighter — continuation lines**: indented value lines in `fail2ban.conf` / `jail.local` were rendered as plain gray; they are now coloured green like regular values
+
+---
+
 ## [0.7.5] - 2026-03-29
 
 ### Added

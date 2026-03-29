@@ -124,15 +124,27 @@ function parseJailIniFile(filePath: string, defaults: Record<string, string>, re
     let text: string;
     try { text = fs.readFileSync(filePath, 'utf8'); } catch { return; }
     let section = '';
+    let lastKey = '';
     for (const raw of text.split(/\r?\n/)) {
+        const isContinuation = /^\s+\S/.test(raw); // starts with whitespace = continuation
         const line = raw.replace(/#.*$/, '').trim();
-        if (!line) continue;
+        if (!line) { lastKey = ''; continue; }
         const secMatch = line.match(/^\[([^\]]+)\]$/);
-        if (secMatch) { section = secMatch[1].toLowerCase(); continue; }
+        if (secMatch) { section = secMatch[1].toLowerCase(); lastKey = ''; continue; }
+        // Continuation line — append to last key value
+        if (isContinuation && lastKey && section) {
+            if (section === 'default' || section === 'definition') {
+                defaults[lastKey] = (defaults[lastKey] ?? '') + ' ' + line;
+            } else {
+                if (result[section]) result[section][lastKey] = (result[section][lastKey] ?? '') + ' ' + line;
+            }
+            continue;
+        }
         const kvMatch = line.match(/^([a-zA-Z0-9_\-]+)\s*=\s*(.*)$/);
-        if (!kvMatch || !section) continue;
+        if (!kvMatch || !section) { lastKey = ''; continue; }
         const key = kvMatch[1].toLowerCase();
         const val = kvMatch[2].trim();
+        lastKey = key;
         if (section === 'default' || section === 'definition') {
             defaults[key] = val;
         } else {
