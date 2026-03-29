@@ -196,6 +196,10 @@ export const JailConfigModal: React.FC<JailConfigModalProps> = ({ jailName, isAc
     }, [onClose, editor]);
 
     const handleSave = async () => {
+        if (port.trim() && !isValidPort(port)) {
+            setMsg({ ok: false, text: 'Port invalide — attendu : 22 | http | 80,443 | 8080:8090' });
+            return;
+        }
         setSaving(true); setMsg(null);
         const body: Record<string, unknown> = {
             bantime:  parseInt(bantime,  10),
@@ -235,9 +239,35 @@ export const JailConfigModal: React.FC<JailConfigModalProps> = ({ jailName, isAc
         setOpLoading(null);
     };
 
+    const isValidIpOrCidr = (s: string): boolean => {
+        if (/^(\d{1,3}\.){3}\d{1,3}$/.test(s)) return s.split('.').every(n => +n >= 0 && +n <= 255);
+        const m4 = s.match(/^((\d{1,3}\.){3}\d{1,3})\/(\d{1,2})$/);
+        if (m4) return m4[1].split('.').every(n => +n <= 255) && +m4[3] <= 32;
+        if (s.includes(':') && /^[0-9a-fA-F:]{2,39}$/.test(s)) return true;
+        const m6 = s.match(/^([0-9a-fA-F:]+)\/(\d{1,3})$/);
+        if (m6 && m6[1].includes(':')) return +m6[2] <= 128;
+        return false;
+    };
+
+    const isValidPort = (s: string): boolean => {
+        if (!s.trim()) return true; // empty = keep current
+        return s.trim().split(',').every(part => {
+            const p = part.trim();
+            if (/^[a-z][a-z0-9-]*$/.test(p)) return true;            // service name (http, https…)
+            if (/^\d+$/.test(p)) return +p >= 1 && +p <= 65535;      // single port
+            const range = p.match(/^(\d+):(\d+)$/);
+            return range ? +range[1] >= 1 && +range[2] <= 65535 && +range[1] <= +range[2] : false;
+        });
+    };
+
     const addIgnoreip = () => {
         const v = ignoreipInput.trim();
-        if (!v || ignoreipList.includes(v)) return;
+        if (!v) return;
+        if (ignoreipList.includes(v)) { setIgnoreipInput(''); return; }
+        if (!isValidIpOrCidr(v)) {
+            setMsg({ ok: false, text: `Format invalide : "${v}" — attendu IP (192.168.1.1) ou CIDR (10.0.0.0/8)` });
+            return;
+        }
         setIgnoreipList(l => [...l, v]);
         setIgnoreipInput('');
     };

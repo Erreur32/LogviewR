@@ -107,17 +107,31 @@ const SectionHeader: React.FC<{
     icon: React.ReactNode;
     title: string;
     sub: string;
-}> = ({ color, bg, icon, title, sub }) => (
-    <div style={{
+    badge?: React.ReactNode;
+    collapsible?: boolean;
+    open?: boolean;
+    onToggle?: () => void;
+}> = ({ color, bg, icon, title, sub, badge, collapsible, open, onToggle }) => (
+    <div onClick={collapsible ? onToggle : undefined} style={{
         background: bg, border: `1px solid ${C.border}`,
-        borderBottom: 'none', borderRadius: '8px 8px 0 0',
+        borderBottom: collapsible && !open ? `1px solid ${C.border}` : 'none',
+        borderRadius: collapsible && !open ? 8 : '8px 8px 0 0',
         padding: '.75rem 1rem', display: 'flex', alignItems: 'center', gap: '.75rem',
+        cursor: collapsible ? 'pointer' : undefined,
     }}>
         <span style={{ color, fontSize: '1.1rem' }}>{icon}</span>
-        <div>
-            <div style={{ fontWeight: 700, fontSize: '.95rem', color: C.text }}>{title}</div>
+        <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 700, fontSize: '.95rem', color: C.text, display: 'flex', alignItems: 'center', gap: '.5rem' }}>
+                {title}
+                {badge}
+            </div>
             <div style={{ fontSize: '.75rem', color: C.muted, marginTop: 1 }}>{sub}</div>
         </div>
+        {collapsible && (
+            open
+                ? <ChevronDown style={{ width: 14, height: 14, color: C.muted, flexShrink: 0 }} />
+                : <ChevronRight style={{ width: 14, height: 14, color: C.muted, flexShrink: 0 }} />
+        )}
     </div>
 );
 
@@ -745,6 +759,20 @@ export const TabConfig: React.FC<{
     // Maintenance
     const [resetting, setResetting] = useState(false);
 
+    // NPM MySQL config detection (badge)
+    const [npmMysqlOk, setNpmMysqlOk] = useState(false);
+
+    useEffect(() => {
+        api.get<{ settings?: Record<string, unknown> }>('/api/plugins/fail2ban')
+            .then(res => {
+                const s = res.result?.settings ?? {};
+                if (s.npmDbType === 'mysql' && s.npmMysqlHost && s.npmMysqlUser && s.npmMysqlDb) {
+                    setNpmMysqlOk(true);
+                }
+            })
+            .catch(() => {});
+    }, []);
+
     // Form state (runtime & persist)
     const [fmLoglevel, setFmLoglevel]   = useState('');
     const [fmLogtarget, setFmLogtarget] = useState('');
@@ -757,9 +785,10 @@ export const TabConfig: React.FC<{
     const [openDb,      setOpenDb]      = useState(false);
     const [openSqlite,  setOpenSqlite]  = useState(false);
     const [openDbTip,   setOpenDbTip]   = useState(false);
-    const [openAppDb,   setOpenAppDb]   = useState(false);
-    const [openInteg,   setOpenInteg]   = useState(false);
-    const [openMaint,   setOpenMaint]   = useState(false);
+    const [openAppDb,      setOpenAppDb]      = useState(false);
+    const [openInteg,      setOpenInteg]      = useState(false);
+    const [openMaint,      setOpenMaint]      = useState(false);
+    const [openAppSection, setOpenAppSection] = useState(true); // expanded by default
 
     // Raw files modal
     const [openRawModal, setOpenRawModal] = useState(false);
@@ -843,10 +872,17 @@ export const TabConfig: React.FC<{
         void loadSyncStatus();
     }, [loadParsed, runChecks, checkFirewall, loadSyncStatus]);
 
-    // Auto-ouvrir Intégrations si chemin NPM non configuré
+    // Auto-ouvrir Intégrations si NPM non configuré (ni SQLite ni MySQL)
     useEffect(() => {
-        if (!npmDataPath) setOpenInteg(true);
-    }, [npmDataPath]);
+        if (!npmDataPath && !npmMysqlOk) setOpenInteg(true);
+    }, [npmDataPath, npmMysqlOk]);
+
+    // Auto-ouvrir Application section si problème détecté (DB manquante ou fragmentation élevée)
+    useEffect(() => {
+        if (!parsed) return;
+        const hasIssue = !parsed.appDbInfo?.exists || (parsed.appDbInfo?.fragPct ?? 0) > 20;
+        if (hasIssue) setOpenAppSection(true);
+    }, [parsed]);
 
     // Notify parent whenever parsed data or firewall statuses change → drives nav badge
     useEffect(() => {
@@ -856,7 +892,7 @@ export const TabConfig: React.FC<{
         if (parsed?.dbInfo?.integrity && parsed.dbInfo.integrity !== 'ok') warns++;
         if (parsed?.appDbInfo?.fragPct && parsed.appDbInfo.fragPct > 20) warns++;
         if (parsed?.appDbInfo && !parsed.appDbInfo.exists) warns++;
-        if (!npmDataPath) warns++;
+        if (!npmDataPath && !npmMysqlOk) warns++;
         warns += FW_CHECKS_CFG.filter(c => fwStatuses[c.key] === 'error').length;
         onWarningsChange(warns);
     }, [parsed, fwStatuses, npmDataPath, onWarningsChange]);
@@ -906,6 +942,11 @@ export const TabConfig: React.FC<{
     };
 
     const persistDb = async () => {
+        const purgeVal = parseInt(fmPurgeage, 10);
+        if (fmPurgeage !== '' && (isNaN(purgeVal) || purgeVal < 0)) {
+            toast('dbpurgeage invalide — entrez un entier ≥ 0 (secondes)', false);
+            return;
+        }
         setSaving('persist-db');
         const res = await api.post<{ ok: boolean; written: string[]; errors: string[] }>(
             '/api/plugins/fail2ban/config/write',
@@ -1259,9 +1300,11 @@ export const TabConfig: React.FC<{
                                                     <span style={{ cursor: 'help', color: C.blue, fontSize: '.85rem', lineHeight: 1 }}>ⓘ</span>
                                                 </F2bTooltip>
                                             </div>
-                                            <input type="text" value={fmPurgeage} onChange={e => setFmPurgeage(e.target.value)} style={inp} placeholder="86400" />
+                                            <input type="number" min="0" value={fmPurgeage}
+                                                onChange={e => { const v = e.target.value; if (v === '' || /^\d+$/.test(v)) setFmPurgeage(v); }}
+                                                style={{ ...inp, borderColor: fmPurgeage !== '' && (isNaN(parseInt(fmPurgeage, 10)) || parseInt(fmPurgeage, 10) < 0) ? C.red : undefined }} placeholder="86400" />
                                             <div style={{ fontSize: '.65rem', color: C.muted, marginTop: 2 }}>
-                                                {parseInt(fmPurgeage, 10) > 0 ? `≈ ${Math.round(parseInt(fmPurgeage, 10) / 86400)} jour(s)` : 'Désactivé (0)'}
+                                                {parseInt(fmPurgeage, 10) > 0 ? `≈ ${Math.round(parseInt(fmPurgeage, 10) / 86400)} jour(s)` : parseInt(fmPurgeage, 10) === 0 ? 'Désactivé (0)' : ''}
                                             </div>
                                         </div>
                                         <div>
@@ -1347,8 +1390,17 @@ export const TabConfig: React.FC<{
                     icon={<Settings style={{ width: 16, height: 16 }} />}
                     title="Application"
                     sub="Base de données interne LogviewR, maintenance"
+                    collapsible
+                    open={openAppSection}
+                    onToggle={() => setOpenAppSection(o => !o)}
+                    badge={parsed?.appDbInfo?.exists && (parsed.appDbInfo.fragPct ?? 0) <= 20
+                        ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.25rem', fontSize: '.72rem', color: C.green, background: 'rgba(63,185,80,.10)', border: '1px solid rgba(63,185,80,.28)', borderRadius: 4, padding: '.08rem .42rem', fontWeight: 600 }}>
+                            <CheckCircle style={{ width: 10, height: 10 }} /> OK
+                          </span>
+                        : undefined
+                    }
                 />
-                <div style={colBody}>
+                {openAppSection && <div style={colBody}>
 
                     {/* Card: App DB + internal sync stats */}
                     <div style={{ ...card, borderColor: (parsed?.appDbInfo?.fragPct ?? 0) > 20 ? 'rgba(227,179,65,.4)' : C.border }}>
@@ -1620,21 +1672,26 @@ export const TabConfig: React.FC<{
 
                     {/* Card: Intégrations — chemins SQLite & NPM */}
                     <div style={{ ...card, borderColor: npmDataPath ? C.border : 'rgba(227,179,65,.4)' }}>
-                        <div onClick={() => setOpenInteg(o => !o)} style={{ ...cardH, cursor: 'pointer', background: npmDataPath ? undefined : 'rgba(227,179,65,.04)' }}>
-                            <Network style={{ width: 14, height: 14, color: npmDataPath ? C.cyan : C.orange }} />
+                        <div onClick={() => setOpenInteg(o => !o)} style={{ ...cardH, cursor: 'pointer', background: (npmDataPath || npmMysqlOk) ? undefined : 'rgba(227,179,65,.04)' }}>
+                            <Network style={{ width: 14, height: 14, color: (npmDataPath || npmMysqlOk) ? C.cyan : C.orange }} />
                             <span style={{ fontWeight: 600, fontSize: '.9rem' }}>Intégrations <span style={{ fontWeight: 400, color: C.orange, fontSize: '.72rem' }}>(optionnel)</span></span>
-                            {!npmDataPath && <WarnBadge count={1} tip="Chemin données NPM non configuré — Top Domaines inactif" />}
+                            {!(npmDataPath || npmMysqlOk) && <WarnBadge count={1} tip="NPM non configuré — Top Domaines inactif" />}
+                            {(npmDataPath || npmMysqlOk) && (
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.25rem', fontSize: '.72rem', color: C.green, background: 'rgba(63,185,80,.10)', border: '1px solid rgba(63,185,80,.28)', borderRadius: 4, padding: '.08rem .42rem', fontWeight: 600 }}>
+                                    <CheckCircle style={{ width: 10, height: 10 }} /> NPM {npmMysqlOk ? 'MySQL' : 'SQLite'}
+                                </span>
+                            )}
                             <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '.4rem' }}>
                                 <HBadge color={C.cyan} bg="rgba(57,197,207,.08)" border="rgba(57,197,207,.25)">Nginx Proxy Manager</HBadge>
                                 {openInteg ? <ChevronDown style={{ width: 13, height: 13, color: C.muted }} /> : <ChevronRight style={{ width: 13, height: 13, color: C.muted }} />}
                             </span>
                         </div>
                         {openInteg && <div style={{ ...cardB }}>
-                            {!npmDataPath && (
+                            {!(npmDataPath || npmMysqlOk) && (
                                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: '.5rem', padding: '.5rem .7rem', borderRadius: 6, background: 'rgba(227,179,65,.08)', border: '1px solid rgba(227,179,65,.3)', marginBottom: '.75rem' }}>
                                     <AlertTriangle style={{ width: 14, height: 14, color: C.orange, flexShrink: 0, marginTop: 1 }} />
                                     <span style={{ fontSize: '.78rem', color: C.orange, lineHeight: 1.5 }}>
-                                        Chemin NPM non configuré — les <strong>Top Domaines</strong> (onglet Stats) ne fonctionneront pas.
+                                        NPM non configuré — les <strong>Top Domaines</strong> (onglet Stats) ne fonctionneront pas.
                                     </span>
                                 </div>
                             )}
@@ -1671,7 +1728,7 @@ export const TabConfig: React.FC<{
                     </div>
 
 
-                </div>
+                </div>}
             </div>
 
             </div>{/* /grid */}

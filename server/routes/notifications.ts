@@ -263,4 +263,16 @@ router.post('/webhooks/:id/test', requireAuth, requireAdmin,
     })
 );
 
+// ── Telegram token verifier ─────────────────────────────────────────────────────
+router.post('/telegram/verify', requireAuth, requireAdmin,
+    asyncHandler(async (req: AuthenticatedRequest, res) => {
+        const { token } = req.body as { token?: string };
+        if (!token) throw createError('Token manquant', 400, 'MISSING_TOKEN');
+        const r = await fetch(`https://api.telegram.org/bot${token}/getMe`);
+        const data = await r.json() as { ok: boolean; result?: { username?: string; first_name?: string; id?: number }; description?: string };
+        if (!data.ok) throw createError(data.description || 'Token invalide', 400, 'INVALID_TOKEN');
+        res.json({ success: true, result: { username: data.result?.username, first_name: data.result?.first_name, id: data.result?.id } });
+    })
+);
+
 export default router;

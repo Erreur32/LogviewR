@@ -5,6 +5,8 @@
  */
 
 import { Router } from 'express';
+import * as fs from 'fs';
+import * as path from 'path';
 import { pluginManager } from '../services/pluginManager.js';
 import { PluginConfigRepository } from '../database/models/PluginConfig.js';
 import { loggingService } from '../services/loggingService.js';
@@ -317,6 +319,32 @@ router.post('/:id/test', requireAuth, requireAdmin, asyncHandler(async (req: Aut
         }
     });
 }), autoLog('plugin.test', 'plugin', (req) => req.params.id));
+
+// POST /api/plugins/npm/detect-db — auto-detect database.sqlite from NPM basePath
+router.post('/npm/detect-db', requireAuth, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res) => {
+    const { basePath } = req.body as { basePath?: string };
+    if (!basePath) throw createError('basePath manquant', 400, 'MISSING_PARAM');
+
+    // Resolve through Docker path mapping if applicable
+    const HOST_PATH = process.env.HOST_PATH || '';
+    const resolve = (p: string) => HOST_PATH ? path.join(HOST_PATH, p) : p;
+
+    const candidates: string[] = [
+        path.join(basePath, '..', 'database.sqlite'),  // /data/logs → /data/database.sqlite
+        path.join(basePath, 'database.sqlite'),          // /data      → /data/database.sqlite
+        path.join(basePath, '..', '..', 'database.sqlite'), // /data/logs/proxy → /data/database.sqlite
+    ];
+
+    for (const candidate of candidates) {
+        const resolved = resolve(candidate);
+        try {
+            fs.accessSync(resolved, fs.constants.R_OK);
+            return res.json({ success: true, result: { found: true, path: candidate, resolvedPath: resolved } });
+        } catch { /* try next */ }
+    }
+
+    res.json({ success: true, result: { found: false, candidates, message: 'database.sqlite non trouvée dans les chemins candidats' } });
+}));
 
 export default router;
 

@@ -9,6 +9,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.7.5] - 2026-03-29
+
+### Added
+- **Telegram webhook — bot verification**: new "Vérifier" button calls `POST /api/notifications/telegram/verify` (Telegram `getMe`) and displays the bot username inline; token and Chat ID are now validated client-side before save
+- **Discord webhook — URL validation**: URL must match `https://discord.com/api/webhooks/…` format; shown as inline field error
+- **Generic webhook — URL validation**: must start with `http://` or `https://`
+- **Webhook form — required field markers**: name field marked `*` required across all webhook types
+- **Fail2ban Config — Application section**: collapsible frame with green `✓ OK` badge when `dashboard.db` exists and fragmentation ≤ 20%; expanded by default
+- **Fail2ban Config — NPM integration badge**: green `✓ NPM SQLite` or `✓ NPM MySQL` badge in the Integrations card header when NPM is configured; auto-opens and shows warning when not configured
+- **NPM plugin — SQLite auto-detect**: "Détecter database.sqlite" button in PluginOptionsPanel probes `basePath/../database.sqlite` and neighbouring paths; shows green badge with resolved path on success
+- **`POST /api/plugins/npm/detect-db`**: new backend endpoint that resolves `database.sqlite` from a given `basePath` using three candidate paths
+- **`POST /api/notifications/telegram/verify`**: new backend endpoint proxying Telegram `getMe` to validate a bot token server-side
+
+### Fixed
+- **JailConfigModal — ignoreip**: `addIgnoreip()` now validates IP/CIDR format before adding to whitelist; invalid entries show an error message instead of silently adding bad values
+- **TabJails — banIp** (×2 components): ban form validates IP/CIDR format before submit; button disabled and inline error shown for invalid input
+- **Fail2banPathConfig — MySQL save**: host, user, and db fields are required; port validated as integer 1–65535 before calling the API; port field border turns red for out-of-range values
+- **TabConfig — fmPurgeage**: changed from free-text to `type="number" min=0`; `persistDb()` blocks save if value is not a non-negative integer
+- **JailConfigModal — port**: `handleSave()` validates port field accepts only `22`, `http`, `80,443`, or `80:443` formats
+- **SettingsPage — publicUrl**: `handleSave()` validates URL starts with `http://` or `https://` before calling the API
+- **SettingsPage — username**: added forbidden-characters check (`[\w.\-]` only) on top of existing min-3 length check; input border turns red inline
+
+---
+
 ## [0.7.4] - 2026-03-29
 
 ### Added

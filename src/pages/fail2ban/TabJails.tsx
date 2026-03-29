@@ -23,6 +23,16 @@ import { FlagImg } from './FlagImg';
 const _cache: Record<string, { data: unknown; ts: number }> = {};
 const CACHE_TTL  = 30_000;
 const ENRICH_TTL = 300_000; // 5 min — jail configs rarely change
+function isValidIpOrCidr(s: string): boolean {
+    const v = s.trim();
+    if (/^(\d{1,3}\.){3}\d{1,3}$/.test(v)) return v.split('.').every(n => +n >= 0 && +n <= 255);
+    const m4 = v.match(/^((\d{1,3}\.){3}\d{1,3})\/(\d{1,2})$/);
+    if (m4) return m4[1].split('.').every(n => +n <= 255) && +m4[3] <= 32;
+    if (v.includes(':') && /^[0-9a-fA-F:]{2,39}$/.test(v)) return true;
+    const m6 = v.match(/^([0-9a-fA-F:]+)\/(\d{1,3})$/);
+    if (m6 && m6[1].includes(':')) return +m6[2] <= 128;
+    return false;
+}
 function getCached<T>(key: string): T | null { const e = _cache[key]; return (e && Date.now() - e.ts < CACHE_TTL) ? e.data as T : null; }
 function getCachedTTL<T>(key: string, ttl: number): T | null { const e = _cache[key]; return (e && Date.now() - e.ts < ttl) ? e.data as T : null; }
 function setCached(key: string, data: unknown) { _cache[key] = { data, ts: Date.now() }; }
@@ -336,17 +346,26 @@ export const JailCard: React.FC<{
 
             {/* Ban IP form — always at bottom */}
             <div style={{ padding: '.5rem .75rem', borderTop: '1px solid #30363d', background: 'rgba(13,17,23,.3)', marginTop: 'auto' }}>
-                <form onSubmit={e => { e.preventDefault(); if (banIp.trim()) { onBan(banIp.trim()); setBanIp(''); } }}
-                    style={{ display: 'flex', gap: '.4rem' }}>
+                <form onSubmit={e => {
+                    e.preventDefault();
+                    const ip = banIp.trim();
+                    if (!ip || !isValidIpOrCidr(ip)) return;
+                    onBan(ip); setBanIp('');
+                }} style={{ display: 'flex', gap: '.4rem', flexDirection: 'column' }}>
+                    <div style={{ display: 'flex', gap: '.4rem' }}>
                     <input type="text" value={banIp} onChange={e => setBanIp(e.target.value)}
                         placeholder="IP à bannir…"
-                        style={{ flex: 1, padding: '.28rem .55rem', fontSize: '.78rem', fontFamily: 'monospace', borderRadius: 4, background: '#161b22', border: '1px solid #30363d', borderBottom: '1px solid #555', color: '#e6edf3', outline: 'none', minWidth: 0, boxShadow: 'inset 0 2px 4px rgba(0,0,0,.55), inset 0 1px 0 rgba(0,0,0,.4), inset 0 -1px 0 rgba(255,255,255,.04)', transition: 'border-color .15s' }}
+                        style={{ flex: 1, padding: '.28rem .55rem', fontSize: '.78rem', fontFamily: 'monospace', borderRadius: 4, background: '#161b22', border: `1px solid ${banIp.trim() && !isValidIpOrCidr(banIp.trim()) ? '#e86a65' : '#30363d'}`, borderBottom: `1px solid ${banIp.trim() && !isValidIpOrCidr(banIp.trim()) ? '#e86a65' : '#555'}`, color: '#e6edf3', outline: 'none', minWidth: 0, boxShadow: 'inset 0 2px 4px rgba(0,0,0,.55), inset 0 1px 0 rgba(0,0,0,.4), inset 0 -1px 0 rgba(255,255,255,.04)', transition: 'border-color .15s' }}
                         onFocus={e => (e.currentTarget.style.borderColor = '#58a6ff')}
-                        onBlur={e => (e.currentTarget.style.borderColor = '#30363d')} />
-                    <button type="submit" disabled={!banIp.trim() || !!actionLoading}
-                        style={{ display: 'flex', alignItems: 'center', gap: '.25rem', padding: '.28rem .65rem', borderRadius: 4, background: 'rgba(232,106,101,.1)', border: '1px solid rgba(232,106,101,.25)', color: '#e86a65', cursor: 'pointer', fontSize: '.75rem', opacity: !banIp.trim() || !!actionLoading ? .5 : 1 }}>
+                        onBlur={e => (e.currentTarget.style.borderColor = banIp.trim() && !isValidIpOrCidr(banIp.trim()) ? '#e86a65' : '#30363d')} />
+                    <button type="submit" disabled={!banIp.trim() || !isValidIpOrCidr(banIp.trim()) || !!actionLoading}
+                        style={{ display: 'flex', alignItems: 'center', gap: '.25rem', padding: '.28rem .65rem', borderRadius: 4, background: 'rgba(232,106,101,.1)', border: '1px solid rgba(232,106,101,.25)', color: '#e86a65', cursor: 'pointer', fontSize: '.75rem', opacity: !banIp.trim() || !isValidIpOrCidr(banIp.trim()) || !!actionLoading ? .5 : 1 }}>
                         <Ban style={{ width: 10, height: 10 }} /> Ban
                     </button>
+                    </div>
+                    {banIp.trim() && !isValidIpOrCidr(banIp.trim()) && (
+                        <span style={{ fontSize: '.68rem', color: '#e86a65' }}>Format invalide — ex: 192.168.1.1 ou 10.0.0.0/8</span>
+                    )}
                     <button type="button" onClick={() => setConfigOpen(true)}
                         style={{ display: 'flex', alignItems: 'center', gap: '.25rem', padding: '.28rem .55rem', borderRadius: 4, background: 'rgba(188,140,255,.08)', border: '1px solid rgba(188,140,255,.3)', color: '#bc8cff', cursor: 'pointer', fontSize: '.72rem' }}>
                         <Settings style={{ width: 10, height: 10 }} />
@@ -533,17 +552,26 @@ const JailExpandedGrid: React.FC<{
                         </div>
                     )}
                     {/* Ban form */}
-                    <form onSubmit={e => { e.preventDefault(); if (banIp.trim()) { onBan(banIp.trim()); setBanIp(''); } }}
-                        style={{ marginTop: '.6rem', display: 'flex', gap: '.3rem' }}>
+                    <form onSubmit={e => {
+                        e.preventDefault();
+                        const ip = banIp.trim();
+                        if (!ip || !isValidIpOrCidr(ip)) return;
+                        onBan(ip); setBanIp('');
+                    }} style={{ marginTop: '.6rem', display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
+                        <div style={{ display: 'flex', gap: '.3rem' }}>
                         <input type="text" value={banIp} onChange={e => setBanIp(e.target.value)}
                             placeholder="IP à bannir…"
-                            style={{ flex: 1, padding: '.25rem .45rem', fontSize: '.75rem', fontFamily: 'monospace', borderRadius: 4, background: '#161b22', border: '1px solid #30363d', borderBottom: '1px solid #555', color: '#e6edf3', outline: 'none', minWidth: 0, boxShadow: 'inset 0 2px 4px rgba(0,0,0,.55), inset 0 1px 0 rgba(0,0,0,.4), inset 0 -1px 0 rgba(255,255,255,.04)', transition: 'border-color .15s' }}
+                            style={{ flex: 1, padding: '.25rem .45rem', fontSize: '.75rem', fontFamily: 'monospace', borderRadius: 4, background: '#161b22', border: `1px solid ${banIp.trim() && !isValidIpOrCidr(banIp.trim()) ? '#e86a65' : '#30363d'}`, borderBottom: `1px solid ${banIp.trim() && !isValidIpOrCidr(banIp.trim()) ? '#e86a65' : '#555'}`, color: '#e6edf3', outline: 'none', minWidth: 0, boxShadow: 'inset 0 2px 4px rgba(0,0,0,.55), inset 0 1px 0 rgba(0,0,0,.4), inset 0 -1px 0 rgba(255,255,255,.04)', transition: 'border-color .15s' }}
                             onFocus={e => (e.currentTarget.style.borderColor = '#58a6ff')}
-                            onBlur={e => (e.currentTarget.style.borderColor = '#30363d')} />
-                        <button type="submit" disabled={!banIp.trim() || !!actionLoading}
-                            style={{ padding: '.25rem .55rem', borderRadius: 4, background: 'rgba(232,106,101,.1)', border: '1px solid rgba(232,106,101,.25)', color: '#e86a65', cursor: 'pointer', fontSize: '.72rem', opacity: !banIp.trim() || !!actionLoading ? .5 : 1 }}>
+                            onBlur={e => (e.currentTarget.style.borderColor = banIp.trim() && !isValidIpOrCidr(banIp.trim()) ? '#e86a65' : '#30363d')} />
+                        <button type="submit" disabled={!banIp.trim() || !isValidIpOrCidr(banIp.trim()) || !!actionLoading}
+                            style={{ padding: '.25rem .55rem', borderRadius: 4, background: 'rgba(232,106,101,.1)', border: '1px solid rgba(232,106,101,.25)', color: '#e86a65', cursor: 'pointer', fontSize: '.72rem', opacity: !banIp.trim() || !isValidIpOrCidr(banIp.trim()) || !!actionLoading ? .5 : 1 }}>
                             <Ban style={{ width: 10, height: 10 }} />
                         </button>
+                        </div>
+                        {banIp.trim() && !isValidIpOrCidr(banIp.trim()) && (
+                            <span style={{ fontSize: '.67rem', color: '#e86a65' }}>Format invalide — ex: 192.168.1.1 ou 10.0.0.0/8</span>
+                        )}
                     </form>
                 </div>
 

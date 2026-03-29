@@ -111,6 +111,10 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
     // Collapsible state for detected files with regex section (closed by default for npm, apache, nginx)
     const [isDetectedFilesExpanded, setIsDetectedFilesExpanded] = useState(false);
 
+    // NPM SQLite auto-detect
+    const [npmDbDetect, setNpmDbDetect] = useState<{ found: boolean; path?: string } | null>(null);
+    const [npmDbDetecting, setNpmDbDetecting] = useState(false);
+
     const plugin = plugins.find(p => p.id === pluginId);
 
     // Determine if this is a log source plugin
@@ -564,6 +568,25 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                 console.error('Auto-save failed:', error);
             }
         }, 500);
+    };
+
+    // NPM SQLite detection
+    const detectNpmDb = async (basePath?: string) => {
+        const bp = (basePath ?? String(formData.basePath ?? '')).trim();
+        if (!bp) return;
+        setNpmDbDetecting(true);
+        setNpmDbDetect(null);
+        try {
+            const token = localStorage.getItem('dashboard_user_token') ?? '';
+            const res = await fetch('/api/plugins/npm/detect-db', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ basePath: bp }),
+            });
+            const data = await res.json();
+            setNpmDbDetect(data.result ?? null);
+        } catch { setNpmDbDetect({ found: false }); }
+        finally { setNpmDbDetecting(false); }
     };
 
     // Helper to auto-save exclude filters
@@ -1068,6 +1091,30 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                     <p className="text-xs text-gray-500 mt-1">
                                         {t('pluginConfig.basePathHelp')}
                                     </p>
+                                    {/* NPM: SQLite auto-detect */}
+                                    {pluginId === 'npm' && (
+                                        <div className="mt-2 flex items-center gap-2 flex-wrap">
+                                            <button type="button"
+                                                onClick={() => detectNpmDb()}
+                                                disabled={npmDbDetecting || !String(formData.basePath ?? '').trim()}
+                                                className="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs border border-cyan-500/40 bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20 disabled:opacity-40 transition-colors">
+                                                {npmDbDetecting
+                                                    ? <RefreshCw size={10} className="animate-spin" />
+                                                    : <Database size={10} />}
+                                                Détecter database.sqlite
+                                            </button>
+                                            {npmDbDetect?.found && (
+                                                <span className="flex items-center gap-1 text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 rounded px-2 py-0.5">
+                                                    <CheckCircle size={10} /> Trouvée : <code className="font-mono text-emerald-300">{npmDbDetect.path}</code>
+                                                </span>
+                                            )}
+                                            {npmDbDetect && !npmDbDetect.found && (
+                                                <span className="flex items-center gap-1 text-xs text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded px-2 py-0.5">
+                                                    <XCircle size={10} /> database.sqlite non trouvée
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Access Log Pattern */}

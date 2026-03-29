@@ -1406,11 +1406,16 @@ const GeneralNetworkSection: React.FC = () => {
   const hasUnsavedChanges = publicUrl !== initialPublicUrl;
 
   const handleSave = async () => {
+    const trimmed = publicUrl.trim();
+    if (trimmed && !/^https?:\/\/.+/.test(trimmed)) {
+      setMessage({ type: 'error', text: 'URL invalide — doit commencer par http:// ou https://' });
+      return;
+    }
     setIsSaving(true);
     setMessage(null);
     try {
       const response = await api.put<{ publicUrl: string; message?: string }>('/api/system/general', {
-        publicUrl: publicUrl.trim() || ''
+        publicUrl: trimmed
       });
       if (response.success) {
         setMessage({ type: 'success', text: response.result?.message || t('common.savedSuccessfully') });
@@ -1583,8 +1588,14 @@ const UserProfileSection: React.FC = () => {
         return;
       }
 
-      if (username.length < 3) {
+      if (username.trim().length < 3) {
         setError('Le nom d\'utilisateur doit contenir au moins 3 caractères');
+        setIsSaving(false);
+        return;
+      }
+
+      if (!/^[\w.\-]+$/.test(username.trim())) {
+        setError('Caractères autorisés : lettres, chiffres, point, tiret, underscore');
         setIsSaving(false);
         return;
       }
@@ -1848,7 +1859,11 @@ const UserProfileSection: React.FC = () => {
             type="text"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            className="flex-1 px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:outline-none transition-colors"
+            className={`flex-1 px-3 py-2 bg-[#1a1a1a] border rounded-lg text-white text-sm focus:outline-none transition-colors ${
+              username.trim() && (username.trim().length < 3 || !/^[\w.\-]+$/.test(username.trim()))
+                ? 'border-red-500 focus:border-red-400'
+                : 'border-gray-700 focus:border-blue-500'
+            }`}
             placeholder={t('admin.general.profile.usernamePlaceholder')}
           />
         </div>
@@ -2064,6 +2079,10 @@ const NotificationsSection: React.FC = () => {
   const [form, setForm]             = useState(DEFAULT_FORM);
   const [formSaving, setFormSaving] = useState(false);
   const [formError, setFormError]   = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [tgVerifying, setTgVerifying] = useState(false);
+  const [tgBotName, setTgBotName]   = useState<string | null>(null);
+  const [tgVerifyErr, setTgVerifyErr] = useState<string | null>(null);
   const [testingId, setTestingId]   = useState<string | null>(null);
   const [testResults, setTestResults] = useState<Record<string, { ok: boolean; msg: string }>>({});
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -2095,9 +2114,12 @@ const NotificationsSection: React.FC = () => {
     finally { setPrefsSaving(false); }
   };
 
+  const resetTgVerify = () => { setTgBotName(null); setTgVerifyErr(null); };
+
   const openAddForm = (type: 'discord' | 'telegram' | 'generic') => {
     setForm({ ...DEFAULT_FORM });
-    setFormError('');
+    setFormError(''); setFieldErrors({});
+    resetTgVerify();
     setEditId(null);
     setShowForm(type);
   };
@@ -2109,14 +2131,46 @@ const NotificationsSection: React.FC = () => {
       batchWindow: wh.batchWindow ?? 0,
       maxPerBatch: wh.maxPerBatch ?? 10,
     });
-    setFormError('');
+    setFormError(''); setFieldErrors({});
+    resetTgVerify();
     setEditId(wh.id);
     setShowForm(wh.type);
   };
 
+  const verifyTgToken = async () => {
+    const token = form.token.trim();
+    if (!token) { setTgVerifyErr('Entrez un token d\'abord'); return; }
+    setTgVerifying(true); setTgBotName(null); setTgVerifyErr(null);
+    try {
+      const res = await api.post<{ username?: string; first_name?: string }>('/api/notifications/telegram/verify', { token });
+      if (res.result?.username) setTgBotName(`@${res.result.username} (${res.result.first_name ?? ''})`);
+      else setTgBotName(res.result?.first_name ?? 'Bot vérifié');
+    } catch (e: any) {
+      setTgVerifyErr(e?.message || 'Token invalide');
+    } finally { setTgVerifying(false); }
+  };
+
   const submitForm = async () => {
     if (!showForm) return;
-    setFormError('');
+    setFormError(''); setFieldErrors({});
+    // Validate required fields per type
+    const errs: Record<string, string> = {};
+    if (!form.name.trim()) errs.name = 'Nom obligatoire';
+    if (showForm === 'discord') {
+      if (!form.url.trim()) errs.url = 'URL du webhook Discord obligatoire';
+      else if (!form.url.trim().startsWith('https://discord.com/api/webhooks/')) errs.url = 'URL invalide — doit commencer par https://discord.com/api/webhooks/';
+    }
+    if (showForm === 'telegram') {
+      if (!form.token.trim()) errs.token = 'Token du bot obligatoire';
+      else if (!/^\d+:[\w-]{30,}$/.test(form.token.trim())) errs.token = 'Format invalide — ex: 123456789:AAFabc…';
+      if (!form.chatId.trim()) errs.chatId = 'Chat ID obligatoire';
+      else if (!/^-?\d+$/.test(form.chatId.trim())) errs.chatId = 'Chat ID doit être numérique — ex: -100123456789';
+    }
+    if (showForm === 'generic') {
+      if (!form.url.trim()) errs.url = 'URL obligatoire';
+      else if (!/^https?:\/\/.+/.test(form.url.trim())) errs.url = 'URL invalide — doit commencer par http:// ou https://';
+    }
+    if (Object.keys(errs).length > 0) { setFieldErrors(errs); return; }
     setFormSaving(true);
     try {
       const payload = { name: form.name, type: showForm, url: form.url, token: form.token, chatId: form.chatId, events: form.events, batchWindow: form.batchWindow, maxPerBatch: form.maxPerBatch };
@@ -2233,24 +2287,26 @@ const NotificationsSection: React.FC = () => {
 
               {/* Name */}
               <div>
-                <label className="block text-xs text-gray-400 mb-1">Nom</label>
+                <label className="block text-xs text-gray-400 mb-1">Nom <span className="text-red-400">*</span></label>
                 <input type="text" value={form.name}
-                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                  onChange={e => { setForm(f => ({ ...f, name: e.target.value })); setFieldErrors(fe => ({ ...fe, name: '' })); }}
                   placeholder={`Mon webhook ${WEBHOOK_TYPE_LABELS[showForm]}`}
-                  className="w-full px-3 py-2 bg-[#161b22] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-600 focus:outline-none focus:border-cyan-500/50" />
+                  className={`w-full px-3 py-2 bg-[#161b22] border rounded-lg text-white text-sm placeholder-gray-600 focus:outline-none ${fieldErrors.name ? 'border-red-500/60 focus:border-red-500' : 'border-gray-700 focus:border-cyan-500/50'}`} />
+                {fieldErrors.name && <p className="mt-1 text-xs text-red-400 flex items-center gap-1"><AlertCircle size={10} />{fieldErrors.name}</p>}
               </div>
 
               {/* Discord / Generic URL */}
               {(showForm === 'discord' || showForm === 'generic') && (
                 <div>
                   <label className="block text-xs text-gray-400 mb-1">
-                    {showForm === 'discord' ? 'URL Webhook Discord' : 'URL Endpoint'}
+                    {showForm === 'discord' ? 'URL Webhook Discord' : 'URL Endpoint'} <span className="text-red-400">*</span>
                   </label>
                   <input type="url" value={form.url}
-                    onChange={e => setForm(f => ({ ...f, url: e.target.value }))}
+                    onChange={e => { setForm(f => ({ ...f, url: e.target.value })); setFieldErrors(fe => ({ ...fe, url: '' })); }}
                     placeholder={showForm === 'discord' ? 'https://discord.com/api/webhooks/…' : 'https://example.com/webhook'}
-                    className="w-full px-3 py-2 bg-[#161b22] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-600 focus:outline-none focus:border-cyan-500/50" />
-                  {showForm === 'discord' && (
+                    className={`w-full px-3 py-2 bg-[#161b22] border rounded-lg text-white text-sm placeholder-gray-600 focus:outline-none ${fieldErrors.url ? 'border-red-500/60 focus:border-red-500' : 'border-gray-700 focus:border-cyan-500/50'}`} />
+                  {fieldErrors.url && <p className="mt-1 text-xs text-red-400 flex items-center gap-1"><AlertCircle size={10} />{fieldErrors.url}</p>}
+                  {!fieldErrors.url && showForm === 'discord' && (
                     <p className="mt-1 text-xs text-gray-500">Paramètres du serveur → Intégrations → Webhooks dans Discord.</p>
                   )}
                 </div>
@@ -2260,20 +2316,31 @@ const NotificationsSection: React.FC = () => {
               {showForm === 'telegram' && (
                 <>
                   <div>
-                    <label className="block text-xs text-gray-400 mb-1">Token du Bot</label>
-                    <input type="text" value={form.token}
-                      onChange={e => setForm(f => ({ ...f, token: e.target.value }))}
-                      placeholder="123456789:AAFabcXYZ…"
-                      className="w-full px-3 py-2 bg-[#161b22] border border-gray-700 rounded-lg text-white text-sm font-mono placeholder-gray-600 focus:outline-none focus:border-cyan-500/50" />
-                    <p className="mt-1 text-xs text-gray-500">Obtenu via @BotFather sur Telegram.</p>
+                    <label className="block text-xs text-gray-400 mb-1">Token du Bot <span className="text-red-400">*</span></label>
+                    <div className="flex gap-2">
+                      <input type="text" value={form.token}
+                        onChange={e => { setForm(f => ({ ...f, token: e.target.value })); resetTgVerify(); setFieldErrors(fe => ({ ...fe, token: '' })); }}
+                        placeholder="123456789:AAFabcXYZ…"
+                        className={`flex-1 px-3 py-2 bg-[#161b22] border rounded-lg text-white text-sm font-mono placeholder-gray-600 focus:outline-none ${fieldErrors.token ? 'border-red-500/60 focus:border-red-500' : 'border-gray-700 focus:border-cyan-500/50'}`} />
+                      <button type="button" onClick={verifyTgToken} disabled={tgVerifying || !form.token.trim()}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-blue-500/40 bg-blue-500/10 text-blue-300 hover:bg-blue-500/20 disabled:opacity-40 transition-colors whitespace-nowrap">
+                        {tgVerifying ? <Loader2 size={11} className="animate-spin" /> : <CheckCircle size={11} />}
+                        Vérifier
+                      </button>
+                    </div>
+                    {fieldErrors.token && <p className="mt-1 text-xs text-red-400 flex items-center gap-1"><AlertCircle size={10} />{fieldErrors.token}</p>}
+                    {tgBotName && <p className="mt-1 text-xs text-emerald-400 flex items-center gap-1"><CheckCircle size={10} /> Bot : {tgBotName}</p>}
+                    {tgVerifyErr && <p className="mt-1 text-xs text-red-400 flex items-center gap-1"><AlertCircle size={10} /> {tgVerifyErr}</p>}
+                    {!fieldErrors.token && !tgBotName && !tgVerifyErr && <p className="mt-1 text-xs text-gray-500">Obtenu via @BotFather sur Telegram.</p>}
                   </div>
                   <div>
-                    <label className="block text-xs text-gray-400 mb-1">Chat ID</label>
+                    <label className="block text-xs text-gray-400 mb-1">Chat ID <span className="text-red-400">*</span></label>
                     <input type="text" value={form.chatId}
-                      onChange={e => setForm(f => ({ ...f, chatId: e.target.value }))}
+                      onChange={e => { setForm(f => ({ ...f, chatId: e.target.value })); setFieldErrors(fe => ({ ...fe, chatId: '' })); }}
                       placeholder="-100123456789"
-                      className="w-full px-3 py-2 bg-[#161b22] border border-gray-700 rounded-lg text-white text-sm font-mono placeholder-gray-600 focus:outline-none focus:border-cyan-500/50" />
-                    <p className="mt-1 text-xs text-gray-500">ID du chat ou groupe. Utilisez @userinfobot pour le trouver.</p>
+                      className={`w-full px-3 py-2 bg-[#161b22] border rounded-lg text-white text-sm font-mono placeholder-gray-600 focus:outline-none ${fieldErrors.chatId ? 'border-red-500/60 focus:border-red-500' : 'border-gray-700 focus:border-cyan-500/50'}`} />
+                    {fieldErrors.chatId && <p className="mt-1 text-xs text-red-400 flex items-center gap-1"><AlertCircle size={10} />{fieldErrors.chatId}</p>}
+                    {!fieldErrors.chatId && <p className="mt-1 text-xs text-gray-500">ID du chat ou groupe. Utilisez @userinfobot pour le trouver.</p>}
                   </div>
                 </>
               )}

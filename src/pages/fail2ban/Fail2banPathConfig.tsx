@@ -99,6 +99,12 @@ export const Fail2banPathConfig: React.FC<Fail2banPathConfigProps> = ({
         }
     };
 
+    // Auto-check SQLite on mount (silent — shows default-path OK tip)
+    useEffect(() => {
+        if (!showSqlite) return;
+        runSqliteCheck().catch(() => {});
+    }, [showSqlite]); // eslint-disable-line react-hooks/exhaustive-deps
+
     const testSqlitePath = async () => {
         setSqliteTesting(true);
         setSqliteStatus('idle');
@@ -171,6 +177,14 @@ export const Fail2banPathConfig: React.FC<Fail2banPathConfigProps> = ({
     }, [showNpm]);
 
     const saveNpmConfig = async () => {
+        // Validate MySQL fields before save
+        if (npmDbType === 'mysql') {
+            const port = parseInt(mysql.port);
+            if (!mysql.host.trim()) { setNpmCheck({ ok: false, step: 'validate', error: 'Hôte MySQL obligatoire', resolvedPath: '', domains: 0, jailMatches: 0 }); return; }
+            if (!mysql.user.trim()) { setNpmCheck({ ok: false, step: 'validate', error: 'Utilisateur MySQL obligatoire', resolvedPath: '', domains: 0, jailMatches: 0 }); return; }
+            if (!mysql.db.trim())   { setNpmCheck({ ok: false, step: 'validate', error: 'Nom de la base obligatoire', resolvedPath: '', domains: 0, jailMatches: 0 }); return; }
+            if (isNaN(port) || port < 1 || port > 65535) { setNpmCheck({ ok: false, step: 'validate', error: 'Port invalide — doit être entre 1 et 65535', resolvedPath: '', domains: 0, jailMatches: 0 }); return; }
+        }
         setNpmSaving(true);
         setNpmCheck(null);
         setNpmSaved(false);
@@ -226,7 +240,17 @@ export const Fail2banPathConfig: React.FC<Fail2banPathConfigProps> = ({
                         <Database size={13} style={{ color: '#bc8cff', flexShrink: 0 }} />
                         <span style={{ fontSize: '.82rem', fontWeight: 600, color: '#e6edf3' }}>Chemin base SQLite</span>
                         <span style={{ fontSize: '.72rem', color: '#e3b341' }}>(optionnel)</span>
-                        {sqliteStatus === 'ok'    && <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.25rem', fontSize: '.72rem', color: '#3fb950', marginLeft: 'auto' }}><CheckCircle size={11} /> Accessible</span>}
+                        {sqliteStatus === 'ok' && !sqliteInput.trim() && (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.25rem', fontSize: '.72rem', color: '#3fb950', marginLeft: 'auto',
+                                background: 'rgba(63,185,80,.10)', border: '1px solid rgba(63,185,80,.3)', borderRadius: 4, padding: '.1rem .45rem' }}>
+                                <CheckCircle size={11} /> Par défaut · OK
+                            </span>
+                        )}
+                        {sqliteStatus === 'ok' && !!sqliteInput.trim() && (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.25rem', fontSize: '.72rem', color: '#3fb950', marginLeft: 'auto' }}>
+                                <CheckCircle size={11} /> Accessible
+                            </span>
+                        )}
                         {sqliteStatus === 'error' && <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.25rem', fontSize: '.72rem', color: '#e86a65', marginLeft: 'auto' }}><XCircle size={11} /> {sqliteError || 'Non accessible'}</span>}
                     </div>
                     <div style={{ display: 'flex', gap: '.4rem' }}>
@@ -308,7 +332,7 @@ export const Fail2banPathConfig: React.FC<Fail2banPathConfigProps> = ({
                                     style={inputStyle('idle')} />
                                 <input type="text" value={mysql.port} placeholder="Port"
                                     onChange={e => setMysql(m => ({ ...m, port: e.target.value }))}
-                                    style={{ ...inputStyle('idle'), width: 70, flex: 'none' }} />
+                                    style={{ ...inputStyle(mysql.port.trim() && (isNaN(parseInt(mysql.port)) || +mysql.port < 1 || +mysql.port > 65535) ? 'error' : 'idle'), width: 70, flex: 'none' }} />
                             </div>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.4rem' }}>
                                 <input type="text" value={mysql.user} placeholder="Utilisateur"
