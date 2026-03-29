@@ -669,8 +669,8 @@ export class Fail2banPlugin extends BasePlugin {
                                 : 'fail2ban-client ping échoue. Vérifiez que fail2ban tourne sur le host :\n  sudo systemctl status fail2ban'
                         : null,
                 },
-                version: versionInfo
-                    ? {
+                ...(versionInfo ? {
+                    version: {
                         ok: !versionInfo.mismatch,
                         client: versionInfo.client,
                         server: versionInfo.server,
@@ -678,7 +678,7 @@ export class Fail2banPlugin extends BasePlugin {
                             ? `Version mismatch : client ${versionInfo.client} (container) vs server ${versionInfo.server} (host).\nLe reload peut échouer. Mettez à jour LogviewR pour correspondre à la version du host, ou mettez à jour fail2ban sur le host.\n  sudo apt upgrade fail2ban`
                             : null,
                     }
-                    : null,
+                } : {}),
                 sqlite: {
                     ok: dbExists && dbReadable,
                     exists: dbExists,

@@ -1044,7 +1044,7 @@ export const TabConfig: React.FC<{
                             sqlite: 'Base SQLite',
                             dropin: 'Drop-in systemd',
                         };
-                        const diagChecks = checkResult ? (Object.entries(checkResult.checks) as [string, CheckItem][]) : [];
+                        const diagChecks = checkResult ? (Object.entries(checkResult.checks) as [string, CheckItem | null][]).filter((e): e is [string, CheckItem] => e[1] !== null) : [];
                         const hasErrors  = checkResult && !checkResult.ok;
                         const errCount   = diagChecks.filter(([, c]) => !c.ok).length;
                         return (
