@@ -113,7 +113,8 @@ services:
       #     propagation: shared
 
       # Optional: enable Fail2ban config file editing from the UI (jail.local / fail2ban.local)
-      # Also run: sudo ./scripts/setup-fail2ban-access.sh  (sets group-write on config files)
+      # Run setup script once (sets group-write on config files):
+      #   curl -fsSL https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setup-fail2ban-access.sh | sudo bash
       # Same constraint as VACUUM above: long-form bind required to override the :ro root mount.
       # - type: bind
       #   source: /etc/fail2ban
