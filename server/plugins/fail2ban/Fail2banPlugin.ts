@@ -1745,7 +1745,15 @@ export class Fail2banPlugin extends BasePlugin {
             try {
                 fs.writeFileSync(filePath, content, 'utf8');
             } catch (e) {
-                return res.json({ success: true, result: { ok: false, error: `Écriture impossible : ${e instanceof Error ? e.message : String(e)}` } });
+                const msg = e instanceof Error ? e.message : String(e);
+                const isEROFS = /EROFS|read.only file system/i.test(msg);
+                const isEACCES = /EACCES|permission denied/i.test(msg);
+                let hint = '';
+                if (isEROFS)
+                    hint = ' — Montage Docker en lecture seule. Décommentez le volume rw /etc/fail2ban dans docker-compose.yml et exécutez : sudo ./scripts/setup-fail2ban-access.sh';
+                else if (isEACCES)
+                    hint = ' — Permission refusée. Exécutez : sudo ./scripts/setup-fail2ban-access.sh';
+                return res.json({ success: true, result: { ok: false, error: `Écriture impossible : ${msg}${hint}` } });
             }
             // Reload fail2ban if socket available
             let reloadOk = false;

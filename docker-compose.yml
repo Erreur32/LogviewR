@@ -112,6 +112,15 @@ services:
       #   bind:
       #     propagation: shared
 
+      # Optional: enable Fail2ban config file editing from the UI (jail.local / fail2ban.local)
+      # Also run: sudo ./scripts/setup-fail2ban-access.sh  (sets group-write on config files)
+      # Same constraint as VACUUM above: long-form bind required to override the :ro root mount.
+      # - type: bind
+      #   source: /etc/fail2ban
+      #   target: /host/etc/fail2ban
+      #   bind:
+      #     propagation: shared
+
       # Optional: mount specific log directories for direct access (without /host/ prefix)
       # - /var/log/nginx:/var/log/nginx:ro
       # - /var/log/apache2:/var/log/apache2:ro

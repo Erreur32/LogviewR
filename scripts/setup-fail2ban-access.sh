@@ -173,7 +173,71 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-section "6. Configuration docker-compose (.env)"
+section "6. Config fail2ban — permissions d'écriture (édition UI)"
+
+CONF_DIR="/etc/fail2ban"
+CONF_FILES=("jail.local" "fail2ban.local")
+CONF_NEED_FIX=false
+
+# Check directory itself
+dir_mode=$(stat -c "%a" "$CONF_DIR" 2>/dev/null)
+dir_group=$(stat -c "%G" "$CONF_DIR" 2>/dev/null)
+if [[ "$dir_group" == "fail2ban" && "$dir_mode" == "775" ]]; then
+    ok "Dossier $CONF_DIR : $dir_mode root:fail2ban"
+else
+    warn "Dossier $CONF_DIR : ${dir_mode:-?} root:${dir_group:-?} — création de .local impossible depuis l'UI"
+    CONF_NEED_FIX=true
+fi
+
+for f in "${CONF_FILES[@]}"; do
+    fp="$CONF_DIR/$f"
+    if [[ -f "$fp" ]]; then
+        fmode=$(stat -c "%a" "$fp" 2>/dev/null)
+        fgroup=$(stat -c "%G" "$fp" 2>/dev/null)
+        if [[ "$fgroup" == "fail2ban" && ("$fmode" == "664" || "$fmode" == "660") ]]; then
+            ok "$f : $fmode root:fail2ban (édition UI OK)"
+        else
+            warn "$f : ${fmode:-?} root:${fgroup:-?} — écriture depuis l'UI impossible"
+            CONF_NEED_FIX=true
+        fi
+    else
+        info "$f absent — sera créable depuis l'UI si le dossier est accessible"
+    fi
+done
+
+if $CONF_NEED_FIX; then
+    if ! $CHECK_ONLY; then
+        chown root:fail2ban "$CONF_DIR" 2>/dev/null
+        chmod 775 "$CONF_DIR" 2>/dev/null
+        ok "Dossier $CONF_DIR : 775 root:fail2ban"
+        for f in "${CONF_FILES[@]}"; do
+            fp="$CONF_DIR/$f"
+            if [[ -f "$fp" ]]; then
+                chown root:fail2ban "$fp" 2>/dev/null
+                chmod 664 "$fp" 2>/dev/null
+                ok "$f : 664 root:fail2ban"
+            fi
+        done
+        echo ""
+        info "Activez aussi le montage rw dans docker-compose.yml :"
+        echo -e "    ${CYAN}# Optional: enable Fail2ban config file editing from the UI${RESET}"
+        echo -e "    ${CYAN}- type: bind${RESET}"
+        echo -e "    ${CYAN}  source: /etc/fail2ban${RESET}"
+        echo -e "    ${CYAN}  target: /host/etc/fail2ban${RESET}"
+        echo -e "    ${CYAN}  bind:${RESET}"
+        echo -e "    ${CYAN}    propagation: shared${RESET}"
+        info "Puis : docker compose up -d --force-recreate"
+    else
+        info "Fix : sudo chown root:fail2ban /etc/fail2ban && sudo chmod 775 /etc/fail2ban"
+        info "      sudo chown root:fail2ban /etc/fail2ban/{jail,fail2ban}.local 2>/dev/null"
+        info "      sudo chmod 664 /etc/fail2ban/{jail,fail2ban}.local 2>/dev/null"
+        info "Et activez le montage rw /etc/fail2ban dans docker-compose.yml"
+        ERRORS=$((ERRORS+1))
+    fi
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+section "7. Configuration docker-compose (.env)"
 
 if [[ -n "$FAIL2BAN_GID" ]]; then
     if [[ -f "$ENV_FILE" ]]; then
