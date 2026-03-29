@@ -145,6 +145,13 @@ services:
       #   target: /host/var/lib/fail2ban
       #   bind:
       #     propagation: shared
+      # Optional: enable Fail2ban config file editing from the UI (jail.local / fail2ban.local)
+      # Run once: curl -fsSL https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setup-fail2ban-access.sh | sudo bash
+      # - type: bind
+      #   source: /etc/fail2ban
+      #   target: /host/etc/fail2ban
+      #   bind:
+      #     propagation: shared
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:7500/api/health"]
       interval: 30s
@@ -238,11 +245,18 @@ services:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
       # Optional: enable Fail2ban SQLite VACUUM (long-form bind required — short-form does not override :ro)
-      - type: bind
-        source: /var/lib/fail2ban
-        target: /host/var/lib/fail2ban
-        bind:
-          propagation: shared
+      # - type: bind
+      #   source: /var/lib/fail2ban
+      #   target: /host/var/lib/fail2ban
+      #   bind:
+      #     propagation: shared
+      # Optional: enable Fail2ban config file editing from the UI (jail.local / fail2ban.local)
+      # Run once: curl -fsSL https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setup-fail2ban-access.sh | sudo bash
+      # - type: bind
+      #   source: /etc/fail2ban
+      #   target: /host/etc/fail2ban
+      #   bind:
+      #     propagation: shared
 
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000/api/health"]
@@ -282,6 +296,13 @@ services:
       #   target: /host/var/lib/fail2ban
       #   bind:
       #     propagation: shared
+      # Optional: enable Fail2ban config file editing from the UI (jail.local / fail2ban.local)
+      # Run once: curl -fsSL https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setup-fail2ban-access.sh | sudo bash
+      # - type: bind
+      #   source: /etc/fail2ban
+      #   target: /host/etc/fail2ban
+      #   bind:
+      #     propagation: shared
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:7500/api/health"]
       interval: 30s
@@ -290,11 +311,21 @@ services:
       start_period: 40s
 ```
 
-> **Fail2ban SQLite VACUUM**: The `:ro` flag prevents the container from writing to the host filesystem — recommended for security.
-> However, it disables the **SQLite defragmentation (VACUUM)** feature in the Fail2ban Config tab.
-> To enable VACUUM, uncomment the `type: bind` block above (`source: /var/lib/fail2ban`).
-> A simple short-form mount (`- /var/lib/fail2ban:/host/var/lib/fail2ban`) does **not** work — Docker cannot override a `:ro` parent mount with a short-form rw entry.
+> **Fail2ban optional rw mounts**: The `:ro` flag prevents the container from writing to the host filesystem — recommended for security.
+> Two features require a dedicated rw bind mount (both use the same long-form syntax with `propagation: shared`):
+>
+> | Feature | Uncomment `source:` |
+> |---------|---------------------|
+> | SQLite VACUUM (Fail2ban Config tab) | `/var/lib/fail2ban` |
+> | Config file editing from the UI (`jail.local` / `fail2ban.local`) | `/etc/fail2ban` |
+>
+> A simple short-form mount (e.g. `- /etc/fail2ban:/host/etc/fail2ban`) does **not** work — Docker cannot override a `:ro` parent mount with a short-form rw entry.
 > The long-form syntax with `propagation: shared` is required. It takes precedence over `/:/host:ro` for that path only.
+>
+> For config file editing, also run the setup script once on the host to grant group-write access:
+> ```bash
+> curl -fsSL https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setup-fail2ban-access.sh | sudo bash
+> ```
 
 **Changing the port**: only modify `PORT: 7500` → `PORT: 8080` (or any other), then point your reverse proxy to that port.
 
