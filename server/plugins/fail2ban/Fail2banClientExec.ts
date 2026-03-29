@@ -77,18 +77,7 @@ export class Fail2banClientExec {
             return { ok: true, output: stdout.trim() };
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : String(err);
-            // Capture stdout from the failed process — fail2ban-client may exit non-zero
-            // for WARNING-level issues (e.g. "Have not found any log file" for a systemd-
-            // backend jail) even when the reload completed successfully on the server side.
-            const stdout = ((err as Record<string, unknown>).stdout as string | undefined) ?? '';
-            const output = stdout.trim();
-            // If the last meaningful line is "OK", the server accepted the command despite
-            // the warning exit code — treat as success with a warning.
-            const lines = output.split('\n').map(l => l.trim()).filter(Boolean);
-            if (lines[lines.length - 1] === 'OK') {
-                return { ok: true, output };
-            }
-            return { ok: false, output, error: msg };
+            return { ok: false, output: '', error: msg };
         }
     }
 

@@ -223,7 +223,7 @@ const ConfHighlighter: React.FC<{ content: string }> = ({ content }) => (
 );
 
 type TestResult = { ok: boolean; errors: string[]; warnings: string[] };
-type SaveResult = { ok: boolean; reloadOk: boolean; reloadOutput: string; reloadWarning?: boolean; reloadMethod?: string; error?: string };
+type SaveResult = { ok: boolean; reloadOk: boolean; reloadOutput: string; reloadMethod?: string; error?: string };
 
 const RawFileViewer: React.FC<{
     rawFiles: RawFiles | null;
@@ -359,18 +359,13 @@ const RawFileViewer: React.FC<{
                                 <CheckCircle style={{ width: 12, height: 12, color: '#3fb950' }} />
                                 <span style={{ color: '#3fb950' }}>Fichier sauvegardé</span>
                                 {saveResult.reloadOk
-                                    ? saveResult.reloadWarning
-                                        ? <span style={{ color: '#e3b341', fontWeight: 400 }}>· rechargé (avec avertissements)</span>
-                                        : <span style={{ color: '#3fb950', fontWeight: 400 }}>· fail2ban {saveResult.reloadMethod === 'restart' ? 'redémarré' : 'rechargé'} avec succès</span>
+                                    ? <span style={{ color: '#3fb950', fontWeight: 400 }}>· fail2ban {saveResult.reloadMethod === 'restart' ? 'redémarré' : 'rechargé'} avec succès</span>
                                     : saveResult.reloadOutput?.startsWith('Socket non disponible')
                                         ? <span style={{ color: '#e3b341', fontWeight: 400 }}>· rechargement non disponible (socket absent)</span>
                                         : <span style={{ color: '#e86a65', fontWeight: 400 }}>· rechargement échoué</span>}
                             </div>
-                            {saveResult.reloadOutput && !saveResult.reloadOutput.startsWith('Socket non disponible') && !saveResult.reloadOk && (
+                            {saveResult.reloadOutput && !saveResult.reloadOutput.startsWith('Socket non disponible') && (
                                 <div style={{ fontFamily: 'monospace', fontSize: '.7rem', color: '#e86a65', paddingLeft: '1.2rem', whiteSpace: 'pre-wrap', background: 'rgba(232,106,101,.06)', border: '1px solid rgba(232,106,101,.2)', borderRadius: 4, padding: '.4rem .6rem' }}>{saveResult.reloadOutput}</div>
-                            )}
-                            {saveResult.reloadWarning && saveResult.reloadOutput && (
-                                <div style={{ fontFamily: 'monospace', fontSize: '.7rem', color: '#e3b341', paddingLeft: '1.2rem', whiteSpace: 'pre-wrap', background: 'rgba(227,179,65,.06)', border: '1px solid rgba(227,179,65,.2)', borderRadius: 4, padding: '.4rem .6rem' }}>{saveResult.reloadOutput}</div>
                             )}
                         </div>
                     )}
