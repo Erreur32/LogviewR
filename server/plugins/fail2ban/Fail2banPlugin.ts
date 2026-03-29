@@ -1775,13 +1775,24 @@ export class Fail2banPlugin extends BasePlugin {
             //    systemd service and the container cannot bring it back.
             let reloadOk = false;
             let reloadOutput = 'Socket non disponible — rechargement manuel requis';
+            let reloadWarning = false;
             const reloadMethod = 'reload';
             if (this.client?.isAvailable()) {
                 const r = await this.client.reload();
                 reloadOk = r.ok;
                 reloadOutput = r.output || r.error || '';
+                // If reload exited non-zero but fail2ban is still responding, it was a
+                // warning-level issue (e.g. systemd-backend jail with logpath warning).
+                // Confirm with a ping so the UI can show "rechargé" rather than "échoué".
+                if (!reloadOk) {
+                    const alive = await this.client.ping();
+                    if (alive) {
+                        reloadOk = true;
+                        reloadWarning = true;
+                    }
+                }
             }
-            res.json({ success: true, result: { ok: true, reloadOk, reloadOutput, reloadMethod } });
+            res.json({ success: true, result: { ok: true, reloadOk, reloadOutput, reloadWarning, reloadMethod } });
         }));
 
         // POST /config/service  — reload or restart fail2ban service
