@@ -84,16 +84,10 @@ section "3. Drop-in systemd (permissions socket au démarrage)"
 
 DROPIN_NEEDED=false
 if [[ -f "$DROPIN_FILE" ]]; then
-    if grep -q "fail2ban" "$DROPIN_FILE" && grep -q "chmod\|chown" "$DROPIN_FILE"; then
-        # Check if it uses the correct approach (chown root:fail2ban)
-        if grep -q "fail2ban" "$DROPIN_FILE" && grep -q "chown" "$DROPIN_FILE"; then
-            ok "Drop-in existant et correct : $DROPIN_FILE"
-        else
-            warn "Drop-in existant mais n'utilise pas chown root:fail2ban"
-            DROPIN_NEEDED=true
-        fi
+    if grep -q "chmod 666.*fail2ban.sock" "$DROPIN_FILE"; then
+        ok "Drop-in existant et correct : $DROPIN_FILE"
     else
-        warn "Drop-in existant mais contenu incomplet"
+        warn "Drop-in existant mais n'applique pas chmod 666 sur le socket"
         DROPIN_NEEDED=true
     fi
 else
@@ -104,13 +98,13 @@ fi
 if $DROPIN_NEEDED; then
     info "Contenu attendu :"
     echo -e "    ${CYAN}[Service]${RESET}"
-    echo -e "    ${CYAN}ExecStartPost=/bin/sh -c 'i=0; while [ \$i -lt 30 ] && ! fail2ban-client ping >/dev/null 2>&1; do sleep 0.5; i=\$((i+1)); done; chown root:fail2ban /var/run/fail2ban/fail2ban.sock 2>/dev/null; chmod 660 /var/run/fail2ban/fail2ban.sock 2>/dev/null; chmod 644 /var/lib/fail2ban/fail2ban.sqlite3 2>/dev/null'${RESET}"
+    echo -e "    ${CYAN}ExecStartPost=/bin/sh -c 'i=0; while [ \$i -lt 30 ] && ! fail2ban-client ping >/dev/null 2>&1; do sleep 0.5; i=\$((i+1)); done; chmod 666 /var/run/fail2ban/fail2ban.sock 2>/dev/null; chmod 644 /var/lib/fail2ban/fail2ban.sqlite3 2>/dev/null'${RESET}"
 
     if ! $CHECK_ONLY; then
         mkdir -p "$DROPIN_DIR"
         cat > "$DROPIN_FILE" << 'EOF'
 [Service]
-ExecStartPost=/bin/sh -c 'i=0; while [ $i -lt 30 ] && ! fail2ban-client ping >/dev/null 2>&1; do sleep 0.5; i=$((i+1)); done; chown root:fail2ban /var/run/fail2ban/fail2ban.sock 2>/dev/null; chmod 660 /var/run/fail2ban/fail2ban.sock 2>/dev/null; chmod 644 /var/lib/fail2ban/fail2ban.sqlite3 2>/dev/null'
+ExecStartPost=/bin/sh -c 'i=0; while [ $i -lt 30 ] && ! fail2ban-client ping >/dev/null 2>&1; do sleep 0.5; i=$((i+1)); done; chmod 666 /var/run/fail2ban/fail2ban.sock 2>/dev/null; chmod 644 /var/lib/fail2ban/fail2ban.sqlite3 2>/dev/null'
 EOF
         ok "Drop-in créé : $DROPIN_FILE"
         systemctl daemon-reload
@@ -129,18 +123,16 @@ fi
 section "4. Socket Unix"
 
 if [[ -S "$SOCKET_PATH" ]]; then
-    SOCK_GROUP=$(stat -c "%G" "$SOCKET_PATH" 2>/dev/null)
     SOCK_MODE=$(stat -c "%a" "$SOCKET_PATH" 2>/dev/null)
-    if [[ "$SOCK_GROUP" == "fail2ban" && "$SOCK_MODE" == "660" ]]; then
-        ok "Socket OK : $SOCKET_PATH ($SOCK_MODE root:fail2ban)"
+    if [[ "$SOCK_MODE" == "666" ]]; then
+        ok "Socket OK : $SOCKET_PATH (666 — accessible depuis Docker)"
     else
-        warn "Socket présent mais groupe/mode incorrect : $SOCK_MODE root:$SOCK_GROUP"
+        warn "Socket présent mais mode $SOCK_MODE — le container Docker ne peut pas y accéder"
         if ! $CHECK_ONLY; then
-            chown root:fail2ban "$SOCKET_PATH"
-            chmod 660 "$SOCKET_PATH"
-            ok "Permissions corrigées : 660 root:fail2ban"
+            chmod 666 "$SOCKET_PATH"
+            ok "Permissions corrigées : 666 (accessible depuis Docker sans groupe)"
         else
-            info "Fix : sudo chown root:fail2ban $SOCKET_PATH && sudo chmod 660 $SOCKET_PATH"
+            info "Fix : sudo chmod 666 $SOCKET_PATH"
             ERRORS=$((ERRORS+1))
         fi
     fi
