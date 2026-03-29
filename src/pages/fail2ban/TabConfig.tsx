@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../../api/client';
-import { card, cardH, cardB } from './helpers';
+import { card, cardH, cardB, F2bTooltip, TT } from './helpers';
 import { Fail2banPathConfig } from './Fail2banPathConfig';
 import { useNotificationStore } from '../../stores/notificationStore';
 
@@ -61,6 +61,13 @@ interface RawFiles {
     'fail2ban.local': string | null;
     'jail.conf': string | null;
     'jail.local': string | null;
+}
+
+interface RawMtimes {
+    'fail2ban.conf': number | null;
+    'fail2ban.local': number | null;
+    'jail.conf': number | null;
+    'jail.local': number | null;
 }
 
 interface CheckItem {
@@ -204,11 +211,12 @@ type SaveResult = { ok: boolean; reloadOk: boolean; reloadOutput: string; error?
 
 const RawFileViewer: React.FC<{
     rawFiles: RawFiles | null;
+    rawMtimes?: RawMtimes | null;
     rawTab: string;
     onTabChange: (t: string) => void;
     height?: number | string;
     onSaved?: (filename: string, content: string) => void;
-}> = ({ rawFiles, rawTab, onTabChange, height = 480, onSaved }) => {
+}> = ({ rawFiles, rawMtimes, rawTab, onTabChange, height = 480, onSaved }) => {
     const { t } = useTranslation();
     const [copied, setCopied]       = useState(false);
     const [editMode, setEditMode]   = useState(false);
@@ -218,7 +226,7 @@ const RawFileViewer: React.FC<{
     const [saving, setSaving]       = useState(false);
     const [saveResult, setSaveResult] = useState<SaveResult | null>(null);
 
-    const FILES = ['fail2ban.conf', 'fail2ban.local', 'jail.conf', 'jail.local'] as const;
+    const FILES = ['fail2ban.local', 'jail.local', 'fail2ban.conf', 'jail.conf'] as const;
     const EDITABLE = new Set(['fail2ban.local', 'jail.local']);
 
     const content = rawFiles ? (rawFiles[rawTab as keyof RawFiles] ?? null) : null;
@@ -281,41 +289,78 @@ const RawFileViewer: React.FC<{
 
     const lineCount = (editMode ? editContent : (content ?? '')).split('\n').length;
 
+    const rootStyle: React.CSSProperties = height === '100%'
+        ? { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }
+        : { display: 'flex', flexDirection: 'column', height, overflow: 'hidden' };
+
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', height, overflow: 'hidden' }}>
+        <div style={rootStyle}>
             {/* Test/Save result banner */}
             {(testResult || saveResult) && (
                 <div style={{
-                    padding: '.45rem .85rem', flexShrink: 0, fontSize: '.75rem',
-                    background: (testResult?.ok || saveResult?.ok) ? 'rgba(63,185,80,.08)' : 'rgba(232,106,101,.08)',
-                    borderBottom: `1px solid ${(testResult?.ok || saveResult?.ok) ? 'rgba(63,185,80,.3)' : 'rgba(232,106,101,.3)'}`,
+                    padding: '.5rem .85rem', flexShrink: 0, fontSize: '.75rem', display: 'flex', flexDirection: 'column', gap: '.25rem',
+                    background: (testResult?.ok || saveResult?.ok) ? 'rgba(63,185,80,.07)' : 'rgba(232,106,101,.07)',
+                    borderBottom: `1px solid ${(testResult?.ok || saveResult?.ok) ? 'rgba(63,185,80,.25)' : 'rgba(232,106,101,.25)'}`,
+                    maxHeight: 180, overflowY: 'auto',
                 }}>
-                    {testResult && !testResult.ok && testResult.errors.map((e, i) => (
-                        <div key={i} style={{ color: '#e86a65', display: 'flex', alignItems: 'flex-start', gap: '.4rem' }}>
-                            <XCircle style={{ width: 12, height: 12, flexShrink: 0, marginTop: 1 }} />{e}
+                    {/* Errors */}
+                    {testResult && testResult.errors.length > 0 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '.18rem' }}>
+                            <div style={{ fontSize: '.67rem', fontWeight: 700, color: '#e86a65', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: '.1rem' }}>
+                                {testResult.errors.length} erreur{testResult.errors.length > 1 ? 's' : ''}
+                            </div>
+                            {testResult.errors.map((e, i) => (
+                                <div key={i} style={{ color: '#e86a65', display: 'flex', alignItems: 'flex-start', gap: '.4rem', fontFamily: 'monospace', fontSize: '.73rem' }}>
+                                    <XCircle style={{ width: 12, height: 12, flexShrink: 0, marginTop: 1 }} />{e}
+                                </div>
+                            ))}
                         </div>
-                    ))}
-                    {testResult && testResult.warnings.map((w, i) => (
-                        <div key={i} style={{ color: '#e3b341', display: 'flex', alignItems: 'flex-start', gap: '.4rem' }}>
-                            <AlertTriangle style={{ width: 12, height: 12, flexShrink: 0, marginTop: 1 }} />{w}
+                    )}
+                    {/* Warnings */}
+                    {testResult && testResult.warnings.length > 0 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '.18rem' }}>
+                            <div style={{ fontSize: '.67rem', fontWeight: 700, color: '#e3b341', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: '.1rem' }}>
+                                {testResult.warnings.length} avertissement{testResult.warnings.length > 1 ? 's' : ''}
+                            </div>
+                            {testResult.warnings.map((w, i) => (
+                                <div key={i} style={{ color: '#e3b341', display: 'flex', alignItems: 'flex-start', gap: '.4rem', fontFamily: 'monospace', fontSize: '.73rem' }}>
+                                    <AlertTriangle style={{ width: 12, height: 12, flexShrink: 0, marginTop: 1 }} />{w}
+                                </div>
+                            ))}
                         </div>
-                    ))}
-                    {testResult?.ok && (
-                        <div style={{ color: '#3fb950', display: 'flex', alignItems: 'center', gap: '.4rem' }}>
-                            <CheckCircle style={{ width: 12, height: 12 }} /> Syntaxe valide — prêt à sauvegarder
+                    )}
+                    {/* Test OK */}
+                    {testResult?.ok && testResult.errors.length === 0 && (
+                        <div style={{ color: '#3fb950', display: 'flex', alignItems: 'center', gap: '.4rem', fontWeight: 600 }}>
+                            <CheckCircle style={{ width: 12, height: 12 }} />
+                            Syntaxe valide{testResult.warnings.length > 0 ? ` (${testResult.warnings.length} avertissement${testResult.warnings.length > 1 ? 's' : ''})` : ' — aucun problème détecté'} — prêt à sauvegarder
+                        </div>
+                    )}
+                    {/* Save result */}
+                    {saveResult?.ok && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
+                            <div style={{ color: '#3fb950', display: 'flex', alignItems: 'center', gap: '.4rem', fontWeight: 600 }}>
+                                <CheckCircle style={{ width: 12, height: 12 }} /> Fichier sauvegardé
+                                {saveResult.reloadOk
+                                    ? <span style={{ color: '#3fb950', fontWeight: 400 }}>· fail2ban rechargé avec succès</span>
+                                    : <span style={{ color: '#e3b341', fontWeight: 400 }}>· rechargement non disponible</span>}
+                            </div>
+                            {saveResult.reloadOutput && (
+                                <div style={{ fontFamily: 'monospace', fontSize: '.7rem', color: '#8b949e', paddingLeft: '1.2rem', whiteSpace: 'pre-wrap' }}>{saveResult.reloadOutput}</div>
+                            )}
                         </div>
                     )}
                     {saveResult && !saveResult.ok && (
-                        <div style={{ color: '#e86a65', display: 'flex', alignItems: 'center', gap: '.4rem' }}>
-                            <XCircle style={{ width: 12, height: 12 }} /> {saveResult.error ?? 'Échec de l\'écriture'}
+                        <div style={{ color: '#e86a65', display: 'flex', alignItems: 'center', gap: '.4rem', fontWeight: 600 }}>
+                            <XCircle style={{ width: 12, height: 12 }} /> Échec de la sauvegarde : {saveResult.error ?? 'erreur inconnue'}
                         </div>
                     )}
                 </div>
             )}
 
-            <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+            <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
                 {/* Sidebar */}
-                <div style={{ width: 148, flexShrink: 0, borderRight: `1px solid #30363d`, display: 'flex', flexDirection: 'column', background: '#161b22' }}>
+                <div style={{ width: 210, flexShrink: 0, borderRight: `1px solid #30363d`, display: 'flex', flexDirection: 'column', background: '#161b22' }}>
                     <div style={{ padding: '.45rem .75rem', fontSize: '.65rem', color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.06em', borderBottom: '1px solid #30363d' }}>
                         /etc/fail2ban/
                     </div>
@@ -323,18 +368,31 @@ const RawFileViewer: React.FC<{
                         const absent = rawFiles && rawFiles[f] === null;
                         const active = rawTab === f;
                         const canEdit = EDITABLE.has(f);
+                        const mtime = rawMtimes?.[f as keyof RawMtimes];
+                        const lineCount = rawFiles?.[f as keyof RawFiles]?.split('\n').length ?? null;
+                        const dateStr = mtime
+                            ? new Date(mtime * 1000).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })
+                            : null;
                         return (
                             <button key={f} onClick={() => switchTab(f)} style={{
                                 textAlign: 'left', padding: '.4rem .75rem', fontSize: '.78rem',
                                 fontFamily: 'monospace', background: active ? 'rgba(88,166,255,.12)' : 'transparent',
                                 color: active ? '#58a6ff' : absent ? '#555d69' : '#e6edf3',
                                 border: 'none', borderLeft: active ? '2px solid #58a6ff' : '2px solid transparent',
-                                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '.4rem',
+                                cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '.15rem', alignItems: 'flex-start',
                             }}>
-                                <FileText style={{ width: 11, height: 11, flexShrink: 0 }} />
-                                <span style={{ flex: 1 }}>{f}</span>
-                                {absent && <span style={{ fontSize: '.55rem', color: '#555d69' }}>∅</span>}
-                                {canEdit && !absent && <Pencil style={{ width: 9, height: 9, color: '#8b949e', opacity: .5 }} />}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', width: '100%' }}>
+                                    <FileText style={{ width: 11, height: 11, flexShrink: 0 }} />
+                                    <span style={{ flex: 1 }}>{f}</span>
+                                    {absent && <span style={{ fontSize: '.55rem', color: '#555d69' }}>∅</span>}
+                                    {canEdit && !absent && <Pencil style={{ width: 13, height: 13, color: active ? '#e3b341' : '#555d69' }} />}
+                                </div>
+                                {!absent && (dateStr || lineCount !== null) && (
+                                    <div style={{ paddingLeft: '1.25rem', display: 'flex', flexDirection: 'column', gap: '.05rem' }}>
+                                        {dateStr && <span style={{ fontSize: '.6rem', color: active ? '#e3b341' : 'rgba(227,179,65,.5)', fontFamily: 'sans-serif' }}>{dateStr}</span>}
+                                        {lineCount !== null && <span style={{ fontSize: '.6rem', color: active ? 'rgba(88,166,255,.5)' : '#444c56', fontFamily: 'sans-serif' }}>{lineCount} lignes</span>}
+                                    </div>
+                                )}
                             </button>
                         );
                     })}
@@ -346,15 +404,15 @@ const RawFileViewer: React.FC<{
                 </div>
 
                 {/* Editor area */}
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#0d1117' }}>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0, background: '#0d1117' }}>
                     {/* Toolbar */}
                     <div style={{ display: 'flex', alignItems: 'center', padding: '.3rem .75rem', background: '#161b22', borderBottom: '1px solid #30363d', gap: '.5rem', flexShrink: 0 }}>
                         <span style={{ fontFamily: 'monospace', fontSize: '.72rem', color: '#58a6ff', flex: 1 }}>
                             /etc/fail2ban/{rawTab}
                             {isDirty && <span style={{ color: '#e3b341', marginLeft: '.4rem' }}>●</span>}
                         </span>
-                        {content && !editMode && <span style={{ fontSize: '.68rem', color: '#555d69' }}>{lineCount} lignes</span>}
-                        {editMode && <span style={{ fontSize: '.68rem', color: '#e3b341' }}>{lineCount} lignes · édition</span>}
+                        {content && !editMode && <span style={{ fontSize: '.68rem', color: '#58a6ff', fontWeight: 600 }}>{lineCount} <span style={{ color: '#555d69', fontWeight: 400 }}>lignes</span></span>}
+                        {editMode && <span style={{ fontSize: '.68rem', color: '#e3b341', fontWeight: 600 }}>{lineCount} <span style={{ fontWeight: 400 }}>lignes · édition</span></span>}
                         {content === null && <span style={{ fontSize: '.68rem', color: '#555d69', fontStyle: 'italic' }}>fichier absent</span>}
 
                         {/* Edit mode actions */}
@@ -415,30 +473,38 @@ const RawFileViewer: React.FC<{
                     </div>
 
                     {/* Content */}
-                    <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
                         {editMode ? (
-                            <textarea
-                                value={editContent}
-                                onChange={e => { setEditContent(e.target.value); setTestResult(null); setSaveResult(null); }}
-                                spellCheck={false}
-                                style={{
-                                    flex: 1, width: '100%', height: '100%', resize: 'none',
-                                    borderTop: 'none', borderRight: 'none', borderBottom: 'none', outline: 'none',
-                                    background: '#161b22', color: '#e6edf3', fontFamily: 'monospace', fontSize: '.75rem',
-                                    lineHeight: 1.65, padding: '.75rem 1rem', boxSizing: 'border-box',
-                                    borderLeft: '3px solid rgba(227,179,65,.4)',
-                                    boxShadow: 'inset 0 2px 4px rgba(0,0,0,.55), inset 0 1px 0 rgba(0,0,0,.4)',
-                                }}
-                            />
+                            <div style={{ display: 'flex', minHeight: '100%' }}>
+                                {/* Line numbers */}
+                                <div style={{ padding: '.75rem .5rem', textAlign: 'right', userSelect: 'none', borderRight: '1px solid #21262d', flexShrink: 0, minWidth: 40, background: '#161b22', pointerEvents: 'none' }}>
+                                    {editContent.split('\n').map((_, i) => (
+                                        <div key={i} style={{ fontSize: '.72rem', lineHeight: 1.65, color: '#30363d', fontFamily: 'monospace' }}>{i + 1}</div>
+                                    ))}
+                                </div>
+                                <textarea
+                                    value={editContent}
+                                    onChange={e => { setEditContent(e.target.value); setTestResult(null); setSaveResult(null); }}
+                                    spellCheck={false}
+                                    style={{
+                                        flex: 1, resize: 'none', border: 'none', outline: 'none',
+                                        background: '#161b22', color: '#e6edf3', fontFamily: 'monospace', fontSize: '.75rem',
+                                        lineHeight: 1.65, padding: '.75rem 1rem', boxSizing: 'border-box',
+                                        borderLeft: '3px solid rgba(227,179,65,.4)',
+                                        boxShadow: 'inset 0 2px 4px rgba(0,0,0,.55), inset 0 1px 0 rgba(0,0,0,.4)',
+                                        overflow: 'hidden',
+                                    }}
+                                />
+                            </div>
                         ) : content ? (
-                            <div style={{ flex: 1, overflowY: 'auto', display: 'flex' }}>
+                            <div style={{ display: 'flex' }}>
                                 {/* Line numbers */}
                                 <div style={{ padding: '.75rem .5rem', textAlign: 'right', userSelect: 'none', borderRight: '1px solid #21262d', flexShrink: 0, minWidth: 40 }}>
                                     {content.split('\n').map((_, i) => (
                                         <div key={i} style={{ fontSize: '.72rem', lineHeight: 1.65, color: '#30363d', fontFamily: 'monospace' }}>{i + 1}</div>
                                     ))}
                                 </div>
-                                <pre style={{ flex: 1, padding: '.75rem 1rem', margin: 0, overflow: 'visible', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                                <pre style={{ flex: 1, padding: '.75rem 1rem', margin: 0, overflow: 'hidden', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
                                     <ConfHighlighter content={content} />
                                 </pre>
                             </div>
@@ -446,9 +512,7 @@ const RawFileViewer: React.FC<{
                             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '.6rem', color: '#555d69', fontSize: '.8rem' }}>
                                 {rawFiles ? (
                                     isEditable ? (
-                                        <>
-                                            <span style={{ fontStyle: 'italic' }}>Ce fichier n'existe pas — cliquez <strong style={{ color: '#58a6ff' }}>Éditer</strong> pour le créer</span>
-                                        </>
+                                        <span style={{ fontStyle: 'italic' }}>Ce fichier n'existe pas — cliquez <strong style={{ color: '#58a6ff' }}>Éditer</strong> pour le créer</span>
                                     ) : (
                                         <span style={{ fontStyle: 'italic' }}>Ce fichier n'existe pas sur ce système</span>
                                     )
@@ -598,20 +662,30 @@ const WarnBadge: React.FC<{ count: number; tip?: string }> = ({ count, tip }) =>
     </span>
 );
 
+// ── Unified header badge (pill) ────────────────────────────────────────────────
+// Used in all card headers for consistent appearance.
+// color, bg, border are CSS color strings; icon is optional.
+const HBadge: React.FC<{ color: string; bg: string; border: string; icon?: React.ReactNode; children: React.ReactNode; title?: string }> = ({ color, bg, border, icon, children, title }) => (
+    <span title={title} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: '.72rem', padding: '2px 8px', borderRadius: 4, background: bg, border: `1px solid ${border}`, color, whiteSpace: 'nowrap' }}>
+        {icon}{children}
+    </span>
+);
+
 // ── Raw File Modal ─────────────────────────────────────────────────────────────
 
 const RawFileModal: React.FC<{
     rawFiles: RawFiles | null;
+    rawMtimes?: RawMtimes | null;
     rawTab: string;
     onTabChange: (t: string) => void;
     onClose: () => void;
     onSaved: (filename: string, content: string) => void;
-}> = ({ rawFiles, rawTab, onTabChange, onClose, onSaved }) => createPortal(
+}> = ({ rawFiles, rawMtimes, rawTab, onTabChange, onClose, onSaved }) => createPortal(
     <div
         style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,.7)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }}
         onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
-        <div style={{ background: C.bg1, border: `1px solid ${C.border}`, borderRadius: 10, width: '100%', maxWidth: 1300, boxShadow: '0 20px 60px rgba(0,0,0,.6)', display: 'flex', flexDirection: 'column', maxHeight: '95vh' }}>
+        <div style={{ background: C.bg1, border: `1px solid ${C.border}`, borderRadius: 10, width: '100%', maxWidth: 1300, minHeight: '60vh', boxShadow: '0 20px 60px rgba(0,0,0,.6)', display: 'flex', flexDirection: 'column', maxHeight: '95vh' }}>
             {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', padding: '.8rem 1rem', borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
                 <FileText style={{ width: 15, height: 15, color: C.blue }} />
@@ -624,8 +698,8 @@ const RawFileModal: React.FC<{
                 </button>
             </div>
             {/* Body */}
-            <div style={{ flex: 1, overflow: 'hidden', borderRadius: '0 0 10px 10px' }}>
-                <RawFileViewer rawFiles={rawFiles} rawTab={rawTab} onTabChange={onTabChange} height="100%" onSaved={onSaved} />
+            <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', borderRadius: '0 0 10px 10px' }}>
+                <RawFileViewer rawFiles={rawFiles} rawMtimes={rawMtimes} rawTab={rawTab} onTabChange={onTabChange} height="100%" onSaved={onSaved} />
             </div>
         </div>
     </div>,
@@ -644,11 +718,12 @@ export const TabConfig: React.FC<{
     const { t } = useTranslation();
     const [parsed, setParsed]       = useState<ParsedConfigResult | null>(null);
     const [rawFiles, setRawFiles]   = useState<RawFiles | null>(null);
+    const [rawMtimes, setRawMtimes] = useState<RawMtimes | null>(null);
     const [loading, setLoading]     = useState(true);
     const [rawTab, setRawTab]       = useState<string | null>(null);
     const [checkResult, setCheckResult] = useState<CheckResult | null>(null);
     const [checkLoading, setCheckLoading] = useState(true);
-    const [sysInfoOpen, setSysInfoOpen] = useState(false);
+
 
     // Sync check
     const [syncStatus, setSyncStatus] = useState<{
@@ -656,14 +731,18 @@ export const TabConfig: React.FC<{
         f2bMaxRowid: number | null; f2bTotalBans: number | null;
         lastSyncAt: string | null; synced: boolean | null;
     } | null>(null);
-    const [syncChecking, setSyncChecking] = useState(false);
+    const [syncLoading, setSyncLoading] = useState(false);
+    const [openSync,    setOpenSync]    = useState(false);
 
-    const checkSync = async () => {
-        setSyncChecking(true);
+    const loadSyncStatus = useCallback(async () => {
+        setSyncLoading(true);
         const res = await api.get<typeof syncStatus>('/api/plugins/fail2ban/sync-state');
-        if (res.success && res.result) setSyncStatus(res.result);
-        setSyncChecking(false);
-    };
+        if (res.success && res.result) {
+            setSyncStatus(res.result);
+            if (res.result.synced === false) setOpenSync(true);
+        }
+        setSyncLoading(false);
+    }, []);
 
     // Maintenance
     const [resetting, setResetting] = useState(false);
@@ -675,8 +754,13 @@ export const TabConfig: React.FC<{
     const [fmMaxmatches, setFmMaxmatches] = useState('');
 
     // Collapsible cards
+    const [openDiag,    setOpenDiag]    = useState(false); // merged: diagnostic + infos système
     const [openRuntime, setOpenRuntime] = useState(false);
     const [openDb,      setOpenDb]      = useState(false);
+    const [openSqlite,  setOpenSqlite]  = useState(false);
+    const [openDbTip,   setOpenDbTip]   = useState(false);
+    const [openAppDb,   setOpenAppDb]   = useState(false);
+    const [openInteg,   setOpenInteg]   = useState(false);
     const [openMaint,   setOpenMaint]   = useState(false);
 
     // Raw files modal
@@ -690,6 +774,7 @@ export const TabConfig: React.FC<{
         { key: 'nftables', label: 'NFTables', icon: <Network style={{ width: 13, height: 13 }} />, color: C.cyan,   route: '/api/plugins/fail2ban/nftables',  detail: 'Ruleset nftables du host',           fix: 'Requiert NET_ADMIN + network_mode: host' },
     ];
     const [fwStatuses, setFwStatuses] = useState<Record<string, FwStatus>>({});
+    const [openFw,     setOpenFw]     = useState(false);
     const [fwErrors,   setFwErrors]   = useState<Record<string, string>>({});
     const [fwLoading,  setFwLoading]  = useState(false);
 
@@ -714,6 +799,8 @@ export const TabConfig: React.FC<{
         setFwStatuses(st);
         setFwErrors(er);
         setFwLoading(false);
+        // Auto-ouvre si des erreurs détectées
+        if (Object.values(st).some(s => s === 'error')) setOpenFw(true);
     }, []);
 
     const { addAction } = useNotificationStore();
@@ -731,6 +818,12 @@ export const TabConfig: React.FC<{
             setFmLogtarget(res.result.cfg.logtarget ?? '');
             setFmPurgeage(res.result.cfg.dbpurgeage ?? '86400');
             setFmMaxmatches(res.result.cfg.dbmaxmatches ?? '10');
+            // Auto-ouvrir SQLite si problème de fragmentation ou intégrité
+            const db = res.result.dbInfo;
+            if (db && (db.fragPct > 20 || db.integrity !== 'ok')) setOpenSqlite(true);
+            // Auto-ouvrir dashboard.db si problème
+            const appDb = res.result.appDbInfo;
+            if (appDb && (!appDb.exists || appDb.fragPct > 20)) setOpenAppDb(true);
         }
         setLoading(false);
     }, []);
@@ -738,7 +831,10 @@ export const TabConfig: React.FC<{
     const runChecks = useCallback(async () => {
         setCheckLoading(true);
         const res = await api.get<CheckResult>('/api/plugins/fail2ban/check');
-        if (res.success && res.result) setCheckResult(res.result);
+        if (res.success && res.result) {
+            setCheckResult(res.result);
+            if (!res.result.ok) setOpenDiag(true);
+        }
         setCheckLoading(false);
     }, []);
 
@@ -746,7 +842,13 @@ export const TabConfig: React.FC<{
         loadParsed();
         runChecks();
         checkFirewall();
-    }, [loadParsed, runChecks, checkFirewall]);
+        void loadSyncStatus();
+    }, [loadParsed, runChecks, checkFirewall, loadSyncStatus]);
+
+    // Auto-ouvrir Intégrations si chemin NPM non configuré
+    useEffect(() => {
+        if (!npmDataPath) setOpenInteg(true);
+    }, [npmDataPath]);
 
     // Notify parent whenever parsed data or firewall statuses change → drives nav badge
     useEffect(() => {
@@ -755,14 +857,17 @@ export const TabConfig: React.FC<{
         if (parsed?.dbInfo?.fragPct   && parsed.dbInfo.fragPct   > 20) warns++;
         if (parsed?.dbInfo?.integrity && parsed.dbInfo.integrity !== 'ok') warns++;
         if (parsed?.appDbInfo?.fragPct && parsed.appDbInfo.fragPct > 20) warns++;
+        if (parsed?.appDbInfo && !parsed.appDbInfo.exists) warns++;
+        if (!npmDataPath) warns++;
         warns += FW_CHECKS_CFG.filter(c => fwStatuses[c.key] === 'error').length;
         onWarningsChange(warns);
-    }, [parsed, fwStatuses, onWarningsChange]);
+    }, [parsed, fwStatuses, npmDataPath, onWarningsChange]);
 
     const loadRaw = useCallback(async () => {
-        const res = await api.get<{ files: RawFiles }>('/api/plugins/fail2ban/config');
+        const res = await api.get<{ files: RawFiles; mtimes: RawMtimes }>('/api/plugins/fail2ban/config');
         if (res.success && res.result?.files) {
             setRawFiles(res.result.files);
+            if (res.result.mtimes) setRawMtimes(res.result.mtimes);
         }
     }, []);
 
@@ -858,6 +963,7 @@ export const TabConfig: React.FC<{
             {openRawModal && (
                 <RawFileModal
                     rawFiles={rawFiles}
+                    rawMtimes={rawMtimes}
                     rawTab={rawTab ?? 'fail2ban.conf'}
                     onTabChange={setRawTab}
                     onClose={() => setOpenRawModal(false)}
@@ -880,64 +986,99 @@ export const TabConfig: React.FC<{
                 />
                 <div style={colBody}>
 
-                    {/* ── Card: Diagnostic système (auto-run) ── */}
-                    <div style={card}>
-                        <div style={{ ...cardH }}>
-                            <Stethoscope style={{ width: 14, height: 14, color: C.cyan }} />
-                            <span style={{ fontWeight: 600, fontSize: '.9rem' }}>Diagnostic système</span>
-                            <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '.5rem' }}>
-                                <button onClick={runChecks} disabled={checkLoading}
-                                    style={{ padding: '.2rem .5rem', borderRadius: 4, background: 'transparent', border: `1px solid ${C.border}`, color: C.muted, cursor: 'pointer', fontSize: '.72rem', display: 'inline-flex', alignItems: 'center', gap: '.25rem', opacity: checkLoading ? .5 : 1 }}>
-                                    <RefreshCw style={{ width: 10, height: 10 }} /> Relancer
-                                </button>
+                    {/* ── Card fusionné : Diagnostic + Infos système fail2ban ── */}
+                    {(() => {
+                        const LABELS: Record<string, string> = {
+                            socket: 'Socket Unix',
+                            client: 'fail2ban-client',
+                            daemon: 'Démon fail2ban',
+                            sqlite: 'Base SQLite',
+                            dropin: 'Drop-in systemd',
+                        };
+                        const diagChecks = checkResult ? (Object.entries(checkResult.checks) as [string, CheckItem][]) : [];
+                        const hasErrors  = checkResult && !checkResult.ok;
+                        const errCount   = diagChecks.filter(([, c]) => !c.ok).length;
+                        return (
+                    <div style={{ ...card, borderColor: hasErrors ? 'rgba(232,106,101,.35)' : C.border }}>
+                        <div onClick={() => !checkLoading && setOpenDiag(o => !o)}
+                            style={{ ...cardH, cursor: checkLoading ? 'default' : 'pointer', background: hasErrors ? 'rgba(232,106,101,.04)' : undefined }}>
+                            <Stethoscope style={{ width: 14, height: 14, color: hasErrors ? C.red : C.cyan }} />
+                            <span style={{ fontWeight: 600, fontSize: '.9rem' }}>
+                                <span style={{ color: C.cyan, fontFamily: 'monospace' }}>fail2ban</span> — Service &amp; Système
+                            </span>
+                            <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '.4rem' }}>
+                                {parsed?.version && (
+                                    <F2bTooltip title="Version fail2ban" color="blue" placement="bottom" width={300} bodyNode={<>
+                                        {TT.section('Détection', '#58a6ff')}
+                                        {TT.info('Récupérée via fail2ban-client version')}
+                                        {TT.sep()}
+                                        {TT.section('Utilisé pour')}
+                                        {TT.info('Vérifier bantime.increment disponible')}
+                                        {TT.info('Vérifier backend systemd compatible')}
+                                    </>}>
+                                        <HBadge color={C.blue} bg="rgba(88,166,255,.1)" border="rgba(88,166,255,.25)">v{parsed.version}</HBadge>
+                                    </F2bTooltip>
+                                )}
                                 {checkLoading ? (
                                     <span style={{ fontSize: '.72rem', color: C.muted, display: 'flex', alignItems: 'center', gap: '.3rem' }}>
                                         <RefreshCw style={{ width: 11, height: 11, animation: 'spin 1s linear infinite' }} /> Analyse…
                                     </span>
                                 ) : checkResult?.ok ? (
-                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '.75rem', padding: '2px 8px', borderRadius: 4, background: 'rgba(63,185,80,.12)', color: C.green, border: '1px solid rgba(63,185,80,.3)' }}>
-                                        <CheckCircle style={{ width: 10, height: 10 }} /> Tout OK
-                                    </span>
-                                ) : (
-                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '.75rem', padding: '2px 8px', borderRadius: 4, background: 'rgba(232,106,101,.12)', color: C.red, border: '1px solid rgba(232,106,101,.3)' }}>
-                                        <AlertTriangle style={{ width: 10, height: 10 }} /> Erreurs détectées
-                                    </span>
-                                )}
+                                    <F2bTooltip color="green" title="Service fail2ban — OK" width={320} bodyNode={<>
+                                        {TT.section('Checks effectués', '#3fb950')}
+                                        {TT.ok('Daemon fail2ban actif (systemd)')}
+                                        {TT.ok('Socket Unix accessible en R/W')}
+                                        {TT.ok('Base SQLite lisible')}
+                                        {TT.ok('Drop-in systemd en place')}
+                                    </>}>
+                                        <HBadge color={C.green} bg="rgba(63,185,80,.12)" border="rgba(63,185,80,.3)" icon={<CheckCircle style={{ width: 10, height: 10 }} />}>OK</HBadge>
+                                    </F2bTooltip>
+                                ) : checkResult ? (
+                                    <F2bTooltip color="red" title="Service fail2ban — Erreur" width={340} bodyNode={<>
+                                        {TT.section('Checks en échec', '#e86a65')}
+                                        {TT.err('Daemon fail2ban (systemctl status fail2ban)')}
+                                        {TT.err('Socket Unix /var/run/fail2ban/fail2ban.sock')}
+                                        {TT.err('Droits SQLite ou drop-in systemd manquant')}
+                                        {TT.sep()}
+                                        {TT.info('Ouvrez ce cadre → script de correction')}
+                                    </>}>
+                                        <HBadge color={C.red} bg="rgba(232,106,101,.12)" border="rgba(232,106,101,.3)" icon={<AlertTriangle style={{ width: 10, height: 10 }} />}>{errCount} erreur{errCount > 1 ? 's' : ''}</HBadge>
+                                    </F2bTooltip>
+                                ) : null}
+                                {openDiag ? <ChevronDown style={{ width: 13, height: 13, color: C.muted }} /> : <ChevronRight style={{ width: 13, height: 13, color: C.muted }} />}
                             </span>
                         </div>
-                        {!checkLoading && checkResult && !checkResult.ok && (
-                            <div style={{ ...cardB, display: 'flex', flexDirection: 'column', gap: '.6rem' }}>
-                                {(Object.entries(checkResult.checks) as [string, CheckItem][])
-                                    .filter(([, c]) => !c.ok)
-                                    .map(([key, c]) => {
-                                        const labels: Record<string, string> = {
-                                            socket: 'Socket fail2ban',
-                                            client: 'fail2ban-client',
-                                            daemon: 'Démon fail2ban',
-                                            sqlite: 'Base SQLite',
-                                            dropin: 'Drop-in systemd',
-                                        };
-                                        return (
-                                            <div key={key} style={{ borderRadius: 6, border: '1px solid rgba(232,106,101,.3)', background: 'rgba(232,106,101,.06)', overflow: 'hidden' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.5rem .75rem', borderBottom: c.fix ? '1px solid rgba(232,106,101,.2)' : undefined, background: 'rgba(232,106,101,.08)' }}>
-                                                    <XCircle style={{ width: 13, height: 13, color: C.red, flexShrink: 0 }} />
-                                                    <span style={{ fontWeight: 600, fontSize: '.82rem', color: C.red }}>{labels[key] ?? key}</span>
-                                                    {c.path && <code style={{ marginLeft: 'auto', fontSize: '.7rem', color: C.muted, fontFamily: 'monospace' }}>{c.path}</code>}
-                                                </div>
-                                                {c.fix && (
-                                                    <div style={{ padding: '.6rem .75rem' }}>
-                                                        <pre style={{ margin: 0, fontSize: '.75rem', fontFamily: 'monospace', color: C.text, lineHeight: 1.55, whiteSpace: 'pre-wrap', background: C.bg3, borderRadius: 5, padding: '.5rem .7rem', border: `1px solid ${C.border}` }}>
-                                                            {c.fix}
-                                                        </pre>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
-                                {/* Setup script hint when socket or dropin has errors */}
-                                {(['socket', 'dropin', 'sqlite'] as const).some(k => checkResult.checks[k as keyof typeof checkResult.checks] && !checkResult.checks[k as keyof typeof checkResult.checks].ok) && (
+                        {openDiag && (
+                            <div style={{ ...cardB, display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
+
+                                {/* ── Checks service ── */}
+                                {checkLoading ? (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', fontSize: '.8rem', color: C.muted, padding: '.3rem 0' }}>
+                                        <RefreshCw style={{ width: 12, height: 12, animation: 'spin 1s linear infinite' }} /> Analyse du service…
+                                    </div>
+                                ) : diagChecks.map(([key, c]) => c.ok ? (
+                                    <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.38rem .6rem', borderRadius: 5, background: 'rgba(63,185,80,.05)', border: '1px solid rgba(63,185,80,.18)' }}>
+                                        <CheckCircle style={{ width: 12, height: 12, color: C.green, flexShrink: 0 }} />
+                                        <span style={{ fontSize: '.82rem', fontWeight: 600, color: C.green }}>{LABELS[key] ?? key}</span>
+                                        {c.path && <code style={{ marginLeft: 'auto', fontSize: '.68rem', color: C.muted, fontFamily: 'monospace' }}>{c.path}</code>}
+                                    </div>
+                                ) : (
+                                    <div key={key} style={{ borderRadius: 6, border: '1px solid rgba(232,106,101,.3)', background: 'rgba(232,106,101,.06)', overflow: 'hidden' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.45rem .6rem', borderBottom: c.fix ? '1px solid rgba(232,106,101,.2)' : undefined, background: 'rgba(232,106,101,.08)' }}>
+                                            <XCircle style={{ width: 13, height: 13, color: C.red, flexShrink: 0 }} />
+                                            <span style={{ fontWeight: 600, fontSize: '.82rem', color: C.red }}>{LABELS[key] ?? key}</span>
+                                            {c.path && <code style={{ marginLeft: 'auto', fontSize: '.7rem', color: C.muted, fontFamily: 'monospace' }}>{c.path}</code>}
+                                        </div>
+                                        {c.fix && <div style={{ padding: '.6rem .75rem' }}>
+                                            <pre style={{ margin: 0, fontSize: '.75rem', fontFamily: 'monospace', color: C.text, lineHeight: 1.55, whiteSpace: 'pre-wrap', background: C.bg3, borderRadius: 5, padding: '.5rem .7rem', border: `1px solid ${C.border}` }}>{c.fix}</pre>
+                                        </div>}
+                                    </div>
+                                ))}
+
+                                {/* Setup script si erreurs socket/dropin/sqlite */}
+                                {checkResult && (['socket', 'dropin', 'sqlite'] as const).some(k => checkResult.checks[k as keyof typeof checkResult.checks] && !checkResult.checks[k as keyof typeof checkResult.checks].ok) && (
                                     <div style={{ borderRadius: 6, border: '1px solid rgba(88,166,255,.25)', background: 'rgba(88,166,255,.05)', overflow: 'hidden' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.5rem .75rem', background: 'rgba(88,166,255,.08)', borderBottom: '1px solid rgba(88,166,255,.2)' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.45rem .75rem', background: 'rgba(88,166,255,.08)', borderBottom: '1px solid rgba(88,166,255,.2)' }}>
                                             <Terminal style={{ width: 12, height: 12, color: C.blue, flexShrink: 0 }} />
                                             <span style={{ fontWeight: 600, fontSize: '.82rem', color: C.blue }}>Setup automatique (recommandé)</span>
                                             <span style={{ marginLeft: 'auto', fontSize: '.7rem', color: C.muted }}>à lancer sur le host</span>
@@ -952,58 +1093,82 @@ export const TabConfig: React.FC<{
                                         </div>
                                     </div>
                                 )}
+
+                                {/* ── Séparateur + infos config ── */}
+                                {cfg && <>
+                                    <div style={{ borderTop: `1px solid ${C.border}`, margin: '.25rem 0' }} />
+                                    <div style={{ fontSize: '.7rem', fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.1rem' }}>Configuration active</div>
+                                    {parsed?.version && <Row label="Version" value={<span style={{ fontFamily: 'monospace', color: C.blue, fontWeight: 600 }}>v{parsed.version}</span>} />}
+                                    <Row label="loglevel"     value={cfg.loglevel}     isLocal={!!cfg.local_values.loglevel} />
+                                    <Row label="logtarget"    value={cfg.logtarget}    isLocal={!!cfg.local_values.logtarget} />
+                                    <Row label="socket"       value={cfg.socket} />
+                                    <Row label="dbfile"       value={cfg.dbfile} />
+                                    <Row label="dbpurgeage"   value={`${cfg.dbpurgeage}s (${Math.round(parseInt(cfg.dbpurgeage,10)/86400)} j)`} isLocal={!!cfg.local_values.dbpurgeage} />
+                                    <Row label="dbmaxmatches" value={cfg.dbmaxmatches} isLocal={!!cfg.local_values.dbmaxmatches} />
+                                    <Row label="fail2ban.local" value={
+                                        cfg.local_exists
+                                            ? <span style={{ color: C.green, display: 'inline-flex', alignItems: 'center', gap: '.3rem' }}>
+                                                <CheckCircle style={{ width: 11, height: 11 }} /> Présent
+                                                <span style={{ color: C.muted, fontSize: '.73rem' }}>({Object.keys(cfg.local_values).length} directive{Object.keys(cfg.local_values).length !== 1 ? 's' : ''})</span>
+                                              </span>
+                                            : <span style={{ color: C.muted, display: 'inline-flex', alignItems: 'center', gap: '.3rem' }}>
+                                                <XCircle style={{ width: 11, height: 11 }} /> Absent
+                                              </span>
+                                    } />
+                                </>}
+
                             </div>
                         )}
                     </div>
+                        );
+                    })()}
 
                     {loading ? (
                         <div style={{ color: C.muted, fontSize: '.85rem', textAlign: 'center', padding: '2rem' }}>{t('fail2ban.messages.loadingData')}</div>
                     ) : cfg ? (
                         <>
-                            {/* Card: Infos système — replié par défaut */}
-                            <div style={card}>
-                                <div style={{ ...cardH, cursor: 'pointer' }} onClick={() => setSysInfoOpen(o => !o)}>
-                                    <Info style={{ width: 14, height: 14, color: C.muted }} />
-                                    <span style={{ fontWeight: 600, fontSize: '.9rem' }}>Infos système</span>
-                                    {parsed?.version && <span style={{ marginLeft: 'auto', fontSize: '.73rem', color: C.muted, fontFamily: 'monospace' }}>v{parsed.version}</span>}
-                                    <span style={{ marginLeft: parsed?.version ? '.5rem' : 'auto' }}>
-                                        <StatusBadge ok={!!parsed?.dbInfo?.readable} label="SQLite" />
-                                    </span>
-                                    <span style={{ marginLeft: '.5rem', color: C.muted, fontSize: '.75rem' }}>{sysInfoOpen ? '▾' : '▸'}</span>
-                                </div>
-                                {sysInfoOpen && (
-                                    <div style={{ ...cardB }}>
-                                        <Row label="loglevel"     value={cfg.loglevel}     isLocal={!!cfg.local_values.loglevel} />
-                                        <Row label="logtarget"    value={cfg.logtarget}    isLocal={!!cfg.local_values.logtarget} />
-                                        <Row label="socket"       value={cfg.socket} />
-                                        <Row label="dbfile"       value={cfg.dbfile} />
-                                        <Row label="dbpurgeage"   value={`${cfg.dbpurgeage}s (${Math.round(parseInt(cfg.dbpurgeage,10)/86400)} j)`} isLocal={!!cfg.local_values.dbpurgeage} />
-                                        <Row label="dbmaxmatches" value={cfg.dbmaxmatches} isLocal={!!cfg.local_values.dbmaxmatches} />
-                                        <Row label="fail2ban.local" value={
-                                            cfg.local_exists
-                                                ? <span style={{ color: C.green, display: 'inline-flex', alignItems: 'center', gap: '.3rem' }}>
-                                                    <CheckCircle style={{ width: 11, height: 11 }} /> Présent
-                                                    <span style={{ color: C.muted, fontSize: '.73rem' }}>({Object.keys(cfg.local_values).length} directive{Object.keys(cfg.local_values).length !== 1 ? 's' : ''})</span>
-                                                  </span>
-                                                : <span style={{ color: C.muted, display: 'inline-flex', alignItems: 'center', gap: '.3rem' }}>
-                                                    <XCircle style={{ width: 11, height: 11 }} /> Absent
-                                                  </span>
-                                        } />
-                                    </div>
-                                )}
-                            </div>
 
                             {/* Card: SQLite fail2ban */}
                             <div style={{ ...card, borderColor: (dbInfo && (dbInfo.integrity !== 'ok' || dbInfo.fragPct > 20)) ? 'rgba(227,179,65,.4)' : C.border }}>
-                                <div style={{ ...cardH }}>
+                                <div onClick={() => setOpenSqlite(o => !o)} style={{ ...cardH, cursor: 'pointer' }}>
                                     <Database style={{ width: 14, height: 14, color: C.purple }} />
-                                    <span style={{ fontWeight: 600, fontSize: '.9rem' }}>SQLite fail2ban (officielle)</span>
+                                    <span style={{ fontWeight: 600, fontSize: '.9rem' }}>SQLite <span style={{ fontFamily: 'monospace', color: C.cyan }}>fail2ban</span></span>
                                     {dbInfo && (dbInfo.integrity !== 'ok' || dbInfo.fragPct > 20) && (
                                         <WarnBadge count={[dbInfo.integrity !== 'ok', dbInfo.fragPct > 20].filter(Boolean).length}
                                             tip={[dbInfo.integrity !== 'ok' ? `Intégrité : ${dbInfo.integrity}` : '', dbInfo.fragPct > 20 ? `Fragmentation élevée : ${dbInfo.fragPct}%` : ''].filter(Boolean).join(' · ')} />
                                     )}
+                                    <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '.35rem' }}>
+                                        {dbInfo && (() => {
+                                            const fc = dbInfo.fragPct > 40 ? C.red : dbInfo.fragPct > 20 ? C.orange : C.green;
+                                            const bg = dbInfo.fragPct > 40 ? 'rgba(232,106,101,.12)' : dbInfo.fragPct > 20 ? 'rgba(227,179,65,.12)' : 'rgba(63,185,80,.1)';
+                                            const bd = dbInfo.fragPct > 40 ? 'rgba(232,106,101,.3)' : dbInfo.fragPct > 20 ? 'rgba(227,179,65,.3)' : 'rgba(63,185,80,.25)';
+                                            return (<>
+                                                        <F2bTooltip color="blue" title="Taille — fail2ban.sqlite3" width={300} bodyNode={<>
+                                                            {TT.section('Contenu', '#58a6ff')}
+                                                            {TT.info('Historique des bans, jails et logs')}
+                                                            {TT.info('Géré exclusivement par fail2ban')}
+                                                            {TT.sep()}
+                                                            {TT.info('VACUUM recommandé si fragmentation > 20%')}
+                                                        </>}>
+                                                            <HBadge color={C.blue} bg="rgba(88,166,255,.1)" border="rgba(88,166,255,.25)">{dbInfo.sizeFmt}</HBadge>
+                                                        </F2bTooltip>
+                                                        <F2bTooltip color={dbInfo.fragPct > 40 ? 'red' : dbInfo.fragPct > 20 ? 'orange' : 'green'} title="Fragmentation — fail2ban.sqlite3" width={320} bodyNode={<>
+                                                            {TT.section('Mesure')}
+                                                            {TT.info(`Pages libres / pages totales = ${dbInfo.fragPct}%`)}
+                                                            {TT.sep()}
+                                                            {TT.section('Niveau')}
+                                                            {dbInfo.fragPct <= 20  && TT.ok('Sain — aucune action requise')}
+                                                            {dbInfo.fragPct > 20 && dbInfo.fragPct <= 40 && TT.warn('Modérée — VACUUM conseillé')}
+                                                            {dbInfo.fragPct > 40  && TT.err('Élevée — VACUUM fortement recommandé')}
+                                                        </>}>
+                                                            <HBadge color={fc} bg={bg} border={bd}>{dbInfo.fragPct}% frag.</HBadge>
+                                                        </F2bTooltip>
+                                            </>);
+                                        })()}
+                                        {openSqlite ? <ChevronDown style={{ width: 13, height: 13, color: C.muted }} /> : <ChevronRight style={{ width: 13, height: 13, color: C.muted }} />}
+                                    </span>
                                 </div>
-                                <div style={{ ...cardB }}>
+                                {openSqlite && <div style={{ ...cardB }}>
                                     {dbInfo ? (
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
                                             <Row label="Chemin" value={parsed?.dbHostPath ?? cfg.dbfile} />
@@ -1033,21 +1198,23 @@ export const TabConfig: React.FC<{
                                             SQLite non lisible. Vérifiez les permissions : <code style={{ fontFamily: 'monospace' }}>chmod o+r {cfg.dbfile}</code>
                                         </div>
                                     )}
-                                </div>
+                                </div>}
                             </div>
 
-                            {/* Cards: Runtime + DB côte à côte */}
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', alignItems: 'start' }}>
+                            {/* Cards: Runtime + DB + Fichiers de config — même ligne */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', alignItems: 'stretch' }}>
 
                                 {/* Paramètres runtime */}
-                                <div style={card}>
+                                <div style={{ ...card, display: 'flex', flexDirection: 'column' }}>
                                     <div onClick={() => setOpenRuntime(o => !o)} style={{ ...cardH, cursor: 'pointer', userSelect: 'none' }}>
                                         <Play style={{ width: 14, height: 14, color: C.blue }} />
                                         <span style={{ fontWeight: 600, fontSize: '.9rem' }}>Runtime</span>
-                                        <span style={{ marginLeft: 'auto', fontSize: '.67rem', color: C.muted }}>sans redémarrage</span>
-                                        {openRuntime ? <ChevronDown style={{ width: 13, height: 13, color: C.muted, marginLeft: '.35rem' }} /> : <ChevronRight style={{ width: 13, height: 13, color: C.muted, marginLeft: '.35rem' }} />}
+                                        <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '.4rem' }}>
+                                            <span style={{ fontSize: '.67rem', color: C.muted }}>sans redémarrage</span>
+                                            {openRuntime ? <ChevronDown style={{ width: 13, height: 13, color: C.muted }} /> : <ChevronRight style={{ width: 13, height: 13, color: C.muted }} />}
+                                        </span>
                                     </div>
-                                    {openRuntime && <div style={{ ...cardB, display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
+                                    {openRuntime && <div style={{ ...cardB, display: 'flex', flexDirection: 'column', gap: '.75rem', flex: 1 }}>
                                         <div>
                                             <label style={{ fontSize: '.75rem', color: C.muted, display: 'block', marginBottom: '.3rem' }}>Loglevel</label>
                                             <select value={fmLoglevel} onChange={e => setFmLoglevel(e.target.value)} style={sel}>
@@ -1060,13 +1227,13 @@ export const TabConfig: React.FC<{
                                             <input type="text" value={fmLogtarget} onChange={e => setFmLogtarget(e.target.value)} style={inp} placeholder="/var/log/fail2ban.log" />
                                             {cfg.local_values.logtarget && <div style={{ fontSize: '.65rem', color: C.orange, marginTop: 2 }}>Local: {cfg.local_values.logtarget}</div>}
                                         </div>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '.4rem' }}>
+                                        <div style={{ display: 'flex', gap: '.4rem', marginTop: 'auto' }}>
                                             <Btn onClick={applyRuntime} loading={saving === 'runtime'}
-                                                bg="rgba(88,166,255,.15)" color={C.blue} border="rgba(88,166,255,.4)">
+                                                bg="rgba(88,166,255,.15)" color={C.blue} border="rgba(88,166,255,.4)" small>
                                                 <Play style={{ width: 11, height: 11 }} /> Appliquer en runtime
                                             </Btn>
                                             <Btn onClick={persistRuntime} loading={saving === 'persist-runtime'}
-                                                bg="rgba(188,140,255,.15)" color={C.purple} border="rgba(188,140,255,.4)">
+                                                bg="rgba(188,140,255,.15)" color={C.purple} border="rgba(188,140,255,.4)" small>
                                                 <Save style={{ width: 11, height: 11 }} /> Appliquer + persister
                                             </Btn>
                                         </div>
@@ -1074,31 +1241,89 @@ export const TabConfig: React.FC<{
                                 </div>
 
                                 {/* Base de données & Rétention */}
-                                <div style={card}>
+                                <div style={{ ...card, display: 'flex', flexDirection: 'column' }}>
                                     <div onClick={() => setOpenDb(o => !o)} style={{ ...cardH, cursor: 'pointer', userSelect: 'none' }}>
                                         <Database style={{ width: 14, height: 14, color: C.purple }} />
                                         <span style={{ fontWeight: 600, fontSize: '.9rem' }}>Base de données</span>
-                                        <span style={{ marginLeft: 'auto', fontSize: '.67rem', color: C.muted }}>fail2ban.local</span>
-                                        {openDb ? <ChevronDown style={{ width: 13, height: 13, color: C.muted, marginLeft: '.35rem' }} /> : <ChevronRight style={{ width: 13, height: 13, color: C.muted, marginLeft: '.35rem' }} />}
+                                        <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '.4rem' }}>
+                                            <span style={{ fontSize: '.67rem', color: C.muted }}>fail2ban.local</span>
+                                            {openDb ? <ChevronDown style={{ width: 13, height: 13, color: C.muted }} /> : <ChevronRight style={{ width: 13, height: 13, color: C.muted }} />}
+                                        </span>
                                     </div>
-                                    {openDb && <div style={{ ...cardB, display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
+                                    {openDb && <div style={{ ...cardB, display: 'flex', flexDirection: 'column', gap: '.75rem', flex: 1 }}>
                                         <div>
-                                            <label style={{ fontSize: '.75rem', color: C.muted, display: 'block', marginBottom: '.3rem' }}>DB Purge Age (secondes)</label>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', marginBottom: '.3rem' }}>
+                                                <label style={{ fontSize: '.75rem', color: C.muted }}>DB Purge Age (secondes)</label>
+                                                <F2bTooltip
+                                                    title="Rétention des bans (dbpurgeage)"
+                                                    body={`Durée pendant laquelle fail2ban conserve les bans dans sa base SQLite.\n\nValeur par défaut : 86400 (1 jour)\n\nRecommandations :\n• 86400 = 1 jour (défaut — ok pour usage normal)\n• 604800 = 7 jours (bon équilibre)\n• 2592000 = 30 jours (historique long)\n• 0 = désactivé (conserve tout, risque de croissance illimitée)\n\nAugmenter si tu veux voir les bans anciens dans LogviewR. Ne pas dépasser 90 jours sans surveiller la taille de la DB.`}
+                                                    color="blue" placement="top">
+                                                    <span style={{ cursor: 'help', color: C.blue, fontSize: '.85rem', lineHeight: 1 }}>ⓘ</span>
+                                                </F2bTooltip>
+                                            </div>
                                             <input type="text" value={fmPurgeage} onChange={e => setFmPurgeage(e.target.value)} style={inp} placeholder="86400" />
                                             <div style={{ fontSize: '.65rem', color: C.muted, marginTop: 2 }}>
                                                 {parseInt(fmPurgeage, 10) > 0 ? `≈ ${Math.round(parseInt(fmPurgeage, 10) / 86400)} jour(s)` : 'Désactivé (0)'}
                                             </div>
                                         </div>
                                         <div>
-                                            <label style={{ fontSize: '.75rem', color: C.muted, display: 'block', marginBottom: '.3rem' }}>DB Max Matches</label>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', marginBottom: '.3rem' }}>
+                                                <label style={{ fontSize: '.75rem', color: C.muted }}>DB Max Matches</label>
+                                                <F2bTooltip
+                                                    title="Historique de log par IP (dbmaxmatches)"
+                                                    body={`Nombre de lignes de log conservées par IP et par jail dans la base fail2ban.\n\nValeur par défaut : 10\n\nUtilisé par : fail2ban-client get <jail> banip <ip> matches\n\nRecommandations :\n• 10 = défaut (suffisant pour diagnostiquer)\n• 20–50 = bon compromis pour plus de contexte\n• >100 = déconseillé sauf usage debug, augmente la taille de la DB\n\nModifier uniquement si tu as besoin de plus d'historique de log par IP bannie.`}
+                                                    color="blue" placement="top">
+                                                    <span style={{ cursor: 'help', color: C.blue, fontSize: '.85rem', lineHeight: 1 }}>ⓘ</span>
+                                                </F2bTooltip>
+                                            </div>
                                             <input type="number" min="1" max="10000" value={fmMaxmatches} onChange={e => setFmMaxmatches(e.target.value)} style={inp} />
                                             <div style={{ fontSize: '.65rem', color: C.muted, marginTop: 2 }}>Lignes de log max conservées par IP</div>
                                         </div>
-                                        <Btn onClick={persistDb} loading={saving === 'persist-db'}
-                                            bg="rgba(188,140,255,.15)" color={C.purple} border="rgba(188,140,255,.4)">
-                                            <Save style={{ width: 11, height: 11 }} /> Persister dans fail2ban.local
-                                        </Btn>
+                                        {/* Tip: bantime.increment */}
+                                        <div style={{ border: '1px solid rgba(88,166,255,.2)', borderRadius: 6, overflow: 'hidden' }}>
+                                            <div onClick={() => setOpenDbTip(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: '.35rem', padding: '.45rem .75rem', cursor: 'pointer', background: 'rgba(88,166,255,.06)', userSelect: 'none' }}>
+                                                <span style={{ fontSize: '.85rem', color: C.blue }}>ⓘ</span>
+                                                <span style={{ fontWeight: 600, fontSize: '.75rem', color: C.blue, flex: 1 }}>Conseil : escalade progressive des bans</span>
+                                                {openDbTip ? <ChevronDown style={{ width: 12, height: 12, color: C.blue }} /> : <ChevronRight style={{ width: 12, height: 12, color: C.blue }} />}
+                                            </div>
+                                            {openDbTip && <div style={{ padding: '.55rem .75rem', display: 'flex', flexDirection: 'column', gap: '.3rem', background: 'rgba(88,166,255,.03)' }}>
+                                                <div style={{ fontSize: '.72rem', color: C.muted, lineHeight: 1.55 }}>
+                                                    En ajoutant dans <span style={{ fontFamily: 'monospace', color: C.orange }}>jail.local</span> section <span style={{ fontFamily: 'monospace', color: C.text }}>[DEFAULT]</span> :
+                                                </div>
+                                                <pre style={{ margin: 0, fontFamily: 'monospace', fontSize: '.68rem', color: C.cyan, background: 'rgba(0,0,0,.25)', borderRadius: 4, padding: '.35rem .5rem', lineHeight: 1.6 }}>{`bantime.increment = true\nbantime.factor    = 2\nbantime.maxtime   = 604800`}</pre>
+                                                <div style={{ fontSize: '.71rem', color: C.muted, lineHeight: 1.55 }}>
+                                                    Chaque récidive <strong style={{ color: C.text }}>double</strong> le bantime (1h → 2h → 4h → … → 7j max).<br />
+                                                    Nécessite <span style={{ fontFamily: 'monospace', color: C.orange }}>dbpurgeage</span> suffisamment long pour se souvenir des anciens bans.<br />
+                                                    Se combine avec le jail <span style={{ fontFamily: 'monospace', color: C.red }}>recidive</span> : l'escalade agit d'abord, recidive attrape les cas extrêmes (5 bans / 24h → 1 an).
+                                                </div>
+                                            </div>}
+                                        </div>
+
+                                        <div style={{ marginTop: 'auto' }}>
+                                            <Btn onClick={persistDb} loading={saving === 'persist-db'}
+                                                bg="rgba(188,140,255,.15)" color={C.purple} border="rgba(188,140,255,.4)">
+                                                <Save style={{ width: 11, height: 11 }} /> Persister dans fail2ban.local
+                                            </Btn>
+                                        </div>
                                     </div>}
+                                </div>
+
+                                {/* Fichiers de configuration */}
+                                <div style={{ ...card, display: 'flex', flexDirection: 'column' }}>
+                                    <div style={{ ...cardH }}>
+                                        <FileText style={{ width: 14, height: 14, color: C.blue }} />
+                                        <span style={{ fontWeight: 600, fontSize: '.9rem' }}>Fichiers de configuration</span>
+                                        <span style={{ marginLeft: 'auto' }}>
+                                            <button onClick={() => { setRawTab(t => t ?? 'fail2ban.conf'); setOpenRawModal(true); }} style={{
+                                                display: 'inline-flex', alignItems: 'center', gap: '.3rem',
+                                                padding: '.2rem .55rem', borderRadius: 5, cursor: 'pointer',
+                                                background: 'rgba(88,166,255,.12)', color: C.blue,
+                                                border: '1px solid rgba(88,166,255,.35)', fontSize: '.73rem',
+                                            }}>
+                                                <Pencil style={{ width: 11, height: 11 }} /> Éditer
+                                            </button>
+                                        </span>
+                                    </div>
                                 </div>
 
                             </div>
@@ -1111,24 +1336,6 @@ export const TabConfig: React.FC<{
                             <div style={{ color: C.muted, marginTop: '.25rem', fontSize: '.75rem' }}>Vérifiez que /etc/fail2ban/ est monté dans le container.</div>
                         </div>
                     )}
-
-                    {/* Card: Raw files viewer — fichiers /etc/fail2ban/ */}
-                    <div style={card}>
-                        <div style={{ ...cardH }}>
-                            <FileText style={{ width: 14, height: 14, color: C.blue }} />
-                            <span style={{ fontWeight: 600, fontSize: '.9rem' }}>Fichiers de configuration</span>
-                            <span style={{ marginLeft: 'auto' }}>
-                                <button onClick={() => { setRawTab(t => t ?? 'fail2ban.conf'); setOpenRawModal(true); }} style={{
-                                    display: 'inline-flex', alignItems: 'center', gap: '.3rem',
-                                    padding: '.2rem .55rem', borderRadius: 5, cursor: 'pointer',
-                                    background: 'rgba(88,166,255,.12)', color: C.blue,
-                                    border: '1px solid rgba(88,166,255,.35)', fontSize: '.73rem',
-                                }}>
-                                    <Pencil style={{ width: 11, height: 11 }} /> Éditer
-                                </button>
-                            </span>
-                        </div>
-                    </div>
 
                 </div>
             </div>
@@ -1147,82 +1354,193 @@ export const TabConfig: React.FC<{
 
                     {/* Card: App DB + internal sync stats */}
                     <div style={{ ...card, borderColor: (parsed?.appDbInfo?.fragPct ?? 0) > 20 ? 'rgba(227,179,65,.4)' : C.border }}>
-                        <div style={{ ...cardH }}>
+                        <div style={{ ...cardH, cursor: 'pointer' }} onClick={() => setOpenAppDb(o => !o)}>
                             <HardDrive style={{ width: 14, height: 14, color: C.cyan }} />
                             <span style={{ fontWeight: 600, fontSize: '.9rem' }}>Base de données interne (dashboard.db)</span>
                             {(parsed?.appDbInfo?.fragPct ?? 0) > 20 && (
                                 <WarnBadge count={1} tip={`Fragmentation élevée : ${parsed!.appDbInfo.fragPct}% — VACUUM recommandé`} />
                             )}
+                            <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '.35rem' }}>
+                                {parsed?.appDbInfo && (() => {
+                                    const db = parsed.appDbInfo;
+                                    const fc = db.fragPct > 40 ? C.red : db.fragPct > 20 ? C.orange : C.green;
+                                    const bg = db.fragPct > 40 ? 'rgba(232,106,101,.12)' : db.fragPct > 20 ? 'rgba(227,179,65,.12)' : 'rgba(63,185,80,.1)';
+                                    const bd = db.fragPct > 40 ? 'rgba(232,106,101,.3)'  : db.fragPct > 20 ? 'rgba(227,179,65,.3)'  : 'rgba(63,185,80,.25)';
+                                    return (<>
+                                        <F2bTooltip color="blue" title="Taille — dashboard.db" width={300} bodyNode={<>
+                                            {TT.section('Contenu', '#58a6ff')}
+                                            {TT.info('Historique long terme des bans (f2b_events)')}
+                                            {TT.info('Paramètres et utilisateurs de l\'application')}
+                                            {TT.sep()}
+                                            {TT.info('VACUUM recommandé si fragmentation > 20%')}
+                                        </>}>
+                                            <HBadge color={C.blue} bg="rgba(88,166,255,.1)" border="rgba(88,166,255,.25)">{db.sizeFmt}</HBadge>
+                                        </F2bTooltip>
+                                        <F2bTooltip color={db.fragPct > 40 ? 'red' : db.fragPct > 20 ? 'orange' : 'green'} title="Fragmentation — dashboard.db" width={320} bodyNode={<>
+                                            {TT.section('Mesure')}
+                                            {TT.info(`Pages libres / pages totales = ${db.fragPct}%`)}
+                                            {TT.sep()}
+                                            {TT.section('Niveau')}
+                                            {db.fragPct <= 20  && TT.ok('Sain — aucune action requise')}
+                                            {db.fragPct > 20 && db.fragPct <= 40 && TT.warn('Modérée — VACUUM conseillé')}
+                                            {db.fragPct > 40  && TT.err('Élevée — VACUUM fortement recommandé')}
+                                        </>}>
+                                            <HBadge color={fc} bg={bg} border={bd}>{db.fragPct}% frag.</HBadge>
+                                        </F2bTooltip>
+                                    </>);
+                                })()}
+                                {openAppDb ? <ChevronDown style={{ width: 13, height: 13, color: C.muted }} /> : <ChevronRight style={{ width: 13, height: 13, color: C.muted }} />}
+                            </span>
                         </div>
-                        <div style={{ ...cardB }}>
-                            {parsed?.appDbInfo ? (
-                                <div>
-                                    <Row label="Chemin" value="data/dashboard.db" />
-                                    <Row label="Taille" value={parsed.appDbInfo.sizeFmt} />
-                                    <Row label="Fragmentation" value={
-                                        <span style={{ color: parsed.appDbInfo.fragPct > 20 ? C.orange : C.green, fontWeight: 600 }}>
-                                            {parsed.appDbInfo.fragPct}%
-                                        </span>
-                                    } />
-                                    <Row label="État" value={<StatusBadge ok={parsed.appDbInfo.exists} label={parsed.appDbInfo.exists ? 'Accessible' : 'Non trouvé'} />} />
-                                    {parsed.appDbInfo.fragPct > 20 && (
-                                        <DashboardVacuumAlert fragPct={parsed.appDbInfo.fragPct} onDone={() => { void loadParsed(); }} />
-                                    )}
-                                </div>
-                            ) : (
-                                <div style={{ fontSize: '.8rem', color: C.muted }}>Non disponible</div>
-                            )}
-
-                            {/* Internal fail2ban event store */}
-                            <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: `1px solid ${C.border}` }}>
-                                <div style={{ fontSize: '.78rem', fontWeight: 600, color: C.muted, marginBottom: '.6rem', textTransform: 'uppercase', letterSpacing: '.05em' }}>
-                                    Historique fail2ban synchronisé (f2b_events)
-                                </div>
-                                {parsed?.internalDbStats ? (
-                                    <div>
-                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '.5rem', marginBottom: '.6rem' }}>
-                                            {[
-                                                { l: 'Total événements', v: parsed.internalDbStats.totalEvents.toLocaleString(), c: C.blue },
-                                                { l: 'Dernières 24h',    v: parsed.internalDbStats.last24h.toLocaleString(),    c: C.orange },
-                                                { l: 'Derniers 7 jours', v: parsed.internalDbStats.last7d.toLocaleString(),     c: C.purple },
-                                            ].map(s => (
-                                                <div key={s.l} style={{ background: C.bg2, borderRadius: 6, padding: '.45rem .6rem', textAlign: 'center' }}>
-                                                    <div style={{ fontSize: '.9rem', fontWeight: 700, color: s.c }}>{s.v}</div>
-                                                    <div style={{ fontSize: '.63rem', color: C.muted, textTransform: 'uppercase', marginTop: 2 }}>{s.l}</div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                        <Row label="Dernière synchro" value={parsed.internalDbStats.lastSync
-                                            ? new Date(parsed.internalDbStats.lastSync).toLocaleString('fr-FR')
-                                            : 'Jamais (en attente…)'} />
-                                        <div style={{ marginTop: '.6rem', display: 'flex', alignItems: 'center', gap: '.5rem', flexWrap: 'wrap' }}>
-                                            <button onClick={checkSync} disabled={syncChecking}
-                                                style={{ display: 'flex', alignItems: 'center', gap: '.3rem', padding: '.2rem .6rem', fontSize: '.72rem', borderRadius: 4, border: `1px solid ${C.border}`, background: C.bg2, color: C.muted, cursor: 'pointer' }}>
-                                                <Stethoscope style={{ width: 11, height: 11 }} />
-                                                {syncChecking ? 'Vérification…' : 'Vérifier synchro'}
-                                            </button>
-                                            {syncStatus && (
-                                                <span style={{ fontSize: '.72rem', color: syncStatus.synced === true ? C.green : syncStatus.synced === false ? C.orange : C.muted }}>
-                                                    {syncStatus.synced === true
-                                                        ? `✓ À jour — ${syncStatus.internalEvents.toLocaleString()} événements (rowid ${syncStatus.lastSyncedRowid})`
-                                                        : syncStatus.synced === false
-                                                        ? `⚠ Décalage — interne: rowid ${syncStatus.lastSyncedRowid}, fail2ban: rowid ${syncStatus.f2bMaxRowid} (${syncStatus.f2bTotalBans} bans)`
-                                                        : `fail2ban.sqlite3 non lisible — ${syncStatus.internalEvents.toLocaleString()} événements locaux`
-                                                    }
-                                                </span>
-                                            )}
-                                        </div>
-                                        <div style={{ fontSize: '.68rem', color: C.muted, marginTop: '.5rem', display: 'flex', alignItems: 'center', gap: '.35rem' }}>
-                                            <Info style={{ width: 10, height: 10 }} />
-                                            Synchronisation automatique toutes les 60s — conserve les bans indéfiniment (fail2ban purge selon dbpurgeage)
-                                        </div>
+                        {openAppDb && <div style={{ ...cardB, display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
+                            {parsed?.appDbInfo ? (() => {
+                                const db = parsed.appDbInfo;
+                                const fragOk = db.fragPct <= 20;
+                                const fragColor = db.fragPct > 40 ? C.red : db.fragPct > 20 ? C.orange : C.green;
+                                return (<>
+                                    {/* Stats métriques */}
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '.4rem' }}>
+                                        {[
+                                            { l: 'Taille',         v: db.sizeFmt,           c: C.blue   },
+                                            { l: 'Fragmentation',  v: `${db.fragPct}%`,      c: fragColor },
+                                            { l: 'État',           v: db.exists ? 'OK' : 'KO', c: db.exists ? C.green : C.red },
+                                        ].map(s => (
+                                            <div key={s.l} style={{ background: C.bg2, borderRadius: 6, padding: '.4rem .5rem', textAlign: 'center', border: `1px solid ${C.border}` }}>
+                                                <div style={{ fontSize: '.88rem', fontWeight: 700, color: s.c, fontFamily: 'monospace' }}>{s.v}</div>
+                                                <div style={{ fontSize: '.6rem', color: C.muted, textTransform: 'uppercase', marginTop: 2, letterSpacing: '.04em' }}>{s.l}</div>
+                                            </div>
+                                        ))}
                                     </div>
-                                ) : (
-                                    <div style={{ fontSize: '.78rem', color: C.muted }}>Non disponible (fail2ban SQLite non lisible)</div>
+                                    {/* Check rows santé */}
+                                    {[
+                                        { label: 'Fichier dashboard.db', ok: db.exists,  detail: 'data/dashboard.db', warn: false, fix: db.exists ? null : 'Fichier introuvable — vérifiez le volume Docker data/' },
+                                        { label: 'Fragmentation',        ok: fragOk,     detail: `${db.fragPct}%`,    warn: true,  fix: !fragOk ? 'Fragmentation élevée — VACUUM recommandé' : null },
+                                    ].map(c => c.ok ? (
+                                        <div key={c.label} style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.35rem .6rem', borderRadius: 5, background: 'rgba(63,185,80,.05)', border: '1px solid rgba(63,185,80,.18)' }}>
+                                            <CheckCircle style={{ width: 12, height: 12, color: C.green, flexShrink: 0 }} />
+                                            <span style={{ fontSize: '.8rem', fontWeight: 600, color: C.green }}>{c.label}</span>
+                                            {c.detail && <code style={{ marginLeft: 'auto', fontSize: '.68rem', color: C.muted, fontFamily: 'monospace' }}>{c.detail}</code>}
+                                        </div>
+                                    ) : (
+                                        <div key={c.label} style={{ borderRadius: 6, border: `1px solid ${c.warn ? 'rgba(227,179,65,.35)' : 'rgba(232,106,101,.3)'}`, background: c.warn ? 'rgba(227,179,65,.06)' : 'rgba(232,106,101,.06)', overflow: 'hidden' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.38rem .6rem' }}>
+                                                {c.warn
+                                                    ? <AlertTriangle style={{ width: 12, height: 12, color: C.orange, flexShrink: 0 }} />
+                                                    : <XCircle style={{ width: 12, height: 12, color: C.red, flexShrink: 0 }} />}
+                                                <span style={{ fontSize: '.8rem', fontWeight: 600, color: c.warn ? C.orange : C.red }}>{c.label}</span>
+                                                {c.detail && <code style={{ marginLeft: 'auto', fontSize: '.68rem', color: C.muted, fontFamily: 'monospace' }}>{c.detail}</code>}
+                                            </div>
+                                            {c.fix && <div style={{ padding: '.3rem .6rem .4rem', fontSize: '.71rem', color: C.muted, borderTop: '1px solid rgba(255,255,255,.05)' }}>{c.fix}</div>}
+                                        </div>
+                                    ))}
+                                    {!fragOk && (
+                                        <DashboardVacuumAlert fragPct={db.fragPct} onDone={() => { void loadParsed(); }} />
+                                    )}
+                                </>);
+                            })() : (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.4rem .6rem', borderRadius: 5, background: 'rgba(232,106,101,.06)', border: '1px solid rgba(232,106,101,.3)' }}>
+                                    <XCircle style={{ width: 12, height: 12, color: C.red }} />
+                                    <span style={{ fontSize: '.82rem', color: C.red }}>dashboard.db non disponible</span>
+                                </div>
+                            )}
+                        </div>}
+                    </div>
+
+                    {/* Card: Synchronisation fail2ban ↔ dashboard.db */}
+                    {(() => {
+                        const synced   = syncStatus?.synced;
+                        const syncOk   = synced === true;
+                        const syncWarn = synced === false;
+                        const borderColor = syncLoading ? C.border : syncWarn ? 'rgba(227,179,65,.4)' : syncOk ? 'rgba(63,185,80,.25)' : C.border;
+                        return (
+                    <div style={{ ...card, borderColor }}>
+                        <div onClick={() => !syncLoading && setOpenSync(o => !o)}
+                            style={{ ...cardH, cursor: syncLoading ? 'default' : 'pointer', background: syncWarn ? 'rgba(227,179,65,.04)' : undefined }}>
+                            <RefreshCw style={{ width: 14, height: 14, color: syncWarn ? C.orange : C.cyan, ...(syncLoading ? { animation: 'spin 1s linear infinite' } : {}) }} />
+                            <span style={{ fontWeight: 600, fontSize: '.9rem' }}>Synchronisation <span style={{ fontFamily: 'monospace', color: C.cyan }}>fail2ban</span> ↔ dashboard.db</span>
+                            <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '.5rem' }}>
+                                {syncLoading ? (
+                                    <span style={{ fontSize: '.72rem', color: C.muted }}>Vérification…</span>
+                                ) : syncOk ? (
+                                    <F2bTooltip color="green" title="Synchronisation — OK" width={340} bodyNode={<>
+                                        {TT.section('État', '#3fb950')}
+                                        {TT.ok('fail2ban.sqlite3 → dashboard.db synchronisés')}
+                                        {TT.sep()}
+                                        {TT.section('Fonctionnement')}
+                                        {TT.info('Service tourne en arrière-plan toutes les 60s')}
+                                        {TT.info('Alimente l\'historique long terme de l\'app')}
+                                    </>}>
+                                        <HBadge color={C.green} bg="rgba(63,185,80,.12)" border="rgba(63,185,80,.3)" icon={<CheckCircle style={{ width: 10, height: 10 }} />}>OK</HBadge>
+                                    </F2bTooltip>
+                                ) : syncWarn ? (
+                                    <F2bTooltip color="orange" title="Synchronisation — Décalage" width={340} bodyNode={<>
+                                        {TT.section('Problème', '#e3b341')}
+                                        {TT.warn('Décalage entre fail2ban.sqlite3 et dashboard.db')}
+                                        {TT.sep()}
+                                        {TT.section('Actions')}
+                                        {TT.info('Attendez le prochain cycle (≤ 60s)')}
+                                        {TT.info('Ou vérifiez que le service de synchro est actif')}
+                                    </>}>
+                                        <HBadge color={C.orange} bg="rgba(227,179,65,.12)" border="rgba(227,179,65,.3)" icon={<AlertTriangle style={{ width: 10, height: 10 }} />}>Décalage</HBadge>
+                                    </F2bTooltip>
+                                ) : syncStatus?.synced === null ? (
+                                    <F2bTooltip color="muted" title="Synchronisation — SQLite non lisible" width={340} bodyNode={<>
+                                        {TT.section('Problème', '#e3b341')}
+                                        {TT.err('fail2ban.sqlite3 non accessible en lecture')}
+                                        {TT.sep()}
+                                        {TT.section('Correction')}
+                                        {TT.warn('chmod o+r /var/lib/fail2ban/fail2ban.sqlite3')}
+                                        {TT.info('Vérifiez le montage Docker de /var/lib/fail2ban')}
+                                    </>}>
+                                        <HBadge color={C.muted} bg="rgba(227,179,65,.08)" border={C.border} icon={<AlertTriangle style={{ width: 10, height: 10 }} />}>SQLite non lisible</HBadge>
+                                    </F2bTooltip>
+                                ) : null}
+                                {!syncLoading && syncStatus && (openSync
+                                    ? <ChevronDown style={{ width: 13, height: 13, color: C.muted }} />
+                                    : <ChevronRight style={{ width: 13, height: 13, color: C.muted }} />
+                                )}
+                            </span>
+                        </div>
+                        {!syncLoading && syncStatus && openSync && (
+                            <div style={{ ...cardB, display: 'flex', flexDirection: 'column', gap: '.4rem' }}>
+                                {/* fail2ban SQLite */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.38rem .6rem', borderRadius: 5, background: C.bg2, border: `1px solid ${C.border}` }}>
+                                    <Database style={{ width: 12, height: 12, color: C.purple, flexShrink: 0 }} />
+                                    <span style={{ fontSize: '.78rem', fontWeight: 600, color: C.text }}>fail2ban SQLite</span>
+                                    <span style={{ marginLeft: 'auto', display: 'flex', gap: '.75rem' }}>
+                                        {syncStatus.f2bMaxRowid !== null ? <>
+                                            <span style={{ fontSize: '.72rem', color: C.muted }}>rowid max <code style={{ color: C.cyan }}>{syncStatus.f2bMaxRowid}</code></span>
+                                            <span style={{ fontSize: '.72rem', color: C.muted }}>{syncStatus.f2bTotalBans?.toLocaleString()} bans total</span>
+                                        </> : <span style={{ fontSize: '.72rem', color: C.orange }}>non lisible</span>}
+                                    </span>
+                                </div>
+                                {/* dashboard.db */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.38rem .6rem', borderRadius: 5, background: C.bg2, border: `1px solid ${C.border}` }}>
+                                    <HardDrive style={{ width: 12, height: 12, color: C.blue, flexShrink: 0 }} />
+                                    <span style={{ fontSize: '.78rem', fontWeight: 600, color: C.text }}>dashboard.db</span>
+                                    <span style={{ marginLeft: 'auto', display: 'flex', gap: '.75rem' }}>
+                                        <span style={{ fontSize: '.72rem', color: C.muted }}>dernier rowid <code style={{ color: C.cyan }}>{syncStatus.lastSyncedRowid}</code></span>
+                                        <span style={{ fontSize: '.72rem', color: C.muted }}>{syncStatus.internalEvents.toLocaleString()} événements</span>
+                                    </span>
+                                </div>
+                                {/* Last sync + info */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.3rem .4rem', fontSize: '.68rem', color: C.muted }}>
+                                    <Info style={{ width: 10, height: 10, flexShrink: 0 }} />
+                                    {syncStatus.lastSyncAt
+                                        ? `Dernière synchro : ${new Date(syncStatus.lastSyncAt).toLocaleString('fr-FR')} — sync auto toutes les 60s`
+                                        : 'Synchronisation en attente (première exécution)'}
+                                </div>
+                                {syncWarn && (
+                                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '.4rem', padding: '.4rem .6rem', borderRadius: 5, background: 'rgba(227,179,65,.07)', border: '1px solid rgba(227,179,65,.3)', fontSize: '.72rem', color: C.orange }}>
+                                        <AlertTriangle style={{ width: 11, height: 11, flexShrink: 0, marginTop: 1 }} />
+                                        Décalage détecté — la prochaine synchro automatique (≤60s) devrait corriger cet écart.
+                                    </div>
                                 )}
                             </div>
-                        </div>
+                        )}
                     </div>
+                        );
+                    })()}
 
                     {/* Card: Pare-feu — Netfilter */}
                     {(() => {
@@ -1230,7 +1548,7 @@ export const TabConfig: React.FC<{
                         const fwOkAll    = FW_CHECKS_CFG.every(c => fwStatuses[c.key] === 'ok');
                         return (
                     <div style={{ ...card, borderColor: fwErrCount > 0 ? 'rgba(227,179,65,.4)' : C.border }}>
-                        <div style={{ ...cardH, background: fwErrCount > 0 ? 'rgba(227,179,65,.04)' : undefined }}>
+                        <div style={{ ...cardH, cursor: 'pointer', background: fwErrCount > 0 ? 'rgba(227,179,65,.04)' : undefined }} onClick={() => setOpenFw(o => !o)}>
                             <Layers style={{ width: 14, height: 14, color: fwErrCount > 0 ? C.orange : C.cyan }} />
                             <span style={{ fontWeight: 600, fontSize: '.9rem' }}>Pare-feu — Netfilter <span style={{ fontWeight: 400, color: C.orange, fontSize: '.72rem' }}>(optionnel)</span></span>
                             {fwErrCount > 0 && (
@@ -1238,21 +1556,33 @@ export const TabConfig: React.FC<{
                                     tip={FW_CHECKS_CFG.filter(c => fwStatuses[c.key] === 'error').map(c => `${c.label} inaccessible`).join(' · ') + ' — NET_ADMIN + network_mode: host requis'} />
                             )}
                             <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '.5rem' }}>
-                                <button onClick={checkFirewall} disabled={fwLoading} style={{ padding: '.2rem .5rem', borderRadius: 4, background: 'transparent', border: `1px solid ${C.border}`, color: C.muted, cursor: 'pointer', fontSize: '.72rem', display: 'inline-flex', alignItems: 'center', gap: '.25rem', opacity: fwLoading ? .5 : 1 }}>
-                                    <RefreshCw style={{ width: 10, height: 10, ...(fwLoading ? { animation: 'spin 1s linear infinite' } : {}) }} /> Relancer
-                                </button>
                                 {fwOkAll ? (
-                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '.72rem', padding: '2px 8px', borderRadius: 4, background: 'rgba(63,185,80,.12)', color: C.green, border: '1px solid rgba(63,185,80,.3)' }}>
-                                        <CheckCircle style={{ width: 10, height: 10 }} /> Tout accessible
-                                    </span>
+                                    <F2bTooltip color="green" title="Pare-feu Netfilter — OK" width={340} bodyNode={<>
+                                        {TT.section('Outils accessibles', '#3fb950')}
+                                        {TT.ok('IPTables  —  règles netfilter via iptables-save')}
+                                        {TT.ok('IPSet     —  sets blacklist / f2b-*')}
+                                        {TT.ok('NFTables  —  ruleset nftables du host')}
+                                        {TT.sep()}
+                                        {TT.info('Requiert : network_mode: host + NET_ADMIN')}
+                                    </>}>
+                                        <HBadge color={C.green} bg="rgba(63,185,80,.12)" border="rgba(63,185,80,.3)" icon={<CheckCircle style={{ width: 10, height: 10 }} />}>OK</HBadge>
+                                    </F2bTooltip>
                                 ) : fwErrCount > 0 ? (
-                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '.72rem', padding: '2px 8px', borderRadius: 4, background: 'rgba(227,179,65,.12)', color: C.orange, border: '1px solid rgba(227,179,65,.3)' }}>
-                                        <AlertTriangle style={{ width: 10, height: 10 }} /> {fwErrCount} inaccessible{fwErrCount > 1 ? 's' : ''}
-                                    </span>
+                                    <F2bTooltip color="orange" title="Pare-feu Netfilter — Non disponible" width={360} bodyNode={<>
+                                        {TT.section('Prérequis manquants', '#e3b341')}
+                                        {TT.warn('network_mode: host  dans docker-compose.yml')}
+                                        {TT.warn('cap_add: [ NET_ADMIN ]  dans docker-compose.yml')}
+                                        {TT.sep()}
+                                        {TT.section('Impact')}
+                                        {TT.info('Onglets IPTables / IPSet / NFTables limités')}
+                                    </>}>
+                                        <HBadge color={C.orange} bg="rgba(227,179,65,.12)" border="rgba(227,179,65,.3)" icon={<AlertTriangle style={{ width: 10, height: 10 }} />}>{fwErrCount} inaccessible{fwErrCount > 1 ? 's' : ''}</HBadge>
+                                    </F2bTooltip>
                                 ) : null}
+                                {openFw ? <ChevronDown style={{ width: 13, height: 13, color: C.muted }} /> : <ChevronRight style={{ width: 13, height: 13, color: C.muted }} />}
                             </span>
                         </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                        {openFw && <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
                             {FW_CHECKS_CFG.map((c, i) => {
                                 const st  = fwStatuses[c.key] ?? 'idle';
                                 const err = fwErrors[c.key] ?? '';
@@ -1285,20 +1615,23 @@ export const TabConfig: React.FC<{
                                     </div>
                                 );
                             })}
-                        </div>
+                        </div>}
                     </div>
                         );
                     })()}
 
                     {/* Card: Intégrations — chemins SQLite & NPM */}
-                    <div style={{ ...card, borderColor: npmDataPath ? 'transparent' : 'rgba(227,179,65,.4)' }}>
-                        <div style={{ ...cardH, background: npmDataPath ? undefined : 'rgba(227,179,65,.06)' }}>
+                    <div style={{ ...card, borderColor: npmDataPath ? C.border : 'rgba(227,179,65,.4)' }}>
+                        <div onClick={() => setOpenInteg(o => !o)} style={{ ...cardH, cursor: 'pointer', background: npmDataPath ? undefined : 'rgba(227,179,65,.04)' }}>
                             <Network style={{ width: 14, height: 14, color: npmDataPath ? C.cyan : C.orange }} />
                             <span style={{ fontWeight: 600, fontSize: '.9rem' }}>Intégrations <span style={{ fontWeight: 400, color: C.orange, fontSize: '.72rem' }}>(optionnel)</span></span>
                             {!npmDataPath && <WarnBadge count={1} tip="Chemin données NPM non configuré — Top Domaines inactif" />}
-                            <span style={{ marginLeft: 'auto', fontSize: '.65rem', background: 'rgba(57,197,207,.08)', color: C.cyan, border: `1px solid ${C.cyan}40`, borderRadius: 4, padding: '.08rem .4rem' }}>Nginx Proxy Manager</span>
+                            <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '.4rem' }}>
+                                <HBadge color={C.cyan} bg="rgba(57,197,207,.08)" border="rgba(57,197,207,.25)">Nginx Proxy Manager</HBadge>
+                                {openInteg ? <ChevronDown style={{ width: 13, height: 13, color: C.muted }} /> : <ChevronRight style={{ width: 13, height: 13, color: C.muted }} />}
+                            </span>
                         </div>
-                        <div style={{ ...cardB }}>
+                        {openInteg && <div style={{ ...cardB }}>
                             {!npmDataPath && (
                                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: '.5rem', padding: '.5rem .7rem', borderRadius: 6, background: 'rgba(227,179,65,.08)', border: '1px solid rgba(227,179,65,.3)', marginBottom: '.75rem' }}>
                                     <AlertTriangle style={{ width: 14, height: 14, color: C.orange, flexShrink: 0, marginTop: 1 }} />
@@ -1313,12 +1646,12 @@ export const TabConfig: React.FC<{
                                 npmDataPath={npmDataPath}
                                 onNpmDataPathChange={v => onNpmDataPathChange?.(v)}
                             />
-                        </div>
+                        </div>}
                     </div>
 
                     {/* Card: Maintenance */}
-                    <div style={{ ...card, borderColor: 'rgba(255,85,85,.35)' }}>
-                        <div onClick={() => setOpenMaint(o => !o)} style={{ ...cardH, background: 'rgba(255,85,85,.06)', cursor: 'pointer', userSelect: 'none' }}>
+                    <div style={{ ...card }}>
+                        <div onClick={() => setOpenMaint(o => !o)} style={{ ...cardH, cursor: 'pointer', userSelect: 'none' }}>
                             <Trash2 style={{ width: 14, height: 14, color: C.red }} />
                             <span style={{ fontWeight: 600, fontSize: '.9rem' }}>Maintenance &amp; base de données</span>
                             {openMaint

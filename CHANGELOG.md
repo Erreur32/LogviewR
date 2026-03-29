@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.7.1] - 2026-03-29
+
+### Added
+- **Fail2ban > Backup — local snapshots**: config and DB snapshots stored in-app, auto-pruned (max 10 for config, max 5 for DB), with per-row download / restore / delete actions
+- **Fail2ban > Backup — per-row download**: IPTables and IPSet backup entries now have a download button to save files locally
+- **Fail2ban > Backup — DB export/import**: export only the 6 `f2b_*` tables as JSON; import with merge or replace mode
+- **Fail2ban > Config — integration panel**: button order fixed (Test before Save for both SQLite and NPM fields); Save buttons changed from red to blue
+- **Fail2ban > Backup — color unification**: backup/save actions = green, restore/import actions = orange, delete actions = red; section header badges keep distinct identity colors
+
+### Changed
+- `TabBackup` refactored into self-contained sub-components: `ConfigSnapshotPanel`, `ConfigRestorePanel`, `DbSnapshotPanel`, `DbImportPanel`, `IptBackupPanel`, `IpsetBackupPanel`
+- All backup section grids use `alignItems: stretch` with sticky action buttons at card bottom
+
+---
+
 ## [0.6.9] - 2026-03-28
 
 ### Fixed

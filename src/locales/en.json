@@ -1359,7 +1359,7 @@
       "requiresFix": "Requires fix"
     },
     "jails": {
-      "activeOnly": "Active only",
+      "activeOnly": "Active",
       "allJails": "All jails",
       "expandConfig": "View configuration",
       "collapseConfig": "Hide configuration",

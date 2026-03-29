@@ -286,12 +286,12 @@ export const TabActions: React.FC<TabActionsProps> = ({ jails }) => {
 
                 {filtered.map(row => (
                     <div key={row.name}
-                        style={{ display: 'grid', gridTemplateColumns: '220px 56px minmax(0,1fr) auto', alignItems: 'center', borderBottom: '1px solid #30363d', padding: '.45rem 1rem', gap: 0 }}
+                        style={{ display: 'grid', gridTemplateColumns: '220px 56px minmax(0,1fr) auto', alignItems: 'start', borderBottom: '1px solid #30363d', padding: '.45rem 1rem', gap: 0 }}
                         onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,.02)'}
                         onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
 
                         {/* Name */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', minWidth: 0, paddingTop: '.1rem' }}>
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.25rem', padding: '.12rem .45rem', borderRadius: 4, fontSize: '.72rem', fontWeight: 600, background: 'rgba(227,179,65,.1)', color: '#e3b341', border: '1px solid rgba(227,179,65,.2)', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200 }}
                                 title={row.name}>
                                 {row.name}
@@ -304,20 +304,17 @@ export const TabActions: React.FC<TabActionsProps> = ({ jails }) => {
                         </div>
 
                         {/* Jail badges */}
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.25rem', alignItems: 'center', minWidth: 0 }}>
-                            {row.usedByJails.slice(0, 8).map(j => (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.25rem', alignItems: 'flex-start', minWidth: 0, paddingTop: '.1rem' }}>
+                            {row.usedByJails.map(j => (
                                 <span key={j} style={{ padding: '.1rem .4rem', borderRadius: 4, fontSize: '.68rem', background: 'rgba(63,185,80,.1)', color: '#3fb950', border: '1px solid rgba(63,185,80,.2)', whiteSpace: 'nowrap' }}>{j}</span>
                             ))}
-                            {row.usedByJails.length > 8 && (
-                                <span style={{ fontSize: '.72rem', color: '#8b949e' }}>+{row.usedByJails.length - 8}</span>
-                            )}
                             {row.usedByJails.length === 0 && (
                                 <span style={{ fontSize: '.78rem', color: '#8b949e' }}>—</span>
                             )}
                         </div>
 
                         {/* Actions */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '.35rem', flexShrink: 0, paddingLeft: '.5rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '.35rem', flexShrink: 0, paddingLeft: '.5rem', paddingTop: '.1rem' }}>
                             <button onClick={() => setModal(row.name)}
                                 style={{ display: 'flex', alignItems: 'center', gap: '.3rem', padding: '.28rem .65rem', fontSize: '.75rem', borderRadius: 5, background: 'rgba(227,179,65,.08)', border: '1px solid rgba(227,179,65,.2)', color: '#e3b341', cursor: 'pointer', whiteSpace: 'nowrap' }}>
                                 <FileText style={{ width: 11, height: 11 }} />Voir / Éditer

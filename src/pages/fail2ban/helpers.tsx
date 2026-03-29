@@ -1,5 +1,6 @@
 import React, { useState, useRef, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 // ── Formatters ────────────────────────────────────────────────────────────────
@@ -105,10 +106,12 @@ interface F2bTooltipProps {
     block?: boolean;
     /** Force placement. Default: auto (below if trigger is in top half of viewport) */
     placement?: 'top' | 'bottom';
+    /** Override min-width of the tooltip box (default 220) */
+    width?: number;
 }
 
 export const F2bTooltip: React.FC<F2bTooltipProps> = ({
-    title, body, bodyNode, color = 'blue', children, block = false, placement,
+    title, body, bodyNode, color = 'blue', children, block = false, placement, width,
 }) => {
     const [visible, setVisible] = useState(false);
     const [pos, setPos] = useState({ left: 0, top: 0 });
@@ -167,8 +170,9 @@ export const F2bTooltip: React.FC<F2bTooltipProps> = ({
                 borderBottom: `1px solid ${border}`,
                 borderLeft: `4px solid ${border}`,
                 borderRadius: 8,
-                minWidth: 160,
-                maxWidth: 380,
+                minWidth: width ?? 220,
+                maxWidth: width ?? 480,
+                width: width,
                 boxShadow: '0 10px 36px rgba(0,0,0,.65), 0 2px 8px rgba(0,0,0,.35)',
                 fontSize: '.82rem',
                 lineHeight: 1.5,
@@ -227,4 +231,21 @@ export const F2bTooltip: React.FC<F2bTooltipProps> = ({
             {tooltip}
         </>
     );
+};
+
+// ── TT — tooltip body builder helpers ─────────────────────────────────────────
+// Use with F2bTooltip bodyNode prop to build structured tooltip content.
+const _C = { text: '#e6edf3', muted: '#8b949e', green: '#3fb950', red: '#e86a65', orange: '#e3b341', cyan: '#39c5cf' };
+export const TT = {
+    section: (label: string, color = _C.muted) => (
+        <div key={label} style={{ fontSize: '.67rem', fontWeight: 700, color, textTransform: 'uppercase' as const, letterSpacing: '.06em', marginBottom: '.2rem', marginTop: '.15rem' }}>{label}</div>
+    ),
+    row: (icon: React.ReactNode, text: string, color = _C.text) => (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', padding: '.1rem 0', color, fontSize: '.79rem' }}>{icon}<span>{text}</span></div>
+    ),
+    ok:   (text: string) => TT.row(<CheckCircle   style={{ width: 11, height: 11, color: _C.green,  flexShrink: 0 }} />, text),
+    warn: (text: string) => TT.row(<AlertTriangle style={{ width: 11, height: 11, color: _C.orange, flexShrink: 0 }} />, text),
+    err:  (text: string) => TT.row(<XCircle       style={{ width: 11, height: 11, color: _C.red,    flexShrink: 0 }} />, text),
+    info: (text: string) => TT.row(<span style={{ width: 11, height: 11, display: 'inline-block', flexShrink: 0 }} />, text, _C.muted),
+    sep:  ()             => <div style={{ height: 1, background: 'rgba(255,255,255,.07)', margin: '.3rem 0' }} />,
 };

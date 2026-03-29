@@ -1359,7 +1359,7 @@
       "requiresFix": "Nécessite une correction"
     },
     "jails": {
-      "activeOnly": "Actifs uniquement",
+      "activeOnly": "Actifs",
       "allJails": "Tous les jails",
       "expandConfig": "Voir la configuration",
       "collapseConfig": "Masquer la configuration",

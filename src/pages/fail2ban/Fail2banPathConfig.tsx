@@ -42,12 +42,39 @@ export const Fail2banPathConfig: React.FC<Fail2banPathConfigProps> = ({
     onNpmDataPathChange,
 }) => {
     // ── SQLite path ──────────────────────────────────────────────────────────
-    const [sqliteInput, setSqliteInput]   = useState(sqliteDbPath);
-    const [sqliteSaving, setSqliteSaving] = useState(false);
-    const [sqliteStatus, setSqliteStatus] = useState<'idle' | 'ok' | 'error'>('idle');
-    const [sqliteError, setSqliteError]   = useState<string>('');
+    const [sqliteInput, setSqliteInput]     = useState(sqliteDbPath);
+    const [sqliteSaving, setSqliteSaving]   = useState(false);
+    const [sqliteTesting, setSqliteTesting] = useState(false);
+    const [sqliteStatus, setSqliteStatus]   = useState<'idle' | 'ok' | 'error'>('idle');
+    const [sqliteError, setSqliteError]     = useState<string>('');
 
     useEffect(() => { setSqliteInput(sqliteDbPath); }, [sqliteDbPath]);
+
+    const runSqliteCheck = async (): Promise<void> => {
+        const chk = await fetch('/api/plugins/fail2ban/check', { headers: authHeader() });
+        if (chk.ok) {
+            const data = await chk.json();
+            const result: F2bCheckResult = data.result ?? data;
+            if (result.checks.sqlite.ok) {
+                setSqliteStatus('ok');
+            } else {
+                setSqliteStatus('error');
+                setSqliteError('Fichier non accessible — vérifiez les permissions et le montage Docker');
+            }
+        } else {
+            setSqliteStatus('error');
+            setSqliteError('Erreur serveur');
+        }
+    };
+
+    const testSqlitePath = async () => {
+        setSqliteTesting(true);
+        setSqliteStatus('idle');
+        setSqliteError('');
+        try { await runSqliteCheck(); }
+        catch (e) { setSqliteStatus('error'); setSqliteError(e instanceof Error ? e.message : 'Erreur réseau'); }
+        finally { setSqliteTesting(false); }
+    };
 
     const saveSqlitePath = async () => {
         setSqliteSaving(true);
@@ -61,18 +88,7 @@ export const Fail2banPathConfig: React.FC<Fail2banPathConfigProps> = ({
             });
             if (!res.ok) { setSqliteStatus('error'); setSqliteError('Erreur serveur'); return; }
             onSqliteDbPathChange(sqliteInput.trim());
-            // Re-run diagnostic to validate
-            const chk = await fetch('/api/plugins/fail2ban/check', { headers: authHeader() });
-            if (chk.ok) {
-                const data = await chk.json();
-                const result: F2bCheckResult = data.result ?? data;
-                if (result.checks.sqlite.ok) {
-                    setSqliteStatus('ok');
-                } else {
-                    setSqliteStatus('error');
-                    setSqliteError('Fichier non accessible — vérifiez les permissions');
-                }
-            }
+            await runSqliteCheck();
         } catch (e) {
             setSqliteStatus('error');
             setSqliteError(e instanceof Error ? e.message : 'Erreur réseau');
@@ -163,10 +179,15 @@ export const Fail2banPathConfig: React.FC<Fail2banPathConfigProps> = ({
                         placeholder="/var/lib/fail2ban/fail2ban.sqlite3"
                         style={inputStyle(sqliteStatus)}
                     />
+                    <button type="button" onClick={testSqlitePath} disabled={sqliteTesting}
+                        style={{ ...btnStyle('#3fb950', 'rgba(63,185,80,.12)'), opacity: sqliteTesting ? .5 : 1 }}>
+                        {sqliteTesting ? <RefreshCw size={11} style={{ animation: 'spin 1s linear infinite' }} /> : <Stethoscope size={11} />}
+                        {sqliteTesting ? 'Test…' : 'Tester'}
+                    </button>
                     <button type="button" onClick={saveSqlitePath} disabled={sqliteSaving}
-                        style={{ ...btnStyle('#e86a65', 'rgba(232,106,101,.12)'), opacity: sqliteSaving ? .5 : 1 }}>
+                        style={{ ...btnStyle('#58a6ff', 'rgba(88,166,255,.1)'), opacity: sqliteSaving ? .5 : 1 }}>
                         {sqliteSaving ? <RefreshCw size={11} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={11} />}
-                        {sqliteSaving ? 'Vérification…' : 'Sauvegarder'}
+                        {sqliteSaving ? 'Sauvegarde…' : 'Sauvegarder'}
                     </button>
                 </div>
                 <p style={{ fontSize: '.72rem', color: '#8b949e', marginTop: '.3rem' }}>
@@ -192,15 +213,15 @@ export const Fail2banPathConfig: React.FC<Fail2banPathConfigProps> = ({
                         placeholder="/data  ou  /opt/npm/data"
                         style={inputStyle(npmCheck?.ok === true ? 'ok' : npmCheck?.ok === false ? 'error' : 'idle')}
                     />
-                    <button type="button" onClick={saveNpmPath} disabled={npmSaving}
-                        style={{ ...btnStyle('#e86a65', 'rgba(232,106,101,.12)'), opacity: npmSaving ? .5 : 1 }}>
-                        {npmSaving ? <RefreshCw size={11} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={11} />}
-                        {npmSaving ? 'Sauvegarde…' : 'Sauvegarder'}
-                    </button>
                     <button type="button" onClick={checkNpm} disabled={npmChecking || !npmInput.trim()}
                         style={{ ...btnStyle('#3fb950', 'rgba(63,185,80,.12)'), opacity: npmChecking || !npmInput.trim() ? .5 : 1 }}>
                         {npmChecking ? <RefreshCw size={11} style={{ animation: 'spin 1s linear infinite' }} /> : <Stethoscope size={11} />}
                         {npmChecking ? 'Test…' : 'Tester'}
+                    </button>
+                    <button type="button" onClick={saveNpmPath} disabled={npmSaving}
+                        style={{ ...btnStyle('#58a6ff', 'rgba(88,166,255,.1)'), opacity: npmSaving ? .5 : 1 }}>
+                        {npmSaving ? <RefreshCw size={11} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={11} />}
+                        {npmSaving ? 'Sauvegarde…' : 'Sauvegarder'}
                     </button>
                 </div>
                 <p style={{ fontSize: '.72rem', color: '#8b949e', marginTop: '.3rem' }}>

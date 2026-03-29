@@ -1254,11 +1254,18 @@ export class Fail2banPlugin extends BasePlugin {
         router.get('/config', requireAuth, asyncHandler(async (_req, res) => {
             if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
             const result: Record<string, string | null> = {};
+            const mtimes: Record<string, number | null> = {};
             for (const f of ['fail2ban.conf', 'fail2ban.local', 'jail.conf', 'jail.local']) {
-                try { result[f] = fs.readFileSync(this.resolveDockerPathSync(`/etc/fail2ban/${f}`), 'utf8'); }
-                catch { result[f] = null; }
+                try {
+                    const p = this.resolveDockerPathSync(`/etc/fail2ban/${f}`);
+                    result[f] = fs.readFileSync(p, 'utf8');
+                    mtimes[f] = Math.floor(fs.statSync(p).mtimeMs / 1000);
+                } catch {
+                    result[f] = null;
+                    mtimes[f] = null;
+                }
             }
-            res.json({ success: true, result: { ok: true, files: result } });
+            res.json({ success: true, result: { ok: true, files: result, mtimes } });
         }));
 
         // GET /config/parsed  — parsed global config values + DB info
@@ -1425,47 +1432,199 @@ export class Fail2banPlugin extends BasePlugin {
 
             const errors: string[] = [];
             const warnings: string[] = [];
+
+            // ── Constants ────────────────────────────────────────────────────────
             const F2B_LOCAL_KEYS  = new Set(['loglevel','logtarget','socket','pidfile','dbfile','dbpurgeage','dbmaxmatches','syslogsocket','allowipv6']);
             const LOGLEVELS       = new Set(['CRITICAL','ERROR','WARNING','NOTICE','INFO','DEBUG']);
-            const DANGEROUS       = [/`[^`]*`/, /\$\(/, /\|\s*(bash|sh|python|perl|ruby)\b/, /;\s*(rm|dd|mkfs|wget|curl)\b/i];
+            const JAIL_KEYS       = new Set([
+                'enabled','port','filter','logpath','maxretry','bantime','findtime',
+                'action','banaction','ignoreip','ignoreself','maxmatches','destemail',
+                'sender','mta','protocol','chain','mode','journalmatch','backend',
+                'usedns','failregex','ignoreregex','logencoding','datepattern',
+                'prefregex','maxlines','bantime.increment','bantime.factor',
+                'bantime.formula','bantime.multipliers','bantime.maxtime',
+                'bantime.overalljails','fail2ban_agent',
+            ]);
+            const DANGEROUS = [
+                /`[^`]+`/,
+                /\$\(/,
+                /\|\s*(bash|sh|python|perl|ruby|nc|ncat|netcat)\b/i,
+                /;\s*(rm|dd|mkfs|wget|curl|chmod|chown)\b/i,
+                /\.\.\//,
+            ];
 
+            // ── Pre-checks ───────────────────────────────────────────────────────
+            if (content.charCodeAt(0) === 0xFEFF)
+                warnings.push('BOM UTF-8 détecté en début de fichier — peut causer des erreurs de parsing');
+            if (content.includes('\r\n'))
+                warnings.push('Fins de ligne Windows (CRLF) détectées — préférer LF Unix');
+            if (content.trim() === '')
+                return res.json({ success: true, result: { ok: true, errors: [], warnings: ['Fichier vide — fail2ban utilisera les valeurs par défaut'] } });
+            if (content.length > 512 * 1024)
+                errors.push('Fichier trop volumineux (> 512 Ko) — vérifiez le contenu');
+
+            // ── Line-by-line parse ───────────────────────────────────────────────
             const lines = content.split(/\r?\n/);
             let section = '';
             const foundSections: string[] = [];
+            const sectionKeys: Record<string, Set<string>> = {};
+            let lastSectionLine = 0;
+            let prevLineWasSection = false;
 
             for (let i = 0; i < lines.length; i++) {
                 const ln = i + 1;
                 const raw = lines[i];
                 const t = raw.trim();
-                if (!t || t.startsWith('#') || t.startsWith(';')) continue;
-                // Continuation lines (indented)
+
+                // Blank / comment
+                if (!t || t.startsWith('#') || t.startsWith(';')) {
+                    prevLineWasSection = false;
+                    continue;
+                }
+
+                // Continuation line (indented, belongs to previous key)
                 if (/^\s/.test(raw) && section) continue;
-                // Section header
-                const secM = t.match(/^\[([^\]]+)\]$/);
-                if (secM) { section = secM[1]; foundSections.push(section); continue; }
-                // Key = value
-                const kvM = t.match(/^([A-Za-z0-9_./-]+)\s*=\s*(.*)$/);
-                if (!kvM) { errors.push(`Ligne ${ln}: syntaxe invalide — "${raw.slice(0, 60)}"`); continue; }
+
+                // ── Section header ───────────────────────────────────────────────
+                if (t.startsWith('[')) {
+                    // Unclosed bracket
+                    if (!t.endsWith(']'))
+                        errors.push(`Ligne ${ln}: section mal formée — crochet fermant manquant : "${t.slice(0, 60)}"`);
+                    const secM = t.match(/^\[([^\]]+)\]$/);
+                    if (secM) {
+                        const secName = secM[1].trim();
+                        // Leading/trailing spaces inside brackets
+                        if (secName !== secM[1])
+                            warnings.push(`Ligne ${ln}: espaces superflus dans le nom de section [${secM[1]}]`);
+                        // Invalid section name chars
+                        if (!/^[A-Za-z0-9_\-\.]+$/.test(secName))
+                            errors.push(`Ligne ${ln}: nom de section invalide "[${secName}]" — utilisez uniquement lettres, chiffres, - _ .`);
+                        // Duplicate section
+                        if (foundSections.includes(secName))
+                            errors.push(`Ligne ${ln}: section "[${secName}]" définie plusieurs fois`);
+                        else {
+                            foundSections.push(secName);
+                            sectionKeys[secName] = new Set();
+                        }
+                        // Warn empty previous section
+                        if (prevLineWasSection && section && sectionKeys[section]?.size === 0)
+                            warnings.push(`Ligne ${lastSectionLine}: section "[${section}]" est vide`);
+                        section = secName;
+                        lastSectionLine = ln;
+                        prevLineWasSection = true;
+                    }
+                    continue;
+                }
+
+                prevLineWasSection = false;
+
+                // Key before any section
+                if (!section) {
+                    errors.push(`Ligne ${ln}: clé hors section — toutes les clés doivent être dans une section [...]`);
+                    continue;
+                }
+
+                // ── Key = value ──────────────────────────────────────────────────
+                const kvM = t.match(/^([A-Za-z0-9_.\/\-]+)\s*=\s*(.*)$/);
+                if (!kvM) {
+                    errors.push(`Ligne ${ln}: syntaxe invalide — attendu "clé = valeur", reçu : "${raw.slice(0, 80)}"`);
+                    continue;
+                }
                 const key = kvM[1].toLowerCase();
                 const val = kvM[2].trim();
+
+                // Duplicate key in section
+                if (sectionKeys[section]?.has(key))
+                    warnings.push(`Ligne ${ln}: clé « ${key} » définie plusieurs fois dans [${section}]`);
+                sectionKeys[section]?.add(key);
+
                 // Dangerous patterns
                 for (const pat of DANGEROUS) {
-                    if (pat.test(val)) { errors.push(`Ligne ${ln}: valeur potentiellement dangereuse pour « ${key} »`); break; }
+                    if (pat.test(val)) { errors.push(`Ligne ${ln}: valeur potentiellement dangereuse pour « ${key} » — "${val.slice(0, 60)}"`); break; }
                 }
-                // fail2ban.local — [Definition] key whitelist
+
+                // ── fail2ban.local [Definition] checks ───────────────────────────
                 if (filename === 'fail2ban.local' && section.toLowerCase() === 'definition') {
-                    if (!F2B_LOCAL_KEYS.has(key)) warnings.push(`Ligne ${ln}: clé inconnue « ${key} » dans [Definition]`);
-                    if (key === 'loglevel'     && !LOGLEVELS.has(val.toUpperCase()))
-                        errors.push(`Ligne ${ln}: loglevel invalide « ${val} » — valeurs: ${[...LOGLEVELS].join(', ')}`);
-                    if (key === 'dbpurgeage'   && !/^\d+$/.test(val))
-                        errors.push(`Ligne ${ln}: dbpurgeage doit être un entier positif`);
+                    if (!F2B_LOCAL_KEYS.has(key))
+                        warnings.push(`Ligne ${ln}: clé inconnue « ${key} » dans [Definition] — clés valides: ${[...F2B_LOCAL_KEYS].join(', ')}`);
+                    if (key === 'loglevel' && !LOGLEVELS.has(val.toUpperCase()))
+                        errors.push(`Ligne ${ln}: loglevel invalide « ${val} » — valeurs acceptées: ${[...LOGLEVELS].join(', ')}`);
+                    if (key === 'dbpurgeage' && !/^\d+$/.test(val))
+                        errors.push(`Ligne ${ln}: dbpurgeage doit être un entier positif (secondes), reçu: "${val}"`);
                     if (key === 'dbmaxmatches' && (!/^\d+$/.test(val) || parseInt(val, 10) < 1))
-                        errors.push(`Ligne ${ln}: dbmaxmatches doit être un entier >= 1`);
+                        errors.push(`Ligne ${ln}: dbmaxmatches doit être un entier >= 1, reçu: "${val}"`);
+                    if (key === 'logtarget' && !/^(STDOUT|STDERR|SYSLOG|SYSTEMD-JOURNAL|\/\S+)$/i.test(val))
+                        warnings.push(`Ligne ${ln}: logtarget inhabituel « ${val} » — valeurs typiques: STDOUT, STDERR, SYSLOG, /var/log/fail2ban.log`);
+                }
+
+                // ── jail.local checks ────────────────────────────────────────────
+                if (filename === 'jail.local') {
+                    const secLower = section.toLowerCase();
+                    const isDefault = secLower === 'default' || secLower === 'default_';
+
+                    if (!isDefault && !JAIL_KEYS.has(key))
+                        warnings.push(`Ligne ${ln}: clé inconnue « ${key} » dans [${section}]`);
+
+                    if (key === 'enabled' && !/^(true|false|1|0)$/i.test(val))
+                        errors.push(`Ligne ${ln}: enabled doit être true/false/1/0, reçu: "${val}"`);
+
+                    if (key === 'maxretry') {
+                        if (!/^\d+$/.test(val) || parseInt(val, 10) < 1)
+                            errors.push(`Ligne ${ln}: maxretry doit être un entier >= 1, reçu: "${val}"`);
+                        else if (parseInt(val, 10) > 100)
+                            warnings.push(`Ligne ${ln}: maxretry = ${val} est très élevé — valeur typique entre 3 et 10`);
+                    }
+
+                    if (key === 'bantime') {
+                        if (!/^-?\d+[smhd]?$/.test(val) && !/^-1$/.test(val))
+                            errors.push(`Ligne ${ln}: bantime invalide « ${val} » — entier (secondes) ou suffixe s/m/h/d, -1 pour ban permanent`);
+                        else if (/^\d+$/.test(val) && parseInt(val, 10) > 0 && parseInt(val, 10) < 30)
+                            warnings.push(`Ligne ${ln}: bantime = ${val}s est très court — valeur typique 600s (10 min) ou plus`);
+                    }
+
+                    if (key === 'findtime' && !/^\d+[smhd]?$/.test(val))
+                        errors.push(`Ligne ${ln}: findtime invalide « ${val} » — entier (secondes) ou suffixe s/m/h/d`);
+
+                    if (key === 'port') {
+                        const ports = val.split(/[\s,]+/);
+                        for (const p of ports) {
+                            if (!p) continue;
+                            if (/^\d+$/.test(p)) {
+                                const pn = parseInt(p, 10);
+                                if (pn < 1 || pn > 65535)
+                                    errors.push(`Ligne ${ln}: port invalide ${p} — doit être entre 1 et 65535`);
+                            } else if (/^\d+:\d+$/.test(p)) {
+                                const [a, b] = p.split(':').map(Number);
+                                if (a >= b) errors.push(`Ligne ${ln}: plage de ports invalide ${p} — début doit être < fin`);
+                            }
+                        }
+                    }
+
+                    if (key === 'logpath' && val && !val.startsWith('/') && !val.startsWith('%(') && !val.includes('*'))
+                        warnings.push(`Ligne ${ln}: logpath « ${val} » n'est pas un chemin absolu — vérifiez le chemin`);
+
+                    if (key === 'backend' && !['auto','pyinotify','gamin','polling','systemd'].includes(val.toLowerCase()))
+                        warnings.push(`Ligne ${ln}: backend inconnu « ${val} » — valeurs: auto, pyinotify, gamin, polling, systemd`);
+
+                    if (key === 'usedns' && !['yes','no','warn','raw'].includes(val.toLowerCase()))
+                        errors.push(`Ligne ${ln}: usedns invalide « ${val} » — valeurs: yes, no, warn, raw`);
                 }
             }
-            // fail2ban.local must have [Definition]
-            if (filename === 'fail2ban.local' && foundSections.length > 0 && !foundSections.map(s => s.toLowerCase()).includes('definition'))
-                errors.push('Section [Definition] manquante — fail2ban.local doit contenir [Definition]');
+
+            // ── Post-parse checks ────────────────────────────────────────────────
+            if (filename === 'fail2ban.local') {
+                if (foundSections.length > 0 && !foundSections.map(s => s.toLowerCase()).includes('definition'))
+                    errors.push('Section [Definition] manquante — fail2ban.local doit contenir [Definition]');
+                if (foundSections.some(s => !['definition','thread'].includes(s.toLowerCase())))
+                    warnings.push('fail2ban.local ne devrait contenir que [Definition] — les règles de jail vont dans jail.local');
+            }
+
+            if (filename === 'jail.local' && foundSections.length === 0)
+                warnings.push('Aucune section trouvée — jail.local doit contenir au moins [DEFAULT] ou un nom de jail');
+
+            // Warn last section empty
+            if (section && sectionKeys[section]?.size === 0)
+                warnings.push(`Section "[${section}]" est vide`);
 
             res.json({ success: true, result: { ok: errors.length === 0, errors, warnings } });
         }));
@@ -2382,6 +2541,81 @@ export class Fail2banPlugin extends BasePlugin {
             }
         }));
 
+        // GET /app-audit  — santé de l'application LogviewR (DB, process, droits, fichiers)
+        router.get('/app-audit', requireAuth, asyncHandler(async (_req, res) => {
+            if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
+
+            const cwd      = process.cwd();
+            const dataDir  = path.join(cwd, 'data');
+            const appDbPath = path.join(dataDir, 'dashboard.db');
+            const backupDir = path.join(dataDir, 'iptables-backups');
+
+            const fileCheck = (p: string, mode: number) => {
+                try { fs.accessSync(p, mode); return true; } catch { return false; }
+            };
+            const dirExists = (p: string) => { try { return fs.statSync(p).isDirectory(); } catch { return false; } };
+            const sizeOf    = (p: string): string => {
+                try {
+                    const s = fs.statSync(p).size;
+                    return s >= 1048576 ? `${(s / 1048576).toFixed(2)} Mo` : `${(s / 1024).toFixed(1)} Ko`;
+                } catch { return '—'; }
+            };
+
+            // dashboard.db checks
+            const dbExists   = fileCheck(appDbPath, fs.constants.F_OK);
+            const dbReadable = fileCheck(appDbPath, fs.constants.R_OK);
+            const dbWritable = fileCheck(appDbPath, fs.constants.W_OK);
+            const dbSize     = sizeOf(appDbPath);
+
+            // data/ directory
+            const dataDirExists   = dirExists(dataDir);
+            const dataDirWritable = fileCheck(dataDir, fs.constants.W_OK);
+
+            // fail2ban socket
+            const sockPath    = this.resolveDockerPathSync('/var/run/fail2ban/fail2ban.sock');
+            const sockExists  = fileCheck(sockPath, fs.constants.F_OK);
+            const sockWritable = fileCheck(sockPath, fs.constants.W_OK);
+
+            // fail2ban SQLite + config files
+            const confBase    = this.resolveDockerPathSync('/etc/fail2ban');
+            const cfg         = parseGlobalConfig(confBase);
+            const f2bDbPath   = this.resolveDockerPathSync(cfg.dbfile || '/var/lib/fail2ban/fail2ban.sqlite3');
+            const f2bDbExists   = fileCheck(f2bDbPath, fs.constants.F_OK);
+            const f2bDbReadable = fileCheck(f2bDbPath, fs.constants.R_OK);
+
+            // fail2ban config files
+            const jailLocalPath = path.join(confBase, 'jail.local');
+            const f2bConfPath   = path.join(confBase, 'fail2ban.conf');
+            const jailLocalOk   = fileCheck(jailLocalPath, fs.constants.R_OK);
+            const f2bConfOk     = fileCheck(f2bConfPath,   fs.constants.R_OK);
+
+            // backup dir
+            const backupDirOk = dirExists(backupDir) && fileCheck(backupDir, fs.constants.W_OK);
+
+            // Process info
+            const mem = process.memoryUsage();
+            const procInfo = {
+                pid:     process.pid,
+                uptime:  Math.round(process.uptime()),
+                memRssMB: Math.round(mem.rss / 1048576),
+                memHeapMB: Math.round(mem.heapUsed / 1048576),
+                nodeVersion: process.version,
+                platform: process.platform,
+                arch:     process.arch,
+            };
+
+            res.json({ success: true, result: {
+                ok: dbExists && dbReadable && dbWritable && dataDirWritable,
+                dashboardDb: { exists: dbExists, readable: dbReadable, writable: dbWritable, size: dbSize, path: appDbPath },
+                dataDir:     { exists: dataDirExists, writable: dataDirWritable, path: dataDir },
+                backupDir:   { ok: backupDirOk, path: backupDir },
+                socket:      { exists: sockExists, writable: sockWritable, path: sockPath },
+                fail2banDb:  { exists: f2bDbExists, readable: f2bDbReadable, path: f2bDbPath },
+                configFiles: { jailLocal: jailLocalOk, fail2banConf: f2bConfOk },
+                process:     procInfo,
+            }});
+        }));
+
         // GET /geo/:ip  — géolocalisation IP via ip-api.com (proxy, no key needed)
         router.get('/geo/:ip', requireAuth, asyncHandler(async (req, res) => {
             if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
@@ -2563,74 +2797,269 @@ export class Fail2banPlugin extends BasePlugin {
             res.json({ success: true, result: { ok: true, name, lines, bytes, truncated, content } });
         }));
 
+        // ── GET /db-export ────────────────────────────────────────────────────────────
+        // Exports only the f2b_* tables from the app database as a downloadable JSON file.
+        // General app tables (users, logs, plugin_configs, …) are never included.
+        router.get('/db-export', requireAuth, asyncHandler(async (_req, res) => {
+            if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
+            const db = getDatabase();
+            const F2B_TABLES = [
+                'f2b_events', 'f2b_sync_state', 'f2b_jail_domain',
+                'f2b_ipset_snapshots', 'f2b_ip_geo', 'f2b_whois_cache',
+            ];
+            const tables: Record<string, unknown[]> = {};
+            const counts: Record<string, number>    = {};
+            for (const t of F2B_TABLES) {
+                const rows = db.prepare(`SELECT * FROM ${t}`).all();
+                tables[t] = rows;
+                counts[t] = rows.length;
+            }
+            const payload = { version: 1, type: 'f2b_db_export', exported_at: new Date().toISOString(), counts, tables };
+            const json = JSON.stringify(payload, null, 2);
+            const pad = (n: number) => String(n).padStart(2, '0');
+            const d = new Date();
+            const stamp = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}`;
+            res.setHeader('Content-Type', 'application/json');
+            res.setHeader('Content-Disposition', `attachment; filename="f2b-db-${stamp}.json"`);
+            res.send(json);
+        }));
+
+        // ── POST /db-import ───────────────────────────────────────────────────────────
+        // Imports f2b_* tables from a previously exported JSON.
+        // mode=merge (default): INSERT OR REPLACE — keeps rows not in the file.
+        // mode=replace: DELETE all rows first, then INSERT — full restore.
+        router.post('/db-import', requireAuth, asyncHandler(async (req, res) => {
+            if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
+            const { data, mode = 'merge' } = req.body as { data: unknown; mode?: string };
+            if (!data || typeof data !== 'object') throw createError('Invalid payload', 400, 'INVALID_PAYLOAD');
+            const payload = data as { version?: number; type?: string; tables?: Record<string, unknown[]> };
+            if (payload.version !== 1 || payload.type !== 'f2b_db_export') {
+                throw createError('Invalid export file — wrong type or version', 400, 'INVALID_FILE');
+            }
+            const F2B_TABLES = [
+                'f2b_events', 'f2b_sync_state', 'f2b_jail_domain',
+                'f2b_ipset_snapshots', 'f2b_ip_geo', 'f2b_whois_cache',
+            ];
+            const db = getDatabase();
+            const inserted: Record<string, number> = {};
+            const skipped: string[] = [];
+
+            db.transaction(() => {
+                for (const t of F2B_TABLES) {
+                    const rows = payload.tables?.[t];
+                    if (!rows || !Array.isArray(rows) || rows.length === 0) { skipped.push(t); continue; }
+                    if (mode === 'replace') db.prepare(`DELETE FROM ${t}`).run();
+                    const cols = Object.keys(rows[0] as object);
+                    const placeholders = cols.map(() => '?').join(', ');
+                    const stmt = db.prepare(`INSERT OR REPLACE INTO ${t} (${cols.join(', ')}) VALUES (${placeholders})`);
+                    let count = 0;
+                    for (const row of rows) {
+                        stmt.run(cols.map(c => (row as Record<string, unknown>)[c]));
+                        count++;
+                    }
+                    inserted[t] = count;
+                }
+            })();
+
+            res.json({ success: true, result: { ok: true, mode, inserted, skipped } });
+        }));
+
+        // ── Config snapshot helpers ───────────────────────────────────────────────────
+        const CFG_SNAP_DIR  = path.join(process.cwd(), 'data', 'f2b-config-backups');
+        const CFG_SNAP_MAX  = 10;
+        const DB_SNAP_DIR   = path.join(process.cwd(), 'data', 'f2b-db-backups');
+        const DB_SNAP_MAX   = 5;
+        const F2B_TABLES    = ['f2b_events', 'f2b_sync_state', 'f2b_jail_domain', 'f2b_ipset_snapshots', 'f2b_ip_geo', 'f2b_whois_cache'];
+
+        function pruneDir(dir: string, maxFiles: number, ext: string): void {
+            try {
+                const entries = fs.readdirSync(dir).filter(f => f.endsWith(ext))
+                    .map(f => ({ f, ts: fs.statSync(path.join(dir, f)).mtimeMs }))
+                    .sort((a, b) => a.ts - b.ts);
+                while (entries.length >= maxFiles) fs.unlinkSync(path.join(dir, entries.shift()!.f));
+            } catch { /* ignore */ }
+        }
+
+        function listSnapshots(dir: string, ext: string) {
+            try {
+                fs.mkdirSync(dir, { recursive: true });
+                return fs.readdirSync(dir).filter(f => f.endsWith(ext))
+                    .map(f => { const st = fs.statSync(path.join(dir, f)); return { filename: f, size: st.size, ts: Math.floor(st.mtimeMs) }; })
+                    .sort((a, b) => b.ts - a.ts).slice(0, 50);
+            } catch { return []; }
+        }
+
+        function snapshotPad(n: number) { return String(n).padStart(2, '0'); }
+        function snapshotStamp() {
+            const d = new Date();
+            return `${d.getFullYear()}-${snapshotPad(d.getMonth()+1)}-${snapshotPad(d.getDate())}_${snapshotPad(d.getHours())}${snapshotPad(d.getMinutes())}${snapshotPad(d.getSeconds())}`;
+        }
+
+        // ── GET /backup/snapshots — list local config snapshots ───────────────────────
+        router.get('/backup/snapshots', requireAuth, asyncHandler(async (_req, res) => {
+            if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
+            res.json({ success: true, result: { ok: true, snapshots: listSnapshots(CFG_SNAP_DIR, '.json') } });
+        }));
+
+        // ── POST /backup/snapshot — create a local config snapshot ────────────────────
+        router.post('/backup/snapshot', requireAuth, asyncHandler(async (_req, res) => {
+            if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
+            const payload = await this.buildConfigBackupPayload();
+            const json = JSON.stringify(payload, null, 2);
+            fs.mkdirSync(CFG_SNAP_DIR, { recursive: true });
+            pruneDir(CFG_SNAP_DIR, CFG_SNAP_MAX, '.json');
+            const filename = `f2b-config-${snapshotStamp()}.json`;
+            fs.writeFileSync(path.join(CFG_SNAP_DIR, filename), json, 'utf8');
+            res.json({ success: true, result: { ok: true, filename } });
+        }));
+
+        // ── GET /backup/snapshot/:filename/download — download a stored config snapshot
+        router.get('/backup/snapshot/:filename/download', requireAuth, asyncHandler(async (req, res) => {
+            if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
+            const safe = path.basename(req.params.filename);
+            if (!safe.endsWith('.json') || !safe.startsWith('f2b-config-')) throw createError('Invalid filename', 400, 'INVALID_FILENAME');
+            const fullPath = path.join(CFG_SNAP_DIR, safe);
+            if (!fullPath.startsWith(CFG_SNAP_DIR + path.sep)) throw createError('Invalid path', 400, 'INVALID_PATH');
+            try { fs.accessSync(fullPath, fs.constants.R_OK); } catch { throw createError('File not found', 404, 'NOT_FOUND'); }
+            res.setHeader('Content-Type', 'application/json');
+            res.setHeader('Content-Disposition', `attachment; filename="${safe}"`);
+            res.sendFile(fullPath);
+        }));
+
+        // ── POST /backup/snapshot/:filename/restore — restore from stored config snapshot
+        router.post('/backup/snapshot/:filename/restore', requireAuth, asyncHandler(async (req, res) => {
+            if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
+            const safe = path.basename(req.params.filename);
+            if (!safe.endsWith('.json') || !safe.startsWith('f2b-config-')) throw createError('Invalid filename', 400, 'INVALID_FILENAME');
+            const fullPath = path.join(CFG_SNAP_DIR, safe);
+            if (!fullPath.startsWith(CFG_SNAP_DIR + path.sep)) throw createError('Invalid path', 400, 'INVALID_PATH');
+            let content: string;
+            try { content = fs.readFileSync(fullPath, 'utf8'); } catch { throw createError('File not found', 404, 'NOT_FOUND'); }
+            // Re-use existing restore logic by forwarding the parsed body
+            req.body = JSON.parse(content);
+            const doReload = req.query['reload'] === '1';
+            const body = req.body as Record<string, unknown>;
+            if (body?.type !== 'f2b_full_backup' || body?.version !== 1) {
+                throw createError('Invalid snapshot file', 400, 'INVALID_FILE');
+            }
+            const files = body.files as Record<string, string> | undefined;
+            if (!files) throw createError('Missing files map', 400, 'INVALID_FILE');
+            const confBase = this.resolveDockerPathSync('/etc/fail2ban');
+            const written: string[] = []; const skipped: string[] = []; const errors: string[] = [];
+            for (const [key, fileContent] of Object.entries(files)) {
+                if (key.includes('..')) { errors.push(`${key}: path traversal rejected`); continue; }
+                if (typeof fileContent !== 'string') { errors.push(`${key}: not a string`); continue; }
+                if (!key.endsWith('.local')) { skipped.push(key); continue; }
+                if (!key.startsWith('/etc/fail2ban/')) { skipped.push(key); continue; }
+                const rel = key.replace(/^\/etc\/fail2ban\//, '');
+                const resolved = path.join(confBase, rel);
+                if (!resolved.startsWith(confBase + path.sep) && resolved !== confBase) { errors.push(`${key}: outside confBase`); continue; }
+                try {
+                    fs.mkdirSync(path.dirname(resolved), { recursive: true });
+                    fs.writeFileSync(resolved, fileContent, 'utf8');
+                    written.push(key);
+                } catch (e: unknown) { errors.push(`${key}: ${e instanceof Error ? e.message : String(e)}`); }
+            }
+            let reloadOk: boolean | undefined; let reloadOut: string | undefined;
+            if (doReload) {
+                try { const r = await this.client.reload(); reloadOk = r.ok; reloadOut = r.output; } catch { reloadOk = false; }
+            }
+            res.json({ success: true, result: { ok: errors.length === 0, written, skipped, errors, reloadOk, reloadOut } });
+        }));
+
+        // ── DELETE /backup/snapshot/:filename — delete a stored config snapshot ────────
+        router.delete('/backup/snapshot/:filename', requireAuth, asyncHandler(async (req, res) => {
+            if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
+            const safe = path.basename(req.params.filename);
+            if (!safe.endsWith('.json') || !safe.startsWith('f2b-config-')) throw createError('Invalid filename', 400, 'INVALID_FILENAME');
+            const fullPath = path.join(CFG_SNAP_DIR, safe);
+            if (!fullPath.startsWith(CFG_SNAP_DIR + path.sep)) throw createError('Invalid path', 400, 'INVALID_PATH');
+            try { fs.unlinkSync(fullPath); } catch { throw createError('File not found', 404, 'NOT_FOUND'); }
+            res.json({ success: true, result: { ok: true } });
+        }));
+
+        // ── GET /db-snapshots — list local DB snapshots ───────────────────────────────
+        router.get('/db-snapshots', requireAuth, asyncHandler(async (_req, res) => {
+            if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
+            res.json({ success: true, result: { ok: true, snapshots: listSnapshots(DB_SNAP_DIR, '.json') } });
+        }));
+
+        // ── POST /db-snapshot — create a local DB snapshot ───────────────────────────
+        router.post('/db-snapshot', requireAuth, asyncHandler(async (_req, res) => {
+            if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
+            const db = getDatabase();
+            const tables: Record<string, unknown[]> = {};
+            const counts: Record<string, number>    = {};
+            for (const t of F2B_TABLES) {
+                const rows = db.prepare(`SELECT * FROM ${t}`).all();
+                tables[t] = rows; counts[t] = rows.length;
+            }
+            const payload = { version: 1, type: 'f2b_db_export', exported_at: new Date().toISOString(), counts, tables };
+            const json = JSON.stringify(payload, null, 2);
+            fs.mkdirSync(DB_SNAP_DIR, { recursive: true });
+            pruneDir(DB_SNAP_DIR, DB_SNAP_MAX, '.json');
+            const filename = `f2b-db-${snapshotStamp()}.json`;
+            fs.writeFileSync(path.join(DB_SNAP_DIR, filename), json, 'utf8');
+            res.json({ success: true, result: { ok: true, filename, counts } });
+        }));
+
+        // ── GET /db-snapshot/:filename/download — download a stored DB snapshot ───────
+        router.get('/db-snapshot/:filename/download', requireAuth, asyncHandler(async (req, res) => {
+            if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
+            const safe = path.basename(req.params.filename);
+            if (!safe.endsWith('.json') || !safe.startsWith('f2b-db-')) throw createError('Invalid filename', 400, 'INVALID_FILENAME');
+            const fullPath = path.join(DB_SNAP_DIR, safe);
+            if (!fullPath.startsWith(DB_SNAP_DIR + path.sep)) throw createError('Invalid path', 400, 'INVALID_PATH');
+            try { fs.accessSync(fullPath, fs.constants.R_OK); } catch { throw createError('File not found', 404, 'NOT_FOUND'); }
+            res.setHeader('Content-Type', 'application/json');
+            res.setHeader('Content-Disposition', `attachment; filename="${safe}"`);
+            res.sendFile(fullPath);
+        }));
+
+        // ── POST /db-snapshot/:filename/restore — restore from a stored DB snapshot ────
+        router.post('/db-snapshot/:filename/restore', requireAuth, asyncHandler(async (req, res) => {
+            if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
+            const safe = path.basename(req.params.filename);
+            if (!safe.endsWith('.json') || !safe.startsWith('f2b-db-')) throw createError('Invalid filename', 400, 'INVALID_FILENAME');
+            const fullPath = path.join(DB_SNAP_DIR, safe);
+            if (!fullPath.startsWith(DB_SNAP_DIR + path.sep)) throw createError('Invalid path', 400, 'INVALID_PATH');
+            let content: string;
+            try { content = fs.readFileSync(fullPath, 'utf8'); } catch { throw createError('File not found', 404, 'NOT_FOUND'); }
+            const payload = JSON.parse(content) as { version?: number; type?: string; tables?: Record<string, unknown[]> };
+            if (payload.version !== 1 || payload.type !== 'f2b_db_export') throw createError('Invalid snapshot file', 400, 'INVALID_FILE');
+            const mode = (req.query['mode'] as string) ?? 'merge';
+            const db = getDatabase();
+            const inserted: Record<string, number> = {}; const skipped: string[] = [];
+            db.transaction(() => {
+                for (const t of F2B_TABLES) {
+                    const rows = payload.tables?.[t];
+                    if (!rows || !Array.isArray(rows) || rows.length === 0) { skipped.push(t); continue; }
+                    if (mode === 'replace') db.prepare(`DELETE FROM ${t}`).run();
+                    const cols = Object.keys(rows[0] as object);
+                    const stmt = db.prepare(`INSERT OR REPLACE INTO ${t} (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`);
+                    let count = 0;
+                    for (const row of rows) { stmt.run(cols.map(c => (row as Record<string, unknown>)[c])); count++; }
+                    inserted[t] = count;
+                }
+            })();
+            res.json({ success: true, result: { ok: true, mode, inserted, skipped } });
+        }));
+
+        // ── DELETE /db-snapshot/:filename — delete a stored DB snapshot ───────────────
+        router.delete('/db-snapshot/:filename', requireAuth, asyncHandler(async (req, res) => {
+            if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
+            const safe = path.basename(req.params.filename);
+            if (!safe.endsWith('.json') || !safe.startsWith('f2b-db-')) throw createError('Invalid filename', 400, 'INVALID_FILENAME');
+            const fullPath = path.join(DB_SNAP_DIR, safe);
+            if (!fullPath.startsWith(DB_SNAP_DIR + path.sep)) throw createError('Invalid path', 400, 'INVALID_PATH');
+            try { fs.unlinkSync(fullPath); } catch { throw createError('File not found', 404, 'NOT_FOUND'); }
+            res.json({ success: true, result: { ok: true } });
+        }));
+
         // ── GET /backup/full ──────────────────────────────────────────────────────────
         router.get('/backup/full', requireAuth, asyncHandler(async (_req, res) => {
             if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
-            const confBase = this.resolveDockerPathSync('/etc/fail2ban');
-
-            // Check config dir is accessible
-            try { fs.accessSync(confBase); } catch {
-                throw createError('Config dir not accessible', 503, 'CONFIG_UNAVAILABLE');
-            }
-
-            // Root-level files to include
-            const ROOT_FILES = [
-                'fail2ban.conf', 'fail2ban.local',
-                'jail.conf', 'jail.local',
-                'paths-common.conf', 'paths-debian.conf',
-            ];
-
-            // Subdirectories to read (non-recursive, direct children only)
-            const SUB_DIRS = ['jail.d', 'filter.d', 'action.d'];
-
-            const files: Record<string, string> = {};
-
-            // Read root files (skip silently if missing)
-            for (const name of ROOT_FILES) {
-                const abs = path.join(confBase, name);
-                try { files[`/etc/fail2ban/${name}`] = fs.readFileSync(abs, 'utf8'); } catch { /* skip */ }
-            }
-
-            // Read subdir files (non-recursive)
-            for (const sub of SUB_DIRS) {
-                const dir = path.join(confBase, sub);
-                try {
-                    const entries = fs.readdirSync(dir, { withFileTypes: true });
-                    for (const e of entries) {
-                        if (!e.isFile()) continue;
-                        const abs = path.join(dir, e.name);
-                        try { files[`/etc/fail2ban/${sub}/${e.name}`] = fs.readFileSync(abs, 'utf8'); } catch { /* skip */ }
-                    }
-                } catch { /* dir missing — skip */ }
-            }
-
-            // Runtime state — best-effort, skip on any error
-            const runtime: Record<string, unknown> = { total_banned: 0, jails: {} };
-            try {
-                const jailNames = await this.client.listJails();
-                let totalBanned = 0;
-                const jailsMap: Record<string, unknown> = {};
-                for (const jail of jailNames) {
-                    const st = await this.client.getJailStatus(jail);
-                    if (st) {
-                        totalBanned += st.currentlyBanned;
-                        jailsMap[jail] = { currently_banned: st.currentlyBanned, banned_ips: st.bannedIps };
-                    }
-                }
-                runtime.total_banned = totalBanned;
-                runtime.jails = jailsMap;
-            } catch { /* best-effort */ }
-
-            const payload = {
-                version: 1,
-                type: 'f2b_full_backup',
-                exported_at: new Date().toISOString(),
-                exported_by: 'LogviewR',
-                host: os.hostname(),
-                files,
-                runtime,
-            };
-
+            const payload = await this.buildConfigBackupPayload();
             res.setHeader('Content-Type', 'application/json');
             res.setHeader('Content-Disposition', 'attachment');
             res.json(payload);
@@ -2803,6 +3232,21 @@ export class Fail2banPlugin extends BasePlugin {
             res.json({ success: true, result: r });
         }));
 
+        // GET /iptables/backup/:filename/download — download a backup file
+        router.get('/iptables/backup/:filename/download', requireAuth, asyncHandler(async (req, res) => {
+            if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
+            const safe = path.basename(req.params.filename);
+            if (!safe.endsWith('.rules')) throw createError('Invalid filename', 400, 'INVALID_FILENAME');
+            const fullPath = path.join(process.cwd(), 'data', 'iptables-backups', safe);
+            if (!fullPath.startsWith(path.join(process.cwd(), 'data', 'iptables-backups') + path.sep)) {
+                throw createError('Invalid path', 400, 'INVALID_PATH');
+            }
+            try { fs.accessSync(fullPath, fs.constants.R_OK); } catch { throw createError('File not found', 404, 'NOT_FOUND'); }
+            res.setHeader('Content-Type', 'text/plain');
+            res.setHeader('Content-Disposition', `attachment; filename="${safe}"`);
+            res.sendFile(fullPath);
+        }));
+
         // GET /ipset/backups — list available ipset backups
         router.get('/ipset/backups', requireAuth, asyncHandler(async (_req, res) => {
             if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
@@ -2832,6 +3276,21 @@ export class Fail2banPlugin extends BasePlugin {
             const { filename } = req.params;
             const r = IptablesService.deleteIpsetBackup(filename);
             res.json({ success: true, result: r });
+        }));
+
+        // GET /ipset/backup/:filename/download — download an ipset backup file
+        router.get('/ipset/backup/:filename/download', requireAuth, asyncHandler(async (req, res) => {
+            if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
+            const safe = path.basename(req.params.filename);
+            if (!safe.endsWith('.ipset')) throw createError('Invalid filename', 400, 'INVALID_FILENAME');
+            const fullPath = path.join(process.cwd(), 'data', 'iptables-backups', safe);
+            if (!fullPath.startsWith(path.join(process.cwd(), 'data', 'iptables-backups') + path.sep)) {
+                throw createError('Invalid path', 400, 'INVALID_PATH');
+            }
+            try { fs.accessSync(fullPath, fs.constants.R_OK); } catch { throw createError('File not found', 404, 'NOT_FOUND'); }
+            res.setHeader('Content-Type', 'text/plain');
+            res.setHeader('Content-Disposition', `attachment; filename="${safe}"`);
+            res.sendFile(fullPath);
         }));
 
         // POST /iptables/rule/add — add a rule (starts rollback timer)
@@ -2935,5 +3394,42 @@ export class Fail2banPlugin extends BasePlugin {
     private _cancelRollback(): void {
         if (this.ipt_rollbackTimer) { clearTimeout(this.ipt_rollbackTimer); this.ipt_rollbackTimer = null; }
         this.ipt_rollbackDeadline = null;
+    }
+
+    /** Builds the full config backup payload (shared between /backup/full and /backup/snapshot). */
+    private async buildConfigBackupPayload(): Promise<Record<string, unknown>> {
+        const confBase = this.resolveDockerPathSync('/etc/fail2ban');
+        try { fs.accessSync(confBase); } catch { throw createError('Config dir not accessible', 503, 'CONFIG_UNAVAILABLE'); }
+
+        const ROOT_FILES = ['fail2ban.conf', 'fail2ban.local', 'jail.conf', 'jail.local', 'paths-common.conf', 'paths-debian.conf'];
+        const SUB_DIRS   = ['jail.d', 'filter.d', 'action.d'];
+        const files: Record<string, string> = {};
+
+        for (const name of ROOT_FILES) {
+            try { files[`/etc/fail2ban/${name}`] = fs.readFileSync(path.join(confBase, name), 'utf8'); } catch { /* skip */ }
+        }
+        for (const sub of SUB_DIRS) {
+            try {
+                for (const e of fs.readdirSync(path.join(confBase, sub), { withFileTypes: true })) {
+                    if (!e.isFile()) continue;
+                    try { files[`/etc/fail2ban/${sub}/${e.name}`] = fs.readFileSync(path.join(confBase, sub, e.name), 'utf8'); } catch { /* skip */ }
+                }
+            } catch { /* dir missing */ }
+        }
+
+        const runtime: Record<string, unknown> = { total_banned: 0, jails: {} };
+        try {
+            const jailNames = await this.client.listJails();
+            let totalBanned = 0;
+            const jailsMap: Record<string, unknown> = {};
+            for (const jail of jailNames) {
+                const st = await this.client.getJailStatus(jail);
+                if (st) { totalBanned += st.currentlyBanned; jailsMap[jail] = { currently_banned: st.currentlyBanned, banned_ips: st.bannedIps }; }
+            }
+            runtime.total_banned = totalBanned;
+            runtime.jails = jailsMap;
+        } catch { /* best-effort */ }
+
+        return { version: 1, type: 'f2b_full_backup', exported_at: new Date().toISOString(), exported_by: 'LogviewR', host: os.hostname(), files, runtime };
     }
 }
