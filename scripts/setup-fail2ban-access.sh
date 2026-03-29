@@ -84,10 +84,10 @@ section "3. Drop-in systemd (permissions socket au démarrage)"
 
 DROPIN_NEEDED=false
 if [[ -f "$DROPIN_FILE" ]]; then
-    if grep -q "chmod 666.*fail2ban.sock" "$DROPIN_FILE"; then
+    if grep -q "chown root:fail2ban.*fail2ban.sock" "$DROPIN_FILE" && grep -q "chmod 660.*fail2ban.sock" "$DROPIN_FILE"; then
         ok "Drop-in existant et correct : $DROPIN_FILE"
     else
-        warn "Drop-in existant mais n'applique pas chmod 666 sur le socket"
+        warn "Drop-in existant mais n'applique pas chown root:fail2ban + chmod 660 sur le socket"
         DROPIN_NEEDED=true
     fi
 else
@@ -98,13 +98,13 @@ fi
 if $DROPIN_NEEDED; then
     info "Contenu attendu :"
     echo -e "    ${CYAN}[Service]${RESET}"
-    echo -e "    ${CYAN}ExecStartPost=/bin/sh -c 'i=0; while [ \$i -lt 30 ] && ! fail2ban-client ping >/dev/null 2>&1; do sleep 0.5; i=\$((i+1)); done; chmod 666 /var/run/fail2ban/fail2ban.sock 2>/dev/null; chmod 644 /var/lib/fail2ban/fail2ban.sqlite3 2>/dev/null'${RESET}"
+    echo -e "    ${CYAN}ExecStartPost=/bin/sh -c 'i=0; while [ \$i -lt 30 ] && ! fail2ban-client ping >/dev/null 2>&1; do sleep 0.5; i=\$((i+1)); done; chown root:fail2ban /var/run/fail2ban/fail2ban.sock 2>/dev/null; chmod 660 /var/run/fail2ban/fail2ban.sock 2>/dev/null; chmod 644 /var/lib/fail2ban/fail2ban.sqlite3 2>/dev/null'${RESET}"
 
     if ! $CHECK_ONLY; then
         mkdir -p "$DROPIN_DIR"
         cat > "$DROPIN_FILE" << 'EOF'
 [Service]
-ExecStartPost=/bin/sh -c 'i=0; while [ $i -lt 30 ] && ! fail2ban-client ping >/dev/null 2>&1; do sleep 0.5; i=$((i+1)); done; chmod 666 /var/run/fail2ban/fail2ban.sock 2>/dev/null; chmod 644 /var/lib/fail2ban/fail2ban.sqlite3 2>/dev/null'
+ExecStartPost=/bin/sh -c 'i=0; while [ $i -lt 30 ] && ! fail2ban-client ping >/dev/null 2>&1; do sleep 0.5; i=$((i+1)); done; chown root:fail2ban /var/run/fail2ban/fail2ban.sock 2>/dev/null; chmod 660 /var/run/fail2ban/fail2ban.sock 2>/dev/null; chmod 644 /var/lib/fail2ban/fail2ban.sqlite3 2>/dev/null'
 EOF
         ok "Drop-in créé : $DROPIN_FILE"
         systemctl daemon-reload
@@ -124,15 +124,17 @@ section "4. Socket Unix"
 
 if [[ -S "$SOCKET_PATH" ]]; then
     SOCK_MODE=$(stat -c "%a" "$SOCKET_PATH" 2>/dev/null)
-    if [[ "$SOCK_MODE" == "666" ]]; then
-        ok "Socket OK : $SOCKET_PATH (666 — accessible depuis Docker)"
+    SOCK_GROUP=$(stat -c "%G" "$SOCKET_PATH" 2>/dev/null)
+    if [[ "$SOCK_GROUP" == "fail2ban" && "$SOCK_MODE" == "660" ]]; then
+        ok "Socket OK : $SOCKET_PATH (660 root:fail2ban)"
     else
-        warn "Socket présent mais mode $SOCK_MODE — le container Docker ne peut pas y accéder"
+        warn "Socket présent mais mode ${SOCK_MODE} root:${SOCK_GROUP} — le container Docker ne peut pas y accéder"
         if ! $CHECK_ONLY; then
-            chmod 666 "$SOCKET_PATH"
-            ok "Permissions corrigées : 666 (accessible depuis Docker sans groupe)"
+            chown root:fail2ban "$SOCKET_PATH"
+            chmod 660 "$SOCKET_PATH"
+            ok "Permissions corrigées : 660 root:fail2ban"
         else
-            info "Fix : sudo chmod 666 $SOCKET_PATH"
+            info "Fix : sudo chown root:fail2ban $SOCKET_PATH && sudo chmod 660 $SOCKET_PATH"
             ERRORS=$((ERRORS+1))
         fi
     fi
@@ -232,38 +234,13 @@ fi
 section "7. Configuration docker-compose (.env)"
 
 if [[ -n "$FAIL2BAN_GID" ]]; then
-    if [[ -f "$ENV_FILE" ]]; then
-        if grep -q "^FAIL2BAN_GID=" "$ENV_FILE"; then
-            CURRENT=$(grep "^FAIL2BAN_GID=" "$ENV_FILE" | cut -d'=' -f2)
-            if [[ "$CURRENT" == "$FAIL2BAN_GID" ]]; then
-                ok "FAIL2BAN_GID=$FAIL2BAN_GID déjà correct dans $ENV_FILE"
-            else
-                warn "FAIL2BAN_GID dans .env ($CURRENT) ≠ GID réel ($FAIL2BAN_GID)"
-                if ! $CHECK_ONLY; then
-                    sed -i "s/^FAIL2BAN_GID=.*/FAIL2BAN_GID=$FAIL2BAN_GID/" "$ENV_FILE"
-                    ok "FAIL2BAN_GID mis à jour dans $ENV_FILE"
-                fi
-            fi
-        else
-            warn "FAIL2BAN_GID absent de $ENV_FILE"
-            if ! $CHECK_ONLY; then
-                echo "FAIL2BAN_GID=$FAIL2BAN_GID" >> "$ENV_FILE"
-                ok "FAIL2BAN_GID=$FAIL2BAN_GID ajouté dans $ENV_FILE"
-            else
-                info "Fix : echo 'FAIL2BAN_GID=$FAIL2BAN_GID' >> $ENV_FILE"
-                ERRORS=$((ERRORS+1))
-            fi
-        fi
-    else
-        warn "Fichier $ENV_FILE introuvable (lancez le script depuis le dossier docker-compose)"
-        info "Ajoutez manuellement dans votre .env : FAIL2BAN_GID=$FAIL2BAN_GID"
-    fi
-
     echo ""
-    info "Vérifiez que docker-compose.yml contient dans group_add :"
+    info "Ajoutez dans docker-compose.yml (section du service logviewr) :"
     echo -e "    ${CYAN}group_add:${RESET}"
-    echo -e "    ${CYAN}  - \"\${ADM_GID:-4}\"${RESET}"
-    echo -e "    ${CYAN}  - \"\${FAIL2BAN_GID:-????}\"   # GID $FAIL2BAN_GID${RESET}"
+    echo -e "    ${CYAN}  - \"$FAIL2BAN_GID\"   # groupe fail2ban — accès socket 660${RESET}"
+    echo ""
+    info "Puis relancez le container :"
+    echo -e "    ${CYAN}docker compose up -d --force-recreate${RESET}"
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
