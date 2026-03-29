@@ -1397,7 +1397,7 @@ export const TabJailsEvents: React.FC<{ onIpClick?: (ip: string) => void; days?:
                                             <span style={{ display: 'inline-block', height: 10, width: 80, borderRadius: 3, background: 'rgba(139,148,158,.18)', animation: 'f2b-shimmer 1.4s ease-in-out infinite' }} />
                                         ) : domain ? (
                                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                                                <img src={`https://icons.duckduckgo.com/ip3/${encodeURIComponent(domain)}.ico`} width={13} height={13} style={{ borderRadius: 2, flexShrink: 0 }} alt="" loading="lazy" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+                                                <DomainInitial domain={domain} size={13} />
                                                 <span style={{ fontFamily: 'monospace', fontSize: '.7rem', color: '#39c5cf', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={domain}>{domain}</span>
                                             </span>
                                         ) : srv ? (

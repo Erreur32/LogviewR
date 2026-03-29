@@ -14,6 +14,7 @@ import type { JailStatus, BanEntry } from './types';
 import { TabJailsEvents } from './TabJails';
 import { primeTopsPrevTotalFromFullFetch } from './fail2banTopsPrevFlight';
 import { dispatchTabLoaded } from '../../utils/tabTimer';
+import { DomainInitial } from './DomainInitial';
 
 // ── Module-level cache (survives tab navigation) ──────────────────────────────
 const _cache: Record<string, { data: unknown; ts: number }> = {};
@@ -125,7 +126,7 @@ const DomainDetailModal: React.FC<{
             <div style={{ background: C.bg0, border: `1px solid ${C.border}`, borderRadius: 10, width: '96vw', maxWidth: 860, maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
                 {/* Header */}
                 <div style={{ background: C.bg2, padding: '.65rem 1rem', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: '.6rem', flexShrink: 0, borderRadius: '10px 10px 0 0' }}>
-                    <img src={`https://icons.duckduckgo.com/ip3/${encodeURIComponent(domain)}.ico`} width={16} height={16} style={{ borderRadius: 3 }} alt="" onError={e => { (e.currentTarget as HTMLImageElement).style.display='none'; }} />
+                    <DomainInitial domain={domain} size={16} />
                     <span style={{ fontFamily: 'monospace', fontSize: '1rem', fontWeight: 700, color: C.cyan }}>{domain}</span>
                     <span style={{ fontSize: '.72rem', color: C.muted }}>· {periodLabel}</span>
                     {!loading && data && (
@@ -998,7 +999,7 @@ const TopsSection: React.FC<{ days: number; onDaysChange: (d: number) => void; o
                     rowPrefix={(domain) => (
                         <>
                             <img src="/icons/services/nginx-proxy-manager.svg" width={13} height={13} style={{ borderRadius: 2, objectFit: 'contain' }} alt="NPM" />
-                            <img src={`https://icons.duckduckgo.com/ip3/${encodeURIComponent(domain)}.ico`} width={13} height={13} style={{ borderRadius: 2 }} alt="" loading="lazy" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+                            <DomainInitial domain={domain} size={13} />
                         </>
                     )}
                 />
@@ -1018,7 +1019,7 @@ const TopsSection: React.FC<{ days: number; onDaysChange: (d: number) => void; o
                     rowPrefix={(domain) => (
                         <>
                             <img src="/icons/services/nginx-proxy-manager.svg" width={13} height={13} style={{ borderRadius: 2, objectFit: 'contain' }} alt="NPM" />
-                            <img src={`https://icons.duckduckgo.com/ip3/${encodeURIComponent(domain)}.ico`} width={13} height={13} style={{ borderRadius: 2 }} alt="" loading="lazy" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+                            <DomainInitial domain={domain} size={13} />
                         </>
                     )}
                 />
