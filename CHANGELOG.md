@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.7.2] - 2026-03-29
+
+### Added
+- **Settings > Metrics — sub-tabs**: Prometheus, InfluxDB, and MQTT (Home Assistant) each have their own tab; MQTT is first
+- **Settings > Metrics — MQTT toggles**: all checkboxes replaced with modern slide toggles (teal theme); each tab has its own save button and unsaved-changes banner
+- **Settings > Notifications — sub-tabs**: split into "Notifications internes" and "Webhooks" tabs, each with a framed content area
+- **Settings > Notifications — Webhook event triggers**: per-webhook toggle to select which events trigger a dispatch (ban auto, tentative, action manuelle)
+- **Settings > Notifications — Webhook batching**: per-webhook batch window (0–60 min) and max-per-batch (1–50) configuration stored in `AppConfig`
+- **Webhook dispatch service** (`WebhookDispatchService`): singleton service that actually fires webhooks on ban/action events — Discord (rich embeds), Telegram (HTML), generic HTTP (JSON); supports immediate and cron-batched delivery
+- **Automatic ban webhooks**: `fail2banSyncService` dispatches a `ban` event for every new ban detected during non-initial sync
+- **Manual action webhooks**: Fail2ban ban/unban API routes dispatch an `action` event with username attribution
+- **Settings > Security — sub-tabs**: Protection, Utilisateurs, Réseau, Journaux; Auth settings moved to Utilisateurs; Network + CORS grouped under Réseau
+- **Settings > Security > Protection — collapsible sections**: Attack Protection, Blocked IPs, and Active Features are now collapsible frames (Active Features collapsed by default)
+- **Telegram SVG icon**: added to `public/icons/services/telegram.svg` and `src/icons/telegram.svg`; Discord and Telegram logos now appear in webhook type badges and add-buttons in the UI
+
+### Changed
+- Webhook route (`server/routes/notifications.ts`) extended to persist `events`, `batchWindow`, `maxPerBatch` fields
+- Removed placeholder warning "Le déclenchement automatique sera actif dans une prochaine mise à jour" — webhook dispatch is now fully implemented
+
+---
+
 ## [0.7.1] - 2026-03-29
 
 ### Added

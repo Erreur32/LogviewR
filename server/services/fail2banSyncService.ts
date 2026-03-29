@@ -15,6 +15,7 @@ import Database from 'better-sqlite3';
 import * as fs from 'fs';
 import { getDatabase } from '../database/connection.js';
 import { logger } from '../utils/logger.js';
+import { webhookDispatchService } from './WebhookDispatchService.js';
 
 const SYNC_INTERVAL_MS = 60_000;
 const GEO_BATCH_SIZE   = 100;   // ip-api.com batch limit
@@ -202,6 +203,15 @@ export class Fail2banSyncService {
         );
         if (count > 0) {
             logger.info('Fail2banSync', `Synced ${count} ban(s)${isInitial ? ' (initial full import)' : ''}`);
+            // Dispatch webhook notifications for new bans (skip initial import to avoid flooding)
+            if (!isInitial) {
+                for (const row of newRows) {
+                    webhookDispatchService.dispatch('ban', {
+                        ip: row.ip, jail: row.jail, timeofban: row.timeofban,
+                        bantime: row.bantime ?? null, failures: row.failures ?? null,
+                    }).catch(() => { /* ignore dispatch errors */ });
+                }
+            }
         }
 
         // Backfill domain for existing rows that were synced before this column existed

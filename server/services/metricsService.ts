@@ -460,6 +460,46 @@ export async function generatePrometheusMetrics(): Promise<string> {
         console.error('[MetricsService] Failed to fetch application metrics:', error);
     }
     
+    // Fail2ban metrics
+    try {
+        const f2b = await getF2banMetrics();
+        if (f2b) {
+            lines.push(`# HELP logviewr_fail2ban_available Fail2ban plugin available (1=yes)`);
+            lines.push(`# TYPE logviewr_fail2ban_available gauge`);
+            lines.push(`logviewr_fail2ban_available 1`);
+
+            lines.push(`# HELP logviewr_fail2ban_bans_today_total Bans recorded since midnight`);
+            lines.push(`# TYPE logviewr_fail2ban_bans_today_total gauge`);
+            lines.push(`logviewr_fail2ban_bans_today_total ${f2b.bansToday}`);
+
+            lines.push(`# HELP logviewr_fail2ban_unique_ips_today Unique IPs banned today`);
+            lines.push(`# TYPE logviewr_fail2ban_unique_ips_today gauge`);
+            lines.push(`logviewr_fail2ban_unique_ips_today ${f2b.uniqueIpsToday}`);
+
+            lines.push(`# HELP logviewr_fail2ban_active_bans_total Currently active bans (permanent + unexpired)`);
+            lines.push(`# TYPE logviewr_fail2ban_active_bans_total gauge`);
+            lines.push(`logviewr_fail2ban_active_bans_total ${f2b.activeBans}`);
+
+            lines.push(`# HELP logviewr_fail2ban_total_bans_ever Total ban events recorded`);
+            lines.push(`# TYPE logviewr_fail2ban_total_bans_ever counter`);
+            lines.push(`logviewr_fail2ban_total_bans_ever ${f2b.totalBans}`);
+
+            if (f2b.jailCounts.length > 0) {
+                lines.push(`# HELP logviewr_fail2ban_jail_bans_today Bans today per jail`);
+                lines.push(`# TYPE logviewr_fail2ban_jail_bans_today gauge`);
+                for (const j of f2b.jailCounts) {
+                    lines.push(`logviewr_fail2ban_jail_bans_today{jail="${j.jail}"} ${j.count}`);
+                }
+            }
+        } else {
+            lines.push(`# HELP logviewr_fail2ban_available Fail2ban plugin available (1=yes)`);
+            lines.push(`# TYPE logviewr_fail2ban_available gauge`);
+            lines.push(`logviewr_fail2ban_available 0`);
+        }
+    } catch (error) {
+        console.error('[MetricsService] Failed to fetch fail2ban metrics:', error);
+    }
+
     return lines.join('\n') + '\n';
 }
 
@@ -727,8 +767,64 @@ export async function generateInfluxDBMetrics(): Promise<string> {
     } catch (error) {
         console.error('[MetricsService] Failed to fetch application metrics:', error);
     }
-    
+
+    // Fail2ban metrics
+    try {
+        const f2b = await getF2banMetrics();
+        if (f2b) {
+            lines.push(`logviewr,type=fail2ban available=1i,bans_today=${f2b.bansToday}i,unique_ips_today=${f2b.uniqueIpsToday}i,active_bans=${f2b.activeBans}i,total_bans=${f2b.totalBans}i ${timestamp}`);
+            for (const j of f2b.jailCounts) {
+                const safeJail = j.jail.replace(/[,= ]/g, '_');
+                lines.push(`logviewr,type=fail2ban_jail,jail=${safeJail} bans_today=${j.count}i ${timestamp}`);
+            }
+        } else {
+            lines.push(`logviewr,type=fail2ban available=0i ${timestamp}`);
+        }
+    } catch (error) {
+        console.error('[MetricsService] Failed to fetch fail2ban metrics:', error);
+    }
+
     return lines.join('\n') + '\n';
+}
+
+// ── Shared helpers ─────────────────────────────────────────────────────────────
+
+export interface F2bMetricsSnapshot {
+    bansToday: number;
+    uniqueIpsToday: number;
+    activeBans: number;
+    totalBans: number;
+    jailCounts: { jail: string; count: number }[];
+}
+
+/**
+ * Query fail2ban metrics directly from the app DB (f2b_events table).
+ * Returns null if the plugin is unavailable or the table does not exist.
+ */
+export async function getF2banMetrics(): Promise<F2bMetricsSnapshot | null> {
+    try {
+        const db = getDatabase();
+        const tableExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='f2b_events'").get();
+        if (!tableExists) return null;
+
+        const now      = Math.floor(Date.now() / 1000);
+        const midnight = Math.floor(new Date(new Date().setHours(0, 0, 0, 0)).getTime() / 1000);
+
+        const todayRow  = db.prepare(`SELECT COUNT(*) as total, COUNT(DISTINCT ip) as uniq FROM f2b_events WHERE event_type='ban' AND timeofban >= ?`).get(midnight) as { total: number; uniq: number };
+        const totalRow  = db.prepare(`SELECT COUNT(*) as n FROM f2b_events WHERE event_type='ban'`).get() as { n: number };
+        const activeRow = db.prepare(`SELECT COUNT(*) as n FROM f2b_events WHERE event_type='ban' AND (bantime = 0 OR (timeofban + bantime) > ?)`).get(now) as { n: number };
+        const jailRows  = db.prepare(`SELECT jail, COUNT(*) as cnt FROM f2b_events WHERE event_type='ban' AND timeofban >= ? GROUP BY jail ORDER BY cnt DESC`).all(midnight) as { jail: string; cnt: number }[];
+
+        return {
+            bansToday:     todayRow.total,
+            uniqueIpsToday: todayRow.uniq,
+            activeBans:    activeRow.n,
+            totalBans:     totalRow.n,
+            jailCounts:    jailRows.map(r => ({ jail: r.jail, count: r.cnt })),
+        };
+    } catch {
+        return null;
+    }
 }
 
 /**

@@ -1,7 +1,7 @@
 {
   "name": "logviewr",
   "private": true,
-  "version": "0.7.1",
+  "version": "0.7.2",
   "type": "module",
   "scripts": {
     "predev": "lsof -ti:3005 2>/dev/null | xargs -r kill -9; lsof -ti:5175 2>/dev/null | xargs -r kill -9; true",
@@ -36,6 +36,7 @@
     "leaflet": "^1.9.4",
     "leaflet.markercluster": "^1.5.3",
     "lucide-react": "^0.555.0",
+    "mqtt": "^5.15.1",
     "node-cron": "^4.2.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

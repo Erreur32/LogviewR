@@ -182,11 +182,16 @@ import debugRoutes from './routes/debug.js';
 // import latencyMonitoringRoutes from './routes/latency-monitoring.js'; // Removed: Latency monitoring system
 import databaseRoutes from './routes/database.js';
 import infoRoutes from './routes/info.js';
+import notificationsRoutes from './routes/notifications.js';
 // Initialize database purge service (loads configs from database)
 import { initializePurgeService } from './services/databasePurgeService.js';
+import { mqttService } from './services/MqttService.js';
 
 // Initialize database purge service (after database is initialized and routes are imported)
 initializePurgeService();
+
+// Initialize MQTT service (starts if enabled in config)
+mqttService.initialize().catch(err => logger.error('Server', 'MQTT init failed:', err));
 
 app.use('/api/users', usersRoutes);
 app.use('/api/plugins', pluginsRoutes);
@@ -212,7 +217,7 @@ app.use('/api/system', systemRoutes);
 app.use('/api/system', systemServerRoutes);
 // app.use('/api/connection', connectionRoutes); // Removed: Freebox-specific routes
 app.use('/api/settings', settingsRoutes);
-// app.use('/api/notifications', notificationsRoutes); // Removed: Freebox-specific routes
+app.use('/api/notifications', notificationsRoutes);
 app.use('/api/updates', updatesRoutes);
 app.use('/api/debug', debugRoutes);
 app.use('/api/security', securityRoutes);
@@ -587,7 +592,7 @@ server.listen(port, host, () => {
   };
 
   // Read app version from package.json
-  let appVersion = '0.7.1'; // Default fallback
+  let appVersion = '0.7.2'; // Default fallback
   try {
     const packageJsonPath = path.join(__dirname, '..', 'package.json');
     const packageJson = JSON.parse(fsSync.readFileSync(packageJsonPath, 'utf8'));

@@ -8,6 +8,12 @@ import { create } from 'zustand';
 
 export type NotifType = 'ban' | 'action' | 'attempt';
 
+export interface NotifPrefs {
+  ban: boolean;
+  attempt: boolean;
+  action: boolean;
+}
+
 export interface AppNotification {
   id: number;
   type: NotifType;
@@ -34,6 +40,8 @@ let _nextId = 1;
 
 interface NotificationState {
   notifications: AppNotification[];
+  prefs: NotifPrefs;
+  setPrefs: (p: Partial<NotifPrefs>) => void;
   addBan: (data: Pick<AppNotification, 'ip' | 'jail' | 'failures' | 'timeofban'>) => number;
   addAttempt: (data: Pick<AppNotification, 'jail' | 'delta' | 'total'>) => number;
   addAction: (message: string, ok: boolean) => number;
@@ -43,8 +51,12 @@ interface NotificationState {
 
 export const useNotificationStore = create<NotificationState>((set, get) => ({
   notifications: [],
+  prefs: { ban: true, attempt: true, action: true },
+
+  setPrefs: (p) => set(s => ({ prefs: { ...s.prefs, ...p } })),
 
   addBan: (data) => {
+    if (!get().prefs.ban) return 0;
     const id = _nextId++;
     set(s => ({ notifications: [...s.notifications, { ...data, id, type: 'ban', createdAt: Date.now() }] }));
     setTimeout(() => get().dismiss(id), TTL_BAN);
@@ -52,6 +64,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   },
 
   addAttempt: (data) => {
+    if (!get().prefs.attempt) return 0;
     const id = _nextId++;
     set(s => ({ notifications: [...s.notifications, { ...data, id, type: 'attempt', createdAt: Date.now() }] }));
     setTimeout(() => get().dismiss(id), TTL_ATTEMPT);
@@ -59,6 +72,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   },
 
   addAction: (message, ok) => {
+    if (!get().prefs.action) return 0;
     const id = _nextId++;
     set(s => ({ notifications: [...s.notifications, { id, type: 'action', message, ok, createdAt: Date.now() }] }));
     setTimeout(() => get().dismiss(id), TTL_ACTION);

@@ -11,10 +11,10 @@
       "regex": "Regex",
       "theme": "Theme",
       "security": "Security",
-      "exporter": "Exporter",
+      "exporter": "Metrics",
       "database": "Database",
       "analysis": "Analysis",
-      "notifications": "Webhooks",
+      "notifications": "Notifications",
       "debug": "Debug",
       "info": "Info"
     },

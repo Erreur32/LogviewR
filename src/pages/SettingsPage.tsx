@@ -41,11 +41,17 @@ import {
   Bell,
   Star,
   GitFork,
-  X
+  X,
+  CheckCircle,
+  Archive,
+  AlertTriangle,
+  Upload,
+  HardDriveDownload
 } from 'lucide-react';
 import { api } from '../api/client';
 import { API_ROUTES, formatBytes } from '../utils/constants';
 import { usePluginStore } from '../stores/pluginStore';
+import { useNotificationStore, type NotifPrefs } from '../stores/notificationStore';
 import { useUserAuthStore, type User } from '../stores/userAuthStore';
 import { ExporterSection } from '../components/ExporterSection';
 import { PluginsManagementSection } from '../components/PluginsManagementSection';
@@ -67,7 +73,7 @@ export interface SettingsPageProps {
   mode?: 'administration';
   /** Legacy `debug` is mapped to `info` via toAdminTab */
   initialAdminTab?: 'general' | 'users' | 'plugins' | 'security' | 'exporter' | 'theme' | 'info' | 'analysis' | 'notifications' | 'database' | 'debug';
-  onNavigateToPage?: (page: 'plugins' | 'users') => void;
+  onNavigateToPage?: (page: 'plugins' | 'users' | 'fail2ban') => void;
   onUsersClick?: () => void;
   onSettingsClick?: () => void;
   onAdminClick?: () => void;
@@ -1109,32 +1115,6 @@ const UpdateCheckSection: React.FC = () => {
   );
 };
 
-// Backup Section Component (for Administration > Backup tab)
-const BackupSection: React.FC = () => {
-  // Simplified for LogviewR
-  
-
-  return (
-    <div className="space-y-6">
-      {/* Information Alert */}
-      <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-lg">
-        <div className="flex items-start gap-3">
-          <AlertCircle size={20} className="text-amber-400 flex-shrink-0 mt-0.5" />
-          <div className="flex-1">
-            <h3 className="text-sm font-semibold text-amber-400 mb-2">
-              Important : Sauvegardes manuelles recommandées
-            </h3>
-            <p className="text-sm text-gray-300">
-              Les sauvegardes de LogviewR incluent la configuration de l'application, les paramètres utilisateurs, et les configurations de plugins.
-              Utilisez la section Export pour sauvegarder vos données.
-            </p>
-          </div>
-        </div>
-      </div>
-
-                </div>
-  );
-};
 
 // Module-level cache so DefaultPageSection keeps its values across tab switches
 let _defaultPageCache: { defaultPage: string; defaultPluginId: string; defaultLogFile: string; defaultFail2banTab: string; rememberLastFile: boolean } | null = null;
@@ -2029,107 +2009,856 @@ interface DbEngineStats {
   dbSize: number;
 }
 
+// ── Notification Section ──────────────────────────────────────────────────────────
+
+interface WebhookEntry {
+  id: string;
+  name: string;
+  type: 'discord' | 'telegram' | 'generic';
+  enabled: boolean;
+  url?: string;
+  token?: string;
+  chatId?: string;
+  method?: 'POST' | 'PUT';
+  events?: { ban: boolean; attempt: boolean; action: boolean };
+  batchWindow?: number;   // 0 = immediate, 5/15/30 = minutes
+  maxPerBatch?: number;
+}
+
+const WEBHOOK_TYPE_LABELS: Record<string, string> = {
+  discord:  'Discord',
+  telegram: 'Telegram',
+  generic:  'Générique',
+};
+const WEBHOOK_TYPE_COLORS: Record<string, string> = {
+  discord:  '#5865F2',
+  telegram: '#2AABEE',
+  generic:  '#8b949e',
+};
+const WEBHOOK_TYPE_ICONS: Record<string, string | null> = {
+  discord:  '/icons/services/discord.svg',
+  telegram: '/icons/services/telegram.svg',
+  generic:  null,
+};
+
+const DEFAULT_WEBHOOK_EVENTS = { ban: true, attempt: false, action: false };
+const DEFAULT_FORM = { name: '', url: '', token: '', chatId: '', events: DEFAULT_WEBHOOK_EVENTS, batchWindow: 0, maxPerBatch: 10 };
+
+const NotificationsSection: React.FC = () => {
+  const { setPrefs: storeSetPrefs } = useNotificationStore();
+
+  // ── Tabs ──────────────────────────────────────────────────────────────────────
+  const [activeNotifTab, setActiveNotifTab] = useState<'internal' | 'webhooks'>('internal');
+
+  // ── Prefs ────────────────────────────────────────────────────────────────────
+  const [prefs, setPrefsLocal] = useState<NotifPrefs>({ ban: true, attempt: true, action: true });
+  const [prefsSaving, setPrefsSaving] = useState(false);
+
+  // ── Webhooks ─────────────────────────────────────────────────────────────────
+  const [webhooks, setWebhooks] = useState<WebhookEntry[]>([]);
+  const [wLoading, setWLoading]     = useState(true);
+  const [showForm, setShowForm]     = useState<'discord' | 'telegram' | 'generic' | null>(null);
+  const [editId, setEditId]         = useState<string | null>(null);
+  const [form, setForm]             = useState(DEFAULT_FORM);
+  const [formSaving, setFormSaving] = useState(false);
+  const [formError, setFormError]   = useState('');
+  const [testingId, setTestingId]   = useState<string | null>(null);
+  const [testResults, setTestResults] = useState<Record<string, { ok: boolean; msg: string }>>({});
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const loadPrefs = useCallback(async () => {
+    try {
+      const res = await api.get<NotifPrefs>('/api/notifications/prefs');
+      if (res.result) { setPrefsLocal(res.result); storeSetPrefs(res.result); }
+    } catch { /* use defaults */ }
+  }, [storeSetPrefs]);
+
+  const loadWebhooks = useCallback(async () => {
+    setWLoading(true);
+    try {
+      const res = await api.get<WebhookEntry[]>('/api/notifications/webhooks');
+      if (res.result) setWebhooks(res.result);
+    } catch { /* ignore */ }
+    finally { setWLoading(false); }
+  }, []);
+
+  useEffect(() => { loadPrefs(); loadWebhooks(); }, [loadPrefs, loadWebhooks]);
+
+  const savePref = async (key: keyof NotifPrefs, val: boolean) => {
+    const next = { ...prefs, [key]: val };
+    setPrefsLocal(next);
+    storeSetPrefs(next);
+    setPrefsSaving(true);
+    try { await api.post('/api/notifications/prefs', next); }
+    finally { setPrefsSaving(false); }
+  };
+
+  const openAddForm = (type: 'discord' | 'telegram' | 'generic') => {
+    setForm({ ...DEFAULT_FORM });
+    setFormError('');
+    setEditId(null);
+    setShowForm(type);
+  };
+
+  const openEditForm = (wh: WebhookEntry) => {
+    setForm({
+      name: wh.name, url: wh.url || '', token: wh.token || '', chatId: wh.chatId || '',
+      events: wh.events ?? { ...DEFAULT_WEBHOOK_EVENTS },
+      batchWindow: wh.batchWindow ?? 0,
+      maxPerBatch: wh.maxPerBatch ?? 10,
+    });
+    setFormError('');
+    setEditId(wh.id);
+    setShowForm(wh.type);
+  };
+
+  const submitForm = async () => {
+    if (!showForm) return;
+    setFormError('');
+    setFormSaving(true);
+    try {
+      const payload = { name: form.name, type: showForm, url: form.url, token: form.token, chatId: form.chatId, events: form.events, batchWindow: form.batchWindow, maxPerBatch: form.maxPerBatch };
+      if (editId) {
+        const res = await api.put<WebhookEntry>(`/api/notifications/webhooks/${editId}`, payload);
+        if (res.result) setWebhooks(ws => ws.map(w => w.id === editId ? res.result! : w));
+      } else {
+        const res = await api.post<WebhookEntry>('/api/notifications/webhooks', payload);
+        if (res.result) setWebhooks(ws => [...ws, res.result!]);
+      }
+      setShowForm(null); setEditId(null);
+    } catch (e: any) {
+      setFormError(e?.message || 'Erreur lors de l\'enregistrement');
+    } finally { setFormSaving(false); }
+  };
+
+  const deleteWh = async (id: string) => {
+    setDeletingId(id);
+    try {
+      await api.delete(`/api/notifications/webhooks/${id}`);
+      setWebhooks(ws => ws.filter(w => w.id !== id));
+      setTestResults(r => { const n = { ...r }; delete n[id]; return n; });
+    } finally { setDeletingId(null); }
+  };
+
+  const testWh = async (id: string) => {
+    setTestingId(id);
+    setTestResults(r => { const n = { ...r }; delete n[id]; return n; });
+    try {
+      await api.post(`/api/notifications/webhooks/${id}/test`, {});
+      setTestResults(r => ({ ...r, [id]: { ok: true, msg: 'Envoyé !' } }));
+    } catch (e: any) {
+      setTestResults(r => ({ ...r, [id]: { ok: false, msg: e?.message || 'Erreur' } }));
+    } finally { setTestingId(null); }
+  };
+
+  const toggleWh = async (id: string, enabled: boolean) => {
+    setWebhooks(ws => ws.map(w => w.id === id ? { ...w, enabled } : w));
+    try { await api.put(`/api/notifications/webhooks/${id}`, { enabled }); }
+    catch { setWebhooks(ws => ws.map(w => w.id === id ? { ...w, enabled: !enabled } : w)); }
+  };
+
+  return (
+    <div className="space-y-4">
+
+      {/* ── Tab bar ─────────────────────────────────────────────────────────────── */}
+      <div className="flex gap-1 p-1 bg-[#111] border border-gray-800 rounded-lg w-fit">
+        {([
+          { id: 'internal' as const, label: 'Notifications internes', icon: Bell,   activeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40' },
+          { id: 'webhooks' as const, label: 'Webhooks',               icon: Share2, activeColor: 'bg-blue-500/20 text-blue-300 border-blue-500/40' },
+        ]).map(tab => {
+          const Icon = tab.icon;
+          const isActive = activeNotifTab === tab.id;
+          return (
+            <button key={tab.id} onClick={() => setActiveNotifTab(tab.id)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border transition-all ${
+                isActive ? tab.activeColor : 'border-transparent text-gray-400 hover:text-gray-200'
+              }`}>
+              <Icon size={12} />
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ── Notifications internes ──────────────────────────────────────────────── */}
+      {activeNotifTab === 'internal' && (
+        <div className="space-y-3 p-4 bg-[#0d1117] border border-gray-800 rounded-lg">
+          <p className="text-xs text-gray-400">
+            Choisissez quels types de notifications s'affichent dans la barre centrale de l'interface.
+            {prefsSaving && <span className="ml-2 text-cyan-400"><Loader2 size={10} className="inline animate-spin mr-1" />Enregistrement…</span>}
+          </p>
+          <div className="space-y-1">
+            <SettingRow label="Bannissements IP" description="Alerte quand une IP est bannie par Fail2ban">
+              <Toggle enabled={prefs.ban} onChange={v => savePref('ban', v)} disabled={prefsSaving} />
+            </SettingRow>
+            <SettingRow label="Tentatives de connexion" description="Alerte quand de nouvelles tentatives échouées sont détectées">
+              <Toggle enabled={prefs.attempt} onChange={v => savePref('attempt', v)} disabled={prefsSaving} />
+            </SettingRow>
+            <SettingRow label="Retours d'actions" description="Confirmation ou erreur après une action (ban manuel, config, etc.)">
+              <Toggle enabled={prefs.action} onChange={v => savePref('action', v)} disabled={prefsSaving} />
+            </SettingRow>
+          </div>
+        </div>
+      )}
+
+      {/* ── Webhooks ────────────────────────────────────────────────────────────── */}
+      {activeNotifTab === 'webhooks' && (
+        <div className="space-y-4 p-4 bg-[#0d1117] border border-gray-800 rounded-lg">
+          <p className="text-xs text-gray-400">
+            Envoyez des alertes vers Discord, Telegram ou un endpoint HTTP personnalisé.
+          </p>
+
+          {/* Add buttons */}
+          <div className="flex flex-wrap gap-2">
+            {(['discord', 'telegram', 'generic'] as const).map(type => (
+              <button key={type} onClick={() => openAddForm(type)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors"
+                style={{ color: WEBHOOK_TYPE_COLORS[type], borderColor: `${WEBHOOK_TYPE_COLORS[type]}55`, background: `${WEBHOOK_TYPE_COLORS[type]}18` }}>
+                {WEBHOOK_TYPE_ICONS[type]
+                  ? <img src={WEBHOOK_TYPE_ICONS[type]!} alt={type} style={{ width: 13, height: 13, objectFit: 'contain' }} />
+                  : <Plus size={12} />
+                } {WEBHOOK_TYPE_LABELS[type]}
+              </button>
+            ))}
+          </div>
+
+          {/* Add / Edit form */}
+          {showForm && (
+            <div className="p-4 bg-[#0d1117] border border-gray-700 rounded-lg space-y-4">
+              <h4 className="text-sm font-semibold text-white">
+                {editId ? `Modifier — ${WEBHOOK_TYPE_LABELS[showForm]}` : `Ajouter — ${WEBHOOK_TYPE_LABELS[showForm]}`}
+              </h4>
+
+              {/* Name */}
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">Nom</label>
+                <input type="text" value={form.name}
+                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                  placeholder={`Mon webhook ${WEBHOOK_TYPE_LABELS[showForm]}`}
+                  className="w-full px-3 py-2 bg-[#161b22] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-600 focus:outline-none focus:border-cyan-500/50" />
+              </div>
+
+              {/* Discord / Generic URL */}
+              {(showForm === 'discord' || showForm === 'generic') && (
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">
+                    {showForm === 'discord' ? 'URL Webhook Discord' : 'URL Endpoint'}
+                  </label>
+                  <input type="url" value={form.url}
+                    onChange={e => setForm(f => ({ ...f, url: e.target.value }))}
+                    placeholder={showForm === 'discord' ? 'https://discord.com/api/webhooks/…' : 'https://example.com/webhook'}
+                    className="w-full px-3 py-2 bg-[#161b22] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-600 focus:outline-none focus:border-cyan-500/50" />
+                  {showForm === 'discord' && (
+                    <p className="mt-1 text-xs text-gray-500">Paramètres du serveur → Intégrations → Webhooks dans Discord.</p>
+                  )}
+                </div>
+              )}
+
+              {/* Telegram */}
+              {showForm === 'telegram' && (
+                <>
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">Token du Bot</label>
+                    <input type="text" value={form.token}
+                      onChange={e => setForm(f => ({ ...f, token: e.target.value }))}
+                      placeholder="123456789:AAFabcXYZ…"
+                      className="w-full px-3 py-2 bg-[#161b22] border border-gray-700 rounded-lg text-white text-sm font-mono placeholder-gray-600 focus:outline-none focus:border-cyan-500/50" />
+                    <p className="mt-1 text-xs text-gray-500">Obtenu via @BotFather sur Telegram.</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">Chat ID</label>
+                    <input type="text" value={form.chatId}
+                      onChange={e => setForm(f => ({ ...f, chatId: e.target.value }))}
+                      placeholder="-100123456789"
+                      className="w-full px-3 py-2 bg-[#161b22] border border-gray-700 rounded-lg text-white text-sm font-mono placeholder-gray-600 focus:outline-none focus:border-cyan-500/50" />
+                    <p className="mt-1 text-xs text-gray-500">ID du chat ou groupe. Utilisez @userinfobot pour le trouver.</p>
+                  </div>
+                </>
+              )}
+
+              {/* Event triggers */}
+              <div className="p-3 bg-[#161b22] border border-gray-800 rounded-lg space-y-2">
+                <p className="text-xs font-medium text-gray-300 mb-2">Événements déclencheurs</p>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-sm text-gray-300">Bannissements IP</span>
+                    <span className="text-xs text-gray-600 block">Envoi quand une IP est bannie par Fail2ban</span>
+                  </div>
+                  <Toggle enabled={form.events.ban} onChange={v => setForm(f => ({ ...f, events: { ...f.events, ban: v } }))} />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-sm text-gray-300">Tentatives de connexion</span>
+                    <span className="text-xs text-gray-600 block">Envoi quand de nouvelles tentatives sont détectées</span>
+                  </div>
+                  <Toggle enabled={form.events.attempt} onChange={v => setForm(f => ({ ...f, events: { ...f.events, attempt: v } }))} />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-sm text-gray-300">Retours d'actions</span>
+                    <span className="text-xs text-gray-600 block">Ban manuel, débannissement, modification de config</span>
+                  </div>
+                  <Toggle enabled={form.events.action} onChange={v => setForm(f => ({ ...f, events: { ...f.events, action: v } }))} />
+                </div>
+              </div>
+
+              {/* Frequency / batching */}
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">Regroupement d'envoi</label>
+                <select value={form.batchWindow}
+                  onChange={e => setForm(f => ({ ...f, batchWindow: Number(e.target.value) }))}
+                  className="w-full px-3 py-2 bg-[#161b22] border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-cyan-500/50">
+                  <option value={0}>Immédiat — 1 message par événement</option>
+                  <option value={5}>Regrouper — toutes les 5 minutes</option>
+                  <option value={15}>Regrouper — toutes les 15 minutes</option>
+                  <option value={30}>Regrouper — toutes les 30 minutes</option>
+                </select>
+                {form.batchWindow > 0 && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <span className="text-xs text-gray-400">Maximum</span>
+                    <input type="number" min={1} max={50} value={form.maxPerBatch}
+                      onChange={e => setForm(f => ({ ...f, maxPerBatch: Number(e.target.value) }))}
+                      className="w-20 px-2 py-1.5 bg-[#161b22] border border-gray-700 rounded text-white text-sm focus:outline-none focus:border-cyan-500/50" />
+                    <span className="text-xs text-gray-400">événements par message</span>
+                  </div>
+                )}
+              </div>
+
+              {formError && (
+                <p className="text-xs text-red-400 flex items-center gap-1">
+                  <AlertCircle size={12} /> {formError}
+                </p>
+              )}
+              <div className="flex justify-end gap-2 pt-1">
+                <button onClick={() => { setShowForm(null); setEditId(null); setFormError(''); }}
+                  className="px-3 py-1.5 text-sm text-gray-400 hover:text-white transition-colors">
+                  Annuler
+                </button>
+                <button onClick={submitForm} disabled={formSaving}
+                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-medium bg-cyan-600 hover:bg-cyan-500 text-gray-100 disabled:opacity-50 transition-colors">
+                  {formSaving && <Loader2 size={12} className="animate-spin" />}
+                  {editId ? 'Enregistrer' : 'Ajouter'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Webhook list */}
+          {wLoading ? (
+            <div className="flex items-center gap-2 text-gray-500 text-sm py-2">
+              <Loader2 size={14} className="animate-spin" /> Chargement…
+            </div>
+          ) : webhooks.length === 0 ? (
+            <p className="text-sm text-gray-500 py-1">Aucun webhook configuré.</p>
+          ) : (
+            <div className="space-y-2">
+              {webhooks.map(wh => (
+                <div key={wh.id} className="p-3 bg-[#0d1117] border border-gray-800 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <span style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, background: wh.enabled ? WEBHOOK_TYPE_COLORS[wh.type] : '#374151' }} />
+                    <span className="flex items-center gap-1 text-xs font-semibold px-1.5 py-0.5 rounded flex-shrink-0" style={{
+                      background: `${WEBHOOK_TYPE_COLORS[wh.type]}22`, color: WEBHOOK_TYPE_COLORS[wh.type], border: `1px solid ${WEBHOOK_TYPE_COLORS[wh.type]}44`,
+                    }}>
+                      {WEBHOOK_TYPE_ICONS[wh.type] && (
+                        <img src={WEBHOOK_TYPE_ICONS[wh.type]!} alt={wh.type} style={{ width: 12, height: 12, objectFit: 'contain' }} />
+                      )}
+                      {WEBHOOK_TYPE_LABELS[wh.type]}
+                    </span>
+                    <span className="text-sm text-white flex-1 min-w-0 truncate">{wh.name}</span>
+                    {testResults[wh.id] && (
+                      <span className={`text-xs flex-shrink-0 ${testResults[wh.id].ok ? 'text-emerald-400' : 'text-red-400'}`}>
+                        {testResults[wh.id].ok ? <CheckCircle size={12} className="inline mr-1" /> : <AlertCircle size={12} className="inline mr-1" />}
+                        {testResults[wh.id].msg}
+                      </span>
+                    )}
+                    <div className="flex items-center gap-0.5 flex-shrink-0">
+                      <Toggle enabled={wh.enabled} onChange={v => toggleWh(wh.id, v)} />
+                      <button onClick={() => testWh(wh.id)} disabled={testingId === wh.id || !wh.enabled}
+                        title="Tester le webhook"
+                        className="p-1.5 text-gray-500 hover:text-cyan-400 disabled:opacity-40 transition-colors ml-1">
+                        {testingId === wh.id ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+                      </button>
+                      <button onClick={() => openEditForm(wh)} title="Modifier"
+                        className="p-1.5 text-gray-500 hover:text-white transition-colors">
+                        <Edit2 size={13} />
+                      </button>
+                      <button onClick={() => deleteWh(wh.id)} disabled={deletingId === wh.id}
+                        title="Supprimer"
+                        className="p-1.5 text-gray-500 hover:text-red-400 disabled:opacity-40 transition-colors">
+                        {deletingId === wh.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                      </button>
+                    </div>
+                  </div>
+                  {/* Event badges + frequency */}
+                  <div className="flex flex-wrap gap-1 mt-2 pl-6">
+                    {wh.events?.ban     && <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 border border-red-500/30">Ban</span>}
+                    {wh.events?.attempt && <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30">Tentative</span>}
+                    {wh.events?.action  && <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-400 border border-blue-500/30">Action</span>}
+                    {!wh.events?.ban && !wh.events?.attempt && !wh.events?.action && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-700/60 text-gray-500">Aucun événement</span>
+                    )}
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-700/60 text-gray-400">
+                      {wh.batchWindow ? `Regroupé /${wh.batchWindow}min` : 'Immédiat'}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ── BackupSection — Sauvegardes tab in Database ──────────────────────────────────
+
+interface F2bCounts {
+  configSnapshots: number;
+  dbSnapshots: number;
+  iptablesBackups: number;
+  ipsetBackups: number;
+}
+
+const BackupSection: React.FC<{
+  fail2banEnabled: boolean;
+  onNavigateToPage?: (page: 'plugins' | 'users' | 'fail2ban') => void;
+}> = ({ fail2banEnabled, onNavigateToPage }) => {
+  // ── Config export/import ─────────────────────────────────────────────────
+  const [isExporting, setIsExporting]     = useState(false);
+  const [selectedFile, setSelectedFile]   = useState<File | null>(null);
+  const [configMsg, setConfigMsg]         = useState<{ ok: boolean; text: string } | null>(null);
+
+  // ── Fail2ban counts ──────────────────────────────────────────────────────
+  const [f2bCounts, setF2bCounts]         = useState<F2bCounts | null>(null);
+  const [f2bLoading, setF2bLoading]       = useState(false);
+
+  useEffect(() => {
+    if (!fail2banEnabled) return;
+    setF2bLoading(true);
+    const base = '/api/plugins/fail2ban';
+    Promise.all([
+      api.get<{ snapshots: unknown[] }>(`${base}/backup/snapshots`),
+      api.get<{ snapshots: unknown[] }>(`${base}/db-snapshots`),
+      api.get<unknown[]>(`${base}/iptables/backups`),
+      api.get<unknown[]>(`${base}/ipset/backups`),
+    ]).then(([cfg, db, ipt, ips]) => {
+      setF2bCounts({
+        configSnapshots:  (cfg.result?.snapshots ?? []).length,
+        dbSnapshots:      (db.result?.snapshots  ?? []).length,
+        iptablesBackups:  Array.isArray(ipt.result) ? ipt.result.length : 0,
+        ipsetBackups:     Array.isArray(ips.result) ? ips.result.length : 0,
+      });
+    }).catch(() => setF2bCounts(null))
+      .finally(() => setF2bLoading(false));
+  }, [fail2banEnabled]);
+
+  const handleExport = async () => {
+    setIsExporting(true); setConfigMsg(null);
+    try {
+      const res = await api.get<{ content: string }>('/api/config/export');
+      if (!res.result) throw new Error('Réponse vide');
+      const blob = new Blob([res.result.content], { type: 'text/plain' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href = url; a.download = 'logviewr.conf';
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a); URL.revokeObjectURL(url);
+      setConfigMsg({ ok: true, text: 'Configuration exportée avec succès.' });
+    } catch (e: any) {
+      setConfigMsg({ ok: false, text: e?.message || 'Erreur lors de l\'export.' });
+    } finally { setIsExporting(false); }
+  };
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setSelectedFile(file); setConfigMsg(null);
+    try {
+      const content = await file.text();
+      const res = await api.post<{ imported: number; message: string }>('/api/config/import', { content });
+      if (!res.success) throw new Error(res.error?.message || 'Import échoué');
+      setConfigMsg({ ok: true, text: res.result?.message || `${res.result?.imported} paramètres importés — rechargement…` });
+      setTimeout(() => window.location.reload(), 2000);
+    } catch (err: any) {
+      setConfigMsg({ ok: false, text: err?.message || 'Erreur lors de l\'import.' });
+      setSelectedFile(null);
+    }
+    e.target.value = '';
+  };
+
+  // Badge helper
+  const CountBadge = ({ n, label }: { n: number; label: string }) => (
+    <div className="flex items-center justify-between py-1 border-b border-gray-800/60 last:border-0">
+      <span className="text-xs text-gray-400">{label}</span>
+      <span className={`text-xs font-mono font-semibold px-1.5 py-0.5 rounded ${
+        n > 0 ? 'bg-emerald-500/12 text-emerald-400' : 'bg-gray-700/40 text-gray-500'
+      }`}>{n}</span>
+    </div>
+  );
+
+  return (
+    <Section title="Sauvegardes" icon={Archive} iconColor="amber" collapsible>
+      <div className="space-y-5">
+
+        {/* ── 1. Configuration logviewr.conf ─────────────────────────────── */}
+        <div className="p-3 bg-[#0d1117] border border-gray-800 rounded-lg space-y-3">
+          <div className="flex items-center gap-2 mb-1">
+            <FileText size={13} className="text-amber-400" />
+            <span className="text-sm font-medium text-white">Configuration application</span>
+            <span className="text-xs text-gray-500 ml-1">logviewr.conf</span>
+          </div>
+          <p className="text-xs text-gray-400">
+            Exporte tous les paramètres de l'application dans un fichier texte. Utile pour migrer ou restaurer une configuration.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <button onClick={handleExport} disabled={isExporting}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-600/80 hover:bg-amber-500/80 text-white disabled:opacity-50 transition-colors">
+              {isExporting ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+              Exporter .conf
+            </button>
+            <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-700 text-gray-300 bg-gray-800/50 hover:bg-gray-700/50 transition-colors cursor-pointer">
+              <Upload size={12} />
+              {selectedFile ? selectedFile.name : 'Importer .conf'}
+              <input type="file" accept=".conf" onChange={handleImport} className="hidden" />
+            </label>
+          </div>
+          {configMsg && (
+            <div className={`flex items-center gap-2 text-xs p-2 rounded ${
+              configMsg.ok ? 'text-emerald-400 bg-emerald-500/10' : 'text-red-400 bg-red-500/10'
+            }`}>
+              {configMsg.ok ? <CheckCircle size={12} /> : <AlertCircle size={12} />}
+              {configMsg.text}
+            </div>
+          )}
+        </div>
+
+        {/* ── 2. Fail2ban snapshots ──────────────────────────────────────── */}
+        <div className={`p-3 border rounded-lg space-y-2 ${
+          fail2banEnabled ? 'bg-[#0d1117] border-gray-800' : 'bg-amber-500/5 border-amber-500/20'
+        }`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Shield size={13} className={fail2banEnabled ? 'text-emerald-400' : 'text-amber-400'} />
+              <span className="text-sm font-medium text-white">Fail2ban</span>
+              <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
+                fail2banEnabled
+                  ? 'bg-emerald-500/15 text-emerald-400'
+                  : 'bg-amber-500/15 text-amber-400'
+              }`}>{fail2banEnabled ? 'actif' : 'inactif'}</span>
+            </div>
+            {fail2banEnabled && (
+              <button onClick={() => onNavigateToPage?.('fail2ban')}
+                className="flex items-center gap-1 text-xs text-cyan-400 hover:text-cyan-300 transition-colors">
+                Ouvrir <ExternalLink size={11} />
+              </button>
+            )}
+          </div>
+
+          {fail2banEnabled ? (
+            <>
+              <p className="text-xs text-gray-400">Snapshots & exports gérés dans le plugin Fail2ban → onglet <strong className="text-gray-300">Sauvegardes</strong>.</p>
+              {f2bLoading ? (
+                <div className="flex items-center gap-1.5 text-xs text-gray-500 py-1">
+                  <Loader2 size={11} className="animate-spin" /> Chargement des compteurs…
+                </div>
+              ) : f2bCounts ? (
+                <div className="mt-1 grid grid-cols-2 gap-x-6">
+                  <CountBadge n={f2bCounts.configSnapshots} label="Snapshots config" />
+                  <CountBadge n={f2bCounts.dbSnapshots}     label="Snapshots base de données" />
+                  <CountBadge n={f2bCounts.iptablesBackups} label="Backups iptables" />
+                  <CountBadge n={f2bCounts.ipsetBackups}    label="Backups ipset" />
+                </div>
+              ) : null}
+            </>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-xs text-amber-300/80">
+                Le plugin Fail2ban fournit les sauvegardes automatiques (snapshots config, DB, iptables, ipset).
+              </p>
+              <button onClick={() => onNavigateToPage?.('plugins')}
+                className="flex items-center gap-1.5 text-xs text-amber-400 hover:text-amber-300 transition-colors">
+                Activer dans Plugins <ExternalLink size={11} />
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* ── 3. SQLite manuel ──────────────────────────────────────────── */}
+        <div className="p-3 bg-[#0d1117] border border-gray-800 rounded-lg space-y-2">
+          <div className="flex items-center gap-2">
+            <HardDriveDownload size={13} className="text-purple-400" />
+            <span className="text-sm font-medium text-white">Base de données SQLite</span>
+            <span className="text-xs text-gray-500 ml-1">sauvegarde manuelle</span>
+          </div>
+          <p className="text-xs text-gray-400">
+            Le fichier SQLite principal contient toute la configuration persistante (utilisateurs, paramètres, logs analysés).
+            Copiez-le régulièrement pour garantir une restauration complète.
+          </p>
+          <div className="flex items-center gap-2 px-2 py-1.5 bg-gray-900/60 rounded border border-gray-700/50">
+            <Server size={11} className="text-gray-500 shrink-0" />
+            <code className="text-xs text-gray-400 font-mono">/data/logviewr.db</code>
+            <span className="text-xs text-gray-600 ml-auto">(volume Docker)</span>
+          </div>
+        </div>
+
+      </div>
+    </Section>
+  );
+};
+
 // Database Section Component (Administration > Base de données)
-const DatabaseSection: React.FC = () => {
+interface DbHealthResult {
+  ok: boolean;
+  full: boolean;
+  checks: Record<string, string>[];
+  freelistCount: number;
+  pageCount: number;
+  pageSize: number;
+  fragmentation: number;
+}
+interface VacuumResult { ok: boolean; beforeSize: number; afterSize: number; saved: number }
+
+const DatabaseSection: React.FC<{
+  onNavigateToPage?: (page: 'plugins' | 'users' | 'fail2ban') => void;
+}> = ({ onNavigateToPage }) => {
   const { t } = useTranslation();
-  const [dbStats, setDbStats] = useState<DbEngineStats | null>(null);
+  const { plugins } = usePluginStore();
+
+  // ── Stats ──────────────────────────────────────────────────────────────────
+  const [dbStats, setDbStats]       = useState<DbEngineStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
+
+  // ── Health ─────────────────────────────────────────────────────────────────
+  const [health, setHealth]         = useState<DbHealthResult | null>(null);
+  const [healthLoading, setHealthLoading] = useState(false);
+  const [healthErr, setHealthErr]   = useState<string | null>(null);
+
+  // ── VACUUM ─────────────────────────────────────────────────────────────────
+  const [vacuuming, setVacuuming]   = useState(false);
+  const [vacuumResult, setVacuumResult] = useState<VacuumResult | null>(null);
+  const [vacuumErr, setVacuumErr]   = useState<string | null>(null);
+
+  const fail2banEnabled = plugins.some(p => p.id === 'fail2ban' && p.enabled);
 
   useEffect(() => {
     let cancelled = false;
     const fetchStats = async () => {
       setStatsLoading(true);
       try {
-        const response = await api.get<DbEngineStats>('/api/database/stats');
-        if (!cancelled && response.success && response.result) {
-          setDbStats(response.result);
-        }
-      } catch {
-        if (!cancelled) setDbStats(null);
-      } finally {
-        if (!cancelled) setStatsLoading(false);
-      }
+        const r = await api.get<DbEngineStats>('/api/database/stats');
+        if (!cancelled && r.success && r.result) setDbStats(r.result);
+      } finally { if (!cancelled) setStatsLoading(false); }
+    };
+    const fetchHealth = async () => {
+      setHealthLoading(true);
+      try {
+        const r = await api.get<DbHealthResult>('/api/database/health');
+        if (!cancelled && r.success && r.result) setHealth(r.result);
+        else if (!cancelled) setHealthErr('Impossible de lancer le check');
+      } catch { if (!cancelled) setHealthErr('Erreur réseau'); }
+      finally { if (!cancelled) setHealthLoading(false); }
     };
     fetchStats();
+    fetchHealth();
     return () => { cancelled = true; };
   }, []);
 
+  const runCheck = async (full = false) => {
+    setHealthLoading(true); setHealthErr(null); setHealth(null);
+    try {
+      const r = await api.get<DbHealthResult>(`/api/database/health${full ? '?full=1' : ''}`);
+      if (r.success && r.result) setHealth(r.result);
+      else setHealthErr('Erreur serveur');
+    } catch { setHealthErr('Erreur réseau'); }
+    finally { setHealthLoading(false); }
+  };
+
+  const runVacuum = async () => {
+    if (!window.confirm('Lancer VACUUM ?\n\nOpération bloquante (~quelques secondes). La base sera compactée et défragmentée.')) return;
+    setVacuuming(true); setVacuumResult(null); setVacuumErr(null);
+    try {
+      const r = await api.post<VacuumResult>('/api/database/vacuum', {});
+      if (r.success && r.result) setVacuumResult(r.result);
+      else setVacuumErr('Erreur serveur');
+    } catch { setVacuumErr('Erreur réseau'); }
+    finally { setVacuuming(false); }
+  };
+
   const syncLabel = dbStats?.synchronous === 0 ? 'OFF' : dbStats?.synchronous === 1 ? 'NORMAL' : dbStats?.synchronous === 2 ? 'FULL' : String(dbStats?.synchronous ?? '-');
 
-  return (
-    <div className="space-y-6">
-      <Section title={t('database.title')} icon={Database} iconColor="purple">
-        <div className="space-y-4">
-          <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
-            <div className="flex items-start gap-3">
-              <Info size={20} className="text-blue-400 flex-shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <h4 className="text-sm font-semibold text-blue-400 mb-2">{t('database.defaultDbTitle')}</h4>
-                <p className="text-xs text-gray-400 mb-3">
-                  {t('database.defaultDbDesc')}
-                </p>
-                <div className="space-y-2 text-xs text-gray-300">
-                  <div><strong className="text-blue-400">{t('database.tablesUsed')}</strong></div>
-                  <ul className="list-disc list-inside space-y-1 ml-2">
-                    <li><code className="text-cyan-400">users</code> - {t('database.tableUsers')}</li>
-                    <li><code className="text-cyan-400">plugin_configs</code> - {t('database.tablePluginConfigs')}</li>
-                    <li><code className="text-cyan-400">log_sources</code> - {t('database.tableLogSources')}</li>
-                    <li><code className="text-cyan-400">log_files</code> - {t('database.tableLogFiles')}</li>
-                    <li><code className="text-cyan-400">logs</code> - {t('database.tableLogs')}</li>
-                    <li><code className="text-cyan-400">user_plugin_permissions</code> - {t('database.tableUserPluginPermissions')}</li>
-                    <li><code className="text-cyan-400">app_config</code> - {t('database.tableAppConfig')}</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-          </div>
+  // Health badge for section header
+  const healthBadge = health
+    ? health.ok && health.fragmentation <= 10
+      ? <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">OK</span>
+      : <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400">{health.ok ? `Fragmenté ${health.fragmentation}%` : 'Erreur'}</span>
+    : null;
 
-          <div className="p-4 bg-theme-secondary rounded-lg border border-theme">
-            <h4 className="text-sm font-semibold text-theme-primary mb-3">{t('database.statsTitle')}</h4>
-            {statsLoading ? (
-              <div className="flex items-center gap-2 text-sm text-gray-400">
-                <Loader2 size={16} className="animate-spin" />
-                {t('database.loading')}
+  const hasHealthIssue = !!health && (!health.ok || health.fragmentation > 10);
+
+  return (
+    <div className="space-y-4">
+
+      {/* ── 1. Informations ──────────────────────────────────────────────────── */}
+      <Section title={t('database.defaultDbTitle')} icon={Info} iconColor="blue" collapsible defaultCollapsed>
+        <p className="text-xs text-gray-400 mb-3">{t('database.defaultDbDesc')}</p>
+        <div className="space-y-1 text-xs">
+          <div className="text-blue-400 font-semibold mb-1">{t('database.tablesUsed')}</div>
+          <div className="grid grid-cols-2 gap-x-6 gap-y-1">
+            {[
+              ['users',                   t('database.tableUsers')],
+              ['plugin_configs',          t('database.tablePluginConfigs')],
+              ['log_sources',             t('database.tableLogSources')],
+              ['log_files',               t('database.tableLogFiles')],
+              ['logs',                    t('database.tableLogs')],
+              ['user_plugin_permissions', t('database.tableUserPluginPermissions')],
+              ['app_config',              t('database.tableAppConfig')],
+            ].map(([name, desc]) => (
+              <div key={name} className="flex items-baseline gap-2">
+                <code className="text-cyan-400 shrink-0">{name}</code>
+                <span className="text-gray-500">— {desc}</span>
               </div>
-            ) : dbStats ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                <div className="flex justify-between py-1.5 border-b border-gray-700/50">
-                  <span className="text-gray-400">{t('database.type')}</span>
-                  <span className="font-mono text-theme-primary">SQLite</span>
-                </div>
-                <div className="flex justify-between py-1.5 border-b border-gray-700/50">
-                  <span className="text-gray-400">{t('database.sizeEstimate')}</span>
-                  <span className="font-mono text-theme-primary">{formatBytes(dbStats.dbSize)}</span>
-                </div>
-                <div className="flex justify-between py-1.5 border-b border-gray-700/50">
-                  <span className="text-gray-400">{t('database.journalMode')}</span>
-                  <span className="font-mono text-theme-primary">{dbStats.journalMode}</span>
-                </div>
-                <div className="flex justify-between py-1.5 border-b border-gray-700/50">
-                  <span className="text-gray-400">{t('database.pageSize')}</span>
-                  <span className="font-mono text-theme-primary">{dbStats.pageSize} B</span>
-                </div>
-                <div className="flex justify-between py-1.5 border-b border-gray-700/50">
-                  <span className="text-gray-400">{t('database.pageCount')}</span>
-                  <span className="font-mono text-theme-primary">{dbStats.pageCount.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between py-1.5 border-b border-gray-700/50">
-                  <span className="text-gray-400">{t('database.cache')}</span>
-                  <span className="font-mono text-theme-primary">
-                    {dbStats.cacheSize < 0 ? formatBytes(Math.abs(dbStats.cacheSize) * 1024) : t('database.cachePages', { count: dbStats.cacheSize })}
-                  </span>
-                </div>
-                <div className="flex justify-between py-1.5 border-b border-gray-700/50">
-                  <span className="text-gray-400">{t('database.synchronous')}</span>
-                  <span className="font-mono text-theme-primary">{syncLabel}</span>
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm text-gray-400">{t('database.statsNotAvailable')}</p>
-            )}
+            ))}
           </div>
         </div>
       </Section>
+
+      {/* ── 2. Statistiques ──────────────────────────────────────────────────── */}
+      <Section
+        title={t('database.statsTitle')}
+        icon={BarChart3}
+        iconColor="purple"
+        collapsible
+        badge={dbStats ? <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-purple-500/15 border border-purple-500/30 text-purple-400 font-mono">{formatBytes(dbStats.dbSize)}</span> : undefined}
+      >
+        {statsLoading ? (
+          <div className="flex items-center gap-2 text-sm text-gray-400"><Loader2 size={14} className="animate-spin" />{t('database.loading')}</div>
+        ) : dbStats ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-8 gap-y-0 text-sm">
+            {[
+              [t('database.type'),        'SQLite'],
+              [t('database.sizeEstimate'), formatBytes(dbStats.dbSize)],
+              [t('database.journalMode'), dbStats.journalMode.toUpperCase()],
+              [t('database.pageSize'),    `${dbStats.pageSize} B`],
+              [t('database.pageCount'),   dbStats.pageCount.toLocaleString()],
+              [t('database.synchronous'), syncLabel],
+              [t('database.cache'),       dbStats.cacheSize < 0 ? formatBytes(Math.abs(dbStats.cacheSize) * 1024) : t('database.cachePages', { count: dbStats.cacheSize })],
+            ].map(([label, value]) => (
+              <div key={label} className="flex justify-between py-1.5 border-b border-gray-700/40">
+                <span className="text-gray-400">{label}</span>
+                <span className="font-mono text-theme-primary">{value}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-gray-400">{t('database.statsNotAvailable')}</p>
+        )}
+      </Section>
+
+      {/* ── 3. Santé & Intégrité ─────────────────────────────────────────────── */}
+      <Section
+        title="Santé & Intégrité"
+        icon={Shield}
+        iconColor={hasHealthIssue ? 'amber' : 'emerald'}
+        collapsible
+        defaultCollapsed={!hasHealthIssue}
+        badge={healthBadge}
+      >
+        <div className="space-y-4">
+          {/* Check buttons */}
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => { void runCheck(false); }}
+              disabled={healthLoading}
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 disabled:opacity-50 transition-colors"
+            >
+              {healthLoading ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle size={13} />}
+              Vérification rapide
+            </button>
+            <button
+              onClick={() => { void runCheck(true); }}
+              disabled={healthLoading}
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium bg-blue-500/10 border border-blue-500/30 text-blue-400 hover:bg-blue-500/20 disabled:opacity-50 transition-colors"
+            >
+              {healthLoading ? <Loader2 size={13} className="animate-spin" /> : <Shield size={13} />}
+              Intégrité complète
+            </button>
+            <button
+              onClick={() => { void runVacuum(); }}
+              disabled={vacuuming || healthLoading}
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20 disabled:opacity-50 transition-colors"
+            >
+              {vacuuming ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+              VACUUM
+            </button>
+          </div>
+
+          {/* Health result */}
+          {healthErr && (
+            <div className="flex items-center gap-2 text-sm text-red-400 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2">
+              <AlertCircle size={13} />
+              {healthErr}
+            </div>
+          )}
+          {health && (
+            <div className={`rounded-lg border px-4 py-3 text-sm space-y-2 ${health.ok ? 'bg-emerald-500/8 border-emerald-500/25' : 'bg-red-500/8 border-red-500/25'}`}>
+              <div className={`flex items-center gap-2 font-medium ${health.ok ? 'text-emerald-400' : 'text-red-400'}`}>
+                {health.ok ? <CheckCircle size={14} /> : <AlertCircle size={14} />}
+                {health.full ? 'Intégrité complète' : 'Vérification rapide'} — {health.ok ? 'Aucun problème détecté' : 'Problèmes détectés'}
+              </div>
+              <div className="grid grid-cols-3 gap-3 text-xs pt-1">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-gray-500 uppercase tracking-wider text-[10px]">Pages libres</span>
+                  <span className={`font-mono font-semibold ${health.freelistCount > 0 ? 'text-amber-400' : 'text-gray-300'}`}>{health.freelistCount.toLocaleString()}</span>
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-gray-500 uppercase tracking-wider text-[10px]">Fragmentation</span>
+                  <span className={`font-mono font-semibold ${health.fragmentation > 20 ? 'text-red-400' : health.fragmentation > 10 ? 'text-amber-400' : 'text-emerald-400'}`}>{health.fragmentation}%</span>
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-gray-500 uppercase tracking-wider text-[10px]">Pages totales</span>
+                  <span className="font-mono font-semibold text-gray-300">{health.pageCount.toLocaleString()}</span>
+                </div>
+              </div>
+              {health.fragmentation > 10 && (
+                <p className="text-xs text-amber-400/80 mt-1">Fragmentation élevée — un VACUUM permettrait de récupérer {formatBytes(health.freelistCount * health.pageSize)}.</p>
+              )}
+              {!health.ok && health.checks.length > 1 && (
+                <div className="mt-2 space-y-1 text-xs text-red-300 font-mono bg-red-900/20 rounded px-2 py-1.5 max-h-32 overflow-y-auto">
+                  {health.checks.slice(0, 20).map((row, i) => <div key={i}>{Object.values(row)[0]}</div>)}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* VACUUM result */}
+          {vacuumErr && (
+            <div className="flex items-center gap-2 text-sm text-red-400 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2">
+              <AlertCircle size={13} /> {vacuumErr}
+            </div>
+          )}
+          {vacuumResult && (
+            <div className="flex items-center gap-3 text-sm text-emerald-400 bg-emerald-500/8 border border-emerald-500/25 rounded-lg px-4 py-2">
+              <CheckCircle size={14} />
+              VACUUM terminé — {vacuumResult.saved > 0 ? `${formatBytes(vacuumResult.saved)} récupérés` : 'aucun espace récupéré'}
+              <span className="text-gray-500 text-xs ml-auto">{formatBytes(vacuumResult.beforeSize)} → {formatBytes(vacuumResult.afterSize)}</span>
+            </div>
+          )}
+
+          <p className="text-xs text-gray-500">
+            Le VACUUM compacte le fichier SQLite et récupère les pages fragmentées. Il bloque brièvement les écritures.
+          </p>
+        </div>
+      </Section>
+
+      {/* ── 4. Performances ──────────────────────────────────────────────────── */}
+      <Section title="Performances" icon={HardDrive} iconColor="cyan" collapsible defaultCollapsed>
+        <DatabasePerformanceSection />
+      </Section>
+
+      {/* ── 5. Sauvegardes ───────────────────────────────────────────────────── */}
+      <BackupSection fail2banEnabled={fail2banEnabled} onNavigateToPage={onNavigateToPage} />
+
     </div>
   );
 };
@@ -2251,54 +2980,55 @@ const InfoSection: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
-      <Section title={t('info.title')} icon={Info} iconColor="teal">
-        <div className="space-y-4">
-          <div className="p-4 bg-theme-secondary rounded-lg border border-theme flex flex-col items-center text-center">
-            <img src={logviewrLogo} alt="LogviewR" className="h-16 w-auto mb-4 object-contain" />
-            <h3 className="text-lg font-semibold text-theme-primary mb-2">LogviewR</h3>
-            <p className="text-sm text-theme-secondary mb-4 max-w-lg">
+    <>
+      {/* ── LogviewR — identity card + about/author/tech ── */}
+      <Section title="LogviewR" icon={Info} iconColor="teal" collapsible>
+        <div className="flex gap-8 items-start">
+
+          {/* Left — logo, version, GitHub, stats */}
+          <div className="flex flex-col items-center text-center shrink-0 w-56">
+            <img src={logviewrLogo} alt="LogviewR" className="h-16 w-auto mb-3 object-contain" />
+            <h3 className="text-base font-semibold text-theme-primary mb-1">LogviewR</h3>
+            <p className="text-xs text-theme-secondary mb-3 leading-relaxed">
               {t('info.tagline')}
             </p>
-            <div className="flex flex-wrap items-center justify-center gap-4 py-2 border-y border-gray-700 w-full max-w-md">
-              <span className="text-sm text-gray-400">{t('info.version')}</span>
-              <span className="text-sm font-mono text-theme-primary">{getVersionString()}</span>
-              <span className="text-gray-600">|</span>
-              <span className="text-sm text-gray-400">{t('info.license')}</span>
-              <span className="text-sm text-theme-primary">{t('info.licenseValue')}</span>
+            <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 py-2 border-y border-gray-700 w-full text-xs">
+              <span className="text-gray-400">{t('info.version')}</span>
+              <span className="font-mono text-theme-primary">{getVersionString()}</span>
+              <span className="text-gray-600">·</span>
+              <span className="text-gray-400">{t('info.license')}</span>
+              <span className="text-theme-primary">{t('info.licenseValue')}</span>
             </div>
             <a
               href="https://github.com/Erreur32/LogviewR"
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm transition-colors"
+              className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-xs transition-colors"
             >
-              <Github size={16} />
+              <Github size={13} />
               <span>{t('info.viewOnGitHub')}</span>
-              <ExternalLink size={14} />
+              <ExternalLink size={11} />
             </a>
-
-            {/* Repo stats */}
-            <div className="mt-4 pt-4 border-t border-gray-700 w-full max-w-md">
-              <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">{t('info.repoStats')}</h4>
+            <div className="mt-3 pt-3 border-t border-gray-700 w-full">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">{t('info.repoStats')}</p>
               {repoStatsLoading ? (
-                <div className="flex items-center gap-2 text-sm text-gray-400">
-                  <Loader2 size={14} className="animate-spin" />
+                <div className="flex items-center justify-center gap-2 text-xs text-gray-400">
+                  <Loader2 size={12} className="animate-spin" />
                   {t('info.loading')}
                 </div>
               ) : repoStats ? (
-                <div className="flex flex-wrap justify-center gap-4">
-                  <a href={`https://github.com/${GITHUB_REPO}/stargazers`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20 transition-colors text-sm">
-                    <Star size={16} />
+                <div className="flex flex-wrap justify-center gap-2">
+                  <a href={`https://github.com/${GITHUB_REPO}/stargazers`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20 transition-colors text-xs">
+                    <Star size={12} />
                     <span className="font-mono">{repoStats.stargazers_count.toLocaleString()}</span>
                   </a>
-                  <a href={`https://github.com/${GITHUB_REPO}/forks`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 transition-colors text-sm">
-                    <GitFork size={16} />
+                  <a href={`https://github.com/${GITHUB_REPO}/forks`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 transition-colors text-xs">
+                    <GitFork size={12} />
                     <span className="font-mono">{repoStats.forks_count.toLocaleString()}</span>
                   </a>
-                  <a href={`https://github.com/${GITHUB_REPO}/issues`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-600/30 border border-gray-500/50 text-gray-300 hover:bg-gray-600/50 transition-colors text-sm">
+                  <a href={`https://github.com/${GITHUB_REPO}/issues`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-600/30 border border-gray-500/50 text-gray-300 hover:bg-gray-600/50 transition-colors text-xs">
                     <span className="font-mono">{repoStats.open_issues_count.toLocaleString()}</span>
-                    <span className="text-xs">{t('info.issues')}</span>
+                    <span>{t('info.issues')}</span>
                   </a>
                 </div>
               ) : (
@@ -2307,92 +3037,115 @@ const InfoSection: React.FC = () => {
             </div>
           </div>
 
-          <div className="p-4 bg-theme-secondary rounded-lg border border-theme">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="p-2 rounded-lg bg-teal-500/10 border border-teal-500/30">
-                <FileText size={20} className="text-teal-400" />
-              </div>
-              <h3 className="text-lg font-semibold text-theme-primary">{t('info.about')}</h3>
-            </div>
-            <p className="text-sm text-theme-secondary mb-2">
-              {t('info.aboutDescription')}
-            </p>
-            <p className="text-sm text-gray-400">
-              {t('info.aboutReadmeBefore')}
-              <a href="https://github.com/Erreur32/LogviewR" target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline">{t('info.aboutReadmeLink')}</a>
-              {t('info.aboutReadmeAfter')}
-            </p>
-          </div>
+          {/* Divider */}
+          <div className="w-px self-stretch bg-gray-700/60 shrink-0" />
 
-          <div className="p-4 bg-theme-secondary rounded-lg border border-theme">
-            <h3 className="text-lg font-semibold text-theme-primary mb-3">{t('info.author')}</h3>
-            <p className="text-sm text-theme-secondary">
-              {t('info.developedByBefore')}<span className="text-theme-primary font-medium">Erreur32</span>
-            </p>
-          </div>
+          {/* Right — about, author, technologies stacked */}
+          <div className="flex-1 min-w-0 space-y-5">
 
-          <div className="p-4 bg-theme-secondary rounded-lg border border-theme">
-            <h3 className="text-lg font-semibold text-theme-primary mb-3">{t('info.technologies')}</h3>
-            <div className="flex flex-wrap gap-2">
-              <span className="px-3 py-1 bg-blue-900/30 border border-blue-700 rounded text-xs text-blue-400">React</span>
-              <span className="px-3 py-1 bg-blue-900/30 border border-blue-700 rounded text-xs text-blue-400">TypeScript</span>
-              <span className="px-3 py-1 bg-green-900/30 border border-green-700 rounded text-xs text-green-400">Node.js</span>
-              <span className="px-3 py-1 bg-cyan-900/30 border border-cyan-700 rounded text-xs text-cyan-400">Express</span>
-              <span className="px-3 py-1 bg-purple-900/30 border border-purple-700 rounded text-xs text-purple-400">SQLite</span>
-              <span className="px-3 py-1 bg-yellow-900/30 border border-yellow-700 rounded text-xs text-yellow-400">Docker</span>
+            {/* About */}
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <FileText size={14} className="text-cyan-400 shrink-0" />
+                <h4 className="text-sm font-semibold text-theme-primary">{t('info.about')}</h4>
+              </div>
+              <p className="text-sm text-theme-secondary mb-1">{t('info.aboutDescription')}</p>
+              <p className="text-sm text-gray-400">
+                {t('info.aboutReadmeBefore')}
+                <a href="https://github.com/Erreur32/LogviewR" target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline">{t('info.aboutReadmeLink')}</a>
+                {t('info.aboutReadmeAfter')}
+              </p>
             </div>
-          </div>
 
-          <div className="p-4 bg-theme-secondary rounded-lg border border-theme">
-            <h3 className="text-lg font-semibold text-theme-primary mb-3">{t('info.changelog')}</h3>
-            <div className="flex gap-2 mb-3">
-              <button
-                type="button"
-                onClick={() => setChangelogView('latest')}
-                className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${changelogView === 'latest' ? 'bg-cyan-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
-              >
-                {t('info.latestVersion')}
-              </button>
-              <button
-                type="button"
-                onClick={() => setChangelogView('full')}
-                className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${changelogView === 'full' ? 'bg-cyan-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
-              >
-                {t('info.fullChangelog')}
-              </button>
+            <div className="border-t border-gray-700/50" />
+
+            {/* Author */}
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <Users size={14} className="text-blue-400 shrink-0" />
+                <h4 className="text-sm font-semibold text-theme-primary">{t('info.author')}</h4>
+              </div>
+              <p className="text-sm text-theme-secondary">
+                {t('info.developedByBefore')}<span className="text-theme-primary font-medium">Erreur32</span>
+              </p>
             </div>
-            {changelogLoading ? (
-              <div className="flex items-center gap-2 text-sm text-gray-400">
-                <Loader2 size={16} className="animate-spin" />
-                {t('info.changelogLoading')}
+
+            <div className="border-t border-gray-700/50" />
+
+            {/* Technologies */}
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <Code size={14} className="text-violet-400 shrink-0" />
+                <h4 className="text-sm font-semibold text-theme-primary">{t('info.technologies')}</h4>
               </div>
-            ) : displayContent ? (
-              <div className="rounded-lg bg-gray-900/50 border border-gray-700 p-4 text-left">
-                <h4 className="text-base font-bold text-cyan-400 mb-1">{t('info.versionLabel', { version: displayContent.version })}</h4>
-                <p className="text-xs text-gray-500 mb-3">{displayContent.date}</p>
-                {renderChangelogBlock(displayContent.body)}
+              <div className="flex flex-wrap gap-2">
+                <span className="px-3 py-1 bg-blue-900/30 border border-blue-700 rounded text-xs text-blue-400">React</span>
+                <span className="px-3 py-1 bg-blue-900/30 border border-blue-700 rounded text-xs text-blue-400">TypeScript</span>
+                <span className="px-3 py-1 bg-green-900/30 border border-green-700 rounded text-xs text-green-400">Node.js</span>
+                <span className="px-3 py-1 bg-cyan-900/30 border border-cyan-700 rounded text-xs text-cyan-400">Express</span>
+                <span className="px-3 py-1 bg-purple-900/30 border border-purple-700 rounded text-xs text-purple-400">SQLite</span>
+                <span className="px-3 py-1 bg-yellow-900/30 border border-yellow-700 rounded text-xs text-yellow-400">Docker</span>
               </div>
-            ) : changelogView === 'full' && versionBlocks.length > 0 ? (
-              <div className="rounded-lg bg-gray-900/50 border border-gray-700 p-4 text-left max-h-96 overflow-y-auto space-y-4">
-                {versionBlocks.map((block) => (
-                  <div key={block.version + block.date}>
-                    <h4 className="text-base font-bold text-cyan-400 mb-1">{t('info.versionLabel', { version: block.version })}</h4>
-                    <p className="text-xs text-gray-500 mb-2">{block.date}</p>
-                    {renderChangelogBlock(block.body)}
-                  </div>
-                ))}
+            </div>
+
+            <div className="border-t border-gray-700/50" />
+
+            {/* Changelog */}
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <Download size={14} className="text-amber-400 shrink-0" />
+                <h4 className="text-sm font-semibold text-theme-primary">{t('info.changelog')}</h4>
+                <div className="flex gap-1.5 ml-auto">
+                  <button
+                    type="button"
+                    onClick={() => setChangelogView('latest')}
+                    className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${changelogView === 'latest' ? 'bg-cyan-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+                  >
+                    {t('info.latestVersion')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setChangelogView('full')}
+                    className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${changelogView === 'full' ? 'bg-cyan-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+                  >
+                    {t('info.fullChangelog')}
+                  </button>
+                </div>
               </div>
-            ) : changelogView === 'full' && fullContent ? (
-              <div className="rounded-lg bg-gray-900/50 border border-gray-700 p-4 text-left max-h-96 overflow-y-auto whitespace-pre-wrap text-sm text-gray-300 font-mono">
-                {fullContent}
-              </div>
-            ) : !changelogRaw ? (
-              <p className="text-sm text-gray-400">{t('info.changelogNotAvailable')}</p>
-            ) : null}
+              {changelogLoading ? (
+                <div className="flex items-center gap-2 text-sm text-gray-400">
+                  <Loader2 size={16} className="animate-spin" />
+                  {t('info.changelogLoading')}
+                </div>
+              ) : displayContent ? (
+                <div className="rounded-lg bg-gray-900/50 border border-gray-700 p-3 text-left">
+                  <h4 className="text-sm font-bold text-cyan-400 mb-0.5">{t('info.versionLabel', { version: displayContent.version })}</h4>
+                  <p className="text-xs text-gray-500 mb-2">{displayContent.date}</p>
+                  {renderChangelogBlock(displayContent.body)}
+                </div>
+              ) : changelogView === 'full' && versionBlocks.length > 0 ? (
+                <div className="rounded-lg bg-gray-900/50 border border-gray-700 p-3 text-left max-h-80 overflow-y-auto space-y-4">
+                  {versionBlocks.map((block) => (
+                    <div key={block.version + block.date}>
+                      <h4 className="text-sm font-bold text-cyan-400 mb-0.5">{t('info.versionLabel', { version: block.version })}</h4>
+                      <p className="text-xs text-gray-500 mb-2">{block.date}</p>
+                      {renderChangelogBlock(block.body)}
+                    </div>
+                  ))}
+                </div>
+              ) : changelogView === 'full' && fullContent ? (
+                <div className="rounded-lg bg-gray-900/50 border border-gray-700 p-3 text-left max-h-80 overflow-y-auto whitespace-pre-wrap text-sm text-gray-300 font-mono">
+                  {fullContent}
+                </div>
+              ) : !changelogRaw ? (
+                <p className="text-sm text-gray-400">{t('info.changelogNotAvailable')}</p>
+              ) : null}
+            </div>
+
           </div>
         </div>
       </Section>
-    </div>
+    </>
   );
 };
 
@@ -2598,7 +3351,9 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   // Check sessionStorage on mount in case initialAdminTab wasn't passed correctly
   const storedAdminTab = sessionStorage.getItem('adminTab');
   const [activeAdminTab, setActiveAdminTab] = useState<AdminTab>(() => toAdminTab(storedAdminTab || initialAdminTab));
-  const [pluginSubTab, setPluginSubTab] = useState<'plugins' | 'regex'>('plugins');
+  const [pluginSubTab, setPluginSubTab]     = useState<'plugins' | 'regex'>('plugins');
+  const [infoSubTab, setInfoSubTab]         = useState<'logviewr' | 'applogs'>('logviewr');
+  const [securitySubTab, setSecuritySubTab] = useState<'users' | 'protection' | 'network' | 'logs'>('users');
 
   // Update activeAdminTab when initialAdminTab changes (e.g., from navigation)
   // Also check sessionStorage on mount
@@ -3034,14 +3789,50 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 
             {/* Security Section */}
             {activeAdminTab === 'security' && (
-              <div className="space-y-6">
-                {currentUser?.role === 'admin' && (
-                  <Section title={t('admin.general.userManagement')} icon={Users} iconColor="purple">
-                    <UsersManagementSection />
-                  </Section>
+              <div className="space-y-4">
+                {/* Sub-tab bar */}
+                <div className="flex gap-1 p-1 bg-[#111] border border-gray-800 rounded-lg w-fit">
+                  {([
+                    { id: 'users'      as const, label: 'Utilisateurs', icon: Users,    activeColor: 'bg-purple-500/20 text-purple-300 border-purple-500/40' },
+                    { id: 'protection' as const, label: 'Protection',   icon: Shield,   activeColor: 'bg-red-500/20 text-red-300 border-red-500/40' },
+                    { id: 'network'    as const, label: 'Réseau',       icon: Globe,    activeColor: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40' },
+                    { id: 'logs'       as const, label: 'Journaux',     icon: FileText, activeColor: 'bg-blue-500/20 text-blue-300 border-blue-500/40' },
+                  ]).map(tab => {
+                    const Icon = tab.icon;
+                    const isActive = securitySubTab === tab.id;
+                    return (
+                      <button key={tab.id} onClick={() => setSecuritySubTab(tab.id)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border transition-all ${
+                          isActive ? tab.activeColor : 'border-transparent text-gray-400 hover:text-gray-200'
+                        }`}>
+                        <Icon size={12} />
+                        {tab.label}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Utilisateurs */}
+                {securitySubTab === 'users' && currentUser?.role === 'admin' && (
+                  <div className="space-y-6">
+                    <Section title={t('admin.general.userManagement')} icon={Users} iconColor="purple">
+                      <UsersManagementSection />
+                    </Section>
+                    <SecuritySection view="auth" />
+                  </div>
                 )}
-                <SecuritySection />
-                <LogsManagementSection />
+                {securitySubTab === 'users' && currentUser?.role !== 'admin' && (
+                  <p className="text-sm text-gray-500 py-4">Accès administrateur requis.</p>
+                )}
+
+                {/* Protection */}
+                {securitySubTab === 'protection' && <SecuritySection view="protection" />}
+
+                {/* Réseau */}
+                {securitySubTab === 'network' && <SecuritySection view="network" />}
+
+                {/* Journaux */}
+                {securitySubTab === 'logs' && <LogsManagementSection />}
               </div>
             )}
 
@@ -3052,30 +3843,46 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 
             {/* Database Management Section */}
             {activeAdminTab === 'database' && (
-              <DatabaseSection />
+              <DatabaseSection onNavigateToPage={onNavigateToPage} />
             )}
 
             {/* Info Section (includes Debug as a sub-category) */}
             {activeAdminTab === 'info' && (
-              <div className="space-y-6">
-                <InfoSection />
-                <Section title={t('debug.appLogsTitle')} icon={FileText} iconColor="cyan">
-                  <AppLogsSection />
-                </Section>
-                <Section title={t('debug.logLevelsTitle')} icon={Monitor} iconColor="violet">
-                  <DebugLogSection />
-                </Section>
-                <Section title={t('debug.debugDiagnosticsTitle')} icon={Monitor} iconColor="violet">
-                  <div className="py-4 space-y-2 text-xs text-gray-400">
-                    <p>{t('debug.debugIntro')}</p>
-                    <ul className="list-disc list-inside space-y-1">
-                      <li>{t('debug.debugBullet1')}</li>
-                      <li>{t('debug.debugBullet2')}</li>
-                      <li>{t('debug.debugBullet3')}</li>
-                      <li>{t('debug.debugBullet4')}</li>
-                    </ul>
-                  </div>
-                </Section>
+              <div className="space-y-4">
+                {/* Sub-tab bar */}
+                <div className="flex gap-1 p-1 bg-[#111] border border-gray-800 rounded-lg w-fit">
+                  {([
+                    { id: 'logviewr' as const, label: 'LogviewR', icon: Info },
+                    { id: 'applogs'  as const, label: t('debug.appLogsTitle'), icon: FileText },
+                  ] as const).map(st => (
+                    <button
+                      key={st.id}
+                      onClick={() => setInfoSubTab(st.id)}
+                      className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                        infoSubTab === st.id
+                          ? 'bg-teal-500/15 border border-teal-500/40 text-teal-400'
+                          : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
+                      }`}
+                    >
+                      <st.icon size={14} />
+                      {st.label}
+                    </button>
+                  ))}
+                </div>
+
+                {infoSubTab === 'logviewr' && <InfoSection />}
+
+                {infoSubTab === 'applogs' && (
+                  <Section title={t('debug.appLogsTitle')} icon={FileText} iconColor="cyan" collapsible>
+                    <AppLogsSection />
+                    <div className="border-t border-gray-700/60 my-4" />
+                    <div className="flex items-center gap-2 mb-3">
+                      <Monitor size={15} className="text-violet-300 shrink-0" />
+                      <h4 className="text-sm font-medium theme-section-title">{t('debug.logLevelsTitle')}</h4>
+                    </div>
+                    <DebugLogSection />
+                  </Section>
+                )}
               </div>
             )}
 
@@ -3257,59 +4064,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             )}
 
             {/* Notifications Section */}
-            {activeAdminTab === 'notifications' && (
-              <div className="space-y-6">
-                <Section title={t('notifications.title')} icon={Bell} iconColor="amber">
-                  <div className="space-y-4">
-                    <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-lg">
-                      <div className="flex items-start gap-3">
-                        <AlertCircle size={20} className="text-amber-400 flex-shrink-0 mt-0.5" />
-                        <div className="flex-1">
-                          <h4 className="text-sm font-semibold text-amber-400 mb-1">{t('notifications.inDevTitle')}</h4>
-                          <p className="text-xs text-gray-400">
-                            {t('notifications.inDevDesc')}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-3">
-                      <SettingRow label={t('notifications.inApp')} description={t('notifications.inAppDesc')}>
-                        <Toggle enabled={false} onChange={() => {}} disabled />
-                      </SettingRow>
-                      
-                      <SettingRow label={t('notifications.webhooks')} description={t('notifications.webhooksDesc')}>
-                        <Toggle enabled={false} onChange={() => {}} disabled />
-                      </SettingRow>
-                      
-                      <div className="pt-2 border-t border-gray-800">
-                        <h4 className="text-sm font-medium text-white mb-3">{t('notifications.webhookConfigTitle')}</h4>
-                        <div className="space-y-3">
-                          <div>
-                            <label className="block text-xs text-gray-400 mb-1">{t('notifications.webhookUrl')}</label>
-                            <input
-                              type="text"
-                              disabled
-                              placeholder={t('notifications.webhookUrlPlaceholder')}
-                              className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-xs text-gray-400 mb-1">{t('notifications.webhookSecret')}</label>
-                            <input
-                              type="password"
-                              disabled
-                              placeholder={t('notifications.webhookSecretPlaceholder')}
-                              className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </Section>
-              </div>
-            )}
+            {activeAdminTab === 'notifications' && <NotificationsSection />}
 
           </> 
         )}

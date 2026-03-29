@@ -30,6 +30,8 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { fileURLToPath } from 'url';
 import { logger } from '../../utils/logger.js';
+import { webhookDispatchService } from '../../services/WebhookDispatchService.js';
+import type { AuthenticatedRequest } from '../../middleware/authMiddleware.js';
 
 const execFileAsync = promisify(execFile);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -920,6 +922,10 @@ export class Fail2banPlugin extends BasePlugin {
             const { jail, ip } = req.body as { jail?: string; ip?: string };
             if (!jail || !ip) throw createError('jail and ip are required', 400, 'MISSING_PARAMS');
             const result = await this.client.banIp(jail, ip);
+            webhookDispatchService.dispatch('action', {
+                action: 'ban', ip, jail,
+                username: (req as AuthenticatedRequest).user?.username,
+            }).catch(() => { /* ignore dispatch errors */ });
             res.json({ success: true, result });
         }));
 
@@ -930,6 +936,10 @@ export class Fail2banPlugin extends BasePlugin {
             const { jail, ip } = req.body as { jail?: string; ip?: string };
             if (!jail || !ip) throw createError('jail and ip are required', 400, 'MISSING_PARAMS');
             const result = await this.client.unbanIp(jail, ip);
+            webhookDispatchService.dispatch('action', {
+                action: 'unban', ip, jail,
+                username: (req as AuthenticatedRequest).user?.username,
+            }).catch(() => { /* ignore dispatch errors */ });
             res.json({ success: true, result });
         }));
 

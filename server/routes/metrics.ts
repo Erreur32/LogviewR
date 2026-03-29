@@ -5,8 +5,8 @@
  */
 
 import { Router } from 'express';
-import { 
-    generatePrometheusMetrics, 
+import {
+    generatePrometheusMetrics,
     generateInfluxDBMetrics,
     getDefaultMetricsConfig,
     type MetricsConfig
@@ -16,6 +16,7 @@ import { requireAuth, requireAdmin, type AuthenticatedRequest } from '../middlew
 import { autoLog } from '../middleware/loggingMiddleware.js';
 import { loggingService } from '../services/loggingService.js';
 import { getDatabase } from '../database/connection.js';
+import { mqttService, DEFAULT_MQTT_CONFIG, type MqttConfig } from '../services/MqttService.js';
 
 const router = Router();
 
@@ -239,6 +240,57 @@ router.post('/config', requireAuth, requireAdmin, asyncHandler(async (req: Authe
         throw createError(message, 500, 'METRICS_CONFIG_ERROR');
     }
 }), autoLog('metrics.updateConfig', 'metrics'));
+
+// ── MQTT routes ──────────────────────────────────────────────────────────────────
+
+/** GET /api/metrics/mqtt/config */
+router.get('/mqtt/config', requireAuth, requireAdmin, asyncHandler(async (_req: AuthenticatedRequest, res) => {
+    res.json({ success: true, result: mqttService.getConfig() });
+}));
+
+/** POST /api/metrics/mqtt/config — save + restart service */
+router.post('/mqtt/config', requireAuth, requireAdmin,
+    autoLog('metrics.mqtt', 'update-config'),
+    asyncHandler(async (req: AuthenticatedRequest, res) => {
+        const body = req.body as Partial<MqttConfig>;
+        const current = mqttService.getConfig();
+        const updated: MqttConfig = {
+            ...DEFAULT_MQTT_CONFIG,
+            ...current,
+            ...body,
+            stats: { ...DEFAULT_MQTT_CONFIG.stats, ...(current.stats ?? {}), ...(body.stats ?? {}) },
+        };
+        mqttService.saveConfig(updated);
+        await mqttService.restart();
+        res.json({ success: true, result: updated, message: 'Configuration MQTT mise à jour' });
+    })
+);
+
+/** POST /api/metrics/mqtt/test — ephemeral connection test */
+router.post('/mqtt/test', requireAuth, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res) => {
+    const config = { ...mqttService.getConfig(), ...(req.body as Partial<MqttConfig>) };
+    const result = await mqttService.testConnection(config as MqttConfig);
+    if (!result.ok) throw createError(result.message, 502, 'MQTT_TEST_FAILED');
+    res.json({ success: true, message: result.message });
+}));
+
+/** POST /api/metrics/mqtt/publish — manual publish now */
+router.post('/mqtt/publish', requireAuth, requireAdmin,
+    autoLog('metrics.mqtt', 'publish-now'),
+    asyncHandler(async (_req: AuthenticatedRequest, res) => {
+        if (!mqttService.isConnected()) {
+            throw createError('MQTT non connecté — vérifiez la configuration', 503, 'MQTT_NOT_CONNECTED');
+        }
+        const config = mqttService.getConfig();
+        await mqttService.publishStats(config);
+        res.json({ success: true, message: 'Stats publiées sur le broker MQTT' });
+    })
+);
+
+/** GET /api/metrics/mqtt/status */
+router.get('/mqtt/status', requireAuth, asyncHandler(async (_req: AuthenticatedRequest, res) => {
+    res.json({ success: true, result: { connected: mqttService.isConnected() } });
+}));
 
 export default router;
 

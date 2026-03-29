@@ -12,7 +12,7 @@ import { Section, SettingRow } from './SettingsSection';
 import { api } from '../api/client';
 import { useUserAuthStore } from '../stores/userAuthStore';
 
-export const SecuritySection: React.FC = () => {
+export const SecuritySection: React.FC<{ view?: 'protection' | 'auth' | 'network' }> = ({ view }) => {
     const { t } = useTranslation();
     const { user } = useUserAuthStore();
     const [isLoading, setIsLoading] = useState(false);
@@ -393,12 +393,11 @@ export const SecuritySection: React.FC = () => {
                 </div>
             )}
 
-            {/* Main Security Settings - Two Column Layout */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Left Column: Protection contre les attaques */}
-                <div className="space-y-6">
+            {/* Attack Protection */}
+            {(!view || view === 'protection') && (
+            <div className="space-y-6">
                     {/* Protection Brute Force */}
-                    <Section title={t('security.attackProtectionTitle')} icon={Shield} iconColor="red">
+                    <Section title={t('security.attackProtectionTitle')} icon={Shield} iconColor="red" collapsible>
                         <div className="space-y-4">
                             <SettingRow
                                 label={t('security.maxLoginAttempts')}
@@ -466,11 +465,11 @@ export const SecuritySection: React.FC = () => {
                             </div>
                         </div>
                     </Section>
-                </div>
+            </div>
+            )}
 
-                {/* Right Column: Options non implémentées */}
-                <div className="space-y-6">
-                    {/* Authentification */}
+            {/* Authentification */}
+            {(!view || view === 'auth') && (
                     <Section title={t('security.authTitle')} icon={Lock} iconColor="blue">
                         <div className="space-y-4">
                             <SettingRow
@@ -513,8 +512,10 @@ export const SecuritySection: React.FC = () => {
                             </SettingRow>
                         </div>
                     </Section>
+            )}
 
-                    {/* Sécurité réseau */}
+            {/* Sécurité réseau */}
+            {(!view || view === 'network') && (
                     <Section title={t('security.networkSecurityTitle')} icon={Shield}>
                         <div className="space-y-4">
                             <SettingRow
@@ -560,13 +561,11 @@ export const SecuritySection: React.FC = () => {
                             </SettingRow>
                         </div>
                     </Section>
-                </div>
-            </div>
+            )}
 
-            {/* Blocked IPs and CORS - Two columns */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Left: Blocked IPs and accounts */}
-                <Section title={t('security.blockedTitle')} icon={Shield} iconColor="red">
+            {/* Blocked IPs */}
+            {(!view || view === 'protection') && (
+                <Section title={t('security.blockedTitle')} icon={Shield} iconColor="red" collapsible>
                     <div className="space-y-4">
                         <div className="flex items-center justify-between mb-2">
                             <p className="text-sm text-gray-400">
@@ -625,8 +624,10 @@ export const SecuritySection: React.FC = () => {
                         )}
                     </div>
                 </Section>
+            )}
 
-                {/* Right: CORS configuration */}
+            {/* CORS */}
+            {(!view || view === 'network') && (
                 <Section title={t('security.corsTitle')} icon={Globe} iconColor="cyan">
                 <div className="space-y-4">
                     <div className="p-3 bg-blue-900/10 border border-blue-700/30 rounded-lg">
@@ -818,22 +819,21 @@ export const SecuritySection: React.FC = () => {
                     </div>
                 </div>
             </Section>
-            </div>
+            )}
 
-            {/* Status Summary - Full Width */}
-            <div className="p-4 bg-blue-900/10 border border-blue-700/30 rounded-lg">
-                <div className="flex items-center gap-2 mb-2">
-                    <CheckCircle size={18} className="text-blue-400" />
-                    <h4 className="text-sm font-medium text-blue-400">{t('security.activeFeaturesTitle')}</h4>
-                </div>
+            {/* Status Summary — protection view only */}
+            {(!view || view === 'protection') && (
+            <Section title={t('security.activeFeaturesTitle')} icon={CheckCircle} iconColor="blue" collapsible defaultCollapsed>
                 <ul className="space-y-1 text-xs text-gray-400">
                     <li>• {t('security.activeFeature1')}</li>
                     <li>• {t('security.activeFeature2')}</li>
                     <li>• {t('security.activeFeature3')}</li>
                 </ul>
-            </div>
+            </Section>
+            )}
 
-            {/* Save Button */}
+            {/* Save Button — protection + auth views */}
+            {(!view || view === 'protection' || view === 'auth') && (
             <div className="flex justify-end pt-4 border-t border-gray-800">
                 <button
                     onClick={handleSaveSecuritySettings}
@@ -844,6 +844,7 @@ export const SecuritySection: React.FC = () => {
                     <span>{t('security.saveSettings')}</span>
                 </button>
             </div>
+            )}
         </div>
     );
 };
