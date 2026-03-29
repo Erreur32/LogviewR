@@ -9,6 +9,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.7.3] - 2026-03-29
+
+### Added
+- **Plugins — test button per card**: each plugin card in Administration now has a visible `⚡ Test` button that calls the connection test and fires a toast notification (green = OK, red = error message)
+- **Plugins — activation guard**: enabling a plugin now runs `testConnection()` first; if the test fails, activation is blocked and a red toast explains why — no more silent broken activations
+- **Plugins — activation notifications**: every toggle (enable/disable) fires a toast via `notificationStore` with the result
+- **Plugins — toggle spinner**: the toggle button shows a spinner while the connection test + activation is in progress
+- **PluginOptionsPanel — save/test toasts**: saving or testing a plugin config from the options panel now also triggers a global `notificationStore` toast (in addition to the inline result)
+- **Webhook test in edit form**: when editing an existing webhook, a `✉ Envoyer un test` button appears in the form footer; result displayed inline + as a global toast
+- **Webhook test button in list**: the small invisible `RefreshCw` icon is replaced by a visible `⚡ Test` button with label
+- **Discord/Telegram SVG icons**: logos now appear in webhook type badges and add-buttons (`public/icons/services/telegram.svg`, `src/icons/telegram.svg`)
+- **Security > Protection — collapsible sections**: Attack Protection, Blocked IPs, and Active Features are collapsible frames (Active Features collapsed by default)
+- **host-system plugin enabled by default**: on first start (no DB config), the host-system log plugin is auto-enabled since system logs are always present
+
+### Changed
+- **Fail2ban config split**: SQLite DB path is now only in Administration > Plugins (plugin options), NPM data path is only in Fail2ban > Config tab — no more duplication
+- **`Fail2banPathConfig`**: each section (SQLite / NPM) renders only when the corresponding callback is provided — clean separation of concerns
+
+### Fixed
+- **`Fail2banPlugin.testConnection()`**: was using `existsSync` (existence only) with OR logic — now tests socket with `R_OK|W_OK` permissions AND SQLite readability; both required; detailed warnings logged
+- **`NginxLogPlugin.testConnection()`**: empty catch block replaced with proper error logging (path + error code)
+- **`HostSystemLogPlugin.testConnection()`**: journald bypass (was returning `true` unconditionally when journald enabled) now actually checks journal directory accessibility
+- **`PluginsManagementSection`**: `!plugin.configured` guard now also fires a notification instead of only showing a temporary status badge
+
+---
+
 ## [0.7.2] - 2026-03-29
 
 ### Added

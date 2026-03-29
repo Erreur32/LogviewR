@@ -46,7 +46,9 @@ import {
   Archive,
   AlertTriangle,
   Upload,
-  HardDriveDownload
+  HardDriveDownload,
+  Zap,
+  Send
 } from 'lucide-react';
 import { api } from '../api/client';
 import { API_ROUTES, formatBytes } from '../utils/constants';
@@ -2329,16 +2331,31 @@ const NotificationsSection: React.FC = () => {
                   <AlertCircle size={12} /> {formError}
                 </p>
               )}
-              <div className="flex justify-end gap-2 pt-1">
-                <button onClick={() => { setShowForm(null); setEditId(null); setFormError(''); }}
-                  className="px-3 py-1.5 text-sm text-gray-400 hover:text-white transition-colors">
-                  Annuler
-                </button>
-                <button onClick={submitForm} disabled={formSaving}
-                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-medium bg-cyan-600 hover:bg-cyan-500 text-gray-100 disabled:opacity-50 transition-colors">
-                  {formSaving && <Loader2 size={12} className="animate-spin" />}
-                  {editId ? 'Enregistrer' : 'Ajouter'}
-                </button>
+              {editId && testResults[editId] && (
+                <p className={`text-xs flex items-center gap-1 ${testResults[editId].ok ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {testResults[editId].ok ? <CheckCircle size={12} /> : <AlertCircle size={12} />}
+                  {testResults[editId].msg}
+                </p>
+              )}
+              <div className="flex justify-between items-center pt-1">
+                {editId ? (
+                  <button onClick={() => testWh(editId)} disabled={testingId === editId}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border border-cyan-500/40 bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 disabled:opacity-40 transition-colors">
+                    {testingId === editId ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
+                    Envoyer un test
+                  </button>
+                ) : <span />}
+                <div className="flex items-center gap-2">
+                  <button onClick={() => { setShowForm(null); setEditId(null); setFormError(''); }}
+                    className="px-3 py-1.5 text-sm text-gray-400 hover:text-white transition-colors">
+                    Annuler
+                  </button>
+                  <button onClick={submitForm} disabled={formSaving}
+                    className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-medium bg-cyan-600 hover:bg-cyan-500 text-gray-100 disabled:opacity-50 transition-colors">
+                    {formSaving && <Loader2 size={12} className="animate-spin" />}
+                    {editId ? 'Enregistrer' : 'Ajouter'}
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -2371,12 +2388,13 @@ const NotificationsSection: React.FC = () => {
                         {testResults[wh.id].msg}
                       </span>
                     )}
-                    <div className="flex items-center gap-0.5 flex-shrink-0">
+                    <div className="flex items-center gap-1 flex-shrink-0">
                       <Toggle enabled={wh.enabled} onChange={v => toggleWh(wh.id, v)} />
                       <button onClick={() => testWh(wh.id)} disabled={testingId === wh.id || !wh.enabled}
-                        title="Tester le webhook"
-                        className="p-1.5 text-gray-500 hover:text-cyan-400 disabled:opacity-40 transition-colors ml-1">
-                        {testingId === wh.id ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+                        title="Envoyer un message de test"
+                        className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium border border-cyan-500/30 bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 disabled:opacity-40 transition-colors ml-1">
+                        {testingId === wh.id ? <Loader2 size={11} className="animate-spin" /> : <Zap size={11} />}
+                        Test
                       </button>
                       <button onClick={() => openEditForm(wh)} title="Modifier"
                         className="p-1.5 text-gray-500 hover:text-white transition-colors">

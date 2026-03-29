@@ -712,9 +712,7 @@ export const TabConfig: React.FC<{
     onWarningsChange?: (count: number) => void;
     npmDataPath?: string;
     onNpmDataPathChange?: (v: string) => void;
-    sqliteDbPath?: string;
-    onSqliteDbPathChange?: (v: string) => void;
-}> = ({ onWarningsChange, npmDataPath = '', onNpmDataPathChange, sqliteDbPath = '', onSqliteDbPathChange }) => {
+}> = ({ onWarningsChange, npmDataPath = '', onNpmDataPathChange }) => {
     const { t } = useTranslation();
     const [parsed, setParsed]       = useState<ParsedConfigResult | null>(null);
     const [rawFiles, setRawFiles]   = useState<RawFiles | null>(null);
@@ -1641,8 +1639,6 @@ export const TabConfig: React.FC<{
                                 </div>
                             )}
                             <Fail2banPathConfig
-                                sqliteDbPath={sqliteDbPath}
-                                onSqliteDbPathChange={v => onSqliteDbPathChange?.(v)}
                                 npmDataPath={npmDataPath}
                                 onNpmDataPathChange={v => onNpmDataPathChange?.(v)}
                             />

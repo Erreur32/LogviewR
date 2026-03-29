@@ -468,9 +468,31 @@ export class Fail2banPlugin extends BasePlugin {
 
     async testConnection(): Promise<boolean> {
         if (!this.isEnabled()) return false;
-        const socketOk = fs.existsSync(SOCKET_PATH);
+
+        // Test socket with read+write permissions (not just existence)
+        let socketOk = false;
+        if (fs.existsSync(SOCKET_PATH)) {
+            try {
+                fs.accessSync(SOCKET_PATH, fs.constants.R_OK | fs.constants.W_OK);
+                socketOk = true;
+            } catch (err) {
+                logger.warn('Fail2ban', `testConnection: socket exists but not accessible R/W — ${(err as NodeJS.ErrnoException).code}`);
+            }
+        } else {
+            logger.warn('Fail2ban', `testConnection: socket not found at ${SOCKET_PATH}`);
+        }
+
+        // Test SQLite readability
         const dbOk = this.reader?.isReadable() ?? false;
-        return socketOk || dbOk;
+        if (!dbOk) {
+            logger.warn('Fail2ban', 'testConnection: SQLite DB not readable');
+        }
+
+        // Both are needed for full functionality — warn if only one works
+        if (socketOk && !dbOk) logger.warn('Fail2ban', 'testConnection: socket OK but SQLite not readable');
+        if (!socketOk && dbOk) logger.warn('Fail2ban', 'testConnection: SQLite OK but socket not accessible');
+
+        return socketOk && dbOk;
     }
 
     getRoutes(): Router {

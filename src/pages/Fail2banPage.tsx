@@ -152,8 +152,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
     const [lastRefreshed, setLastRefreshed] = useState<number>(0);
     const [dbFragPct, setDbFragPct] = useState<number | null>(null);
     const [bansToday, setBansToday] = useState<{ count: number; uniqIps: number } | null>(null);
-    const [npmDataPath, setNpmDataPath]       = useState<string>('');
-    const [sqliteDbPath, setSqliteDbPath]     = useState<string>('');
+    const [npmDataPath, setNpmDataPath] = useState<string>('');
     const { addBan, addAttempt } = useNotificationStore();
     const lastRowidRef = useRef<number>(-1); // -1 = not bootstrapped yet
     const prevFailedRef = useRef<Record<string, number>>({}); // jail → currentlyFailed snapshot
@@ -203,11 +202,10 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
 
     // Load path settings from plugin config on mount
     useEffect(() => {
-        api.get<{ settings?: { npmDataPath?: string; sqliteDbPath?: string } }>('/api/plugins/fail2ban')
+        api.get<{ settings?: { npmDataPath?: string } }>('/api/plugins/fail2ban')
             .then(res => {
                 if (res.success) {
                     setNpmDataPath(res.result?.settings?.npmDataPath ?? '');
-                    setSqliteDbPath(res.result?.settings?.sqliteDbPath ?? '');
                 }
             })
             .catch(() => {});
@@ -938,7 +936,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
                     {tab === 'iptables' && <TabIPTables />}
                     {tab === 'ipset'    && <TabIPSet onIpClick={ip => setSelectedIp(ip)} />}
                     {tab === 'nftables' && <TabNFTables />}
-                    {tab === 'config'   && <TabConfig onWarningsChange={setDbFragPct} npmDataPath={npmDataPath} onNpmDataPathChange={setNpmDataPath} sqliteDbPath={sqliteDbPath} onSqliteDbPathChange={setSqliteDbPath} />}
+                    {tab === 'config'   && <TabConfig onWarningsChange={setDbFragPct} npmDataPath={npmDataPath} onNpmDataPathChange={setNpmDataPath} />}
                     {tab === 'audit'    && <TabAudit />}
                     {tab === 'backup'   && <TabBackup />}
                     {tab === 'aide'     && <TabAide />}

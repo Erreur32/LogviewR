@@ -12,6 +12,7 @@ import { Fail2banPathConfig } from '../pages/fail2ban/Fail2banPathConfig';
 import { usePluginStore, type Plugin } from '../stores/pluginStore';
 import { Button } from './ui/Button';
 import { api } from '../api/client';
+import { useNotificationStore } from '../stores/notificationStore';
 
 interface PluginOptionsPanelProps {
     pluginId: string;
@@ -21,6 +22,7 @@ interface PluginOptionsPanelProps {
 export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId, onClose }) => {
     const { t } = useTranslation();
     const { plugins, updatePluginConfig, testPluginConnection, fetchPlugins } = usePluginStore();
+    const addAction = useNotificationStore(s => s.addAction);
     const [isTesting, setIsTesting] = useState(false);
     const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
     
@@ -212,7 +214,6 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
         } else if (plugin && pluginId === 'fail2ban') {
             setFormData({
                 sqliteDbPath: (plugin.settings?.sqliteDbPath as string) ?? '',
-                npmDataPath:  (plugin.settings?.npmDataPath  as string) ?? ''
             });
         }
     }, [plugin, isLogSourcePlugin, pluginId]);
@@ -853,12 +854,14 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                 success: true,
                 message: 'Configuration enregistrée avec succès'
             });
+            addAction(`${pluginId} — configuration sauvegardée`, true);
         } catch (error) {
             console.error('Failed to save configuration:', error);
             setTestResult({
                 success: false,
                 message: 'Erreur lors de l\'enregistrement de la configuration'
             });
+            addAction(`${pluginId} — erreur de sauvegarde`, false);
         }
     };
 
@@ -939,17 +942,20 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                         success: true,
                         message: 'Test réussi ! Vous pouvez maintenant sauvegarder.'
                     });
+                    addAction(`${pluginId} — connexion OK`, true);
                 } else {
                     setTestResult({
                         success: false,
                         message: result.message || 'Échec du test. Vérifiez le chemin et les permissions.'
                     });
+                    addAction(`${pluginId} — ${result.message || 'connexion échouée'}`, false);
                 }
             } else {
                 setTestResult({
                     success: false,
                     message: 'Test de connexion impossible (voir logs backend)'
                 });
+                addAction(`${pluginId} — test impossible`, false);
             }
 
             await fetchPlugins();
@@ -1030,8 +1036,6 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                     <Fail2banConfigPanel
                         sqliteDbPath={String(formData.sqliteDbPath ?? '')}
                         onSqliteDbPathChange={(v) => handleInputChange('sqliteDbPath', v)}
-                        npmDataPath={String(formData.npmDataPath ?? '')}
-                        onNpmDataPathChange={(v) => handleInputChange('npmDataPath', v)}
                     />
                 )}
 
@@ -2294,8 +2298,6 @@ interface F2bCheckResult {
 interface Fail2banConfigPanelProps {
     sqliteDbPath: string;
     onSqliteDbPathChange: (v: string) => void;
-    npmDataPath: string;
-    onNpmDataPathChange: (v: string) => void;
 }
 
 const FW_ITEMS = [
@@ -2304,7 +2306,7 @@ const FW_ITEMS = [
     { key: 'nftables', label: 'NFTables', Icon: Network, color: '#39c5cf', route: '/api/plugins/fail2ban/nftables',  detail: 'Ruleset nftables du host' },
 ];
 
-const Fail2banConfigPanel: React.FC<Fail2banConfigPanelProps> = ({ sqliteDbPath, onSqliteDbPathChange, npmDataPath, onNpmDataPathChange }) => {
+const Fail2banConfigPanel: React.FC<Fail2banConfigPanelProps> = ({ sqliteDbPath, onSqliteDbPathChange }) => {
     const [checkResult, setCheckResult] = useState<F2bCheckResult | null>(null);
     const [checking, setChecking] = useState(false);
     const [expandedFix, setExpandedFix] = useState<string | null>(null);
@@ -2378,8 +2380,6 @@ const Fail2banConfigPanel: React.FC<Fail2banConfigPanelProps> = ({ sqliteDbPath,
                 <Fail2banPathConfig
                     sqliteDbPath={sqliteDbPath}
                     onSqliteDbPathChange={onSqliteDbPathChange}
-                    npmDataPath={npmDataPath}
-                    onNpmDataPathChange={onNpmDataPathChange}
                 />
             </div>
 

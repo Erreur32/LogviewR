@@ -39,14 +39,12 @@ export class NginxLogPlugin extends BasePlugin implements LogSourcePlugin {
         try {
             const config = this.config?.settings as unknown as NginxPluginConfig | undefined;
             const basePath = config?.basePath || this.getDefaultBasePath();
-            
-            // Convert to Docker path if needed
             const actualBasePath = this.convertToDockerPath(basePath);
-            
-            // Test if base path exists and is readable
             await fs.access(actualBasePath);
             return true;
-        } catch {
+        } catch (err) {
+            const code = (err as NodeJS.ErrnoException).code;
+            console.warn(`[NginxLogPlugin] testConnection failed — path: ${(this.config?.settings as any)?.basePath || this.getDefaultBasePath()}, error: ${code || err}`);
             return false;
         }
     }

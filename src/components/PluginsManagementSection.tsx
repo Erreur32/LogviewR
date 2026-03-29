@@ -6,13 +6,14 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Settings, Power, CheckCircle, XCircle, AlertCircle, ExternalLink, Archive } from 'lucide-react';
+import { Settings, CheckCircle, XCircle, AlertCircle, Archive, Zap, Loader2 } from 'lucide-react';
 import { usePluginStore, type Plugin } from '../stores/pluginStore';
-import { Section, SettingRow } from './SettingsSection';
+import { Section } from './SettingsSection';
 import { PluginOptionsPanel } from './PluginOptionsPanel';
 import { getPluginIcon } from '../utils/pluginIcons';
 import { api } from '../api/client';
 import { Tooltip } from './ui/Tooltip';
+import { useNotificationStore } from '../stores/notificationStore';
 
 interface F2bWarnState {
     errors: { label: string; fix: string | null }[];
@@ -24,6 +25,11 @@ export const PluginsManagementSection: React.FC = () => {
     const [expandedPluginId, setExpandedPluginId] = useState<string | null>(null);
     const [osType, setOsType] = useState<string | undefined>(undefined);
     const [f2bWarn, setF2bWarn] = useState<F2bWarnState | null>(null);
+    const [testingId, setTestingId]         = useState<string | null>(null);
+    const [togglingId, setTogglingId]       = useState<string | null>(null);
+    const [notConfiguredId, setNotConfiguredId] = useState<string | null>(null);
+    const addAction = useNotificationStore(s => s.addAction);
+    const { testPluginConnection } = usePluginStore();
 
     // Load OS type for host-system plugin
     useEffect(() => {
@@ -65,8 +71,32 @@ export const PluginsManagementSection: React.FC = () => {
     }, [plugins]);
 
     const handleToggle = async (pluginId: string, enabled: boolean) => {
-        if (pluginId === 'fail2ban' && enabled) {
-            // Check permissions before enabling
+        const plugin = plugins.find(p => p.id === pluginId);
+        if (!plugin) return;
+
+        if (!enabled) {
+            // Disabling: no test needed
+            setTogglingId(pluginId);
+            const ok = await updatePluginConfig(pluginId, { enabled: false });
+            setTogglingId(null);
+            addAction(ok ? `${plugin.name} — désactivé` : `${plugin.name} — erreur de désactivation`, ok);
+            return;
+        }
+
+        // ── Enabling ─────────────────────────────────────────────────────────
+
+        // Block if no config at all
+        if (!plugin.configured) {
+            setNotConfiguredId(pluginId);
+            setTimeout(() => setNotConfiguredId(null), 3000);
+            addAction(`${plugin.name} — configurez d'abord le plugin`, false);
+            return;
+        }
+
+        setTogglingId(pluginId);
+
+        // Fail2ban: detailed permission check first
+        if (pluginId === 'fail2ban') {
             try {
                 const token = localStorage.getItem('dashboard_user_token') ?? '';
                 const res = await fetch('/api/plugins/fail2ban/check', {
@@ -83,13 +113,54 @@ export const PluginsManagementSection: React.FC = () => {
                         const errors = Object.entries(result.checks as Record<string, { ok: boolean; fix?: string | null }>)
                             .filter(([, c]) => !c.ok)
                             .map(([key, c]) => ({ label: CHECK_LABELS[key] ?? key, fix: c.fix ?? null }));
+                        setTogglingId(null);
                         setF2bWarn({ errors });
-                        return; // Block enable
+                        return; // Block — modal shown
                     }
                 }
-            } catch { /* ignore — let user enable anyway */ }
+            } catch { /* ignore network errors — fall through to connection test */ }
         }
-        await updatePluginConfig(pluginId, { enabled });
+
+        // Test connection before enabling — blocks activation on failure
+        try {
+            const result = await testPluginConnection(pluginId);
+            if (!result?.connected) {
+                setTogglingId(null);
+                addAction(`${plugin.name} — ${result?.message || 'connexion impossible, vérifiez la configuration'}`, false);
+                return;
+            }
+        } catch {
+            setTogglingId(null);
+            addAction(`${plugin.name} — test de connexion échoué`, false);
+            return;
+        }
+
+        // Connection OK → enable
+        const ok = await updatePluginConfig(pluginId, { enabled: true });
+        setTogglingId(null);
+        addAction(ok ? `${plugin.name} — activé avec succès` : `${plugin.name} — erreur d'activation`, ok);
+    };
+
+    const handleTestPlugin = async (e: React.MouseEvent, pluginId: string) => {
+        e.stopPropagation();
+        setTestingId(pluginId);
+        try {
+            const result = await testPluginConnection(pluginId);
+            if (result) {
+                addAction(
+                    result.connected
+                        ? `${pluginId} — connexion OK`
+                        : `${pluginId} — ${result.message}`,
+                    result.connected
+                );
+            } else {
+                addAction(`${pluginId} — test impossible`, false);
+            }
+        } catch {
+            addAction(`${pluginId} — erreur de test`, false);
+        } finally {
+            setTestingId(null);
+        }
     };
 
     const handleToggleCompressed = async (pluginId: string, e: React.MouseEvent) => {
@@ -165,7 +236,11 @@ export const PluginsManagementSection: React.FC = () => {
                                 style={{ padding: '.35rem .85rem', borderRadius: 6, border: '1px solid #30363d', background: 'transparent', color: '#8b949e', cursor: 'pointer', fontSize: '.82rem' }}>
                                 Annuler
                             </button>
-                            <button onClick={async () => { setF2bWarn(null); await updatePluginConfig('fail2ban', { enabled: true }); }}
+                            <button onClick={async () => {
+                                setF2bWarn(null);
+                                const ok = await updatePluginConfig('fail2ban', { enabled: true });
+                                addAction(ok ? 'Fail2ban — activé (config incomplète)' : 'Fail2ban — erreur d\'activation', ok);
+                            }}
                                 style={{ padding: '.35rem .85rem', borderRadius: 6, border: '1px solid rgba(232,106,101,.4)', background: 'rgba(232,106,101,.15)', color: '#e86a65', cursor: 'pointer', fontSize: '.82rem', fontWeight: 600 }}>
                                 Activer quand même
                             </button>
@@ -207,7 +282,9 @@ export const PluginsManagementSection: React.FC = () => {
                                 <div className="flex-1 min-w-0">
                                     <div className="font-semibold text-theme-primary text-sm truncate">{plugin.name}</div>
                                     <div className="flex items-center gap-1.5 mt-0.5">
-                                        {plugin.connectionStatus ? (
+                                        {notConfiguredId === plugin.id ? (
+                                            <span className="inline-flex items-center gap-1 text-orange-400 text-[10px]"><AlertCircle size={10} />Configurez d'abord</span>
+                                        ) : plugin.connectionStatus ? (
                                             <span className="inline-flex items-center gap-1 text-emerald-400 text-[10px]"><CheckCircle size={10} />{t('admin.pluginsSection.connected')}</span>
                                         ) : plugin.enabled ? (
                                             <span className="inline-flex items-center gap-1 text-yellow-400 text-[10px]"><AlertCircle size={10} />{t('admin.pluginsSection.notConnected')}</span>
@@ -218,7 +295,22 @@ export const PluginsManagementSection: React.FC = () => {
                                 </div>
 
                                 {/* Actions */}
-                                <div className="flex items-center gap-2 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                                <div className="flex items-center gap-1.5 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                                    {/* Test button */}
+                                    <Tooltip content="Tester la connexion">
+                                        <button
+                                            onClick={(e) => handleTestPlugin(e, plugin.id)}
+                                            disabled={testingId === plugin.id}
+                                            className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-cyan-500/30 bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 disabled:opacity-40 transition-colors"
+                                        >
+                                            {testingId === plugin.id
+                                                ? <Loader2 size={10} className="animate-spin" />
+                                                : <Zap size={10} />
+                                            }
+                                            Test
+                                        </button>
+                                    </Tooltip>
+
                                     {['host-system', 'apache', 'nginx', 'npm'].includes(plugin.id) && (
                                         <Tooltip content={(plugin.settings?.readCompressed as boolean) ? t('admin.pluginsSection.tooltipCompressedOn') : t('admin.pluginsSection.tooltipCompressedOff')}>
                                             <button
@@ -233,12 +325,18 @@ export const PluginsManagementSection: React.FC = () => {
                                             </button>
                                         </Tooltip>
                                     )}
-                                    <button
-                                        onClick={() => handleToggle(plugin.id, !plugin.enabled)}
-                                        className={`relative w-9 h-5 rounded-full transition-all flex-shrink-0 ${plugin.enabled ? 'bg-emerald-500 shadow-emerald-500/30' : 'bg-gray-600'}`}
-                                    >
-                                        <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform shadow-md ${plugin.enabled ? 'translate-x-4' : 'translate-x-0'}`} />
-                                    </button>
+                                    <Tooltip content={plugin.configured ? (plugin.enabled ? 'Désactiver' : 'Activer (test connexion requis)') : 'Configurez d\'abord ce plugin'}>
+                                        <button
+                                            onClick={() => handleToggle(plugin.id, !plugin.enabled)}
+                                            disabled={togglingId === plugin.id}
+                                            className={`relative w-9 h-5 rounded-full transition-all flex-shrink-0 disabled:opacity-70 ${plugin.enabled ? 'bg-emerald-500 shadow-emerald-500/30' : plugin.configured ? 'bg-gray-600' : 'bg-gray-700 opacity-60'}`}
+                                        >
+                                            {togglingId === plugin.id
+                                                ? <Loader2 size={12} className="absolute inset-0 m-auto animate-spin text-white" />
+                                                : <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform shadow-md ${plugin.enabled ? 'translate-x-4' : 'translate-x-0'}`} />
+                                            }
+                                        </button>
+                                    </Tooltip>
                                 </div>
                             </div>
                         

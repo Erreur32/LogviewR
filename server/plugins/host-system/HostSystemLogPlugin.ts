@@ -133,14 +133,15 @@ export class HostSystemLogPlugin extends BasePlugin implements LogSourcePlugin {
             const config = this.config?.settings as unknown as HostSystemPluginConfig | undefined;
             const logFiles = config?.logFiles || this.defaultLogFiles;
             const basePath = this.getLogBasePath();
-            
+
             // Test if base path is accessible
             try {
                 await fs.access(basePath);
-            } catch {
+            } catch (err) {
+                logger.warn('HostSystemLog', `testConnection: base path not accessible — ${basePath}: ${(err as NodeJS.ErrnoException).code}`);
                 return false;
             }
-            
+
             for (const logFile of logFiles) {
                 if (logFile.enabled) {
                     try {
@@ -153,13 +154,28 @@ export class HostSystemLogPlugin extends BasePlugin implements LogSourcePlugin {
                 }
             }
             
-            // If journald is enabled, consider it a valid connection
+            // If journald is enabled, test that journalctl is actually accessible
             if (config?.journaldEnabled) {
-                return true;
+                const journalPath = this.convertToDockerPath('/run/log/journal');
+                const journalPath2 = this.convertToDockerPath('/var/log/journal');
+                try {
+                    await fs.access(journalPath);
+                    return true;
+                } catch {
+                    try {
+                        await fs.access(journalPath2);
+                        return true;
+                    } catch {
+                        logger.warn('HostSystemLog', 'testConnection: journald enabled but journal directories not accessible');
+                        return false;
+                    }
+                }
             }
-            
+
+            logger.warn('HostSystemLog', 'testConnection: no accessible log file found in configured paths');
             return false;
-        } catch {
+        } catch (err) {
+            logger.warn('HostSystemLog', `testConnection: unexpected error — ${err}`);
             return false;
         }
     }

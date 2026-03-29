@@ -66,20 +66,32 @@ export class PluginManager {
         const dbConfig = PluginConfigRepository.findByPluginId(pluginId);
         
         if (!dbConfig) {
+            // host-system is enabled by default — system logs are always available
+            const defaultEnabled = pluginId === 'host-system';
+
             // Create default configuration in database
             PluginConfigRepository.upsert({
                 pluginId: pluginId,
-                enabled: false,
+                enabled: defaultEnabled,
                 settings: {}
             });
-            
+
             // Initialize plugin with default config
             const defaultConfig: PluginConfig = {
                 id: pluginId,
-                enabled: false,
+                enabled: defaultEnabled,
                 settings: {}
             };
             await plugin.initialize(defaultConfig);
+
+            if (defaultEnabled) {
+                try {
+                    await plugin.start();
+                    logger.info('PluginManager', `Plugin ${pluginId} auto-enabled by default`);
+                } catch (error) {
+                    logger.warn('PluginManager', `Plugin ${pluginId} default-enabled but failed to start:`, error);
+                }
+            }
             return;
         }
 
