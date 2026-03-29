@@ -2,6 +2,18 @@
 # LogviewR - Node 22 Alpine (OPTIMIZED MULTI-STAGE)
 # ===========================================
 
+# ---------- Stage 0 : fail2ban 1.0.2 provider (Alpine 3.19) ----------
+# Debian 12 / Ubuntu 22.04 ship fail2ban 1.0.2. The Alpine 3.21 community
+# package (1.1.0) has a different socket protocol that breaks reload against
+# these hosts. We extract just the client script + pure-Python package from
+# Alpine 3.19 and inject it into the runtime image — no build-time dependency
+# conflicts since nothing is compiled.
+FROM alpine:3.19 AS fail2ban-provider
+RUN apk add --no-cache fail2ban python3 && \
+    # Locate the site-packages dir dynamically (py version may change)
+    F2B_PKG=$(python3 -c "import site; print(site.getsitepackages()[0])")/fail2ban && \
+    cp -r "$F2B_PKG" /fail2ban-pkg
+
 # ---------- Stage 1 : Build (avec outils de build) ----------
 FROM --platform=$BUILDPLATFORM node:22-alpine AS builder
 
@@ -33,14 +45,18 @@ WORKDIR /app
 
 # 🎯 Outils RUNTIME uniquement (pas d'outils de build)
 # su-exec    : nécessaire pour l'entrypoint script (switch root → node)
-# fail2ban   : fournit fail2ban-client pour communiquer avec le daemon via socket
+# python3    : interpréteur pour fail2ban-client (script Python)
 # iptables   : lecture des règles pare-feu (onglet IPTables — nécessite cap_add: NET_ADMIN)
 # ipset      : lecture des sets d'IPs (onglet IPSet — nécessite cap_add: NET_ADMIN)
 # nftables   : lecture des règles nftables (onglet NFTables — nécessite cap_add: NET_ADMIN)
-# fail2ban-client is used to communicate with the host's fail2ban-server via Unix socket.
-# Version mismatches (client vs server) are detected at runtime and shown in the /check
-# diagnostic UI — users are advised to match versions manually if needed.
-RUN apk add --no-cache su-exec iptables ipset nftables sudo fail2ban
+# fail2ban-client 1.0.2 is injected from Stage 0 (see COPY below) to match
+# Debian 12 / Ubuntu 22.04 hosts — NOT installed via apk to avoid version conflicts.
+RUN apk add --no-cache su-exec iptables ipset nftables sudo python3
+
+# Inject fail2ban-client 1.0.2 from Alpine 3.19 (pure Python — runs on any Python 3.x)
+COPY --from=fail2ban-provider /usr/bin/fail2ban-client /usr/bin/fail2ban-client
+COPY --from=fail2ban-provider /fail2ban-pkg /usr/local/lib/fail2ban/
+ENV PYTHONPATH=/usr/local/lib
 # Allow the node user to run network tools as root (needed when app runs as non-root
 # but the host kernel's nf_tables backend requires UID 0 even with NET_ADMIN cap).
 RUN echo "node ALL=(root) NOPASSWD: /usr/sbin/iptables, /usr/sbin/iptables-save, /usr/sbin/iptables-restore, /usr/sbin/ipset, /usr/sbin/nft" \
