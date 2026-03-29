@@ -967,7 +967,21 @@ const UPDATE_FREQUENCIES = [
 const UpdateCheckSection: React.FC = () => {
   const { t } = useTranslation();
   const { updateConfig, updateInfo, loadConfig, setConfig, checkForUpdates, isLoading, lastCheck } = useUpdateStore();
+  const { addAction } = useNotificationStore();
   const [isSaving, setIsSaving] = useState(false);
+
+  const handleCheckNow = async () => {
+    await checkForUpdates();
+    const info = useUpdateStore.getState().updateInfo;
+    if (!info) return;
+    if (info.error) {
+      addAction(`Vérification MAJ échouée : ${info.error}`, false);
+    } else if (info.updateAvailable) {
+      addAction(`Mise à jour disponible : v${info.latestVersion}`, true);
+    } else {
+      addAction(`LogviewR v${info.currentVersion} — déjà à jour`, true);
+    }
+  };
 
   useEffect(() => {
     loadConfig();
@@ -1103,7 +1117,7 @@ const UpdateCheckSection: React.FC = () => {
           {/* Check now button */}
           <div className="px-3 py-2 flex justify-end">
             <button
-              onClick={() => checkForUpdates()}
+              onClick={handleCheckNow}
               disabled={isLoading}
               className="flex items-center gap-1.5 px-3 py-1 text-xs rounded border border-gray-700 text-gray-400 hover:text-white hover:border-gray-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
