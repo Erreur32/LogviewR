@@ -31,6 +31,7 @@ import { promisify } from 'util';
 import { fileURLToPath } from 'url';
 import { logger } from '../../utils/logger.js';
 import { webhookDispatchService } from '../../services/WebhookDispatchService.js';
+import mysql from 'mysql2/promise';
 import type { AuthenticatedRequest } from '../../middleware/authMiddleware.js';
 
 const execFileAsync = promisify(execFile);
@@ -356,7 +357,66 @@ function readLogTail(absPath: string, maxLines: number): { content: string; trun
 export interface Fail2banPluginConfig {
     sqliteDbPath?: string;   // host path (will be resolved to /host/... in Docker)
     npmDataPath?: string;    // host path to NPM data dir (contains database.sqlite + logs/)
+    npmDbType?: 'sqlite' | 'mysql';
+    npmMysqlHost?: string;
+    npmMysqlPort?: number;
+    npmMysqlUser?: string;
+    npmMysqlPass?: string;
+    npmMysqlDb?: string;
     enabled: boolean;
+}
+
+// ── NPM domain map helper — SQLite or MySQL ───────────────────────────────────
+
+/**
+ * Returns a map of proxy-host id → first domain from NPM's database.
+ * Supports SQLite (file) and MySQL/MariaDB (network).
+ */
+async function getNpmDomainMap(
+    settings: Fail2banPluginConfig,
+    resolvePath: (p: string) => string
+): Promise<{ idToDomain: Record<string, string>; source: 'sqlite' | 'mysql' }> {
+    const dbType = settings.npmDbType ?? 'sqlite';
+
+    if (dbType === 'mysql') {
+        const conn = await mysql.createConnection({
+            host:     settings.npmMysqlHost || '127.0.0.1',
+            port:     settings.npmMysqlPort || 3306,
+            user:     settings.npmMysqlUser || 'npm',
+            password: settings.npmMysqlPass || '',
+            database: settings.npmMysqlDb  || 'npm',
+            connectTimeout: 5000,
+        });
+        try {
+            const [rows] = await conn.execute<mysql.RowDataPacket[]>(
+                'SELECT id, domain_names FROM proxy_host WHERE is_deleted = 0'
+            );
+            const idToDomain: Record<string, string> = {};
+            for (const row of rows) {
+                try {
+                    const ns: string[] = JSON.parse(row.domain_names as string);
+                    if (ns.length) idToDomain[String(row.id)] = ns[0].replace(/^www\./, '').toLowerCase();
+                } catch { /* bad JSON */ }
+            }
+            return { idToDomain, source: 'mysql' };
+        } finally {
+            await conn.end();
+        }
+    }
+
+    // SQLite fallback
+    const npmDbPath = resolvePath(`${settings.npmDataPath}/database.sqlite`);
+    const npmDb = new Database(npmDbPath, { readonly: true, fileMustExist: true });
+    const proxyRows = npmDb.prepare('SELECT id, domain_names FROM proxy_host WHERE is_deleted=0').all() as { id: number; domain_names: string }[];
+    npmDb.close();
+    const idToDomain: Record<string, string> = {};
+    for (const row of proxyRows) {
+        try {
+            const ns: string[] = JSON.parse(row.domain_names);
+            if (ns.length) idToDomain[String(row.id)] = ns[0].replace(/^www\./, '').toLowerCase();
+        } catch { /* bad JSON */ }
+    }
+    return { idToDomain, source: 'sqlite' };
 }
 
 // ── DNS reverse-lookup cache (TTL 10 min) ─────────────────────────────────────
@@ -623,58 +683,53 @@ export class Fail2banPlugin extends BasePlugin {
         }));
 
         // GET /api/plugins/fail2ban/check-npm
-        // Validates the configured NPM data path: DB reachable, proxy_host rows readable
+        // Validates NPM connectivity: SQLite file or MySQL/MariaDB connection
         router.get('/check-npm', requireAuth, asyncHandler(async (_req, res) => {
             const settings = this.config?.settings as unknown as Fail2banPluginConfig | undefined;
-            const configuredPath = settings?.npmDataPath ?? '';
+            const dbType = settings?.npmDbType ?? 'sqlite';
 
-            if (!configuredPath) {
-                return res.json({ success: true, result: { ok: false, step: 'config', error: 'Chemin NPM non configuré', resolvedPath: '', domains: 0, jailMatches: 0 } });
-            }
-
-            const resolvedPath = this.resolveDockerPathSync(`${configuredPath}/database.sqlite`);
-
-            // Check file existence
-            if (!fs.existsSync(resolvedPath)) {
-                return res.json({ success: true, result: { ok: false, step: 'file', error: `Fichier non trouvé : ${resolvedPath}`, resolvedPath, domains: 0, jailMatches: 0 } });
-            }
-
-            // Try opening the SQLite DB and reading proxy_host
-            let domains = 0;
-            try {
-                const npmDb = new Database(resolvedPath, { readonly: true, fileMustExist: true });
-                const rows = npmDb.prepare('SELECT id, domain_names FROM proxy_host WHERE is_deleted=0').all() as { id: number; domain_names: string }[];
-                npmDb.close();
-                const idMap: Record<string, string> = {};
-                for (const row of rows) {
-                    try { const ns: string[] = JSON.parse(row.domain_names); if (ns.length) idMap[String(row.id)] = ns[0]; } catch { /* */ }
+            // MySQL mode — no npmDataPath required
+            if (dbType === 'mysql') {
+                if (!settings?.npmMysqlHost || !settings?.npmMysqlUser || !settings?.npmMysqlDb) {
+                    return res.json({ success: true, result: { ok: false, step: 'config', error: 'Hôte, utilisateur et base de données MySQL requis', source: 'mysql', domains: 0, jailMatches: 0 } });
                 }
-                domains = Object.keys(idMap).length;
+                try {
+                    const { idToDomain } = await getNpmDomainMap(settings, this.resolveDockerPathSync.bind(this));
+                    const domains = Object.keys(idToDomain).length;
+                    const evDb = getDatabase();
+                    const cachedWithDomain = (evDb.prepare(`SELECT COUNT(*) AS cnt FROM f2b_jail_domain WHERE domain != ''`).get() as { cnt: number }).cnt;
+                    return res.json({ success: true, result: { ok: true, step: 'ok', error: null, source: 'mysql', resolvedPath: `${settings.npmMysqlHost}:${settings.npmMysqlPort ?? 3306}/${settings.npmMysqlDb}`, domains, jailMatches: cachedWithDomain } });
+                } catch (e: any) {
+                    return res.json({ success: true, result: { ok: false, step: 'db', error: `Erreur MySQL : ${e?.message ?? String(e)}`, source: 'mysql', domains: 0, jailMatches: 0 } });
+                }
+            }
 
-                // Count cached jails with a resolved domain
+            // SQLite mode
+            const configuredPath = settings?.npmDataPath ?? '';
+            if (!configuredPath) {
+                return res.json({ success: true, result: { ok: false, step: 'config', error: 'Chemin NPM non configuré', source: 'sqlite', resolvedPath: '', domains: 0, jailMatches: 0 } });
+            }
+            const resolvedPath = this.resolveDockerPathSync(`${configuredPath}/database.sqlite`);
+            if (!fs.existsSync(resolvedPath)) {
+                return res.json({ success: true, result: { ok: false, step: 'file', error: `Fichier non trouvé : ${resolvedPath}`, source: 'sqlite', resolvedPath, domains: 0, jailMatches: 0 } });
+            }
+            try {
+                const { idToDomain } = await getNpmDomainMap(settings, this.resolveDockerPathSync.bind(this));
+                const domains = Object.keys(idToDomain).length;
                 const evDb = getDatabase();
                 const cachedWithDomain = (evDb.prepare(`SELECT COUNT(*) AS cnt FROM f2b_jail_domain WHERE domain != ''`).get() as { cnt: number }).cnt;
-
-                // Collect jail logpaths from fail2ban config for diagnosis
                 const confBase = this.resolveDockerPathSync('/etc/fail2ban');
                 const jailMeta = parseJailConfigs(confBase);
                 const jailLogpaths: Record<string, string> = {};
                 for (const [jail, meta] of Object.entries(jailMeta)) {
                     if (meta.logpath) jailLogpaths[jail] = meta.logpath;
                 }
-                // Check which logpaths match proxy-host-N pattern
                 const proxyHostJails = Object.entries(jailLogpaths)
                     .filter(([, lp]) => /proxy-host-(\d+)[_-]/i.test(lp))
                     .map(([jail, lp]) => ({ jail, logpath: lp }));
-
-                return res.json({ success: true, result: {
-                    ok: true, step: 'ok', error: null, resolvedPath, domains,
-                    jailMatches: cachedWithDomain,
-                    jailLogpaths,          // all jail → logpath (raw, for debug)
-                    proxyHostJails,        // jails whose logpath contains proxy-host-N
-                } });
+                return res.json({ success: true, result: { ok: true, step: 'ok', error: null, source: 'sqlite', resolvedPath, domains, jailMatches: cachedWithDomain, jailLogpaths, proxyHostJails } });
             } catch (e: any) {
-                return res.json({ success: true, result: { ok: false, step: 'db', error: `Erreur ouverture DB : ${e?.message ?? String(e)}`, resolvedPath, domains: 0, jailMatches: 0, jailLogpaths: {}, proxyHostJails: [] } });
+                return res.json({ success: true, result: { ok: false, step: 'db', error: `Erreur ouverture DB : ${e?.message ?? String(e)}`, source: 'sqlite', resolvedPath, domains: 0, jailMatches: 0, jailLogpaths: {}, proxyHostJails: [] } });
             }
         }));
 
@@ -1960,21 +2015,15 @@ export class Fail2banPlugin extends BasePlugin {
             // Top Domaines: scan NPM access logs directly for banned IPs
             // No dependency on fail2ban config — pure NPM logs + NPM DB
             const topDomains: { domain: string; count: number; failures: number }[] = [];
-            const npmDataPath = (this.config?.settings as unknown as Fail2banPluginConfig | undefined)?.npmDataPath ?? '';
-            if (npmDataPath) {
+            const npmSettings = this.config?.settings as unknown as Fail2banPluginConfig | undefined;
+            const npmDataPath = npmSettings?.npmDataPath ?? '';
+            const npmEnabled = npmSettings?.npmDbType === 'mysql'
+                ? !!(npmSettings?.npmMysqlHost && npmSettings?.npmMysqlUser && npmSettings?.npmMysqlDb)
+                : !!npmDataPath;
+            if (npmEnabled) {
                 try {
-                    // 1. Build proxy-host id → domain from NPM DB
-                    const npmDbPath = this.resolveDockerPathSync(`${npmDataPath}/database.sqlite`);
-                    const npmDb = new Database(npmDbPath, { readonly: true, fileMustExist: true });
-                    const proxyRows = npmDb.prepare('SELECT id, domain_names FROM proxy_host WHERE is_deleted=0').all() as { id: number; domain_names: string }[];
-                    npmDb.close();
-                    const idToDomain: Record<string, string> = {};
-                    for (const row of proxyRows) {
-                        try {
-                            const ns: string[] = JSON.parse(row.domain_names);
-                            if (ns.length) idToDomain[String(row.id)] = ns[0].replace(/^www\./, '').toLowerCase();
-                        } catch { /* bad JSON */ }
-                    }
+                    // 1. Build proxy-host id → domain from NPM DB (SQLite or MySQL)
+                    const { idToDomain } = await getNpmDomainMap(npmSettings!, this.resolveDockerPathSync.bind(this));
 
                     // 2. Build jail → log files map from fail2ban config
                     //    Only jails that explicitly watch a proxy-host log file are relevant here.

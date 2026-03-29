@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.7.4] - 2026-03-29
+
+### Added
+- **NPM — MySQL / MariaDB backend support**: Fail2ban top-domains stats now work when NPM runs with a MySQL/MariaDB database; configure via a new toggle (SQLite file / MySQL) in Fail2ban > Config tab with host, port, user, password, and database fields
+- **NPM integration — auto-check badge**: on page load the NPM integration frame automatically runs a connection check if a config is already saved; shows a green badge (domain count + source) or red error without requiring a manual click
+- **`getNpmDomainMap()` helper**: internal async helper in `Fail2banPlugin` that abstracts SQLite vs MySQL access for the `/check-npm` and `/tops` routes; MySQL mode uses `mysql2/promise` with a 5-second connect timeout
+
+### Changed
+- **NPM config path**: SQLite path (`npmDataPath`) and MySQL credentials stored together under `npmDbType` selector; both saved via `POST /api/plugins/fail2ban/config` in a single settings object
+
+---
+
 ## [0.7.3] - 2026-03-29
 
 ### Added
