@@ -666,7 +666,7 @@ export class Fail2banPlugin extends BasePlugin {
                             ? 'Impossible de vérifier — socket non accessible (voir Socket Unix ci-dessus).\nUne fois le socket corrigé, relancez la vérification.'
                             : !clientBinExists
                                 ? 'fail2ban-client introuvable — impossible de pinguer le daemon.'
-                                : 'fail2ban-client ping échoue. Vérifiez que fail2ban tourne sur le host :\n  sudo systemctl status fail2ban'
+                                : 'fail2ban-client ping échoue malgré le socket accessible.\n\n1. Vérifiez que fail2ban tourne sur le host :\n   sudo systemctl status fail2ban\n\n2. Vérifiez que le container est dans le groupe fail2ban :\n   docker exec logviewr id\n   → doit afficher gid=... (fail2ban)\n\n3. Si le groupe est absent, ajoutez FAIL2BAN_GID dans .env :\n   FAIL2BAN_GID=$(getent group fail2ban | cut -d: -f3)\n   puis relancez : docker compose up -d'
                         : null,
                 },
                 ...(versionInfo ? {
