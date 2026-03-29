@@ -86,6 +86,23 @@ export class Fail2banClientExec {
         return res.ok && res.output.includes('pong');
     }
 
+    /** Returns { client, server } version strings, or null if unavailable. */
+    async versions(): Promise<{ client: string; server: string; mismatch: boolean } | null> {
+        try {
+            const clientRes = await this.run(['--version']);
+            const clientMatch = clientRes.output.match(/Fail2Ban\s+v?([\d.]+)/i);
+            const clientVer = clientMatch?.[1] ?? '';
+            const serverRes = await this.run(['version']);
+            const serverMatch = serverRes.output.match(/[\d.]+/);
+            const serverVer = serverMatch?.[0] ?? '';
+            if (!clientVer || !serverVer) return null;
+            const mismatch = clientVer !== serverVer;
+            return { client: clientVer, server: serverVer, mismatch };
+        } catch {
+            return null;
+        }
+    }
+
     async listJails(): Promise<string[]> {
         const res = await this.run(['status']);
         if (!res.ok) return [];

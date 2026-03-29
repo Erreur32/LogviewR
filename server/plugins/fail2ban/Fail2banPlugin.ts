@@ -598,13 +598,15 @@ export class Fail2banPlugin extends BasePlugin {
             const clientBinExists = !!clientBinPath;
             const F2B_CLIENT = clientBinPath || '/usr/bin/fail2ban-client';
 
-            // ── 3. fail2ban-client ping (daemon alive?) ───────────────────────
+            // ── 3. fail2ban-client ping + version check ───────────────────────
             // Use a fresh instance so the check works even when the plugin is not yet enabled.
             let daemonAlive = false;
+            let versionInfo: { client: string; server: string; mismatch: boolean } | null = null;
             if (clientBinExists && socketExists && socketReadable && socketWritable) {
                 try {
                     const tmpClient = new Fail2banClientExec();
                     daemonAlive = await tmpClient.ping();
+                    if (daemonAlive) versionInfo = await tmpClient.versions();
                 } catch { daemonAlive = false; }
             }
 
@@ -667,6 +669,16 @@ export class Fail2banPlugin extends BasePlugin {
                                 : 'fail2ban-client ping échoue. Vérifiez que fail2ban tourne sur le host :\n  sudo systemctl status fail2ban'
                         : null,
                 },
+                version: versionInfo
+                    ? {
+                        ok: !versionInfo.mismatch,
+                        client: versionInfo.client,
+                        server: versionInfo.server,
+                        fix: versionInfo.mismatch
+                            ? `Version mismatch : client ${versionInfo.client} (container) vs server ${versionInfo.server} (host).\nLe reload peut échouer. Mettez à jour LogviewR pour correspondre à la version du host, ou mettez à jour fail2ban sur le host.\n  sudo apt upgrade fail2ban`
+                            : null,
+                    }
+                    : null,
                 sqlite: {
                     ok: dbExists && dbReadable,
                     exists: dbExists,

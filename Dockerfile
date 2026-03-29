@@ -37,7 +37,14 @@ WORKDIR /app
 # iptables   : lecture des règles pare-feu (onglet IPTables — nécessite cap_add: NET_ADMIN)
 # ipset      : lecture des sets d'IPs (onglet IPSet — nécessite cap_add: NET_ADMIN)
 # nftables   : lecture des règles nftables (onglet NFTables — nécessite cap_add: NET_ADMIN)
-RUN apk add --no-cache su-exec fail2ban iptables ipset nftables sudo
+# fail2ban version must match the host's fail2ban-server version to avoid protocol mismatches.
+# Alpine 3.21 ships 1.1.0 which breaks reload against hosts running 1.0.x.
+# Pin to 1.0.2 from Alpine 3.19 community repo for compatibility.
+# Update this when the host upgrades to fail2ban 1.1.x.
+RUN apk add --no-cache su-exec iptables ipset nftables sudo \
+    && apk add --no-cache \
+       --repository=https://dl-cdn.alpinelinux.org/alpine/v3.19/community \
+       'fail2ban=1.0.2-r1'
 # Allow the node user to run network tools as root (needed when app runs as non-root
 # but the host kernel's nf_tables backend requires UID 0 even with NET_ADMIN cap).
 RUN echo "node ALL=(root) NOPASSWD: /usr/sbin/iptables, /usr/sbin/iptables-save, /usr/sbin/iptables-restore, /usr/sbin/ipset, /usr/sbin/nft" \
