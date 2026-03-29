@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.7.7] - 2026-03-29
+
+### Fixed
+- **bantime / findtime validation**: regex now accepts all fail2ban time suffixes — `w`/`week`/`weeks`, `mo`/`month`/`months`, `y`/`yr`/`year`/`years` — values like `6months` or `1y` no longer trigger a false validation error
+- **Config file viewer**: `jail.local` is now the default tab when opening the file editor (was `fail2ban.conf`)
+
+---
+
 ## [0.7.6] - 2026-03-29
 
 ### Fixed

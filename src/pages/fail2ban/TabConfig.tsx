@@ -1005,7 +1005,7 @@ export const TabConfig: React.FC<{
                 <RawFileModal
                     rawFiles={rawFiles}
                     rawMtimes={rawMtimes}
-                    rawTab={rawTab ?? 'fail2ban.conf'}
+                    rawTab={rawTab ?? 'jail.local'}
                     onTabChange={setRawTab}
                     onClose={() => setOpenRawModal(false)}
                     onSaved={(filename, content) => setRawFiles(prev => prev ? { ...prev, [filename]: content } : prev)}
@@ -1357,7 +1357,7 @@ export const TabConfig: React.FC<{
                                         <FileText style={{ width: 14, height: 14, color: C.blue }} />
                                         <span style={{ fontWeight: 600, fontSize: '.9rem' }}>Fichiers de configuration</span>
                                         <span style={{ marginLeft: 'auto' }}>
-                                            <button onClick={() => { setRawTab(t => t ?? 'fail2ban.conf'); setOpenRawModal(true); }} style={{
+                                            <button onClick={() => { setRawTab(t => t ?? 'jail.local'); setOpenRawModal(true); }} style={{
                                                 display: 'inline-flex', alignItems: 'center', gap: '.3rem',
                                                 padding: '.2rem .55rem', borderRadius: 5, cursor: 'pointer',
                                                 background: 'rgba(88,166,255,.12)', color: C.blue,

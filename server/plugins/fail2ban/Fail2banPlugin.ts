@@ -1674,15 +1674,18 @@ export class Fail2banPlugin extends BasePlugin {
                             warnings.push(`Ligne ${ln}: maxretry = ${val} est très élevé — valeur typique entre 3 et 10`);
                     }
 
+                    // All time suffixes supported by fail2ban (seconds/minutes/hours/days/weeks/months/years)
+                    const reDuration = /^-?\d+(s(ec(s|ond[s]?)?)?|m(in(s|ute[s]?)?|o(n(th[s]?)?)?)?|h(r[s]?|our[s]?)?|d(ay[s]?)?|w(k[s]?|eek[s]?)?|y(r[s]?|ear[s]?)?)?$/i;
+
                     if (key === 'bantime') {
-                        if (!/^-?\d+[smhd]?$/.test(val) && !/^-1$/.test(val))
-                            errors.push(`Ligne ${ln}: bantime invalide « ${val} » — entier (secondes) ou suffixe s/m/h/d, -1 pour ban permanent`);
+                        if (!reDuration.test(val) && !/^-1$/.test(val))
+                            errors.push(`Ligne ${ln}: bantime invalide « ${val} » — entier (secondes) ou suffixe s/m/h/d/w/mo/y, -1 pour ban permanent`);
                         else if (/^\d+$/.test(val) && parseInt(val, 10) > 0 && parseInt(val, 10) < 30)
                             warnings.push(`Ligne ${ln}: bantime = ${val}s est très court — valeur typique 600s (10 min) ou plus`);
                     }
 
-                    if (key === 'findtime' && !/^\d+[smhd]?$/.test(val))
-                        errors.push(`Ligne ${ln}: findtime invalide « ${val} » — entier (secondes) ou suffixe s/m/h/d`);
+                    if (key === 'findtime' && !reDuration.test(val))
+                        errors.push(`Ligne ${ln}: findtime invalide « ${val} » — entier (secondes) ou suffixe s/m/h/d/w/mo/y`);
 
                     if (key === 'port') {
                         const ports = val.split(/[\s,]+/);
