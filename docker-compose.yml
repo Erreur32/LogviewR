@@ -126,6 +126,27 @@ services:
       # - /var/log/nginx:/var/log/nginx:ro
       # - /var/log/apache2:/var/log/apache2:ro
 
+      # ── Fail2ban running INSIDE the container (no fail2ban on the host) ───────
+      # If fail2ban is not installed on the host (fail2ban-client on host says
+      # "Could not find server"), it runs inside the container instead.
+      # In that case, replace the socket mount above with these three mounts so
+      # fail2ban can find its log files and config at the standard paths:
+      #
+      # 1. Log files — fail2ban reads /var/log/auth.log etc. directly
+      # - /var/log:/var/log:ro
+      #
+      # 2. Fail2ban config — shared with host so LogviewR edits take effect
+      # - /etc/fail2ban:/etc/fail2ban
+      #
+      # 3. Fail2ban database — rw so fail2ban can write bans
+      # - type: bind
+      #   source: /var/lib/fail2ban
+      #   target: /var/lib/fail2ban
+      #   bind:
+      #     propagation: shared
+      #
+      # Remove the socket mount (/var/run/fail2ban/fail2ban.sock) when using this mode.
+
     # Health check — adjust port if using MODE B with a custom PORT
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000/api/health"]
