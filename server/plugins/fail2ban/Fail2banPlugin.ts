@@ -1742,8 +1742,11 @@ export class Fail2banPlugin extends BasePlugin {
                 return res.json({ success: true, result: { ok: false, error: 'Contenu manquant' } });
             const confBase = this.resolveDockerPathSync('/etc/fail2ban');
             const filePath = path.join(confBase, filename);
+            // Normalize line endings — CRLF from browser/editor would make fail2ban
+            // read logpath as "/var/log/auth.log\r" and fail with "no log file found"
+            const normalized = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
             try {
-                fs.writeFileSync(filePath, content, 'utf8');
+                fs.writeFileSync(filePath, normalized, 'utf8');
             } catch (e) {
                 const msg = e instanceof Error ? e.message : String(e);
                 const isEROFS = /EROFS|read.only file system/i.test(msg);
