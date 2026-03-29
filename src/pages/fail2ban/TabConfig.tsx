@@ -223,7 +223,7 @@ const ConfHighlighter: React.FC<{ content: string }> = ({ content }) => (
 );
 
 type TestResult = { ok: boolean; errors: string[]; warnings: string[] };
-type SaveResult = { ok: boolean; reloadOk: boolean; reloadOutput: string; error?: string };
+type SaveResult = { ok: boolean; reloadOk: boolean; reloadOutput: string; reloadMethod?: string; error?: string };
 
 const RawFileViewer: React.FC<{
     rawFiles: RawFiles | null;
@@ -359,7 +359,7 @@ const RawFileViewer: React.FC<{
                                 <CheckCircle style={{ width: 12, height: 12, color: '#3fb950' }} />
                                 <span style={{ color: '#3fb950' }}>Fichier sauvegardé</span>
                                 {saveResult.reloadOk
-                                    ? <span style={{ color: '#3fb950', fontWeight: 400 }}>· fail2ban rechargé avec succès</span>
+                                    ? <span style={{ color: '#3fb950', fontWeight: 400 }}>· fail2ban {saveResult.reloadMethod === 'restart' ? 'redémarré' : 'rechargé'} avec succès</span>
                                     : saveResult.reloadOutput?.startsWith('Socket non disponible')
                                         ? <span style={{ color: '#e3b341', fontWeight: 400 }}>· rechargement non disponible (socket absent)</span>
                                         : <span style={{ color: '#e86a65', fontWeight: 400 }}>· rechargement échoué</span>}

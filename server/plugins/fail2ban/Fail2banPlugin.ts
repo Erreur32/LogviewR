@@ -1758,15 +1758,24 @@ export class Fail2banPlugin extends BasePlugin {
                     hint = ' — Permission refusée. Exécutez : sudo ./scripts/setup-fail2ban-access.sh';
                 return res.json({ success: true, result: { ok: false, error: `Écriture impossible : ${msg}${hint}` } });
             }
-            // Reload fail2ban if socket available
+            // Reload fail2ban if socket available — fallback to restart on config errors
             let reloadOk = false;
             let reloadOutput = 'Socket non disponible — rechargement manuel requis';
+            let reloadMethod = 'reload';
             if (this.client?.isAvailable()) {
                 const r = await this.client.reload();
                 reloadOk = r.ok;
                 reloadOutput = r.output || r.error || '';
+                // reload can fail when backend/logpath conflicts during soft reload;
+                // restart does a full teardown+rebuild and handles these cases
+                if (!reloadOk && /no log file|Have not found|Failed during configuration/i.test(reloadOutput)) {
+                    const r2 = await this.client.restart();
+                    reloadOk = r2.ok;
+                    reloadOutput = r2.output || r2.error || '';
+                    reloadMethod = 'restart';
+                }
             }
-            res.json({ success: true, result: { ok: true, reloadOk, reloadOutput } });
+            res.json({ success: true, result: { ok: true, reloadOk, reloadOutput, reloadMethod } });
         }));
 
         // POST /config/service  — reload or restart fail2ban service
