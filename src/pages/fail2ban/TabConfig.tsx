@@ -355,14 +355,17 @@ const RawFileViewer: React.FC<{
                     {/* Save result */}
                     {saveResult?.ok && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
-                            <div style={{ color: '#3fb950', display: 'flex', alignItems: 'center', gap: '.4rem', fontWeight: 600 }}>
-                                <CheckCircle style={{ width: 12, height: 12 }} /> Fichier sauvegardé
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', fontWeight: 600 }}>
+                                <CheckCircle style={{ width: 12, height: 12, color: '#3fb950' }} />
+                                <span style={{ color: '#3fb950' }}>Fichier sauvegardé</span>
                                 {saveResult.reloadOk
                                     ? <span style={{ color: '#3fb950', fontWeight: 400 }}>· fail2ban rechargé avec succès</span>
-                                    : <span style={{ color: '#e3b341', fontWeight: 400 }}>· rechargement non disponible</span>}
+                                    : saveResult.reloadOutput?.startsWith('Socket non disponible')
+                                        ? <span style={{ color: '#e3b341', fontWeight: 400 }}>· rechargement non disponible (socket absent)</span>
+                                        : <span style={{ color: '#e86a65', fontWeight: 400 }}>· rechargement échoué</span>}
                             </div>
-                            {saveResult.reloadOutput && (
-                                <div style={{ fontFamily: 'monospace', fontSize: '.7rem', color: '#8b949e', paddingLeft: '1.2rem', whiteSpace: 'pre-wrap' }}>{saveResult.reloadOutput}</div>
+                            {saveResult.reloadOutput && !saveResult.reloadOutput.startsWith('Socket non disponible') && (
+                                <div style={{ fontFamily: 'monospace', fontSize: '.7rem', color: '#e86a65', paddingLeft: '1.2rem', whiteSpace: 'pre-wrap', background: 'rgba(232,106,101,.06)', border: '1px solid rgba(232,106,101,.2)', borderRadius: 4, padding: '.4rem .6rem' }}>{saveResult.reloadOutput}</div>
                             )}
                         </div>
                     )}
