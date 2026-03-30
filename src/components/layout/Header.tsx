@@ -336,7 +336,7 @@ export const Header: React.FC<HeaderProps> = ({
     if (pageType !== 'dashboard' && pageType !== 'analytics' && pageType !== 'goaccess-stats') {
       return [];
     }
-    return plugins.filter(p => p.enabled && (p.id === 'host-system' || p.id === 'nginx' || p.id === 'apache' || p.id === 'npm'));
+    return plugins.filter(p => p.enabled && (p.id === 'host-system' || p.id === 'nginx' || p.id === 'apache' || p.id === 'npm' || p.id === 'fail2ban'));
   }, [plugins, pageType]);
 
   // Get active plugins for log-viewer page (for plugin switcher menu)
@@ -432,7 +432,7 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="flex items-center gap-3">
           {activePlugins
             .sort((a, b) => {
-              const order = ['host-system', 'apache', 'npm', 'nginx'];
+              const order = ['host-system', 'apache', 'npm', 'nginx', 'fail2ban'];
               const aIndex = order.indexOf(a.id);
               const bIndex = order.indexOf(b.id);
               if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;

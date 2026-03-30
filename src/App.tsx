@@ -576,8 +576,12 @@ const App: React.FC = () => {
           onUsersClick={handleUsersClick}
           onLogout={handleLogout}
           onPluginClick={(pluginId) => {
-            setSelectedPluginId(pluginId);
-            setCurrentPage('log-viewer');
+            if (pluginId === 'fail2ban') {
+              setCurrentPage('fail2ban');
+            } else {
+              setSelectedPluginId(pluginId);
+              setCurrentPage('log-viewer');
+            }
           }}
           updateBanner={{ show: showUpdateBanner, latestVersion: updateInfo?.latestVersion, releaseNotes: updateInfo?.releaseNotes, onDismiss: dismissBanner }}
         />
@@ -600,8 +604,12 @@ const App: React.FC = () => {
           onUsersClick={handleUsersClick}
           onLogout={handleLogout}
           onPluginClick={(pluginId) => {
-            setSelectedPluginId(pluginId);
-            setCurrentPage('log-viewer');
+            if (pluginId === 'fail2ban') {
+              setCurrentPage('fail2ban');
+            } else {
+              setSelectedPluginId(pluginId);
+              setCurrentPage('log-viewer');
+            }
           }}
           updateBanner={{ show: showUpdateBanner, latestVersion: updateInfo?.latestVersion, releaseNotes: updateInfo?.releaseNotes, onDismiss: dismissBanner }}
         />
@@ -757,8 +765,12 @@ const App: React.FC = () => {
           onUsersClick={handleUsersClick}
           onLogout={handleLogout}
           onPluginClick={(pluginId) => {
-            setSelectedPluginId(pluginId);
-            setCurrentPage('log-viewer');
+            if (pluginId === 'fail2ban') {
+              setCurrentPage('fail2ban');
+            } else {
+              setSelectedPluginId(pluginId);
+              setCurrentPage('log-viewer');
+            }
           }}
           updateBanner={{ show: showUpdateBanner, latestVersion: updateInfo?.latestVersion, releaseNotes: updateInfo?.releaseNotes, onDismiss: dismissBanner }}
         />
@@ -793,8 +805,12 @@ const App: React.FC = () => {
           onUsersClick={handleUsersClick}
           onLogout={handleLogout}
           onPluginClick={(pluginId) => {
-            setSelectedPluginId(pluginId);
-            setCurrentPage('log-viewer');
+            if (pluginId === 'fail2ban') {
+              setCurrentPage('fail2ban');
+            } else {
+              setSelectedPluginId(pluginId);
+              setCurrentPage('log-viewer');
+            }
           }}
           updateBanner={{ show: showUpdateBanner, latestVersion: updateInfo?.latestVersion, releaseNotes: updateInfo?.releaseNotes, onDismiss: dismissBanner }}
         />
