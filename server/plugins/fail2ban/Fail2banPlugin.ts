@@ -899,7 +899,7 @@ export class Fail2banPlugin extends BasePlugin {
             const raw  = parseInt(String(req.query.days ?? '30'), 10);
             const days = Number.isNaN(raw) ? 30 : raw;
 
-            // TTL cache: 30s — ban history is slow to query and doesn't change second-by-second
+            // TTL cache: adaptive (see _adaptiveTtl) — ban history is slow to query and doesn't change second-by-second
             const _hCacheKey = `history:${days}`;
             const _hCached = this._cachePeek<unknown>(_hCacheKey, this._adaptiveTtl(days));
             if (_hCached) return res.json({ success: true, result: _hCached });
@@ -1960,7 +1960,7 @@ export class Fail2banPlugin extends BasePlugin {
             const limit = Math.min(parseInt(String(req.query.limit ?? '10'), 10), 100);
             const compareFlag = req.query.compare === '1' ? 1 : 0;
 
-            // TTL cache: 30s — cache key ignores `limit` (full dataset stored, sliced on return).
+            // TTL cache: adaptive (see _adaptiveTtl) — cache key ignores `limit` (full dataset stored, sliced on return).
             // This deduplicates concurrent TabStats (limit=100) and BanHistoryChart (limit=1) requests.
             const _tCacheKey = `tops:${days}:${compareFlag}`;
             type TopsPayload = { ok: boolean; topIps: unknown[]; topJails: unknown[]; topRecidivists: unknown[]; topDomains: unknown[]; heatmap: unknown; heatmapFailed: unknown; heatmapWeek: unknown; heatmapFailedWeek: unknown; summary: unknown; prevSummary: unknown };
