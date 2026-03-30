@@ -9,6 +9,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.8.4] - 2026-03-30
+
+### Pour les utilisateurs
+
+> Tableau de bord enrichi : tooltip fail2ban complet, badges de type, chemins complets, suppression branding GoAccess.
+
+- **Tooltip fail2ban** — Le tooltip de l'icône fail2ban dans le header affiche maintenant : bans depuis minuit, bans d'hier, IPs uniques aujourd'hui, IPs actuellement bloquées, total historique, et les jails actives. Chaque section est labellisée clairement.
+- **Badge fail2ban** — Le badge rouge affiche les bans du jour (depuis minuit), cohérent avec le header de la page fail2ban.
+- **Tableau fichiers volumineux** — Chemin complet affiché (plus de troncature). Type affiché sous forme de badge coloré : access (vert), error (rouge), syslog (bleu), auth (orange), system (cyan), kernel (violet).
+- **Branding GoAccess supprimé** — La page Stats et ses tooltips n'affichent plus de référence à GoAccess ; le texte décrit désormais les statistiques générées depuis les logs des serveurs web.
+
+---
+
+### Technique
+
+#### Frontend — `src/components/layout/Header.tsx`
+
+- **`fetchF2bSummary`** — Troisième fetch `Promise.all` ajouté : `/api/plugins/fail2ban/history?days=2` pour extraire le compte de bans d'hier.
+- **`f2bSummary`** — État étendu : `bansYesterday: number | null`, `totalAllTimeBans: number` (somme des `totalBannedSqlite` par jail), suppression de `expiredLast24h` (inutilisé en tooltip).
+- **Tooltip bodyNode** — Réorganisé en trois sections (`Aujourd'hui` / `Global` / `Jails — bans actifs`) avec en-têtes uppercase muted.
+
+#### Frontend — `src/components/widgets/LargestFilesCard.tsx`
+
+- **Colonne chemin** — `truncate max-w-[280px]` → `break-all` : chemin complet toujours visible.
+- **`TypeBadge`** — Nouveau composant + map `TYPE_STYLE` : badge inline coloré par type de log.
+
+#### Frontend — `src/locales/en.json` + `src/locales/fr.json`
+
+- Suppression de "GoAccess" dans les clés `goaccessStats.subtitle` et `footer.goaccessStatsTooltip`.
+
+---
+
 ## [0.8.3] - 2026-03-30
 
 ### Pour les utilisateurs
