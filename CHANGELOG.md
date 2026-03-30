@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.8.6] - 2026-03-30
+
+### Correctif
+
+- **Top Domaines — fix critique** : les domaines NPM ne s'affichaient jamais (toujours vides) car l'onglet Stats ne appelait pas la route dédiée `/tops/domains`. La route existe depuis v0.8.3 mais le fetch frontend était manquant. Désormais `/tops/domains` est appelé en parallèle du fetch principal (phase 3) et le résultat est mergé dans les données de l'onglet.
+
+---
+
 ## [0.8.5] - 2026-03-30
 
 ### Correctif

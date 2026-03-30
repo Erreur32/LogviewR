@@ -1429,6 +1429,16 @@ export const TabStats: React.FC<TabStatsProps> = ({
             })
             .catch(() => {})
             .finally(() => {
+
+        // Phase 3: domains — slow NPM log scan, runs in parallel, merges into topsData when ready
+        api.get<{ ok: boolean; topDomains: { domain: string; count: number; failures: number }[] }>(
+            `/api/plugins/fail2ban/tops/domains?days=${days}&limit=100`, { signal: ac.signal }
+        ).then(res => {
+            if (ac.signal.aborted) return;
+            if (res.success && res.result?.ok && res.result.topDomains.length > 0) {
+                setTopsData(prev => prev ? { ...prev, topDomains: res.result!.topDomains } : null);
+            }
+        }).catch(() => {});
                 if (ac.signal.aborted) return;
                 setTopsLoading(false);
                 setTopsRefreshing(false);
