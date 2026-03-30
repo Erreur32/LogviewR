@@ -249,7 +249,16 @@ export const PluginsManagementSection: React.FC = () => {
                 </div>
             )}
 
-            <Section title={t('admin.pluginsSection.title')} icon={Settings} iconColor="emerald">
+            <Section
+                title={t('admin.pluginsSection.title')}
+                icon={Settings}
+                iconColor="emerald"
+                badge={
+                  <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-mono">
+                    {plugins.filter(p => p.enabled).length} / {plugins.length}
+                  </span>
+                }
+            >
                 <div className="flex gap-3">
                     {sortedPlugins.map((plugin) => (
                         <div key={plugin.id} className="flex-1 min-w-0">
@@ -296,21 +305,6 @@ export const PluginsManagementSection: React.FC = () => {
 
                                 {/* Actions */}
                                 <div className="flex items-center gap-1.5 flex-shrink-0" onClick={e => e.stopPropagation()}>
-                                    {/* Test button */}
-                                    <Tooltip content="Tester la connexion">
-                                        <button
-                                            onClick={(e) => handleTestPlugin(e, plugin.id)}
-                                            disabled={testingId === plugin.id}
-                                            className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-cyan-500/30 bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 disabled:opacity-40 transition-colors"
-                                        >
-                                            {testingId === plugin.id
-                                                ? <Loader2 size={10} className="animate-spin" />
-                                                : <Zap size={10} />
-                                            }
-                                            Test
-                                        </button>
-                                    </Tooltip>
-
                                     {['host-system', 'apache', 'nginx', 'npm'].includes(plugin.id) && (
                                         <Tooltip content={(plugin.settings?.readCompressed as boolean) ? t('admin.pluginsSection.tooltipCompressedOn') : t('admin.pluginsSection.tooltipCompressedOff')}>
                                             <button

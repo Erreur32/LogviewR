@@ -25,6 +25,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
     const addAction = useNotificationStore(s => s.addAction);
     const [isTesting, setIsTesting] = useState(false);
     const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+    const [testToast, setTestToast] = useState<{ message: string; ok: boolean } | null>(null);
     
     // Inline notification state (position-based)
     const [inlineNotification, setInlineNotification] = useState<{
@@ -902,52 +903,17 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
             return;
         }
 
-        // After successful validation, save automatically before testing
         try {
-            const settings = { ...formData } as Record<string, unknown>;
-            if (pluginId === 'nginx' || pluginId === 'apache' || pluginId === 'npm') {
-                const raw = String(formData.excludedIps ?? '').trim();
-                settings.excludedIps = raw ? raw.split(/[\n,;]+/).map((s: string) => s.trim()).filter(Boolean) : [];
-            }
-            if (isLogSourcePlugin) {
-                (settings as any).logFiles = logFiles;
-                const hasFilters = excludeFilters.files?.length || excludeFilters.directories?.length || excludeFilters.paths?.length;
-                if (hasFilters) {
-                    (settings as any).excludeFilters = excludeFilters;
-                }
-            }
-            
-            await updatePluginConfig(pluginId, {
-                enabled: plugin?.enabled ?? false,
-                settings
-            });
-            // Force refresh plugins to update the component
-            await fetchPlugins(true);
-            
-            // Reload detected files after saving basePath
-            if (isLogSourcePlugin && formData.basePath) {
-                loadDetectedFiles(true);
-            }
-            
-            // Reload log files for host-system plugin after save
-            if (pluginId === 'host-system') {
-                // The useEffect will automatically reload logFiles when plugin.settings.logFiles changes
-            }
-        } catch (error) {
-            console.error('Failed to save configuration:', error);
-            // Continue with test even if save fails
-        }
-
-        try {
+            // Build config to test from current form values (no pre-save — avoids store refresh)
             let configToTest: Record<string, any> = {};
-            
+
             if (isLogSourcePlugin) {
                 configToTest = {
                     basePath: String(formData.basePath || '').trim(),
                     maxLines: Number(formData.maxLines) || 0,
                     readCompressed: Boolean(formData.readCompressed)
                 };
-                
+
                 if (pluginId === 'nginx' || pluginId === 'apache') {
                     configToTest.accessLogPattern = String(formData.accessLogPattern || '').trim();
                     configToTest.errorLogPattern = String(formData.errorLogPattern || '').trim();
@@ -958,35 +924,35 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                 }
             }
 
+            const showToast = (msg: string, ok: boolean) => {
+                setTestToast({ message: msg, ok });
+                setTimeout(() => setTestToast(null), 5000);
+            };
+
             const result = await testPluginConnection(pluginId, configToTest);
             if (result) {
                 if (result.connected) {
-                    setTestResult({
-                        success: true,
-                        message: 'Test réussi ! Vous pouvez maintenant sauvegarder.'
-                    });
+                    const msg = 'Test réussi ! Connexion OK.';
+                    setTestResult({ success: true, message: msg });
+                    showToast(msg, true);
                     addAction(`${pluginId} — connexion OK`, true);
                 } else {
-                    setTestResult({
-                        success: false,
-                        message: result.message || 'Échec du test. Vérifiez le chemin et les permissions.'
-                    });
-                    addAction(`${pluginId} — ${result.message || 'connexion échouée'}`, false);
+                    const msg = result.message || 'Échec du test. Vérifiez le chemin et les permissions.';
+                    setTestResult({ success: false, message: msg });
+                    showToast(msg, false);
+                    addAction(`${pluginId} — ${msg}`, false);
                 }
             } else {
-                setTestResult({
-                    success: false,
-                    message: 'Test de connexion impossible (voir logs backend)'
-                });
+                const msg = 'Test de connexion impossible (voir logs backend)';
+                setTestResult({ success: false, message: msg });
+                showToast(msg, false);
                 addAction(`${pluginId} — test impossible`, false);
             }
-
-            await fetchPlugins();
         } catch (error) {
-            setTestResult({
-                success: false,
-                message: error instanceof Error ? error.message : 'Erreur lors du test de connexion'
-            });
+            const msg = error instanceof Error ? error.message : 'Erreur lors du test de connexion';
+            setTestResult({ success: false, message: msg });
+            setTestToast({ message: msg, ok: false });
+            setTimeout(() => setTestToast(null), 5000);
         } finally {
             setIsTesting(false);
         }
@@ -1038,22 +1004,6 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
 
             {/* Form */}
             <form onSubmit={(e) => { e.preventDefault(); handleTest(); }} className="space-y-4">
-                {/* Test Result */}
-                {testResult && (
-                    <div className={`p-3 rounded-lg border-2 flex items-center gap-2 ${
-                        testResult.success
-                            ? 'border-green-600 bg-green-900/40 text-green-100'
-                            : 'border-red-600 bg-red-900/40 text-red-100'
-                    }`}>
-                        {testResult.success ? (
-                            <CheckCircle size={18} className="text-green-400 flex-shrink-0" />
-                        ) : (
-                            <XCircle size={18} className="text-red-400 flex-shrink-0" />
-                        )}
-                        <div className="flex-1 text-sm">{testResult.message}</div>
-                    </div>
-                )}
-
                 {/* Fail2ban Plugin Configuration */}
                 {pluginId === 'fail2ban' && (
                     <Fail2banConfigPanel
@@ -1069,8 +1019,8 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                             {/* Column 1: Basic Configuration */}
                             <div className="bg-gradient-to-r from-cyan-500/10 to-blue-500/10 rounded-lg border border-cyan-500/30 p-4 space-y-4">
-                                <h4 className="text-base font-bold text-cyan-400 flex items-center gap-2 pb-3 mb-4 border-b border-cyan-500/20">
-                                    <Settings size={18} />
+                                <h4 className="text-base font-bold text-white flex items-center gap-2 pb-3 mb-4 border-b border-cyan-500/20">
+                                    <Settings size={18} className="text-cyan-400 flex-shrink-0" />
                                     {t('pluginConfig.baseConfiguration')}
                                 </h4>
                                 
@@ -1162,8 +1112,8 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
 
                             {/* Column 2: Advanced Options */}
                             <div className="bg-gradient-to-r from-orange-500/10 to-purple-500/10 rounded-lg border border-orange-500/30 p-4 space-y-4">
-                                <h4 className="text-sm font-semibold text-white flex items-center gap-2 pb-2 mb-4 border-b border-orange-500/20">
-                                    <AlertCircle size={14} />
+                                <h4 className="text-base font-bold text-white flex items-center gap-2 pb-2 mb-4 border-b border-orange-500/20">
+                                    <AlertCircle size={18} className="text-orange-400 flex-shrink-0" />
                                     {t('pluginOptions.advancedOptions')}
                                 </h4>
 
@@ -1256,8 +1206,8 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                     onClick={() => setIsExclusionFiltersExpanded(!isExclusionFiltersExpanded)}
                                     className="w-full flex items-center justify-between p-3 bg-[#1a1a1a] rounded border border-gray-700 hover:bg-[#252525] transition-colors mb-3"
                                 >
-                                    <h4 className="text-base font-bold text-orange-400 flex items-center gap-2">
-                                        <AlertCircle size={18} />
+                                    <h4 className="text-base font-bold text-white flex items-center gap-2">
+                                        <AlertCircle size={18} className="text-orange-400 flex-shrink-0" />
                                         {t('pluginOptions.exclusionFilters')}
                                     </h4>
                                     {isExclusionFiltersExpanded ? (
@@ -1458,8 +1408,8 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                     }}
                                     className="w-full flex items-center justify-between p-3 bg-[#1a1a1a] rounded border border-purple-500/30 hover:bg-[#252525] transition-colors mb-3 cursor-pointer"
                                 >
-                                    <h4 className="text-base font-bold text-purple-400 flex items-center gap-2">
-                                        <FileText size={18} />
+                                    <h4 className="text-base font-bold text-white flex items-center gap-2">
+                                        <FileText size={18} className="text-purple-400 flex-shrink-0" />
                                         {pluginId === 'host-system' ? t('pluginOptions.logFilesSystem') : t('pluginOptions.logFilesCustom')}
                                     </h4>
                                     <div className="flex items-center gap-2">
@@ -1671,8 +1621,8 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                     onClick={() => setIsLogRotationExpanded(!isLogRotationExpanded)}
                                     className="w-full flex items-center justify-between p-3 bg-[#1a1a1a] rounded border border-yellow-500/30 hover:bg-[#252525] transition-colors mb-3"
                                 >
-                                    <h4 className="text-base font-bold text-yellow-400 flex items-center gap-2">
-                                        <RotateCw size={18} />
+                                    <h4 className="text-base font-bold text-white flex items-center gap-2">
+                                        <RotateCw size={18} className="text-yellow-400 flex-shrink-0" />
                                         {t('pluginOptions.logRotation')}
                                     </h4>
                                     {isLogRotationExpanded ? (
@@ -1795,8 +1745,8 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                     }}
                                     className="w-full flex items-center justify-between p-3 bg-[#1a1a1a] rounded border border-cyan-500/30 hover:bg-[#252525] transition-colors mb-3 cursor-pointer"
                                 >
-                                    <h4 className="text-base font-bold text-cyan-400 flex items-center gap-2">
-                                        <FileText size={18} />
+                                    <h4 className="text-base font-bold text-white flex items-center gap-2">
+                                        <FileText size={18} className="text-cyan-400 flex-shrink-0" />
                                         {t('pluginOptions.detectedWithRegex')}
                                     </h4>
                                     <div className="flex items-center gap-2">
@@ -2265,37 +2215,58 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                 )}
 
                 {/* Actions */}
-                <div className="flex items-center justify-center gap-3 pt-6 border-t border-gray-800">
-                    <button
-                        type="button"
-                        onClick={handleSave}
-                        className="px-6 py-3 rounded-lg font-semibold text-base transition-all duration-200 flex items-center gap-2 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95"
-                    >
-                        <Save size={18} />
-                        <span>{t('pluginConfig.saveButton')}</span>
-                    </button>
-                    <button
-                        type="button"
-                        onClick={handleTest}
-                        disabled={isTesting}
-                        className={`px-8 py-3 rounded-lg font-semibold text-base transition-all duration-200 flex items-center gap-2 ${
-                            isTesting
-                                ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white cursor-not-allowed opacity-75'
-                                : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95'
-                        }`}
-                    >
-                        {isTesting ? (
-                            <>
-                                <RefreshCw size={18} className="animate-spin" />
-                                <span>{t('pluginConfig.testRunning')}</span>
-                            </>
-                        ) : (
-                            <>
-                                <RefreshCw size={18} />
-                                <span>{t('pluginConfig.testButton')}</span>
-                            </>
+                <div className="flex flex-col items-center gap-3 pt-6 border-t border-gray-800">
+                    <div className="flex items-center justify-center gap-3">
+                        {pluginId !== 'fail2ban' && (
+                            <button
+                                type="button"
+                                onClick={handleSave}
+                                className="px-6 py-3 rounded-lg font-semibold text-base transition-all duration-200 flex items-center gap-2 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95"
+                            >
+                                <Save size={18} />
+                                <span>{t('pluginConfig.saveButton')}</span>
+                            </button>
                         )}
-                    </button>
+                        {(pluginId === 'host-system' || pluginId === 'fail2ban') && (
+                            <button
+                                type="button"
+                                onClick={handleTest}
+                                disabled={isTesting}
+                                className={`px-8 py-3 rounded-lg font-semibold text-base transition-all duration-200 flex items-center gap-2 ${
+                                    isTesting
+                                        ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white cursor-not-allowed opacity-75'
+                                        : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95'
+                                }`}
+                            >
+                                {isTesting ? (
+                                    <>
+                                        <RefreshCw size={18} className="animate-spin" />
+                                        <span>{t('pluginConfig.testRunning')}</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <RefreshCw size={18} />
+                                        <span>{t('pluginConfig.testButton')}</span>
+                                    </>
+                                )}
+                            </button>
+                        )}
+                    </div>
+                    {/* Test Result — shown directly below the button */}
+                    {testResult && (
+                        <div className={`w-full max-w-lg p-3 rounded-lg border-2 flex items-center gap-2 animate-in fade-in slide-in-from-top-1 duration-200 ${
+                            testResult.success
+                                ? 'border-green-600 bg-green-900/40 text-green-100'
+                                : 'border-red-600 bg-red-900/40 text-red-100'
+                        }`}>
+                            {testResult.success ? (
+                                <CheckCircle size={18} className="text-green-400 flex-shrink-0" />
+                            ) : (
+                                <XCircle size={18} className="text-red-400 flex-shrink-0" />
+                            )}
+                            <div className="flex-1 text-sm">{testResult.message}</div>
+                        </div>
+                    )}
                 </div>
             </form>
             
@@ -2312,6 +2283,22 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                     <div className="bg-emerald-900/95 border border-emerald-700 text-emerald-100 px-3 py-2 rounded-lg shadow-lg flex items-center gap-2 text-sm animate-in fade-in slide-in-from-bottom-2 duration-300">
                         <CheckCircle size={16} className="text-emerald-400 flex-shrink-0" />
                         <span>{inlineNotification.message}</span>
+                    </div>
+                </div>
+            )}
+
+            {/* Test Toast — fixed overlay, visible regardless of scroll */}
+            {testToast && (
+                <div className="fixed bottom-6 right-6 z-[200] animate-in fade-in slide-in-from-bottom-3 duration-300 pointer-events-none">
+                    <div className={`flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl border text-sm font-medium ${
+                        testToast.ok
+                            ? 'bg-green-950 border-green-600 text-green-100'
+                            : 'bg-red-950 border-red-600 text-red-100'
+                    }`}>
+                        {testToast.ok
+                            ? <CheckCircle size={18} className="text-green-400 flex-shrink-0" />
+                            : <XCircle size={18} className="text-red-400 flex-shrink-0" />}
+                        <span>{testToast.message}</span>
                     </div>
                 </div>
             )}
@@ -2345,6 +2332,7 @@ interface F2bCheckResult {
 interface Fail2banConfigPanelProps {
     sqliteDbPath: string;
     onSqliteDbPathChange: (v: string) => void;
+    onSqliteStatusChange?: (status: 'idle' | 'ok' | 'error') => void;
 }
 
 const FW_ITEMS = [
@@ -2353,8 +2341,9 @@ const FW_ITEMS = [
     { key: 'nftables', label: 'NFTables', Icon: Network, color: '#39c5cf', route: '/api/plugins/fail2ban/nftables',  detail: 'Ruleset nftables du host' },
 ];
 
-const Fail2banConfigPanel: React.FC<Fail2banConfigPanelProps> = ({ sqliteDbPath, onSqliteDbPathChange }) => {
+const Fail2banConfigPanel: React.FC<Fail2banConfigPanelProps> = ({ sqliteDbPath, onSqliteDbPathChange, onSqliteStatusChange }) => {
     const [checkResult, setCheckResult] = useState<F2bCheckResult | null>(null);
+    const [sqliteCardStatus, setSqliteCardStatus] = useState<'idle' | 'ok' | 'error'>('idle');
     const [checking, setChecking] = useState(false);
     const [expandedFix, setExpandedFix] = useState<string | null>(null);
 
@@ -2418,15 +2407,29 @@ const Fail2banConfigPanel: React.FC<Fail2banConfigPanelProps> = ({ sqliteDbPath,
 
     return (
         <div className="space-y-4">
-            {/* Config fields — 2-column grid */}
-            <div className="bg-gradient-to-r from-red-500/10 to-orange-500/10 rounded-lg border border-red-500/30 p-4 space-y-3">
-                <h4 className="text-base font-bold text-red-400 flex items-center gap-2 pb-3 border-b border-red-500/20">
-                    <Settings size={18} />
+            {/* Config fields — dynamic color based on SQLite check status */}
+            <div className={`rounded-lg border p-4 space-y-3 transition-colors duration-500 ${
+                sqliteCardStatus === 'ok'
+                    ? 'bg-gradient-to-r from-green-500/10 to-emerald-500/10 border-green-500/30'
+                    : sqliteCardStatus === 'error'
+                    ? 'bg-gradient-to-r from-red-500/10 to-orange-500/10 border-red-500/30'
+                    : 'bg-gradient-to-r from-gray-500/10 to-gray-600/10 border-gray-600/30'
+            }`}>
+                <h4 className={`text-base font-bold text-white flex items-center gap-2 pb-3 border-b transition-colors duration-500 ${
+                    sqliteCardStatus === 'ok' ? 'border-green-500/20' : sqliteCardStatus === 'error' ? 'border-red-500/20' : 'border-gray-600/20'
+                }`}>
+                    <Settings size={18} className={
+                        sqliteCardStatus === 'ok' ? 'text-green-400 flex-shrink-0' : sqliteCardStatus === 'error' ? 'text-red-400 flex-shrink-0' : 'text-gray-400 flex-shrink-0'
+                    } />
                     Configuration Fail2ban
                 </h4>
                 <Fail2banPathConfig
                     sqliteDbPath={sqliteDbPath}
                     onSqliteDbPathChange={onSqliteDbPathChange}
+                    onSqliteStatusChange={(s) => {
+                        setSqliteCardStatus(s);
+                        onSqliteStatusChange?.(s);
+                    }}
                 />
             </div>
 

@@ -40,6 +40,24 @@ export interface WebhookEntry {
     // Batching: 0 = immediate, N = group events over N minutes
     batchWindow?: number;
     maxPerBatch?: number;
+    // Filtering
+    jailFilter?: string[];
+    minFailures?: number;
+    rateLimit?: number;
+    cooldownMinutes?: number;
+    activeHours?: { from: number; to: number } | null;
+    // Discord enhancements
+    discordUsername?: string;
+    discordAvatarUrl?: string;
+    discordThreadId?: string;
+    discordMention?: string;
+    discordColors?: { ban?: number; action?: number; unban?: number };
+    // Telegram enhancements
+    telegramSilent?: boolean;
+    telegramThreadId?: string;
+    telegramDisablePreview?: boolean;
+    // Message templates
+    templates?: { banSolo?: string; banGroup?: string; actionSolo?: string };
 }
 
 // ── Storage helpers ─────────────────────────────────────────────────────────────
@@ -111,7 +129,13 @@ router.get('/webhooks', requireAuth, requireAdmin, asyncHandler(async (_req: Aut
 router.post('/webhooks', requireAuth, requireAdmin,
     autoLog('notifications', 'add-webhook'),
     asyncHandler(async (req: AuthenticatedRequest, res) => {
-        const { name, type, url, token, chatId, method, events, batchWindow, maxPerBatch } = req.body as Partial<WebhookEntry>;
+        const {
+            name, type, url, token, chatId, method, events, batchWindow, maxPerBatch,
+            jailFilter, minFailures, rateLimit, cooldownMinutes, activeHours,
+            discordUsername, discordAvatarUrl, discordThreadId, discordMention, discordColors,
+            telegramSilent, telegramThreadId, telegramDisablePreview,
+            templates,
+        } = req.body as Partial<WebhookEntry>;
 
         if (!name || !type) {
             throw createError('name and type are required', 400, 'WEBHOOK_INVALID');
@@ -138,6 +162,20 @@ router.post('/webhooks', requireAuth, requireAdmin,
             events:      events ?? { ban: true, attempt: false, action: false },
             batchWindow: batchWindow ?? 0,
             maxPerBatch: maxPerBatch ?? 10,
+            ...(jailFilter              !== undefined ? { jailFilter }              : {}),
+            ...(minFailures             !== undefined ? { minFailures }             : {}),
+            ...(rateLimit               !== undefined ? { rateLimit }               : {}),
+            ...(cooldownMinutes         !== undefined ? { cooldownMinutes }         : {}),
+            ...(activeHours             !== undefined ? { activeHours }             : {}),
+            ...(discordUsername         !== undefined ? { discordUsername }         : {}),
+            ...(discordAvatarUrl        !== undefined ? { discordAvatarUrl }        : {}),
+            ...(discordThreadId         !== undefined ? { discordThreadId }         : {}),
+            ...(discordMention          !== undefined ? { discordMention }          : {}),
+            ...(discordColors           !== undefined ? { discordColors }           : {}),
+            ...(telegramSilent          !== undefined ? { telegramSilent }          : {}),
+            ...(telegramThreadId        !== undefined ? { telegramThreadId }        : {}),
+            ...(telegramDisablePreview  !== undefined ? { telegramDisablePreview }  : {}),
+            ...(templates               !== undefined ? { templates }               : {}),
         };
 
         const webhooks = getWebhooks();
@@ -162,16 +200,30 @@ router.put('/webhooks/:id', requireAuth, requireAdmin,
         const patch = req.body as Partial<WebhookEntry>;
         // Merge — only override fields that are explicitly present in the body
         const updated: WebhookEntry = { ...webhooks[idx] };
-        if (patch.name        !== undefined) updated.name        = patch.name;
-        if (patch.type        !== undefined) updated.type        = patch.type;
-        if (patch.url         !== undefined) updated.url         = patch.url;
-        if (patch.token       !== undefined) updated.token       = patch.token;
-        if (patch.chatId      !== undefined) updated.chatId      = patch.chatId;
-        if (patch.enabled     !== undefined) updated.enabled     = patch.enabled;
-        if (patch.method      !== undefined) updated.method      = patch.method;
-        if (patch.events      !== undefined) updated.events      = patch.events;
-        if (patch.batchWindow !== undefined) updated.batchWindow = patch.batchWindow;
-        if (patch.maxPerBatch !== undefined) updated.maxPerBatch = patch.maxPerBatch;
+        if (patch.name                !== undefined) updated.name                = patch.name;
+        if (patch.type                !== undefined) updated.type                = patch.type;
+        if (patch.url                 !== undefined) updated.url                 = patch.url;
+        if (patch.token               !== undefined) updated.token               = patch.token;
+        if (patch.chatId              !== undefined) updated.chatId              = patch.chatId;
+        if (patch.enabled             !== undefined) updated.enabled             = patch.enabled;
+        if (patch.method              !== undefined) updated.method              = patch.method;
+        if (patch.events              !== undefined) updated.events              = patch.events;
+        if (patch.batchWindow         !== undefined) updated.batchWindow         = patch.batchWindow;
+        if (patch.maxPerBatch         !== undefined) updated.maxPerBatch         = patch.maxPerBatch;
+        if (patch.jailFilter          !== undefined) updated.jailFilter          = patch.jailFilter;
+        if (patch.minFailures         !== undefined) updated.minFailures         = patch.minFailures;
+        if (patch.rateLimit           !== undefined) updated.rateLimit           = patch.rateLimit;
+        if (patch.cooldownMinutes     !== undefined) updated.cooldownMinutes     = patch.cooldownMinutes;
+        if (patch.activeHours         !== undefined) updated.activeHours         = patch.activeHours;
+        if (patch.discordUsername     !== undefined) updated.discordUsername     = patch.discordUsername;
+        if (patch.discordAvatarUrl    !== undefined) updated.discordAvatarUrl    = patch.discordAvatarUrl;
+        if (patch.discordThreadId     !== undefined) updated.discordThreadId     = patch.discordThreadId;
+        if (patch.discordMention      !== undefined) updated.discordMention      = patch.discordMention;
+        if (patch.discordColors       !== undefined) updated.discordColors       = patch.discordColors;
+        if (patch.telegramSilent      !== undefined) updated.telegramSilent      = patch.telegramSilent;
+        if (patch.telegramThreadId    !== undefined) updated.telegramThreadId    = patch.telegramThreadId;
+        if (patch.telegramDisablePreview !== undefined) updated.telegramDisablePreview = patch.telegramDisablePreview;
+        if (patch.templates           !== undefined) updated.templates           = patch.templates;
 
         webhooks[idx] = updated;
         saveWebhooks(webhooks);

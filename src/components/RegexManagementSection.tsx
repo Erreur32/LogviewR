@@ -181,7 +181,7 @@ export const RegexManagementSection: React.FC = () => {
     return (
         <>
             {/* Liste des regex custom */}
-            <Section title={t('regex.customTitle')} icon={Code} iconColor="purple" collapsible defaultCollapsed badge={countBadge}>
+            <Section title={t('regex.customTitle')} icon={Code} iconColor="purple" collapsible badge={countBadge}>
                 {isLoading ? (
                     <div className="flex items-center justify-center py-8">
                         <Loader2 size={24} className="text-gray-400 animate-spin" />
@@ -268,7 +268,7 @@ export const RegexManagementSection: React.FC = () => {
             </Section>
 
             {/* Générateur de regex */}
-            <Section title={t('regex.generatorTitle')} icon={Sparkles} iconColor="purple" collapsible defaultCollapsed>
+            <Section title={t('regex.generatorTitle')} icon={Sparkles} iconColor="purple" collapsible>
                 <div className="space-y-4">
                     <div>
                         <label className="block text-sm font-medium text-theme-primary mb-2">

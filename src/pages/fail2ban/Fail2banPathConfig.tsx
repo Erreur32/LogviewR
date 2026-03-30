@@ -16,6 +16,7 @@ import { Save, RefreshCw, CheckCircle, XCircle, Stethoscope, Database, Network, 
 interface Fail2banPathConfigProps {
     sqliteDbPath?: string;
     onSqliteDbPathChange?: (v: string) => void;
+    onSqliteStatusChange?: (status: 'idle' | 'ok' | 'error') => void;
     npmDataPath?: string;
     onNpmDataPathChange?: (v: string) => void;
 }
@@ -67,6 +68,7 @@ const btnStyle = (color: string, bg: string): React.CSSProperties => ({
 export const Fail2banPathConfig: React.FC<Fail2banPathConfigProps> = ({
     sqliteDbPath,
     onSqliteDbPathChange,
+    onSqliteStatusChange,
     npmDataPath,
     onNpmDataPathChange,
 }) => {
@@ -78,6 +80,9 @@ export const Fail2banPathConfig: React.FC<Fail2banPathConfigProps> = ({
     const [sqliteSaving, setSqliteSaving]   = useState(false);
     const [sqliteTesting, setSqliteTesting] = useState(false);
     const [sqliteStatus, setSqliteStatus]   = useState<'idle' | 'ok' | 'error'>('idle');
+
+    // Bubble status up to parent whenever it changes
+    useEffect(() => { onSqliteStatusChange?.(sqliteStatus); }, [sqliteStatus]); // eslint-disable-line react-hooks/exhaustive-deps
     const [sqliteError, setSqliteError]     = useState<string>('');
 
     useEffect(() => { if (sqliteDbPath !== undefined) setSqliteInput(sqliteDbPath); }, [sqliteDbPath]);

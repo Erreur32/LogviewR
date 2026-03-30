@@ -48,7 +48,8 @@ import {
   Upload,
   HardDriveDownload,
   Zap,
-  Send
+  Send,
+  ChevronDown
 } from 'lucide-react';
 import { api } from '../api/client';
 import { API_ROUTES, formatBytes } from '../utils/constants';
@@ -1398,6 +1399,7 @@ const GeneralNetworkSection: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [initialPublicUrl, setInitialPublicUrl] = useState('');
+  const [showTips, setShowTips] = useState(false);
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -1512,12 +1514,26 @@ const GeneralNetworkSection: React.FC = () => {
         </div>
       </div>
       
-      <div className="text-xs text-gray-500 mt-2 p-3 bg-[#1a1a1a] rounded-lg border border-gray-800">
-        <p className="font-medium text-gray-400 mb-1">💡 {t('admin.general.network.note')}</p>
-        <ul className="list-disc list-inside space-y-1 ml-2">
-          <li>{t('admin.general.network.formatExpected')}</li>
-          <li>{t('admin.general.network.leaveEmptyForLocal')}</li>
-        </ul>
+      <div className="rounded-lg border border-gray-800 overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setShowTips(v => !v)}
+          className="w-full flex items-center justify-between px-3 py-2 text-xs text-gray-500 hover:text-gray-300 bg-[#1a1a1a] transition-colors"
+        >
+          <span className="flex items-center gap-1.5">
+            <Lightbulb size={12} className={showTips ? 'text-amber-400' : 'text-gray-600'} />
+            {t('admin.general.network.note')}
+          </span>
+          <ChevronDown size={11} className={`transition-transform ${showTips ? 'rotate-180' : ''}`} />
+        </button>
+        {showTips && (
+          <div className="px-3 py-2 bg-[#111] border-t border-gray-800">
+            <ul className="text-xs text-gray-400 list-disc list-inside space-y-1 ml-1">
+              <li>{t('admin.general.network.formatExpected')}</li>
+              <li>{t('admin.general.network.leaveEmptyForLocal')}</li>
+            </ul>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -2052,8 +2068,26 @@ interface WebhookEntry {
   chatId?: string;
   method?: 'POST' | 'PUT';
   events?: { ban: boolean; attempt: boolean; action: boolean };
-  batchWindow?: number;   // 0 = immediate, 5/15/30 = minutes
+  batchWindow?: number;
   maxPerBatch?: number;
+  // Filtering
+  jailFilter?: string[];
+  minFailures?: number;
+  rateLimit?: number;
+  cooldownMinutes?: number;
+  activeHours?: { from: number; to: number } | null;
+  // Discord enhancements
+  discordUsername?: string;
+  discordAvatarUrl?: string;
+  discordThreadId?: string;
+  discordMention?: string;
+  discordColors?: { ban?: number; action?: number; unban?: number };
+  // Telegram enhancements
+  telegramSilent?: boolean;
+  telegramThreadId?: string;
+  telegramDisablePreview?: boolean;
+  // Message templates
+  templates?: { banSolo?: string; banGroup?: string; actionSolo?: string };
 }
 
 const WEBHOOK_TYPE_LABELS: Record<string, string> = {
@@ -2073,7 +2107,26 @@ const WEBHOOK_TYPE_ICONS: Record<string, string | null> = {
 };
 
 const DEFAULT_WEBHOOK_EVENTS = { ban: true, attempt: false, action: false };
-const DEFAULT_FORM = { name: '', url: '', token: '', chatId: '', events: DEFAULT_WEBHOOK_EVENTS, batchWindow: 0, maxPerBatch: 10 };
+
+// Hex int ↔ CSS hex string helpers for Discord color pickers
+const intToHex = (n: number): string => '#' + n.toString(16).padStart(6, '0');
+const hexToInt = (h: string): number => parseInt(h.replace('#', ''), 16);
+
+const DEFAULT_FORM = {
+  name: '', url: '', token: '', chatId: '',
+  events: DEFAULT_WEBHOOK_EVENTS, batchWindow: 0, maxPerBatch: 10,
+  // Filtering
+  jailFilter: '',
+  minFailures: 0, rateLimit: 0, cooldownMinutes: 0,
+  activeHoursEnabled: false, activeHoursFrom: 8, activeHoursTo: 22,
+  // Discord
+  discordUsername: '', discordAvatarUrl: '', discordThreadId: '', discordMention: '',
+  discordColorBan: intToHex(0xe74c3c), discordColorAction: intToHex(0xe67e22), discordColorUnban: intToHex(0x2ecc71),
+  // Telegram
+  telegramSilent: false, telegramThreadId: '', telegramDisablePreview: false,
+  // Templates
+  templateBanSolo: '', templateBanGroup: '', templateActionSolo: '',
+};
 
 const NotificationsSection: React.FC = () => {
   const { setPrefs: storeSetPrefs } = useNotificationStore();
@@ -2100,6 +2153,11 @@ const NotificationsSection: React.FC = () => {
   const [testingId, setTestingId]   = useState<string | null>(null);
   const [testResults, setTestResults] = useState<Record<string, { ok: boolean; msg: string }>>({});
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  // Collapsible advanced sections in the form
+  const [showFilters, setShowFilters]         = useState(false);
+  const [showDiscordOpts, setShowDiscordOpts] = useState(false);
+  const [showTgOpts, setShowTgOpts]           = useState(false);
+  const [showTemplates, setShowTemplates]     = useState(false);
 
   const loadPrefs = useCallback(async () => {
     try {
@@ -2134,6 +2192,7 @@ const NotificationsSection: React.FC = () => {
     setForm({ ...DEFAULT_FORM });
     setFormError(''); setFieldErrors({});
     resetTgVerify();
+    setShowFilters(false); setShowDiscordOpts(false); setShowTgOpts(false); setShowTemplates(false);
     setEditId(null);
     setShowForm(type);
   };
@@ -2142,8 +2201,29 @@ const NotificationsSection: React.FC = () => {
     setForm({
       name: wh.name, url: wh.url || '', token: wh.token || '', chatId: wh.chatId || '',
       events: wh.events ?? { ...DEFAULT_WEBHOOK_EVENTS },
-      batchWindow: wh.batchWindow ?? 0,
-      maxPerBatch: wh.maxPerBatch ?? 10,
+      batchWindow: wh.batchWindow ?? 0, maxPerBatch: wh.maxPerBatch ?? 10,
+      // Filtering
+      jailFilter: (wh.jailFilter ?? []).join(', '),
+      minFailures: wh.minFailures ?? 0, rateLimit: wh.rateLimit ?? 0,
+      cooldownMinutes: wh.cooldownMinutes ?? 0,
+      activeHoursEnabled: !!wh.activeHours,
+      activeHoursFrom: wh.activeHours?.from ?? 8, activeHoursTo: wh.activeHours?.to ?? 22,
+      // Discord
+      discordUsername: wh.discordUsername ?? '',
+      discordAvatarUrl: wh.discordAvatarUrl ?? '',
+      discordThreadId: wh.discordThreadId ?? '',
+      discordMention: wh.discordMention ?? '',
+      discordColorBan:    intToHex(wh.discordColors?.ban    ?? 0xe74c3c),
+      discordColorAction: intToHex(wh.discordColors?.action ?? 0xe67e22),
+      discordColorUnban:  intToHex(wh.discordColors?.unban  ?? 0x2ecc71),
+      // Telegram
+      telegramSilent: wh.telegramSilent ?? false,
+      telegramThreadId: wh.telegramThreadId ?? '',
+      telegramDisablePreview: wh.telegramDisablePreview ?? false,
+      // Templates
+      templateBanSolo:    wh.templates?.banSolo    ?? '',
+      templateBanGroup:   wh.templates?.banGroup   ?? '',
+      templateActionSolo: wh.templates?.actionSolo ?? '',
     });
     setFormError(''); setFieldErrors({});
     resetTgVerify();
@@ -2187,7 +2267,38 @@ const NotificationsSection: React.FC = () => {
     if (Object.keys(errs).length > 0) { setFieldErrors(errs); return; }
     setFormSaving(true);
     try {
-      const payload = { name: form.name, type: showForm, url: form.url, token: form.token, chatId: form.chatId, events: form.events, batchWindow: form.batchWindow, maxPerBatch: form.maxPerBatch };
+      const jailFilterArr = form.jailFilter.trim()
+        ? form.jailFilter.split(',').map(s => s.trim()).filter(Boolean)
+        : [];
+      const payload = {
+        name: form.name, type: showForm,
+        url: form.url, token: form.token, chatId: form.chatId,
+        events: form.events, batchWindow: form.batchWindow, maxPerBatch: form.maxPerBatch,
+        // Filtering
+        jailFilter: jailFilterArr,
+        minFailures: form.minFailures, rateLimit: form.rateLimit, cooldownMinutes: form.cooldownMinutes,
+        activeHours: form.activeHoursEnabled ? { from: form.activeHoursFrom, to: form.activeHoursTo } : null,
+        // Discord
+        discordUsername: form.discordUsername || undefined,
+        discordAvatarUrl: form.discordAvatarUrl || undefined,
+        discordThreadId: form.discordThreadId || undefined,
+        discordMention: form.discordMention || undefined,
+        discordColors: {
+          ban:    hexToInt(form.discordColorBan),
+          action: hexToInt(form.discordColorAction),
+          unban:  hexToInt(form.discordColorUnban),
+        },
+        // Telegram
+        telegramSilent: form.telegramSilent,
+        telegramThreadId: form.telegramThreadId || undefined,
+        telegramDisablePreview: form.telegramDisablePreview,
+        // Templates
+        templates: {
+          banSolo:    form.templateBanSolo    || undefined,
+          banGroup:   form.templateBanGroup   || undefined,
+          actionSolo: form.templateActionSolo || undefined,
+        },
+      };
       if (editId) {
         const res = await api.put<WebhookEntry>(`/api/notifications/webhooks/${editId}`, payload);
         if (res.result) setWebhooks(ws => ws.map(w => w.id === editId ? res.result! : w));
@@ -2238,6 +2349,7 @@ const NotificationsSection: React.FC = () => {
         ]).map(tab => {
           const Icon = tab.icon;
           const isActive = activeNotifTab === tab.id;
+          const activeWh = webhooks.filter(w => w.enabled).length;
           return (
             <button key={tab.id} onClick={() => setActiveNotifTab(tab.id)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border transition-all ${
@@ -2245,6 +2357,13 @@ const NotificationsSection: React.FC = () => {
               }`}>
               <Icon size={12} />
               {tab.label}
+              {tab.id === 'webhooks' && (
+                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-semibold font-mono border ${
+                  isActive ? 'bg-blue-500/30 text-blue-200 border-blue-400/40' : 'bg-gray-700 text-gray-400 border-gray-600'
+                }`}>
+                  {wLoading ? '…' : activeWh}
+                </span>
+              )}
             </button>
           );
         })}
@@ -2280,22 +2399,36 @@ const NotificationsSection: React.FC = () => {
 
           {/* Add buttons */}
           <div className="flex flex-wrap gap-2">
-            {(['discord', 'telegram', 'generic'] as const).map(type => (
-              <button key={type} onClick={() => openAddForm(type)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors"
-                style={{ color: WEBHOOK_TYPE_COLORS[type], borderColor: `${WEBHOOK_TYPE_COLORS[type]}55`, background: `${WEBHOOK_TYPE_COLORS[type]}18` }}>
-                {WEBHOOK_TYPE_ICONS[type]
-                  ? <img src={WEBHOOK_TYPE_ICONS[type]!} alt={type} style={{ width: 13, height: 13, objectFit: 'contain' }} />
-                  : <Plus size={12} />
-                } {WEBHOOK_TYPE_LABELS[type]}
-              </button>
-            ))}
+            {(['discord', 'telegram', 'generic'] as const).map(type => {
+              const isActive = showForm === type && !editId;
+              const color = WEBHOOK_TYPE_COLORS[type];
+              return (
+                <button key={type} onClick={() => openAddForm(type)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all"
+                  style={{
+                    color: isActive ? '#fff' : color,
+                    borderColor: color,
+                    background: isActive ? color : `${color}18`,
+                    boxShadow: isActive ? `0 0 8px ${color}88` : undefined,
+                  }}>
+                  {WEBHOOK_TYPE_ICONS[type]
+                    ? <img src={WEBHOOK_TYPE_ICONS[type]!} alt={type} style={{ width: 13, height: 13, objectFit: 'contain', filter: isActive ? 'brightness(10)' : undefined }} />
+                    : <Plus size={12} />
+                  } {WEBHOOK_TYPE_LABELS[type]}
+                </button>
+              );
+            })}
           </div>
 
           {/* Add / Edit form */}
           {showForm && (
-            <div className="p-4 bg-[#0d1117] border border-gray-700 rounded-lg space-y-4">
-              <h4 className="text-sm font-semibold text-white">
+            <div className="p-4 bg-[#0d1117] rounded-lg space-y-4"
+              style={{ border: `1px solid ${WEBHOOK_TYPE_COLORS[showForm]}66` }}>
+              <h4 className="text-sm font-semibold flex items-center gap-2" style={{ color: WEBHOOK_TYPE_COLORS[showForm] }}>
+                {WEBHOOK_TYPE_ICONS[showForm] && (
+                  <img src={WEBHOOK_TYPE_ICONS[showForm]!} alt={showForm}
+                    style={{ width: 15, height: 15, objectFit: 'contain' }} />
+                )}
                 {editId ? `Modifier — ${WEBHOOK_TYPE_LABELS[showForm]}` : `Ajouter — ${WEBHOOK_TYPE_LABELS[showForm]}`}
               </h4>
 
@@ -2403,6 +2536,243 @@ const NotificationsSection: React.FC = () => {
                       onChange={e => setForm(f => ({ ...f, maxPerBatch: Number(e.target.value) }))}
                       className="w-20 px-2 py-1.5 bg-[#161b22] border border-gray-700 rounded text-white text-sm focus:outline-none focus:border-cyan-500/50" />
                     <span className="text-xs text-gray-400">événements par message</span>
+                  </div>
+                )}
+              </div>
+
+              {/* ── Filtres ──────────────────────────────────────────────────────── */}
+              <div className="border border-gray-800 rounded-lg overflow-hidden">
+                <button type="button" onClick={() => setShowFilters(v => !v)}
+                  className="w-full flex items-center justify-between px-3 py-2.5 text-xs font-medium text-gray-400 hover:text-gray-200 bg-[#161b22] transition-colors">
+                  <span className="flex items-center gap-1.5"><Shield size={11} /> Filtres de déclenchement</span>
+                  <ChevronDown size={12} className={`transition-transform ${showFilters ? 'rotate-180' : ''}`} />
+                </button>
+                {showFilters && (
+                  <div className="p-3 space-y-3 border-t border-gray-800 bg-[#0d1117]">
+                    {/* Jail filter */}
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Jails concernés</label>
+                      <input type="text" value={form.jailFilter}
+                        onChange={e => setForm(f => ({ ...f, jailFilter: e.target.value }))}
+                        placeholder="sshd, nginx-http-auth, apache-auth  (vide = tous)"
+                        className="w-full px-3 py-2 bg-[#161b22] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-600 focus:outline-none focus:border-cyan-500/50" />
+                      <p className="mt-1 text-xs text-gray-500">Noms de jails séparés par des virgules. Laissez vide pour recevoir tous les jails.</p>
+                    </div>
+                    <div className="grid grid-cols-3 gap-3">
+                      {/* Min failures */}
+                      <div>
+                        <label className="block text-xs text-gray-400 mb-1">Échecs minimum</label>
+                        <input type="number" min={0} value={form.minFailures}
+                          onChange={e => setForm(f => ({ ...f, minFailures: Number(e.target.value) }))}
+                          className="w-full px-2 py-1.5 bg-[#161b22] border border-gray-700 rounded text-white text-sm focus:outline-none focus:border-cyan-500/50" />
+                        <p className="mt-1 text-xs text-gray-500">0 = tous</p>
+                      </div>
+                      {/* Rate limit */}
+                      <div>
+                        <label className="block text-xs text-gray-400 mb-1">Limite / heure</label>
+                        <input type="number" min={0} value={form.rateLimit}
+                          onChange={e => setForm(f => ({ ...f, rateLimit: Number(e.target.value) }))}
+                          className="w-full px-2 py-1.5 bg-[#161b22] border border-gray-700 rounded text-white text-sm focus:outline-none focus:border-cyan-500/50" />
+                        <p className="mt-1 text-xs text-gray-500">0 = illimitée</p>
+                      </div>
+                      {/* Cooldown */}
+                      <div>
+                        <label className="block text-xs text-gray-400 mb-1">Cooldown IP (min)</label>
+                        <input type="number" min={0} value={form.cooldownMinutes}
+                          onChange={e => setForm(f => ({ ...f, cooldownMinutes: Number(e.target.value) }))}
+                          className="w-full px-2 py-1.5 bg-[#161b22] border border-gray-700 rounded text-white text-sm focus:outline-none focus:border-cyan-500/50" />
+                        <p className="mt-1 text-xs text-gray-500">0 = aucun</p>
+                      </div>
+                    </div>
+                    {/* Active hours */}
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="text-xs text-gray-400">Plage horaire active</label>
+                        <Toggle enabled={form.activeHoursEnabled} onChange={v => setForm(f => ({ ...f, activeHoursEnabled: v }))} />
+                      </div>
+                      {form.activeHoursEnabled && (
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-xs text-gray-500">De</span>
+                          <input type="number" min={0} max={23} value={form.activeHoursFrom}
+                            onChange={e => setForm(f => ({ ...f, activeHoursFrom: Number(e.target.value) }))}
+                            className="w-16 px-2 py-1.5 bg-[#161b22] border border-gray-700 rounded text-white text-sm text-center focus:outline-none focus:border-cyan-500/50" />
+                          <span className="text-xs text-gray-500">h à</span>
+                          <input type="number" min={0} max={23} value={form.activeHoursTo}
+                            onChange={e => setForm(f => ({ ...f, activeHoursTo: Number(e.target.value) }))}
+                            className="w-16 px-2 py-1.5 bg-[#161b22] border border-gray-700 rounded text-white text-sm text-center focus:outline-none focus:border-cyan-500/50" />
+                          <span className="text-xs text-gray-500">h (heure serveur)</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* ── Options Discord ───────────────────────────────────────────────── */}
+              {showForm === 'discord' && (
+                <div className="border border-gray-800 rounded-lg overflow-hidden">
+                  <button type="button" onClick={() => setShowDiscordOpts(v => !v)}
+                    className="w-full flex items-center justify-between px-3 py-2.5 text-xs font-medium text-gray-400 hover:text-gray-200 bg-[#161b22] transition-colors">
+                    <span className="flex items-center gap-1.5">
+                      {WEBHOOK_TYPE_ICONS.discord && <img src={WEBHOOK_TYPE_ICONS.discord} alt="discord" style={{ width: 11, height: 11 }} />}
+                      Options Discord
+                    </span>
+                    <ChevronDown size={12} className={`transition-transform ${showDiscordOpts ? 'rotate-180' : ''}`} />
+                  </button>
+                  {showDiscordOpts && (
+                    <div className="p-3 space-y-3 border-t border-gray-800 bg-[#0d1117]">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs text-gray-400 mb-1">Nom d'affichage du bot</label>
+                          <input type="text" value={form.discordUsername}
+                            onChange={e => setForm(f => ({ ...f, discordUsername: e.target.value }))}
+                            placeholder="LogviewR Fail2ban"
+                            className="w-full px-3 py-2 bg-[#161b22] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-600 focus:outline-none focus:border-cyan-500/50" />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-400 mb-1">URL avatar</label>
+                          <input type="url" value={form.discordAvatarUrl}
+                            onChange={e => setForm(f => ({ ...f, discordAvatarUrl: e.target.value }))}
+                            placeholder="https://…/avatar.png"
+                            className="w-full px-3 py-2 bg-[#161b22] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-600 focus:outline-none focus:border-cyan-500/50" />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs text-gray-400 mb-1">ID Thread / Forum</label>
+                          <input type="text" value={form.discordThreadId}
+                            onChange={e => setForm(f => ({ ...f, discordThreadId: e.target.value }))}
+                            placeholder="1234567890123456789"
+                            className="w-full px-3 py-2 bg-[#161b22] border border-gray-700 rounded-lg text-white text-sm font-mono placeholder-gray-600 focus:outline-none focus:border-cyan-500/50" />
+                          <p className="mt-1 text-xs text-gray-500">Optionnel — envoie dans un thread spécifique</p>
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-400 mb-1">Mention</label>
+                          <input type="text" value={form.discordMention}
+                            onChange={e => setForm(f => ({ ...f, discordMention: e.target.value }))}
+                            placeholder="@here  ou  ID de rôle"
+                            className="w-full px-3 py-2 bg-[#161b22] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-600 focus:outline-none focus:border-cyan-500/50" />
+                          <p className="mt-1 text-xs text-gray-500">@here, @everyone, ou ID numérique du rôle</p>
+                        </div>
+                      </div>
+                      {/* Couleurs par type */}
+                      <div>
+                        <p className="text-xs text-gray-400 mb-2">Couleurs des embeds</p>
+                        <div className="flex items-center gap-4">
+                          {([
+                            { key: 'discordColorBan' as const,    label: 'Ban auto' },
+                            { key: 'discordColorAction' as const,  label: 'Ban manuel' },
+                            { key: 'discordColorUnban' as const,   label: 'Débannissement' },
+                          ] as const).map(({ key, label }) => (
+                            <label key={key} className="flex items-center gap-2 cursor-pointer">
+                              <input type="color" value={form[key]}
+                                onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
+                                className="w-7 h-7 rounded cursor-pointer border-0 bg-transparent p-0" />
+                              <span className="text-xs text-gray-400">{label}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── Options Telegram ──────────────────────────────────────────────── */}
+              {showForm === 'telegram' && (
+                <div className="border border-gray-800 rounded-lg overflow-hidden">
+                  <button type="button" onClick={() => setShowTgOpts(v => !v)}
+                    className="w-full flex items-center justify-between px-3 py-2.5 text-xs font-medium text-gray-400 hover:text-gray-200 bg-[#161b22] transition-colors">
+                    <span className="flex items-center gap-1.5">
+                      {WEBHOOK_TYPE_ICONS.telegram && <img src={WEBHOOK_TYPE_ICONS.telegram} alt="telegram" style={{ width: 11, height: 11 }} />}
+                      Options Telegram
+                    </span>
+                    <ChevronDown size={12} className={`transition-transform ${showTgOpts ? 'rotate-180' : ''}`} />
+                  </button>
+                  {showTgOpts && (
+                    <div className="p-3 space-y-3 border-t border-gray-800 bg-[#0d1117]">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="text-sm text-gray-300">Notification silencieuse</span>
+                          <span className="text-xs text-gray-600 block">Aucun son ni vibration à la réception</span>
+                        </div>
+                        <Toggle enabled={form.telegramSilent} onChange={v => setForm(f => ({ ...f, telegramSilent: v }))} />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="text-sm text-gray-300">Désactiver l'aperçu des liens</span>
+                          <span className="text-xs text-gray-600 block">Empêche Telegram de prévisualiser les URLs dans le message</span>
+                        </div>
+                        <Toggle enabled={form.telegramDisablePreview} onChange={v => setForm(f => ({ ...f, telegramDisablePreview: v }))} />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-400 mb-1">ID du topic (supergroupe)</label>
+                        <input type="text" value={form.telegramThreadId}
+                          onChange={e => setForm(f => ({ ...f, telegramThreadId: e.target.value }))}
+                          placeholder="12345"
+                          className="w-full px-3 py-2 bg-[#161b22] border border-gray-700 rounded-lg text-white text-sm font-mono placeholder-gray-600 focus:outline-none focus:border-cyan-500/50" />
+                        <p className="mt-1 text-xs text-gray-500">Pour envoyer dans un topic spécifique d'un supergroupe</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── Templates de messages ─────────────────────────────────────────── */}
+              <div className="border border-gray-800 rounded-lg overflow-hidden">
+                <button type="button" onClick={() => setShowTemplates(v => !v)}
+                  className="w-full flex items-center justify-between px-3 py-2.5 text-xs font-medium text-gray-400 hover:text-gray-200 bg-[#161b22] transition-colors">
+                  <span className="flex items-center gap-1.5"><Code size={11} /> Personnaliser les messages</span>
+                  <ChevronDown size={12} className={`transition-transform ${showTemplates ? 'rotate-180' : ''}`} />
+                </button>
+                {showTemplates && (
+                  <div className="p-3 space-y-3 border-t border-gray-800 bg-[#0d1117]">
+                    <p className="text-xs text-gray-500">
+                      Laissez vide pour utiliser le format par défaut.
+                      {showForm === 'discord' && ' Discord Markdown supporté (**gras**, `code`).'}
+                      {showForm === 'telegram' && ' HTML Telegram supporté (<b>gras</b>, <code>code</code>, <i>italique</i>).'}
+                    </p>
+                    {/* Variables hint */}
+                    <div className="p-2 bg-[#161b22] rounded-lg border border-gray-800">
+                      <p className="text-xs text-gray-500 mb-1.5 font-medium">Variables disponibles :</p>
+                      <div className="flex flex-wrap gap-1">
+                        {(['{{ip}}','{{jail}}','{{bantime}}','{{failures}}','{{domain}}','{{date}}','{{time}}'] as const).map(v => (
+                          <code key={v} className="text-[10px] px-1.5 py-0.5 bg-gray-800 text-cyan-400 rounded font-mono">{v}</code>
+                        ))}
+                        <span className="text-[10px] text-gray-600 self-center ml-1">+ pour les résumés :</span>
+                        {(['{{count}}','{{list}}'] as const).map(v => (
+                          <code key={v} className="text-[10px] px-1.5 py-0.5 bg-gray-800 text-amber-400 rounded font-mono">{v}</code>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Ban solo (automatique)</label>
+                      <textarea value={form.templateBanSolo}
+                        onChange={e => setForm(f => ({ ...f, templateBanSolo: e.target.value }))}
+                        rows={3}
+                        placeholder={showForm === 'telegram'
+                          ? '🔴 <b>Ban</b> — <code>{{ip}}</code>\nJail : <b>{{jail}}</b> · Durée : {{bantime}}'
+                          : '**Ban détecté**\n`{{ip}}` — {{jail}} — {{bantime}}'}
+                        className="w-full px-3 py-2 bg-[#161b22] border border-gray-700 rounded-lg text-white text-xs font-mono placeholder-gray-600 focus:outline-none focus:border-cyan-500/50 resize-y" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Résumé groupé</label>
+                      <textarea value={form.templateBanGroup}
+                        onChange={e => setForm(f => ({ ...f, templateBanGroup: e.target.value }))}
+                        rows={3}
+                        placeholder="📋 {{count}} bans\n\n{{list}}"
+                        className="w-full px-3 py-2 bg-[#161b22] border border-gray-700 rounded-lg text-white text-xs font-mono placeholder-gray-600 focus:outline-none focus:border-cyan-500/50 resize-y" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Action manuelle (ban / débannissement)</label>
+                      <textarea value={form.templateActionSolo}
+                        onChange={e => setForm(f => ({ ...f, templateActionSolo: e.target.value }))}
+                        rows={3}
+                        placeholder={showForm === 'telegram'
+                          ? '🔨 <b>{{action}}</b> — <code>{{ip}}</code>\nJail : <b>{{jail}}</b>'
+                          : '**{{action}}** — `{{ip}}` — {{jail}}'}
+                        className="w-full px-3 py-2 bg-[#161b22] border border-gray-700 rounded-lg text-white text-xs font-mono placeholder-gray-600 focus:outline-none focus:border-cyan-500/50 resize-y" />
+                    </div>
                   </div>
                 )}
               </div>
@@ -3447,12 +3817,28 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 }) => {
   const { t } = useTranslation();
   const { user: currentUser } = useUserAuthStore();
+  const { plugins } = usePluginStore();
+  const activePluginCount = plugins.filter(p => p.enabled).length;
   // Check sessionStorage on mount in case initialAdminTab wasn't passed correctly
   const storedAdminTab = sessionStorage.getItem('adminTab');
   const [activeAdminTab, setActiveAdminTab] = useState<AdminTab>(() => toAdminTab(storedAdminTab || initialAdminTab));
   const [pluginSubTab, setPluginSubTab]     = useState<'plugins' | 'regex'>('plugins');
+  const [regexCount, setRegexCount]         = useState<number | null>(null);
+  useEffect(() => {
+    api.get<Record<string, Record<string, unknown>>>('/api/log-viewer/custom-regexes')
+      .then(res => {
+        if (res.result) {
+          const count = Object.values(res.result).reduce((sum, files) => sum + Object.keys(files).length, 0);
+          setRegexCount(count);
+        }
+      })
+      .catch(() => {});
+  }, []);
   const [infoSubTab, setInfoSubTab]         = useState<'logviewr' | 'applogs'>('logviewr');
   const [securitySubTab, setSecuritySubTab] = useState<'users' | 'protection' | 'network' | 'logs'>('users');
+  const PRESET_TIMEZONES = ['Europe/Paris', 'Europe/London', 'UTC', 'America/New_York', 'America/Chicago', 'America/Los_Angeles', 'Asia/Tokyo', 'Asia/Shanghai', 'Australia/Sydney'];
+  const [timezone, setTimezone]             = useState('Europe/Paris');
+  const [customTz, setCustomTz]             = useState('');
 
   // Update activeAdminTab when initialAdminTab changes (e.g., from navigation)
   // Also check sessionStorage on mount
@@ -3795,55 +4181,69 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                     <UpdateCheckSection />
                   </Section>
 
-                  <Section title={t('admin.general.informations')} icon={Key} iconColor="purple">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                      <div className="p-3 bg-[#1a1a1a] rounded-lg border border-gray-800">
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-gray-400">{t('admin.general.version')}</span>
-                          <span className="text-sm text-white font-mono">{getVersionString()}</span>
-                        </div>
-                      </div>
-                      <div className="p-3 bg-[#1a1a1a] rounded-lg border border-gray-800">
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-gray-400">{t('admin.general.database')}</span>
-                          <span className="text-sm text-white">SQLite</span>
-                        </div>
-                      </div>
-                      <div className="p-3 bg-[#1a1a1a] rounded-lg border border-gray-800">
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-gray-400">{t('admin.general.authentication')}</span>
-                          <span className="text-sm text-white">JWT</span>
-                        </div>
-                      </div>
-                    </div>
-                  </Section>
-
                   <Section title={t('admin.general.localization')} icon={Globe} iconColor="cyan">
                     <SettingRow
                       label={t('admin.general.timezone')}
                       description={t('admin.general.timezoneDescription')}
                     >
-                      <select className="px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm">
-                        <option value="Europe/Paris">Europe/Paris (UTC+1)</option>
-                        <option value="UTC">UTC (UTC+0)</option>
-                        <option value="America/New_York">America/New_York (UTC-5)</option>
-                      </select>
+                      <div className="flex flex-col gap-1.5 items-end">
+                        <select
+                          value={timezone === '__custom__' ? '__custom__' : (PRESET_TIMEZONES.includes(timezone) ? timezone : '__custom__')}
+                          onChange={e => {
+                            if (e.target.value === '__custom__') {
+                              setTimezone('__custom__');
+                            } else {
+                              setTimezone(e.target.value);
+                              setCustomTz('');
+                            }
+                          }}
+                          className="px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm"
+                        >
+                          {PRESET_TIMEZONES.map(tz => (
+                            <option key={tz} value={tz}>{tz}</option>
+                          ))}
+                          <option value="__custom__">Autre…</option>
+                        </select>
+                        {(timezone === '__custom__' || !PRESET_TIMEZONES.includes(timezone)) && (
+                          <input
+                            type="text"
+                            value={customTz}
+                            onChange={e => { setCustomTz(e.target.value); setTimezone(e.target.value || '__custom__'); }}
+                            placeholder="ex: America/Toronto"
+                            className="px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-600 focus:outline-none focus:border-cyan-500/50 w-48 font-mono"
+                          />
+                        )}
+                      </div>
                     </SettingRow>
-                  </Section>
-
-                  <Section title={t('admin.general.language')} icon={Globe} iconColor="cyan">
                     <SettingRow
                       label={t('admin.general.languageLabel')}
                       description={t('admin.general.languageDescription')}
                     >
-                      <select
-                        value={getAppLanguage()}
-                        onChange={(e) => setAppLanguage(e.target.value)}
-                        className="px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm"
-                      >
-                        <option value="fr">{t('admin.languageOptions.fr')}</option>
-                        <option value="en">{t('admin.languageOptions.en')}</option>
-                      </select>
+                      <div className="flex gap-2">
+                        {([
+                          { value: 'fr', label: 'Français',  flag: '/icons/country/fr.svg' },
+                          { value: 'en', label: 'English',   flag: '/icons/country/gb.svg' },
+                        ] as const).map(({ value, label, flag }) => {
+                          const isActive = getAppLanguage() === value;
+                          return (
+                            <button
+                              key={value}
+                              type="button"
+                              onClick={() => setAppLanguage(value)}
+                              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium border transition-all"
+                              style={{
+                                borderColor: isActive ? '#22d3ee' : '#374151',
+                                background:  isActive ? 'rgba(34,211,238,0.12)' : 'rgba(255,255,255,0.03)',
+                                color:       isActive ? '#22d3ee' : '#9ca3af',
+                                boxShadow:   isActive ? '0 0 0 1px rgba(34,211,238,0.3)' : undefined,
+                              }}
+                            >
+                              <img src={flag} alt={value} style={{ width: 18, height: 13, objectFit: 'cover', borderRadius: 2 }} />
+                              {label}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </SettingRow>
                   </Section>
                 </div>
@@ -3869,13 +4269,18 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                     <button
                       key={st.id}
                       onClick={() => setPluginSubTab(st.id)}
-                      className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                      className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
                         pluginSubTab === st.id
                           ? 'bg-blue-500/15 border border-blue-500/40 text-blue-400'
                           : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
                       }`}
                     >
                       {st.label}
+                      {st.id === 'regex' && regexCount !== null && regexCount > 0 && (
+                        <span className="px-1.5 py-0.5 rounded-full text-xs bg-purple-500/20 text-purple-300 font-mono leading-none">
+                          {regexCount}
+                        </span>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -3942,7 +4347,31 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 
             {/* Database Management Section */}
             {activeAdminTab === 'database' && (
-              <DatabaseSection onNavigateToPage={onNavigateToPage} />
+              <div className="space-y-6">
+                <Section title={t('admin.general.informations')} icon={Key} iconColor="purple">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="p-3 bg-[#1a1a1a] rounded-lg border border-gray-800">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-400">{t('admin.general.version')}</span>
+                        <span className="text-sm text-white font-mono">{getVersionString()}</span>
+                      </div>
+                    </div>
+                    <div className="p-3 bg-[#1a1a1a] rounded-lg border border-gray-800">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-400">{t('admin.general.database')}</span>
+                        <span className="text-sm text-white">SQLite</span>
+                      </div>
+                    </div>
+                    <div className="p-3 bg-[#1a1a1a] rounded-lg border border-gray-800">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-400">{t('admin.general.authentication')}</span>
+                        <span className="text-sm text-white">JWT</span>
+                      </div>
+                    </div>
+                  </div>
+                </Section>
+                <DatabaseSection onNavigateToPage={onNavigateToPage} />
+              </div>
             )}
 
             {/* Info Section (includes Debug as a sub-category) */}
