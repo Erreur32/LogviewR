@@ -378,7 +378,7 @@ const IpSetsSection: React.FC<{ days: number; onDaysChange: (d: number) => void 
     useEffect(() => {
         const ac = new AbortController();
         const key = `ipset:history:${days}`;
-        const cached = getCached<IpSetHist>(key);
+        const cached = getCached<IpSetHist>(key, days);
         if (cached) setHist(cached);
         api.get<{ ok: boolean; ipset_names: string[]; ipset_days: Record<string, Record<string, number>> }>(
             `/api/plugins/fail2ban/ipset/history?days=${days}`,
