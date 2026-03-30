@@ -370,12 +370,22 @@ const IpSetsSection: React.FC<{ days: number; onDaysChange: (d: number) => void 
 
     // Historical data for the line chart — synced with global period
     useEffect(() => {
+        const ac = new AbortController();
         const key = `ipset:history:${days}`;
-        const cached = getCached<{ ipset_names: string[]; ipset_days: Record<string, Record<string, number>> }>(key);
+        const cached = getCached<IpSetHist>(key);
         if (cached) setHist(cached);
-        api.get<{ ok: boolean; ipset_names: string[]; ipset_days: Record<string, Record<string, number>> }>(`/api/plugins/fail2ban/ipset/history?days=${days}`)
-            .then(res => { if (res.success && res.result?.ok) { setCached(key, res.result); setHist(res.result); } })
+        api.get<{ ok: boolean; ipset_names: string[]; ipset_days: Record<string, Record<string, number>> }>(
+            `/api/plugins/fail2ban/ipset/history?days=${days}`,
+            { signal: ac.signal }
+        )
+            .then(res => {
+                if (!ac.signal.aborted && res.success && res.result?.ok) {
+                    setCached(key, res.result);
+                    setHist(res.result);
+                }
+            })
             .catch(() => {});
+        return () => ac.abort();
     }, [days]);
 
     const maxEntries = Math.max(...sets.map(s => s.entries), 1);
