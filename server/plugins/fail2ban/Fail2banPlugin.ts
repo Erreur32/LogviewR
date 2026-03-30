@@ -1981,27 +1981,9 @@ export class Fail2banPlugin extends BasePlugin {
 
             // All stats from our f2b_events (dashboard.db) — never purged unlike fail2ban's own DB.
             // One shared connection, all queries in the same session.
-            // STORE_LIMIT: always fetch 100 items for cache storage; `limit` is applied on the response.
-            const STORE_LIMIT = 100;
             const evDb   = getDatabase();
             const allTime = days <= 0;
             const since  = allTime ? 0 : Math.floor(Date.now() / 1000) - days * 86400;
-
-            const topIps = (allTime
-                ? evDb.prepare(`SELECT ip, COUNT(*) as count FROM f2b_events WHERE event_type='ban' GROUP BY ip ORDER BY count DESC LIMIT @limit`).all({ limit: STORE_LIMIT })
-                : evDb.prepare(`SELECT ip, COUNT(*) as count FROM f2b_events WHERE event_type='ban' AND timeofban >= @since GROUP BY ip ORDER BY count DESC LIMIT @limit`).all({ since, limit: STORE_LIMIT })
-            ) as { ip: string; count: number }[];
-
-            const topJailsWF = (allTime
-                ? evDb.prepare(`SELECT jail, COUNT(*) as bans, COALESCE(SUM(failures),0) as failures FROM f2b_events WHERE event_type='ban' GROUP BY jail ORDER BY bans DESC LIMIT @limit`).all({ limit: STORE_LIMIT })
-                : evDb.prepare(`SELECT jail, COUNT(*) as bans, COALESCE(SUM(failures),0) as failures FROM f2b_events WHERE event_type='ban' AND timeofban >= @since GROUP BY jail ORDER BY bans DESC LIMIT @limit`).all({ since, limit: STORE_LIMIT })
-            ) as { jail: string; bans: number; failures: number }[];
-            const topJails = topJailsWF.map(j => ({ jail: j.jail, count: j.bans }));
-
-            const topRecidivists = (allTime
-                ? evDb.prepare(`SELECT ip, COUNT(*) as count FROM f2b_events WHERE event_type='ban' GROUP BY ip HAVING count >= 2 ORDER BY count DESC LIMIT 100`).all()
-                : evDb.prepare(`SELECT ip, COUNT(*) as count FROM f2b_events WHERE event_type='ban' AND timeofban >= @since GROUP BY ip HAVING count >= 2 ORDER BY count DESC LIMIT 100`).all({ since })
-            ) as { ip: string; count: number }[];
 
             const heatmap = (allTime
                 ? evDb.prepare(`SELECT CAST(strftime('%H',timeofban,'unixepoch') AS INTEGER) as hour, COUNT(*) as count FROM f2b_events WHERE event_type='ban' GROUP BY hour ORDER BY hour`).all()
@@ -2064,7 +2046,7 @@ export class Fail2banPlugin extends BasePlugin {
                 };
             }
 
-            // phase=fast: return summary + heatmaps only (6 queries instead of 11), skip tops lists
+            // phase=fast: return summary + heatmaps only, skip heavy list queries (topIps, topJails, topRecidivists)
             if (phase === 'fast') {
                 const _fastResult = {
                     ok: true,
@@ -2078,6 +2060,26 @@ export class Fail2banPlugin extends BasePlugin {
                 this._cachePut(_tCacheKey, _fastResult);
                 return res.json({ success: true, result: _fastResult });
             }
+
+            // SLOW queries (only for phase=full)
+            // STORE_LIMIT: always fetch 100 items for cache storage; `limit` is applied on the response.
+            const STORE_LIMIT = 100;
+
+            const topIps = (allTime
+                ? evDb.prepare(`SELECT ip, COUNT(*) as count FROM f2b_events WHERE event_type='ban' GROUP BY ip ORDER BY count DESC LIMIT @limit`).all({ limit: STORE_LIMIT })
+                : evDb.prepare(`SELECT ip, COUNT(*) as count FROM f2b_events WHERE event_type='ban' AND timeofban >= @since GROUP BY ip ORDER BY count DESC LIMIT @limit`).all({ since, limit: STORE_LIMIT })
+            ) as { ip: string; count: number }[];
+
+            const topJailsWF = (allTime
+                ? evDb.prepare(`SELECT jail, COUNT(*) as bans, COALESCE(SUM(failures),0) as failures FROM f2b_events WHERE event_type='ban' GROUP BY jail ORDER BY bans DESC LIMIT @limit`).all({ limit: STORE_LIMIT })
+                : evDb.prepare(`SELECT jail, COUNT(*) as bans, COALESCE(SUM(failures),0) as failures FROM f2b_events WHERE event_type='ban' AND timeofban >= @since GROUP BY jail ORDER BY bans DESC LIMIT @limit`).all({ since, limit: STORE_LIMIT })
+            ) as { jail: string; bans: number; failures: number }[];
+            const topJails = topJailsWF.map(j => ({ jail: j.jail, count: j.bans }));
+
+            const topRecidivists = (allTime
+                ? evDb.prepare(`SELECT ip, COUNT(*) as count FROM f2b_events WHERE event_type='ban' GROUP BY ip HAVING count >= 2 ORDER BY count DESC LIMIT 100`).all()
+                : evDb.prepare(`SELECT ip, COUNT(*) as count FROM f2b_events WHERE event_type='ban' AND timeofban >= @since GROUP BY ip HAVING count >= 2 ORDER BY count DESC LIMIT 100`).all({ since })
+            ) as { ip: string; count: number }[];
 
             // Top Domains moved to dedicated /tops/domains route (slow NPM log scan, called only when visible)
             const topDomains: { domain: string; count: number; failures: number }[] = [];
