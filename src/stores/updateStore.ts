@@ -13,6 +13,7 @@ export interface UpdateInfo {
   latestVersion: string | null;
   updateAvailable: boolean;
   dockerReady?: boolean;   // Docker image available on GHCR for that version
+  releaseNotes?: string;   // Short release notes from GitHub Releases
   error?: string;
 }
 

@@ -190,6 +190,7 @@ interface HeaderProps {
   updateBanner?: {
     show: boolean;
     latestVersion?: string;
+    releaseNotes?: string;
     onDismiss: () => void;
   };
 }
@@ -757,33 +758,43 @@ export const Header: React.FC<HeaderProps> = ({
       <div style={{
         background: 'linear-gradient(90deg, rgba(245,158,11,.15) 0%, rgba(245,158,11,.08) 100%)',
         borderBottom: '1px solid rgba(245,158,11,.35)',
-        display: 'flex', alignItems: 'center', gap: '.75rem',
         padding: '.45rem 1rem', fontSize: '.82rem',
       }}>
-        <Download size={14} style={{ color: '#f59e0b', flexShrink: 0 }} />
-        <span style={{ color: '#fbbf24', fontWeight: 600 }}>
-          {t('header.newVersionAvailable')} : v{updateBanner.latestVersion}
-        </span>
-        <span style={{ color: '#9ca3af', fontSize: '.75rem' }}>
-          — Image Docker prête ·
-        </span>
-        <code style={{
-          fontSize: '.72rem', color: '#67e8f9', fontFamily: 'monospace',
-          background: 'rgba(0,0,0,.3)', padding: '.1rem .45rem', borderRadius: 4,
-        }}>
-          docker compose pull &amp;&amp; docker compose up -d
-        </code>
-        <button
-          onClick={updateBanner.onDismiss}
-          title={t('common.hide')}
-          style={{
-            marginLeft: 'auto', background: 'none', border: 'none',
-            cursor: 'pointer', color: '#6b7280', padding: '.15rem',
-            display: 'flex', flexShrink: 0,
-          }}
-        >
-          <XIcon size={14} />
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem' }}>
+          <Download size={14} style={{ color: '#f59e0b', flexShrink: 0 }} />
+          <span style={{ color: '#fbbf24', fontWeight: 600 }}>
+            {t('header.newVersionAvailable')} : v{updateBanner.latestVersion}
+          </span>
+          <span style={{ color: '#9ca3af', fontSize: '.75rem' }}>
+            — Image Docker prête ·
+          </span>
+          <code style={{
+            fontSize: '.72rem', color: '#67e8f9', fontFamily: 'monospace',
+            background: 'rgba(0,0,0,.3)', padding: '.1rem .45rem', borderRadius: 4,
+          }}>
+            docker compose pull &amp;&amp; docker compose up -d
+          </code>
+          <button
+            onClick={updateBanner.onDismiss}
+            title={t('common.hide')}
+            style={{
+              marginLeft: 'auto', background: 'none', border: 'none',
+              cursor: 'pointer', color: '#6b7280', padding: '.15rem',
+              display: 'flex', flexShrink: 0,
+            }}
+          >
+            <XIcon size={14} />
+          </button>
+        </div>
+        {updateBanner.releaseNotes && (
+          <div style={{
+            marginTop: '.3rem', paddingLeft: '1.4rem',
+            color: '#9ca3af', fontSize: '.74rem', lineHeight: 1.5,
+            whiteSpace: 'pre-wrap', maxHeight: '3.5rem', overflow: 'hidden',
+          }}>
+            {updateBanner.releaseNotes}
+          </div>
+        )}
       </div>
     )}
     </>

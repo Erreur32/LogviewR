@@ -579,7 +579,7 @@ const App: React.FC = () => {
             setSelectedPluginId(pluginId);
             setCurrentPage('log-viewer');
           }}
-          updateBanner={{ show: showUpdateBanner, latestVersion: updateInfo?.latestVersion, onDismiss: dismissBanner }}
+          updateBanner={{ show: showUpdateBanner, latestVersion: updateInfo?.latestVersion, releaseNotes: updateInfo?.releaseNotes, onDismiss: dismissBanner }}
         />
         <GoAccessStyleStatsPage onBack={() => setCurrentPage('dashboard')} />
       </>
@@ -603,7 +603,7 @@ const App: React.FC = () => {
             setSelectedPluginId(pluginId);
             setCurrentPage('log-viewer');
           }}
-          updateBanner={{ show: showUpdateBanner, latestVersion: updateInfo?.latestVersion, onDismiss: dismissBanner }}
+          updateBanner={{ show: showUpdateBanner, latestVersion: updateInfo?.latestVersion, releaseNotes: updateInfo?.releaseNotes, onDismiss: dismissBanner }}
         />
         <AnalyticsPage onBack={() => setCurrentPage('dashboard')} />
       </>
@@ -715,7 +715,7 @@ const App: React.FC = () => {
             setPluginHeaderData(null);
             // The LogViewerPage will reload with the new plugin
           }}
-          updateBanner={{ show: showUpdateBanner, latestVersion: updateInfo?.latestVersion, onDismiss: dismissBanner }}
+          updateBanner={{ show: showUpdateBanner, latestVersion: updateInfo?.latestVersion, releaseNotes: updateInfo?.releaseNotes, onDismiss: dismissBanner }}
         />
         <main className="flex-1 overflow-auto">
           <Suspense fallback={<PageLoader />}>
@@ -760,7 +760,7 @@ const App: React.FC = () => {
             setSelectedPluginId(pluginId);
             setCurrentPage('log-viewer');
           }}
-          updateBanner={{ show: showUpdateBanner, latestVersion: updateInfo?.latestVersion, onDismiss: dismissBanner }}
+          updateBanner={{ show: showUpdateBanner, latestVersion: updateInfo?.latestVersion, releaseNotes: updateInfo?.releaseNotes, onDismiss: dismissBanner }}
         />
         <div className="flex-1 overflow-hidden">
           <Suspense fallback={<PageLoader />}>
@@ -796,7 +796,7 @@ const App: React.FC = () => {
             setSelectedPluginId(pluginId);
             setCurrentPage('log-viewer');
           }}
-          updateBanner={{ show: showUpdateBanner, latestVersion: updateInfo?.latestVersion, onDismiss: dismissBanner }}
+          updateBanner={{ show: showUpdateBanner, latestVersion: updateInfo?.latestVersion, releaseNotes: updateInfo?.releaseNotes, onDismiss: dismissBanner }}
         />
         <main className="p-4 md:p-6 max-w-[1920px] mx-auto">
           <div className="mb-8">
@@ -886,7 +886,7 @@ const App: React.FC = () => {
         onProfileClick={handleProfileClick}
         onUsersClick={handleUsersClick}
         onLogout={handleLogout}
-        updateBanner={{ show: showUpdateBanner, latestVersion: updateInfo?.latestVersion, onDismiss: dismissBanner }}
+        updateBanner={{ show: showUpdateBanner, latestVersion: updateInfo?.latestVersion, releaseNotes: updateInfo?.releaseNotes, onDismiss: dismissBanner }}
       />
       <main className="p-4 md:p-6 max-w-[1920px] mx-auto">
         <div className="text-center py-12">

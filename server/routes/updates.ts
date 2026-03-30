@@ -188,6 +188,26 @@ router.get('/check', requireAuth, asyncHandler(async (req: AuthenticatedRequest,
             const dockerReady = updateAvailable
               ? await checkDockerImageAvailable(latestVersion)
               : false;
+
+            // Fetch release notes from GitHub Releases API
+            let releaseNotes: string | undefined;
+            try {
+              const releaseRes = await fetch(
+                `https://api.github.com/repos/erreur32/LogviewR/releases/tags/v${latestVersion}`,
+                { headers }
+              );
+              if (releaseRes.ok) {
+                const release = await releaseRes.json() as { body?: string };
+                if (release.body) {
+                  // Keep first 400 chars, trim at last complete sentence/line
+                  const trimmed = release.body.slice(0, 400);
+                  releaseNotes = trimmed.length < release.body.length
+                    ? trimmed.replace(/\s+\S*$/, '') + '…'
+                    : trimmed;
+                }
+              }
+            } catch { /* non-critical */ }
+
             return res.json({
               success: true,
               result: {
@@ -196,6 +216,7 @@ router.get('/check', requireAuth, asyncHandler(async (req: AuthenticatedRequest,
                 latestVersion,
                 updateAvailable: updateAvailable && dockerReady,
                 dockerReady,
+                releaseNotes,
                 error: undefined
               }
             });

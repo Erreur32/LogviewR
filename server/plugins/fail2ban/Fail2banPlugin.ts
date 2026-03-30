@@ -2202,9 +2202,20 @@ export class Fail2banPlugin extends BasePlugin {
             const topDomains: { domain: string; count: number; failures: number }[] = [];
             const npmSettings = this.config?.settings as unknown as Fail2banPluginConfig | undefined;
             const npmDataPath = npmSettings?.npmDataPath ?? '';
-            const npmEnabled = npmSettings?.npmDbType === 'mysql'
-                ? !!(npmSettings?.npmMysqlHost && npmSettings?.npmMysqlUser && npmSettings?.npmMysqlDb)
-                : !!npmDataPath;
+            const isMysql = npmSettings?.npmDbType === 'mysql';
+            const mysqlCredsOk = !!(npmSettings?.npmMysqlHost && npmSettings?.npmMysqlUser && npmSettings?.npmMysqlDb);
+            const npmEnabled = isMysql ? (mysqlCredsOk && !!npmDataPath) : !!npmDataPath;
+
+            // Return early with a clear warning if configuration is incomplete
+            if (!npmEnabled) {
+                if (isMysql && mysqlCredsOk && !npmDataPath) {
+                    return res.json({ success: true, result: { ok: false, topDomains: [], warning: 'npmDataPath requis même en mode MySQL (chemin vers les logs NPM : /data/nginx/)' } });
+                }
+                if (isMysql && !mysqlCredsOk) {
+                    return res.json({ success: true, result: { ok: false, topDomains: [], warning: 'Configuration MySQL incomplète (hôte, utilisateur et base de données requis)' } });
+                }
+                return res.json({ success: true, result: { ok: true, topDomains: [] } });
+            }
             if (npmEnabled) {
                 try {
                     // 1. Build proxy-host id → domain from NPM DB (SQLite or MySQL)
