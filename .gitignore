@@ -98,3 +98,4 @@ Thumbs.db
 
 # MCP config (contains tokens)
 .mcp.json
+.worktrees/
