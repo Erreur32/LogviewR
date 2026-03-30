@@ -494,6 +494,13 @@ export class Fail2banPlugin extends BasePlugin {
     private _cachePut(key: string, data: unknown): void {
         this._routeCache.set(key, { data, ts: Date.now() });
     }
+    /** Returns cache TTL in ms adapted to the time range: recent data expires fast, old data stays longer. */
+    private _adaptiveTtl(days: number): number {
+        if (days <= 0)  return 600_000; // all-time: 10min
+        if (days <= 2)  return 30_000;  // 24h/48h: 30s
+        if (days <= 7)  return 120_000; // 7j: 2min
+        return 600_000;                 // 30j, 6m, 1an: 10min
+    }
 
     constructor() {
         super('fail2ban', 'Fail2ban', '1.0.0');
@@ -894,7 +901,7 @@ export class Fail2banPlugin extends BasePlugin {
 
             // TTL cache: 30s — ban history is slow to query and doesn't change second-by-second
             const _hCacheKey = `history:${days}`;
-            const _hCached = this._cachePeek<unknown>(_hCacheKey, 30_000);
+            const _hCached = this._cachePeek<unknown>(_hCacheKey, this._adaptiveTtl(days));
             if (_hCached) return res.json({ success: true, result: _hCached });
 
             const evDb    = getDatabase();
@@ -1957,7 +1964,7 @@ export class Fail2banPlugin extends BasePlugin {
             // This deduplicates concurrent TabStats (limit=100) and BanHistoryChart (limit=1) requests.
             const _tCacheKey = `tops:${days}:${compareFlag}`;
             type TopsPayload = { ok: boolean; topIps: unknown[]; topJails: unknown[]; topRecidivists: unknown[]; topDomains: unknown[]; heatmap: unknown; heatmapFailed: unknown; heatmapWeek: unknown; heatmapFailedWeek: unknown; summary: unknown; prevSummary: unknown };
-            const _tCached = this._cachePeek<TopsPayload>(_tCacheKey, 30_000);
+            const _tCached = this._cachePeek<TopsPayload>(_tCacheKey, this._adaptiveTtl(days));
             if (_tCached) {
                 return res.json({ success: true, result: {
                     ..._tCached,
