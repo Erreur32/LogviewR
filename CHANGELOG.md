@@ -9,6 +9,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.8.1] - 2026-03-30
+
+### Pour les utilisateurs
+
+> Correction du freeze des filtres de période dans l'onglet Statistiques, et nouveau bouton "Réessayer" quand fail2ban n'est pas accessible.
+
+- **Filtres de période — plus de freeze** — Changer la période (1j / 7j / 30j…) dans l'onglet Statistiques pouvait figer la page sur les instances avec beaucoup de jails ou un historique volumineux. Les données ne se rafraîchissaient plus, même après plusieurs clics. Corrigé.
+- **Banner socket — bouton "Réessayer"** — Quand le banner "Source indisponible — fail2ban daemon not responding" s'affiche (socket inaccessible après un redémarrage de fail2ban), un bouton **Réessayer** apparaît à droite. Un clic relance la vérification immédiatement après avoir corrigé les permissions (`sudo chmod 660 /var/run/fail2ban/fail2ban.sock`), sans rechargement de page.
+
+---
+
+### Technique
+
+#### Contexte du bug (pour debug futur)
+
+Le freeze des filtres de période était causé par une accumulation de requêtes concurrentes sans annulation. Chaque changement de période déclenchait ~6 requêtes API simultanées (`/status`, `/history`, `/tops`, `/ipset/history`, `/tops?compare=1`, `/tops/prev`). Le navigateur limite les connexions HTTP/1.1 à 6 par origine — au-delà, les nouvelles requêtes sont mises en queue. Les appels serveur utilisent `fail2ban-client` avec un timeout de 10s : sur une instance chargée (nombreux jails, gros SQLite), chaque requête peut prendre plusieurs secondes. En changeant la période 2-3 fois rapidement, 12-18 requêtes s'accumulent et la queue reste bloquée jusqu'à 30s+.
+
+Le bug existait depuis l'origine mais ne se manifestait que quand le volume de données / nombre de jails dépassait un seuil. L'autre instance Docker "qui marchait" avait simplement moins de charge.
+
+#### Frontend — `src/pages/Fail2banPage.tsx`
+
+- **`fetchStatusAbortRef`** — Nouveau `useRef<AbortController | null>(null)` ajouté après `hasBootstrappedRef`. Annule toute wave précédente au début de chaque appel à `fetchStatus()`.
+- **`fetchStatus` — AbortController** — `fetchStatusAbortRef.current?.abort()` + création d'un nouveau `AbortController ac` en tête de fonction. Signal passé aux deux `api.get()` : `/status?days=X` et `/history?days=X` via `{ signal: ac.signal }`.
+- **`fetchStatus` — guard dans `waveDone`** — `if (ac.signal.aborted) return;` ajouté en première ligne de `waveDone()`. Empêche une wave annulée d'appeler `setRefreshBusy(false)` et de réinitialiser `hasBootstrappedRef` / `lastRefreshed` pendant qu'une nouvelle wave est en cours.
+- **Banner "Source indisponible" — bouton Réessayer** — Bouton `<button onClick={fetchStatus}>Réessayer</button>` ajouté à droite du texte d'erreur. Style inline orange cohérent avec le banner (`border: rgba(227,179,65,.4)`, `background: rgba(227,179,65,.12)`). `flex: 1` ajouté au `<div>` de texte pour repousser le bouton à droite.
+
+#### Frontend — `src/pages/fail2ban/TabStats.tsx`
+
+- **`HistChart` extrait au niveau module** — Était défini comme composant à l'intérieur de `IpSetsSection`, ce qui forçait React à le démonte/remonter à chaque render du parent (perte de state `hiddenLines` + `svgW`, ResizeObserver recréé inutilement). Déplacé avant `IpSetsSection` au niveau module. Type alias `IpSetHist` introduit pour le type de `hist`. Signature : `React.FC<{ hist: IpSetHist; days: number; onDaysChange: (d: number) => void }>`. Call site mis à jour : `<HistChart hist={hist} days={days} onDaysChange={onDaysChange} />`. State `hiddenLines` et `svgW` now persistent across parent re-renders.
+- **`topsAbortRef`** — Nouveau `useRef<AbortController | null>(null)` dans `TabStats`. Annule la requête `/tops` précédente au début de chaque `fetchTops()`.
+- **`fetchTops` — AbortController** — `topsAbortRef.current?.abort()` + nouveau `AbortController ac`. Signal passé à `api.get('/tops?...')`. Guards ajoutés : `if (ac.signal.aborted) return;` dans `.then()` et `.finally()` pour éviter les mises à jour de state sur requêtes annulées (setTopsData, setTopsLoading, dispatchTabLoaded).
+- **`useEffect([days, fetchTops])` — cleanup** — `return () => { clearInterval(id); topsAbortRef.current?.abort(); }` — abort ajouté au cleanup pour annuler la requête en vol quand le composant démonte ou que `days` change.
+- **`IpSetsSection` — history effect AbortController** — `useEffect([days])` qui fetch `/ipset/history?days=X` n'avait pas de cleanup. Remplacé par un `AbortController ac` local : signal passé à `api.get()`, guard `!ac.signal.aborted` dans `.then()`, `return () => ac.abort()` en cleanup. Le type `IpSetHist` utilisé pour `getCached<IpSetHist>`.
+
+---
+
 ## [0.8.0] - 2026-03-30
 
 ### Pour les utilisateurs
