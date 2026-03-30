@@ -396,7 +396,7 @@ export const Header: React.FC<HeaderProps> = ({
             title={t('header.backToDashboard')}
             className="flex items-center gap-2 bg-theme-secondary px-2.5 py-1.5 rounded-lg border border-theme hover:bg-theme-primary transition-colors"
           >
-            <img src={logviewrLogo} alt="LogviewR" className="w-6 h-6 flex-shrink-0" />
+            <img src={logviewrLogo} alt="LogviewR" className="w-8 h-8 flex-shrink-0" />
             <div className="flex flex-col leading-tight relative">
               <span className="font-semibold text-sm text-theme-primary">LogviewR</span>
               <div className="flex items-center gap-1.5">
@@ -411,7 +411,7 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         ) : (
           <div className="flex items-center gap-2 bg-theme-secondary px-2.5 py-1.5 rounded-lg border border-theme">
-            <img src={logviewrLogo} alt="LogviewR" className="w-6 h-6 flex-shrink-0" />
+            <img src={logviewrLogo} alt="LogviewR" className="w-8 h-8 flex-shrink-0" />
             <div className="flex flex-col leading-tight relative">
               <span className="font-semibold text-sm text-theme-primary">LogviewR</span>
               <div className="flex items-center gap-1.5">
@@ -444,13 +444,13 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 key={plugin.id}
                 onClick={() => onPluginClick?.(plugin.id)}
-                className="p-1.5 bg-theme-secondary hover:bg-theme-primary border border-theme-border rounded-lg transition-colors"
+                className="p-1 bg-theme-secondary hover:bg-theme-primary border border-theme-border rounded-lg transition-colors"
                 title={plugin.name}
               >
                 <img
                   src={getPluginIcon(plugin.id, osType)}
                   alt={plugin.name}
-                  className="w-4 h-4 flex-shrink-0"
+                  className="w-6 h-6 flex-shrink-0"
                 />
               </button>
             ))}
