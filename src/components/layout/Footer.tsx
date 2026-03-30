@@ -185,8 +185,8 @@ export const Footer: React.FC<FooterProps> = ({
   };
 
   return (
-    <footer className="fixed bottom-0 left-0 right-0 bg-theme-footer backdrop-blur-md border-t border-theme p-3 z-50" style={{ backdropFilter: 'var(--backdrop-blur)' }}>
-      <div className="flex items-center justify-between max-w-[1920px] mx-auto px-2 gap-4">
+    <footer className="fixed bottom-0 left-0 right-0 bg-theme-footer backdrop-blur-md border-t border-theme py-3 z-50" style={{ backdropFilter: 'var(--backdrop-blur)' }}>
+      <div className="flex items-center justify-between w-full px-3 gap-4">
         {/* Navigation tabs (gauche) */}
         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar flex-1 min-w-0">
           {visibleTabs.map((tab) => {
