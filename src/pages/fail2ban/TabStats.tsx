@@ -200,6 +200,149 @@ const DomainDetailModal: React.FC<{
     );
 };
 
+// ── IPSet historical line chart (module-level — prevents React remount on each IpSetsSection render) ──
+type IpSetHist = { ipset_names: string[]; ipset_days: Record<string, Record<string, number>> } | null;
+
+const HistChart: React.FC<{ hist: IpSetHist; days: number; onDaysChange: (d: number) => void }> = ({ hist, days, onDaysChange }) => {
+    const names = hist?.ipset_names ?? [];
+    const days_map = hist?.ipset_days ?? {};
+    const rawDates = Object.keys(days_map).sort();
+    const [hiddenLines, setHiddenLines] = useState<Set<string>>(new Set());
+    const toggleLine = (nm: string) => setHiddenLines(prev => { const s = new Set(prev); s.has(nm) ? s.delete(nm) : s.add(nm); return s; });
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [svgW, setSvgW] = useState(800);
+    useEffect(() => {
+        const el = containerRef.current;
+        if (!el) return;
+        const measure = () => setSvgW(el.clientWidth || 800);
+        measure();
+        const ro = new ResizeObserver(measure);
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, []);
+
+    // 24h mode: expand daily snapshot into hourly slots (0h → current hour)
+    const hourly = days === 1;
+    let plotDates: string[];
+    let plotMap: Record<string, Record<string, number>>;
+    if (hourly && rawDates.length > 0) {
+        const today = rawDates[rawDates.length - 1];
+        const isToday = today === new Date().toISOString().slice(0, 10);
+        const maxHour = isToday ? new Date().getHours() : 23;
+        plotDates = Array.from({ length: maxHour + 1 }, (_, h) => `${today} ${String(h).padStart(2, '0')}`);
+        plotMap = Object.fromEntries(plotDates.map(dt => [dt, days_map[today] ?? {}]));
+    } else {
+        plotDates = rawDates;
+        plotMap = days_map;
+    }
+
+    const xLabel = (dt: string) => {
+        if (hourly && dt.includes(' ')) return `${parseInt(dt.split(' ')[1], 10)}h`;
+        return dt.slice(5);
+    };
+    const tipText = (dt: string, nm: string, v: number) => {
+        if (hourly && dt.includes(' ')) {
+            const [datePart, hStr] = dt.split(' ');
+            const h = parseInt(hStr, 10);
+            const [, mo, d] = datePart.split('-');
+            return `${d}/${mo} ${String(h).padStart(2, '0')}:00–${String(h + 1).padStart(2, '0')}:00 — ${nm}: ${v}`;
+        }
+        return `${dt} — ${nm}: ${v}`;
+    };
+
+    const periodLabel = PERIODS.find(p => p.days === days)?.label ?? `${days}j`;
+
+    if (!plotDates.length || !names.length) {
+        return (
+            <div style={{ padding: '1rem 1rem .5rem', borderBottom: `1px solid ${C.border}` }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '.5rem' }}>
+                    <span style={{ fontSize: '.72rem', color: C.muted }}>Historique ({periodLabel})</span>
+                    <PeriodBtns days={days} color={C.purple} onChange={onDaysChange} />
+                </div>
+                <div style={{ padding: '.75rem', textAlign: 'center', fontSize: '.78rem', color: C.muted, border: `1px dashed ${C.border}`, borderRadius: 6 }}>
+                    Aucune donnée historique — les snapshots sont enregistrés à chaque visite de cet onglet.
+                </div>
+            </div>
+        );
+    }
+    const VW = svgW, VH = 90, PAD_T = 8, PAD_B = 18;
+    const aH = VH - PAD_T - PAD_B;
+    const n = plotDates.length;
+    const xOf = (i: number) => n > 1 ? (i / (n - 1)) * VW : VW / 2;
+    const maxV = Math.max(1, ...names.flatMap(nm => plotDates.map(dt => plotMap[dt]?.[nm] ?? 0)));
+    const yOf = (v: number) => PAD_T + aH - (v / maxV) * aH;
+    const every = Math.max(1, Math.ceil(n / 14));
+
+    return (
+        <div style={{ padding: '1rem 1rem .5rem', borderBottom: `1px solid ${C.border}` }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '.5rem' }}>
+                <span style={{ fontSize: '.72rem', color: C.muted }}>Historique ({periodLabel})</span>
+                <PeriodBtns days={days} color={C.purple} onChange={onDaysChange} />
+            </div>
+            <div ref={containerRef} style={{ width: '100%' }}>
+            <svg viewBox={`0 0 ${VW} ${VH}`} preserveAspectRatio="none" style={{ width: '100%', height: VH, display: 'block', overflow: 'visible' }}>
+                {/* Grid lines */}
+                {[0, 0.5, 1].map(f => {
+                    const y = yOf(f * maxV);
+                    return <line key={f} x1={0} y1={y} x2={VW} y2={y} stroke="rgba(128,128,128,.1)" strokeWidth={f === 0 ? 1 : 0.5} />;
+                })}
+                <text x={3} y={yOf(maxV * 0.5) - 2} fontSize={9} fill="rgba(128,128,128,.4)">{Math.round(maxV * 0.5)}</text>
+                {/* Lines per set */}
+                {names.map((nm, ni) => {
+                    if (hiddenLines.has(nm)) return null;
+                    const color = PIE_COLORS[ni % PIE_COLORS.length];
+                    const pts = plotDates.map((dt, i) => {
+                        const v = plotMap[dt]?.[nm];
+                        return v != null ? `${xOf(i)},${yOf(v)}` : null;
+                    }).filter(Boolean) as string[];
+                    if (!pts.length) return null;
+                    const firstX = pts[0].split(',')[0];
+                    const lastX  = pts[pts.length - 1].split(',')[0];
+                    const lastDtIdx = [...plotDates].map((dt, i) => ({ dt, i, v: plotMap[dt]?.[nm] })).reverse().find(x => x.v != null);
+                    return (
+                        <g key={nm}>
+                            <polygon points={`${pts.join(' ')} ${lastX},${yOf(0)} ${firstX},${yOf(0)}`} fill={color} opacity={0.06} />
+                            <polyline points={pts.join(' ')} fill="none" stroke={color} strokeWidth={1.8} strokeDasharray="5,3" strokeLinejoin="round" strokeLinecap="round" opacity={0.85} />
+                            {plotDates.map((dt, i) => {
+                                const v = plotMap[dt]?.[nm];
+                                if (v == null) return null;
+                                return <circle key={dt} cx={xOf(i)} cy={yOf(v)} r={4} fill="transparent" stroke="none"><title>{tipText(dt, nm, v)}</title></circle>;
+                            })}
+                            {lastDtIdx && (
+                                <>
+                                    <circle cx={xOf(lastDtIdx.i)} cy={yOf(lastDtIdx.v!)} r={3} fill={color} stroke={C.bg1} strokeWidth={1.2} opacity={0.95} />
+                                    <text x={xOf(lastDtIdx.i) + (lastDtIdx.i > n * 0.8 ? -6 : 6)} y={yOf(lastDtIdx.v!) - 4} fontSize={9} fill={color} textAnchor={lastDtIdx.i > n * 0.8 ? 'end' : 'start'} fontWeight={600}>{lastDtIdx.v}</text>
+                                </>
+                            )}
+                        </g>
+                    );
+                })}
+                {/* X-axis labels */}
+                {plotDates.map((dt, i) => (i % every === 0 || i === n - 1) && (
+                    <text key={dt} x={xOf(i)} y={VH - 1} fontSize={8} fill="rgba(128,128,128,.5)" textAnchor={i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'}>{xLabel(dt)}</text>
+                ))}
+            </svg>
+            </div>
+            {/* Legend — dashed-line icons, clickable to toggle */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.4rem .8rem', marginTop: '.5rem' }}>
+                {names.map((nm, ni) => {
+                    const hidden = hiddenLines.has(nm);
+                    const lineColor = hidden ? C.muted : PIE_COLORS[ni % PIE_COLORS.length];
+                    return (
+                        <div key={nm} onClick={() => toggleLine(nm)}
+                            style={{ display: 'flex', alignItems: 'center', gap: '.3rem', fontSize: '.72rem', cursor: 'pointer', opacity: hidden ? 0.35 : 1 }}>
+                            <svg width={18} height={8} style={{ flexShrink: 0 }}>
+                                <line x1={0} y1={4} x2={18} y2={4} stroke={lineColor} strokeWidth={2} strokeDasharray="5,3" />
+                            </svg>
+                            <span style={{ fontFamily: 'monospace', color: hidden ? C.muted : C.text }}>{nm}</span>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+};
+
 // ── IPSets ────────────────────────────────────────────────────────────────────
 interface IpSetInfo { name: string; entries: number; type: string }
 
@@ -208,7 +351,7 @@ const IpSetsSection: React.FC<{ days: number; onDaysChange: (d: number) => void 
     const [sets, setSets]       = useState<IpSetInfo[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError]     = useState<string | null>(null);
-    const [hist, setHist]       = useState<{ ipset_names: string[]; ipset_days: Record<string, Record<string, number>> } | null>(null);
+    const [hist, setHist]       = useState<IpSetHist>(null);
 
     // /ipset/info: structured data + triggers daily snapshot
     useEffect(() => {
@@ -255,151 +398,10 @@ const IpSetsSection: React.FC<{ days: number; onDaysChange: (d: number) => void 
         return { ...s, x1, y1, x2, y2, large: deg >= 180 ? 1 : 0, pct: visibleTotal > 0 ? Math.round((s.entries / visibleTotal) * 100) : 0, color: PIE_COLORS[i % PIE_COLORS.length], hidden, deg };
     });
 
-    // ── Historical line chart ─────────────────────────────────────────────────
-    const HistChart: React.FC = () => {
-        const names = hist?.ipset_names ?? [];
-        const days_map = hist?.ipset_days ?? {};
-        const rawDates = Object.keys(days_map).sort();
-        const [hiddenLines, setHiddenLines] = useState<Set<string>>(new Set());
-        const toggleLine = (nm: string) => setHiddenLines(prev => { const s = new Set(prev); s.has(nm) ? s.delete(nm) : s.add(nm); return s; });
-        const containerRef = useRef<HTMLDivElement>(null);
-        const [svgW, setSvgW] = useState(800);
-        useEffect(() => {
-            const el = containerRef.current;
-            if (!el) return;
-            const measure = () => setSvgW(el.clientWidth || 800);
-            measure();
-            const ro = new ResizeObserver(measure);
-            ro.observe(el);
-            return () => ro.disconnect();
-        }, []);
-
-        // 24h mode: expand daily snapshot into hourly slots (0h → current hour)
-        const hourly = days === 1;
-        let plotDates: string[];
-        let plotMap: Record<string, Record<string, number>>;
-        if (hourly && rawDates.length > 0) {
-            const today = rawDates[rawDates.length - 1];
-            const isToday = today === new Date().toISOString().slice(0, 10);
-            const maxHour = isToday ? new Date().getHours() : 23;
-            plotDates = Array.from({ length: maxHour + 1 }, (_, h) => `${today} ${String(h).padStart(2, '0')}`);
-            plotMap = Object.fromEntries(plotDates.map(dt => [dt, days_map[today] ?? {}]));
-        } else {
-            plotDates = rawDates;
-            plotMap = days_map;
-        }
-
-        const xLabel = (dt: string) => {
-            if (hourly && dt.includes(' ')) return `${parseInt(dt.split(' ')[1], 10)}h`;
-            return dt.slice(5);
-        };
-        const tipText = (dt: string, nm: string, v: number) => {
-            if (hourly && dt.includes(' ')) {
-                const [datePart, hStr] = dt.split(' ');
-                const h = parseInt(hStr, 10);
-                const [, mo, d] = datePart.split('-');
-                return `${d}/${mo} ${String(h).padStart(2, '0')}:00–${String(h + 1).padStart(2, '0')}:00 — ${nm}: ${v}`;
-            }
-            return `${dt} — ${nm}: ${v}`;
-        };
-
-        const periodLabel = PERIODS.find(p => p.days === days)?.label ?? `${days}j`;
-
-        if (!plotDates.length || !names.length) {
-            return (
-                <div style={{ padding: '1rem 1rem .5rem', borderBottom: `1px solid ${C.border}` }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '.5rem' }}>
-                        <span style={{ fontSize: '.72rem', color: C.muted }}>Historique ({periodLabel})</span>
-                        <PeriodBtns days={days} color={C.purple} onChange={onDaysChange} />
-                    </div>
-                    <div style={{ padding: '.75rem', textAlign: 'center', fontSize: '.78rem', color: C.muted, border: `1px dashed ${C.border}`, borderRadius: 6 }}>
-                        Aucune donnée historique — les snapshots sont enregistrés à chaque visite de cet onglet.
-                    </div>
-                </div>
-            );
-        }
-        const VW = svgW, VH = 90, PAD_T = 8, PAD_B = 18;
-        const aH = VH - PAD_T - PAD_B;
-        const n = plotDates.length;
-        const xOf = (i: number) => n > 1 ? (i / (n - 1)) * VW : VW / 2;
-        const maxV = Math.max(1, ...names.flatMap(nm => plotDates.map(dt => plotMap[dt]?.[nm] ?? 0)));
-        const yOf = (v: number) => PAD_T + aH - (v / maxV) * aH;
-        const every = Math.max(1, Math.ceil(n / 14));
-
-        return (
-            <div style={{ padding: '1rem 1rem .5rem', borderBottom: `1px solid ${C.border}` }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '.5rem' }}>
-                    <span style={{ fontSize: '.72rem', color: C.muted }}>Historique ({periodLabel})</span>
-                    <PeriodBtns days={days} color={C.purple} onChange={onDaysChange} />
-                </div>
-                <div ref={containerRef} style={{ width: '100%' }}>
-                <svg viewBox={`0 0 ${VW} ${VH}`} preserveAspectRatio="none" style={{ width: '100%', height: VH, display: 'block', overflow: 'visible' }}>
-                    {/* Grid lines */}
-                    {[0, 0.5, 1].map(f => {
-                        const y = yOf(f * maxV);
-                        return <line key={f} x1={0} y1={y} x2={VW} y2={y} stroke="rgba(128,128,128,.1)" strokeWidth={f === 0 ? 1 : 0.5} />;
-                    })}
-                    <text x={3} y={yOf(maxV * 0.5) - 2} fontSize={9} fill="rgba(128,128,128,.4)">{Math.round(maxV * 0.5)}</text>
-                    {/* Lines per set */}
-                    {names.map((nm, ni) => {
-                        if (hiddenLines.has(nm)) return null;
-                        const color = PIE_COLORS[ni % PIE_COLORS.length];
-                        const pts = plotDates.map((dt, i) => {
-                            const v = plotMap[dt]?.[nm];
-                            return v != null ? `${xOf(i)},${yOf(v)}` : null;
-                        }).filter(Boolean) as string[];
-                        if (!pts.length) return null;
-                        const firstX = pts[0].split(',')[0];
-                        const lastX  = pts[pts.length - 1].split(',')[0];
-                        const lastDtIdx = [...plotDates].map((dt, i) => ({ dt, i, v: plotMap[dt]?.[nm] })).reverse().find(x => x.v != null);
-                        return (
-                            <g key={nm}>
-                                <polygon points={`${pts.join(' ')} ${lastX},${yOf(0)} ${firstX},${yOf(0)}`} fill={color} opacity={0.06} />
-                                <polyline points={pts.join(' ')} fill="none" stroke={color} strokeWidth={1.8} strokeDasharray="5,3" strokeLinejoin="round" strokeLinecap="round" opacity={0.85} />
-                                {plotDates.map((dt, i) => {
-                                    const v = plotMap[dt]?.[nm];
-                                    if (v == null) return null;
-                                    return <circle key={dt} cx={xOf(i)} cy={yOf(v)} r={4} fill="transparent" stroke="none"><title>{tipText(dt, nm, v)}</title></circle>;
-                                })}
-                                {lastDtIdx && (
-                                    <>
-                                        <circle cx={xOf(lastDtIdx.i)} cy={yOf(lastDtIdx.v!)} r={3} fill={color} stroke={C.bg1} strokeWidth={1.2} opacity={0.95} />
-                                        <text x={xOf(lastDtIdx.i) + (lastDtIdx.i > n * 0.8 ? -6 : 6)} y={yOf(lastDtIdx.v!) - 4} fontSize={9} fill={color} textAnchor={lastDtIdx.i > n * 0.8 ? 'end' : 'start'} fontWeight={600}>{lastDtIdx.v}</text>
-                                    </>
-                                )}
-                            </g>
-                        );
-                    })}
-                    {/* X-axis labels */}
-                    {plotDates.map((dt, i) => (i % every === 0 || i === n - 1) && (
-                        <text key={dt} x={xOf(i)} y={VH - 1} fontSize={8} fill="rgba(128,128,128,.5)" textAnchor={i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'}>{xLabel(dt)}</text>
-                    ))}
-                </svg>
-                </div>
-                {/* Legend — dashed-line icons, clickable to toggle */}
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.4rem .8rem', marginTop: '.5rem' }}>
-                    {names.map((nm, ni) => {
-                        const hidden = hiddenLines.has(nm);
-                        const lineColor = hidden ? C.muted : PIE_COLORS[ni % PIE_COLORS.length];
-                        return (
-                            <div key={nm} onClick={() => toggleLine(nm)}
-                                style={{ display: 'flex', alignItems: 'center', gap: '.3rem', fontSize: '.72rem', cursor: 'pointer', opacity: hidden ? 0.35 : 1 }}>
-                                <svg width={18} height={8} style={{ flexShrink: 0 }}>
-                                    <line x1={0} y1={4} x2={18} y2={4} stroke={lineColor} strokeWidth={2} strokeDasharray="5,3" />
-                                </svg>
-                                <span style={{ fontFamily: 'monospace', color: hidden ? C.muted : C.text }}>{nm}</span>
-                            </div>
-                        );
-                    })}
-                </div>
-            </div>
-        );
-    };
-
     return (
         <SCard icon={<Database style={{ width: 14, height: 14 }} />} color={C.purple} title="IPSets" sub={!loading && !error && total > 0 ? <span style={{ color: C.purple, fontWeight: 600 }}>{total} IPs</span> : undefined} collapsible>
             {/* Historical line chart */}
-            <HistChart />
+            <HistChart hist={hist} days={days} onDaysChange={onDaysChange} />
             <div style={{ padding: '.5rem 0 .75rem' }}>
                 {loading && <div style={{ textAlign: 'center', padding: '1.5rem', color: C.muted, fontSize: '.85rem' }}>{t('fail2ban.messages.loadingData')}</div>}
                 {!loading && error && <div style={{ padding: '.75rem 1rem', color: C.orange, fontSize: '.8rem', fontFamily: 'monospace' }}>{error}</div>}
