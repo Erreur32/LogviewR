@@ -7,7 +7,10 @@ import {
   HardDrive,
   Archive,
   LineChart,
-  Timer
+  Timer,
+  ScrollText,
+  Package,
+  Zap,
 } from 'lucide-react';
 import { usePluginStore } from '../../stores/pluginStore';
 import { getPluginIcon } from '../../utils/pluginIcons';
@@ -243,32 +246,59 @@ export const Footer: React.FC<FooterProps> = ({
           {logStats !== null && (
             <>
               <Tooltip
-                content={t('footer.statsReadableFilesTooltip')}
+                title="Fichiers de logs"
+                bodyNode={
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '.25rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', color: '#388bfd' }}>
+                      <ScrollText size={11} />
+                      <span style={{ fontWeight: 600 }}>{logStats.readableFiles} fichier{logStats.readableFiles !== 1 ? 's' : ''} lisibles</span>
+                    </div>
+                    <div style={{ color: '#8b949e', fontSize: '.76rem' }}>Fichiers de logs actifs surveillés par les plugins activés</div>
+                  </div>
+                }
+                color="blue"
                 position="top"
-                wrap
               >
-                <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-400 text-sm font-medium cursor-help">
+                <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-blue-500/30 text-blue-400 text-sm font-medium cursor-help">
                   <FileText size={16} className="flex-shrink-0" />
                   {logStats.readableFiles} fichier{logStats.readableFiles !== 1 ? 's' : ''}
                 </span>
               </Tooltip>
               <Tooltip
-                content={t('footer.statsTotalSizeTooltip')}
+                title="Taille des logs"
+                bodyNode={
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '.25rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', color: '#e3b341' }}>
+                      <HardDrive size={11} />
+                      <span style={{ fontWeight: 600 }}>{formatBytes(logStats.totalSize)}</span>
+                    </div>
+                    <div style={{ color: '#8b949e', fontSize: '.76rem' }}>Taille totale des fichiers logs lisibles (hors .gz)</div>
+                  </div>
+                }
+                color="orange"
                 position="top"
-                wrap
               >
-                <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 text-sm font-medium cursor-help">
+                <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-amber-500/30 text-amber-400 text-sm font-medium cursor-help">
                   <HardDrive size={16} className="flex-shrink-0" />
                   {formatBytes(logStats.totalSize)}
                 </span>
               </Tooltip>
               {logStats.totalSizeGz > 0 && (
                 <Tooltip
-                  content={t('footer.statsGzSizeTooltip')}
+                  title="Archives compressées"
+                  bodyNode={
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '.25rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', color: '#3fb950' }}>
+                        <Package size={11} />
+                        <span style={{ fontWeight: 600 }}>{formatBytes(logStats.totalSizeGz)} en .gz</span>
+                      </div>
+                      <div style={{ color: '#8b949e', fontSize: '.76rem' }}>Logs archivés et compressés (rotation automatique)</div>
+                    </div>
+                  }
+                  color="green"
                   position="top"
-                  wrap
                 >
-                  <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm font-medium cursor-help">
+                  <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-emerald-500/30 text-emerald-400 text-sm font-medium cursor-help">
                     <Archive size={16} className="flex-shrink-0" />
                     {formatBytes(logStats.totalSizeGz)} .gz
                   </span>
@@ -281,8 +311,25 @@ export const Footer: React.FC<FooterProps> = ({
         {/* Load time badge */}
         {loadTimeMs !== null && (
           <div className="flex-shrink-0">
-            <Tooltip content="Temps de chargement du dernier onglet" position="top">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-500/10 border border-slate-500/20 text-slate-400 text-sm font-medium font-mono tabular-nums cursor-help">
+            <Tooltip
+              title="Temps de chargement"
+              bodyNode={
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '.25rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', color: loadTimeMs < 500 ? '#3fb950' : loadTimeMs < 1500 ? '#e3b341' : '#e86a65' }}>
+                    <Zap size={11} />
+                    <span style={{ fontWeight: 600, fontFamily: 'monospace' }}>
+                      {loadTimeMs < 1000 ? `${loadTimeMs}ms` : `${(loadTimeMs / 1000).toFixed(1)}s`}
+                    </span>
+                  </div>
+                  <div style={{ color: '#8b949e', fontSize: '.76rem' }}>
+                    {loadTimeMs < 500 ? 'Excellent — réponse très rapide' : loadTimeMs < 1500 ? 'Correct — charge modérée' : 'Lent — vérifier la charge serveur'}
+                  </div>
+                </div>
+              }
+              color={loadTimeMs < 500 ? 'green' : loadTimeMs < 1500 ? 'orange' : 'red'}
+              position="top"
+            >
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-500/20 text-slate-400 text-sm font-medium font-mono tabular-nums cursor-help">
                 <Timer size={13} className="flex-shrink-0" />
                 {loadTimeMs < 1000 ? `${loadTimeMs}ms` : `${(loadTimeMs / 1000).toFixed(1)}s`}
               </span>

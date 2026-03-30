@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
-import { FileText, RefreshCw, Code, ChevronDown, History, Play, Square, Download, X as XIcon, Ban, CheckCircle, AlertTriangle } from 'lucide-react';
+import { FileText, RefreshCw, Code, ChevronDown, History, Play, Square, Download, X as XIcon, Ban, CheckCircle, AlertTriangle, Shield, Server, Globe } from 'lucide-react';
+import { Tooltip } from '../ui/Tooltip';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import logviewrLogo from '../../icons/logviewr.svg';
@@ -440,20 +441,50 @@ export const Header: React.FC<HeaderProps> = ({
               if (bIndex !== -1) return 1;
               return 0;
             })
-            .map(plugin => (
-              <button
-                key={plugin.id}
-                onClick={() => onPluginClick?.(plugin.id)}
-                className="p-1 bg-theme-secondary hover:bg-theme-primary border border-theme-border rounded-lg transition-colors"
-                title={plugin.name}
-              >
-                <img
-                  src={getPluginIcon(plugin.id, osType)}
-                  alt={plugin.name}
-                  className="w-6 h-6 flex-shrink-0"
-                />
-              </button>
-            ))}
+            .map(plugin => {
+              const isFail2ban = plugin.id === 'fail2ban';
+              const tooltipColor = isFail2ban ? 'red' : plugin.id === 'host-system' ? 'cyan' : 'blue';
+              const tooltipDesc = isFail2ban
+                ? 'Gestion des bannissements · jails · statistiques · carte'
+                : plugin.id === 'host-system'
+                ? 'Logs système · auth · kernel · syslog'
+                : plugin.id === 'apache'
+                ? 'Logs Apache · access · error · vhosts'
+                : plugin.id === 'nginx'
+                ? 'Logs Nginx · access · error · vhosts'
+                : plugin.id === 'npm'
+                ? 'Nginx Proxy Manager · proxy hosts · logs'
+                : plugin.name;
+              const TooltipIcon = isFail2ban ? Shield : plugin.id === 'host-system' ? Server : Globe;
+              return (
+                <Tooltip
+                  key={plugin.id}
+                  title={plugin.name}
+                  bodyNode={
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '.25rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', color: isFail2ban ? '#e86a65' : plugin.id === 'host-system' ? '#39c5cf' : '#388bfd' }}>
+                        <TooltipIcon size={11} />
+                        <span style={{ fontWeight: 600 }}>Plugin actif</span>
+                      </div>
+                      <div style={{ color: '#8b949e', fontSize: '.76rem' }}>{tooltipDesc}</div>
+                    </div>
+                  }
+                  color={tooltipColor}
+                  position="bottom"
+                >
+                  <button
+                    onClick={() => onPluginClick?.(plugin.id)}
+                    className="p-1 bg-theme-secondary hover:bg-theme-primary border border-theme-border rounded-lg transition-colors"
+                  >
+                    <img
+                      src={getPluginIcon(plugin.id, osType)}
+                      alt={plugin.name}
+                      className="w-6 h-6 flex-shrink-0"
+                    />
+                  </button>
+                </Tooltip>
+              );
+            })}
         </div>
       )}
 

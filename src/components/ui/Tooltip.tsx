@@ -1,103 +1,143 @@
 import React, { useState, useRef, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 
+export type TooltipColor = 'blue' | 'red' | 'orange' | 'purple' | 'green' | 'cyan' | 'muted';
+
+const ACCENT: Record<TooltipColor, string> = {
+  blue: '#388bfd', red: '#e86a65', orange: '#e3b341',
+  purple: '#bc8cff', green: '#3fb950', cyan: '#39c5cf', muted: '#8b949e',
+};
+const BORDER: Record<TooltipColor, string> = {
+  blue: 'rgba(56,139,253,.45)', red: 'rgba(232,106,101,.45)', orange: 'rgba(227,179,65,.45)',
+  purple: 'rgba(188,140,255,.45)', green: 'rgba(63,185,80,.45)', cyan: 'rgba(57,197,207,.45)', muted: '#30363d',
+};
+
 interface TooltipProps {
-  content: string;
+  /** Title shown in accent color at the top */
+  title?: string;
+  /** Plain text body — use bodyNode for rich content */
+  content?: string | React.ReactNode;
+  /** Rich ReactNode body — overrides content when provided */
+  bodyNode?: React.ReactNode;
   children: React.ReactNode;
   position?: 'top' | 'bottom' | 'left' | 'right';
-  /** If true, allow content to wrap with max-width (for long text). Default false. */
+  color?: TooltipColor;
+  /** Min width in px (default 200) */
+  width?: number;
+  /** @deprecated — kept for compatibility, ignored */
   wrap?: boolean;
 }
 
-export const Tooltip: React.FC<TooltipProps> = ({ content, children, position = 'top', wrap = false }) => {
-  const [isVisible, setIsVisible] = useState(false);
-  const [coords, setCoords] = useState({ top: 0, left: 0 });
-  const [positionReady, setPositionReady] = useState(false);
+export const Tooltip: React.FC<TooltipProps> = ({
+  title, content, bodyNode, children, position, color = 'blue', width = 200,
+}) => {
+  const [visible, setVisible] = useState(false);
+  const [pos, setPos] = useState({ left: 0, top: 0 });
+  const [below, setBelow] = useState(false);
+  const [ready, setReady] = useState(false);
   const triggerRef = useRef<HTMLSpanElement>(null);
-  const tooltipRef = useRef<HTMLDivElement>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
 
-  // Compute position before paint so tooltip never flashes at (0,0)
+  const accent = ACCENT[color];
+  const border = BORDER[color];
+
   useLayoutEffect(() => {
-    if (!isVisible) {
-      setPositionReady(false);
-      return;
-    }
-    const trigger = triggerRef.current;
-    const tooltip = tooltipRef.current;
-    if (!trigger || !tooltip) return;
+    if (!visible || !triggerRef.current || !boxRef.current) return;
+    const tr = triggerRef.current.getBoundingClientRect();
+    const br = boxRef.current.getBoundingClientRect();
+    const margin = 10;
+    let left = tr.left + tr.width / 2;
+    const autoBelow = position === 'bottom' || (position !== 'top' && tr.top < window.innerHeight * 0.4);
+    setBelow(autoBelow);
+    const top = autoBelow ? tr.bottom + 6 : tr.top - 6;
+    left = Math.max(margin + br.width / 2, Math.min(left, window.innerWidth - br.width / 2 - margin));
+    setPos({ left, top });
+    setReady(true);
+  }, [visible, position]);
 
-    const triggerRect = trigger.getBoundingClientRect();
-    const tooltipRect = tooltip.getBoundingClientRect();
+  const show = () => { setReady(false); setVisible(true); };
+  const hide = () => { setVisible(false); setReady(false); };
 
-    let top = 0;
-    let left = 0;
+  const body = bodyNode ?? content;
 
-    switch (position) {
-      case 'top':
-        top = triggerRect.top - tooltipRect.height - 8;
-        left = triggerRect.left + (triggerRect.width - tooltipRect.width) / 2;
-        break;
-      case 'bottom':
-        top = triggerRect.bottom + 8;
-        left = triggerRect.left + (triggerRect.width - tooltipRect.width) / 2;
-        break;
-      case 'left':
-        top = triggerRect.top + (triggerRect.height - tooltipRect.height) / 2;
-        left = triggerRect.left - tooltipRect.width - 8;
-        break;
-      case 'right':
-        top = triggerRect.top + (triggerRect.height - tooltipRect.height) / 2;
-        left = triggerRect.right + 8;
-        break;
-    }
-
-    // Keep tooltip in viewport
-    const padding = 8;
-    left = Math.max(padding, Math.min(left, window.innerWidth - tooltipRect.width - padding));
-    top = Math.max(padding, Math.min(top, window.innerHeight - tooltipRect.height - padding));
-
-    setCoords({ top, left });
-    setPositionReady(true);
-  }, [isVisible, position]);
-
-  const arrowClasses = {
-    top: 'bottom-[-4px] left-1/2 -translate-x-1/2 border-l-transparent border-r-transparent border-b-transparent border-t-gray-800',
-    bottom: 'top-[-4px] left-1/2 -translate-x-1/2 border-l-transparent border-r-transparent border-t-transparent border-b-gray-800',
-    left: 'right-[-4px] top-1/2 -translate-y-1/2 border-t-transparent border-b-transparent border-r-transparent border-l-gray-800',
-    right: 'left-[-4px] top-1/2 -translate-y-1/2 border-t-transparent border-b-transparent border-l-transparent border-r-gray-800',
-  };
-
-  const tooltipContent = isVisible ? (
+  const tooltip = visible && createPortal(
     <div
-      ref={tooltipRef}
-      className={`fixed z-[10000] px-3 py-2 text-xs text-white bg-gray-800 rounded shadow-xl border border-gray-700 ${
-        wrap ? 'max-w-sm whitespace-normal' : 'whitespace-nowrap'
-      }`}
+      ref={boxRef}
       style={{
-        top: coords.top,
-        left: coords.left,
-        visibility: positionReady ? 'visible' : 'hidden',
+        position: 'fixed',
+        left: pos.left,
+        top: pos.top,
+        transform: below ? 'translate(-50%, 0)' : 'translate(-50%, -100%) translateY(-4px)',
+        zIndex: 10002,
+        pointerEvents: 'none',
+        opacity: ready ? 1 : 0,
+        transition: 'opacity .15s ease',
+        visibility: ready ? 'visible' : 'hidden',
       }}
-      role="tooltip"
     >
-      {content}
-      <span
-        className={`absolute w-0 h-0 border-4 ${arrowClasses[position]}`}
-      />
-    </div>
-  ) : null;
+      <div style={{
+        position: 'relative',
+        background: '#161b22',
+        borderTop: `1px solid ${border}`,
+        borderRight: `1px solid ${border}`,
+        borderBottom: `1px solid ${border}`,
+        borderLeft: `4px solid ${border}`,
+        borderRadius: 8,
+        minWidth: width,
+        maxWidth: 420,
+        boxShadow: '0 10px 36px rgba(0,0,0,.65), 0 2px 8px rgba(0,0,0,.35)',
+        fontSize: '.82rem',
+        lineHeight: 1.5,
+        overflow: 'hidden',
+      }}>
+        {title && (
+          <span style={{
+            display: 'block',
+            fontWeight: 700,
+            fontSize: '.88rem',
+            color: accent,
+            padding: '.4rem .85rem .3rem',
+            borderBottom: '1px solid rgba(255,255,255,.06)',
+            background: '#0d1117',
+          }}>
+            {title}
+          </span>
+        )}
+        {body !== undefined && (
+          <span style={{
+            display: 'block',
+            color: '#e6edf3',
+            fontSize: '.8rem',
+            lineHeight: 1.5,
+            padding: '.35rem .85rem .5rem',
+            whiteSpace: 'pre-wrap',
+          }}>
+            {body}
+          </span>
+        )}
+        {/* Arrow */}
+        <div style={{
+          position: 'absolute',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: 0, height: 0,
+          borderLeftWidth: 7, borderLeftStyle: 'solid', borderLeftColor: 'transparent',
+          borderRightWidth: 7, borderRightStyle: 'solid', borderRightColor: 'transparent',
+          ...(below
+            ? { top: -7, borderBottomWidth: 7, borderBottomStyle: 'solid', borderBottomColor: '#0d1117' }
+            : { bottom: -7, borderTopWidth: 7, borderTopStyle: 'solid', borderTopColor: '#161b22' }),
+        }} />
+      </div>
+    </div>,
+    document.body,
+  );
 
   return (
     <>
-      <span
-        ref={triggerRef}
-        onMouseEnter={() => setIsVisible(true)}
-        onMouseLeave={() => setIsVisible(false)}
-        className="inline-flex"
-      >
+      <span ref={triggerRef} onMouseEnter={show} onMouseLeave={hide} className="inline-flex">
         {children}
       </span>
-      {tooltipContent && createPortal(tooltipContent, document.body)}
+      {tooltip}
     </>
   );
 };
