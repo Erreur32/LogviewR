@@ -1959,10 +1959,14 @@ export class Fail2banPlugin extends BasePlugin {
             const days  = parseInt(String(req.query.days  ?? '30'), 10);
             const limit = Math.min(parseInt(String(req.query.limit ?? '10'), 10), 100);
             const compareFlag = req.query.compare === '1' ? 1 : 0;
+            const phase = req.query.phase === 'fast' ? 'fast' : 'full';
 
-            // TTL cache: adaptive (see _adaptiveTtl) — cache key ignores `limit` (full dataset stored, sliced on return).
-            // This deduplicates concurrent TabStats (limit=100) and BanHistoryChart (limit=1) requests.
-            const _tCacheKey = `tops:${days}:${compareFlag}`;
+            // TTL cache: adaptive (see _adaptiveTtl).
+            // phase=fast gets its own cache key (summary+heatmaps only); phase=full stores the complete dataset.
+            // Cache key ignores `limit` (full dataset stored, sliced on return).
+            const _tCacheKey = phase === 'fast'
+                ? `tops:fast:${days}`
+                : `tops:${days}:${compareFlag}`;
             type TopsPayload = { ok: boolean; topIps: unknown[]; topJails: unknown[]; topRecidivists: unknown[]; topDomains: unknown[]; heatmap: unknown; heatmapFailed: unknown; heatmapWeek: unknown; heatmapFailedWeek: unknown; summary: unknown; prevSummary: unknown };
             const _tCached = this._cachePeek<TopsPayload>(_tCacheKey, this._adaptiveTtl(days));
             if (_tCached) {
@@ -2058,6 +2062,21 @@ export class Fail2banPlugin extends BasePlugin {
                     totalFailures:    prevRow?.failures ?? 0,
                     expiredInPeriod:  prevExpiredRow.n,
                 };
+            }
+
+            // phase=fast: return summary + heatmaps only (6 queries instead of 11), skip tops lists
+            if (phase === 'fast') {
+                const _fastResult = {
+                    ok: true,
+                    topIps: [] as { ip: string; count: number }[],
+                    topJails: [] as { jail: string; count: number }[],
+                    topRecidivists: [] as { ip: string; count: number }[],
+                    topDomains: [] as { domain: string; count: number; failures: number }[],
+                    heatmap, heatmapFailed, heatmapWeek, heatmapFailedWeek,
+                    summary, prevSummary,
+                };
+                this._cachePut(_tCacheKey, _fastResult);
+                return res.json({ success: true, result: _fastResult });
             }
 
             // Top Domains moved to dedicated /tops/domains route (slow NPM log scan, called only when visible)
