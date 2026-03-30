@@ -146,6 +146,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
     /** True while either /status or /history request is in flight (topbar refresh hint). */
     const [refreshBusy, setRefreshBusy] = useState(false);
     const hasBootstrappedRef = useRef(false);
+    const fetchStatusAbortRef = useRef<AbortController | null>(null);
     const [actionLoading, setActionLoading] = useState<string | null>(null);
     const [actionMsg, setActionMsg]         = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
     const [statsDays, setStatsDays]         = useState(1);
@@ -277,6 +278,11 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
     }, []);
 
     const fetchStatus = useCallback(() => {
+        // Cancel any previous in-flight wave before starting a new one
+        fetchStatusAbortRef.current?.abort();
+        const ac = new AbortController();
+        fetchStatusAbortRef.current = ac;
+
         const firstWave = !hasBootstrappedRef.current;
         if (firstWave) {
             setHistoryLoading(true);
@@ -285,6 +291,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
 
         let pending = 2;
         const waveDone = () => {
+            if (ac.signal.aborted) return; // stale wave — don't touch shared state
             pending -= 1;
             if (pending === 0) {
                 setRefreshBusy(false);
@@ -293,7 +300,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
             }
         };
 
-        api.get<StatusResponse>(`/api/plugins/fail2ban/status?days=${statsDays}`)
+        api.get<StatusResponse>(`/api/plugins/fail2ban/status?days=${statsDays}`, { signal: ac.signal })
             .then(sRes => {
                 if (sRes.success && sRes.result) {
                     setStatus(sRes.result);
@@ -319,7 +326,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
                 waveDone();
             });
 
-        api.get<{ ok?: boolean; history?: HistoryEntry[]; byJail?: Record<string, Record<string, number>>; jailNames?: string[] }>(`/api/plugins/fail2ban/history?days=${statsDays}`)
+        api.get<{ ok?: boolean; history?: HistoryEntry[]; byJail?: Record<string, Record<string, number>>; jailNames?: string[] }>(`/api/plugins/fail2ban/history?days=${statsDays}`, { signal: ac.signal })
             .then(hRes => {
                 if (hRes.success && hRes.result?.history && Array.isArray(hRes.result.history)) {
                     setHistory(hRes.result.history);
