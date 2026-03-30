@@ -2300,9 +2300,9 @@ export class Fail2banPlugin extends BasePlugin {
                 } catch { /* non-critical */ }
             }
 
-            const result = { ok: true, topDomains: topDomains.slice(0, limit) };
-            this._cachePut(_tdKey, result);
-            res.json({ success: true, result });
+            // Cache full STORE_LIMIT dataset; slice to `limit` only in the response
+            this._cachePut(_tdKey, { ok: true, topDomains });
+            res.json({ success: true, result: { ok: true, topDomains: topDomains.slice(0, limit) } });
         }));
 
         // GET /audit  — historique bans (f2b_events — notre DB, historique complet) + enrichissements
