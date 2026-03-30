@@ -241,25 +241,31 @@ export const Header: React.FC<HeaderProps> = ({
   const pluginMenuRef = useRef<HTMLDivElement>(null);
 
   // Fail2ban summary — fetched on mount + refresh on hover, cached 30s
-  const [f2bSummary, setF2bSummary] = useState<{ bansToday: number; uniqIpsToday: number; currentlyBanned: number; expiredLast24h: number; topJails: { jail: string; banned: number }[] } | null>(null);
+  const [f2bSummary, setF2bSummary] = useState<{ bansToday: number; bansYesterday: number | null; uniqIpsToday: number; currentlyBanned: number; totalAllTimeBans: number; topJails: { jail: string; banned: number }[] } | null>(null);
   const f2bFetchedAt = useRef<number>(0);
   const fetchF2bSummary = useCallback(() => {
     if (Date.now() - f2bFetchedAt.current < 30_000) return;
     Promise.all([
-      api.get<{ ok: boolean; jails?: { jail: string; currentlyBanned: number }[]; expiredLast24h?: number }>('/api/plugins/fail2ban/status'),
+      api.get<{ ok: boolean; jails?: { jail: string; currentlyBanned: number; totalBannedSqlite?: number }[] }>('/api/plugins/fail2ban/status'),
       api.get<{ ok: boolean; count: number; uniqIps: number }>('/api/plugins/fail2ban/bans-today'),
-    ]).then(([statusRes, todayRes]) => {
+      api.get<{ ok: boolean; history?: { date: string; count: number }[] }>('/api/plugins/fail2ban/history?days=2'),
+    ]).then(([statusRes, todayRes, histRes]) => {
       if (!statusRes.success || !statusRes.result?.ok) return;
       const jails = statusRes.result.jails ?? [];
       const currentlyBanned = jails.reduce((s, j) => s + (j.currentlyBanned ?? 0), 0);
+      const totalAllTimeBans = jails.reduce((s, j) => s + (j.totalBannedSqlite ?? 0), 0);
       const topJails = [...jails]
         .filter(j => j.currentlyBanned > 0)
         .sort((a, b) => b.currentlyBanned - a.currentlyBanned)
         .slice(0, 4)
         .map(j => ({ jail: j.jail, banned: j.currentlyBanned }));
-      const bansToday   = todayRes.success ? (todayRes.result?.count  ?? 0) : 0;
+      const bansToday    = todayRes.success ? (todayRes.result?.count  ?? 0) : 0;
       const uniqIpsToday = todayRes.success ? (todayRes.result?.uniqIps ?? 0) : 0;
-      setF2bSummary({ bansToday, uniqIpsToday, currentlyBanned, expiredLast24h: statusRes.result.expiredLast24h ?? 0, topJails });
+      const d = new Date(); d.setDate(d.getDate() - 1);
+      const yStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      const histEntries = histRes.success ? (histRes.result?.history ?? []) : [];
+      const bansYesterday = histEntries.find(e => e.date === yStr)?.count ?? null;
+      setF2bSummary({ bansToday, bansYesterday, uniqIpsToday, currentlyBanned, totalAllTimeBans, topJails });
       f2bFetchedAt.current = Date.now();
     }).catch(() => {});
   }, []);
@@ -488,6 +494,8 @@ export const Header: React.FC<HeaderProps> = ({
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '.3rem' }}>
                   {f2bSummary ? (
                     <>
+                      {/* Aujourd'hui */}
+                      <div style={{ color: '#6e7681', fontSize: '.68rem', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: '.1rem' }}>Aujourd'hui</div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem' }}>
                         <Ban size={11} style={{ color: '#e86a65', flexShrink: 0 }} />
                         <span style={{ color: '#e86a65', fontWeight: 700, fontSize: '.88rem' }}>{f2bSummary.bansToday}</span>
@@ -496,16 +504,36 @@ export const Header: React.FC<HeaderProps> = ({
                       <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem' }}>
                         <Activity size={11} style={{ color: '#58a6ff', flexShrink: 0 }} />
                         <span style={{ color: '#58a6ff', fontWeight: 600 }}>{f2bSummary.uniqIpsToday}</span>
-                        <span style={{ color: '#8b949e', fontSize: '.76rem' }}>IP{f2bSummary.uniqIpsToday !== 1 ? 's' : ''} unique{f2bSummary.uniqIpsToday !== 1 ? 's' : ''}</span>
+                        <span style={{ color: '#8b949e', fontSize: '.76rem' }}>IP{f2bSummary.uniqIpsToday !== 1 ? 's' : ''} unique{f2bSummary.uniqIpsToday !== 1 ? 's' : ''} aujourd'hui</span>
                       </div>
+                      {/* Hier */}
+                      {f2bSummary.bansYesterday !== null && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem' }}>
+                          <Ban size={11} style={{ color: '#8b949e', flexShrink: 0 }} />
+                          <span style={{ color: '#c9d1d9', fontWeight: 600 }}>{f2bSummary.bansYesterday}</span>
+                          <span style={{ color: '#8b949e', fontSize: '.76rem' }}>bans hier</span>
+                        </div>
+                      )}
+                      {/* Séparateur + stats globales */}
+                      <div style={{ height: 1, background: 'rgba(255,255,255,.07)', margin: '.1rem 0' }} />
+                      <div style={{ color: '#6e7681', fontSize: '.68rem', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: '.1rem' }}>Global</div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem' }}>
                         <Shield size={11} style={{ color: '#e3b341', flexShrink: 0 }} />
                         <span style={{ color: '#e3b341', fontWeight: 600 }}>{f2bSummary.currentlyBanned}</span>
-                        <span style={{ color: '#8b949e', fontSize: '.76rem' }}>actuellement bannies</span>
+                        <span style={{ color: '#8b949e', fontSize: '.76rem' }}>IPs actuellement bloquées</span>
                       </div>
+                      {f2bSummary.totalAllTimeBans > 0 && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem' }}>
+                          <Activity size={11} style={{ color: '#3fb950', flexShrink: 0 }} />
+                          <span style={{ color: '#3fb950', fontWeight: 600 }}>{f2bSummary.totalAllTimeBans.toLocaleString()}</span>
+                          <span style={{ color: '#8b949e', fontSize: '.76rem' }}>bans total (historique)</span>
+                        </div>
+                      )}
+                      {/* Top jails — bans actifs en ce moment */}
                       {f2bSummary.topJails.length > 0 && (
                         <>
                           <div style={{ height: 1, background: 'rgba(255,255,255,.07)', margin: '.1rem 0' }} />
+                          <div style={{ color: '#6e7681', fontSize: '.68rem', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: '.1rem' }}>Jails — bans actifs</div>
                           {f2bSummary.topJails.map(j => (
                             <div key={j.jail} style={{ display: 'flex', alignItems: 'center', gap: '.4rem' }}>
                               <Shield size={10} style={{ color: '#58a6ff', flexShrink: 0 }} />
