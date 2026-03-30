@@ -1344,10 +1344,16 @@ export const TabStats: React.FC<TabStatsProps> = ({
     const [topsLoading, setTopsLoading] = useState(() => !getCached<TopsData>(`tops:all:${days}`));
     // Track whether the fetch was triggered as a loading (vs. background refresh)
     const topsWasLoadingRef = useRef(false);
+    const topsAbortRef = useRef<AbortController | null>(null);
 
     const fetchTops = useCallback(() => {
-        api.get<TopsData>(`/api/plugins/fail2ban/tops?days=${days}&limit=100&compare=1`)
+        topsAbortRef.current?.abort();
+        const ac = new AbortController();
+        topsAbortRef.current = ac;
+
+        api.get<TopsData>(`/api/plugins/fail2ban/tops?days=${days}&limit=100&compare=1`, { signal: ac.signal })
             .then(res => {
+                if (ac.signal.aborted) return;
                 if (res.success && res.result?.ok) {
                     setCached(`tops:all:${days}`, res.result);
                     setTopsData(res.result);
@@ -1356,6 +1362,7 @@ export const TabStats: React.FC<TabStatsProps> = ({
             })
             .catch(() => {})
             .finally(() => {
+                if (ac.signal.aborted) return;
                 setTopsLoading(false);
                 // Dispatch tab-loaded only for the initial fetch (not 60s auto-refresh)
                 if (topsWasLoadingRef.current) {
@@ -1377,7 +1384,10 @@ export const TabStats: React.FC<TabStatsProps> = ({
         }
         fetchTops();
         const id = setInterval(fetchTops, 60_000);
-        return () => clearInterval(id);
+        return () => {
+            clearInterval(id);
+            topsAbortRef.current?.abort();
+        };
     }, [days, fetchTops]);
 
     const topActiveJail = jails
