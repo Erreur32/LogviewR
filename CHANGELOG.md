@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.8.0] - 2026-03-30
+
+### Pour les utilisateurs
+
+> Le bouton Fail2ban rejoint la zone plugins en bas à droite du footer, avec texte et icône colorée. Le temps de chargement s'affiche maintenant aussi lors de la navigation vers le dashboard.
+
+- **Footer — bouton Fail2ban** — Déplacé de la barre de navigation gauche vers la zone plugins à droite. Affiche l'icône Fail2ban + le texte "Fail2ban", avec une couleur rouge quand l'onglet est actif — cohérent avec les autres boutons de plugins.
+- **Temps de chargement** — Le badge de temps s'affichait pas lors d'une navigation vers le dashboard via le logo header. Corrigé.
+
+---
+
+### Technique
+
+#### Frontend
+
+- **`Footer.tsx`** — Bouton Fail2ban retiré de la zone de navigation gauche et ajouté dans la section plugins droite (`enabledLogPlugins`) ; couleur active rouge (`text-red-400 / bg-red-500/15`) ; suppression de l'import `Shield` inutilisé.
+- **`App.tsx`** — `handleHomeClick` et l'inline `onHomeClick` du log-viewer appellent désormais `handlePageChange('dashboard')` au lieu de `setCurrentPage` directement, ce qui active le timer `timedNavRef` et déclenche le dispatch `tab-loaded`.
+
+---
+
 ## [0.7.7] - 2026-03-29
 
 ### Fixed

@@ -7,7 +7,6 @@ import {
   HardDrive,
   Archive,
   LineChart,
-  Shield,
   Timer
 } from 'lucide-react';
 import { usePluginStore } from '../../stores/pluginStore';
@@ -219,22 +218,6 @@ export const Footer: React.FC<FooterProps> = ({
             );
           })}
           
-          {/* Fail2ban tab — shown only when fail2ban plugin is enabled */}
-          {plugins.find(p => p.id === 'fail2ban' && p.enabled) && (
-            <Tooltip content="Fail2ban" position="top">
-              <button
-                onClick={() => onPageChange?.('fail2ban')}
-                className={`flex items-center p-3 rounded-lg border transition-all duration-150 active:brightness-90 ${
-                  currentPage === 'fail2ban'
-                    ? 'bg-blue-500/15 border-blue-500/40 text-blue-400'
-                    : 'bg-transparent border-transparent text-theme-secondary hover:bg-theme-tertiary hover:text-theme-primary'
-                }`}
-              >
-                <Shield size={18} />
-              </button>
-            </Tooltip>
-          )}
-
           {/* Show "Administration" button if settings tab is hidden (icon only) */}
           {!visibleTabs.find(tab => tab.id === 'settings') && (
             <Tooltip content={t('footer.administrationTooltip')} position="top">
@@ -307,8 +290,8 @@ export const Footer: React.FC<FooterProps> = ({
           </div>
         )}
 
-        {/* Plugin buttons (droite) - affichés si plugins de logs activés */}
-        {enabledLogPlugins.length > 0 && (
+        {/* Plugin buttons (droite) - affichés si plugins de logs activés ou fail2ban activé */}
+        {(enabledLogPlugins.length > 0 || plugins.find(p => p.id === 'fail2ban' && p.enabled)) && (
           <div className="flex items-center gap-2 pl-2 flex-1 min-w-0 justify-end">
             {enabledLogPlugins.map((plugin) => {
               const pluginName = getPluginName(plugin.id);
@@ -326,8 +309,8 @@ export const Footer: React.FC<FooterProps> = ({
                   }`}
                   title={`Voir les logs ${pluginName}`}
                 >
-                  <img 
-                    src={pluginIconSrc} 
+                  <img
+                    src={pluginIconSrc}
                     alt={pluginName}
                     className="w-5 h-5 object-contain flex-shrink-0"
                   />
@@ -335,6 +318,26 @@ export const Footer: React.FC<FooterProps> = ({
                 </button>
               );
             })}
+
+            {/* Fail2ban button — same style as log plugin buttons */}
+            {plugins.find(p => p.id === 'fail2ban' && p.enabled) && (
+              <button
+                onClick={() => onPageChange?.('fail2ban')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all duration-150 active:brightness-90 ${
+                  currentPage === 'fail2ban'
+                    ? 'bg-red-500/15 border-red-500/40 text-red-400'
+                    : 'bg-transparent border-transparent text-theme-secondary hover:bg-theme-tertiary hover:text-theme-primary'
+                }`}
+                title="Fail2ban — Gestion des bannissements"
+              >
+                <img
+                  src={getPluginIcon('fail2ban')}
+                  alt="Fail2ban"
+                  className="w-5 h-5 object-contain flex-shrink-0"
+                />
+                <span className="hidden sm:inline text-sm font-medium whitespace-nowrap">Fail2ban</span>
+              </button>
+            )}
           </div>
         )}
       </div>

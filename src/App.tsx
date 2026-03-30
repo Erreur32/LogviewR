@@ -447,7 +447,7 @@ const App: React.FC = () => {
 
   const handleHomeClick = () => {
     window.history.replaceState(null, '', window.location.pathname);
-    setCurrentPage('dashboard');
+    handlePageChange('dashboard');
   };
 
   const handleSettingsClick = () => {
@@ -684,9 +684,9 @@ const App: React.FC = () => {
           user={user || undefined}
           onHomeClick={() => {
             window.history.replaceState(null, '', window.location.pathname);
-            setCurrentPage('dashboard');
             setSelectedPluginId(null);
             setPluginHeaderData(null);
+            handlePageChange('dashboard');
           }}
           onSettingsClick={handleSettingsClick}
           onAdminClick={handleAdminClick}
