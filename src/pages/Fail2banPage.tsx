@@ -900,11 +900,17 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
                 {statusHydrated && status && !status.ok && (
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: '.5rem', padding: '.6rem 1rem', background: 'rgba(227,179,65,.07)', borderBottom: '1px solid rgba(227,179,65,.25)', fontSize: '.78rem', color: '#e3b341', flexShrink: 0 }}>
                         <AlertTriangle style={{ width: 13, height: 13, flexShrink: 0, marginTop: 2 }} />
-                        <div style={{ minWidth: 0 }}>
+                        <div style={{ minWidth: 0, flex: 1 }}>
                             <strong>Source indisponible</strong>
                             {' — '}{status.error ?? 'fail2ban-client et SQLite inaccessibles'}{'. '}
                             <code style={{ fontFamily: 'monospace', fontSize: '.75rem' }}>sudo chmod 660 /var/run/fail2ban/fail2ban.sock</code>
                         </div>
+                        <button
+                            onClick={fetchStatus}
+                            style={{ flexShrink: 0, padding: '.15rem .6rem', fontSize: '.72rem', borderRadius: 4, cursor: 'pointer', border: '1px solid rgba(227,179,65,.4)', background: 'rgba(227,179,65,.12)', color: '#e3b341' }}
+                        >
+                            Réessayer
+                        </button>
                     </div>
                 )}
 
