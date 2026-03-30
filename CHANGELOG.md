@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.8.5] - 2026-03-30
+
+### Correctif
+
+- **Bannière mise à jour** — Suppression du texte "Image Docker prête" et de la commande `docker compose` dans la notification de nouvelle version. La bannière affiche désormais uniquement le numéro de version et le résumé des release notes.
+
+---
+
 ## [0.8.4] - 2026-03-30
 
 ### Pour les utilisateurs

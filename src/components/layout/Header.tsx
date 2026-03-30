@@ -907,15 +907,6 @@ export const Header: React.FC<HeaderProps> = ({
           <span style={{ color: '#fbbf24', fontWeight: 600 }}>
             {t('header.newVersionAvailable')} : v{updateBanner.latestVersion}
           </span>
-          <span style={{ color: '#9ca3af', fontSize: '.75rem' }}>
-            — Image Docker prête ·
-          </span>
-          <code style={{
-            fontSize: '.72rem', color: '#67e8f9', fontFamily: 'monospace',
-            background: 'rgba(0,0,0,.3)', padding: '.1rem .45rem', borderRadius: 4,
-          }}>
-            docker compose pull &amp;&amp; docker compose up -d
-          </code>
           <button
             onClick={updateBanner.onDismiss}
             title={t('common.hide')}
