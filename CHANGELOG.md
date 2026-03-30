@@ -9,6 +9,73 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.8.3] - 2026-03-30
+
+### Pour les utilisateurs
+
+> Performances Statistiques, tooltips enrichis, badge live fail2ban, et correctifs NPM MySQL.
+
+- **Statistiques — filtres de période instantanés** — Changer la période (1j / 7j / 30j…) affiche maintenant les graphiques en ~150ms (phase rapide) puis les tableaux en ~400ms (phase complète), au lieu d'attendre 1–10s. Les données précédentes restent visibles pendant le rechargement.
+- **Cache adaptatif** — Les périodes longues (30j, 90j) sont mises en cache 10min côté serveur et frontend ; les données récentes (1j) restent à 30s. Le deuxième clic sur la même période dans les 2 minutes est instantané.
+- **Prewarm des périodes** — Après le chargement d'une période, les autres périodes sont préchargées silencieusement en arrière-plan.
+- **Badge fail2ban** — L'icône fail2ban dans le header affiche un badge rouge avec le nombre d'IP actuellement bannies, mis à jour automatiquement.
+- **Tooltip fail2ban** — Survoler l'icône fail2ban affiche les stats live : IP bannies, bans expirés (24h), top jails.
+- **Tooltips enrichis** — Tous les tooltips du header et du footer ont été réécrits dans le style fail2ban : titre coloré, icônes, descriptions structurées.
+- **Footer — icons bord écran** — Sur grand écran, les icônes sont maintenant collées aux bords gauche et droit.
+- **Footer — badges sans fond** — Les badges taille/fichiers au centre du footer n'ont plus de fond coloré (bordure seule).
+- **Notification mise à jour** — La bannière de nouvelle version affiche maintenant le résumé des release notes GitHub.
+- **NPM MySQL — message clair** — Si NPM est configuré en mode MySQL mais que `npmDataPath` (chemin des logs) est absent, un message explicite s'affiche au lieu d'un résultat vide silencieux.
+
+---
+
+### Technique
+
+#### Backend — `server/plugins/fail2ban/Fail2banPlugin.ts`
+
+- **Index composite SQLite** — `idx_f2b_events_type_time ON f2b_events(event_type, timeofban)` ajouté : élimine les full-table-scans sur toutes les requêtes `/tops` (gain ×3 à ×5).
+- **`_adaptiveTtl(days)`** — Nouvelle méthode : 30s pour ≤2j, 2min pour ≤7j, 10min pour ≥30j. Appliquée sur `/tops`, `/history`, `/ipset/info`, `/ipset/history`.
+- **`/tops?phase=fast`** — Nouveau paramètre : retourne uniquement `summary` + `heatmaps` (~6 requêtes, ~150ms) en sautant les requêtes lentes topIps/topJails/topRecidivists. Clé de cache séparée `tops:fast:{days}`.
+- **`/tops/domains`** — Scan NPM extrait de `/tops` vers une route dédiée. Cache STORE_LIMIT=100, slice uniquement en réponse.
+- **`/ipset/info` et `/ipset/history`** — TTL cache ajouté (60s et adaptatif).
+- **NPM MySQL + npmDataPath** — `/tops/domains` retourne un `warning` explicite si MySQL est configuré sans `npmDataPath`.
+
+#### Backend — `server/routes/updates.ts`
+
+- **Release notes** — `/api/updates/check` fetch maintenant le body de la GitHub Release correspondante et le retourne dans `releaseNotes` (max 400 chars).
+
+#### Frontend — `src/pages/fail2ban/TabStats.tsx`
+
+- **`getCacheTtl(days)`** — Remplace le `CACHE_TTL = 60_000` fixe. TTL adaptatif aligné sur le backend.
+- **Stale data UX** — Au changement de période, les données précédentes restent affichées avec un badge "actualisation en cours" au lieu d'un spinner blanc.
+- **Chargement progressif** — `fetchTops` lance `phase=fast` puis `phase=full` avec le même `AbortController`. Phase fast enrichit le state partiel, phase full complète.
+- **Prewarm** — `useEffect` déclenche un prefetch silencieux des périodes adjacentes 2s après le chargement complet, avec AbortControllers stockés pour cleanup.
+- **`topsRefreshing` + elapsed badge** — Nouvel état + hook `useElapsed` pour afficher "actualisé il y a Xs".
+
+#### Frontend — `src/components/layout/Header.tsx`
+
+- **Icône fail2ban** — Ajoutée dans la zone des icônes plugins (dashboard/analytics).
+- **Icônes agrandies** — `w-4 h-4` → `w-6 h-6`, padding réduit.
+- **Logo** — `w-6 h-6` → `w-8 h-8`.
+- **Badge live** — Rond rouge top-right sur l'icône fail2ban avec `currentlyBanned`. Fetch au montage, cache 30s.
+- **Tooltip fail2ban** — Stats live : IP bannies, expirés 24h, top jails breakdown.
+- **Tooltips plugins** — Remplacent le `title=` natif par `<Tooltip>` riche.
+
+#### Frontend — `src/components/layout/Footer.tsx`
+
+- **Bord écran** — `max-w-[1920px] mx-auto` supprimé, `w-full` utilisé.
+- **Badges sans fond** — `bg-*/10` supprimé sur les 3 badges stats.
+- **Tooltips enrichis** — Titre + bodyNode structuré sur fichiers, taille, gz, timer (timer adaptatif vert/orange/rouge).
+
+#### Frontend — `src/components/ui/Tooltip.tsx`
+
+- **Réécriture complète** — Style F2bTooltip : fond `#161b22`, bordure gauche accent colorée, titre accent, body `pre-wrap`, arrow portal. Props : `title?`, `content?`, `bodyNode?`, `color?`, `width?`.
+
+#### Frontend — `src/stores/updateStore.ts`
+
+- **`releaseNotes?`** — Champ ajouté à `UpdateInfo`.
+
+---
+
 ## [0.8.1] - 2026-03-30
 
 ### Pour les utilisateurs
