@@ -1477,10 +1477,12 @@ export const TabStats: React.FC<TabStatsProps> = ({
         if (typeof navigator !== 'undefined' && !navigator.onLine) return;
         if (typeof document !== 'undefined' && document.hidden) return;
 
+        const prewarmAcs: AbortController[] = [];
         const timer = setTimeout(() => {
             for (const d of toPrewarm.slice(0, 2)) {
                 prewarmDoneRef.current.add(d);
                 const ac = new AbortController();
+                prewarmAcs.push(ac);
                 api.get<TopsData>(`/api/plugins/fail2ban/tops?days=${d}&limit=100&compare=1`, { signal: ac.signal })
                     .then(res => {
                         if (res.success && res.result?.ok) setCached(`tops:all:${d}`, res.result);
@@ -1488,7 +1490,7 @@ export const TabStats: React.FC<TabStatsProps> = ({
                     .catch(() => {});
             }
         }, 2000);
-        return () => clearTimeout(timer);
+        return () => { clearTimeout(timer); prewarmAcs.forEach(ac => ac.abort()); };
     }, [topsData, topsRefreshing, topsLoading, days]);
 
     const topActiveJail = jails
