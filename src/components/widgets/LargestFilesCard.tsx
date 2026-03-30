@@ -140,11 +140,9 @@ export const LargestFilesCard: React.FC = () => {
                                                     </div>
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    <Tooltip content={file.path}>
-                                                        <div className="text-xs md:text-sm text-gray-300 font-mono truncate max-w-[280px] md:max-w-md cursor-help" title={file.path}>
-                                                            {file.path}
-                                                        </div>
-                                                    </Tooltip>
+                                                    <div className="text-xs md:text-sm text-gray-300 font-mono break-all">
+                                                        {file.path}
+                                                    </div>
                                                 </td>
                                                 <td className="px-4 py-3 text-right">
                                                     <span className="text-sm font-semibold text-white">
