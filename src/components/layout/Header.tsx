@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
-import { FileText, RefreshCw, Code, ChevronDown, History, Play, Square, Download, X as XIcon, Ban, CheckCircle, AlertTriangle, Shield, Server, Globe } from 'lucide-react';
+import { FileText, RefreshCw, Code, ChevronDown, History, Play, Square, Download, X as XIcon, Ban, CheckCircle, AlertTriangle, Shield, Server, Globe, Activity } from 'lucide-react';
 import { Tooltip } from '../ui/Tooltip';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
@@ -240,6 +240,27 @@ export const Header: React.FC<HeaderProps> = ({
   const pluginButtonRef = useRef<HTMLButtonElement>(null);
   const pluginMenuRef = useRef<HTMLDivElement>(null);
 
+  // Fail2ban summary — lazy fetch on hover, cached 30s
+  const [f2bSummary, setF2bSummary] = useState<{ currentlyBanned: number; expiredLast24h: number; topJails: { jail: string; banned: number }[] } | null>(null);
+  const f2bFetchedAt = useRef<number>(0);
+  const fetchF2bSummary = useCallback(() => {
+    if (Date.now() - f2bFetchedAt.current < 30_000) return;
+    api.get<{ ok: boolean; jails?: { jail: string; currentlyBanned: number }[]; expiredLast24h?: number }>(
+      '/api/plugins/fail2ban/status'
+    ).then(res => {
+      if (!res.success || !res.result?.ok) return;
+      const jails = res.result.jails ?? [];
+      const currentlyBanned = jails.reduce((s, j) => s + (j.currentlyBanned ?? 0), 0);
+      const topJails = [...jails]
+        .filter(j => j.currentlyBanned > 0)
+        .sort((a, b) => b.currentlyBanned - a.currentlyBanned)
+        .slice(0, 4)
+        .map(j => ({ jail: j.jail, banned: j.currentlyBanned }));
+      setF2bSummary({ currentlyBanned, expiredLast24h: res.result.expiredLast24h ?? 0, topJails });
+      f2bFetchedAt.current = Date.now();
+    }).catch(() => {});
+  }, []);
+
   // Log file history (persisted in localStorage)
   const [logFileHistory, setLogFileHistory] = useState<LogFileHistoryEntry[]>(() => {
     try {
@@ -444,9 +465,7 @@ export const Header: React.FC<HeaderProps> = ({
             .map(plugin => {
               const isFail2ban = plugin.id === 'fail2ban';
               const tooltipColor = isFail2ban ? 'red' : plugin.id === 'host-system' ? 'cyan' : 'blue';
-              const tooltipDesc = isFail2ban
-                ? 'Gestion des bannissements · jails · statistiques · carte'
-                : plugin.id === 'host-system'
+              const tooltipDesc = plugin.id === 'host-system'
                 ? 'Logs système · auth · kernel · syslog'
                 : plugin.id === 'apache'
                 ? 'Logs Apache · access · error · vhosts'
@@ -456,24 +475,60 @@ export const Header: React.FC<HeaderProps> = ({
                 ? 'Nginx Proxy Manager · proxy hosts · logs'
                 : plugin.name;
               const TooltipIcon = isFail2ban ? Shield : plugin.id === 'host-system' ? Server : Globe;
+
+              const f2bBodyNode = isFail2ban ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '.3rem' }}>
+                  {f2bSummary ? (
+                    <>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem' }}>
+                        <Ban size={11} style={{ color: '#e86a65', flexShrink: 0 }} />
+                        <span style={{ color: '#e86a65', fontWeight: 700, fontSize: '.88rem' }}>{f2bSummary.currentlyBanned}</span>
+                        <span style={{ color: '#8b949e', fontSize: '.76rem' }}>IP actuellement bannies</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem' }}>
+                        <Activity size={11} style={{ color: '#e3b341', flexShrink: 0 }} />
+                        <span style={{ color: '#e3b341', fontWeight: 600 }}>{f2bSummary.expiredLast24h}</span>
+                        <span style={{ color: '#8b949e', fontSize: '.76rem' }}>bans expirés (24h)</span>
+                      </div>
+                      {f2bSummary.topJails.length > 0 && (
+                        <>
+                          <div style={{ height: 1, background: 'rgba(255,255,255,.07)', margin: '.1rem 0' }} />
+                          {f2bSummary.topJails.map(j => (
+                            <div key={j.jail} style={{ display: 'flex', alignItems: 'center', gap: '.4rem' }}>
+                              <Shield size={10} style={{ color: '#58a6ff', flexShrink: 0 }} />
+                              <span style={{ color: '#e6edf3', fontSize: '.76rem', fontFamily: 'monospace' }}>{j.jail}</span>
+                              <span style={{ marginLeft: 'auto', color: '#e86a65', fontWeight: 600, fontSize: '.76rem', fontFamily: 'monospace' }}>{j.banned}</span>
+                            </div>
+                          ))}
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    <div style={{ color: '#8b949e', fontSize: '.76rem' }}>Gestion des bannissements · jails · statistiques · carte</div>
+                  )}
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '.25rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', color: plugin.id === 'host-system' ? '#39c5cf' : '#388bfd' }}>
+                    <TooltipIcon size={11} />
+                    <span style={{ fontWeight: 600 }}>Plugin actif</span>
+                  </div>
+                  <div style={{ color: '#8b949e', fontSize: '.76rem' }}>{tooltipDesc}</div>
+                </div>
+              );
+
               return (
                 <Tooltip
                   key={plugin.id}
                   title={plugin.name}
-                  bodyNode={
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '.25rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', color: isFail2ban ? '#e86a65' : plugin.id === 'host-system' ? '#39c5cf' : '#388bfd' }}>
-                        <TooltipIcon size={11} />
-                        <span style={{ fontWeight: 600 }}>Plugin actif</span>
-                      </div>
-                      <div style={{ color: '#8b949e', fontSize: '.76rem' }}>{tooltipDesc}</div>
-                    </div>
-                  }
+                  bodyNode={f2bBodyNode}
                   color={tooltipColor}
                   position="bottom"
+                  width={isFail2ban ? 220 : 200}
                 >
                   <button
                     onClick={() => onPluginClick?.(plugin.id)}
+                    onMouseEnter={isFail2ban ? fetchF2bSummary : undefined}
                     className="p-1 bg-theme-secondary hover:bg-theme-primary border border-theme-border rounded-lg transition-colors"
                   >
                     <img
