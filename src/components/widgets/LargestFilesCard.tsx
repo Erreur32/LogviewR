@@ -3,9 +3,32 @@ import { useTranslation } from 'react-i18next';
 import { HardDrive, ChevronDown, ChevronUp, RefreshCw, Archive } from 'lucide-react';
 import { api } from '../../api/client';
 import { getPluginIcon } from '../../utils/pluginIcons';
-import { Badge } from '../ui/Badge';
 import { Tooltip } from '../ui/Tooltip';
 import { formatBytes } from '../../utils/constants';
+
+const TYPE_STYLE: Record<string, { color: string; border: string; bg: string }> = {
+    access:  { color: '#3fb950', border: 'rgba(63,185,80,.35)',   bg: 'rgba(63,185,80,.08)'   },
+    error:   { color: '#e86a65', border: 'rgba(232,106,101,.35)', bg: 'rgba(232,106,101,.08)' },
+    syslog:  { color: '#58a6ff', border: 'rgba(88,166,255,.35)',  bg: 'rgba(88,166,255,.08)'  },
+    auth:    { color: '#e3b341', border: 'rgba(227,179,65,.35)',  bg: 'rgba(227,179,65,.08)'  },
+    system:  { color: '#39c5cf', border: 'rgba(57,197,207,.35)',  bg: 'rgba(57,197,207,.08)'  },
+    kernel:  { color: '#bc8cff', border: 'rgba(188,140,255,.35)', bg: 'rgba(188,140,255,.08)' },
+    default: { color: '#8b949e', border: 'rgba(139,148,158,.35)', bg: 'rgba(139,148,158,.08)' },
+};
+
+const TypeBadge: React.FC<{ type: string }> = ({ type }) => {
+    const s = TYPE_STYLE[type] ?? TYPE_STYLE.default;
+    return (
+        <span style={{
+            display: 'inline-block', padding: '.1rem .45rem', borderRadius: 4,
+            fontSize: '.7rem', fontWeight: 600, letterSpacing: '.02em',
+            color: s.color, border: `1px solid ${s.border}`, background: s.bg,
+            whiteSpace: 'nowrap',
+        }}>
+            {type}
+        </span>
+    );
+};
 
 interface LargestFileEntry {
     path: string;
@@ -150,9 +173,7 @@ export const LargestFilesCard: React.FC = () => {
                                                     </span>
                                                 </td>
                                                 <td className="px-4 py-3 text-center">
-                                                    <Badge variant="default" size="sm">
-                                                        {file.type}
-                                                    </Badge>
+                                                    <TypeBadge type={file.type} />
                                                 </td>
                                             </tr>
                                         ))}
