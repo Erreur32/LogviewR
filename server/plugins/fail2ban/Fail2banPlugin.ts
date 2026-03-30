@@ -2800,6 +2800,8 @@ export class Fail2banPlugin extends BasePlugin {
         // Also records a daily snapshot for the historical chart.
         router.get('/ipset/info', requireAuth, asyncHandler(async (_req, res) => {
             if (!this.isEnabled()) return res.json({ success: true, result: { ok: false, sets: [], error: 'Plugin désactivé' } });
+            const _cached = this._cachePeek<unknown>('ipset:info', 60_000);
+            if (_cached) return res.json({ success: true, result: _cached });
             const r = await this.client?.ipsetInfo() ?? { ok: false, sets: [], error: 'client not initialized' };
             if (r.ok && r.sets.length > 0) {
                 try {
@@ -2814,6 +2816,7 @@ export class Fail2banPlugin extends BasePlugin {
                         upsert.run(s.name, today, s.entries);
                     }
                 } catch { /* non-critical */ }
+                this._cachePut('ipset:info', r);
             }
             res.json({ success: true, result: r });
         }));
@@ -2822,6 +2825,9 @@ export class Fail2banPlugin extends BasePlugin {
         router.get('/ipset/history', requireAuth, asyncHandler(async (req, res) => {
             if (!this.isEnabled()) return res.json({ success: true, result: { ok: false, ipset_names: [], ipset_days: {} } });
             const days = Math.min(Math.max(1, parseInt(String(req.query.days ?? '30'), 10)), 365);
+            const _ihKey = `ipset:history:${days}`;
+            const _ihCached = this._cachePeek<unknown>(_ihKey, this._adaptiveTtl(days));
+            if (_ihCached) return res.json({ success: true, result: _ihCached });
             const appDb = getDatabase();
             const rows = appDb.prepare(`
                 SELECT name, date, entries
@@ -2835,7 +2841,9 @@ export class Fail2banPlugin extends BasePlugin {
                 if (!ipset_days[r.date]) ipset_days[r.date] = {};
                 ipset_days[r.date][r.name] = r.entries;
             }
-            res.json({ success: true, result: { ok: true, ipset_names, ipset_days } });
+            const result = { ok: true, ipset_names, ipset_days };
+            this._cachePut(_ihKey, result);
+            res.json({ success: true, result });
         }));
 
         // GET /ipset/entries/:set — list members of a specific set
