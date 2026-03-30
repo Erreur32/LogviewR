@@ -240,7 +240,7 @@ export const Header: React.FC<HeaderProps> = ({
   const pluginButtonRef = useRef<HTMLButtonElement>(null);
   const pluginMenuRef = useRef<HTMLDivElement>(null);
 
-  // Fail2ban summary — lazy fetch on hover, cached 30s
+  // Fail2ban summary — fetched on mount + refresh on hover, cached 30s
   const [f2bSummary, setF2bSummary] = useState<{ currentlyBanned: number; expiredLast24h: number; topJails: { jail: string; banned: number }[] } | null>(null);
   const f2bFetchedAt = useRef<number>(0);
   const fetchF2bSummary = useCallback(() => {
@@ -360,6 +360,11 @@ export const Header: React.FC<HeaderProps> = ({
     }
     return plugins.filter(p => p.enabled && (p.id === 'host-system' || p.id === 'nginx' || p.id === 'apache' || p.id === 'npm' || p.id === 'fail2ban'));
   }, [plugins, pageType]);
+
+  // Fetch fail2ban summary on mount when fail2ban plugin is active
+  useEffect(() => {
+    if (activePlugins.some(p => p.id === 'fail2ban')) fetchF2bSummary();
+  }, [activePlugins, fetchF2bSummary]);
 
   // Get active plugins for log-viewer page (for plugin switcher menu)
   const availablePlugins = useMemo(() => {
@@ -530,12 +535,26 @@ export const Header: React.FC<HeaderProps> = ({
                     onClick={() => onPluginClick?.(plugin.id)}
                     onMouseEnter={isFail2ban ? fetchF2bSummary : undefined}
                     className="p-1 bg-theme-secondary hover:bg-theme-primary border border-theme-border rounded-lg transition-colors"
+                    style={{ position: 'relative' }}
                   >
                     <img
                       src={getPluginIcon(plugin.id, osType)}
                       alt={plugin.name}
                       className="w-6 h-6 flex-shrink-0"
                     />
+                    {isFail2ban && f2bSummary !== null && f2bSummary.currentlyBanned > 0 && (
+                      <span style={{
+                        position: 'absolute', top: -5, right: -5,
+                        minWidth: 16, height: 16, padding: '0 3px',
+                        background: '#e86a65', borderRadius: 9999,
+                        border: '1.5px solid #0d1117',
+                        fontSize: '.6rem', fontWeight: 700, color: '#fff',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        lineHeight: 1, pointerEvents: 'none',
+                      }}>
+                        {f2bSummary.currentlyBanned > 99 ? '99+' : f2bSummary.currentlyBanned}
+                      </span>
+                    )}
                   </button>
                 </Tooltip>
               );
