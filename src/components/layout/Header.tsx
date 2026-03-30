@@ -546,9 +546,10 @@ export const Header: React.FC<HeaderProps> = ({
                       <span style={{
                         position: 'absolute', top: -5, right: -5,
                         minWidth: 16, height: 16, padding: '0 3px',
-                        background: '#e86a65', borderRadius: 9999,
+                        background: '#c0392b', borderRadius: 9999,
                         border: '1.5px solid #0d1117',
-                        fontSize: '.6rem', fontWeight: 700, color: '#fff',
+                        fontSize: '.6rem', fontWeight: 900, color: '#ffe0de',
+                        textShadow: '0 1px 2px rgba(0,0,0,.8)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         lineHeight: 1, pointerEvents: 'none',
                       }}>
