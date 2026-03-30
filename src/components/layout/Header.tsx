@@ -333,7 +333,7 @@ export const Header: React.FC<HeaderProps> = ({
     if (pageType === 'dashboard') {
       document.title = 'LogviewR - Dashboard';
     } else if (pageType === 'goaccess-stats') {
-      document.title = 'Stats Logs - LogviewR';
+      document.title = 'Stats Serveurs Web - LogviewR';
     } else if (pageType === 'settings') {
       document.title = t('header.pageTitles.settings');
     } else if (pageType === 'plugins') {

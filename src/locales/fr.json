@@ -567,7 +567,7 @@
   },
   "goaccessStats": {
     "title": "Stats Logs",
-    "subtitle": "Graphiques et statistiques des logs (style GoAccess)",
+    "subtitle": "Graphiques et statistiques générés à partir des logs des serveurs web",
     "back": "Retour",
     "refresh": "Actualiser",
     "loading": "Chargement des statistiques...",
@@ -832,7 +832,7 @@
   },
   "footer": {
     "analyticsTooltip": "Statistiques Application",
-    "goaccessStatsTooltip": "Graphiques et statistiques des logs",
+    "goaccessStatsTooltip": "Statistiques des logs serveurs web",
     "administrationTooltip": "Paramètres et administration",
     "statsReadableFilesTooltip": "Fichiers de logs accessibles en lecture – Nombre total de fichiers .log (et équivalents) détectés et lisibles par l'application, tous plugins de logs activés confondus (System, Apache, Nginx, NPM). Exclut les fichiers dont l'accès est refusé ou le format non reconnu.",
     "statsTotalSizeTooltip": "Taille totale (fichiers non compressés) – Somme de la taille sur disque de tous les fichiers de logs pris en compte, hors fichiers .gz. Correspond à l'espace utilisé par les logs « bruts » accessibles via les plugins activés.",
