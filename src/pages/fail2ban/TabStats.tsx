@@ -18,10 +18,16 @@ import { DomainInitial } from './DomainInitial';
 
 // ── Module-level cache (survives tab navigation) ──────────────────────────────
 const _cache: Record<string, { data: unknown; ts: number }> = {};
-const CACHE_TTL = 60_000; // 60s — show instantly on revisit, silently refresh
-function getCached<T>(key: string): T | null {
+/** Adaptive TTL: recent data expires fast, old data stays cached longer */
+function getCacheTtl(days: number): number {
+    if (days <= 0)  return 600_000; // all-time: 10min
+    if (days <= 2)  return 30_000;  // 24h: 30s
+    if (days <= 7)  return 120_000; // 7j: 2min
+    return 600_000;                 // 30j, 6m, 1an: 10min
+}
+function getCached<T>(key: string, days = 7): T | null {
     const e = _cache[key];
-    return (e && Date.now() - e.ts < CACHE_TTL) ? e.data as T : null;
+    return (e && Date.now() - e.ts < getCacheTtl(days)) ? e.data as T : null;
 }
 function setCached(key: string, data: unknown) { _cache[key] = { data, ts: Date.now() }; }
 
@@ -959,7 +965,7 @@ const HeatmapSection: React.FC<{
 // ── Tops section ──────────────────────────────────────────────────────────────
 const TOP_LIMITS = [15, 25, 50, 0];
 
-const TopsSection: React.FC<{ days: number; onDaysChange: (d: number) => void; onIpClick?: (ip: string) => void; onDomainClick?: (domain: string) => void; jails: JailStatus[]; data: TopsData | null; loading: boolean }> = ({ days, onDaysChange, onIpClick, onDomainClick, jails, data, loading }) => {
+const TopsSection: React.FC<{ days: number; onDaysChange: (d: number) => void; onIpClick?: (ip: string) => void; onDomainClick?: (domain: string) => void; jails: JailStatus[]; data: TopsData | null; loading: boolean; refreshing?: boolean; lastFetchTs?: number }> = ({ days, onDaysChange, onIpClick, onDomainClick, jails, data, loading, refreshing, lastFetchTs }) => {
     const { t } = useTranslation();
     const [viewMode, setViewMode] = useState<'bar' | 'pie'>('bar');
     const [topLimit, setTopLimit] = useState(15);
@@ -1350,23 +1356,53 @@ export const TabStats: React.FC<TabStatsProps> = ({
     const [domainDetail, setDomainDetail] = useState<string | null>(null);
 
     // ── Single unified /tops fetch (replaces 5 independent section fetches) ────
-    const [topsData, setTopsData] = useState<TopsData | null>(() => getCached<TopsData>(`tops:all:${days}`));
-    const [topsLoading, setTopsLoading] = useState(() => !getCached<TopsData>(`tops:all:${days}`));
+    const [topsData, setTopsData] = useState<TopsData | null>(() => getCached<TopsData>(`tops:all:${days}`, days));
+    const [topsLoading, setTopsLoading] = useState(() => !getCached<TopsData>(`tops:all:${days}`, days));
     // Track whether the fetch was triggered as a loading (vs. background refresh)
     const topsWasLoadingRef = useRef(false);
     const topsAbortRef = useRef<AbortController | null>(null);
+    const [topsRefreshing, setTopsRefreshing] = useState(false);
+    const topsLastFetchRef = useRef<Partial<Record<number, number>>>({});
+    const prewarmDoneRef = useRef<Set<number>>(new Set());
 
     const fetchTops = useCallback(() => {
         topsAbortRef.current?.abort();
         const ac = new AbortController();
         topsAbortRef.current = ac;
 
+        // Phase 1: fast — summary + heatmaps (~150ms, skips heavy list queries)
+        // Skip if full data is already cached
+        const fullCached = getCached<TopsData>(`tops:all:${days}`, days);
+        if (!fullCached) {
+            api.get<TopsData>(`/api/plugins/fail2ban/tops?days=${days}&phase=fast`, { signal: ac.signal })
+                .then(res => {
+                    if (ac.signal.aborted) return;
+                    if (res.success && res.result?.ok) {
+                        setTopsData(prev => {
+                            const base = prev ?? ({} as TopsData);
+                            return {
+                                ...base,
+                                ...res.result,
+                                // Keep existing tops lists from stale data if available
+                                topIps:         base.topIps?.length         ? base.topIps         : res.result.topIps,
+                                topJails:       base.topJails?.length        ? base.topJails        : res.result.topJails,
+                                topRecidivists: base.topRecidivists?.length  ? base.topRecidivists  : res.result.topRecidivists,
+                            };
+                        });
+                        setTopsLoading(false);
+                    }
+                })
+                .catch(() => {});
+        }
+
+        // Phase 2: full — all data including tops lists
         api.get<TopsData>(`/api/plugins/fail2ban/tops?days=${days}&limit=100&compare=1`, { signal: ac.signal })
             .then(res => {
                 if (ac.signal.aborted) return;
                 if (res.success && res.result?.ok) {
                     setCached(`tops:all:${days}`, res.result);
                     setTopsData(res.result);
+                    topsLastFetchRef.current = { ...topsLastFetchRef.current, [days]: Date.now() };
                     primeTopsPrevTotalFromFullFetch(days, res.result.prevSummary?.totalBans ?? null);
                 }
             })
@@ -1374,7 +1410,7 @@ export const TabStats: React.FC<TabStatsProps> = ({
             .finally(() => {
                 if (ac.signal.aborted) return;
                 setTopsLoading(false);
-                // Dispatch tab-loaded only for the initial fetch (not 60s auto-refresh)
+                setTopsRefreshing(false);
                 if (topsWasLoadingRef.current) {
                     topsWasLoadingRef.current = false;
                     dispatchTabLoaded();
@@ -1383,14 +1419,22 @@ export const TabStats: React.FC<TabStatsProps> = ({
     }, [days]);
 
     useEffect(() => {
-        const cached = getCached<TopsData>(`tops:all:${days}`);
+        const cached = getCached<TopsData>(`tops:all:${days}`, days);
         if (cached) {
             setTopsData(cached);
             setTopsLoading(false);
+            setTopsRefreshing(false);
             primeTopsPrevTotalFromFullFetch(days, cached.prevSummary?.totalBans ?? null);
+        } else if (topsData !== null) {
+            // Keep showing stale data, just indicate background refresh
+            setTopsLoading(false);
+            setTopsRefreshing(true);
+            topsWasLoadingRef.current = false;
         } else {
+            // No data at all — full loading state
             setTopsLoading(true);
-            topsWasLoadingRef.current = true; // mark: next fetch completion should dispatch tab-loaded
+            setTopsRefreshing(false);
+            topsWasLoadingRef.current = true;
         }
         fetchTops();
         const id = setInterval(fetchTops, 60_000);
@@ -1398,6 +1442,7 @@ export const TabStats: React.FC<TabStatsProps> = ({
             clearInterval(id);
             topsAbortRef.current?.abort();
         };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [days, fetchTops]);
 
     const topActiveJail = jails
@@ -1446,7 +1491,17 @@ export const TabStats: React.FC<TabStatsProps> = ({
             </div>
 
             {/* Tops section */}
-            <TopsSection days={days} onDaysChange={onDaysChange} onIpClick={onIpClick} onDomainClick={setDomainDetail} jails={jails} data={topsData} loading={topsLoading} />
+            <TopsSection
+                    days={days}
+                    onDaysChange={onDaysChange}
+                    onIpClick={onIpClick}
+                    onDomainClick={setDomainDetail}
+                    jails={jails}
+                    data={topsData}
+                    loading={topsLoading}
+                    refreshing={topsRefreshing}
+                    lastFetchTs={topsLastFetchRef.current[days]}
+                />
 
             {/* Types d'attaque | 4 stat cards | Résumé période — 3 colonnes */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1.25rem', alignItems: 'start' }}>
