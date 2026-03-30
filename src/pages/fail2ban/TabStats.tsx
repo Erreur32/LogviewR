@@ -48,6 +48,18 @@ const btnStyle = (active: boolean, color = C.blue): React.CSSProperties => ({
     color: active ? color : C.muted,
 });
 
+/** Returns elapsed seconds since a timestamp, re-renders every 10s */
+function useElapsed(ts: number | undefined): number | null {
+    const [, setTick] = useState(0);
+    useEffect(() => {
+        if (!ts) return;
+        const id = setInterval(() => setTick(t => t + 1), 10_000);
+        return () => clearInterval(id);
+    }, [ts]);
+    if (!ts) return null;
+    return Math.floor((Date.now() - ts) / 1000);
+}
+
 const PeriodBtns: React.FC<{ days: number; color?: string; onChange: (d: number) => void }> = ({ days, color, onChange }) => (
     <div style={{ display: 'flex', gap: '.2rem' }}>
         {PERIODS.map(p => (
@@ -970,6 +982,10 @@ const TopsSection: React.FC<{ days: number; onDaysChange: (d: number) => void; o
     const [viewMode, setViewMode] = useState<'bar' | 'pie'>('bar');
     const [topLimit, setTopLimit] = useState(15);
     const periodLabel = PERIODS.find(p => p.days === days)?.label ?? `${days}j`;
+    const elapsed = useElapsed(lastFetchTs);
+    const elapsedLabel = elapsed === null
+        ? 'actualisation…'
+        : elapsed < 60 ? `il y a ${elapsed}s` : `il y a ${Math.floor(elapsed / 60)}min`;
 
     const topCards = [
         { icon: <Ban style={{ width: 12, height: 12 }} />, title: t('fail2ban.stats.topIps'), color: C.red, entries: (data?.topIps ?? []).map(e => ({ ...e })) as TopEntry[], labelKey: 'ip' as const },
@@ -987,7 +1003,12 @@ const TopsSection: React.FC<{ days: number; onDaysChange: (d: number) => void; o
     return (
         <SCard icon={<TrendingUp style={{ width: 14, height: 14 }} />} color={C.blue} title="Tops" sub={`(${periodLabel})`}
             right={
-                <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
+                    {refreshing && (
+                        <span style={{ fontSize: '.65rem', color: C.muted, fontStyle: 'italic' }}>
+                            {elapsedLabel}
+                        </span>
+                    )}
                     <PeriodBtns days={days} onChange={onDaysChange} />
                     <div style={{ width: 1, height: 14, background: C.border }} />
                     {TOP_LIMITS.map(l => (
@@ -996,7 +1017,7 @@ const TopsSection: React.FC<{ days: number; onDaysChange: (d: number) => void; o
                     <div style={{ width: 1, height: 14, background: C.border }} />
                     <button onClick={() => setViewMode('bar')} style={btnStyle(viewMode === 'bar')}>▐▌ Barres</button>
                     <button onClick={() => setViewMode('pie')} style={btnStyle(viewMode === 'pie')}>◑ Camembert</button>
-                </>
+                </div>
             }
             collapsible>
             <div style={{ padding: '1rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: '1rem', alignItems: 'start' }}>
@@ -1444,6 +1465,31 @@ export const TabStats: React.FC<TabStatsProps> = ({
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [days, fetchTops]);
+
+    // Silently prewarm adjacent periods 2s after initial load
+    useEffect(() => {
+        if (!topsData || topsRefreshing || topsLoading) return;
+        const allDays = [1, 7, 30, 180, 365];
+        const toPrewarm = allDays.filter(
+            d => d !== days && !prewarmDoneRef.current.has(d) && !getCached<TopsData>(`tops:all:${d}`, d)
+        );
+        if (toPrewarm.length === 0) return;
+        if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+        if (typeof document !== 'undefined' && document.hidden) return;
+
+        const timer = setTimeout(() => {
+            for (const d of toPrewarm.slice(0, 2)) {
+                prewarmDoneRef.current.add(d);
+                const ac = new AbortController();
+                api.get<TopsData>(`/api/plugins/fail2ban/tops?days=${d}&limit=100&compare=1`, { signal: ac.signal })
+                    .then(res => {
+                        if (res.success && res.result?.ok) setCached(`tops:all:${d}`, res.result);
+                    })
+                    .catch(() => {});
+            }
+        }, 2000);
+        return () => clearTimeout(timer);
+    }, [topsData, topsRefreshing, topsLoading, days]);
 
     const topActiveJail = jails
         .filter(j => j.currentlyBanned > 0)
