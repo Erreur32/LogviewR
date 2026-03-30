@@ -302,7 +302,8 @@ export function initializeDatabase(): void {
         CREATE INDEX       IF NOT EXISTS idx_f2b_events_jail        ON f2b_events(jail);
         CREATE INDEX       IF NOT EXISTS idx_f2b_events_timeofban   ON f2b_events(timeofban);
         CREATE INDEX       IF NOT EXISTS idx_f2b_events_jail_time   ON f2b_events(jail, timeofban);
-        CREATE INDEX       IF NOT EXISTS idx_f2b_events_ip_time     ON f2b_events(ip, timeofban)
+        CREATE INDEX       IF NOT EXISTS idx_f2b_events_ip_time     ON f2b_events(ip, timeofban);
+        CREATE INDEX       IF NOT EXISTS idx_f2b_events_type_time   ON f2b_events(event_type, timeofban)
     `);
     database.exec(`
         CREATE TABLE IF NOT EXISTS f2b_sync_state (
