@@ -33,6 +33,7 @@ import { TabNetworkRaw }     from './fail2ban/TabNetworkRaw';
 import { TabIPSet }          from './fail2ban/TabIPSet';
 import { TabIPTables }       from './fail2ban/TabIPTables';
 import { TabNFTables }       from './fail2ban/TabNFTables';
+import { TabBlocklists }     from './fail2ban/TabBlocklists';
 import { TabFileList }       from './fail2ban/TabFileList';
 import { BanHistoryChart }   from './fail2ban/BanHistoryChart';
 import { fetchTopsPrevTotalBans } from './fail2ban/fail2banTopsPrevFlight';
@@ -62,7 +63,8 @@ const NAV_GROUPS = [
         items: [
             { id: 'iptables' as TabId, labelKey: 'fail2ban.tabs.iptables', icon: Network,  color: '#39c5cf' },
             { id: 'ipset'    as TabId, labelKey: 'fail2ban.tabs.ipset',    icon: Database, color: '#bc8cff' },
-            { id: 'nftables' as TabId, labelKey: 'fail2ban.tabs.nftables', icon: Server,   color: '#e3b341' },
+            { id: 'nftables'   as TabId, labelKey: 'fail2ban.tabs.nftables',   icon: Server,   color: '#e3b341' },
+            { id: 'blocklists' as TabId, labelKey: 'fail2ban.tabs.blocklists', icon: Shield,   color: '#e86a65' },
         ],
     },
     {
@@ -948,7 +950,8 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
                     )}
                     {tab === 'iptables' && <TabIPTables />}
                     {tab === 'ipset'    && <TabIPSet onIpClick={ip => setSelectedIp(ip)} />}
-                    {tab === 'nftables' && <TabNFTables />}
+                    {tab === 'nftables'   && <TabNFTables />}
+                    {tab === 'blocklists' && <TabBlocklists />}
                     {tab === 'config'   && <TabConfig onWarningsChange={setDbFragPct} npmDataPath={npmDataPath} onNpmDataPathChange={setNpmDataPath} />}
                     {tab === 'audit'    && <TabAudit />}
                     {tab === 'backup'   && <TabBackup />}

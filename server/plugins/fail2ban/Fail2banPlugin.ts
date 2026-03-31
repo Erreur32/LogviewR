@@ -18,6 +18,7 @@ import type { PluginStats } from '../base/PluginInterface.js';
 import { Fail2banSqliteReader } from './Fail2banSqliteReader.js';
 import { Fail2banClientExec } from './Fail2banClientExec.js';
 import { IptablesService } from './IptablesService.js';
+import { BlocklistService } from './BlocklistService.js';
 import { Fail2banSyncService } from '../../services/fail2banSyncService.js';
 import { asyncHandler, createError } from '../../middleware/errorHandler.js';
 import { requireAuth } from '../../middleware/authMiddleware.js';
@@ -477,6 +478,7 @@ export class Fail2banPlugin extends BasePlugin {
     private reader!: Fail2banSqliteReader;
     private client!: Fail2banClientExec;
     private syncService: Fail2banSyncService | null = null;
+    private blocklistService: BlocklistService | null = null;
     // Rollback state for iptables write operations
     private ipt_rollbackTimer: ReturnType<typeof setTimeout> | null = null;
     private ipt_rollbackSnapshot: string | null = null;
@@ -516,6 +518,9 @@ export class Fail2banPlugin extends BasePlugin {
 
         this.reader = new Fail2banSqliteReader(dbPath);
         this.client = new Fail2banClientExec();
+        const _dataDir = path.join(process.cwd(), 'data');
+        this.blocklistService = new BlocklistService(_dataDir);
+        this.blocklistService.startAutoRefresh();
 
         if (!this.reader.isReadable()) {
             logger.warn('Fail2ban', `SQLite DB not readable at ${dbPath} — ban history unavailable`);
@@ -2929,6 +2934,30 @@ export class Fail2banPlugin extends BasePlugin {
             const result: Record<string, string> = {};
             for (const [ip, h] of resolved) result[ip] = h;
             res.json({ success: true, result });
+        }));
+
+        // GET /blocklists/status
+        router.get('/blocklists/status', requireAuth, asyncHandler(async (_req, res) => {
+            const lists = this.blocklistService?.getStatus() ?? [];
+            res.json({ success: true, result: { lists } });
+        }));
+
+        // POST /blocklists/refresh  { id: string }
+        router.post('/blocklists/refresh', requireAuth, asyncHandler(async (req, res) => {
+            const { id } = req.body as { id?: string };
+            if (!id) return res.json({ success: true, result: { ok: false, error: 'id manquant' } });
+            const r = await this.blocklistService?.refresh(id) ?? { ok: false, error: 'service non initialisé' };
+            res.json({ success: true, result: r });
+        }));
+
+        // POST /blocklists/toggle  { id: string, enabled: boolean }
+        router.post('/blocklists/toggle', requireAuth, asyncHandler(async (req, res) => {
+            const { id, enabled } = req.body as { id?: string; enabled?: boolean };
+            if (!id || enabled === undefined) return res.json({ success: true, result: { ok: false, error: 'Paramètres manquants' } });
+            const r = enabled
+                ? await this.blocklistService?.enable(id) ?? { ok: false, error: 'service non initialisé' }
+                : await this.blocklistService?.disable(id) ?? { ok: false, error: 'service non initialisé' };
+            res.json({ success: true, result: r });
         }));
 
         router.get('/nftables', requireAuth, asyncHandler(async (_req, res) => {
