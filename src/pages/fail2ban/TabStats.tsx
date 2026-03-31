@@ -4,11 +4,12 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
-    Shield, Ban, AlertTriangle, ShieldOff, Database,
+    Shield, Ban, AlertTriangle, ShieldOff, Database, Globe,
     TrendingUp, Lock, RotateCcw, Clock, Target, BarChart2, Gauge, List, Search, X,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { card, PERIODS, F2bTooltip } from './helpers';
+import { card, PERIODS, F2bTooltip, TT } from './helpers';
+import type { F2bTtColor } from './helpers';
 import { api } from '../../api/client';
 import type { JailStatus, BanEntry } from './types';
 import { TabJailsEvents } from './TabJails';
@@ -500,7 +501,7 @@ interface TopsData {
     prevSummary?: { totalBans: number; uniqueIps: number; topJail: string | null; topJailCount: number; totalFailures: number; expiredInPeriod: number } | null;
 }
 
-const TopCard: React.FC<{ icon: React.ReactNode; title: string; color: string; periodLabel?: string; entries: TopEntry[]; loading: boolean; labelKey: 'ip' | 'jail'; viewMode: 'bar' | 'pie'; limit: number; rowPrefix?: (label: string) => React.ReactNode; emptyMsg?: string; secondaryLabel?: string; onIpClick?: (ip: string) => void; onLabelClick?: (label: string) => void }> = ({ icon, title, color, periodLabel, entries, loading, labelKey, viewMode, limit, rowPrefix, emptyMsg, secondaryLabel, onIpClick, onLabelClick }) => {
+const TopCard: React.FC<{ icon: React.ReactNode; title: string; color: string; periodLabel?: string; entries: TopEntry[]; loading: boolean; labelKey: 'ip' | 'jail'; viewMode: 'bar' | 'pie'; limit: number; rowPrefix?: (label: string) => React.ReactNode; emptyMsg?: string; secondaryLabel?: string; onIpClick?: (ip: string) => void; onLabelClick?: (label: string) => void; rowTooltip?: (label: string, entry: TopEntry) => { title: string; bodyNode: React.ReactNode; color: F2bTtColor } | null }> = ({ icon, title, color, periodLabel, entries, loading, labelKey, viewMode, limit, rowPrefix, emptyMsg, secondaryLabel, onIpClick, onLabelClick, rowTooltip }) => {
     const displayed = limit === 0 ? entries : entries.slice(0, limit);
     const hasMore   = limit > 0 && entries.length > limit;
     const max   = Math.max(...entries.map(e => e.count), 1);
@@ -598,8 +599,9 @@ const TopCard: React.FC<{ icon: React.ReactNode; title: string; color: string; p
                             const ratio = e.count / max;
                             // Gravity gradient: full color → 55% opacity, dimmer for lower ranks
                             const rankOpacity = Math.max(0.45, 1 - (i / Math.max(displayed.length - 1, 1)) * 0.5);
-                            return (
-                                <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '.4rem', padding: '.22rem .75rem' }}>
+                            const tt = rowTooltip ? rowTooltip(label, e) : null;
+                            const inner = (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', padding: '.22rem .75rem' }}>
                                     <span style={{ width: 18, fontSize: '.65rem', color: C.muted, textAlign: 'right', flexShrink: 0 }}>{i + 1}</span>
                                     {rowPrefix && <span style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>{rowPrefix(label)}</span>}
                                     {clickable ? (
@@ -621,6 +623,11 @@ const TopCard: React.FC<{ icon: React.ReactNode; title: string; color: string; p
                                     )}
                                 </div>
                             );
+                            return tt ? (
+                                <F2bTooltip key={label} title={tt.title} bodyNode={tt.bodyNode} color={tt.color} block width={300}>
+                                    {inner}
+                                </F2bTooltip>
+                            ) : <React.Fragment key={label}>{inner}</React.Fragment>;
                         })}
                         {/* Bottom gravity fade — if list is truncated */}
                         {hasMore && (
@@ -992,10 +999,40 @@ const TopsSection: React.FC<{ days: number; onDaysChange: (d: number) => void; o
         { icon: <RotateCcw style={{ width: 12, height: 12 }} />, title: t('fail2ban.attackCategories.recidivist'), color: C.red, entries: (data?.topRecidivists ?? []).map(e => ({ ...e })) as TopEntry[], labelKey: 'ip' as const },
         { icon: <Lock style={{ width: 12, height: 12 }} />, title: t('fail2ban.stats.topJails'), color: C.orange, entries: (data?.topJails ?? []).map(e => ({ ip: undefined, jail: e.jail, count: e.count })) as TopEntry[], labelKey: 'jail' as const },
     ];
-    const domainBanEntries: TopEntry[] = (data?.topDomains ?? []).map(e => ({ ip: e.domain, count: e.count }));
+    const domainBanEntries: TopEntry[] = (data?.topDomains ?? []).map(e => ({ ip: e.domain, count: e.count, secondary: e.failures ?? 0 }));
     const domainFailEntries: TopEntry[] = [...(data?.topDomains ?? [])]
         .sort((a, b) => (b.failures ?? 0) - (a.failures ?? 0))
-        .map(e => ({ ip: e.domain, count: e.failures ?? 0 }));
+        .map(e => ({ ip: e.domain, count: e.failures ?? 0, secondary: e.count }));
+
+    const domainBanTooltip = (label: string, e: TopEntry): { title: string; bodyNode: React.ReactNode; color: F2bTtColor } => ({
+        title: label,
+        color: 'cyan',
+        bodyNode: (
+            <div style={{ padding: '.1rem 0' }}>
+                {TT.section('Domaine')}
+                {TT.row(<Globe style={{ width: 11, height: 11, color: '#39c5cf', flexShrink: 0 }} />, label, '#39c5cf')}
+                {TT.sep()}
+                {TT.section('Statistiques')}
+                {TT.row(<Ban style={{ width: 11, height: 11, color: '#e86a65', flexShrink: 0 }} />, `${e.count} ban${e.count !== 1 ? 's' : ''}`, '#e86a65')}
+                {(e.secondary ?? 0) > 0 && TT.row(<AlertTriangle style={{ width: 11, height: 11, color: '#e3b341', flexShrink: 0 }} />, `${e.secondary} tentative${(e.secondary ?? 0) !== 1 ? 's' : ''}`, '#e3b341')}
+            </div>
+        ),
+    });
+
+    const domainFailTooltip = (label: string, e: TopEntry): { title: string; bodyNode: React.ReactNode; color: F2bTtColor } => ({
+        title: label,
+        color: 'orange',
+        bodyNode: (
+            <div style={{ padding: '.1rem 0' }}>
+                {TT.section('Domaine')}
+                {TT.row(<Globe style={{ width: 11, height: 11, color: '#39c5cf', flexShrink: 0 }} />, label, '#39c5cf')}
+                {TT.sep()}
+                {TT.section('Statistiques')}
+                {TT.row(<AlertTriangle style={{ width: 11, height: 11, color: '#e3b341', flexShrink: 0 }} />, `${e.count} tentative${e.count !== 1 ? 's' : ''}`, '#e3b341')}
+                {(e.secondary ?? 0) > 0 && TT.row(<Ban style={{ width: 11, height: 11, color: '#e86a65', flexShrink: 0 }} />, `${e.secondary} ban${(e.secondary ?? 0) !== 1 ? 's' : ''}`, '#e86a65')}
+            </div>
+        ),
+    });
 
     const jailRows = [...jails].sort((a, b) => (b.totalBannedSqlite ?? b.totalBanned) - (a.totalBannedSqlite ?? a.totalBanned)).slice(0, 12);
     const jailMax  = Math.max(...jailRows.map(j => j.totalBannedSqlite ?? j.totalBanned), 1);
@@ -1035,6 +1072,7 @@ const TopsSection: React.FC<{ days: number; onDaysChange: (d: number) => void; o
                     limit={topLimit}
                     emptyMsg="NPM uniquement — configurez le chemin données NPM dans l'onglet Config › Intégrations"
                     onLabelClick={onDomainClick}
+                    rowTooltip={domainBanTooltip}
                     rowPrefix={(domain) => (
                         <>
                             <img src="/icons/services/nginx-proxy-manager.svg" width={13} height={13} style={{ borderRadius: 2, objectFit: 'contain' }} alt="NPM" />
@@ -1055,6 +1093,7 @@ const TopsSection: React.FC<{ days: number; onDaysChange: (d: number) => void; o
                     limit={topLimit}
                     emptyMsg="NPM uniquement — configurez le chemin données NPM dans l'onglet Config › Intégrations"
                     onLabelClick={onDomainClick}
+                    rowTooltip={domainFailTooltip}
                     rowPrefix={(domain) => (
                         <>
                             <img src="/icons/services/nginx-proxy-manager.svg" width={13} height={13} style={{ borderRadius: 2, objectFit: 'contain' }} alt="NPM" />

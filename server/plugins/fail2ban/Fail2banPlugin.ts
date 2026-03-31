@@ -512,6 +512,11 @@ export class Fail2banPlugin extends BasePlugin {
         await super.start();
         if (!this.isEnabled()) return;
 
+        // Clear NPM-related cache entries so settings changes take effect immediately
+        for (const key of [...this._routeCache.keys()]) {
+            if (key.startsWith('tops:domains:')) this._routeCache.delete(key);
+        }
+
         const settings = this.config?.settings as unknown as Fail2banPluginConfig | undefined;
         const rawDbPath = settings?.sqliteDbPath || DEFAULT_SQLITE_PATH;
         const dbPath = this.resolveDockerPathSync(rawDbPath);

@@ -319,11 +319,11 @@ export const Fail2banPathConfig: React.FC<Fail2banPathConfigProps> = ({
                             <div style={{ display: 'flex', gap: '.4rem' }}>
                                 <input type="text" value={npmInput}
                                     onChange={e => { setNpmInput(e.target.value); setNpmCheck(null); }}
-                                    placeholder="/data  ou  /opt/npm/data"
+                                    placeholder="/home/docker/nginx-proxy-manager/data"
                                     style={inputStyle(npmCheck?.ok === true ? 'ok' : npmCheck?.ok === false ? 'error' : 'idle')} />
                             </div>
                             <p style={{ fontSize: '.72rem', color: '#8b949e', marginTop: '.25rem' }}>
-                                Dossier racine NPM. Ex : <code style={{ color: '#e3b341' }}>/data</code> — doit contenir <code style={{ color: '#8b949e' }}>database.sqlite</code> + <code style={{ color: '#8b949e' }}>logs/</code>
+                                Dossier racine NPM. Ex : <code style={{ color: '#e3b341' }}>/home/docker/nginx-proxy-manager/data</code> — doit contenir <code style={{ color: '#8b949e' }}>database.sqlite</code> + <code style={{ color: '#8b949e' }}>logs/</code>
                             </p>
                         </div>
                     )}
@@ -359,13 +359,16 @@ export const Fail2banPathConfig: React.FC<Fail2banPathConfigProps> = ({
                             <p style={{ fontSize: '.72rem', color: '#8b949e' }}>
                                 Hôte = nom du service Docker ou IP. Base = <code style={{ color: '#e3b341' }}>npm</code> par défaut dans NPM.
                             </p>
-                            <div style={{ marginTop: '.25rem' }}>
+                            <div style={{ marginTop: '.4rem' }}>
+                                <div style={{ fontSize: '.72rem', color: '#e3b341', marginBottom: '.2rem', fontWeight: 600 }}>
+                                    Dossier logs NPM <span style={{ color: '#8b949e', fontWeight: 400 }}>(requis pour Top Domaines)</span>
+                                </div>
                                 <input type="text" value={npmInput}
                                     onChange={e => { setNpmInput(e.target.value); setNpmCheck(null); }}
-                                    placeholder="/data  ou  /opt/npm/data"
+                                    placeholder="/home/docker/nginx-proxy-manager/data"
                                     style={inputStyle('idle')} />
                                 <p style={{ fontSize: '.72rem', color: '#8b949e', marginTop: '.25rem' }}>
-                                    Chemin logs NPM (<code style={{ color: '#8b949e' }}>logs/</code> requis pour Top Domaines). Ex : <code style={{ color: '#e3b341' }}>/data</code>
+                                    Dossier racine NPM. Ex : <code style={{ color: '#e3b341' }}>/home/docker/nginx-proxy-manager/data</code> — doit contenir <code style={{ color: '#8b949e' }}>logs/</code>
                                 </p>
                             </div>
                         </div>
