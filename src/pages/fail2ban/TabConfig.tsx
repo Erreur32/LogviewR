@@ -771,7 +771,7 @@ export const TabConfig: React.FC<{
         api.get<{ settings?: Record<string, unknown> }>('/api/plugins/fail2ban')
             .then(res => {
                 const s = res.result?.settings ?? {};
-                if (s.npmDbType === 'mysql' && s.npmMysqlHost && s.npmMysqlUser && s.npmMysqlDb) {
+                if (s.npmDbType === 'mysql' && s.npmMysqlHost && s.npmMysqlUser && s.npmMysqlDb && s.npmDataPath) {
                     setNpmMysqlOk(true);
                 }
             })
@@ -1676,7 +1676,7 @@ export const TabConfig: React.FC<{
                     })()}
 
                     {/* Card: Intégrations — chemins SQLite & NPM */}
-                    <div style={{ ...card, borderColor: npmDataPath ? C.border : 'rgba(227,179,65,.4)' }}>
+                    <div style={{ ...card, borderColor: (npmDataPath || npmMysqlOk) ? C.border : 'rgba(227,179,65,.4)' }}>
                         <div onClick={() => setOpenInteg(o => !o)} style={{ ...cardH, cursor: 'pointer', background: (npmDataPath || npmMysqlOk) ? undefined : 'rgba(227,179,65,.04)' }}>
                             <Network style={{ width: 14, height: 14, color: (npmDataPath || npmMysqlOk) ? C.cyan : C.orange }} />
                             <span style={{ fontWeight: 600, fontSize: '.9rem' }}>Intégrations <span style={{ fontWeight: 400, color: C.orange, fontSize: '.72rem' }}>(optionnel)</span></span>

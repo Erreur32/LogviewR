@@ -161,6 +161,7 @@ export const Fail2banPathConfig: React.FC<Fail2banPathConfigProps> = ({
                 const s = (data.result ?? data)?.settings ?? {};
                 const dbType: 'sqlite' | 'mysql' = s.npmDbType ?? 'sqlite';
                 if (s.npmDbType) setNpmDbType(dbType);
+                if (s.npmDataPath) setNpmInput(s.npmDataPath);
                 if (s.npmMysqlHost) setMysql(m => ({ ...m, host: s.npmMysqlHost }));
                 if (s.npmMysqlPort) setMysql(m => ({ ...m, port: String(s.npmMysqlPort) }));
                 if (s.npmMysqlUser) setMysql(m => ({ ...m, user: s.npmMysqlUser }));
@@ -195,9 +196,8 @@ export const Fail2banPathConfig: React.FC<Fail2banPathConfigProps> = ({
         setNpmSaved(false);
         try {
             const settings: Record<string, unknown> = { npmDbType };
-            if (npmDbType === 'sqlite') {
-                settings.npmDataPath = npmInput.trim();
-            } else {
+            settings.npmDataPath = npmInput.trim();
+            if (npmDbType === 'mysql') {
                 settings.npmMysqlHost = mysql.host.trim();
                 settings.npmMysqlPort = parseInt(mysql.port) || 3306;
                 settings.npmMysqlUser = mysql.user.trim();
@@ -210,7 +210,7 @@ export const Fail2banPathConfig: React.FC<Fail2banPathConfigProps> = ({
                 body: JSON.stringify({ settings }),
             });
             if (res.ok) {
-                if (npmDbType === 'sqlite') onNpmDataPathChange!(npmInput.trim());
+                onNpmDataPathChange!(npmInput.trim());
                 setNpmSaved(true);
                 setTimeout(() => setNpmSaved(false), 4000);
             }
@@ -359,6 +359,15 @@ export const Fail2banPathConfig: React.FC<Fail2banPathConfigProps> = ({
                             <p style={{ fontSize: '.72rem', color: '#8b949e' }}>
                                 Hôte = nom du service Docker ou IP. Base = <code style={{ color: '#e3b341' }}>npm</code> par défaut dans NPM.
                             </p>
+                            <div style={{ marginTop: '.25rem' }}>
+                                <input type="text" value={npmInput}
+                                    onChange={e => { setNpmInput(e.target.value); setNpmCheck(null); }}
+                                    placeholder="/data  ou  /opt/npm/data"
+                                    style={inputStyle('idle')} />
+                                <p style={{ fontSize: '.72rem', color: '#8b949e', marginTop: '.25rem' }}>
+                                    Chemin logs NPM (<code style={{ color: '#8b949e' }}>logs/</code> requis pour Top Domaines). Ex : <code style={{ color: '#e3b341' }}>/data</code>
+                                </p>
+                            </div>
                         </div>
                     )}
 
