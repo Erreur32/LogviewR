@@ -9,6 +9,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.8.7] - 2026-03-31
+
+### Pour les utilisateurs
+
+> Nouveau tab Blocklists dans Fail2ban : activez des listes IPv4 malveillantes (~100k IPs) en un clic. La bannière de mise à jour affiche enfin le résumé des changements.
+
+- **Blocklists IP (Fail2ban → Firewall → Blocklists)** — Nouveau tab permettant d'activer/désactiver les listes Data-Shield : IPv4 malveillantes mises à jour toutes les 6h. Deux sources disponibles : Prod (web apps, WordPress, Nginx) et Critical (DMZ, APIs). Chaque liste activée injecte les IPs dans un ipset dédié avec une règle iptables DROP sur le trafic entrant.
+- **Bannière mise à jour enrichie** — La notification de nouvelle version affiche désormais un résumé des changements extrait du CHANGELOG.md, en plus du numéro de version.
+
+---
+
+### Technique
+
+#### Backend — `server/plugins/fail2ban/BlocklistService.ts` (nouveau)
+
+- Téléchargement depuis jsDelivr CDN avec timeout 30s, suivi de redirect, limite 50 MB
+- Swap atomique ipset via `ipset restore` + `ipset swap` (aucune interruption de protection)
+- Règle iptables `INPUT DROP` par liste, vérification `-C` avant insertion
+- Guard race condition (`_refreshInProgress` Set), regex IPv4 stricte (octets 0–255), guard liste vide
+- Statut persisté dans `data/blocklist-status.json` avec crash recovery au démarrage
+- Auto-refresh toutes les 6h pour les listes activées via `setInterval`
+
+#### Backend — `server/plugins/fail2ban/Fail2banPlugin.ts`
+
+- Instanciation `BlocklistService` à l'init du plugin
+- Nouvelles routes : `GET /blocklists/status`, `POST /blocklists/refresh`, `POST /blocklists/toggle`
+
+#### Backend — `server/routes/updates.ts`
+
+- Ajout `getReleaseNotesFromChangelog(version)` : parse local `CHANGELOG.md`, extrait la section `## [x.y.z]`, supprime les sous-sections techniques (`####`), tronque à 400 chars
+- Fallback appelé dans les 4 méthodes de fetch de version quand la GitHub Releases API retourne vide ou 404
+
+#### Frontend — `src/pages/fail2ban/TabBlocklists.tsx` (nouveau)
+
+- Cards par liste : toggle Actif/Inactif, bouton Rafraîchir, compteur IPs, date de dernière MAJ, affichage d'erreur par liste
+- Inline styles, palette design system (rouge `#e86a65` sécurité, violet `#bc8cff` count)
+
+#### Frontend — `src/pages/Fail2banPage.tsx` + `types.ts` + i18n
+
+- Nouveau tab `blocklists` dans le groupe Firewall (après NFTables)
+- `TabId` étendu, clé i18n `fail2ban.tabs.blocklists` ajoutée dans `en.json` et `fr.json`
+
+---
+
 ## [0.8.6] - 2026-03-30
 
 ### Correctif
