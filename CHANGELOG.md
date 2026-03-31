@@ -11,315 +11,315 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.8.15] - 2026-03-31
 
-### Pour les utilisateurs
+### For users
 
-> Bans actifs synchronisés avec fail2ban en temps réel, graphique de bans amélioré, notifications enrichies et interface Config plus compacte.
+> Active bans synchronized with fail2ban in real time, improved ban chart, enriched notifications and more compact Config UI.
 
-- **Compteur de bans actifs fiable** — Le badge "bans actifs" dans le menu et dans l'IP Tracker affiche maintenant exactement le même nombre que fail2ban. Les unbans sont détectés automatiquement à chaque rafraîchissement (toutes les 30s) et enregistrés dans l'historique.
-- **Graphique barres groupées** — En mode "Barres", chaque jail est affichée côte à côte (au lieu d'empilées), triée du plus grand au plus petit pour chaque jour.
-- **Axe Y au plus juste** — Le maximum de l'axe correspond exactement au pic réel des données, sans arrondi artificiel.
-- **Notifications de tentatives enrichies** — Le domaine associé à l'IP s'affiche dans la notification (quand disponible), en plus de l'IP et du nombre de tentatives. Le badge de jails actives et le texte "+N tentatives" ont été supprimés pour alléger l'affichage.
-- **Top Domaines** — Le comptage porte maintenant sur toutes les jails combinées (et non jail par jail), ce qui reflète mieux le trafic réel. Un tooltip explicatif sur le titre détaille la méthode de calcul et le cas des domaines protégés par Access List IP.
-- **Config fail2ban — cards repliées plus compactes** — Les cards Runtime, Base de données et Fichiers de config ont la même hauteur une fois repliées, sans bordure résiduelle visible.
+- **Reliable active ban counter** — The "active bans" badge in the menu and IP Tracker now shows exactly the same count as fail2ban. Unbans are detected automatically on every refresh (every 30s) and recorded in history.
+- **Grouped bar chart** — In "Bars" mode, each jail is displayed side by side (instead of stacked), sorted from highest to lowest for each day.
+- **Accurate Y-axis** — The axis maximum matches the actual peak of the visible data, with no artificial rounding.
+- **Enriched attempt notifications** — The domain associated with the IP is shown in the notification (when available), in addition to the IP and attempt count. The active jails badge and "+N attempts" text were removed to reduce clutter.
+- **Top Domains** — Counting now covers all jails combined (not per jail), which better reflects real traffic. An explanatory tooltip on the title details the calculation method and the case of Access List IP-protected domains.
+- **Fail2ban Config — collapsed cards more compact** — The Runtime, Database and Config Files cards now have the same height when collapsed, with no visible residual border.
 
 ---
 
-### Technique
+### Technical
 
 #### Backend — `server/plugins/fail2ban/Fail2banPlugin.ts`
 
-- `_syncUnbans(liveBannedIps: Set<string>)` : nouvelle méthode privée — compare les IPs actives en DB (`unban_at IS NULL`) avec le live fail2ban ; marque les IPs absentes avec `unban_at = now` sans jamais supprimer les lignes historiques
-- Appelé dans la route `GET /status` après récupération des `jailsWithMeta` — synchronisation à chaque poll de 30s
-- Toutes les requêtes "bans actifs" migrent de `bantime=-1 OR (timeofban+bantime) > ?` vers `unban_at IS NULL` (lignes 910, 1172, 1876, 1914) — paramètre `now` supprimé de ces `.all()` calls
-- Top domaines : remplacement de `jailBannedIps` (per-jail) par `allBannedIps` (union de toutes les jails) comme ensemble candidat
+- `_syncUnbans(liveBannedIps: Set<string>)`: new private method — compares active IPs in DB (`unban_at IS NULL`) with live fail2ban; marks absent IPs with `unban_at = now` without ever deleting historical rows
+- Called in `GET /status` route after fetching `jailsWithMeta` — synced on every 30s poll
+- All "active bans" queries migrated from `bantime=-1 OR (timeofban+bantime) > ?` to `unban_at IS NULL` (lines 910, 1172, 1876, 1914) — `now` parameter removed from these `.all()` calls
+- Top domains: replaced `jailBannedIps` (per-jail) with `allBannedIps` (union of all jails) as candidate set
 
 #### Backend — `server/database/connection.ts`
 
-- Migration : `ALTER TABLE f2b_events ADD COLUMN unban_at INTEGER` (try/catch)
-- Index : `CREATE INDEX IF NOT EXISTS idx_f2b_events_unban ON f2b_events(unban_at)`
-- Backfill au démarrage : bans expirés depuis > 60s (`bantime > 0`) reçoivent `unban_at = timeofban + bantime`
+- Migration: `ALTER TABLE f2b_events ADD COLUMN unban_at INTEGER` (try/catch)
+- Index: `CREATE INDEX IF NOT EXISTS idx_f2b_events_unban ON f2b_events(unban_at)`
+- Backfill on startup: expired bans older than 60s (`bantime > 0`) receive `unban_at = timeofban + bantime`
 
 #### Frontend — `src/pages/fail2ban/BanHistoryChart.tsx`
 
-- Suppression de `niceMax()` — Y-axis max = maximum brut des valeurs visibles
-- `effectiveMax` : suppression du plancher `sliceMax` quand les jails sont visibles
-- `BarChart` : barres groupées côte à côte ; `sortedJails` trié par valeur décroissante par date ; calcul `groupW` / `subBarW` / `groupGap` proportionnel
+- Removed `niceMax()` — Y-axis max = raw maximum of visible values
+- `effectiveMax`: removed `sliceMax` floor when jails are visible
+- `BarChart`: grouped bars side by side; `sortedJails` sorted by descending value per date; proportional `groupW` / `subBarW` / `groupGap` calculation
 
 #### Frontend — `src/pages/fail2ban/TabStats.tsx`
 
-- `TopCard` : nouvelle prop `titleTooltip?: { bodyNode, color?, width? }` — wraps le titre dans un `F2bTooltip` avec curseur `help` et soulignement pointillé
-- `domainTitleTooltip` (360px, cyan) : 4 sections explicatives (méthode de comptage, toutes jails, domaines Access List, lecture des résultats) passé aux deux TopCards domaines
+- `TopCard`: new prop `titleTooltip?: { bodyNode, color?, width? }` — wraps the title in an `F2bTooltip` with `help` cursor and dotted underline
+- `domainTitleTooltip` (360px, cyan): 4 explanatory sections (counting method, all jails, Access List domains, reading results) passed to both domain TopCards
 
 #### Frontend — `src/pages/fail2ban/TabConfig.tsx`
 
-- `alignSelf` conditionnel par card (`start` quand repliée et voisine ouverte, `stretch` sinon) — supprime l'espace fantôme sous les cards repliées
-- `borderBottom` conditionnel : `none` quand la card est repliée, `1px solid #30363d` quand ouverte
+- Conditional `alignSelf` per card (`start` when collapsed and neighbor is open, `stretch` otherwise) — removes ghost space below collapsed cards
+- Conditional `borderBottom`: `none` when card is collapsed, `1px solid #30363d` when open
 
 #### Frontend — `src/pages/Fail2banPage.tsx`
 
-- Fetch `/api/plugins/fail2ban/tracker` au mount → `trackerActive` state
-- Badge IP Tracker utilise `trackerActive ?? totalBanned` (DB-based) — plus `bannedIps.length` de fail2ban-client
-- `jailDomainsRef` : fetch lazy `/jails/enrichment` une seule fois après le premier status load
-- Passe `onActiveChange={setTrackerActive}` à `TabTracker`
+- Fetch `/api/plugins/fail2ban/tracker` on mount → `trackerActive` state
+- IP Tracker badge uses `trackerActive ?? totalBanned` (DB-based) — no longer `bannedIps.length` from fail2ban-client
+- `jailDomainsRef`: lazy fetch `/jails/enrichment` once after first status load
+- Passes `onActiveChange={setTrackerActive}` to `TabTracker`
 
 #### Frontend — `src/pages/fail2ban/TabTracker.tsx`
 
-- Prop `onActiveChange?: (n: number) => void` — appelée depuis `activeCount` useMemo pour remonter le compte DB au parent
+- Prop `onActiveChange?: (n: number) => void` — called from `activeCount` useMemo to bubble the DB count up to the parent
 
 #### Frontend — `src/components/layout/Header.tsx`
 
-- Notification tentative : suppression du badge jail et du texte `{n.total} actives`
-- Ajout badge domaine (orange, monospace, maxWidth 160px) quand `n.domain` est présent
+- Attempt notification: removed jail badge and `{n.total} actives` text
+- Added domain badge (orange, monospace, maxWidth 160px) when `n.domain` is present
 
 #### Frontend — `src/stores/notificationStore.ts`
 
-- `AppNotification` : ajout champ `domain?: string`
-- `addAttempt` signature étendue avec `domain`
+- `AppNotification`: added `domain?: string` field
+- `addAttempt` signature extended with `domain`
 
 ---
 
 ## [0.8.13] - 2026-03-31
 
-### Pour les utilisateurs
+### For users
 
-> Après un VACUUM ou une modification de configuration, l'interface se met à jour immédiatement sans avoir besoin de vider le cache.
+> After a VACUUM or a configuration change, the UI updates immediately without needing to clear the cache.
 
-- **VACUUM dashboard.db** — Le badge de fragmentation disparaît instantanément après le VACUUM, sans rechargement manuel.
-- **Config fail2ban** — Les modifications de `fail2ban.local` (loglevel, logtarget, dbpurgeage…) et les éditions brutes sont reflétées immédiatement dans l'interface.
+- **VACUUM dashboard.db** — The fragmentation badge disappears instantly after VACUUM, with no manual reload.
+- **Fail2ban config** — Changes to `fail2ban.local` (loglevel, logtarget, dbpurgeage…) and raw edits are reflected immediately in the UI.
 
 ---
 
-### Technique
+### Technical
 
 #### Backend — `server/plugins/fail2ban/Fail2banPlugin.ts`
 
-- `POST /config/dashboard-vacuum` : ajout de `_routeCache.delete('config/parsed')` après le VACUUM — le cache de fragmentation était conservé 60s, causant un affichage obsolète
-- `POST /config/write` : invalidation du cache `config/parsed` si au moins une clé a été écrite dans `fail2ban.local`
-- `POST /config/write-raw` : invalidation du cache `config/parsed` après écriture réussie de `fail2ban.local` / `jail.local`
+- `POST /config/dashboard-vacuum`: added `_routeCache.delete('config/parsed')` after VACUUM — the fragmentation cache was kept for 60s, causing stale display
+- `POST /config/write`: invalidates `config/parsed` cache if at least one key was written to `fail2ban.local`
+- `POST /config/write-raw`: invalidates `config/parsed` cache after successful write of `fail2ban.local` / `jail.local`
 
 ---
 
 ## [0.8.12] - 2026-03-31
 
-### Pour les utilisateurs
+### For users
 
-> Plusieurs améliorations visuelles dans l'onglet Configuration fail2ban et le graphique de statistiques.
+> Several visual improvements in the fail2ban Configuration tab and ban statistics chart.
 
-- **Graphique Statistiques de bans** — L'axe Y s'adapte maintenant à l'échelle réelle des données : les barres remplissent correctement la zone du graphique, et les labels affichent des nombres ronds (20, 50, 100…).
-- **Config fail2ban** — La card "Synchronisation fail2ban ↔ dashboard.db" apparaît maintenant en premier, avant "Base de données interne (dashboard.db)".
+- **Ban Statistics chart** — The Y-axis now adapts to the actual data scale: bars correctly fill the chart area, and labels show round numbers (20, 50, 100…).
+- **Fail2ban Config** — The "fail2ban ↔ dashboard.db Synchronization" card now appears first, before "Internal database (dashboard.db)".
 
 ---
 
-### Technique
+### Technical
 
 #### Frontend — `src/pages/fail2ban/BanHistoryChart.tsx`
 
-- `niceMax(raw)` : nouvelle fonction — arrondit vers le haut au prochain "beau" nombre (ex. 13→20, 47→50, 130→200)
-- `yTicks(max)` : pour max ≤ 5, génère des marques à chaque entier (évite les doublons) ; pour max > 5, 4 marques à 25/50/75/100 %
-- `effectiveMax` : fallback remplacé — utilise `sliceMax` (max de la tranche visible) au lieu du `histMax` global ; `niceMax()` appliqué à la sortie ; `Math.max(byJailMax, sliceMax)` évite la sous-estimation si `byJail` est incomplet
+- `niceMax(raw)`: new function — rounds up to the next "nice" number (e.g. 13→20, 47→50, 130→200)
+- `yTicks(max)`: for max ≤ 5, generates a tick per integer (avoids duplicates); for max > 5, 4 ticks at 25/50/75/100%
+- `effectiveMax`: fallback replaced — uses `sliceMax` (max of the visible slice) instead of global `histMax`; `niceMax()` applied to output; `Math.max(byJailMax, sliceMax)` avoids underestimation if `byJail` is incomplete
 
 #### Frontend — `src/pages/fail2ban/TabConfig.tsx`
 
-- Card "Synchronisation fail2ban ↔ dashboard.db" déplacée avant "Base de données interne (dashboard.db)" dans la colonne Application
+- "fail2ban ↔ dashboard.db Synchronization" card moved before "Internal database (dashboard.db)" in the Application column
 
 ---
 
 ## [0.8.11] - 2026-03-31
 
-### Pour les utilisateurs
+### For users
 
-> Correction du panneau NPM en mode MySQL : le cadre n'affiche plus l'avertissement "non configuré" quand MySQL est bien configuré.
+> Fix for the NPM panel in MySQL mode: the panel no longer shows the "not configured" warning when MySQL is properly configured.
 
-- **Intégration NPM MySQL** — Le cadre Intégrations passe au vert dès que les champs MySQL (hôte, utilisateur, base) sont renseignés, même sans chemin de logs.
+- **NPM MySQL integration** — The Integrations panel turns green as soon as the MySQL fields (host, user, database) are filled in, even without a log path.
 
 ---
 
-### Technique
+### Technical
 
 #### Frontend — `src/pages/fail2ban/TabConfig.tsx`
 
-- `npmMysqlOk` : suppression de `&& s.npmDataPath` dans la condition de détection — MySQL est considéré configuré dès que host + user + db sont présents
+- `npmMysqlOk`: removed `&& s.npmDataPath` from the detection condition — MySQL is considered configured as soon as host + user + db are present
 
 #### Frontend — `src/pages/Fail2banPage.tsx`
 
-- `npmMysqlConfigured` : nouveau state, fetch `npmDbType`/`npmMysqlHost`/`npmMysqlUser`/`npmMysqlDb` au montage
-- `npmMissing` : `npmDataPath === '' && !npmMysqlConfigured` (était juste `npmDataPath === ''`)
-- `onNpmDataPathChange` : re-fetch les settings complets après sauvegarde pour mettre à jour `npmMysqlConfigured`
+- `npmMysqlConfigured`: new state, fetches `npmDbType`/`npmMysqlHost`/`npmMysqlUser`/`npmMysqlDb` on mount
+- `npmMissing`: `npmDataPath === '' && !npmMysqlConfigured` (was just `npmDataPath === ''`)
+- `onNpmDataPathChange`: re-fetches full settings after save to update `npmMysqlConfigured`
 
 ---
 
 ## [0.8.10] - 2026-03-31
 
-### Pour les utilisateurs
+### For users
 
-> Le menu fail2ban affiche maintenant l'état des blocklists directement dans l'info-bulle de navigation.
+> The fail2ban menu now shows blocklist status directly in the navigation tooltip.
 
-- **Tooltip Blocklists** — Survol de l'onglet "Blocklists" dans le menu : affiche chaque liste avec son statut (active / inactive) et la date de dernière mise à jour.
+- **Blocklists tooltip** — Hovering over the "Blocklists" tab in the menu shows each list with its status (active / inactive) and last update date.
 
 ---
 
-### Technique
+### Technical
 
 #### Frontend — `src/pages/Fail2banPage.tsx`
 
-- `blocklistsStatus` state + `useEffect` : fetch `GET /api/plugins/fail2ban/blocklists/status` au montage pour alimenter le tooltip de navigation
-- `navTt.blocklists` : nouvel entrée `color: 'red'`, bodyNode avec ● ○ par liste, nom, et durée depuis `lastUpdate` (format "il y a Xh Ym" ou "Jamais")
+- `blocklistsStatus` state + `useEffect`: fetch `GET /api/plugins/fail2ban/blocklists/status` on mount to populate the navigation tooltip
+- `navTt.blocklists`: new entry `color: 'red'`, bodyNode with ● ○ per list, name, and duration since `lastUpdate` (format "Xh Ym ago" or "Never")
 
 ---
 
 ## [0.8.9] - 2026-03-31
 
-### Pour les utilisateurs
+### For users
 
-> Le résumé des changements s'affiche maintenant dans le panneau de mise à jour de l'administration.
+> The change summary is now displayed in the administration update panel.
 
-- **Panneau mise à jour (Administration → Général)** — Le cadre "Mise à jour disponible" affiche désormais le résumé des changements (extrait du CHANGELOG) au-dessus de la commande docker, comme dans la bannière du dashboard.
+- **Update panel (Administration → General)** — The "Update available" section now shows the change summary (extracted from CHANGELOG) above the docker command, just like the dashboard banner.
 
 ---
 
-### Technique
+### Technical
 
 #### Frontend — `src/pages/SettingsPage.tsx`
 
-- Bloc "Update available" : ajout de `{updateInfo.releaseNotes && <p>…</p>}` entre le titre de version et la commande docker (`line-clamp-3`, `whitespace-pre-wrap`)
+- "Update available" block: added `{updateInfo.releaseNotes && <p>…</p>}` between the version title and docker command (`line-clamp-3`, `whitespace-pre-wrap`)
 
 ---
 
 ## [0.8.8] - 2026-03-31
 
-### Pour les utilisateurs
+### For users
 
-> Fix configuration MySQL NPM : le chemin des logs est désormais correctement sauvegardé et requis, ce qui rend le Top Domaines fonctionnel en mode MySQL.
+> Fix for NPM MySQL configuration: the log path is now correctly saved and required, making Top Domains functional in MySQL mode.
 
-- **Top Domaines MySQL** — Le top des domaines NPM fonctionnait avec SQLite mais retournait vide avec MySQL. Cause : le chemin des logs (`/data/logs/`) n'était pas sauvegardé lors d'une configuration MySQL. Le formulaire de config affiche maintenant ce champ en mode MySQL et le sauvegarde correctement.
-- **Cadre config NPM** — Le cadre de la section Intégrations restait jaune même après une configuration MySQL complète. Il passe maintenant au vert dès que MySQL + chemin logs sont configurés.
+- **Top Domains MySQL** — The NPM domain top worked with SQLite but returned empty with MySQL. Cause: the log path (`/data/logs/`) was not saved during MySQL configuration. The config form now shows this field in MySQL mode and saves it correctly.
+- **NPM config panel** — The Integrations panel stayed yellow even after a complete MySQL configuration. It now turns green as soon as MySQL + log path are configured.
 
 ---
 
-### Technique
+### Technical
 
 #### Frontend — `src/pages/fail2ban/Fail2banPathConfig.tsx`
 
-- `saveNpmConfig()` : `npmDataPath` toujours inclus dans les settings sauvegardés (mode SQLite et MySQL)
-- `onNpmDataPathChange` appelé dans les deux modes (n'était appelé qu'en SQLite)
-- Effect de chargement : restauration de `s.npmDataPath` depuis les settings API en mode MySQL
-- Section MySQL : ajout d'un champ "Chemin logs NPM" pour saisir le dossier racine NPM (`logs/` requis pour Top Domaines)
+- `saveNpmConfig()`: `npmDataPath` always included in saved settings (SQLite and MySQL mode)
+- `onNpmDataPathChange` called in both modes (was only called in SQLite)
+- Load effect: restores `s.npmDataPath` from API settings in MySQL mode
+- MySQL section: added "NPM log path" field to enter the NPM root folder (`logs/` required for Top Domains)
 
 #### Frontend — `src/pages/fail2ban/TabConfig.tsx`
 
-- `npmMysqlOk` : condition étendue — requiert désormais `s.npmDataPath` en plus des creds MySQL (badge vert uniquement si config complète)
-- `borderColor` carte Intégrations : `(npmDataPath || npmMysqlOk)` au lieu de `npmDataPath` seul
+- `npmMysqlOk`: extended condition — now requires `s.npmDataPath` in addition to MySQL credentials (green badge only if config is complete)
+- Integrations card `borderColor`: `(npmDataPath || npmMysqlOk)` instead of `npmDataPath` alone
 
 ---
 
 ## [0.8.7] - 2026-03-31
 
-### Pour les utilisateurs
+### For users
 
-> Nouveau tab Blocklists dans Fail2ban : activez des listes IPv4 malveillantes (~100k IPs) en un clic. La bannière de mise à jour affiche enfin le résumé des changements.
+> New Blocklists tab in Fail2ban: enable malicious IPv4 lists (~100k IPs) in one click. The update banner now shows the change summary.
 
-- **Blocklists IP (Fail2ban → Firewall → Blocklists)** — Nouveau tab permettant d'activer/désactiver les listes Data-Shield : IPv4 malveillantes mises à jour toutes les 6h. Deux sources disponibles : Prod (web apps, WordPress, Nginx) et Critical (DMZ, APIs). Chaque liste activée injecte les IPs dans un ipset dédié avec une règle iptables DROP sur le trafic entrant.
-- **Bannière mise à jour enrichie** — La notification de nouvelle version affiche désormais un résumé des changements extrait du CHANGELOG.md, en plus du numéro de version.
+- **IP Blocklists (Fail2ban → Firewall → Blocklists)** — New tab to enable/disable Data-Shield lists: malicious IPv4 addresses updated every 6h. Two sources available: Prod (web apps, WordPress, Nginx) and Critical (DMZ, APIs). Each enabled list injects IPs into a dedicated ipset with an iptables DROP rule on incoming traffic.
+- **Enriched update banner** — The new version notification now shows a change summary extracted from CHANGELOG.md, in addition to the version number.
 
 ---
 
-### Technique
+### Technical
 
-#### Backend — `server/plugins/fail2ban/BlocklistService.ts` (nouveau)
+#### Backend — `server/plugins/fail2ban/BlocklistService.ts` (new)
 
-- Téléchargement depuis jsDelivr CDN avec timeout 30s, suivi de redirect, limite 50 MB
-- Swap atomique ipset via `ipset restore` + `ipset swap` (aucune interruption de protection)
-- Règle iptables `INPUT DROP` par liste, vérification `-C` avant insertion
-- Guard race condition (`_refreshInProgress` Set), regex IPv4 stricte (octets 0–255), guard liste vide
-- Statut persisté dans `data/blocklist-status.json` avec crash recovery au démarrage
-- Auto-refresh toutes les 6h pour les listes activées via `setInterval`
+- Download from jsDelivr CDN with 30s timeout, redirect following, 50 MB limit
+- Atomic ipset swap via `ipset restore` + `ipset swap` (no protection interruption)
+- `INPUT DROP` iptables rule per list, `-C` check before insertion
+- Race condition guard (`_refreshInProgress` Set), strict IPv4 regex (octets 0–255), empty list guard
+- Status persisted in `data/blocklist-status.json` with crash recovery on startup
+- Auto-refresh every 6h for enabled lists via `setInterval`
 
 #### Backend — `server/plugins/fail2ban/Fail2banPlugin.ts`
 
-- Instanciation `BlocklistService` à l'init du plugin
-- Nouvelles routes : `GET /blocklists/status`, `POST /blocklists/refresh`, `POST /blocklists/toggle`
+- `BlocklistService` instantiated at plugin init
+- New routes: `GET /blocklists/status`, `POST /blocklists/refresh`, `POST /blocklists/toggle`
 
 #### Backend — `server/routes/updates.ts`
 
-- Ajout `getReleaseNotesFromChangelog(version)` : parse local `CHANGELOG.md`, extrait la section `## [x.y.z]`, supprime les sous-sections techniques (`####`), tronque à 400 chars
-- Fallback appelé dans les 4 méthodes de fetch de version quand la GitHub Releases API retourne vide ou 404
+- Added `getReleaseNotesFromChangelog(version)`: parses local `CHANGELOG.md`, extracts the `## [x.y.z]` section, strips technical subsections (`####`), truncates to 400 chars
+- Fallback called in all 4 version fetch methods when GitHub Releases API returns empty or 404
 
-#### Frontend — `src/pages/fail2ban/TabBlocklists.tsx` (nouveau)
+#### Frontend — `src/pages/fail2ban/TabBlocklists.tsx` (new)
 
-- Cards par liste : toggle Actif/Inactif, bouton Rafraîchir, compteur IPs, date de dernière MAJ, affichage d'erreur par liste
-- Inline styles, palette design system (rouge `#e86a65` sécurité, violet `#bc8cff` count)
+- Per-list cards: Active/Inactive toggle, Refresh button, IP counter, last update date, per-list error display
+- Inline styles, design system palette (security red `#e86a65`, count purple `#bc8cff`)
 
 #### Frontend — `src/pages/Fail2banPage.tsx` + `types.ts` + i18n
 
-- Nouveau tab `blocklists` dans le groupe Firewall (après NFTables)
-- `TabId` étendu, clé i18n `fail2ban.tabs.blocklists` ajoutée dans `en.json` et `fr.json`
+- New `blocklists` tab in the Firewall group (after NFTables)
+- `TabId` extended, i18n key `fail2ban.tabs.blocklists` added in `en.json` and `fr.json`
 
 ---
 
 ## [0.8.6] - 2026-03-30
 
-### Correctif
+### Fix
 
-- **Top Domaines — fix critique** : les domaines NPM ne s'affichaient jamais (toujours vides) car l'onglet Stats ne appelait pas la route dédiée `/tops/domains`. La route existe depuis v0.8.3 mais le fetch frontend était manquant. Désormais `/tops/domains` est appelé en parallèle du fetch principal (phase 3) et le résultat est mergé dans les données de l'onglet.
+- **Top Domains — critical fix**: NPM domains were never displayed (always empty) because the Stats tab was not calling the dedicated `/tops/domains` route. The route has existed since v0.8.3 but the frontend fetch was missing. Now `/tops/domains` is called in parallel with the main fetch (phase 3) and the result is merged into the tab data.
 
 ---
 
 ## [0.8.5] - 2026-03-30
 
-### Correctif
+### Fix
 
-- **Bannière mise à jour** — Suppression du texte "Image Docker prête" et de la commande `docker compose` dans la notification de nouvelle version. La bannière affiche désormais uniquement le numéro de version et le résumé des release notes.
+- **Update banner** — Removed the "Docker image ready" text and `docker compose` command from the new version notification. The banner now only shows the version number and release notes summary.
 
 ---
 
 ## [0.8.4] - 2026-03-30
 
-### Pour les utilisateurs
+### For users
 
-> Tableau de bord enrichi : tooltip fail2ban complet, badges de type, chemins complets, suppression branding GoAccess.
+> Enriched dashboard: full fail2ban tooltip, type badges, full paths, GoAccess branding removed.
 
-- **Tooltip fail2ban** — Le tooltip de l'icône fail2ban dans le header affiche maintenant : bans depuis minuit, bans d'hier, IPs uniques aujourd'hui, IPs actuellement bloquées, total historique, et les jails actives. Chaque section est labellisée clairement.
-- **Badge fail2ban** — Le badge rouge affiche les bans du jour (depuis minuit), cohérent avec le header de la page fail2ban.
-- **Tableau fichiers volumineux** — Chemin complet affiché (plus de troncature). Type affiché sous forme de badge coloré : access (vert), error (rouge), syslog (bleu), auth (orange), system (cyan), kernel (violet).
-- **Branding GoAccess supprimé** — La page Stats et ses tooltips n'affichent plus de référence à GoAccess ; le texte décrit désormais les statistiques générées depuis les logs des serveurs web.
+- **Fail2ban tooltip** — The fail2ban icon tooltip in the header now shows: bans since midnight, bans yesterday, unique IPs today, currently blocked IPs, all-time total, and active jails. Each section is clearly labelled.
+- **Fail2ban badge** — The red badge shows today's bans (since midnight), consistent with the fail2ban page header.
+- **Large files table** — Full path displayed (no more truncation). Type shown as a colored badge: access (green), error (red), syslog (blue), auth (orange), system (cyan), kernel (purple).
+- **GoAccess branding removed** — The Stats page and its tooltips no longer reference GoAccess; the text now describes statistics generated from web server logs.
 
 ---
 
-### Technique
+### Technical
 
 #### Frontend — `src/components/layout/Header.tsx`
 
-- **`fetchF2bSummary`** — Troisième fetch `Promise.all` ajouté : `/api/plugins/fail2ban/history?days=2` pour extraire le compte de bans d'hier.
-- **`f2bSummary`** — État étendu : `bansYesterday: number | null`, `totalAllTimeBans: number` (somme des `totalBannedSqlite` par jail), suppression de `expiredLast24h` (inutilisé en tooltip).
-- **Tooltip bodyNode** — Réorganisé en trois sections (`Aujourd'hui` / `Global` / `Jails — bans actifs`) avec en-têtes uppercase muted.
+- **`fetchF2bSummary`** — Third `Promise.all` fetch added: `/api/plugins/fail2ban/history?days=2` to extract yesterday's ban count.
+- **`f2bSummary`** — Extended state: `bansYesterday: number | null`, `totalAllTimeBans: number` (sum of `totalBannedSqlite` per jail), removed `expiredLast24h` (unused in tooltip).
+- **Tooltip bodyNode** — Reorganized into three sections (`Today` / `Global` / `Jails — active bans`) with uppercase muted headers.
 
 #### Frontend — `src/components/widgets/LargestFilesCard.tsx`
 
-- **Colonne chemin** — `truncate max-w-[280px]` → `break-all` : chemin complet toujours visible.
-- **`TypeBadge`** — Nouveau composant + map `TYPE_STYLE` : badge inline coloré par type de log.
+- **Path column** — `truncate max-w-[280px]` → `break-all`: full path always visible.
+- **`TypeBadge`** — New component + `TYPE_STYLE` map: inline colored badge by log type.
 
 #### Frontend — `src/locales/en.json` + `src/locales/fr.json`
 
-- Suppression de "GoAccess" dans les clés `goaccessStats.subtitle` et `footer.goaccessStatsTooltip`.
+- Removed "GoAccess" from `goaccessStats.subtitle` and `footer.goaccessStatsTooltip` keys.
 
 ---
 
 ## [0.8.3] - 2026-03-30
 
-### Pour les utilisateurs
+### For users
 
-> Performances Statistiques, tooltips enrichis, badge live fail2ban, et correctifs NPM MySQL.
+> Statistics performance, enriched tooltips, live fail2ban badge, and NPM MySQL fixes.
 
-- **Statistiques — filtres de période instantanés** — Changer la période (1j / 7j / 30j…) affiche maintenant les graphiques en ~150ms (phase rapide) puis les tableaux en ~400ms (phase complète), au lieu d'attendre 1–10s. Les données précédentes restent visibles pendant le rechargement.
-- **Cache adaptatif** — Les périodes longues (30j, 90j) sont mises en cache 10min côté serveur et frontend ; les données récentes (1j) restent à 30s. Le deuxième clic sur la même période dans les 2 minutes est instantané.
-- **Prewarm des périodes** — Après le chargement d'une période, les autres périodes sont préchargées silencieusement en arrière-plan.
-- **Badge fail2ban** — L'icône fail2ban dans le header affiche un badge rouge avec le nombre d'IP actuellement bannies, mis à jour automatiquement.
-- **Tooltip fail2ban** — Survoler l'icône fail2ban affiche les stats live : IP bannies, bans expirés (24h), top jails.
-- **Tooltips enrichis** — Tous les tooltips du header et du footer ont été réécrits dans le style fail2ban : titre coloré, icônes, descriptions structurées.
-- **Footer — icons bord écran** — Sur grand écran, les icônes sont maintenant collées aux bords gauche et droit.
-- **Footer — badges sans fond** — Les badges taille/fichiers au centre du footer n'ont plus de fond coloré (bordure seule).
-- **Notification mise à jour** — La bannière de nouvelle version affiche maintenant le résumé des release notes GitHub.
-- **NPM MySQL — message clair** — Si NPM est configuré en mode MySQL mais que `npmDataPath` (chemin des logs) est absent, un message explicite s'affiche au lieu d'un résultat vide silencieux.
+- **Statistics — instant period filters** — Changing the period (1d / 7d / 30d…) now shows charts in ~150ms (fast phase) then tables in ~400ms (full phase), instead of waiting 1–10s. Previous data stays visible during reload.
+- **Adaptive cache** — Long periods (30d, 90d) are cached for 10min server-side and frontend; recent data (1d) stays at 30s. A second click on the same period within 2 minutes is instant.
+- **Period prewarm** — After loading a period, other periods are silently preloaded in the background.
+- **Fail2ban badge** — The fail2ban icon in the header shows a red badge with the number of currently banned IPs, updated automatically.
+- **Fail2ban tooltip** — Hovering the fail2ban icon shows live stats: banned IPs, expired bans (24h), top jails.
+- **Enriched tooltips** — All header and footer tooltips have been rewritten in the fail2ban style: colored title, icons, structured descriptions.
+- **Footer — screen-edge icons** — On large screens, icons are now pinned to the left and right edges.
+- **Footer — badges without background** — The size/files badges in the center of the footer no longer have a colored background (border only).
+- **Update notification** — The new version banner now shows the GitHub release notes summary.
+- **NPM MySQL — clear message** — If NPM is configured in MySQL mode but `npmDataPath` (log path) is missing, an explicit message is shown instead of a silent empty result.
 
 ---
 
@@ -327,103 +327,103 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### Backend — `server/plugins/fail2ban/Fail2banPlugin.ts`
 
-- **Index composite SQLite** — `idx_f2b_events_type_time ON f2b_events(event_type, timeofban)` ajouté : élimine les full-table-scans sur toutes les requêtes `/tops` (gain ×3 à ×5).
-- **`_adaptiveTtl(days)`** — Nouvelle méthode : 30s pour ≤2j, 2min pour ≤7j, 10min pour ≥30j. Appliquée sur `/tops`, `/history`, `/ipset/info`, `/ipset/history`.
-- **`/tops?phase=fast`** — Nouveau paramètre : retourne uniquement `summary` + `heatmaps` (~6 requêtes, ~150ms) en sautant les requêtes lentes topIps/topJails/topRecidivists. Clé de cache séparée `tops:fast:{days}`.
-- **`/tops/domains`** — Scan NPM extrait de `/tops` vers une route dédiée. Cache STORE_LIMIT=100, slice uniquement en réponse.
-- **`/ipset/info` et `/ipset/history`** — TTL cache ajouté (60s et adaptatif).
-- **NPM MySQL + npmDataPath** — `/tops/domains` retourne un `warning` explicite si MySQL est configuré sans `npmDataPath`.
+- **SQLite composite index** — `idx_f2b_events_type_time ON f2b_events(event_type, timeofban)` added: eliminates full-table-scans on all `/tops` queries (×3 to ×5 speedup).
+- **`_adaptiveTtl(days)`** — New method: 30s for ≤2d, 2min for ≤7d, 10min for ≥30d. Applied on `/tops`, `/history`, `/ipset/info`, `/ipset/history`.
+- **`/tops?phase=fast`** — New parameter: returns only `summary` + `heatmaps` (~6 queries, ~150ms) by skipping slow topIps/topJails/topRecidivists queries. Separate cache key `tops:fast:{days}`.
+- **`/tops/domains`** — NPM scan extracted from `/tops` into a dedicated route. Cache STORE_LIMIT=100, sliced in response only.
+- **`/ipset/info` and `/ipset/history`** — TTL cache added (60s and adaptive).
+- **NPM MySQL + npmDataPath** — `/tops/domains` returns an explicit `warning` if MySQL is configured without `npmDataPath`.
 
 #### Backend — `server/routes/updates.ts`
 
-- **Release notes** — `/api/updates/check` fetch maintenant le body de la GitHub Release correspondante et le retourne dans `releaseNotes` (max 400 chars).
+- **Release notes** — `/api/updates/check` now fetches the body of the matching GitHub Release and returns it in `releaseNotes` (max 400 chars).
 
 #### Frontend — `src/pages/fail2ban/TabStats.tsx`
 
-- **`getCacheTtl(days)`** — Remplace le `CACHE_TTL = 60_000` fixe. TTL adaptatif aligné sur le backend.
-- **Stale data UX** — Au changement de période, les données précédentes restent affichées avec un badge "actualisation en cours" au lieu d'un spinner blanc.
-- **Chargement progressif** — `fetchTops` lance `phase=fast` puis `phase=full` avec le même `AbortController`. Phase fast enrichit le state partiel, phase full complète.
-- **Prewarm** — `useEffect` déclenche un prefetch silencieux des périodes adjacentes 2s après le chargement complet, avec AbortControllers stockés pour cleanup.
-- **`topsRefreshing` + elapsed badge** — Nouvel état + hook `useElapsed` pour afficher "actualisé il y a Xs".
+- **`getCacheTtl(days)`** — Replaces the fixed `CACHE_TTL = 60_000`. Adaptive TTL aligned with backend.
+- **Stale data UX** — On period change, previous data stays displayed with an "updating" badge instead of a blank spinner.
+- **Progressive loading** — `fetchTops` fires `phase=fast` then `phase=full` with the same `AbortController`. Fast phase enriches partial state, full phase completes it.
+- **Prewarm** — `useEffect` triggers a silent prefetch of adjacent periods 2s after full load, with stored AbortControllers for cleanup.
+- **`topsRefreshing` + elapsed badge** — New state + `useElapsed` hook to display "updated Xs ago".
 
 #### Frontend — `src/components/layout/Header.tsx`
 
-- **Icône fail2ban** — Ajoutée dans la zone des icônes plugins (dashboard/analytics).
-- **Icônes agrandies** — `w-4 h-4` → `w-6 h-6`, padding réduit.
+- **Fail2ban icon** — Added to the plugin icons area (dashboard/analytics).
+- **Enlarged icons** — `w-4 h-4` → `w-6 h-6`, reduced padding.
 - **Logo** — `w-6 h-6` → `w-8 h-8`.
-- **Badge live** — Rond rouge top-right sur l'icône fail2ban avec `currentlyBanned`. Fetch au montage, cache 30s.
-- **Tooltip fail2ban** — Stats live : IP bannies, expirés 24h, top jails breakdown.
-- **Tooltips plugins** — Remplacent le `title=` natif par `<Tooltip>` riche.
+- **Live badge** — Red dot top-right on the fail2ban icon with `currentlyBanned`. Fetched on mount, 30s cache.
+- **Fail2ban tooltip** — Live stats: banned IPs, 24h expired, top jails breakdown.
+- **Plugin tooltips** — Replace native `title=` with rich `<Tooltip>`.
 
 #### Frontend — `src/components/layout/Footer.tsx`
 
-- **Bord écran** — `max-w-[1920px] mx-auto` supprimé, `w-full` utilisé.
-- **Badges sans fond** — `bg-*/10` supprimé sur les 3 badges stats.
-- **Tooltips enrichis** — Titre + bodyNode structuré sur fichiers, taille, gz, timer (timer adaptatif vert/orange/rouge).
+- **Screen edge** — `max-w-[1920px] mx-auto` removed, `w-full` used.
+- **Badges without background** — `bg-*/10` removed from the 3 stats badges.
+- **Enriched tooltips** — Title + structured bodyNode on files, size, gz, timer (adaptive timer green/orange/red).
 
 #### Frontend — `src/components/ui/Tooltip.tsx`
 
-- **Réécriture complète** — Style F2bTooltip : fond `#161b22`, bordure gauche accent colorée, titre accent, body `pre-wrap`, arrow portal. Props : `title?`, `content?`, `bodyNode?`, `color?`, `width?`.
+- **Full rewrite** — F2bTooltip style: `#161b22` background, colored left accent border, accent title, `pre-wrap` body, arrow portal. Props: `title?`, `content?`, `bodyNode?`, `color?`, `width?`.
 
 #### Frontend — `src/stores/updateStore.ts`
 
-- **`releaseNotes?`** — Champ ajouté à `UpdateInfo`.
+- **`releaseNotes?`** — Field added to `UpdateInfo`.
 
 ---
 
 ## [0.8.1] - 2026-03-30
 
-### Pour les utilisateurs
+### For users
 
-> Correction du freeze des filtres de période dans l'onglet Statistiques, et nouveau bouton "Réessayer" quand fail2ban n'est pas accessible.
+> Fix for period filter freeze in the Statistics tab, and new "Retry" button when fail2ban is unreachable.
 
-- **Filtres de période — plus de freeze** — Changer la période (1j / 7j / 30j…) dans l'onglet Statistiques pouvait figer la page sur les instances avec beaucoup de jails ou un historique volumineux. Les données ne se rafraîchissaient plus, même après plusieurs clics. Corrigé.
-- **Banner socket — bouton "Réessayer"** — Quand le banner "Source indisponible — fail2ban daemon not responding" s'affiche (socket inaccessible après un redémarrage de fail2ban), un bouton **Réessayer** apparaît à droite. Un clic relance la vérification immédiatement après avoir corrigé les permissions (`sudo chmod 660 /var/run/fail2ban/fail2ban.sock`), sans rechargement de page.
+- **Period filters — no more freeze** — Changing the period (1d / 7d / 30d…) in the Statistics tab could freeze the page on instances with many jails or a large history. Data would stop refreshing even after multiple clicks. Fixed.
+- **Socket banner — "Retry" button** — When the "Source unavailable — fail2ban daemon not responding" banner appears (socket inaccessible after a fail2ban restart), a **Retry** button appears on the right. One click immediately re-runs the check after fixing permissions (`sudo chmod 660 /var/run/fail2ban/fail2ban.sock`), with no page reload.
 
 ---
 
-### Technique
+### Technical
 
-#### Contexte du bug (pour debug futur)
+#### Bug context (for future debugging)
 
-Le freeze des filtres de période était causé par une accumulation de requêtes concurrentes sans annulation. Chaque changement de période déclenchait ~6 requêtes API simultanées (`/status`, `/history`, `/tops`, `/ipset/history`, `/tops?compare=1`, `/tops/prev`). Le navigateur limite les connexions HTTP/1.1 à 6 par origine — au-delà, les nouvelles requêtes sont mises en queue. Les appels serveur utilisent `fail2ban-client` avec un timeout de 10s : sur une instance chargée (nombreux jails, gros SQLite), chaque requête peut prendre plusieurs secondes. En changeant la période 2-3 fois rapidement, 12-18 requêtes s'accumulent et la queue reste bloquée jusqu'à 30s+.
+The period filter freeze was caused by an accumulation of concurrent requests without cancellation. Each period change triggered ~6 simultaneous API requests (`/status`, `/history`, `/tops`, `/ipset/history`, `/tops?compare=1`, `/tops/prev`). The browser limits HTTP/1.1 connections to 6 per origin — beyond that, new requests are queued. Server calls use `fail2ban-client` with a 10s timeout: on a loaded instance (many jails, large SQLite), each request can take several seconds. By changing the period 2-3 times quickly, 12-18 requests accumulate and the queue stays blocked for 30s+.
 
-Le bug existait depuis l'origine mais ne se manifestait que quand le volume de données / nombre de jails dépassait un seuil. L'autre instance Docker "qui marchait" avait simplement moins de charge.
+The bug existed from the start but only manifested when the data volume / number of jails exceeded a threshold. The other Docker instance "that worked" simply had less load.
 
 #### Frontend — `src/pages/Fail2banPage.tsx`
 
-- **`fetchStatusAbortRef`** — Nouveau `useRef<AbortController | null>(null)` ajouté après `hasBootstrappedRef`. Annule toute wave précédente au début de chaque appel à `fetchStatus()`.
-- **`fetchStatus` — AbortController** — `fetchStatusAbortRef.current?.abort()` + création d'un nouveau `AbortController ac` en tête de fonction. Signal passé aux deux `api.get()` : `/status?days=X` et `/history?days=X` via `{ signal: ac.signal }`.
-- **`fetchStatus` — guard dans `waveDone`** — `if (ac.signal.aborted) return;` ajouté en première ligne de `waveDone()`. Empêche une wave annulée d'appeler `setRefreshBusy(false)` et de réinitialiser `hasBootstrappedRef` / `lastRefreshed` pendant qu'une nouvelle wave est en cours.
-- **Banner "Source indisponible" — bouton Réessayer** — Bouton `<button onClick={fetchStatus}>Réessayer</button>` ajouté à droite du texte d'erreur. Style inline orange cohérent avec le banner (`border: rgba(227,179,65,.4)`, `background: rgba(227,179,65,.12)`). `flex: 1` ajouté au `<div>` de texte pour repousser le bouton à droite.
+- **`fetchStatusAbortRef`** — New `useRef<AbortController | null>(null)` added after `hasBootstrappedRef`. Cancels any previous wave at the start of each `fetchStatus()` call.
+- **`fetchStatus` — AbortController** — `fetchStatusAbortRef.current?.abort()` + new `AbortController ac` created at function start. Signal passed to both `api.get()` calls: `/status?days=X` and `/history?days=X` via `{ signal: ac.signal }`.
+- **`fetchStatus` — guard in `waveDone`** — `if (ac.signal.aborted) return;` added as first line of `waveDone()`. Prevents a cancelled wave from calling `setRefreshBusy(false)` and resetting `hasBootstrappedRef` / `lastRefreshed` while a new wave is in progress.
+- **"Source unavailable" banner — Retry button** — `<button onClick={fetchStatus}>Retry</button>` added to the right of the error text. Orange inline style consistent with the banner (`border: rgba(227,179,65,.4)`, `background: rgba(227,179,65,.12)`). `flex: 1` added to the text `<div>` to push the button to the right.
 
 #### Frontend — `src/pages/fail2ban/TabStats.tsx`
 
-- **`HistChart` extrait au niveau module** — Était défini comme composant à l'intérieur de `IpSetsSection`, ce qui forçait React à le démonte/remonter à chaque render du parent (perte de state `hiddenLines` + `svgW`, ResizeObserver recréé inutilement). Déplacé avant `IpSetsSection` au niveau module. Type alias `IpSetHist` introduit pour le type de `hist`. Signature : `React.FC<{ hist: IpSetHist; days: number; onDaysChange: (d: number) => void }>`. Call site mis à jour : `<HistChart hist={hist} days={days} onDaysChange={onDaysChange} />`. State `hiddenLines` et `svgW` now persistent across parent re-renders.
-- **`topsAbortRef`** — Nouveau `useRef<AbortController | null>(null)` dans `TabStats`. Annule la requête `/tops` précédente au début de chaque `fetchTops()`.
-- **`fetchTops` — AbortController** — `topsAbortRef.current?.abort()` + nouveau `AbortController ac`. Signal passé à `api.get('/tops?...')`. Guards ajoutés : `if (ac.signal.aborted) return;` dans `.then()` et `.finally()` pour éviter les mises à jour de state sur requêtes annulées (setTopsData, setTopsLoading, dispatchTabLoaded).
-- **`useEffect([days, fetchTops])` — cleanup** — `return () => { clearInterval(id); topsAbortRef.current?.abort(); }` — abort ajouté au cleanup pour annuler la requête en vol quand le composant démonte ou que `days` change.
-- **`IpSetsSection` — history effect AbortController** — `useEffect([days])` qui fetch `/ipset/history?days=X` n'avait pas de cleanup. Remplacé par un `AbortController ac` local : signal passé à `api.get()`, guard `!ac.signal.aborted` dans `.then()`, `return () => ac.abort()` en cleanup. Le type `IpSetHist` utilisé pour `getCached<IpSetHist>`.
+- **`HistChart` extracted to module level** — Was defined as a component inside `IpSetsSection`, forcing React to unmount/remount it on every parent render (losing `hiddenLines` + `svgW` state, ResizeObserver needlessly recreated). Moved before `IpSetsSection` at module level. `IpSetHist` type alias introduced for `hist` type. Signature: `React.FC<{ hist: IpSetHist; days: number; onDaysChange: (d: number) => void }>`. Call site updated: `<HistChart hist={hist} days={days} onDaysChange={onDaysChange} />`. `hiddenLines` and `svgW` state now persistent across parent re-renders.
+- **`topsAbortRef`** — New `useRef<AbortController | null>(null)` in `TabStats`. Cancels the previous `/tops` request at the start of each `fetchTops()`.
+- **`fetchTops` — AbortController** — `topsAbortRef.current?.abort()` + new `AbortController ac`. Signal passed to `api.get('/tops?...')`. Guards added: `if (ac.signal.aborted) return;` in `.then()` and `.finally()` to prevent state updates on cancelled requests (setTopsData, setTopsLoading, dispatchTabLoaded).
+- **`useEffect([days, fetchTops])` — cleanup** — `return () => { clearInterval(id); topsAbortRef.current?.abort(); }` — abort added to cleanup to cancel in-flight requests when component unmounts or `days` changes.
+- **`IpSetsSection` — history effect AbortController** — `useEffect([days])` fetching `/ipset/history?days=X` had no cleanup. Replaced with a local `AbortController ac`: signal passed to `api.get()`, `!ac.signal.aborted` guard in `.then()`, `return () => ac.abort()` as cleanup. `IpSetHist` type used for `getCached<IpSetHist>`.
 
 ---
 
 ## [0.8.0] - 2026-03-30
 
-### Pour les utilisateurs
+### For users
 
-> Le bouton Fail2ban rejoint la zone plugins en bas à droite du footer, avec texte et icône colorée. Le temps de chargement s'affiche maintenant aussi lors de la navigation vers le dashboard.
+> The Fail2ban button moves to the plugins area at the bottom right of the footer, with text and colored icon. Load time now also appears when navigating to the dashboard.
 
-- **Footer — bouton Fail2ban** — Déplacé de la barre de navigation gauche vers la zone plugins à droite. Affiche l'icône Fail2ban + le texte "Fail2ban", avec une couleur rouge quand l'onglet est actif — cohérent avec les autres boutons de plugins.
-- **Temps de chargement** — Le badge de temps s'affichait pas lors d'une navigation vers le dashboard via le logo header. Corrigé.
+- **Footer — Fail2ban button** — Moved from the left navigation bar to the right plugins area. Shows the Fail2ban icon + "Fail2ban" text, with a red color when the tab is active — consistent with other plugin buttons.
+- **Load time** — The time badge was not shown when navigating to the dashboard via the header logo. Fixed.
 
 ---
 
-### Technique
+### Technical
 
 #### Frontend
 
-- **`Footer.tsx`** — Bouton Fail2ban retiré de la zone de navigation gauche et ajouté dans la section plugins droite (`enabledLogPlugins`) ; couleur active rouge (`text-red-400 / bg-red-500/15`) ; suppression de l'import `Shield` inutilisé.
-- **`App.tsx`** — `handleHomeClick` et l'inline `onHomeClick` du log-viewer appellent désormais `handlePageChange('dashboard')` au lieu de `setCurrentPage` directement, ce qui active le timer `timedNavRef` et déclenche le dispatch `tab-loaded`.
+- **`Footer.tsx`** — Fail2ban button removed from the left navigation area and added to the right plugins section (`enabledLogPlugins`); active color red (`text-red-400 / bg-red-500/15`); removed unused `Shield` import.
+- **`App.tsx`** — `handleHomeClick` and the log-viewer inline `onHomeClick` now call `handlePageChange('dashboard')` instead of `setCurrentPage` directly, which activates the `timedNavRef` timer and triggers the `tab-loaded` dispatch.
 
 ---
 
