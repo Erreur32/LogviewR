@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.8.9] - 2026-03-31
+
+### Pour les utilisateurs
+
+> Le résumé des changements s'affiche maintenant dans le panneau de mise à jour de l'administration.
+
+- **Panneau mise à jour (Administration → Général)** — Le cadre "Mise à jour disponible" affiche désormais le résumé des changements (extrait du CHANGELOG) au-dessus de la commande docker, comme dans la bannière du dashboard.
+
+---
+
+### Technique
+
+#### Frontend — `src/pages/SettingsPage.tsx`
+
+- Bloc "Update available" : ajout de `{updateInfo.releaseNotes && <p>…</p>}` entre le titre de version et la commande docker (`line-clamp-3`, `whitespace-pre-wrap`)
+
+---
+
 ## [0.8.8] - 2026-03-31
 
 ### Pour les utilisateurs
