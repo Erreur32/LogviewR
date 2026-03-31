@@ -1169,7 +1169,7 @@ const WhitelistStatsSection: React.FC = () => {
             color={C.green}
             title="IPs whitelistées (ignoreip)"
             sub={!loading && !error ? <span style={{ color: C.green, fontWeight: 600 }}>{global.length} global{perJail.length > 0 ? ` · ${perJail.length} jail${perJail.length > 1 ? 's' : ''} avec override` : ''}</span> : undefined}
-            collapsible
+            collapsible defaultOpen={false}
         >
             {loading && <div style={{ padding: '1.25rem 1rem', textAlign: 'center', fontSize: '.85rem', color: C.muted }}>{t('fail2ban.messages.loadingData')}</div>}
             {!loading && error && <div style={{ padding: '.75rem 1rem', color: C.orange, fontSize: '.8rem', fontFamily: 'monospace' }}>{error}</div>}
