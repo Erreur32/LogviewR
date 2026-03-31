@@ -9,6 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.8.8] - 2026-03-31
+
+### Pour les utilisateurs
+
+> Fix configuration MySQL NPM : le chemin des logs est désormais correctement sauvegardé et requis, ce qui rend le Top Domaines fonctionnel en mode MySQL.
+
+- **Top Domaines MySQL** — Le top des domaines NPM fonctionnait avec SQLite mais retournait vide avec MySQL. Cause : le chemin des logs (`/data/logs/`) n'était pas sauvegardé lors d'une configuration MySQL. Le formulaire de config affiche maintenant ce champ en mode MySQL et le sauvegarde correctement.
+- **Cadre config NPM** — Le cadre de la section Intégrations restait jaune même après une configuration MySQL complète. Il passe maintenant au vert dès que MySQL + chemin logs sont configurés.
+
+---
+
+### Technique
+
+#### Frontend — `src/pages/fail2ban/Fail2banPathConfig.tsx`
+
+- `saveNpmConfig()` : `npmDataPath` toujours inclus dans les settings sauvegardés (mode SQLite et MySQL)
+- `onNpmDataPathChange` appelé dans les deux modes (n'était appelé qu'en SQLite)
+- Effect de chargement : restauration de `s.npmDataPath` depuis les settings API en mode MySQL
+- Section MySQL : ajout d'un champ "Chemin logs NPM" pour saisir le dossier racine NPM (`logs/` requis pour Top Domaines)
+
+#### Frontend — `src/pages/fail2ban/TabConfig.tsx`
+
+- `npmMysqlOk` : condition étendue — requiert désormais `s.npmDataPath` en plus des creds MySQL (badge vert uniquement si config complète)
+- `borderColor` carte Intégrations : `(npmDataPath || npmMysqlOk)` au lieu de `npmDataPath` seul
+
+---
+
 ## [0.8.7] - 2026-03-31
 
 ### Pour les utilisateurs
