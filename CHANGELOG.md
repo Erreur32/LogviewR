@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.8.10] - 2026-03-31
+
+### Pour les utilisateurs
+
+> Le menu fail2ban affiche maintenant l'état des blocklists directement dans l'info-bulle de navigation.
+
+- **Tooltip Blocklists** — Survol de l'onglet "Blocklists" dans le menu : affiche chaque liste avec son statut (active / inactive) et la date de dernière mise à jour.
+
+---
+
+### Technique
+
+#### Frontend — `src/pages/Fail2banPage.tsx`
+
+- `blocklistsStatus` state + `useEffect` : fetch `GET /api/plugins/fail2ban/blocklists/status` au montage pour alimenter le tooltip de navigation
+- `navTt.blocklists` : nouvel entrée `color: 'red'`, bodyNode avec ● ○ par liste, nom, et durée depuis `lastUpdate` (format "il y a Xh Ym" ou "Jamais")
+
+---
+
 ## [0.8.9] - 2026-03-31
 
 ### Pour les utilisateurs
