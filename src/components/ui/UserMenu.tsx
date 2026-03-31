@@ -26,6 +26,7 @@ interface UserMenuProps {
     onProfileClick?: () => void;
     onUsersClick?: () => void;
     onLogout?: () => void;
+    activePage?: 'profile' | 'admin';
 }
 
 export const UserMenu: React.FC<UserMenuProps> = ({
@@ -34,7 +35,8 @@ export const UserMenu: React.FC<UserMenuProps> = ({
     onAdminClick,
     onProfileClick,
     onUsersClick,
-    onLogout
+    onLogout,
+    activePage
 }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
@@ -172,10 +174,10 @@ export const UserMenu: React.FC<UserMenuProps> = ({
                                 setIsOpen(false);
                                 onProfileClick?.();
                             }}
-                            className="w-full px-4 py-2.5 text-left text-sm text-gray-300 hover:bg-[#252525] transition-colors flex items-center gap-3"
+                            className={`w-full px-4 py-2.5 text-left text-sm text-gray-300 hover:bg-[#252525] transition-colors flex items-center gap-3${activePage === 'profile' ? ' bg-blue-900/20 border-l-2 border-blue-500' : ''}`}
                         >
-                            <User size={20} className="text-gray-400" />
-                            <span>Mon Profil</span>
+                            <User size={20} className={activePage === 'profile' ? 'text-blue-400' : 'text-gray-400'} />
+                            <span className={activePage === 'profile' ? 'font-medium' : ''}>Mon Profil</span>
                         </button>
 
                         {/* Administration (Admin only) */}
@@ -185,10 +187,10 @@ export const UserMenu: React.FC<UserMenuProps> = ({
                                     setIsOpen(false);
                                     onAdminClick?.();
                                 }}
-                                className="w-full px-4 py-2.5 text-left text-sm text-gray-300 hover:bg-[#252525] transition-colors flex items-center gap-3 bg-blue-900/20 border-l-2 border-blue-500"
+                                className={`w-full px-4 py-2.5 text-left text-sm text-gray-300 hover:bg-[#252525] transition-colors flex items-center gap-3${activePage === 'admin' ? ' bg-blue-900/20 border-l-2 border-blue-500' : ''}`}
                             >
-                                <Shield size={20} className="text-blue-400" />
-                                <span className="font-medium">Administration</span>
+                                <Shield size={20} className={activePage === 'admin' ? 'text-blue-400' : 'text-gray-400'} />
+                                <span className={activePage === 'admin' ? 'font-medium' : ''}>Administration</span>
                             </button>
                         )}
 

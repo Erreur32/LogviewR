@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import {
-  ChevronLeft,
   Globe,
   User as UserIcon,
   Mail,
@@ -12,6 +11,7 @@ import {
   Loader2,
   Edit2,
 } from 'lucide-react';
+import logviewrLogo from '../icons/logviewr.svg';
 import { api } from '../api/client';
 import { useUserAuthStore } from '../stores/userAuthStore';
 import { Section, SettingRow } from '../components/SettingsSection';
@@ -165,15 +165,15 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onBack, onLogout, onSe
       <div className="sticky top-0 z-10 bg-[#0d0d0d]/95 backdrop-blur border-b border-gray-800 px-4 py-3 flex items-center gap-3">
         <button
           onClick={onBack}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-700 text-gray-400 hover:text-white hover:border-gray-500 transition-colors text-sm"
+          className="flex items-center gap-2 bg-[#1a1a1a] px-2.5 py-1.5 rounded-lg border border-gray-700 hover:bg-[#252525] transition-colors"
         >
-          <ChevronLeft size={16} />
-          Retour
+          <img src={logviewrLogo} alt="LogviewR" className="w-8 h-8 flex-shrink-0" />
+          <div className="flex flex-col leading-tight">
+            <span className="font-semibold text-sm text-gray-100">LogviewR</span>
+            <span className="text-[10px] text-gray-400 font-normal">Mon Profil</span>
+          </div>
         </button>
-        <div className="flex items-center gap-2 flex-1">
-          <UserIcon size={18} className="text-blue-400" />
-          <h1 className="text-base font-semibold text-gray-100">Mon Profil</h1>
-        </div>
+        <div className="flex-1" />
         <UserMenu
           user={currentUser ?? undefined}
           onProfileClick={onBack}
@@ -181,6 +181,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onBack, onLogout, onSe
           onAdminClick={onAdminClick}
           onUsersClick={onUsersClick}
           onLogout={onLogout}
+          activePage="profile"
         />
       </div>
 
