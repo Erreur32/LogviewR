@@ -1090,6 +1090,11 @@ const UpdateCheckSection: React.FC = () => {
               <p className="text-xs text-amber-400 font-semibold mb-1">
                 🚀 Mise à jour disponible — v{updateInfo.latestVersion}
               </p>
+              {updateInfo.releaseNotes && (
+                <p className="text-xs text-gray-400 mb-2 leading-relaxed whitespace-pre-wrap line-clamp-3">
+                  {updateInfo.releaseNotes}
+                </p>
+              )}
               <code className="block text-xs text-cyan-300 bg-black/50 px-2 py-1.5 rounded border border-gray-800 font-mono">
                 docker compose pull && docker compose up -d
               </code>
