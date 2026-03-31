@@ -50,6 +50,37 @@ function compareVersions(v1: string, v2: string): number {
 }
 
 /**
+ * Extract release notes for a version from CHANGELOG.md.
+ * Returns the user-facing summary (up to 400 chars), stripping technical sub-sections.
+ */
+function getReleaseNotesFromChangelog(version: string): string | undefined {
+  try {
+    const changelogPath = join(__dirname, '../../CHANGELOG.md');
+    const content = readFileSync(changelogPath, 'utf-8');
+    // Find the section header for this version: ## [x.y.z]
+    const sectionHeader = `## [${version}]`;
+    const start = content.indexOf(sectionHeader);
+    if (start === -1) return undefined;
+    const bodyStart = content.indexOf('\n', start) + 1;
+    // Find the next version section
+    const nextSection = content.indexOf('\n## [', bodyStart);
+    const end = nextSection !== -1 ? nextSection : content.length;
+    let section = content.slice(bodyStart, end).trim();
+    // Remove technical sub-sections (#### headers and everything after until next ### or ##)
+    section = section.replace(/\n#### [\s\S]*?(?=\n### |\n## |\n#### |$)/g, '');
+    // Remove markdown sub-headers (### ), keep their content
+    section = section.replace(/^### [^\n]+\n/gm, '');
+    // Unwrap bold markers
+    section = section.replace(/\*\*([^*]+)\*\*/g, '$1');
+    // Collapse multiple blank lines
+    section = section.replace(/\n{3,}/g, '\n\n').trim();
+    if (!section) return undefined;
+    const trimmed = section.slice(0, 400);
+    return trimmed.length < section.length ? trimmed.replace(/\s+\S*$/, '') + '…' : trimmed;
+  } catch { return undefined; }
+}
+
+/**
  * Check if a specific Docker image tag exists on GHCR (public anonymous check).
  * GHCR requires an anonymous Bearer token even for public images.
  * Returns true if the image manifest is present (build completed), false otherwise.
@@ -189,7 +220,7 @@ router.get('/check', requireAuth, asyncHandler(async (req: AuthenticatedRequest,
               ? await checkDockerImageAvailable(latestVersion)
               : false;
 
-            // Fetch release notes from GitHub Releases API
+            // Fetch release notes: GitHub Releases API first, then CHANGELOG.md fallback
             let releaseNotes: string | undefined;
             try {
               const releaseRes = await fetch(
@@ -207,6 +238,10 @@ router.get('/check', requireAuth, asyncHandler(async (req: AuthenticatedRequest,
                 }
               }
             } catch { /* non-critical */ }
+            // Fallback: parse local CHANGELOG.md if GitHub release has no notes
+            if (!releaseNotes) {
+              releaseNotes = getReleaseNotesFromChangelog(latestVersion);
+            }
 
             return res.json({
               success: true,
@@ -300,6 +335,7 @@ router.get('/check', requireAuth, asyncHandler(async (req: AuthenticatedRequest,
               currentVersion,
               latestVersion,
               updateAvailable,
+              releaseNotes: getReleaseNotesFromChangelog(latestVersion),
               error: undefined
             }
           });
@@ -401,6 +437,7 @@ router.get('/check', requireAuth, asyncHandler(async (req: AuthenticatedRequest,
                     currentVersion,
                     latestVersion,
                     updateAvailable,
+                    releaseNotes: getReleaseNotesFromChangelog(latestVersion),
                     error: undefined
                   }
                 });
@@ -459,6 +496,7 @@ router.get('/check', requireAuth, asyncHandler(async (req: AuthenticatedRequest,
                 currentVersion,
                 latestVersion,
                 updateAvailable,
+                releaseNotes: getReleaseNotesFromChangelog(latestVersion),
                 error: undefined
               }
             });
