@@ -9,6 +9,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.8.12] - 2026-03-31
+
+### Pour les utilisateurs
+
+> Plusieurs améliorations visuelles dans l'onglet Configuration fail2ban et le graphique de statistiques.
+
+- **Graphique Statistiques de bans** — L'axe Y s'adapte maintenant à l'échelle réelle des données : les barres remplissent correctement la zone du graphique, et les labels affichent des nombres ronds (20, 50, 100…).
+- **Config fail2ban** — La card "Synchronisation fail2ban ↔ dashboard.db" apparaît maintenant en premier, avant "Base de données interne (dashboard.db)".
+
+---
+
+### Technique
+
+#### Frontend — `src/pages/fail2ban/BanHistoryChart.tsx`
+
+- `niceMax(raw)` : nouvelle fonction — arrondit vers le haut au prochain "beau" nombre (ex. 13→20, 47→50, 130→200)
+- `yTicks(max)` : pour max ≤ 5, génère des marques à chaque entier (évite les doublons) ; pour max > 5, 4 marques à 25/50/75/100 %
+- `effectiveMax` : fallback remplacé — utilise `sliceMax` (max de la tranche visible) au lieu du `histMax` global ; `niceMax()` appliqué à la sortie ; `Math.max(byJailMax, sliceMax)` évite la sous-estimation si `byJail` est incomplet
+
+#### Frontend — `src/pages/fail2ban/TabConfig.tsx`
+
+- Card "Synchronisation fail2ban ↔ dashboard.db" déplacée avant "Base de données interne (dashboard.db)" dans la colonne Application
+
+---
+
 ## [0.8.11] - 2026-03-31
 
 ### Pour les utilisateurs

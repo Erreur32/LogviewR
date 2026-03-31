@@ -1407,100 +1407,6 @@ export const TabConfig: React.FC<{
                 />
                 {openAppSection && <div style={colBody}>
 
-                    {/* Card: App DB + internal sync stats */}
-                    <div style={{ ...card, borderColor: (parsed?.appDbInfo?.fragPct ?? 0) > 20 ? 'rgba(227,179,65,.4)' : C.border }}>
-                        <div style={{ ...cardH, cursor: 'pointer' }} onClick={() => setOpenAppDb(o => !o)}>
-                            <HardDrive style={{ width: 14, height: 14, color: C.cyan }} />
-                            <span style={{ fontWeight: 600, fontSize: '.9rem' }}>Base de données interne (dashboard.db)</span>
-                            {(parsed?.appDbInfo?.fragPct ?? 0) > 20 && (
-                                <WarnBadge count={1} tip={`Fragmentation élevée : ${parsed!.appDbInfo.fragPct}% — VACUUM recommandé`} />
-                            )}
-                            <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '.35rem' }}>
-                                {parsed?.appDbInfo && (() => {
-                                    const db = parsed.appDbInfo;
-                                    const fc = db.fragPct > 40 ? C.red : db.fragPct > 20 ? C.orange : C.green;
-                                    const bg = db.fragPct > 40 ? 'rgba(232,106,101,.12)' : db.fragPct > 20 ? 'rgba(227,179,65,.12)' : 'rgba(63,185,80,.1)';
-                                    const bd = db.fragPct > 40 ? 'rgba(232,106,101,.3)'  : db.fragPct > 20 ? 'rgba(227,179,65,.3)'  : 'rgba(63,185,80,.25)';
-                                    return (<>
-                                        <F2bTooltip color="blue" title="Taille — dashboard.db" width={300} bodyNode={<>
-                                            {TT.section('Contenu', '#58a6ff')}
-                                            {TT.info('Historique long terme des bans (f2b_events)')}
-                                            {TT.info('Paramètres et utilisateurs de l\'application')}
-                                            {TT.sep()}
-                                            {TT.info('VACUUM recommandé si fragmentation > 20%')}
-                                        </>}>
-                                            <HBadge color={C.blue} bg="rgba(88,166,255,.1)" border="rgba(88,166,255,.25)">{db.sizeFmt}</HBadge>
-                                        </F2bTooltip>
-                                        <F2bTooltip color={db.fragPct > 40 ? 'red' : db.fragPct > 20 ? 'orange' : 'green'} title="Fragmentation — dashboard.db" width={320} bodyNode={<>
-                                            {TT.section('Mesure')}
-                                            {TT.info(`Pages libres / pages totales = ${db.fragPct}%`)}
-                                            {TT.sep()}
-                                            {TT.section('Niveau')}
-                                            {db.fragPct <= 20  && TT.ok('Sain — aucune action requise')}
-                                            {db.fragPct > 20 && db.fragPct <= 40 && TT.warn('Modérée — VACUUM conseillé')}
-                                            {db.fragPct > 40  && TT.err('Élevée — VACUUM fortement recommandé')}
-                                        </>}>
-                                            <HBadge color={fc} bg={bg} border={bd}>{db.fragPct}% frag.</HBadge>
-                                        </F2bTooltip>
-                                    </>);
-                                })()}
-                                {openAppDb ? <ChevronDown style={{ width: 13, height: 13, color: C.muted }} /> : <ChevronRight style={{ width: 13, height: 13, color: C.muted }} />}
-                            </span>
-                        </div>
-                        {openAppDb && <div style={{ ...cardB, display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
-                            {parsed?.appDbInfo ? (() => {
-                                const db = parsed.appDbInfo;
-                                const fragOk = db.fragPct <= 20;
-                                const fragColor = db.fragPct > 40 ? C.red : db.fragPct > 20 ? C.orange : C.green;
-                                return (<>
-                                    {/* Stats métriques */}
-                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '.4rem' }}>
-                                        {[
-                                            { l: 'Taille',         v: db.sizeFmt,           c: C.blue   },
-                                            { l: 'Fragmentation',  v: `${db.fragPct}%`,      c: fragColor },
-                                            { l: 'État',           v: db.exists ? 'OK' : 'KO', c: db.exists ? C.green : C.red },
-                                        ].map(s => (
-                                            <div key={s.l} style={{ background: C.bg2, borderRadius: 6, padding: '.4rem .5rem', textAlign: 'center', border: `1px solid ${C.border}` }}>
-                                                <div style={{ fontSize: '.88rem', fontWeight: 700, color: s.c, fontFamily: 'monospace' }}>{s.v}</div>
-                                                <div style={{ fontSize: '.6rem', color: C.muted, textTransform: 'uppercase', marginTop: 2, letterSpacing: '.04em' }}>{s.l}</div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                    {/* Check rows santé */}
-                                    {[
-                                        { label: 'Fichier dashboard.db', ok: db.exists,  detail: 'data/dashboard.db', warn: false, fix: db.exists ? null : 'Fichier introuvable — vérifiez le volume Docker data/' },
-                                        { label: 'Fragmentation',        ok: fragOk,     detail: `${db.fragPct}%`,    warn: true,  fix: !fragOk ? 'Fragmentation élevée — VACUUM recommandé' : null },
-                                    ].map(c => c.ok ? (
-                                        <div key={c.label} style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.35rem .6rem', borderRadius: 5, background: 'rgba(63,185,80,.05)', border: '1px solid rgba(63,185,80,.18)' }}>
-                                            <CheckCircle style={{ width: 12, height: 12, color: C.green, flexShrink: 0 }} />
-                                            <span style={{ fontSize: '.8rem', fontWeight: 600, color: C.green }}>{c.label}</span>
-                                            {c.detail && <code style={{ marginLeft: 'auto', fontSize: '.68rem', color: C.muted, fontFamily: 'monospace' }}>{c.detail}</code>}
-                                        </div>
-                                    ) : (
-                                        <div key={c.label} style={{ borderRadius: 6, border: `1px solid ${c.warn ? 'rgba(227,179,65,.35)' : 'rgba(232,106,101,.3)'}`, background: c.warn ? 'rgba(227,179,65,.06)' : 'rgba(232,106,101,.06)', overflow: 'hidden' }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.38rem .6rem' }}>
-                                                {c.warn
-                                                    ? <AlertTriangle style={{ width: 12, height: 12, color: C.orange, flexShrink: 0 }} />
-                                                    : <XCircle style={{ width: 12, height: 12, color: C.red, flexShrink: 0 }} />}
-                                                <span style={{ fontSize: '.8rem', fontWeight: 600, color: c.warn ? C.orange : C.red }}>{c.label}</span>
-                                                {c.detail && <code style={{ marginLeft: 'auto', fontSize: '.68rem', color: C.muted, fontFamily: 'monospace' }}>{c.detail}</code>}
-                                            </div>
-                                            {c.fix && <div style={{ padding: '.3rem .6rem .4rem', fontSize: '.71rem', color: C.muted, borderTop: '1px solid rgba(255,255,255,.05)' }}>{c.fix}</div>}
-                                        </div>
-                                    ))}
-                                    {!fragOk && (
-                                        <DashboardVacuumAlert fragPct={db.fragPct} onDone={() => { void loadParsed(); }} />
-                                    )}
-                                </>);
-                            })() : (
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.4rem .6rem', borderRadius: 5, background: 'rgba(232,106,101,.06)', border: '1px solid rgba(232,106,101,.3)' }}>
-                                    <XCircle style={{ width: 12, height: 12, color: C.red }} />
-                                    <span style={{ fontSize: '.82rem', color: C.red }}>dashboard.db non disponible</span>
-                                </div>
-                            )}
-                        </div>}
-                    </div>
-
                     {/* Card: Synchronisation fail2ban ↔ dashboard.db */}
                     {(() => {
                         const synced   = syncStatus?.synced;
@@ -1596,6 +1502,100 @@ export const TabConfig: React.FC<{
                     </div>
                         );
                     })()}
+
+                    {/* Card: App DB + internal sync stats */}
+                    <div style={{ ...card, borderColor: (parsed?.appDbInfo?.fragPct ?? 0) > 20 ? 'rgba(227,179,65,.4)' : C.border }}>
+                        <div style={{ ...cardH, cursor: 'pointer' }} onClick={() => setOpenAppDb(o => !o)}>
+                            <HardDrive style={{ width: 14, height: 14, color: C.cyan }} />
+                            <span style={{ fontWeight: 600, fontSize: '.9rem' }}>Base de données interne (dashboard.db)</span>
+                            {(parsed?.appDbInfo?.fragPct ?? 0) > 20 && (
+                                <WarnBadge count={1} tip={`Fragmentation élevée : ${parsed!.appDbInfo.fragPct}% — VACUUM recommandé`} />
+                            )}
+                            <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '.35rem' }}>
+                                {parsed?.appDbInfo && (() => {
+                                    const db = parsed.appDbInfo;
+                                    const fc = db.fragPct > 40 ? C.red : db.fragPct > 20 ? C.orange : C.green;
+                                    const bg = db.fragPct > 40 ? 'rgba(232,106,101,.12)' : db.fragPct > 20 ? 'rgba(227,179,65,.12)' : 'rgba(63,185,80,.1)';
+                                    const bd = db.fragPct > 40 ? 'rgba(232,106,101,.3)'  : db.fragPct > 20 ? 'rgba(227,179,65,.3)'  : 'rgba(63,185,80,.25)';
+                                    return (<>
+                                        <F2bTooltip color="blue" title="Taille — dashboard.db" width={300} bodyNode={<>
+                                            {TT.section('Contenu', '#58a6ff')}
+                                            {TT.info('Historique long terme des bans (f2b_events)')}
+                                            {TT.info('Paramètres et utilisateurs de l\'application')}
+                                            {TT.sep()}
+                                            {TT.info('VACUUM recommandé si fragmentation > 20%')}
+                                        </>}>
+                                            <HBadge color={C.blue} bg="rgba(88,166,255,.1)" border="rgba(88,166,255,.25)">{db.sizeFmt}</HBadge>
+                                        </F2bTooltip>
+                                        <F2bTooltip color={db.fragPct > 40 ? 'red' : db.fragPct > 20 ? 'orange' : 'green'} title="Fragmentation — dashboard.db" width={320} bodyNode={<>
+                                            {TT.section('Mesure')}
+                                            {TT.info(`Pages libres / pages totales = ${db.fragPct}%`)}
+                                            {TT.sep()}
+                                            {TT.section('Niveau')}
+                                            {db.fragPct <= 20  && TT.ok('Sain — aucune action requise')}
+                                            {db.fragPct > 20 && db.fragPct <= 40 && TT.warn('Modérée — VACUUM conseillé')}
+                                            {db.fragPct > 40  && TT.err('Élevée — VACUUM fortement recommandé')}
+                                        </>}>
+                                            <HBadge color={fc} bg={bg} border={bd}>{db.fragPct}% frag.</HBadge>
+                                        </F2bTooltip>
+                                    </>);
+                                })()}
+                                {openAppDb ? <ChevronDown style={{ width: 13, height: 13, color: C.muted }} /> : <ChevronRight style={{ width: 13, height: 13, color: C.muted }} />}
+                            </span>
+                        </div>
+                        {openAppDb && <div style={{ ...cardB, display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
+                            {parsed?.appDbInfo ? (() => {
+                                const db = parsed.appDbInfo;
+                                const fragOk = db.fragPct <= 20;
+                                const fragColor = db.fragPct > 40 ? C.red : db.fragPct > 20 ? C.orange : C.green;
+                                return (<>
+                                    {/* Stats métriques */}
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '.4rem' }}>
+                                        {[
+                                            { l: 'Taille',         v: db.sizeFmt,           c: C.blue   },
+                                            { l: 'Fragmentation',  v: `${db.fragPct}%`,      c: fragColor },
+                                            { l: 'État',           v: db.exists ? 'OK' : 'KO', c: db.exists ? C.green : C.red },
+                                        ].map(s => (
+                                            <div key={s.l} style={{ background: C.bg2, borderRadius: 6, padding: '.4rem .5rem', textAlign: 'center', border: `1px solid ${C.border}` }}>
+                                                <div style={{ fontSize: '.88rem', fontWeight: 700, color: s.c, fontFamily: 'monospace' }}>{s.v}</div>
+                                                <div style={{ fontSize: '.6rem', color: C.muted, textTransform: 'uppercase', marginTop: 2, letterSpacing: '.04em' }}>{s.l}</div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    {/* Check rows santé */}
+                                    {[
+                                        { label: 'Fichier dashboard.db', ok: db.exists,  detail: 'data/dashboard.db', warn: false, fix: db.exists ? null : 'Fichier introuvable — vérifiez le volume Docker data/' },
+                                        { label: 'Fragmentation',        ok: fragOk,     detail: `${db.fragPct}%`,    warn: true,  fix: !fragOk ? 'Fragmentation élevée — VACUUM recommandé' : null },
+                                    ].map(c => c.ok ? (
+                                        <div key={c.label} style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.35rem .6rem', borderRadius: 5, background: 'rgba(63,185,80,.05)', border: '1px solid rgba(63,185,80,.18)' }}>
+                                            <CheckCircle style={{ width: 12, height: 12, color: C.green, flexShrink: 0 }} />
+                                            <span style={{ fontSize: '.8rem', fontWeight: 600, color: C.green }}>{c.label}</span>
+                                            {c.detail && <code style={{ marginLeft: 'auto', fontSize: '.68rem', color: C.muted, fontFamily: 'monospace' }}>{c.detail}</code>}
+                                        </div>
+                                    ) : (
+                                        <div key={c.label} style={{ borderRadius: 6, border: `1px solid ${c.warn ? 'rgba(227,179,65,.35)' : 'rgba(232,106,101,.3)'}`, background: c.warn ? 'rgba(227,179,65,.06)' : 'rgba(232,106,101,.06)', overflow: 'hidden' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.38rem .6rem' }}>
+                                                {c.warn
+                                                    ? <AlertTriangle style={{ width: 12, height: 12, color: C.orange, flexShrink: 0 }} />
+                                                    : <XCircle style={{ width: 12, height: 12, color: C.red, flexShrink: 0 }} />}
+                                                <span style={{ fontSize: '.8rem', fontWeight: 600, color: c.warn ? C.orange : C.red }}>{c.label}</span>
+                                                {c.detail && <code style={{ marginLeft: 'auto', fontSize: '.68rem', color: C.muted, fontFamily: 'monospace' }}>{c.detail}</code>}
+                                            </div>
+                                            {c.fix && <div style={{ padding: '.3rem .6rem .4rem', fontSize: '.71rem', color: C.muted, borderTop: '1px solid rgba(255,255,255,.05)' }}>{c.fix}</div>}
+                                        </div>
+                                    ))}
+                                    {!fragOk && (
+                                        <DashboardVacuumAlert fragPct={db.fragPct} onDone={() => { void loadParsed(); }} />
+                                    )}
+                                </>);
+                            })() : (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.4rem .6rem', borderRadius: 5, background: 'rgba(232,106,101,.06)', border: '1px solid rgba(232,106,101,.3)' }}>
+                                    <XCircle style={{ width: 12, height: 12, color: C.red }} />
+                                    <span style={{ fontSize: '.82rem', color: C.red }}>dashboard.db non disponible</span>
+                                </div>
+                            )}
+                        </div>}
+                    </div>
 
                     {/* Card: Pare-feu — Netfilter */}
                     {(() => {

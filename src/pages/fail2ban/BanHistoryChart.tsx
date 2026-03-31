@@ -125,8 +125,27 @@ const ChartTooltip: React.FC<{ data: TooltipData; cw: number; ch: number; isHour
     );
 };
 
-// ── Y-axis ticks ──────────────────────────────────────────────────────────────
+// ── Y-axis helpers ─────────────────────────────────────────────────────────────
+/**
+ * Round up to the nearest "nice" ceiling so Y-axis labels are clean integers.
+ * Applied to effectiveMax so both bars and grid lines share the same scale.
+ */
+function niceMax(raw: number): number {
+    if (raw <= 0) return 1;
+    if (raw <= 5)  return raw;   // keep exact for tiny counts
+    if (raw <= 10) return 10;
+    const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    for (const f of [1, 2, 5, 10]) {
+        if (f * mag >= raw) return f * mag;
+    }
+    return 10 * mag;
+}
+
 function yTicks(max: number): { val: number; frac: number }[] {
+    // For very small counts, use 1-unit steps to avoid duplicates (e.g. max=3 → 0,1,2,3)
+    if (max <= 5) {
+        return Array.from({ length: max + 1 }, (_, i) => ({ val: i, frac: i / max }));
+    }
     return [0, 0.25, 0.5, 0.75, 1].map(f => ({ val: Math.round(f * max), frac: f }));
 }
 
@@ -517,10 +536,13 @@ export const BanHistoryChart: React.FC<BanHistoryChartProps> = ({
         : { slots: [], nowSlotFrac: 0 };
     const histSlice = isHourly ? rollingSlots : history.slice(-60);
 
-    // Recompute max from visible jails only so Y-axis adapts when a jail is hidden
+    // Recompute max from visible jails only so Y-axis adapts when a jail is hidden.
+    // sliceMax is the max h.count in the visible slice — used as floor so bars are
+    // never tiny due to incomplete byJail data, and as fallback when jailNames is empty.
     const effectiveMax = useMemo(() => {
+        const sliceMax = histSlice.length ? Math.max(...histSlice.map(h => h.count), 1) : 1;
         const visibleJails = jailNames.filter(j => !hidden.has(j));
-        if (visibleJails.length === 0) return Math.max(histMax, 1);
+        if (visibleJails.length === 0) return niceMax(sliceMax);
         // For stacked bars: max of per-day sum; for lines: max of any single value
         const dates = histSlice.map(h => h.date);
         let max = 0;
@@ -533,8 +555,9 @@ export const BanHistoryChart: React.FC<BanHistoryChartProps> = ({
             }
             max = Math.max(max, daySum);
         }
-        return Math.max(max, 1);
-    }, [jailNames, hidden, byJail, histMax, histSlice]);
+        // Use sliceMax as floor in case byJail sums are lower than h.count totals
+        return niceMax(Math.max(max, sliceMax, 1));
+    }, [jailNames, hidden, byJail, histSlice]);
 
     const toggleJail = (jail: string) => {
         setHidden(prev => {
