@@ -1497,6 +1497,7 @@ export class Fail2banPlugin extends BasePlugin {
             if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
             const appDb = getDatabase();
             appDb.exec('VACUUM');
+            this._routeCache.delete('config/parsed'); // invalidate fragmentation stats
             res.json({ success: true, result: { ok: true } });
         }));
 
@@ -1540,6 +1541,7 @@ export class Fail2banPlugin extends BasePlugin {
                     written.push(key);
                 } catch (e) { errors.push(`Failed to write ${key}: ${e instanceof Error ? e.message : String(e)}`); }
             }
+            if (written.length > 0) this._routeCache.delete('config/parsed'); // invalidate after file write
             res.json({ success: true, result: { ok: errors.length === 0, written, errors } });
         }));
 
@@ -1793,6 +1795,7 @@ export class Fail2banPlugin extends BasePlugin {
                 reloadOk = r.ok;
                 reloadOutput = r.output || r.error || '';
             }
+            this._routeCache.delete('config/parsed'); // invalidate after file write
             res.json({ success: true, result: { ok: true, reloadOk, reloadOutput, reloadMethod } });
         }));
 

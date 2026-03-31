@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.8.13] - 2026-03-31
+
+### Pour les utilisateurs
+
+> Après un VACUUM ou une modification de configuration, l'interface se met à jour immédiatement sans avoir besoin de vider le cache.
+
+- **VACUUM dashboard.db** — Le badge de fragmentation disparaît instantanément après le VACUUM, sans rechargement manuel.
+- **Config fail2ban** — Les modifications de `fail2ban.local` (loglevel, logtarget, dbpurgeage…) et les éditions brutes sont reflétées immédiatement dans l'interface.
+
+---
+
+### Technique
+
+#### Backend — `server/plugins/fail2ban/Fail2banPlugin.ts`
+
+- `POST /config/dashboard-vacuum` : ajout de `_routeCache.delete('config/parsed')` après le VACUUM — le cache de fragmentation était conservé 60s, causant un affichage obsolète
+- `POST /config/write` : invalidation du cache `config/parsed` si au moins une clé a été écrite dans `fail2ban.local`
+- `POST /config/write-raw` : invalidation du cache `config/parsed` après écriture réussie de `fail2ban.local` / `jail.local`
+
+---
+
 ## [0.8.12] - 2026-03-31
 
 ### Pour les utilisateurs
