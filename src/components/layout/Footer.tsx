@@ -19,7 +19,7 @@ import { Tooltip } from '../ui/Tooltip';
 import { useTranslation } from 'react-i18next';
 import type { LogPluginStats } from '../../types/logViewer';
 
-export type PageType = 'dashboard' | 'analytics' | 'goaccess-stats' | 'settings' | 'plugins' | 'users' | 'logs' | 'log-viewer' | 'log-viewer-test' | 'fail2ban';
+export type PageType = 'dashboard' | 'analytics' | 'goaccess-stats' | 'settings' | 'plugins' | 'users' | 'logs' | 'log-viewer' | 'log-viewer-test' | 'fail2ban' | 'profile';
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';

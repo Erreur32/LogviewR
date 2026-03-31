@@ -100,6 +100,7 @@ const LogsPage = lazy(() => import('./pages/LogsPage').then(m => ({ default: m.L
 const LogViewerTestPage = lazy(() => import('./pages/LogViewerTestPage').then(m => ({ default: m.LogViewerTestPage })));
 const LogViewerPage = lazy(() => import('./pages/LogViewerPage').then(m => ({ default: m.LogViewerPage })));
 const Fail2banPage = lazy(() => import('./pages/Fail2banPage').then(m => ({ default: m.Fail2banPage })));
+const ProfilePage = lazy(() => import('./pages/ProfilePage').then(m => ({ default: m.ProfilePage })));
 import { fetchEnvironmentInfo } from './constants/version';
 import { startTabTimer, dispatchTabLoaded } from './utils/tabTimer';
 import {
@@ -461,10 +462,7 @@ const App: React.FC = () => {
   };
 
   const handleProfileClick = () => {
-    sessionStorage.setItem('adminMode', 'true');
-    setCurrentPage('settings');
-    // SettingsPage will open with 'general' tab (Mon Profil)
-    sessionStorage.setItem('adminTab', 'general');
+    setCurrentPage('profile');
   };
 
   // Handle users click (navigate to users page)
@@ -615,6 +613,19 @@ const App: React.FC = () => {
         />
         <AnalyticsPage onBack={() => setCurrentPage('dashboard')} />
       </>
+    ));
+  }
+
+  // Render Profile page
+  if (currentPage === 'profile') {
+    return wrapWithBackground(renderPageWithFooter(
+      <ProfilePage
+          onBack={() => setCurrentPage('dashboard')}
+          onLogout={handleLogout}
+          onSettingsClick={handleSettingsClick}
+          onAdminClick={handleAdminClick}
+          onUsersClick={handleUsersClick}
+        />
     ));
   }
 

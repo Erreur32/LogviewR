@@ -1249,8 +1249,8 @@ export const TabConfig: React.FC<{
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', alignItems: 'stretch' }}>
 
                                 {/* Paramètres runtime */}
-                                <div style={{ ...card, display: 'flex', flexDirection: 'column' }}>
-                                    <div onClick={() => setOpenRuntime(o => !o)} style={{ ...cardH, cursor: 'pointer', userSelect: 'none' }}>
+                                <div style={{ ...card, display: 'flex', flexDirection: 'column', alignSelf: (!openRuntime && openDb) ? 'start' : 'stretch' }}>
+                                    <div onClick={() => setOpenRuntime(o => !o)} style={{ ...cardH, cursor: 'pointer', userSelect: 'none', borderBottom: openRuntime ? '1px solid #30363d' : 'none' }}>
                                         <Play style={{ width: 14, height: 14, color: C.blue }} />
                                         <span style={{ fontWeight: 600, fontSize: '.9rem' }}>Runtime</span>
                                         <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '.4rem' }}>
@@ -1285,8 +1285,8 @@ export const TabConfig: React.FC<{
                                 </div>
 
                                 {/* Base de données & Rétention */}
-                                <div style={{ ...card, display: 'flex', flexDirection: 'column' }}>
-                                    <div onClick={() => setOpenDb(o => !o)} style={{ ...cardH, cursor: 'pointer', userSelect: 'none' }}>
+                                <div style={{ ...card, display: 'flex', flexDirection: 'column', alignSelf: (!openDb && openRuntime) ? 'start' : 'stretch' }}>
+                                    <div onClick={() => setOpenDb(o => !o)} style={{ ...cardH, cursor: 'pointer', userSelect: 'none', borderBottom: openDb ? '1px solid #30363d' : 'none' }}>
                                         <Database style={{ width: 14, height: 14, color: C.purple }} />
                                         <span style={{ fontWeight: 600, fontSize: '.9rem' }}>Base de données</span>
                                         <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '.4rem' }}>
@@ -1355,8 +1355,8 @@ export const TabConfig: React.FC<{
                                 </div>
 
                                 {/* Fichiers de configuration */}
-                                <div style={{ ...card, display: 'flex', flexDirection: 'column' }}>
-                                    <div style={{ ...cardH }}>
+                                <div style={{ ...card, alignSelf: (openRuntime || openDb) ? 'start' : 'stretch' }}>
+                                    <div style={{ ...cardH, borderBottom: 'none' }}>
                                         <FileText style={{ width: 14, height: 14, color: C.blue }} />
                                         <span style={{ fontWeight: 600, fontSize: '.9rem' }}>Fichiers de configuration</span>
                                         <span style={{ marginLeft: 'auto' }}>

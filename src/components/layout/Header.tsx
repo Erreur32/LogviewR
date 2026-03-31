@@ -95,8 +95,9 @@ const NotifCard: React.FC<{ n: AppNotification; onDismiss: () => void }> = ({ n,
           <span style={{ fontSize: '.75rem', color: '#e3b341', fontWeight: 600, flexShrink: 0 }}>
             +{n.delta} tentative{(n.delta ?? 0) > 1 ? 's' : ''}
           </span>
-          <span style={{ fontSize: '.65rem', padding: '.05rem .3rem', borderRadius: 3, background: 'rgba(227,179,65,.12)', color: '#e3b341', border: '1px solid rgba(227,179,65,.25)', fontFamily: 'monospace', flexShrink: 0, whiteSpace: 'nowrap' }}>{n.jail}</span>
-          <span style={{ fontSize: '.62rem', color: '#8b949e', flexShrink: 0, whiteSpace: 'nowrap' }}>{n.total} actives</span>
+          {n.domain && (
+            <span style={{ fontSize: '.65rem', padding: '.05rem .3rem', borderRadius: 3, background: 'rgba(227,179,65,.12)', color: '#e3b341', border: '1px solid rgba(227,179,65,.25)', fontFamily: 'monospace', flexShrink: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 160 }}>{n.domain}</span>
+          )}
         </div>
         <button onClick={onDismiss} title={t('common.hide')}
           style={{ background: 'none', border: 'none', borderLeft: '1px solid #21262d', color: '#555d69', cursor: 'pointer', padding: '0 .5rem', flexShrink: 0, display: 'flex', alignItems: 'center' }}>
@@ -432,32 +433,18 @@ export const Header: React.FC<HeaderProps> = ({
             title={t('header.backToDashboard')}
             className="flex items-center gap-2 bg-theme-secondary px-2.5 py-1.5 rounded-lg border border-theme hover:bg-theme-primary transition-colors"
           >
-            <img src={logviewrLogo} alt="LogviewR" className="w-8 h-8 flex-shrink-0" />
+            <img src={logviewrLogo} alt="LogviewR" className={`w-8 h-8 flex-shrink-0${updateInfo?.updateAvailable && updateInfo.enabled ? ' logo-update-blink' : ''}`} />
             <div className="flex flex-col leading-tight relative">
               <span className="font-semibold text-sm text-theme-primary">LogviewR</span>
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] text-gray-400 font-normal">{getVersionString()}</span>
-                {updateInfo?.updateAvailable && updateInfo.enabled && (
-                  <span className="text-[9px] font-semibold text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-400/30">
-                    {t('header.newVersionAvailable')}
-                  </span>
-                )}
-              </div>
+              <span className="text-[10px] text-gray-400 font-normal">{getVersionString()}</span>
             </div>
           </button>
         ) : (
           <div className="flex items-center gap-2 bg-theme-secondary px-2.5 py-1.5 rounded-lg border border-theme">
-            <img src={logviewrLogo} alt="LogviewR" className="w-8 h-8 flex-shrink-0" />
+            <img src={logviewrLogo} alt="LogviewR" className={`w-8 h-8 flex-shrink-0${updateInfo?.updateAvailable && updateInfo.enabled ? ' logo-update-blink' : ''}`} />
             <div className="flex flex-col leading-tight relative">
               <span className="font-semibold text-sm text-theme-primary">LogviewR</span>
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] text-gray-400 font-normal">{getVersionString()}</span>
-                {updateInfo?.updateAvailable && updateInfo.enabled && (
-                  <span className="text-[9px] font-semibold text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-400/30">
-                    {t('header.newVersionAvailable')}
-                  </span>
-                )}
-              </div>
+              <span className="text-[10px] text-gray-400 font-normal">{getVersionString()}</span>
             </div>
           </div>
         )}
@@ -894,40 +881,39 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Centered notification zone — absolutely positioned to avoid disturbing flex layout */}
       <NotificationZone />
-      <style>{`@keyframes notif-slide-in { from { opacity:0; transform:translateY(-6px) scale(.96); } to { opacity:1; transform:translateY(0) scale(1); } }`}</style>
+      <style>{`@keyframes notif-slide-in { from { opacity:0; transform:translateY(-6px) scale(.96); } to { opacity:1; transform:translateY(0) scale(1); } } @keyframes logo-blink { 0%,100% { opacity:1; } 50% { opacity:.35; } } .logo-update-blink { animation: logo-blink 2.8s ease-in-out infinite; }`}</style>
     </header>
     {updateBanner?.show && (
       <div style={{
         background: 'linear-gradient(90deg, rgba(245,158,11,.15) 0%, rgba(245,158,11,.08) 100%)',
         borderBottom: '1px solid rgba(245,158,11,.35)',
-        padding: '.45rem 1rem', fontSize: '.82rem',
+        padding: '.4rem 1rem', fontSize: '.82rem',
+        display: 'flex', alignItems: 'center', gap: '.75rem',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem' }}>
-          <Download size={14} style={{ color: '#f59e0b', flexShrink: 0 }} />
-          <span style={{ color: '#fbbf24', fontWeight: 600 }}>
-            {t('header.newVersionAvailable')} : v{updateBanner.latestVersion}
-          </span>
-          <button
-            onClick={updateBanner.onDismiss}
-            title={t('common.hide')}
-            style={{
-              marginLeft: 'auto', background: 'none', border: 'none',
-              cursor: 'pointer', color: '#6b7280', padding: '.15rem',
-              display: 'flex', flexShrink: 0,
-            }}
-          >
-            <XIcon size={14} />
-          </button>
-        </div>
+        <Download size={14} style={{ color: '#f59e0b', flexShrink: 0 }} />
+        <span style={{ color: '#fbbf24', fontWeight: 600, flexShrink: 0 }}>
+          {t('header.newVersionAvailable')} : v{updateBanner.latestVersion}
+        </span>
         {updateBanner.releaseNotes && (
-          <div style={{
-            marginTop: '.3rem', paddingLeft: '1.4rem',
-            color: '#9ca3af', fontSize: '.74rem', lineHeight: 1.5,
-            whiteSpace: 'pre-wrap', maxHeight: '3.5rem', overflow: 'hidden',
+          <span style={{
+            color: '#9ca3af', fontSize: '.78rem',
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            minWidth: 0,
           }}>
-            {updateBanner.releaseNotes}
-          </div>
+            — {updateBanner.releaseNotes.split('\n').find(l => l.trim()) ?? ''}
+          </span>
         )}
+        <button
+          onClick={updateBanner.onDismiss}
+          title={t('common.hide')}
+          style={{
+            marginLeft: 'auto', background: 'none', border: 'none',
+            cursor: 'pointer', color: '#6b7280', padding: '.15rem',
+            display: 'flex', flexShrink: 0,
+          }}
+        >
+          <XIcon size={14} />
+        </button>
       </div>
     )}
     </>

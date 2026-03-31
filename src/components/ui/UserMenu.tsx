@@ -10,7 +10,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Settings, LogOut, Shield, ChevronDown, User, Users } from 'lucide-react';
+import { Settings, LogOut, Shield, ChevronDown, User, Users, Github } from 'lucide-react';
 
 interface User {
     username: string;
@@ -107,16 +107,16 @@ export const UserMenu: React.FC<UserMenuProps> = ({
                         e.stopPropagation();
                         setIsOpen(!isOpen);
                     }}
-                    className="flex items-center gap-1.5 px-2 py-1.5 bg-[#1a1a1a] hover:bg-[#252525] border border-gray-700 rounded-lg transition-colors"
+                    className="flex items-center gap-2 px-2.5 py-1.5 bg-[#1a1a1a] hover:bg-[#252525] border border-gray-700 rounded-lg transition-colors"
                 >
                     {user.avatar ? (
                         <img
                             src={user.avatar}
                             alt={user.username}
-                            className="w-6 h-6 rounded-full object-cover border border-gray-600"
+                            className="w-10 h-10 rounded-full object-cover border border-gray-600"
                         />
                     ) : (
-                        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold text-[10px]">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm">
                             {initials}
                         </div>
                     )}
@@ -142,13 +142,13 @@ export const UserMenu: React.FC<UserMenuProps> = ({
                     <div className="p-4 border-b border-gray-700">
                         <div className="flex items-center gap-3">
                             {user.avatar ? (
-                                <img 
-                                    src={user.avatar} 
+                                <img
+                                    src={user.avatar}
                                     alt={user.username}
-                                    className="w-12 h-12 rounded-full object-cover border-2 border-gray-600"
+                                    className="w-16 h-16 rounded-full object-cover border-2 border-gray-600 flex-shrink-0"
                                 />
                             ) : (
-                                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold text-base border-2 border-gray-600">
+                                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-xl border-2 border-gray-600 flex-shrink-0">
                                     {initials}
                                 </div>
                             )}
@@ -205,6 +205,20 @@ export const UserMenu: React.FC<UserMenuProps> = ({
                                 <span>Gestion des utilisateurs</span>
                             </button>
                         )}
+
+                        {/* GitHub */}
+                        <a
+                            href="https://github.com/erreur32/LogviewR"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={() => setIsOpen(false)}
+                            className="w-full px-4 py-2.5 text-left text-sm text-gray-300 hover:bg-[#252525] transition-colors flex items-center gap-3"
+                        >
+                            <Github size={20} className="text-gray-400" />
+                            <span>GitHub</span>
+                        </a>
+
+                        <div className="mx-3 my-1 border-t border-gray-800" />
 
                         {/* Logout */}
                         <button

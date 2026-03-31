@@ -496,6 +496,31 @@ export class Fail2banPlugin extends BasePlugin {
     private _cachePut(key: string, data: unknown): void {
         this._routeCache.set(key, { data, ts: Date.now() });
     }
+    /**
+     * Sync unban state: compare live banned IPs from fail2ban-client with our DB.
+     * Any IP our DB considers active (unban_at IS NULL) but absent from the live set
+     * gets unban_at = now, so our active-ban count matches fail2ban exactly.
+     * Historical rows are never deleted — they remain for tracking/audit.
+     */
+    private _syncUnbans(liveBannedIps: Set<string>): void {
+        try {
+            const db  = getDatabase();
+            const now = Math.floor(Date.now() / 1000);
+            const activeInDb = db.prepare(
+                `SELECT DISTINCT ip FROM f2b_events WHERE event_type='ban' AND unban_at IS NULL`
+            ).all() as { ip: string }[];
+            const toUnban = activeInDb.filter(r => !liveBannedIps.has(r.ip));
+            if (toUnban.length === 0) return;
+            const stmt = db.prepare(
+                `UPDATE f2b_events SET unban_at = ? WHERE ip = ? AND event_type='ban' AND unban_at IS NULL`
+            );
+            const runAll = db.transaction((rows: { ip: string }[]) => {
+                for (const r of rows) stmt.run(now, r.ip);
+            });
+            runAll(toUnban);
+        } catch { /* non-critical — sync will retry on next poll */ }
+    }
+
     /** Returns cache TTL in ms adapted to the time range: recent data expires fast, old data stays longer. */
     private _adaptiveTtl(days: number): number {
         if (days <= 0)  return 600_000; // all-time: 10min
@@ -847,6 +872,9 @@ export class Fail2banPlugin extends BasePlugin {
                     })
                 );
                 const jails = jailsWithMeta;
+                // Sync unban state: mark as unbanned any IP no longer in fail2ban's live list
+                const liveBannedIps = new Set(jails.flatMap(j => j.bannedIps ?? []));
+                this._syncUnbans(liveBannedIps);
                 // Inactive jails: in config but not running (skip DEFAULT/INCLUDES sections)
                 const RESERVED = new Set(['default', 'includes', 'sshd-ddos']);
                 const activeNames = new Set(jailNames);
@@ -879,9 +907,9 @@ export class Fail2banPlugin extends BasePlugin {
             const activeBanRows = evDb.prepare(`
                 SELECT ip, jail, timeofban, bantime, failures
                 FROM f2b_events
-                WHERE event_type='ban' AND (bantime = -1 OR (timeofban + bantime) > ?)
+                WHERE event_type='ban' AND unban_at IS NULL
                 ORDER BY timeofban DESC
-            `).all(now) as { ip: string; jail: string; timeofban: number; bantime: number; failures: number }[];
+            `).all() as { ip: string; jail: string; timeofban: number; bantime: number; failures: number }[];
 
             const jailsMap: Record<string, { jail: string; currentlyBanned: number; totalBanned: number; bannedIps: string[] }> = {};
             for (const ban of activeBanRows) {
@@ -1136,13 +1164,12 @@ export class Fail2banPlugin extends BasePlugin {
 
             // Get currently-active bans from app DB
             const evDb = getDatabase();
-            const now = Math.floor(Date.now() / 1000);
             const activeBans = evDb.prepare(`
                 SELECT ip, jail, timeofban, bantime
                 FROM f2b_events
-                WHERE event_type='ban' AND (bantime = -1 OR (timeofban + bantime) > ?)
+                WHERE event_type='ban' AND unban_at IS NULL
                 ORDER BY timeofban DESC
-            `).all(now) as { ip: string; jail: string; timeofban: number; bantime: number }[];
+            `).all() as { ip: string; jail: string; timeofban: number; bantime: number }[];
 
             // Match against safe ranges
             interface Hit { ip: string; jail: string; timeofban: number; bantime: number; provider: string; cidr: string; color: string }
@@ -1839,14 +1866,13 @@ export class Fail2banPlugin extends BasePlugin {
             const total = (appDb.prepare('SELECT COUNT(DISTINCT ip) as n FROM f2b_events').get() as { n: number }).n;
 
             // Currently banned IPs from internal f2b_events (survives fail2ban purge)
-            const nowTs = Math.floor(Date.now() / 1000);
             const activeJails = new Map<string, string[]>();
             const activeRows = appDb.prepare(`
                 SELECT ip, GROUP_CONCAT(DISTINCT jail) AS jails
                 FROM f2b_events
-                WHERE event_type='ban' AND (bantime = -1 OR (timeofban + bantime) > ?)
+                WHERE event_type='ban' AND unban_at IS NULL
                 GROUP BY ip
-            `).all(nowTs) as { ip: string; jails: string }[];
+            `).all() as { ip: string; jails: string }[];
             for (const r of activeRows) {
                 activeJails.set(r.ip, r.jails.split(',').filter(Boolean));
             }
@@ -1882,10 +1908,10 @@ export class Fail2banPlugin extends BasePlugin {
                 const liveRows = appDb.prepare(`
                     SELECT ip, GROUP_CONCAT(DISTINCT jail) AS jails
                     FROM f2b_events
-                    WHERE event_type='ban' AND (bantime = -1 OR (timeofban + bantime) > ?)
+                    WHERE event_type='ban' AND unban_at IS NULL
                     GROUP BY ip
                     LIMIT 2000
-                `).all(now) as { ip: string; jails: string }[];
+                `).all() as { ip: string; jails: string }[];
                 for (const r of liveRows) {
                     ipJails.set(r.ip, r.jails.split(',').filter(Boolean));
                 }
@@ -2272,49 +2298,32 @@ export class Fail2banPlugin extends BasePlugin {
                         }
                     }
 
-                    // 3. Banned IPs per jail in the period, with their jail-specific failures
+                    // 3. All banned IPs across all jails — used as candidates for every domain log.
+                    //    We intentionally do NOT restrict to jails watching a specific log:
+                    //    an IP banned by sshd that also hit a NPM domain is still a known attacker.
                     const bannedRows = (allTime
-                        ? evDb.prepare(`SELECT ip, jail, COALESCE(failures,0) AS tf FROM f2b_events WHERE event_type='ban'`).all()
-                        : evDb.prepare(`SELECT ip, jail, COALESCE(failures,0) AS tf FROM f2b_events WHERE event_type='ban' AND timeofban >= ?`).all(since)
-                    ) as { ip: string; jail: string; tf: number }[];
+                        ? evDb.prepare(`SELECT ip, COALESCE(failures,0) AS tf FROM f2b_events WHERE event_type='ban'`).all()
+                        : evDb.prepare(`SELECT ip, COALESCE(failures,0) AS tf FROM f2b_events WHERE event_type='ban' AND timeofban >= ?`).all(since)
+                    ) as { ip: string; tf: number }[];
 
-                    // jailBannedIps: jail → Map<ip, failures> (only for that jail's bans)
-                    const jailBannedIps = new Map<string, Map<string, number>>();
+                    const allBannedIps = new Map<string, number>(); // ip → total failures (all jails)
                     for (const row of bannedRows) {
-                        if (!jailBannedIps.has(row.jail)) jailBannedIps.set(row.jail, new Map());
-                        const m = jailBannedIps.get(row.jail)!;
-                        m.set(row.ip, (m.get(row.ip) ?? 0) + row.tf);
+                        allBannedIps.set(row.ip, (allBannedIps.get(row.ip) ?? 0) + row.tf);
                     }
 
-                    // 4. Scan only proxy-host logs that have at least one responsible jail
-                    //    Count IPs banned by THOSE jails that appear in the log.
+                    // 4. Scan all proxy-host access logs — count unique banned IPs found in each.
                     const logFiles = fs.readdirSync(logsDir)
                         .filter(f => /^proxy-host-(\d+)[_.-]/i.test(f) && /access/i.test(f));
 
                     const domainBans: Record<string, { bans: number; failures: number }> = {};
+                    if (allBannedIps.size === 0) { /* no bans in period — skip scan */ }
                     for (const logFile of logFiles) {
                         const mf = logFile.match(/^proxy-host-(\d+)/i);
                         if (!mf) continue;
                         const domain = idToDomain[mf[1]];
                         if (!domain) continue;
 
-                        // Jails responsible for this log file
-                        const responsibleJails = logFileToJails.get(logFile);
-                        if (!responsibleJails || responsibleJails.size === 0) {
-                            // No fail2ban jail watches this domain's log → 0 bans, skip
-                            continue;
-                        }
-
-                        // Merge banned IPs from all responsible jails
-                        const candidateIps = new Map<string, number>(); // ip → failures
-                        for (const jail of responsibleJails) {
-                            const jailMap = jailBannedIps.get(jail);
-                            if (!jailMap) continue;
-                            for (const [ip, tf] of jailMap) {
-                                candidateIps.set(ip, (candidateIps.get(ip) ?? 0) + tf);
-                            }
-                        }
-                        if (candidateIps.size === 0) continue;
+                        const candidateIps = allBannedIps;
 
                         const filePath = path.join(logsDir, logFile);
                         try {

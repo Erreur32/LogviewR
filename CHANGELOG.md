@@ -9,6 +9,75 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.8.15] - 2026-03-31
+
+### Pour les utilisateurs
+
+> Bans actifs synchronisés avec fail2ban en temps réel, graphique de bans amélioré, notifications enrichies et interface Config plus compacte.
+
+- **Compteur de bans actifs fiable** — Le badge "bans actifs" dans le menu et dans l'IP Tracker affiche maintenant exactement le même nombre que fail2ban. Les unbans sont détectés automatiquement à chaque rafraîchissement (toutes les 30s) et enregistrés dans l'historique.
+- **Graphique barres groupées** — En mode "Barres", chaque jail est affichée côte à côte (au lieu d'empilées), triée du plus grand au plus petit pour chaque jour.
+- **Axe Y au plus juste** — Le maximum de l'axe correspond exactement au pic réel des données, sans arrondi artificiel.
+- **Notifications de tentatives enrichies** — Le domaine associé à l'IP s'affiche dans la notification (quand disponible), en plus de l'IP et du nombre de tentatives. Le badge de jails actives et le texte "+N tentatives" ont été supprimés pour alléger l'affichage.
+- **Top Domaines** — Le comptage porte maintenant sur toutes les jails combinées (et non jail par jail), ce qui reflète mieux le trafic réel. Un tooltip explicatif sur le titre détaille la méthode de calcul et le cas des domaines protégés par Access List IP.
+- **Config fail2ban — cards repliées plus compactes** — Les cards Runtime, Base de données et Fichiers de config ont la même hauteur une fois repliées, sans bordure résiduelle visible.
+
+---
+
+### Technique
+
+#### Backend — `server/plugins/fail2ban/Fail2banPlugin.ts`
+
+- `_syncUnbans(liveBannedIps: Set<string>)` : nouvelle méthode privée — compare les IPs actives en DB (`unban_at IS NULL`) avec le live fail2ban ; marque les IPs absentes avec `unban_at = now` sans jamais supprimer les lignes historiques
+- Appelé dans la route `GET /status` après récupération des `jailsWithMeta` — synchronisation à chaque poll de 30s
+- Toutes les requêtes "bans actifs" migrent de `bantime=-1 OR (timeofban+bantime) > ?` vers `unban_at IS NULL` (lignes 910, 1172, 1876, 1914) — paramètre `now` supprimé de ces `.all()` calls
+- Top domaines : remplacement de `jailBannedIps` (per-jail) par `allBannedIps` (union de toutes les jails) comme ensemble candidat
+
+#### Backend — `server/database/connection.ts`
+
+- Migration : `ALTER TABLE f2b_events ADD COLUMN unban_at INTEGER` (try/catch)
+- Index : `CREATE INDEX IF NOT EXISTS idx_f2b_events_unban ON f2b_events(unban_at)`
+- Backfill au démarrage : bans expirés depuis > 60s (`bantime > 0`) reçoivent `unban_at = timeofban + bantime`
+
+#### Frontend — `src/pages/fail2ban/BanHistoryChart.tsx`
+
+- Suppression de `niceMax()` — Y-axis max = maximum brut des valeurs visibles
+- `effectiveMax` : suppression du plancher `sliceMax` quand les jails sont visibles
+- `BarChart` : barres groupées côte à côte ; `sortedJails` trié par valeur décroissante par date ; calcul `groupW` / `subBarW` / `groupGap` proportionnel
+
+#### Frontend — `src/pages/fail2ban/TabStats.tsx`
+
+- `TopCard` : nouvelle prop `titleTooltip?: { bodyNode, color?, width? }` — wraps le titre dans un `F2bTooltip` avec curseur `help` et soulignement pointillé
+- `domainTitleTooltip` (360px, cyan) : 4 sections explicatives (méthode de comptage, toutes jails, domaines Access List, lecture des résultats) passé aux deux TopCards domaines
+
+#### Frontend — `src/pages/fail2ban/TabConfig.tsx`
+
+- `alignSelf` conditionnel par card (`start` quand repliée et voisine ouverte, `stretch` sinon) — supprime l'espace fantôme sous les cards repliées
+- `borderBottom` conditionnel : `none` quand la card est repliée, `1px solid #30363d` quand ouverte
+
+#### Frontend — `src/pages/Fail2banPage.tsx`
+
+- Fetch `/api/plugins/fail2ban/tracker` au mount → `trackerActive` state
+- Badge IP Tracker utilise `trackerActive ?? totalBanned` (DB-based) — plus `bannedIps.length` de fail2ban-client
+- `jailDomainsRef` : fetch lazy `/jails/enrichment` une seule fois après le premier status load
+- Passe `onActiveChange={setTrackerActive}` à `TabTracker`
+
+#### Frontend — `src/pages/fail2ban/TabTracker.tsx`
+
+- Prop `onActiveChange?: (n: number) => void` — appelée depuis `activeCount` useMemo pour remonter le compte DB au parent
+
+#### Frontend — `src/components/layout/Header.tsx`
+
+- Notification tentative : suppression du badge jail et du texte `{n.total} actives`
+- Ajout badge domaine (orange, monospace, maxWidth 160px) quand `n.domain` est présent
+
+#### Frontend — `src/stores/notificationStore.ts`
+
+- `AppNotification` : ajout champ `domain?: string`
+- `addAttempt` signature étendue avec `domain`
+
+---
+
 ## [0.8.13] - 2026-03-31
 
 ### Pour les utilisateurs

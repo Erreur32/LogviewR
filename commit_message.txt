@@ -1,30 +1,19 @@
-feat: Fail2ban UI polish + bantime fix + hourly chart + map crash fix (v0.4.8)
+release: v0.8.15
 
-## Pour les utilisateurs
-- Header plus compact, badges Horloge/Utilisateur réduits
-- Menu Fail2ban élargi (220px), flèche réduction toujours à droite
-- Notifications de ban centrées en haut de l'écran
-- Graphique 24h : axe X par heure (00h–23h), autres périodes adaptent les labels
-- Légende graphique : masque réellement la série et recalcule l'échelle Y
-- Badge bantime coloré selon la durée (vert/bleu/orange/rouge)
-- Bantime exact pour recidive/apache-shellshock via socket fail2ban-client
-- Sections Regex pliées par défaut + badge compteur dans les Paramètres
-- Carte Leaflet : crash au premier chargement corrigé (React Strict Mode)
+## For users
+- Active ban counter now matches fail2ban exactly (unban sync every 30s, history preserved)
+- Ban history chart: grouped side-by-side bars sorted largest first
+- Y-axis shows real data max, no artificial rounding
+- Attempt notifications: domain badge added, jail badge and "actives" text removed
+- Top Domains counts unique banned IPs across all jails combined
+- Config cards (Runtime / Database / Config files) collapse to uniform height, no ghost border
 
-## Backend — Fail2ban
-- Fail2banPlugin.ts : parseNum gère bantime négatif (-1 permanent), unité semaines
-- Fail2banPlugin.ts : getJailParam fallback via socket pour bantime/findtime/maxretry manquants
-- Fail2banClientExec.ts : nouvelle méthode getJailParam(jail, param)
-- Fail2banSqliteReader.ts : granularité horaire (strftime('%H')) quand days=1
-
-## Frontend — Fail2ban
-- BanHistoryChart.tsx : isHourly prop, effectiveMax visible jails, labelCountForDays
-- Fail2banPage.tsx : granularity state, toasts centre-haut, sidebar 220px
-- TabJails.tsx : bantime badge coloré par durée
-- TabMap.tsx : loadScript race condition fix (_loaded flag)
-
-## Frontend — Global
-- Header.tsx, Clock.tsx, UserMenu.tsx : padding/tailles réduits
-- SettingsSection.tsx : props collapsible/defaultCollapsed/badge
-- RegexManagementSection.tsx : collapsible par défaut + badge compteur
-- README.md : simplifié, commande curl fail2ban en un bloc
+## Technical
+- connection.ts: unban_at INTEGER migration + index + backfill expired bans on startup
+- Fail2banPlugin: _syncUnbans() on each /status poll; active-ban queries use unban_at IS NULL
+- BanHistoryChart: effectiveMax = raw max, grouped bars (groupW/subBarW), sortedJails desc
+- TabStats: TopCard titleTooltip prop + domainTitleTooltip (F2bTooltip 360px cyan)
+- TabConfig: conditional alignSelf + borderBottom per card for clean collapsed state
+- Fail2banPage: trackerActive from /tracker on mount; jailDomainsRef lazy enrichment fetch
+- TabTracker: onActiveChange prop bubbles activeCount to parent
+- Header: domain badge (orange); notificationStore: domain field on AppNotification

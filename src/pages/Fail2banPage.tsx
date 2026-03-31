@@ -136,6 +136,17 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
     const [status, setStatus]     = useState<StatusResponse | null>(null);
     const [history, setHistory]   = useState<HistoryEntry[]>([]);
     const [trackerTotal, setTrackerTotal] = useState<number | null>(null);
+    const [trackerActive, setTrackerActive] = useState<number | null>(null);
+    // Fetch active count from /tracker on mount so badge is correct before tab opens
+    useEffect(() => {
+        api.get<{ ok: boolean; total: number; ips: { currentlyBanned: boolean }[] }>('/api/plugins/fail2ban/tracker')
+            .then(res => {
+                if (!res.success || !res.result?.ok) return;
+                setTrackerTotal(res.result.total);
+                setTrackerActive(res.result.ips.filter(e => e.currentlyBanned).length);
+            })
+            .catch(() => {});
+    }, []);
     const [trackerFilter, setTrackerFilter] = useState<string>('');
     const [byJail, setByJail]     = useState<Record<string, Record<string, number>>>({});
     const [jailNames, setJailNames] = useState<string[]>([]);
@@ -161,6 +172,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
     const { addBan, addAttempt } = useNotificationStore();
     const lastRowidRef = useRef<number>(-1); // -1 = not bootstrapped yet
     const prevFailedRef = useRef<Record<string, number>>({}); // jail → currentlyFailed snapshot
+    const jailDomainsRef = useRef<Record<string, string>>({}); // jail → domain (lazy-loaded once)
     // ticker: re-render every 5s so "il y a Xs" stays fresh
     const [, setTick] = useState(0);
     const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -317,6 +329,12 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
             .then(sRes => {
                 if (sRes.success && sRes.result) {
                     setStatus(sRes.result);
+                    // Lazy-load jail→domain map once (non-blocking)
+                    if (Object.keys(jailDomainsRef.current).length === 0) {
+                        api.get<{ ok: boolean; jail_domains?: Record<string, string> }>('/api/plugins/fail2ban/jails/enrichment')
+                            .then(r => { if (r.success && r.result?.jail_domains) jailDomainsRef.current = r.result.jail_domains; })
+                            .catch(() => {});
+                    }
                     // Detect attempt spikes: compare currentlyFailed per jail vs last snapshot
                     const prev = prevFailedRef.current;
                     const isBootstrap = Object.keys(prev).length === 0;
@@ -326,7 +344,8 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
                         const delta = cur - old;
                         // Only notify on subsequent polls (not on first load) and if delta > 0
                         if (!isBootstrap && delta > 0 && cur > 0) {
-                            addAttempt({ jail: j.jail, delta, total: cur });
+                            const domain = jailDomainsRef.current[j.jail];
+                            addAttempt({ jail: j.jail, delta, total: cur, domain });
                         }
                         prev[j.jail] = cur;
                     }
@@ -783,9 +802,9 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
                                         {!collapsed && <span style={{ flex: 1, textAlign: 'left', color: active ? color : '#c9d1d9' }}>{label}</span>}
                                         {!collapsed && badge !== undefined && badge > 0 && (
                                             id === 'tracker'
-                                            ? <span title={`${totalBanned} bannis actifs · ${trackerTotal ?? uniqueIpsTotal} total historique`}
+                                            ? <span title={`${trackerActive ?? totalBanned} bannis actifs (BDD) · ${trackerTotal ?? uniqueIpsTotal} total historique`}
                                                 style={{ display: 'inline-flex', alignItems: 'baseline', fontSize: '.65rem', fontWeight: 700, borderRadius: 999, padding: '.05rem .4rem', background: 'rgba(232,106,101,.15)', border: '1px solid rgba(232,106,101,.25)', whiteSpace: 'nowrap' }}>
-                                                <span style={{ color: '#e86a65' }}>{totalBanned}</span>
+                                                <span style={{ color: '#e86a65' }}>{trackerActive ?? totalBanned}</span>
                                                 <span style={{ color: '#484f58', fontSize: '.6rem', margin: '0 .1rem' }}>/</span>
                                                 <span style={{ color: '#8b949e' }}>{trackerTotal ?? uniqueIpsTotal}</span>
                                               </span>
@@ -971,7 +990,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
                     )}
                     {tab === 'filtres' && <TabFiltres jails={jails} />}
                     {tab === 'actions' && <TabActions jails={jails} />}
-                    {tab === 'tracker' && <TabTracker onIpClick={(ip) => setSelectedIp(ip)} onTotalChange={setTrackerTotal} initialFilter={trackerFilter} />}
+                    {tab === 'tracker' && <TabTracker onIpClick={(ip) => setSelectedIp(ip)} onTotalChange={setTrackerTotal} onActiveChange={setTrackerActive} initialFilter={trackerFilter} />}
                     {tab === 'carte'   && <TabMap onGoToTracker={ip => { setTrackerFilter(ip); setTab('tracker'); }} onIpClick={ip => setSelectedIp(ip)} refreshKey={lastRefreshed} />}
                     {tab === 'ban' && (
                         <TabBanManager jails={jails} actionLoading={actionLoading}

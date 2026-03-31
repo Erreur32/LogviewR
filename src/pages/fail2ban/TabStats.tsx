@@ -501,7 +501,7 @@ interface TopsData {
     prevSummary?: { totalBans: number; uniqueIps: number; topJail: string | null; topJailCount: number; totalFailures: number; expiredInPeriod: number } | null;
 }
 
-const TopCard: React.FC<{ icon: React.ReactNode; title: string; color: string; periodLabel?: string; entries: TopEntry[]; loading: boolean; labelKey: 'ip' | 'jail'; viewMode: 'bar' | 'pie'; limit: number; rowPrefix?: (label: string) => React.ReactNode; emptyMsg?: string; secondaryLabel?: string; onIpClick?: (ip: string) => void; onLabelClick?: (label: string) => void; rowTooltip?: (label: string, entry: TopEntry) => { title: string; bodyNode: React.ReactNode; color: F2bTtColor } | null }> = ({ icon, title, color, periodLabel, entries, loading, labelKey, viewMode, limit, rowPrefix, emptyMsg, secondaryLabel, onIpClick, onLabelClick, rowTooltip }) => {
+const TopCard: React.FC<{ icon: React.ReactNode; title: string; color: string; periodLabel?: string; entries: TopEntry[]; loading: boolean; labelKey: 'ip' | 'jail'; viewMode: 'bar' | 'pie'; limit: number; rowPrefix?: (label: string) => React.ReactNode; emptyMsg?: string; secondaryLabel?: string; onIpClick?: (ip: string) => void; onLabelClick?: (label: string) => void; rowTooltip?: (label: string, entry: TopEntry) => { title: string; bodyNode: React.ReactNode; color: F2bTtColor } | null; titleTooltip?: { bodyNode: React.ReactNode; color?: F2bTtColor; width?: number } }> = ({ icon, title, color, periodLabel, entries, loading, labelKey, viewMode, limit, rowPrefix, emptyMsg, secondaryLabel, onIpClick, onLabelClick, rowTooltip, titleTooltip }) => {
     const displayed = limit === 0 ? entries : entries.slice(0, limit);
     const hasMore   = limit > 0 && entries.length > limit;
     const max   = Math.max(...entries.map(e => e.count), 1);
@@ -533,7 +533,13 @@ const TopCard: React.FC<{ icon: React.ReactNode; title: string; color: string; p
             {/* Header */}
             <div style={{ background: C.bg2, padding: '.5rem .75rem', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: '.4rem', flexShrink: 0 }}>
                 <span style={{ color }}>{icon}</span>
-                <span style={{ fontWeight: 600, fontSize: '.82rem' }}>{title}</span>
+                <span style={{ fontWeight: 600, fontSize: '.82rem' }}>
+                    {titleTooltip ? (
+                        <F2bTooltip title={title} bodyNode={titleTooltip.bodyNode} color={titleTooltip.color ?? 'cyan'} width={titleTooltip.width ?? 320}>
+                            <span style={{ cursor: 'help', borderBottom: '1px dotted currentColor' }}>{title}</span>
+                        </F2bTooltip>
+                    ) : title}
+                </span>
                 {periodLabel && <span style={{ fontSize: '.65rem', color: C.muted, fontWeight: 400 }}>({periodLabel})</span>}
                 {!loading && <span style={{ marginLeft: 'auto', fontSize: '.68rem', background: `rgba(${rgb},.1)`, color, border: `1px solid ${color}40`, borderRadius: 4, padding: '.08rem .4rem' }}>{entries.length}</span>}
             </div>
@@ -999,6 +1005,30 @@ const TopsSection: React.FC<{ days: number; onDaysChange: (d: number) => void; o
         { icon: <RotateCcw style={{ width: 12, height: 12 }} />, title: t('fail2ban.attackCategories.recidivist'), color: C.red, entries: (data?.topRecidivists ?? []).map(e => ({ ...e })) as TopEntry[], labelKey: 'ip' as const },
         { icon: <Lock style={{ width: 12, height: 12 }} />, title: t('fail2ban.stats.topJails'), color: C.orange, entries: (data?.topJails ?? []).map(e => ({ ip: undefined, jail: e.jail, count: e.count })) as TopEntry[], labelKey: 'jail' as const },
     ];
+    const domainTitleTooltip = {
+        color: 'cyan' as F2bTtColor,
+        width: 360,
+        bodyNode: (
+            <div>
+                {TT.section('Méthode de comptage', '#39c5cf')}
+                {TT.row(<span style={{ fontFamily: 'monospace', fontSize: '.82rem', color: '#39c5cf', fontWeight: 700 }}>1</span>, 'Toutes les IPs bannies par fail2ban sont récupérées', '#e6edf3')}
+                {TT.row(<span style={{ fontFamily: 'monospace', fontSize: '.82rem', color: '#39c5cf', fontWeight: 700 }}>2</span>, 'Chaque log d\'accès NPM est scanné', '#e6edf3')}
+                {TT.row(<span style={{ fontFamily: 'monospace', fontSize: '.82rem', color: '#39c5cf', fontWeight: 700 }}>3</span>, 'Comptage des IPs uniques trouvées dans le log', '#e6edf3')}
+                {TT.sep()}
+                {TT.section('Toutes jails confondues', '#3fb950')}
+                {TT.ok('Une IP bannie via sshd, recidive ou n\'importe quelle jail')}
+                {TT.ok('est comptée si elle apparaît dans le log du domaine')}
+                {TT.info('Indique : combien d\'attaquants connus ont ciblé ce domaine')}
+                {TT.sep()}
+                {TT.section('Domaines avec Access List IP', '#e3b341')}
+                {TT.warn('NPM logue les requêtes bloquées (403) dans le même fichier')}
+                {TT.warn('qu\'il logue les requêtes autorisées')}
+                {TT.warn('Un domaine protégé peut donc apparaître ici')}
+                {TT.info('Ce n\'est pas un bug — c\'est une tentative détectée et bloquée')}
+            </div>
+        ),
+    };
+
     const domainBanEntries: TopEntry[] = (data?.topDomains ?? []).map(e => ({ ip: e.domain, count: e.count, secondary: e.failures ?? 0 }));
     const domainFailEntries: TopEntry[] = [...(data?.topDomains ?? [])]
         .sort((a, b) => (b.failures ?? 0) - (a.failures ?? 0))
@@ -1073,6 +1103,7 @@ const TopsSection: React.FC<{ days: number; onDaysChange: (d: number) => void; o
                     emptyMsg="NPM uniquement — configurez le chemin données NPM dans l'onglet Config › Intégrations"
                     onLabelClick={onDomainClick}
                     rowTooltip={domainBanTooltip}
+                    titleTooltip={domainTitleTooltip}
                     rowPrefix={(domain) => (
                         <>
                             <img src="/icons/services/nginx-proxy-manager.svg" width={13} height={13} style={{ borderRadius: 2, objectFit: 'contain' }} alt="NPM" />
@@ -1094,6 +1125,7 @@ const TopsSection: React.FC<{ days: number; onDaysChange: (d: number) => void; o
                     emptyMsg="NPM uniquement — configurez le chemin données NPM dans l'onglet Config › Intégrations"
                     onLabelClick={onDomainClick}
                     rowTooltip={domainFailTooltip}
+                    titleTooltip={domainTitleTooltip}
                     rowPrefix={(domain) => (
                         <>
                             <img src="/icons/services/nginx-proxy-manager.svg" width={13} height={13} style={{ borderRadius: 2, objectFit: 'contain' }} alt="NPM" />

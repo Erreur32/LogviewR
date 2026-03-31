@@ -1084,6 +1084,13 @@ const UpdateCheckSection: React.FC = () => {
             )}
           </div>
 
+          {/* Up to date */}
+          {updateInfo && !updateInfo.updateAvailable && !updateInfo.error && (
+            <div className="px-3 py-2 bg-green-500/5 flex items-center gap-2">
+              <span className="text-green-400 text-xs font-semibold">✓ LogviewR v{updateInfo.currentVersion} — up to date</span>
+            </div>
+          )}
+
           {/* Update available */}
           {updateInfo?.updateAvailable && updateInfo.dockerReady && (
             <div className="px-3 py-2 bg-amber-500/5">
@@ -1091,9 +1098,19 @@ const UpdateCheckSection: React.FC = () => {
                 🚀 Mise à jour disponible — v{updateInfo.latestVersion}
               </p>
               {updateInfo.releaseNotes && (
-                <p className="text-xs text-gray-400 mb-2 leading-relaxed whitespace-pre-wrap line-clamp-3">
-                  {updateInfo.releaseNotes}
-                </p>
+                <div className="mb-2">
+                  <p className="text-xs text-gray-400 leading-relaxed overflow-hidden line-clamp-3">
+                    {updateInfo.releaseNotes}
+                  </p>
+                  <a
+                    href={`https://github.com/erreur32/LogviewR/blob/main/CHANGELOG.md#${updateInfo.latestVersion?.replace(/\./g, '')}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-amber-400/70 hover:text-amber-400 transition-colors mt-0.5 inline-block"
+                  >
+                    Voir le changelog complet →
+                  </a>
+                </div>
               )}
               <code className="block text-xs text-cyan-300 bg-black/50 px-2 py-1.5 rounded border border-gray-800 font-mono">
                 docker compose pull && docker compose up -d
@@ -1102,8 +1119,7 @@ const UpdateCheckSection: React.FC = () => {
           )}
 
           {/* New tag but build not ready */}
-          {updateInfo?.latestVersion &&
-            updateInfo.latestVersion !== updateInfo.currentVersion &&
+          {updateInfo?.updateAvailable &&
             !updateInfo.dockerReady &&
             !updateInfo.error && (
             <div className="px-3 py-2 bg-orange-500/5">
@@ -4156,17 +4172,9 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         {mode === 'administration' && (
           <>
             <div style={{ display: activeAdminTab === 'general' ? '' : 'none' }}>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {/* Colonne 1 */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Column 1 */}
                 <div className="space-y-6">
-                  <Section title={t('admin.general.myProfile')} icon={Users} iconColor="blue">
-                    <UserProfileSection />
-                  </Section>
-                </div>
-
-                {/* Colonne 2 */}
-                <div className="space-y-6">
-
                   <Section title={t('admin.general.defaultPage')} icon={FileText} iconColor="cyan">
                     <DefaultPageSection />
                   </Section>
@@ -4174,82 +4182,12 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                   <Section title={t('admin.general.networkConfig')} icon={Network} iconColor="blue">
                     <GeneralNetworkSection />
                   </Section>
-
-
-
-
                 </div>
 
-                {/* Colonne 3 */}
+                {/* Column 2 */}
                 <div className="space-y-6">
                   <Section title="Mises à jour" icon={Download} iconColor="amber">
                     <UpdateCheckSection />
-                  </Section>
-
-                  <Section title={t('admin.general.localization')} icon={Globe} iconColor="cyan">
-                    <SettingRow
-                      label={t('admin.general.timezone')}
-                      description={t('admin.general.timezoneDescription')}
-                    >
-                      <div className="flex flex-col gap-1.5 items-end">
-                        <select
-                          value={timezone === '__custom__' ? '__custom__' : (PRESET_TIMEZONES.includes(timezone) ? timezone : '__custom__')}
-                          onChange={e => {
-                            if (e.target.value === '__custom__') {
-                              setTimezone('__custom__');
-                            } else {
-                              setTimezone(e.target.value);
-                              setCustomTz('');
-                            }
-                          }}
-                          className="px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm"
-                        >
-                          {PRESET_TIMEZONES.map(tz => (
-                            <option key={tz} value={tz}>{tz}</option>
-                          ))}
-                          <option value="__custom__">Autre…</option>
-                        </select>
-                        {(timezone === '__custom__' || !PRESET_TIMEZONES.includes(timezone)) && (
-                          <input
-                            type="text"
-                            value={customTz}
-                            onChange={e => { setCustomTz(e.target.value); setTimezone(e.target.value || '__custom__'); }}
-                            placeholder="ex: America/Toronto"
-                            className="px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-600 focus:outline-none focus:border-cyan-500/50 w-48 font-mono"
-                          />
-                        )}
-                      </div>
-                    </SettingRow>
-                    <SettingRow
-                      label={t('admin.general.languageLabel')}
-                      description={t('admin.general.languageDescription')}
-                    >
-                      <div className="flex gap-2">
-                        {([
-                          { value: 'fr', label: 'Français',  flag: '/icons/country/fr.svg' },
-                          { value: 'en', label: 'English',   flag: '/icons/country/gb.svg' },
-                        ] as const).map(({ value, label, flag }) => {
-                          const isActive = getAppLanguage() === value;
-                          return (
-                            <button
-                              key={value}
-                              type="button"
-                              onClick={() => setAppLanguage(value)}
-                              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium border transition-all"
-                              style={{
-                                borderColor: isActive ? '#22d3ee' : '#374151',
-                                background:  isActive ? 'rgba(34,211,238,0.12)' : 'rgba(255,255,255,0.03)',
-                                color:       isActive ? '#22d3ee' : '#9ca3af',
-                                boxShadow:   isActive ? '0 0 0 1px rgba(34,211,238,0.3)' : undefined,
-                              }}
-                            >
-                              <img src={flag} alt={value} style={{ width: 18, height: 13, objectFit: 'cover', borderRadius: 2 }} />
-                              {label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </SettingRow>
                   </Section>
                 </div>
               </div>

@@ -25,6 +25,7 @@ export interface AppNotification {
   // attempt-specific
   delta?: number;   // how many new failures since last poll
   total?: number;   // currentlyFailed total in this jail
+  domain?: string;  // NPM domain associated with the jail (if known)
   // action-specific
   message?: string;
   ok?: boolean;
@@ -43,7 +44,7 @@ interface NotificationState {
   prefs: NotifPrefs;
   setPrefs: (p: Partial<NotifPrefs>) => void;
   addBan: (data: Pick<AppNotification, 'ip' | 'jail' | 'failures' | 'timeofban'>) => number;
-  addAttempt: (data: Pick<AppNotification, 'jail' | 'delta' | 'total'>) => number;
+  addAttempt: (data: Pick<AppNotification, 'jail' | 'delta' | 'total' | 'domain'>) => number;
   addAction: (message: string, ok: boolean) => number;
   dismiss: (id: number) => void;
   dismissAll: () => void;

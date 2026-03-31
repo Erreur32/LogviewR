@@ -565,7 +565,7 @@ export const ThemeSection: React.FC = () => {
                     {/* Animation themes category (elegant + full-animation) - first for visibility */}
                     <div className="mb-8">
                         <h4 className="text-sm font-semibold text-theme-primary mb-4 px-6">{t('theme.categoryAnimation')}</h4>
-                        <div className="grid grid-cols-4 gap-8 px-6">
+                        <div className="grid grid-cols-4 gap-3 px-4">
                             {availableThemes.filter(theme => ['elegant', 'full-animation'].includes(theme.id)).map((theme) => {
                                 const themeColors = DEFAULT_COLORS[theme.id];
                                 const isActive = currentTheme === theme.id;
@@ -616,32 +616,32 @@ export const ThemeSection: React.FC = () => {
 
                                         {/* Active indicator */}
                                         {isActive && (
-                                            <div className="absolute top-3 right-3 w-5 h-5 rounded-full bg-yellow-500 shadow-lg shadow-yellow-500/50 flex items-center justify-center">
+                                            <div className="absolute top-2 right-2 w-4 h-4 rounded-full bg-yellow-500 shadow-lg shadow-yellow-500/50 flex items-center justify-center">
                                                 <div className="w-2 h-2 rounded-full bg-white" />
                                             </div>
                                         )}
 
-                                        <div className="relative z-10 p-5">
+                                        <div className="relative z-10 p-3">
                                             {/* Color palette preview */}
-                                            <div className="flex items-center gap-2 mb-4">
+                                            <div className="flex items-center gap-1.5 mb-2">
                                                 <div className="flex gap-1.5">
                                                     <div
-                                                        className="w-4 h-4 rounded-full border-2 border-white/30 shadow-sm elegant-icon-pulse"
+                                                        className="w-3 h-3 rounded-full border border-white/30 shadow-sm elegant-icon-pulse"
                                                         style={{ backgroundColor: themeColors.accentPrimary }}
                                                         title={t('theme.colorPrimary')}
                                                     />
                                                     <div
-                                                        className="w-4 h-4 rounded-full border-2 border-white/30 shadow-sm"
+                                                        className="w-3 h-3 rounded-full border border-white/30 shadow-sm"
                                                         style={{ backgroundColor: themeColors.textPrimary }}
                                                         title={t('theme.colorText')}
                                                     />
                                                     <div
-                                                        className="w-4 h-4 rounded-full border-2 border-white/30 shadow-sm elegant-icon-pulse"
+                                                        className="w-3 h-3 rounded-full border border-white/30 shadow-sm elegant-icon-pulse"
                                                         style={{ backgroundColor: themeColors.accentSuccess }}
                                                         title={t('theme.badgeSuccess')}
                                                     />
                                                     <div
-                                                        className="w-4 h-4 rounded-full border-2 border-white/30 shadow-sm"
+                                                        className="w-3 h-3 rounded-full border border-white/30 shadow-sm"
                                                         style={{ backgroundColor: themeColors.buttonBg }}
                                                         title={t('theme.colorButton')}
                                                     />
@@ -649,7 +649,7 @@ export const ThemeSection: React.FC = () => {
                                             </div>
 
                                             <div
-                                                className="text-lg font-semibold mb-1"
+                                                className="text-sm font-semibold mb-0.5"
                                                 style={{ color: themeColors.textPrimary }}
                                             >
                                                 {t(`theme.themes.${theme.id}.name`)}
@@ -670,7 +670,7 @@ export const ThemeSection: React.FC = () => {
                     {/* Black themes category */}
                     <div className="mb-8">
                         <h4 className="text-sm font-semibold text-theme-primary mb-4 px-6">{t('theme.categoryBlack')}</h4>
-                        <div className="grid grid-cols-4 gap-8 px-6">
+                        <div className="grid grid-cols-4 gap-3 px-4">
                             {availableThemes.filter(theme => ['dark', 'glass', 'nightly'].includes(theme.id)).map((theme) => {
                             const themeColors = DEFAULT_COLORS[theme.id];
                             const isActive = currentTheme === theme.id;
@@ -818,32 +818,32 @@ export const ThemeSection: React.FC = () => {
                                     
                                     {/* Active indicator */}
                                     {isActive && (
-                                        <div className="absolute top-3 right-3 w-5 h-5 rounded-full bg-yellow-500 shadow-lg shadow-yellow-500/50 flex items-center justify-center">
+                                        <div className="absolute top-2 right-2 w-4 h-4 rounded-full bg-yellow-500 shadow-lg shadow-yellow-500/50 flex items-center justify-center">
                                             <div className="w-2 h-2 rounded-full bg-white" />
                                         </div>
                                     )}
                                     
-                                    <div className="relative z-10 p-5">
+                                    <div className="relative z-10 p-3">
                                         {/* Color palette preview - Only essential colors */}
-                                        <div className="flex items-center gap-2 mb-4">
+                                        <div className="flex items-center gap-1.5 mb-2">
                                             <div className="flex gap-1.5">
                                                 <div 
-                                                    className="w-4 h-4 rounded-full border-2 border-white/30 shadow-sm"
+                                                    className="w-3 h-3 rounded-full border border-white/30 shadow-sm"
                                                     style={{ backgroundColor: themeColors.accentPrimary }}
                                                     title={t('theme.colorPrimary')}
                                                 />
                                                 <div 
-                                                    className="w-4 h-4 rounded-full border-2 border-white/30 shadow-sm"
+                                                    className="w-3 h-3 rounded-full border border-white/30 shadow-sm"
                                                     style={{ backgroundColor: themeColors.textPrimary }}
                                                     title={t('theme.colorText')}
                                                 />
                                                 <div 
-                                                    className="w-4 h-4 rounded-full border-2 border-white/30 shadow-sm"
+                                                    className="w-3 h-3 rounded-full border border-white/30 shadow-sm"
                                                     style={{ backgroundColor: themeColors.accentSuccess }}
                                                     title={t('theme.badgeSuccess')}
                                                 />
                                                 <div 
-                                                    className="w-4 h-4 rounded-full border-2 border-white/30 shadow-sm"
+                                                    className="w-3 h-3 rounded-full border border-white/30 shadow-sm"
                                                     style={{ backgroundColor: themeColors.buttonBg }}
                                                     title={t('theme.colorButton')}
                                                 />
@@ -851,7 +851,7 @@ export const ThemeSection: React.FC = () => {
                                         </div>
                                         
                                         <div 
-                                            className="text-lg font-semibold mb-1"
+                                            className="text-sm font-semibold mb-0.5"
                                             style={{ color: themeColors.textPrimary }}
                                         >
                                             {t(`theme.themes.${theme.id}.name`)}
@@ -872,7 +872,7 @@ export const ThemeSection: React.FC = () => {
                     {/* Color themes category */}
                     <div className="mb-8">
                         <h4 className="text-sm font-semibold text-theme-primary mb-4 px-6">{t('theme.categoryColor')}</h4>
-                        <div className="grid grid-cols-4 gap-8 px-6">
+                        <div className="grid grid-cols-4 gap-3 px-4">
                             {availableThemes.filter(theme => ['modern', 'neon'].includes(theme.id)).map((theme) => {
                                 const themeColors = DEFAULT_COLORS[theme.id];
                                 const isActive = currentTheme === theme.id;
@@ -955,32 +955,32 @@ export const ThemeSection: React.FC = () => {
                                         
                                         {/* Active indicator */}
                                         {isActive && (
-                                            <div className="absolute top-3 right-3 w-5 h-5 rounded-full bg-yellow-500 shadow-lg shadow-yellow-500/50 flex items-center justify-center">
+                                            <div className="absolute top-2 right-2 w-4 h-4 rounded-full bg-yellow-500 shadow-lg shadow-yellow-500/50 flex items-center justify-center">
                                                 <div className="w-2 h-2 rounded-full bg-white" />
                                             </div>
                                         )}
                                         
-                                        <div className="relative z-10 p-5">
+                                        <div className="relative z-10 p-3">
                                             {/* Color palette preview - Only essential colors */}
-                                            <div className="flex items-center gap-2 mb-4">
+                                            <div className="flex items-center gap-1.5 mb-2">
                                                 <div className="flex gap-1.5">
                                                     <div 
-                                                        className="w-4 h-4 rounded-full border-2 border-white/30 shadow-sm"
+                                                        className="w-3 h-3 rounded-full border border-white/30 shadow-sm"
                                                         style={{ backgroundColor: themeColors.accentPrimary }}
                                                         title={t('theme.colorPrimary')}
                                                     />
                                                     <div 
-                                                        className="w-4 h-4 rounded-full border-2 border-white/30 shadow-sm"
+                                                        className="w-3 h-3 rounded-full border border-white/30 shadow-sm"
                                                         style={{ backgroundColor: themeColors.textPrimary }}
                                                         title={t('theme.colorText')}
                                                     />
                                                     <div 
-                                                        className="w-4 h-4 rounded-full border-2 border-white/30 shadow-sm"
+                                                        className="w-3 h-3 rounded-full border border-white/30 shadow-sm"
                                                         style={{ backgroundColor: themeColors.accentSuccess }}
                                                         title={t('theme.badgeSuccess')}
                                                     />
                                                     <div 
-                                                        className="w-4 h-4 rounded-full border-2 border-white/30 shadow-sm"
+                                                        className="w-3 h-3 rounded-full border border-white/30 shadow-sm"
                                                         style={{ backgroundColor: themeColors.buttonBg }}
                                                         title={t('theme.colorButton')}
                                                     />
@@ -988,7 +988,7 @@ export const ThemeSection: React.FC = () => {
                                             </div>
                                             
                                             <div 
-                                                className="text-lg font-semibold mb-1"
+                                                className="text-sm font-semibold mb-0.5"
                                                 style={{ color: themeColors.textPrimary }}
                                             >
                                                 {t(`theme.themes.${theme.id}.name`)}

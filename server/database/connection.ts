@@ -305,6 +305,15 @@ export function initializeDatabase(): void {
         CREATE INDEX       IF NOT EXISTS idx_f2b_events_ip_time     ON f2b_events(ip, timeofban);
         CREATE INDEX       IF NOT EXISTS idx_f2b_events_type_time   ON f2b_events(event_type, timeofban)
     `);
+    // Migration: add unban_at column (NULL = still banned, timestamp = when unbanned)
+    try { database.exec(`ALTER TABLE f2b_events ADD COLUMN unban_at INTEGER`); } catch { /* already exists */ }
+    database.exec(`CREATE INDEX IF NOT EXISTS idx_f2b_events_unban ON f2b_events(unban_at)`);
+    // Backfill: mark bans that clearly expired (bantime > 0, expired > 60s ago)
+    database.exec(
+        `UPDATE f2b_events SET unban_at = timeofban + bantime ` +
+        `WHERE unban_at IS NULL AND event_type='ban' AND bantime > 0 ` +
+        `AND (timeofban + bantime) < (strftime('%s','now') - 60)`
+    );
     database.exec(`
         CREATE TABLE IF NOT EXISTS f2b_sync_state (
             id           INTEGER PRIMARY KEY CHECK(id = 1),

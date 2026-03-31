@@ -126,21 +126,6 @@ const ChartTooltip: React.FC<{ data: TooltipData; cw: number; ch: number; isHour
 };
 
 // ── Y-axis helpers ─────────────────────────────────────────────────────────────
-/**
- * Round up to the nearest "nice" ceiling so Y-axis labels are clean integers.
- * Applied to effectiveMax so both bars and grid lines share the same scale.
- */
-function niceMax(raw: number): number {
-    if (raw <= 0) return 1;
-    if (raw <= 5)  return raw;   // keep exact for tiny counts
-    if (raw <= 10) return 10;
-    const mag = Math.pow(10, Math.floor(Math.log10(raw)));
-    for (const f of [1, 2, 5, 10]) {
-        if (f * mag >= raw) return f * mag;
-    }
-    return 10 * mag;
-}
-
 function yTicks(max: number): { val: number; frac: number }[] {
     // For very small counts, use 1-unit steps to avoid duplicates (e.g. max=3 → 0,1,2,3)
     if (max <= 5) {
@@ -334,11 +319,16 @@ const BarChart: React.FC<{
     const innerH = H - padT - padB;
     const max = Math.max(histMax, 1);
     const nDates = Math.max(dates.length, 1);
-    const barGap = 1;
-    const barW = Math.max(2, (innerW - (nDates - 1) * barGap) / nDates - barGap);
     const visibleJails = jailNames.filter(j => !hidden.has(j));
+    const nJails = Math.max(visibleJails.length, 1);
     const ticks = yTicks(max);
     const xIdxs = xLabelIndices(dates.length, labelCountForDays(days, isHourly));
+
+    // Grouped bars: each date gets a slot, jails side by side within it
+    const groupGap = Math.max(1, Math.min(4, innerW / nDates * 0.12));
+    const subGap = 0.5;
+    const groupW = (innerW - (nDates - 1) * groupGap) / nDates;
+    const subBarW = Math.max(1, (groupW - (nJails - 1) * subGap) / nJails);
 
     const handleEnter = useCallback((e: React.MouseEvent, jail: string, date: string, value: number, color: string) => {
         if (!wrapRef.current) return;
@@ -370,29 +360,28 @@ const BarChart: React.FC<{
                     );
                 })}
 
-                {/* Stacked bars per jail */}
+                {/* Grouped bars per date — jails side by side, sorted largest first */}
                 {dates.map((dt, i) => {
-                    const x = padL + i * (barW + barGap);
-                    let yBase = padT + innerH;
+                    const groupX = padL + i * (groupW + groupGap);
 
-                    // Compute total for this date (for the column overlay tooltip)
-                    const colTotal = visibleJails.reduce((s, jail) => s + ((byJail[jail]?.[dt]) ?? 0), 0);
-                    const colMidX = x + barW / 2;
-                    const colTopY = colTotal > 0 ? padT + innerH - (colTotal / max) * innerH : padT;
+                    // Sort visible jails by value descending for this date
+                    const sortedJails = [...visibleJails].sort(
+                        (a, b) => (byJail[b]?.[dt] ?? 0) - (byJail[a]?.[dt] ?? 0)
+                    );
 
                     return (
                         <g key={dt}>
-                            {visibleJails.map(jail => {
-                                const v = (byJail[jail]?.[dt]) ?? 0;
+                            {sortedJails.map((jail, j) => {
+                                const v = byJail[jail]?.[dt] ?? 0;
                                 if (v === 0) return null;
                                 const bh = (v / max) * innerH;
-                                yBase -= bh;
+                                const x = groupX + j * (subBarW + subGap);
+                                const y = padT + innerH - bh;
                                 const color = jailColor(jail, jailNames);
-                                const barMidY = yBase + bh / 2;
                                 return (
                                     <rect
                                         key={jail}
-                                        x={x} y={Math.max(yBase, padT)} width={barW} height={Math.max(bh, 1)}
+                                        x={x} y={Math.max(y, padT)} width={subBarW} height={Math.max(bh, 1)}
                                         fill={color} opacity={0.85} rx={1}
                                         style={{ cursor: 'crosshair' }}
                                         onMouseEnter={e => handleEnter(e, jail, dt, v, color)}
@@ -405,19 +394,9 @@ const BarChart: React.FC<{
                                 const v = history[i]?.count ?? 0;
                                 const bh = (v / max) * innerH;
                                 return v > 0 ? (
-                                    <rect x={x} y={padT + innerH - bh} width={barW} height={Math.max(bh, 1)} fill="url(#f2bBarG)" rx={1} />
+                                    <rect x={groupX} y={padT + innerH - bh} width={groupW} height={Math.max(bh, 1)} fill="url(#f2bBarG)" rx={1} />
                                 ) : null;
                             })()}
-                            {/* Transparent full-column overlay — shows total on hover */}
-                            {visibleJails.length > 0 && colTotal > 0 && (
-                                <rect
-                                    x={x} y={padT} width={barW} height={innerH}
-                                    fill="transparent"
-                                    style={{ cursor: 'crosshair' }}
-                                    onMouseEnter={e => handleEnter(e, 'Total', dt, colTotal, '#8b949e')}
-                                    onMouseMove={e => handleEnter(e, 'Total', dt, colTotal, '#8b949e')}
-                                />
-                            )}
                         </g>
                     );
                 })}
@@ -428,7 +407,7 @@ const BarChart: React.FC<{
                         if (!d.endsWith(':00')) return null;
                         const hour = parseInt(d.slice(0, 2), 10);
                         if (hour % 2 !== 0) return null;
-                        const x = padL + i * (barW + barGap) + barW / 2;
+                        const x = padL + i * (groupW + groupGap) + groupW / 2;
                         return (
                             <text key={i} x={x} y={H - 3} fontSize={8} fontFamily="'ui-monospace','SFMono-Regular','Menlo',monospace" fill="rgba(139,148,158,.7)" textAnchor="middle">
                                 {`${hour}h`}
@@ -436,7 +415,7 @@ const BarChart: React.FC<{
                         );
                     })
                     : xIdxs.map(i => {
-                        const x = padL + i * (barW + barGap) + barW / 2;
+                        const x = padL + i * (groupW + groupGap) + groupW / 2;
                         return (
                             <text key={i} x={x} y={H - 3} fontSize={8} fontFamily="'ui-monospace','SFMono-Regular','Menlo',monospace" fill="rgba(139,148,158,.7)" textAnchor="middle">
                                 {dates[i]?.slice(5) ?? ''}
@@ -537,26 +516,21 @@ export const BanHistoryChart: React.FC<BanHistoryChartProps> = ({
     const histSlice = isHourly ? rollingSlots : history.slice(-60);
 
     // Recompute max from visible jails only so Y-axis adapts when a jail is hidden.
-    // sliceMax is the max h.count in the visible slice — used as floor so bars are
-    // never tiny due to incomplete byJail data, and as fallback when jailNames is empty.
+    // sliceMax is the max h.count in the visible slice — floor so bars are never
+    // Exact max of visible data — no rounding, no floor inflation.
     const effectiveMax = useMemo(() => {
-        const sliceMax = histSlice.length ? Math.max(...histSlice.map(h => h.count), 1) : 1;
         const visibleJails = jailNames.filter(j => !hidden.has(j));
-        if (visibleJails.length === 0) return niceMax(sliceMax);
-        // For stacked bars: max of per-day sum; for lines: max of any single value
+        if (visibleJails.length === 0) {
+            return Math.max(...histSlice.map(h => h.count), 1);
+        }
         const dates = histSlice.map(h => h.date);
         let max = 0;
         for (const dt of dates) {
-            let daySum = 0;
             for (const jail of visibleJails) {
-                const v = byJail[jail]?.[dt] ?? 0;
-                max = Math.max(max, v);
-                daySum += v;
+                max = Math.max(max, byJail[jail]?.[dt] ?? 0);
             }
-            max = Math.max(max, daySum);
         }
-        // Use sliceMax as floor in case byJail sums are lower than h.count totals
-        return niceMax(Math.max(max, sliceMax, 1));
+        return Math.max(max, 1);
     }, [jailNames, hidden, byJail, histSlice]);
 
     const toggleJail = (jail: string) => {

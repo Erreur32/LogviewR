@@ -56,7 +56,7 @@ const SortTh: React.FC<{
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
-export const TabTracker: React.FC<{ onIpClick?: (ip: string) => void; onTotalChange?: (n: number) => void; initialFilter?: string }> = ({ onIpClick, onTotalChange, initialFilter }) => {
+export const TabTracker: React.FC<{ onIpClick?: (ip: string) => void; onTotalChange?: (n: number) => void; onActiveChange?: (n: number) => void; initialFilter?: string }> = ({ onIpClick, onTotalChange, onActiveChange, initialFilter }) => {
     const { t } = useTranslation();
     const [ips, setIps]         = useState<TrackerEntry[]>([]);
     const [total, setTotal]     = useState(0);
@@ -199,7 +199,11 @@ export const TabTracker: React.FC<{ onIpClick?: (ip: string) => void; onTotalCha
         });
     }, []);
 
-    const activeCount  = useMemo(() => ips.filter(e => e.currentlyBanned).length, [ips]);
+    const activeCount  = useMemo(() => {
+        const n = ips.filter(e => e.currentlyBanned).length;
+        onActiveChange?.(n);
+        return n;
+    }, [ips, onActiveChange]);
     const historyCount = total;
 
     const filtered = useMemo(() => {
