@@ -156,6 +156,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
     const [dbFragPct, setDbFragPct] = useState<number | null>(null);
     const [bansToday, setBansToday] = useState<{ count: number; uniqIps: number } | null>(null);
     const [npmDataPath, setNpmDataPath] = useState<string>('');
+    const [npmMysqlConfigured, setNpmMysqlConfigured] = useState(false);
     const [blocklistsStatus, setBlocklistsStatus] = useState<{ id: string; name: string; enabled: boolean; lastUpdate: string | null; count: number }[]>([]);
     const { addBan, addAttempt } = useNotificationStore();
     const lastRowidRef = useRef<number>(-1); // -1 = not bootstrapped yet
@@ -206,10 +207,12 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
 
     // Load path settings from plugin config on mount
     useEffect(() => {
-        api.get<{ settings?: { npmDataPath?: string } }>('/api/plugins/fail2ban')
+        api.get<{ settings?: { npmDataPath?: string; npmDbType?: string; npmMysqlHost?: string; npmMysqlUser?: string; npmMysqlDb?: string } }>('/api/plugins/fail2ban')
             .then(res => {
                 if (res.success) {
-                    setNpmDataPath(res.result?.settings?.npmDataPath ?? '');
+                    const s = res.result?.settings ?? {};
+                    setNpmDataPath(s.npmDataPath ?? '');
+                    setNpmMysqlConfigured(s.npmDbType === 'mysql' && !!s.npmMysqlHost && !!s.npmMysqlUser && !!s.npmMysqlDb);
                 }
             })
             .catch(() => {});
@@ -570,7 +573,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
     );
 
     // ── Nav tooltips — F2bTooltip style par tab ──────────────────────────────
-    const npmMissing = npmDataPath === '';
+    const npmMissing = npmDataPath === '' && !npmMysqlConfigured;
     const configBadge = (dbFragPct ?? 0) + (npmMissing ? 1 : 0);
     const C = { muted: '#8b949e', blue: '#58a6ff', red: '#e86a65', orange: '#e3b341', green: '#3fb950', cyan: '#39c5cf', purple: '#bc8cff' };
     const ttVal = (v: number | string, color: string) => <span style={{ fontWeight: 700, color }}>{v}</span>;
@@ -986,7 +989,17 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
                     {tab === 'ipset'    && <TabIPSet onIpClick={ip => setSelectedIp(ip)} />}
                     {tab === 'nftables'   && <TabNFTables />}
                     {tab === 'blocklists' && <TabBlocklists />}
-                    {tab === 'config'   && <TabConfig onWarningsChange={setDbFragPct} npmDataPath={npmDataPath} onNpmDataPathChange={setNpmDataPath} />}
+                    {tab === 'config'   && <TabConfig onWarningsChange={setDbFragPct} npmDataPath={npmDataPath} onNpmDataPathChange={v => {
+                        setNpmDataPath(v);
+                        api.get<{ settings?: { npmDataPath?: string; npmDbType?: string; npmMysqlHost?: string; npmMysqlUser?: string; npmMysqlDb?: string } }>('/api/plugins/fail2ban')
+                            .then(res => {
+                                if (res.success) {
+                                    const s = res.result?.settings ?? {};
+                                    setNpmDataPath(s.npmDataPath ?? '');
+                                    setNpmMysqlConfigured(s.npmDbType === 'mysql' && !!s.npmMysqlHost && !!s.npmMysqlUser && !!s.npmMysqlDb);
+                                }
+                            }).catch(() => {});
+                    }} />}
                     {tab === 'audit'    && <TabAudit />}
                     {tab === 'backup'   && <TabBackup />}
                     {tab === 'aide'     && <TabAide />}

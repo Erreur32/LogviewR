@@ -771,7 +771,7 @@ export const TabConfig: React.FC<{
         api.get<{ settings?: Record<string, unknown> }>('/api/plugins/fail2ban')
             .then(res => {
                 const s = res.result?.settings ?? {};
-                if (s.npmDbType === 'mysql' && s.npmMysqlHost && s.npmMysqlUser && s.npmMysqlDb && s.npmDataPath) {
+                if (s.npmDbType === 'mysql' && s.npmMysqlHost && s.npmMysqlUser && s.npmMysqlDb) {
                     setNpmMysqlOk(true);
                 }
             })

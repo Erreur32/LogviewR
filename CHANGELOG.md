@@ -9,6 +9,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.8.11] - 2026-03-31
+
+### Pour les utilisateurs
+
+> Correction du panneau NPM en mode MySQL : le cadre n'affiche plus l'avertissement "non configuré" quand MySQL est bien configuré.
+
+- **Intégration NPM MySQL** — Le cadre Intégrations passe au vert dès que les champs MySQL (hôte, utilisateur, base) sont renseignés, même sans chemin de logs.
+
+---
+
+### Technique
+
+#### Frontend — `src/pages/fail2ban/TabConfig.tsx`
+
+- `npmMysqlOk` : suppression de `&& s.npmDataPath` dans la condition de détection — MySQL est considéré configuré dès que host + user + db sont présents
+
+#### Frontend — `src/pages/Fail2banPage.tsx`
+
+- `npmMysqlConfigured` : nouveau state, fetch `npmDbType`/`npmMysqlHost`/`npmMysqlUser`/`npmMysqlDb` au montage
+- `npmMissing` : `npmDataPath === '' && !npmMysqlConfigured` (était juste `npmDataPath === ''`)
+- `onNpmDataPathChange` : re-fetch les settings complets après sauvegarde pour mettre à jour `npmMysqlConfigured`
+
+---
+
 ## [0.8.10] - 2026-03-31
 
 ### Pour les utilisateurs
