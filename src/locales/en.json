@@ -1196,6 +1196,7 @@
       "iptables": "IPTables",
       "ipset": "IPSet",
       "nftables": "NFTables",
+      "blocklists": "Blocklists",
       "config": "Config",
       "backup": "Backup",
       "audit": "Audit",
