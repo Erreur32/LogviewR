@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Protection fields alignment** — The three editable fields in the Attack Protection tab are now aligned to the same right column.
 - **Log files table** — The "Largest log files" table is now identical in the Dashboard and the Statistics page: colored type badges, full path (no truncation), and filter toggles (show all / hide .gz / hide .log.1).
 
+
 ---
 
 ### Technical
