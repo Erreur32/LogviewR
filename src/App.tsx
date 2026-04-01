@@ -258,10 +258,17 @@ const App: React.FC = () => {
     
     window.addEventListener('themechange', handleThemeChange);
     window.addEventListener('themeupdate', handleThemeChange);
-    
+
+    // Show re-login modal when session expires mid-session
+    const handleSessionExpired = () => {
+      userLogout();
+    };
+    window.addEventListener('auth:session-expired', handleSessionExpired);
+
     return () => {
       window.removeEventListener('themechange', handleThemeChange);
       window.removeEventListener('themeupdate', handleThemeChange);
+      window.removeEventListener('auth:session-expired', handleSessionExpired);
     };
     
     // Fetch environment info on mount

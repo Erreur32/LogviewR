@@ -64,7 +64,9 @@ class ApiClient {
       // Check for authentication errors
       if (data && !data.success && data.error_code === 'auth_required') {
         console.warn(`[API] Auth required for ${method} ${endpoint}: session expired`);
-
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('auth:session-expired'));
+        }
         return {
           success: false,
           error: {
@@ -114,6 +116,10 @@ class ApiClient {
           // Special handling for 401 (Unauthorized) - authentication errors
           if (response.status === 401) {
             const errorMessage = data?.error?.message || data?.msg || 'Invalid credentials';
+            // Dispatch session-expired only for protected routes, not the login endpoint itself
+            if (typeof window !== 'undefined' && !endpoint.includes('/api/users/login')) {
+              window.dispatchEvent(new CustomEvent('auth:session-expired'));
+            }
             return {
               success: false,
               error: {

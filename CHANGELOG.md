@@ -9,6 +9,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.8.16] - 2026-04-01
+
+### For users
+
+> Session expiry now shows a re-login prompt, and attempt notifications display the jail name.
+
+- **Automatic re-login on session expiry** — If your session expires while the page is open, a login modal appears automatically so you can re-authenticate without refreshing the page.
+- **Jail name in attempt notifications** — The header notification for login attempts now always shows the jail name (e.g. `sshd`, `nginx-http-auth`). The associated domain is shown alongside when available.
+- **Profile page navigation** — The LogviewR logo on the Profile page links back to the dashboard, and the User Menu highlights the active page (Profile vs Administration) correctly.
+
+---
+
+### Technical
+
+#### Frontend — `src/api/client.ts`
+
+- Dispatches `auth:session-expired` custom event on HTTP 401 or `error_code: auth_required` responses — skipped for `/api/users/login` to avoid false triggers on wrong password
+
+#### Frontend — `src/App.tsx`
+
+- Listens for `auth:session-expired` event in the auth `useEffect` → calls `userLogout()` → sets `isAuthenticated: false` → `UserLoginModal` renders automatically
+
+#### Frontend — `src/components/layout/Header.tsx`
+
+- `NotifCard` attempt branch: added `{n.jail}` badge (always visible, yellow monospace) before the domain; domain demoted to secondary grey text
+
+#### Frontend — `src/components/layout/Header.tsx`, `src/pages/ProfilePage.tsx`
+
+- ProfilePage header: LogviewR logo replaces back button (same style as dashboard)
+- `UserMenu`: `activePage` prop highlights "Mon Profil" vs "Administration" depending on current page
+
+---
+
 ## [0.8.15] - 2026-03-31
 
 ### For users

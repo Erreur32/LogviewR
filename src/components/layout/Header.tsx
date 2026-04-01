@@ -95,8 +95,11 @@ const NotifCard: React.FC<{ n: AppNotification; onDismiss: () => void }> = ({ n,
           <span style={{ fontSize: '.75rem', color: '#e3b341', fontWeight: 600, flexShrink: 0 }}>
             +{n.delta} tentative{(n.delta ?? 0) > 1 ? 's' : ''}
           </span>
+          {n.jail && (
+            <span style={{ fontSize: '.65rem', padding: '.05rem .3rem', borderRadius: 3, background: 'rgba(227,179,65,.12)', color: '#e3b341', border: '1px solid rgba(227,179,65,.25)', fontFamily: 'monospace', flexShrink: 0, whiteSpace: 'nowrap' }}>{n.jail}</span>
+          )}
           {n.domain && (
-            <span style={{ fontSize: '.65rem', padding: '.05rem .3rem', borderRadius: 3, background: 'rgba(227,179,65,.12)', color: '#e3b341', border: '1px solid rgba(227,179,65,.25)', fontFamily: 'monospace', flexShrink: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 160 }}>{n.domain}</span>
+            <span style={{ fontSize: '.62rem', color: '#8b949e', flexShrink: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 140 }}>{n.domain}</span>
           )}
         </div>
         <button onClick={onDismiss} title={t('common.hide')}
