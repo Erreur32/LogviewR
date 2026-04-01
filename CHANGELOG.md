@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.8.18] - 2026-04-01
+
+### Fixed
+
+- Version numbers (header logo, tab info, server fallback) were frozen at 0.8.14 — now correctly updated to 0.8.18.
+
+---
+
 ## [0.8.17] - 2026-04-01
 
 ### For users

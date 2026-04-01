@@ -212,6 +212,18 @@ fi
 # ── Summary ──────────────────────────────────────────────────────────────────
 echo ""
 echo -e "${G}${B}Done.${R} LogviewR version is now ${B}$NEW${R}."
+echo ""
+echo -e "  ${B}── Files to commit (do NOT forget these!) ──${R}"
+echo -e "  ${C}  package.json${R}"
+echo -e "  ${C}  package-lock.json${R}  (if updated)"
+echo -e "  ${C}  src/constants/version.ts${R}"
+echo -e "  ${C}  server/index.ts${R}"
+echo -e "  ${C}  server/routes/system.ts${R}"
+echo -e "  ${C}  README.md${R}"
+echo -e "  ${C}  CHANGELOG.md${R}"
+echo ""
+echo -e "  ${Y}⚠${R}  Use ${B}git add -A${R} to stage ALL updated files — or the version numbers"
+echo -e "     will appear frozen in the header logo and info tab."
 
 fi  # end of "if NEW != CURRENT"
 
