@@ -5,6 +5,40 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.20] - 2026-04-01
+
+### For users
+
+> The largest log files table now shows the domain name for NPM and Apache files, each path is clickable and opens the file directly in the log viewer.
+
+- **Domain in largest files table** — NPM log files now display the associated domain name (read from NPM's SQLite/MySQL database). Apache log files show the virtual host when it can be inferred from the filename (e.g. `example.com-access.log`) or the parent directory.
+- **Clickable paths** — Each file path in the table is now a link that opens the log viewer with that file pre-selected. Hover over the path for a tooltip showing the full path, plugin, type, size, last modified date, and domain.
+- **Clean navigation URLs** — Log viewer deep links now use readable URLs (`#log/nginx/var/log/nginx/access.log`) instead of percent-encoded paths (`%2Fvar%2Flog%2F...`). Old bookmarked links continue to work.
+
+---
+
+### Technical
+
+#### Backend — `server/routes/log-viewer.ts`
+
+- **`extractApacheVhost()`** — New helper: extracts virtual host from filename prefix (`example.com-access.log`) or parent directory name; skips generic names like `apache2`, `logs`, etc.
+- **NPM domain enrichment** — After scanning files, builds proxy-host ID → domain map by reading `database.sqlite`; tries 4 path candidates: inferred from file path (`../database.sqlite`), same directory, raw `fail2ban.npmDataPath`, and Docker-resolved `HOST_ROOT + npmDataPath`.
+- **Apache vhost enrichment** — Calls `extractApacheVhost()` for each Apache file after scan.
+- **Response** — `domain?: string` added to each file entry in `/api/log-viewer/largest-files`.
+
+#### Frontend — `src/components/widgets/LargestFilesCard.tsx`
+
+- **`LargestFileEntry`** — Added `domain?: string` field.
+- **Clickable path** — Path cell replaced by `<a href="#log/{pluginId}{filePath}">` using clean URL format.
+- **Structured tooltip** — `F2bTooltip` + `TT` helpers wrap the path link; shows full path, plugin, type, size, modification date, and domain.
+- **Domain display** — Domain shown in small italic text below the path when available.
+
+#### Frontend — `src/App.tsx`
+
+- **`parseHashNav()`** — Now handles both clean (`var/log/file.log`) and legacy (`%2Fvar%2Flog%2Ffile.log`) hash formats; prepends `/` when missing.
+- **Hash sync** — Log-viewer URL hash now uses clean format `#log/{pluginId}{filePath}` (no `encodeURIComponent`).
+- **`hashchange` listener** — New `useEffect` (runs when authenticated): listens for hash navigation clicks in-session and triggers `setSelectedPluginId` + `setDefaultLogFile` + `setCurrentPage('log-viewer')`.
+
 
 
 ---

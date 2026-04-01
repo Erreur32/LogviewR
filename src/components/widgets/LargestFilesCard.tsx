@@ -5,6 +5,7 @@ import { api } from '../../api/client';
 import { getPluginIcon } from '../../utils/pluginIcons';
 import { Tooltip } from '../ui/Tooltip';
 import { formatBytes } from '../../utils/constants';
+import { F2bTooltip, TT } from '../../pages/fail2ban/helpers';
 
 const TYPE_STYLE: Record<string, { color: string; border: string; bg: string }> = {
     access:  { color: '#3fb950', border: 'rgba(63,185,80,.35)',   bg: 'rgba(63,185,80,.08)'   },
@@ -38,6 +39,7 @@ interface LargestFileEntry {
     type: string;
     modified: string;
     isCompressed: boolean;
+    domain?: string;
 }
 
 interface Props {
@@ -180,9 +182,33 @@ export const LargestFilesCard: React.FC<Props> = ({ limit = 20 }) => {
                                                     </div>
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    <div className="text-xs md:text-sm text-gray-300 font-mono break-all">
-                                                        {file.path}
-                                                    </div>
+                                                    <F2bTooltip
+                                                        title={file.path.split('/').pop() || file.path}
+                                                        color="muted"
+                                                        width={360}
+                                                        bodyNode={<>
+                                                            {TT.section('Chemin complet')}
+                                                            {TT.info(file.path)}
+                                                            {TT.sep()}
+                                                            {TT.section('Informations')}
+                                                            {TT.info(`Plugin : ${file.pluginName}`)}
+                                                            {TT.info(`Type : ${file.type}`)}
+                                                            {TT.info(`Taille : ${formatBytes(file.size)}`)}
+                                                            {file.modified && TT.info(`Modifié : ${new Date(file.modified).toLocaleDateString('fr-FR')}`)}
+                                                            {file.domain && <>{TT.sep()}{TT.info(`Domaine : ${file.domain}`)}</>}
+                                                        </>}
+                                                    >
+                                                        <a
+                                                            href={`#log/${file.pluginId}${file.path}`}
+                                                            className="text-xs md:text-sm text-blue-400 hover:text-blue-300 font-mono break-all hover:underline"
+                                                            onClick={e => e.stopPropagation()}
+                                                        >
+                                                            {file.path}
+                                                        </a>
+                                                    </F2bTooltip>
+                                                    {file.domain && (
+                                                        <div className="text-xs text-gray-500 mt-0.5 italic">{file.domain}</div>
+                                                    )}
                                                 </td>
                                                 <td className="px-4 py-3 text-right">
                                                     <span className="text-sm font-semibold text-white whitespace-nowrap">

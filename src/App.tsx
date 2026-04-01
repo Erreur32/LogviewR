@@ -92,7 +92,11 @@ function parseHashNav(): HashNav | null {
         if (encodedFile) {
             try {
                 const decoded = decodeURIComponent(encodedFile);
-                if (isSafeFilePath(decoded)) filePath = decoded;
+                // Support both formats:
+                //   clean:  #log/plugin/var/log/file.log  → decoded = 'var/log/file.log' (no leading /)
+                //   legacy: #log/plugin/%2Fvar%2Flog%2Ffile.log → decoded = '/var/log/file.log' (with /)
+                const fullPath = decoded.startsWith('/') ? decoded : '/' + decoded;
+                if (isSafeFilePath(fullPath)) filePath = fullPath;
             } catch { /* malformed encoding — ignore */ }
         }
         return { type: 'log', pluginId, filePath };
@@ -416,11 +420,31 @@ const App: React.FC = () => {
   useEffect(() => {
     if (currentPage !== 'log-viewer' || !selectedPluginId) return;
     const filePath = pluginHeaderData?.selectedFilePath;
+    // Clean URL format: #log/plugin-id/var/log/file.log (path starts with /, no %2F encoding)
     const hash = filePath
-      ? `#log/${encodeURIComponent(selectedPluginId)}/${encodeURIComponent(filePath)}`
-      : `#log/${encodeURIComponent(selectedPluginId)}`;
+      ? `#log/${selectedPluginId}${filePath}`
+      : `#log/${selectedPluginId}`;
     window.history.replaceState(null, '', hash);
   }, [currentPage, selectedPluginId, pluginHeaderData?.selectedFilePath]);
+
+  // ── In-session hash navigation (e.g. clicking #log/... links while already logged in) ──
+  useEffect(() => {
+    if (!isUserAuthenticated) return;
+    const onHashChange = () => {
+      const hashNav = parseHashNav();
+      if (hashNav?.type === 'log') {
+        const { pluginId, filePath } = hashNav;
+        // Clear hash via replaceState (does NOT re-trigger hashchange)
+        window.history.replaceState(null, '', window.location.pathname);
+        setSelectedPluginId(pluginId);
+        if (filePath) setDefaultLogFile(filePath);
+        setCurrentPage('log-viewer');
+      }
+    };
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isUserAuthenticated]);
 
   const handleLogout = () => {
     // Clear any pending deep-link navigation so a re-login starts fresh

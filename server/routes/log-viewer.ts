@@ -1318,9 +1318,27 @@ router.get('/plugins/:pluginId/stats', async (req, res) => {
 });
 
 /**
+ * Extract Apache vhost from log file path.
+ * Checks filename prefix (example.com-access.log) then parent directory name.
+ */
+function extractApacheVhost(filePath: string): string | undefined {
+    const filename = path.basename(filePath).replace(/\.(gz|bz2|xz)$/, '');
+    // e.g. example.com-access.log, sub.example.com_error.log
+    const m = filename.match(/^([a-zA-Z0-9][a-zA-Z0-9.\-]*\.[a-zA-Z]{2,})[-_](access|error)/i);
+    if (m) return m[1].toLowerCase();
+    // Fallback: parent directory if it looks like a domain
+    const parent = path.basename(path.dirname(filePath));
+    if (/^[a-zA-Z0-9][a-zA-Z0-9.\-]*\.[a-zA-Z]{2,}$/.test(parent)) {
+        const skip = new Set(['apache2', 'httpd', 'nginx', 'npm', 'logs', 'log', 'apache']);
+        if (!skip.has(parent.toLowerCase())) return parent.toLowerCase();
+    }
+    return undefined;
+}
+
+/**
  * GET /api/log-viewer/largest-files
  * Get the largest log files across all plugins
- * 
+ *
  * Query params:
  * - quick=true: Only return non-compressed files for fast initial display
  */
@@ -1337,6 +1355,7 @@ router.get('/largest-files', async (req, res) => {
             type: string;
             modified: Date;
             isCompressed: boolean;
+            domain?: string;
         }> = [];
 
         // Helper function to check if a file is compressed
@@ -1396,6 +1415,62 @@ router.get('/largest-files', async (req, res) => {
             }
         }
 
+        // Enrich NPM files with domain from SQLite (proxy-host-N → domain_names)
+        const npmSample = allFiles.filter(f => f.pluginId === 'npm');
+        if (npmSample.length > 0) {
+            // Infer logs dir from the first NPM file path (already Docker-resolved)
+            const logsDir = path.dirname(npmSample[0].path);
+            const HOST_ROOT = process.env.HOST_ROOT_PATH || '/host';
+
+            // Build candidates in order of reliability
+            const dbCandidates: string[] = [
+                // Standard NPM layout: database.sqlite is one level up from logs/
+                path.resolve(logsDir, '..', 'database.sqlite'),
+                // DB alongside the logs dir itself (uncommon)
+                path.join(logsDir, 'database.sqlite'),
+            ];
+
+            // Also try fail2ban's npmDataPath setting (most explicit config)
+            const f2bSettings = PluginConfigRepository.findByPluginId('fail2ban')?.settings as Record<string, unknown> | undefined;
+            const rawNpmDataPath = f2bSettings?.npmDataPath as string | undefined;
+            if (rawNpmDataPath) {
+                // Raw host path (e.g. /data)
+                dbCandidates.push(path.join(rawNpmDataPath, 'database.sqlite'));
+                // Docker-resolved: /host + raw path (e.g. /host/data)
+                if (!rawNpmDataPath.startsWith(HOST_ROOT)) {
+                    dbCandidates.push(path.join(HOST_ROOT + rawNpmDataPath, 'database.sqlite'));
+                }
+            }
+
+            let npmIdToDomain: Record<string, string> = {};
+            for (const dbPath of dbCandidates) {
+                if (fsSync.existsSync(dbPath)) {
+                    try {
+                        const Database = (await import('better-sqlite3')).default;
+                        const npmDb = new Database(dbPath, { readonly: true, fileMustExist: true });
+                        const rows = npmDb.prepare('SELECT id, domain_names FROM proxy_host WHERE is_deleted=0').all() as { id: number; domain_names: string }[];
+                        npmDb.close();
+                        for (const row of rows) {
+                            try {
+                                const ns: string[] = JSON.parse(row.domain_names);
+                                if (ns.length) npmIdToDomain[String(row.id)] = ns[0].replace(/^www\./, '').toLowerCase();
+                            } catch { /* bad JSON */ }
+                        }
+                        break; // found and read successfully
+                    } catch { /* DB unreadable — try next candidate */ }
+                }
+            }
+            for (const file of npmSample) {
+                const m = path.basename(file.path).match(/^proxy-host-(\d+)/i);
+                if (m) file.domain = npmIdToDomain[m[1]];
+            }
+        }
+
+        // Enrich Apache files with vhost from filename or parent directory
+        for (const file of allFiles.filter(f => f.pluginId === 'apache')) {
+            file.domain = extractApacheVhost(file.path);
+        }
+
         // Sort by size (descending) and take top N
         const largestFiles = allFiles
             .sort((a, b) => b.size - a.size)
@@ -1411,7 +1486,8 @@ router.get('/largest-files', async (req, res) => {
                     pluginName: file.pluginName,
                     type: file.type,
                     modified: file.modified.toISOString(),
-                    isCompressed: file.isCompressed
+                    isCompressed: file.isCompressed,
+                    domain: file.domain,
                 })),
                 total: allFiles.length
             }
