@@ -72,6 +72,8 @@ function getReleaseNotesFromChangelog(version: string): string | undefined {
     section = section.replace(/^### [^\n]+\n/gm, '');
     // Unwrap bold markers
     section = section.replace(/\*\*([^*]+)\*\*/g, '$1');
+    // Strip blockquote markers (> summary line)
+    section = section.replace(/^> /gm, '');
     // Collapse multiple blank lines
     section = section.replace(/\n{3,}/g, '\n\n').trim();
     if (!section) return undefined;
@@ -249,7 +251,7 @@ router.get('/check', requireAuth, asyncHandler(async (req: AuthenticatedRequest,
                 enabled: true,
                 currentVersion,
                 latestVersion,
-                updateAvailable: updateAvailable && dockerReady,
+                updateAvailable,
                 dockerReady,
                 releaseNotes,
                 error: undefined

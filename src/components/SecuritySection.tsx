@@ -286,6 +286,18 @@ export const SecuritySection: React.FC<{ view?: 'protection' | 'auth' | 'network
         });
     };
 
+    const toggleMethod = (method: string) => {
+        const methods = corsConfig?.allowedMethods || [];
+        const next = methods.includes(method) ? methods.filter(m => m !== method) : [...methods, method];
+        setCorsConfig({ ...corsConfig, allowedMethods: next, allowedOrigins: corsConfig?.allowedOrigins || [], allowCredentials: corsConfig?.allowCredentials ?? true, allowedHeaders: corsConfig?.allowedHeaders || [] });
+    };
+
+    const toggleHeader = (header: string) => {
+        const headers = corsConfig?.allowedHeaders || [];
+        const next = headers.includes(header) ? headers.filter(h => h !== header) : [...headers, header];
+        setCorsConfig({ ...corsConfig, allowedHeaders: next, allowedOrigins: corsConfig?.allowedOrigins || [], allowCredentials: corsConfig?.allowCredentials ?? true, allowedMethods: corsConfig?.allowedMethods || [] });
+    };
+
     const addMethod = () => {
         if (newMethod.trim()) {
             const methods = corsConfig?.allowedMethods || [];
@@ -403,14 +415,14 @@ export const SecuritySection: React.FC<{ view?: 'protection' | 'auth' | 'network
                                 label={t('security.maxLoginAttempts')}
                                 description={t('security.maxLoginAttemptsDesc')}
                             >
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 w-44">
                                     <input
                                         type="number"
                                         min="3"
                                         max="10"
                                         value={maxLoginAttempts}
                                         onChange={(e) => setMaxLoginAttempts(parseInt(e.target.value) || 5)}
-                                        className="w-20 px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:outline-none"
+                                        className="w-20 px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm focus:outline-none"
                                     />
                                     <span className="text-sm text-gray-400">{t('security.attempts')}</span>
                                 </div>
@@ -420,14 +432,14 @@ export const SecuritySection: React.FC<{ view?: 'protection' | 'auth' | 'network
                                 label={t('security.lockoutDuration')}
                                 description={t('security.lockoutDurationDesc')}
                             >
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 w-44">
                                     <input
                                         type="number"
                                         min="5"
                                         max="60"
                                         value={lockoutDuration}
                                         onChange={(e) => setLockoutDuration(parseInt(e.target.value) || 15)}
-                                        className="w-20 px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:outline-none"
+                                        className="w-20 px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm focus:outline-none"
                                     />
                                     <span className="text-sm text-gray-400">{t('security.minutes')}</span>
                                 </div>
@@ -435,9 +447,9 @@ export const SecuritySection: React.FC<{ view?: 'protection' | 'auth' | 'network
 
                             <SettingRow
                                 label={t('security.trackingWindow')}
-                                description={t('security.trackingWindowDesc')}
+                                description={<><span>{t('security.trackingWindowDesc')}</span> <span className="text-gray-600">— {t('security.readOnly')}</span></>}
                             >
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 w-44">
                                     <input
                                         type="number"
                                         min="15"
@@ -445,10 +457,9 @@ export const SecuritySection: React.FC<{ view?: 'protection' | 'auth' | 'network
                                         value={trackingWindow}
                                         onChange={(e) => setTrackingWindow(parseInt(e.target.value) || 30)}
                                         disabled
-                                        className="w-20 px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:outline-none opacity-50 cursor-not-allowed"
+                                        className="w-20 px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm focus:outline-none opacity-50 cursor-not-allowed"
                                     />
                                     <span className="text-sm text-gray-400">{t('security.minutes')}</span>
-                                    <span className="text-xs text-gray-500">{t('security.readOnly')}</span>
                                 </div>
                             </SettingRow>
 
@@ -476,14 +487,14 @@ export const SecuritySection: React.FC<{ view?: 'protection' | 'auth' | 'network
                                 label={t('security.sessionTimeout')}
                                 description={t('security.sessionTimeoutDesc')}
                             >
-                                <div className="flex items-center gap-2 flex-wrap">
+                                <div className="flex items-center gap-2 w-44 flex-wrap">
                                     <input
                                         type="number"
                                         min="1"
                                         max="168"
                                         value={sessionTimeoutHours}
                                         onChange={(e) => handleSessionTimeoutChange(parseInt(e.target.value) || 168)}
-                                        className="w-20 px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:outline-none"
+                                        className="w-20 px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm focus:outline-none"
                                     />
                                     <span className="text-sm text-gray-400">{t('security.hours')}</span>
                                     {sessionTimeoutHours >= 24 && (
@@ -514,54 +525,6 @@ export const SecuritySection: React.FC<{ view?: 'protection' | 'auth' | 'network
                     </Section>
             )}
 
-            {/* Sécurité réseau */}
-            {(!view || view === 'network') && (
-                    <Section title={t('security.networkSecurityTitle')} icon={Shield}>
-                        <div className="space-y-4">
-                            <SettingRow
-                                label={t('security.requireHttps')}
-                                description={t('security.requireHttpsDesc')}
-                            >
-                                <div className="flex items-center gap-2">
-                                    <input
-                                        type="checkbox"
-                                        checked={false}
-                                        disabled
-                                        className="w-4 h-4 text-blue-600 bg-[#1a1a1a] border-gray-700 rounded opacity-50 cursor-not-allowed"
-                                    />
-                                    <span className="text-sm text-gray-500">{t('security.notImplemented')}</span>
-                                </div>
-                                <div className="mt-2 flex items-start gap-2 p-2 bg-gray-900/50 rounded border border-gray-800">
-                                    <XCircle size={14} className="text-gray-500 mt-0.5 flex-shrink-0" />
-                                    <p className="text-xs text-gray-500">
-                                        {t('security.requireHttpsNote')}
-                                    </p>
-                                </div>
-                            </SettingRow>
-
-                            <SettingRow
-                                label={t('security.rateLimit')}
-                                description={t('security.rateLimitDesc')}
-                            >
-                                <div className="flex items-center gap-2">
-                                    <input
-                                        type="checkbox"
-                                        checked={false}
-                                        disabled
-                                        className="w-4 h-4 text-blue-600 bg-[#1a1a1a] border-gray-700 rounded opacity-50 cursor-not-allowed"
-                                    />
-                                    <span className="text-sm text-gray-500">{t('security.notImplemented')}</span>
-                                </div>
-                                <div className="mt-2 flex items-start gap-2 p-2 bg-gray-900/50 rounded border border-gray-800">
-                                    <XCircle size={14} className="text-gray-500 mt-0.5 flex-shrink-0" />
-                                    <p className="text-xs text-gray-500">
-                                        {t('security.rateLimitNote')} <code className="bg-gray-800 px-1 rounded">express-rate-limit</code>
-                                    </p>
-                                </div>
-                            </SettingRow>
-                        </div>
-                    </Section>
-            )}
 
             {/* Blocked IPs */}
             {(!view || view === 'protection') && (
@@ -689,8 +652,14 @@ export const SecuritySection: React.FC<{ view?: 'protection' | 'auth' | 'network
                             {(!corsConfig?.allowedOrigins || corsConfig.allowedOrigins.length === 0) && (
                                 <p className="text-xs text-gray-500">{t('security.noOriginsConfigured')}</p>
                             )}
+                            <p className="text-xs text-gray-600">
+                                💡 Si vous avez une <span className="text-gray-500">URL publique</span> configurée dans <em>Général</em>, ajoutez-la ici comme origine autorisée.
+                            </p>
                         </div>
                     </SettingRow>
+
+                    {/* Credentials + Methods + Headers — disabled when no origins configured */}
+                    <div className={`space-y-4 transition-opacity ${(corsConfig?.allowedOrigins?.length ?? 0) === 0 ? 'opacity-40 pointer-events-none select-none' : ''}`}>
 
                     {/* Allow Credentials */}
                     <SettingRow
@@ -721,39 +690,48 @@ export const SecuritySection: React.FC<{ view?: 'protection' | 'auth' | 'network
                         label={t('security.allowedMethods')}
                         description={t('security.allowedMethodsDesc')}
                     >
-                        <div className="w-full space-y-2">
+                        <div className="w-full space-y-3">
+                            {/* Common method presets */}
+                            <div className="flex flex-wrap gap-1.5">
+                                {['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'].map((m) => {
+                                    const active = corsConfig?.allowedMethods?.includes(m) ?? false;
+                                    return (
+                                        <button
+                                            key={m}
+                                            type="button"
+                                            onClick={() => toggleMethod(m)}
+                                            className={`px-2.5 py-1 rounded text-xs font-mono font-semibold border transition-colors ${active ? 'bg-blue-600/20 border-blue-500/60 text-blue-300' : 'bg-[#1a1a1a] border-gray-700 text-gray-500 hover:border-gray-500 hover:text-gray-300'}`}
+                                        >
+                                            {m}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                            {/* Custom method input */}
                             <div className="flex gap-2">
                                 <input
                                     type="text"
                                     value={newMethod}
-                                    onChange={(e) => setNewMethod(e.target.value)}
+                                    onChange={(e) => setNewMethod(e.target.value.toUpperCase())}
                                     onKeyPress={(e) => e.key === 'Enter' && addMethod()}
-                                    placeholder={t('security.methodsPlaceholder')}
-                                    className="flex-1 px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500"
+                                    placeholder="Méthode custom (ex: PROPFIND)"
+                                    className="flex-1 px-3 py-1.5 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500"
                                 />
                                 <button
                                     onClick={addMethod}
-                                    className="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded-lg transition-colors flex items-center gap-2"
+                                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded-lg transition-colors flex items-center gap-1.5"
                                 >
-                                    <Plus size={14} />
+                                    <Plus size={13} />
                                     <span>{t('security.add')}</span>
                                 </button>
                             </div>
-                            {corsConfig?.allowedMethods && corsConfig.allowedMethods.length > 0 && (
-                                <div className="flex flex-wrap gap-2">
-                                    {corsConfig.allowedMethods.map((method) => (
-                                        <div
-                                            key={method}
-                                            className="flex items-center gap-2 px-3 py-1.5 bg-[#1a1a1a] border border-gray-700 rounded-lg"
-                                        >
-                                            <span className="text-sm text-white font-mono">{method}</span>
-                                            <button
-                                                onClick={() => removeMethod(method)}
-                                                className="text-red-400 hover:text-red-300 transition-colors"
-                                                title={t('security.remove')}
-                                            >
-                                                <Trash2 size={14} />
-                                            </button>
+                            {/* Custom (non-preset) methods added */}
+                            {corsConfig?.allowedMethods && corsConfig.allowedMethods.filter(m => !['GET','POST','PUT','DELETE','PATCH','OPTIONS','HEAD'].includes(m)).length > 0 && (
+                                <div className="flex flex-wrap gap-1.5">
+                                    {corsConfig.allowedMethods.filter(m => !['GET','POST','PUT','DELETE','PATCH','OPTIONS','HEAD'].includes(m)).map((method) => (
+                                        <div key={method} className="flex items-center gap-1.5 px-2.5 py-1 bg-purple-600/15 border border-purple-500/40 rounded text-xs font-mono text-purple-300">
+                                            <span>{method}</span>
+                                            <button onClick={() => removeMethod(method)} className="text-red-400 hover:text-red-300 transition-colors"><Trash2 size={11} /></button>
                                         </div>
                                     ))}
                                 </div>
@@ -766,45 +744,56 @@ export const SecuritySection: React.FC<{ view?: 'protection' | 'auth' | 'network
                         label={t('security.allowedHeaders')}
                         description={t('security.allowedHeadersDesc')}
                     >
-                        <div className="w-full space-y-2">
+                        <div className="w-full space-y-3">
+                            {/* Common header presets */}
+                            <div className="flex flex-wrap gap-1.5">
+                                {['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'Cache-Control', 'X-CSRF-Token', 'X-Api-Key'].map((h) => {
+                                    const active = corsConfig?.allowedHeaders?.includes(h) ?? false;
+                                    return (
+                                        <button
+                                            key={h}
+                                            type="button"
+                                            onClick={() => toggleHeader(h)}
+                                            className={`px-2.5 py-1 rounded text-xs font-mono border transition-colors ${active ? 'bg-cyan-600/20 border-cyan-500/60 text-cyan-300' : 'bg-[#1a1a1a] border-gray-700 text-gray-500 hover:border-gray-500 hover:text-gray-300'}`}
+                                        >
+                                            {h}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                            {/* Custom header input */}
                             <div className="flex gap-2">
                                 <input
                                     type="text"
                                     value={newHeader}
                                     onChange={(e) => setNewHeader(e.target.value)}
                                     onKeyPress={(e) => e.key === 'Enter' && addHeader()}
-                                    placeholder={t('security.headersPlaceholder')}
-                                    className="flex-1 px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500"
+                                    placeholder="Header custom (ex: X-Custom-Header)"
+                                    className="flex-1 px-3 py-1.5 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500"
                                 />
                                 <button
                                     onClick={addHeader}
-                                    className="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded-lg transition-colors flex items-center gap-2"
+                                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded-lg transition-colors flex items-center gap-1.5"
                                 >
-                                    <Plus size={14} />
+                                    <Plus size={13} />
                                     <span>{t('security.add')}</span>
                                 </button>
                             </div>
-                            {corsConfig?.allowedHeaders && corsConfig.allowedHeaders.length > 0 && (
-                                <div className="flex flex-wrap gap-2">
-                                    {corsConfig.allowedHeaders.map((header) => (
-                                        <div
-                                            key={header}
-                                            className="flex items-center gap-2 px-3 py-1.5 bg-[#1a1a1a] border border-gray-700 rounded-lg"
-                                        >
-                                            <span className="text-sm text-white font-mono">{header}</span>
-                                            <button
-                                                onClick={() => removeHeader(header)}
-                                                className="text-red-400 hover:text-red-300 transition-colors"
-                                                title={t('security.remove')}
-                                            >
-                                                <Trash2 size={14} />
-                                            </button>
+                            {/* Custom (non-preset) headers added */}
+                            {corsConfig?.allowedHeaders && corsConfig.allowedHeaders.filter(h => !['Content-Type','Authorization','X-Requested-With','Accept','Origin','Cache-Control','X-CSRF-Token','X-Api-Key'].includes(h)).length > 0 && (
+                                <div className="flex flex-wrap gap-1.5">
+                                    {corsConfig.allowedHeaders.filter(h => !['Content-Type','Authorization','X-Requested-With','Accept','Origin','Cache-Control','X-CSRF-Token','X-Api-Key'].includes(h)).map((header) => (
+                                        <div key={header} className="flex items-center gap-1.5 px-2.5 py-1 bg-purple-600/15 border border-purple-500/40 rounded text-xs font-mono text-purple-300">
+                                            <span>{header}</span>
+                                            <button onClick={() => removeHeader(header)} className="text-red-400 hover:text-red-300 transition-colors"><Trash2 size={11} /></button>
                                         </div>
                                     ))}
                                 </div>
                             )}
                         </div>
                     </SettingRow>
+
+                    </div>{/* end credentials+methods+headers */}
 
                     {/* Save CORS Config Button */}
                     <div className="flex justify-end pt-2 border-t border-gray-800">
@@ -821,16 +810,6 @@ export const SecuritySection: React.FC<{ view?: 'protection' | 'auth' | 'network
             </Section>
             )}
 
-            {/* Status Summary — protection view only */}
-            {(!view || view === 'protection') && (
-            <Section title={t('security.activeFeaturesTitle')} icon={CheckCircle} iconColor="blue" collapsible defaultCollapsed>
-                <ul className="space-y-1 text-xs text-gray-400">
-                    <li>• {t('security.activeFeature1')}</li>
-                    <li>• {t('security.activeFeature2')}</li>
-                    <li>• {t('security.activeFeature3')}</li>
-                </ul>
-            </Section>
-            )}
 
             {/* Save Button — protection + auth views */}
             {(!view || view === 'protection' || view === 'auth') && (

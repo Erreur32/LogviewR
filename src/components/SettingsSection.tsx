@@ -8,7 +8,7 @@ import { ChevronDown } from 'lucide-react';
 
 export const SettingRow: React.FC<{
   label: string;
-  description?: string;
+  description?: string | React.ReactNode;
   children: React.ReactNode;
 }> = ({ label, description, children }) => (
   <div className="flex items-center justify-between py-3 border-b border-gray-800 last:border-b-0">

@@ -76,6 +76,7 @@ export interface SettingsPageProps {
   mode?: 'administration';
   /** Legacy `debug` is mapped to `info` via toAdminTab */
   initialAdminTab?: 'general' | 'users' | 'plugins' | 'security' | 'exporter' | 'theme' | 'info' | 'analysis' | 'notifications' | 'database' | 'debug';
+  initialSecuritySubTab?: 'users' | 'protection' | 'network' | 'logs';
   onNavigateToPage?: (page: 'plugins' | 'users' | 'fail2ban') => void;
   onUsersClick?: () => void;
   onSettingsClick?: () => void;
@@ -1092,7 +1093,7 @@ const UpdateCheckSection: React.FC = () => {
           )}
 
           {/* Update available */}
-          {updateInfo?.updateAvailable && updateInfo.dockerReady && (
+          {updateInfo?.updateAvailable && (
             <div className="px-3 py-2 bg-amber-500/5">
               <p className="text-xs text-amber-400 font-semibold mb-1">
                 🚀 Mise à jour disponible — v{updateInfo.latestVersion}
@@ -1112,20 +1113,15 @@ const UpdateCheckSection: React.FC = () => {
                   </a>
                 </div>
               )}
-              <code className="block text-xs text-cyan-300 bg-black/50 px-2 py-1.5 rounded border border-gray-800 font-mono">
-                docker compose pull && docker compose up -d
-              </code>
-            </div>
-          )}
-
-          {/* New tag but build not ready */}
-          {updateInfo?.updateAvailable &&
-            !updateInfo.dockerReady &&
-            !updateInfo.error && (
-            <div className="px-3 py-2 bg-orange-500/5">
-              <p className="text-xs text-orange-400">
-                Tag v{updateInfo.latestVersion} trouvé sur GitHub — en attente de la fin du build Docker.
-              </p>
+              {updateInfo.dockerReady ? (
+                <code className="block text-xs text-cyan-300 bg-black/50 px-2 py-1.5 rounded border border-gray-800 font-mono">
+                  docker compose pull && docker compose up -d
+                </code>
+              ) : (
+                <p className="text-xs text-orange-400/80">
+                  Image Docker en cours de build sur GHCR…
+                </p>
+              )}
             </div>
           )}
 
@@ -3825,10 +3821,11 @@ const UsersManagementSection: React.FC = () => {
   );
 };
 
-export const SettingsPage: React.FC<SettingsPageProps> = ({ 
-  onBack, 
+export const SettingsPage: React.FC<SettingsPageProps> = ({
+  onBack,
   mode,
   initialAdminTab = 'general',
+  initialSecuritySubTab,
   onNavigateToPage,
   onUsersClick,
   onSettingsClick,
@@ -3856,7 +3853,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       .catch(() => {});
   }, []);
   const [infoSubTab, setInfoSubTab]         = useState<'logviewr' | 'applogs'>('logviewr');
-  const [securitySubTab, setSecuritySubTab] = useState<'users' | 'protection' | 'network' | 'logs'>('users');
+  const [securitySubTab, setSecuritySubTab] = useState<'users' | 'protection' | 'network' | 'logs'>(initialSecuritySubTab ?? 'users');
   const PRESET_TIMEZONES = ['Europe/Paris', 'Europe/London', 'UTC', 'America/New_York', 'America/Chicago', 'America/Los_Angeles', 'Asia/Tokyo', 'Asia/Shanghai', 'Australia/Sydney'];
   const [timezone, setTimezone]             = useState('Europe/Paris');
   const [customTz, setCustomTz]             = useState('');
@@ -3876,6 +3873,15 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       window.history.replaceState(null, '', window.location.pathname);
     }
   }, [initialAdminTab]);
+  // Sync URL hash with current tab for deep linking (#config/TAB[/SUBTAB])
+  useEffect(() => {
+    const hash = activeAdminTab === 'security'
+      ? `#config/security/${securitySubTab}`
+      : `#config/${activeAdminTab}`;
+    window.history.replaceState(null, '', hash);
+    return () => { window.history.replaceState(null, '', window.location.pathname); };
+  }, [activeAdminTab, securitySubTab]);
+
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);

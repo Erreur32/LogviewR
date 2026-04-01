@@ -9,6 +9,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.8.17] - 2026-04-01
+
+### For users
+
+> Deep links for settings tabs, cleaner Security page, and unified log files table.
+
+- **Settings deep links** — Each settings tab now updates the URL (`#config/general`, `#config/security/protection`, etc.). You can copy the URL and share a direct link to any tab — the recipient lands exactly on the right page after login.
+- **CORS — preset buttons** — HTTP methods (GET, POST, PUT…) and common headers (Content-Type, Authorization…) are now clickable chips. Click to add/remove. A custom input remains for non-standard values. Fields are greyed out until at least one allowed origin is configured.
+- **Security page cleanup** — Removed two inactive sections: "Sécurité réseau" (disabled checkboxes, not implemented) and "Fonctionnalités actives" (static text only).
+- **Protection fields alignment** — The three editable fields in the Attack Protection tab are now aligned to the same right column.
+- **Log files table** — The "Largest log files" table is now identical in the Dashboard and the Statistics page: colored type badges, full path (no truncation), and filter toggles (show all / hide .gz / hide .log.1).
+
+---
+
+### Technical
+
+#### Frontend — `src/App.tsx`
+
+- `HashNav` type extended with `config` variant; `parseHashNav()` handles `#config/TAB[/SUBTAB]`; stores `_hashNavConfig` in sessionStorage; passes `initialSecuritySubTab` to `SettingsPage`
+
+#### Frontend — `src/pages/SettingsPage.tsx`
+
+- New `initialSecuritySubTab` prop; `securitySubTab` state initialized from prop; `useEffect` calls `history.replaceState` on every tab/subtab change; hash cleared on unmount
+
+#### Frontend — `src/components/SecuritySection.tsx`
+
+- `toggleMethod` / `toggleHeader` helpers for preset chip toggle
+- Preset chips for 7 HTTP methods and 8 common headers (blue/cyan active state, grey inactive)
+- Credentials + Methods + Headers wrapped in `opacity-40 pointer-events-none` when no origins configured
+- Removed "Sécurité réseau" section (2 disabled checkboxes) and "Fonctionnalités actives" section
+- Protection fields: `w-44` on right container for column alignment; `readOnly` label moved to `description`
+
+#### Frontend — `src/components/SettingsSection.tsx`
+
+- `SettingRow.description` prop type widened to `string | React.ReactNode`
+
+#### Frontend — `src/components/widgets/LargestFilesCard.tsx`
+
+- Full rewrite: `limit` prop, `Toggle` sub-component, `showAll` / `hideGz` / `hideRotated` filters, `TypeBadge` colored inline styles, `break-all` full path, "+ N more" row when not expanded
+
+#### Frontend — `src/pages/AnalyticsPage.tsx`
+
+- Inline largest files section (~150 lines) replaced by `<LargestFilesCard limit={50} />`; related state and fetch removed
+
+#### Backend — `server/routes/updates.ts`
+
+- `updateAvailable` decoupled from `dockerReady` — update is detected as soon as `latestVersion > currentVersion`; Docker status shown separately in UI
+- `getReleaseNotesFromChangelog`: strips `> ` blockquote markers for clean display
+
+---
+
 ## [0.8.16] - 2026-04-01
 
 ### For users

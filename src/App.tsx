@@ -55,7 +55,8 @@ function isSafeFilePath(p: string): boolean {
  */
 type HashNav =
     | { type: 'fail2ban'; tab: string }
-    | { type: 'log'; pluginId: string; filePath: string | null };
+    | { type: 'log'; pluginId: string; filePath: string | null }
+    | { type: 'config'; tab: string; subtab: string | null };
 
 function parseHashNav(): HashNav | null {
     const raw = window.location.hash.slice(1); // strip '#'
@@ -69,6 +70,17 @@ function parseHashNav(): HashNav | null {
         const slashIdx2 = rest.indexOf('/');
         const tab = slashIdx2 === -1 ? rest : rest.slice(0, slashIdx2);
         return { type: 'fail2ban', tab: VALID_FAIL2BAN_TABS.has(tab) ? tab : 'jails' };
+    }
+
+    const VALID_CONFIG_TABS = new Set(['general','plugins','analysis','notifications','theme','security','exporter','database','info']);
+    const VALID_SECURITY_SUBTABS = new Set(['users','protection','network','logs']);
+    if (page === 'config') {
+        const slashIdx2 = rest.indexOf('/');
+        const tab    = slashIdx2 === -1 ? rest : rest.slice(0, slashIdx2);
+        const subtab = slashIdx2 === -1 ? null  : rest.slice(slashIdx2 + 1);
+        if (!VALID_CONFIG_TABS.has(tab)) return null;
+        if (subtab && !VALID_SECURITY_SUBTABS.has(subtab)) return null;
+        return { type: 'config', tab, subtab };
     }
 
     if (page === 'log') {
@@ -247,6 +259,8 @@ const App: React.FC = () => {
       sessionStorage.setItem('_hashNavFail2ban', hashNav.tab);
     } else if (hashNav?.type === 'log') {
       sessionStorage.setItem('_hashNavLog', JSON.stringify({ pluginId: hashNav.pluginId, filePath: hashNav.filePath }));
+    } else if (hashNav?.type === 'config') {
+      sessionStorage.setItem('_hashNavConfig', JSON.stringify({ tab: hashNav.tab, subtab: hashNav.subtab }));
     }
     checkUserAuth();
     
@@ -300,7 +314,6 @@ const App: React.FC = () => {
   const showUpdateBanner =
     isUserAuthenticated &&
     updateInfo?.updateAvailable === true &&
-    updateInfo?.dockerReady === true &&
     updateInfo?.latestVersion !== bannerDismissed;
 
   const dismissBanner = () => {
@@ -644,16 +657,17 @@ const App: React.FC = () => {
       window.history.replaceState(null, '', window.location.pathname);
     }
     const showAdmin = sessionStorage.getItem('adminMode') === 'true' || false;
-    // Check if we should open a specific admin tab (from sessionStorage)
-    // Read it immediately to ensure it's available
     const adminTab = sessionStorage.getItem('adminTab') as 'general' | 'users' | 'plugins' | 'security' | 'exporter' | 'theme' | 'debug' | 'info' | undefined;
-    // Only clear if we're actually using it (to avoid clearing it before SettingsPage reads it)
-    // We'll let SettingsPage handle clearing it via useEffect
+    // Hash-based config deep link: #config/TAB[/SUBTAB]
+    const configHashRaw = sessionStorage.getItem('_hashNavConfig');
+    const configHash = configHashRaw ? (() => { try { return JSON.parse(configHashRaw); } catch { return null; } })() : null;
+    if (configHash) sessionStorage.removeItem('_hashNavConfig');
     return wrapWithBackground(renderPageWithFooter(
-      <SettingsPage 
-        onBack={() => setCurrentPage('dashboard')} 
+      <SettingsPage
+        onBack={() => setCurrentPage('dashboard')}
         mode={showAdmin ? 'administration' : undefined}
-        initialAdminTab={adminTab ?? 'general'}
+        initialAdminTab={configHash?.tab ?? adminTab ?? 'general'}
+        initialSecuritySubTab={configHash?.subtab ?? undefined}
         onNavigateToPage={(page) => setCurrentPage(page)}
         onUsersClick={handleUsersClick}
         onSettingsClick={handleSettingsClick}
