@@ -9,6 +9,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.8.19] - 2026-04-01
+
+### For users
+
+> IP Tracker table improvements: all badges visible, layout fixed, better pagination.
+
+- **Active/History toggle** — The two buttons no longer overlap when the label is long.
+- **All jail and IPSet badges visible** — Badges in the Jail(s) and IPSet(s) columns now show every entry instead of truncating after 2–3 items.
+- **Pagination at the bottom** — Page controls (‹ › and rows-per-page) now appear below the table as well, so you don't have to scroll back to the top to navigate.
+- **Per-page options simplified** — Options are now 16, 32, and All (50/100 removed).
+- **Table no longer clipped** — Selecting 32 rows or more now correctly expands the card; rows are no longer cut off by the layout.
+
+---
+
+### Technical
+
+#### Frontend — `src/pages/fail2ban/TabTracker.tsx`
+
+- **Active/history toggle** — Removed fixed `width: 118px` on toggle buttons; replaced with `minWidth: 0` + auto width so long labels like "Historique des bans" don't overflow.
+- **Jail(s) column** — Removed `slice(0, 3)`, `+N` overflow badge, `flexWrap: nowrap`, `overflow: hidden`, and `maxWidth: 320`. All jail badges now render with `flexWrap: wrap`. Header changed from `width: 320` to `minWidth: 180`.
+- **IPSet(s) column** — Same treatment: removed `slice(0, 2)`, `+N` badge, `flexWrap: nowrap`, `overflow: hidden`, and `maxWidth: 180`. All IPSet badges render with `flexWrap: wrap`. Header changed from `width: 180` to `minWidth: 160`.
+- **Hostname column** — Reduced to `width: 120 / maxWidth: 120` with `textOverflow: ellipsis` to give space back to IPSet/Jail columns.
+- **IP column** — Reduced from `width: 130` to `width: 110`.
+- **Bottom pagination bar** — Added a second pagination row below `</table>` (same prev/next buttons + per-page selector).
+- **Per-page options** — Array changed from `[16, 32, 50, 100]` to `[16, 32]` at both render sites (top bar and bottom bar).
+- **Flex layout fix** — Added `flexShrink: 0` to the card wrapper (`{ ...card, flexShrink: 0 }`). Root cause: the card was a flex child with default `flex-shrink: 1` inside a `flex-direction: column / overflow-y: auto` container; the flex algorithm was shrinking the card to the viewport height and `overflow: hidden` on the card clipped the remaining rows silently.
+
+---
+
 ## [0.8.18] - 2026-04-01
 
 ### Fixed

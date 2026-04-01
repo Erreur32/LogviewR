@@ -260,7 +260,7 @@ export const TabTracker: React.FC<{ onIpClick?: (ip: string) => void; onTotalCha
 
     return (
         <>
-        <div style={card}>
+        <div style={{ ...card, flexShrink: 0 }}>
             {/* ── Top bar ── */}
             <div style={{ ...cardH, flexWrap: 'wrap', gap: '.5rem', alignItems: 'center' }}>
                 {/* Title */}
@@ -269,12 +269,12 @@ export const TabTracker: React.FC<{ onIpClick?: (ip: string) => void; onTotalCha
                     <strong style={{ color: viewMode === 'active' ? '#e86a65' : '#58a6ff', minWidth: '2.5em', display: 'inline-block', textAlign: 'right' }}>{viewMode === 'active' ? activeCount : historyCount}</strong>
                     <span style={{ color: '#e6edf3' }}>IPs</span>
                 </div>
-                {/* View mode toggle — fixed-width buttons to prevent layout shift */}
+                {/* View mode toggle */}
                 <div style={{ display: 'flex', flexShrink: 0, borderRadius: 5, border: '1px solid #30363d', overflow: 'hidden' }}>
                     {([['active', t('fail2ban.status.bansActive'), activeCount, '#e86a65', 'rgba(232,106,101,.15)', 'rgba(232,106,101,.2)'], ['history', t('fail2ban.tracker.banHistory'), historyCount, '#58a6ff', 'rgba(88,166,255,.1)', 'rgba(88,166,255,.18)']] as const).map(([mode, label, count, col, bg, countBg]) => (
                         <button key={mode} onClick={() => { setViewMode(mode); setPage(1); }}
                             style={{
-                                width: 118, padding: '.2rem .65rem', fontSize: '.72rem', fontWeight: 600, cursor: 'pointer',
+                                minWidth: 0, padding: '.2rem .75rem', fontSize: '.72rem', fontWeight: 600, cursor: 'pointer',
                                 background: viewMode === mode ? bg : 'transparent',
                                 color: viewMode === mode ? col : '#8b949e',
                                 border: 'none', borderRight: mode === 'active' ? '1px solid #30363d' : 'none',
@@ -307,7 +307,7 @@ export const TabTracker: React.FC<{ onIpClick?: (ip: string) => void; onTotalCha
                         </div>
                     )}
                     <div style={{ display: 'flex', gap: '.2rem' }}>
-                        {[16, 32, 50, 100].map(pp => ppBtn(pp, String(pp)))}
+                        {[16, 32].map(pp => ppBtn(pp, String(pp)))}
                         {ppBtn(0, t('fail2ban.periods.allShort'))}
                     </div>
                 </div>
@@ -340,15 +340,15 @@ export const TabTracker: React.FC<{ onIpClick?: (ip: string) => void; onTotalCha
                                 <tr>
                                     <th style={{ ...thStyle, width: 32 }}>#</th>
                                     <SortTh col="last" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} style={{ ...thStyle, width: 110 }}>Dernier vu</SortTh>
-                                    <SortTh col="ip"   sortCol={sortCol} sortDir={sortDir} onSort={handleSort} style={{ ...thStyle, width: 130 }}>IP</SortTh>
+                                    <SortTh col="ip"   sortCol={sortCol} sortDir={sortDir} onSort={handleSort} style={{ ...thStyle, width: 110 }}>IP</SortTh>
                                     <th style={{ ...thStyle, width: 46 }}>{t('fail2ban.labels.country')}</th>
                                     <th style={{ ...thStyle, width: 100 }}>{t('fail2ban.labels.city')}</th>
                                     <SortTh col="failures" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} style={{ ...thStyle, width: 80, textAlign: 'center' }}>{t('fail2ban.labels.attempts')}</SortTh>
                                     <SortTh col="bans"   sortCol={sortCol} sortDir={sortDir} onSort={handleSort} style={{ ...thStyle, width: 60, textAlign: 'center' }}><span style={{ color: '#e86a65' }}>Bans</span></SortTh>
                                     <SortTh col="unbans" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} style={{ ...thStyle, width: 60, textAlign: 'center' }}><span style={{ color: '#3fb950' }}>Débans</span></SortTh>
-                                    <SortTh col="jails"  sortCol={sortCol} sortDir={sortDir} onSort={handleSort} style={{ ...thStyle, width: 320, paddingLeft: '1.2rem', borderLeft: '1px solid #30363d' }}>Jail(s)</SortTh>
-                                    <th style={{ ...thStyle, width: 180 }}>IPSet(s)</th>
-                                    <th style={thStyle}>Hostname</th>
+                                    <SortTh col="jails"  sortCol={sortCol} sortDir={sortDir} onSort={handleSort} style={{ ...thStyle, minWidth: 180, paddingLeft: '1.2rem', borderLeft: '1px solid #30363d' }}>Jail(s)</SortTh>
+                                    <th style={{ ...thStyle, minWidth: 160 }}>IPSet(s)</th>
+                                    <th style={{ ...thStyle, width: 120, maxWidth: 120 }}>Hostname</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -449,11 +449,11 @@ export const TabTracker: React.FC<{ onIpClick?: (ip: string) => void; onTotalCha
                                             <td style={{ padding: '.4rem .65rem', textAlign: 'center', fontSize: '.78rem' }}>
                                                 {e.unbans !== undefined ? <span style={{ color: '#3fb950', fontWeight: 600 }}>{e.unbans}</span> : <span style={{ color: '#8b949e' }}>—</span>}
                                             </td>
-                                            <td style={{ padding: '.4rem .65rem .4rem 1.2rem', maxWidth: 320, borderLeft: '1px solid rgba(48,54,61,.5)' }}>
+                                            <td style={{ padding: '.4rem .65rem .4rem 1.2rem', borderLeft: '1px solid rgba(48,54,61,.5)' }}>
                                                 {e.jails.length === 0
                                                     ? <span style={{ color: '#8b949e', fontSize: '.75rem' }}>—</span>
-                                                    : <div style={{ display: 'flex', flexWrap: 'nowrap', alignItems: 'center', gap: '.2rem', overflow: 'hidden' }}>
-                                                        {e.jails.slice(0, 3).map(j => (
+                                                    : <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '.2rem' }}>
+                                                        {e.jails.map(j => (
                                                             <F2bTooltip key={j}
                                                                 title={j === 'recidive' ? 'Jail récidiviste' : `Jail : ${j}`}
                                                                 color={j === 'recidive' ? 'red' : 'green'}
@@ -461,61 +461,54 @@ export const TabTracker: React.FC<{ onIpClick?: (ip: string) => void; onTotalCha
                                                                 body={j === 'recidive'
                                                                     ? 'Ce jail cible les IP multi-récidivistes. Fail2ban y place les IP déjà bannies plusieurs fois pour leur appliquer un bantime prolongé.'
                                                                     : `Cette IP a déclenché le filtre du jail « ${j} » et a été bannie.`}>
-                                                                <span style={{ whiteSpace: 'nowrap', display: 'inline-block', padding: '.15rem .35rem', borderRadius: 4, fontSize: '.7rem', fontWeight: 600, cursor: 'default', flexShrink: 0, ...(j === 'recidive' ? { background: 'rgba(232,106,101,.08)', color: '#e86a65', border: '1px solid rgba(232,106,101,.2)' } : { background: 'rgba(63,185,80,.1)', color: '#3fb950', border: '1px solid rgba(63,185,80,.25)' }) }}>
+                                                                <span style={{ whiteSpace: 'nowrap', display: 'inline-block', padding: '.15rem .35rem', borderRadius: 4, fontSize: '.7rem', fontWeight: 600, cursor: 'default', ...(j === 'recidive' ? { background: 'rgba(232,106,101,.08)', color: '#e86a65', border: '1px solid rgba(232,106,101,.2)' } : { background: 'rgba(63,185,80,.1)', color: '#3fb950', border: '1px solid rgba(63,185,80,.25)' }) }}>
                                                                     {j === 'recidive' && <span style={{ color: '#e3b341' }}>⚠ </span>}{j}
                                                                 </span>
                                                             </F2bTooltip>
                                                         ))}
-                                                        {e.jails.length > 3 && (
-                                                            <F2bTooltip
-                                                                title={`${e.jails.length} jails`}
-                                                                color="muted"
-                                                                placement="bottom"
-                                                                bodyNode={<div style={{ display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
-                                                                    {e.jails.map(j => <span key={j} style={{ fontFamily: 'monospace', fontSize: '.78rem', color: j === 'recidive' ? '#e86a65' : '#3fb950' }}>{j}</span>)}
-                                                                </div>}>
-                                                                <span style={{ padding: '.15rem .35rem', borderRadius: 4, fontSize: '.68rem', fontWeight: 700, background: 'rgba(139,148,158,.1)', color: '#8b949e', border: '1px solid rgba(139,148,158,.2)', cursor: 'default', flexShrink: 0 }}>+{e.jails.length - 3}</span>
-                                                            </F2bTooltip>
-                                                        )}
                                                     </div>
                                                 }
                                             </td>
-                                            <td style={{ padding: '.4rem .65rem', maxWidth: 180 }}>
+                                            <td style={{ padding: '.4rem .65rem' }}>
                                                 {ipsets.length === 0
                                                     ? <span style={{ color: '#8b949e', fontSize: '.75rem' }}>—</span>
-                                                    : <div style={{ display: 'flex', flexWrap: 'nowrap', alignItems: 'center', gap: '.2rem', overflow: 'hidden' }}>
-                                                        {ipsets.slice(0, 2).map(s => (
+                                                    : <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '.2rem' }}>
+                                                        {ipsets.map(s => (
                                                             <F2bTooltip key={s}
                                                                 title={`IPSet : ${s}`}
                                                                 color="purple"
                                                                 placement="bottom"
                                                                 body={`Cette IP est dans l'ipset kernel « ${s} ». Elle est bloquée au niveau netfilter — avant même d'atteindre les règles iptables.`}>
-                                                                <span style={{ whiteSpace: 'nowrap', display: 'inline-block', padding: '.12rem .35rem', borderRadius: 4, fontSize: '.68rem', fontWeight: 600, background: 'rgba(188,140,255,.1)', color: '#bc8cff', border: '1px solid rgba(188,140,255,.25)', fontFamily: 'monospace', cursor: 'default', flexShrink: 0 }}>{s}</span>
+                                                                <span style={{ whiteSpace: 'nowrap', display: 'inline-block', padding: '.12rem .35rem', borderRadius: 4, fontSize: '.68rem', fontWeight: 600, background: 'rgba(188,140,255,.1)', color: '#bc8cff', border: '1px solid rgba(188,140,255,.25)', fontFamily: 'monospace', cursor: 'default' }}>{s}</span>
                                                             </F2bTooltip>
                                                         ))}
-                                                        {ipsets.length > 2 && (
-                                                            <F2bTooltip
-                                                                title={`${ipsets.length} ipsets`}
-                                                                color="purple"
-                                                                placement="bottom"
-                                                                bodyNode={<div style={{ display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
-                                                                    {ipsets.map(s => <span key={s} style={{ fontFamily: 'monospace', fontSize: '.78rem', color: '#bc8cff' }}>{s}</span>)}
-                                                                </div>}>
-                                                                <span style={{ padding: '.12rem .35rem', borderRadius: 4, fontSize: '.68rem', fontWeight: 700, background: 'rgba(188,140,255,.1)', color: '#bc8cff', border: '1px solid rgba(188,140,255,.2)', cursor: 'default', flexShrink: 0 }}>+{ipsets.length - 2}</span>
-                                                            </F2bTooltip>
-                                                        )}
                                                     </div>
                                                 }
                                             </td>
-                                            <td style={{ padding: '.4rem .65rem', fontSize: '.78rem', color: hostname ? '#c9d1d9' : '#8b949e', fontFamily: 'monospace' }}>{hostname ?? '—'}</td>
+                                            <td style={{ padding: '.4rem .65rem', fontSize: '.78rem', color: hostname ? '#c9d1d9' : '#8b949e', fontFamily: 'monospace', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={hostname ?? undefined}>{hostname ?? '—'}</td>
                                         </tr>
                                     );
                                 })}
                             </tbody>
                         </table>
                         {filtered.length > 0 && perPage > 0 && (
-                            <div style={{ padding: '.5rem 1rem', fontSize: '.75rem', color: '#8b949e', borderTop: '1px solid #30363d' }}>
-                                {filtered.length} IP{filtered.length !== 1 ? 's' : ''} — page {currentPage}/{totalPages}
+                            <div style={{ padding: '.5rem 1rem', borderTop: '1px solid #30363d', display: 'flex', alignItems: 'center', gap: '.5rem', flexWrap: 'wrap' }}>
+                                <span style={{ fontSize: '.75rem', color: '#8b949e', marginRight: 'auto' }}>
+                                    {filtered.length} IP{filtered.length !== 1 ? 's' : ''} — page {currentPage}/{totalPages}
+                                </span>
+                                {totalPages > 1 && (
+                                    <div style={{ display: 'flex', gap: '.2rem' }}>
+                                        <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={currentPage <= 1}
+                                            style={{ padding: '.15rem .4rem', fontSize: '.72rem', borderRadius: 4, background: 'transparent', border: '1px solid #30363d', color: '#8b949e', cursor: currentPage <= 1 ? 'default' : 'pointer', opacity: currentPage <= 1 ? .4 : 1 }}>‹</button>
+                                        <span style={{ padding: '.15rem .5rem', fontSize: '.72rem', color: '#8b949e' }}>{currentPage}/{totalPages}</span>
+                                        <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={currentPage >= totalPages}
+                                            style={{ padding: '.15rem .4rem', fontSize: '.72rem', borderRadius: 4, background: 'transparent', border: '1px solid #30363d', color: '#8b949e', cursor: currentPage >= totalPages ? 'default' : 'pointer', opacity: currentPage >= totalPages ? .4 : 1 }}>›</button>
+                                    </div>
+                                )}
+                                <div style={{ display: 'flex', gap: '.2rem' }}>
+                                    {[16, 32].map(pp => ppBtn(pp, String(pp)))}
+                                    {ppBtn(0, t('fail2ban.periods.allShort'))}
+                                </div>
                             </div>
                         )}
                     </div>
