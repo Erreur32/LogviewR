@@ -2885,18 +2885,20 @@ export class Fail2banPlugin extends BasePlugin {
 
             const safeSet = set.replace(/[^a-zA-Z0-9_.-]/g, '');
             if (!safeSet) return res.json({ success: true, result: { ok: false, error: 'Nom de set invalide' } });
+            if (!this.client) {
+                return res.json({ success: true, result: { ok: false, error: 'client non initialisé' } });
+            }
 
             // Server-side IPv4 validation (client already filters, but re-validate for safety)
             const ipv4Re = /^(25[0-5]|2[0-4]\d|[01]?\d\d?)\.(25[0-5]|2[0-4]\d|[01]?\d\d?)\.(25[0-5]|2[0-4]\d|[01]?\d\d?)\.(25[0-5]|2[0-4]\d|[01]?\d\d?)$/;
-            const valid = ips.map(ip => ip.trim()).filter(ip => ipv4Re.test(ip));
+            const valid = ips.filter((ip): ip is string => typeof ip === 'string').map(ip => ip.trim()).filter(ip => ipv4Re.test(ip));
             const skipped = ips.length - valid.length;
 
             let added = 0;
             const errors: string[] = [];
 
             for (const ip of valid) {
-                const r = await this.client?.ipsetAdd(safeSet, ip)
-                    ?? { ok: false, output: '', error: 'client not initialized' };
+                const r = await this.client.ipsetAdd(safeSet, ip);
                 if (r.ok) {
                     added++;
                 } else if (r.error?.includes('already added') || r.error?.includes('Element cannot be added')) {
