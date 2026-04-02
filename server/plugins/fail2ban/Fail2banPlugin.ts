@@ -2874,6 +2874,41 @@ export class Fail2banPlugin extends BasePlugin {
             res.json({ success: true, result: r });
         }));
 
+        // POST /ipset/import  { set: string, ips: string[] }
+        // Bulk-adds pre-parsed IPv4 addresses to an existing ipset.
+        router.post('/ipset/import', requireAuth, asyncHandler(async (req, res) => {
+            if (!this.isEnabled()) return res.json({ success: true, result: { ok: false, error: 'Plugin désactivé' } });
+            const { set, ips } = req.body as { set?: string; ips?: string[] };
+            if (!set || !Array.isArray(ips) || ips.length === 0) {
+                return res.json({ success: true, result: { ok: false, error: 'set et ips[] requis' } });
+            }
+
+            const safeSet = set.replace(/[^a-zA-Z0-9_.-]/g, '');
+            if (!safeSet) return res.json({ success: true, result: { ok: false, error: 'Nom de set invalide' } });
+
+            // Server-side IPv4 validation (client already filters, but re-validate for safety)
+            const ipv4Re = /^(25[0-5]|2[0-4]\d|[01]?\d\d?)\.(25[0-5]|2[0-4]\d|[01]?\d\d?)\.(25[0-5]|2[0-4]\d|[01]?\d\d?)\.(25[0-5]|2[0-4]\d|[01]?\d\d?)$/;
+            const valid = ips.map(ip => ip.trim()).filter(ip => ipv4Re.test(ip));
+            const skipped = ips.length - valid.length;
+
+            let added = 0;
+            const errors: string[] = [];
+
+            for (const ip of valid) {
+                const r = await this.client?.ipsetAdd(safeSet, ip)
+                    ?? { ok: false, output: '', error: 'client not initialized' };
+                if (r.ok) {
+                    added++;
+                } else if (r.error?.includes('already added') || r.error?.includes('Element cannot be added')) {
+                    // Duplicate — silent skip
+                } else if (r.error) {
+                    errors.push(`${ip}: ${r.error}`);
+                }
+            }
+
+            res.json({ success: true, result: { ok: true, added, skipped, errors } });
+        }));
+
         // GET /ipset/info — full set metadata (type, maxelem, size, entry count)
         // Also records a daily snapshot for the historical chart.
         router.get('/ipset/info', requireAuth, asyncHandler(async (_req, res) => {
