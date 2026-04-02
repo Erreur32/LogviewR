@@ -551,6 +551,9 @@ export class Fail2banPlugin extends BasePlugin {
         const _dataDir = path.join(process.cwd(), 'data');
         this.blocklistService = new BlocklistService(_dataDir);
         this.blocklistService.startAutoRefresh();
+        // Restore ipset + iptables rules for enabled lists after container restart.
+        // Fire-and-forget: startup must not be blocked by network downloads.
+        void this.blocklistService.restoreOnStartup();
 
         if (!this.reader.isReadable()) {
             logger.warn('Fail2ban', `SQLite DB not readable at ${dbPath} — ban history unavailable`);
