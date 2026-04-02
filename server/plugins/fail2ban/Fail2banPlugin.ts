@@ -2980,6 +2980,28 @@ export class Fail2banPlugin extends BasePlugin {
             res.json({ success: true, result: r });
         }));
 
+        // POST /blocklists/add  { name, url, ipsetName, description?, maxelem? }
+        router.post('/blocklists/add', requireAuth, asyncHandler(async (req, res) => {
+            const { name, url, ipsetName, description, maxelem } = req.body as {
+                name?: string; url?: string; ipsetName?: string; description?: string; maxelem?: number;
+            };
+            if (!name || !url || !ipsetName) {
+                return res.json({ success: true, result: { ok: false, error: 'name, url et ipsetName sont requis' } });
+            }
+            const r = this.blocklistService?.addCustomList({ name, url, ipsetName, description, maxelem })
+                ?? { ok: false, error: 'service non initialisé' };
+            res.json({ success: true, result: r });
+        }));
+
+        // DELETE /blocklists/remove/:id
+        router.delete('/blocklists/remove/:id', requireAuth, asyncHandler(async (req, res) => {
+            const { id } = req.params as { id: string };
+            if (!id) return res.json({ success: true, result: { ok: false, error: 'id manquant' } });
+            const r = await this.blocklistService?.removeCustomList(id)
+                ?? { ok: false, error: 'service non initialisé' };
+            res.json({ success: true, result: r });
+        }));
+
         router.get('/nftables', requireAuth, asyncHandler(async (_req, res) => {
             if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
             const r = await this.client?.nftList() ?? { ok: false, output: '', error: 'client not initialized' };
