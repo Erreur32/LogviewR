@@ -120,7 +120,7 @@ function EntriesPanel({ setName, onEntryDeleted, onIpClick }: { setName: string;
         } finally { setLoading(false); }
     }, [setName]);
 
-    useEffect(() => { setQuery(''); setPage(0); setMsg(null); fetchEntries(); }, [fetchEntries]);
+    useEffect(() => { setQuery(''); setPage(0); setMsg(null); setImportResult(null); fetchEntries(); }, [fetchEntries]);
 
     // Reset page when query changes
     useEffect(() => { setPage(0); }, [query]);
@@ -257,12 +257,12 @@ function EntriesPanel({ setName, onEntryDeleted, onIpClick }: { setName: string;
                     {/* Import button */}
                     <button
                         onClick={() => fileInputRef.current?.click()}
-                        disabled={importing}
+                        disabled={importing || !setName}
                         style={{
                             background: 'rgba(88,166,255,.1)', border: '1px solid rgba(88,166,255,.3)',
-                            color: importing ? '#555d69' : '#58a6ff',
+                            color: importing || !setName ? '#555d69' : '#58a6ff',
                             borderRadius: 4, padding: '.3rem .75rem',
-                            fontSize: '.8rem', cursor: importing ? 'default' : 'pointer',
+                            fontSize: '.8rem', cursor: importing || !setName ? 'default' : 'pointer',
                             display: 'flex', alignItems: 'center', gap: '.35rem',
                         }}
                     >
