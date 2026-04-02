@@ -213,6 +213,68 @@ export class BlocklistService {
         return Array.from(this._status.values());
     }
 
+    addCustomList(def: { name: string; url: string; ipsetName: string; description?: string; maxelem?: number }): { ok: boolean; error?: string } {
+        const name = def.name.trim();
+        const url = def.url.trim();
+        const ipsetName = def.ipsetName.trim();
+        const description = def.description?.trim() ?? '';
+        const maxelem = def.maxelem ?? 150000;
+
+        if (!name) return { ok: false, error: 'Le nom est requis' };
+        if (!url || !url.startsWith('http')) return { ok: false, error: 'URL invalide (doit commencer par http)' };
+        if (!ipsetName) return { ok: false, error: 'Le nom d\'ipset est requis' };
+        if (!/^[a-z0-9][a-z0-9-]*$/.test(ipsetName)) {
+            return { ok: false, error: 'Nom d\'ipset invalide: lettres minuscules, chiffres et tirets uniquement' };
+        }
+
+        const existing = this._allLists();
+        if (ipsetName in existing) {
+            return { ok: false, error: `Le nom d'ipset "${ipsetName}" est déjà utilisé` };
+        }
+
+        const id = ipsetName;
+        const newDef: CustomListDef = { id, name, url, ipsetName, description, maxelem };
+        this._customDefs.set(id, newDef);
+        this._saveCustomDefs();
+
+        this._status.set(id, {
+            id, name, description,
+            enabled: false, lastUpdate: null, count: 0, error: null, updating: false,
+            builtin: false,
+        });
+        this._saveStatus();
+
+        logger.info('BlocklistService', `Custom list added: ${id} (${url})`);
+        return { ok: true };
+    }
+
+    async removeCustomList(id: string): Promise<{ ok: boolean; error?: string }> {
+        if (id in LISTS) {
+            return { ok: false, error: 'Les listes intégrées ne peuvent pas être supprimées' };
+        }
+        const def = this._customDefs.get(id);
+        if (!def) {
+            return { ok: false, error: `Liste inconnue: ${id}` };
+        }
+
+        // Disable first (removes iptables rule — errors are silently swallowed in disable())
+        await this.disable(id);
+
+        // Destroy ipset kernel object (ignore if already absent)
+        try {
+            const [c, a] = priv('ipset', ['destroy', def.ipsetName]);
+            await execFileAsync(c, a, { timeout: 10_000 });
+        } catch { /* ignore */ }
+
+        this._customDefs.delete(id);
+        this._saveCustomDefs();
+        this._status.delete(id);
+        this._saveStatus();
+
+        logger.info('BlocklistService', `Custom list removed: ${id}`);
+        return { ok: true };
+    }
+
     async refresh(id: string): Promise<{ ok: boolean; count?: number; error?: string }> {
         const list = this._allLists()[id];
         if (!list) {
