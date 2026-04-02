@@ -5,6 +5,50 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.21] - 2026-04-02
+
+### For users
+
+> The Fail2ban blocklist manager now supports custom public lists alongside the built-in Data-Shield lists, and the IPSet tab lets you import bulk IPv4 addresses from a .txt file.
+
+- **Custom blocklists** — Add any public IPv4 blocklist by URL directly from the Blocklists tab. Each custom list has its own ipset and iptables DROP rule, and can be enabled, refreshed, or deleted independently of the built-in lists.
+- **Bulk IPSet import** — Upload a `.txt` file (one IPv4 address per line) to populate any existing ipset in one click. The interface shows how many IPs were added and how many were skipped.
+- **Fix: page reload after deployment** — After a server update, the app now automatically reloads when it detects a stale cached bundle instead of showing a blank error screen.
+- **Fix: blocklist persistence after restart** — Enabled blocklists are now automatically restored (ipset + iptables rule) when the Docker container restarts, without requiring a manual disable/re-enable cycle.
+
+---
+
+### Technical
+
+#### Backend — `server/plugins/fail2ban/BlocklistService.ts`
+
+- **Dynamic list registry** — `LISTS` constant replaced by `_allLists()` helper merging built-in entries with user-defined `CustomListDef` records loaded from `data/blocklist-custom.json`.
+- **`addCustomList()`** — Validates name, URL, ipset name format (`/^[a-z0-9][a-z0-9-]*$/`), and uniqueness against both map keys and `ipsetName` values of existing lists. Creates disabled status entry; no kernel calls on add.
+- **`removeCustomList()`** — Guards against removing built-in lists; checks `_refreshInProgress` to prevent concurrent remove/refresh race; calls `disable()`, then `ipset destroy`, then removes from both maps.
+- **`restoreOnStartup()`** — Called once at boot (fire-and-forget) to re-populate ipsets and re-add iptables DROP rules for all enabled lists after a container restart.
+- **`startAutoRefresh()`** — After each successful refresh, re-adds the iptables DROP rule if it has disappeared (e.g. after `iptables -F`).
+
+#### Backend — `server/plugins/fail2ban/Fail2banPlugin.ts`
+
+- **`POST /blocklists/add`** — Accepts `{ name, url, ipsetName, description?, maxelem? }`, delegates to `addCustomList()`.
+- **`DELETE /blocklists/remove/:id`** — Delegates to `removeCustomList()`; async with await.
+- **`POST /ipset/import`** — Accepts `{ set, ips[] }`; validates set existence via `ipsetEntries()`; server-side IPv4 re-validation with type guard; loops `ipsetAdd()` per IP; counts added/skipped (including duplicates)/errors; early bail if `this.client` is null.
+
+#### Frontend — `src/pages/fail2ban/TabBlocklists.tsx`
+
+- **`ListState.builtin`** — New boolean flag; card border switches `#e86a65` (built-in) vs `#58a6ff` (custom).
+- **Add form** — Collapsible form with name, URL, ipset name (real-time uniqueness + format hint), description fields. Submit disabled when fields empty or ipset name already in use.
+- **Delete button** — Shown on custom list cards only; surfaces API error via `setGlobalError` if deletion fails.
+- **Source badge** — Shows "jsDelivr CDN" for built-in lists and "URL personnalisée" for custom lists.
+
+#### Frontend — `src/pages/fail2ban/TabIPSet.tsx`
+
+- **File import** — Hidden `<input type="file" accept=".txt">` triggered by "↑ Importer .txt" button inside `EntriesPanel`. Parses IPv4 lines client-side, posts to `/ipset/import`, shows "✓ N ajoutées" feedback. `importResult` cleared on set switch.
+
+#### Frontend — `src/components/ErrorBoundary.tsx`
+
+- **Chunk reload** — `componentDidCatch` detects "Failed to fetch dynamically imported module" errors and reloads once (guarded by `sessionStorage` to prevent reload loops after deployment.
+
 ## [0.8.20] - 2026-04-01
 
 ### For users
