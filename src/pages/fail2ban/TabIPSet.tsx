@@ -106,6 +106,9 @@ function EntriesPanel({ setName, onEntryDeleted, onIpClick }: { setName: string;
     const [deleting, setDeleting] = useState<string | null>(null);
     const [msg, setMsg]           = useState<{ ok: boolean; text: string } | null>(null);
     const searchRef = useRef<HTMLInputElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [importing, setImporting] = useState(false);
+    const [importResult, setImportResult] = useState<{ added: number; skipped: number } | null>(null);
 
     const fetchEntries = useCallback(async () => {
         setLoading(true);
@@ -121,6 +124,32 @@ function EntriesPanel({ setName, onEntryDeleted, onIpClick }: { setName: string;
 
     // Reset page when query changes
     useEffect(() => { setPage(0); }, [query]);
+
+    const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !setName) return;
+
+        setImporting(true);
+        setImportResult(null);
+        try {
+            const text = await file.text();
+            const ipv4Re = /^(25[0-5]|2[0-4]\d|[01]?\d\d?)\.(25[0-5]|2[0-4]\d|[01]?\d\d?)\.(25[0-5]|2[0-4]\d|[01]?\d\d?)\.(25[0-5]|2[0-4]\d|[01]?\d\d?)$/;
+            const ips = text.split('\n').map(l => l.trim()).filter(l => ipv4Re.test(l));
+
+            const res = await api.post<{ ok: boolean; added: number; skipped: number; errors: string[] }>(
+                '/api/plugins/fail2ban/ipset/import',
+                { set: setName, ips }
+            );
+            if (res.result?.ok) {
+                setImportResult({ added: res.result.added, skipped: res.result.skipped });
+                fetchEntries();
+                onEntryDeleted();
+            }
+        } finally {
+            setImporting(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
 
     const addEntry = async () => {
         const e = newEntry.trim();
@@ -202,7 +231,7 @@ function EntriesPanel({ setName, onEntryDeleted, onIpClick }: { setName: string;
 
             <div style={{ ...cardB, display: 'flex', flexDirection: 'column', gap: '.65rem' }}>
                 {/* Add entry form */}
-                <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
                     <input value={newEntry} onChange={e => setNewEntry(e.target.value)}
                         placeholder="Ajouter IP ou CIDR (ex: 1.2.3.4)"
                         style={{ ...inputStyle, flex: 1 }}
@@ -215,6 +244,37 @@ function EntriesPanel({ setName, onEntryDeleted, onIpClick }: { setName: string;
                     }}>
                         <Plus style={{ width: 12, height: 12 }} /> Ajouter
                     </button>
+
+                    {/* Hidden file input for import */}
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".txt"
+                        style={{ display: 'none' }}
+                        onChange={handleImport}
+                    />
+
+                    {/* Import button */}
+                    <button
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={importing}
+                        style={{
+                            background: 'rgba(88,166,255,.1)', border: '1px solid rgba(88,166,255,.3)',
+                            color: importing ? '#555d69' : '#58a6ff',
+                            borderRadius: 4, padding: '.3rem .75rem',
+                            fontSize: '.8rem', cursor: importing ? 'default' : 'pointer',
+                            display: 'flex', alignItems: 'center', gap: '.35rem',
+                        }}
+                    >
+                        {importing ? '⟳ Import…' : '↑ Importer .txt'}
+                    </button>
+
+                    {importResult && (
+                        <span style={{ fontSize: '.78rem', color: '#3fb950', marginLeft: '.5rem' }}>
+                            ✓ {importResult.added} ajoutées
+                            {importResult.skipped > 0 && `, ${importResult.skipped} ignorées`}
+                        </span>
+                    )}
                 </div>
 
                 {msg && (
