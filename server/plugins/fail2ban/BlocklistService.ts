@@ -38,6 +38,15 @@ const LISTS: Record<string, {
     },
 };
 
+export interface CustomListDef {
+    id: string;         // = ipsetName (user-supplied, unique)
+    name: string;
+    url: string;
+    ipsetName: string;
+    description: string;
+    maxelem: number;
+}
+
 export interface BlocklistStatus {
     id: string;
     name: string;
@@ -47,6 +56,7 @@ export interface BlocklistStatus {
     count: number;
     error: string | null;
     updating: boolean;
+    builtin: boolean;   // true for LISTS entries, false for user-added
 }
 
 /** Returns [cmd, args] — prepends sudo when not running as root. */
@@ -108,14 +118,50 @@ function downloadUrl(url: string, timeoutMs: number): Promise<string> {
 
 export class BlocklistService {
     private _statusFile: string;
+    private _customDefsFile: string;
     private _status: Map<string, BlocklistStatus>;
+    private _customDefs: Map<string, CustomListDef>;
     private _refreshTimer: ReturnType<typeof setInterval> | null = null;
     private _refreshInProgress: Set<string> = new Set();
 
     constructor(dataDir: string) {
         this._statusFile = path.join(dataDir, 'blocklist-status.json');
+        this._customDefsFile = path.join(dataDir, 'blocklist-custom.json');
         this._status = new Map();
+        this._customDefs = new Map();
+        this._loadCustomDefs();   // must run before _loadStatus
         this._loadStatus();
+    }
+
+    // ── Dynamic list registry ─────────────────────────────────────────────────
+
+    private _allLists(): Record<string, { name: string; url: string; ipsetName: string; description: string; maxelem: number }> {
+        const custom: Record<string, { name: string; url: string; ipsetName: string; description: string; maxelem: number }> = {};
+        for (const [id, def] of this._customDefs.entries()) {
+            custom[id] = { name: def.name, url: def.url, ipsetName: def.ipsetName, description: def.description, maxelem: def.maxelem };
+        }
+        return { ...LISTS, ...custom };
+    }
+
+    private _loadCustomDefs(): void {
+        try {
+            const raw = fs.readFileSync(this._customDefsFile, 'utf8');
+            const defs = JSON.parse(raw) as CustomListDef[];
+            for (const def of defs) {
+                this._customDefs.set(def.id, def);
+            }
+        } catch {
+            // File absent or invalid — no custom lists
+        }
+    }
+
+    private _saveCustomDefs(): void {
+        try {
+            const arr = Array.from(this._customDefs.values());
+            fs.writeFileSync(this._customDefsFile, JSON.stringify(arr, null, 2), 'utf8');
+        } catch (err: unknown) {
+            logger.error('BlocklistService', `Failed to save custom defs: ${err instanceof Error ? err.message : String(err)}`);
+        }
     }
 
     // ── Persistence ───────────────────────────────────────────────────────────
@@ -131,7 +177,7 @@ export class BlocklistService {
 
         const byId = new Map(persisted.map(s => [s.id, s]));
 
-        for (const [id, list] of Object.entries(LISTS)) {
+        for (const [id, list] of Object.entries(this._allLists())) {
             const saved = byId.get(id);
             const entry: BlocklistStatus = {
                 id,
@@ -143,6 +189,7 @@ export class BlocklistService {
                 error: saved?.error ?? null,
                 // Crash recovery: reset any stuck updating flag
                 updating: false,
+                builtin: id in LISTS,
             };
             this._status.set(id, entry);
         }
@@ -167,7 +214,7 @@ export class BlocklistService {
     }
 
     async refresh(id: string): Promise<{ ok: boolean; count?: number; error?: string }> {
-        const list = LISTS[id];
+        const list = this._allLists()[id];
         if (!list) {
             return { ok: false, error: `Liste inconnue: ${id}` };
         }
@@ -286,7 +333,7 @@ export class BlocklistService {
     }
 
     async enable(id: string): Promise<{ ok: boolean; error?: string }> {
-        const list = LISTS[id];
+        const list = this._allLists()[id];
         if (!list) {
             return { ok: false, error: `Liste inconnue: ${id}` };
         }
@@ -326,7 +373,7 @@ export class BlocklistService {
     }
 
     async disable(id: string): Promise<{ ok: boolean; error?: string }> {
-        const list = LISTS[id];
+        const list = this._allLists()[id];
         if (!list) {
             return { ok: false, error: `Liste inconnue: ${id}` };
         }
@@ -347,6 +394,46 @@ export class BlocklistService {
         return { ok: true };
     }
 
+    /**
+     * Re-applies kernel state (ipset + iptables rule) for all enabled lists.
+     * Called once at startup: container restarts wipe kernel state while
+     * blocklist-status.json survives, so enabled lists must be restored.
+     */
+    async restoreOnStartup(): Promise<void> {
+        for (const [id, status] of this._status.entries()) {
+            if (!status.enabled) continue;
+            const list = this._allLists()[id];
+            if (!list) continue;
+
+            logger.info('BlocklistService', `Startup restore: ${id} — re-applying ipset + iptables rule`);
+
+            // Repopulate ipset (downloads + swap). This is idempotent.
+            const r = await this.refresh(id);
+            if (!r.ok) {
+                logger.error('BlocklistService', `Startup restore: ${id} refresh failed — ${r.error}`);
+                continue;
+            }
+
+            // Re-add iptables DROP rule if absent.
+            try {
+                const [cc, ca] = priv('iptables', ['-C', 'INPUT', '-m', 'set', '--match-set', list.ipsetName, 'src', '-j', 'DROP']);
+                await execFileAsync(cc, ca, { timeout: 10_000 });
+                logger.info('BlocklistService', `Startup restore: ${id} iptables rule already present`);
+            } catch {
+                try {
+                    const [ic, ia] = priv('iptables', ['-I', 'INPUT', '-m', 'set', '--match-set', list.ipsetName, 'src', '-j', 'DROP']);
+                    await execFileAsync(ic, ia, { timeout: 10_000 });
+                    logger.info('BlocklistService', `Startup restore: ${id} iptables rule re-added`);
+                } catch (err: unknown) {
+                    const msg = err instanceof Error ? err.message : String(err);
+                    logger.error('BlocklistService', `Startup restore: ${id} iptables -I failed — ${msg}`);
+                    status.error = `Restauration au démarrage échouée: ${msg}`;
+                    this._saveStatus();
+                }
+            }
+        }
+    }
+
     startAutoRefresh(): void {
         if (this._refreshTimer) return;
 
@@ -356,9 +443,25 @@ export class BlocklistService {
             for (const [id, status] of this._status.entries()) {
                 if (!status.enabled) continue;
                 logger.info('BlocklistService', `Auto-refresh: starting ${id}`);
+                // refresh() restores ipset data but not iptables — re-add rule if absent.
                 const r = await this.refresh(id);
                 if (r.ok) {
                     logger.info('BlocklistService', `Auto-refresh: ${id} OK (${r.count} IPs)`);
+                    const list = this._allLists()[id];
+                    if (list) {
+                        try {
+                            const [cc, ca] = priv('iptables', ['-C', 'INPUT', '-m', 'set', '--match-set', list.ipsetName, 'src', '-j', 'DROP']);
+                            await execFileAsync(cc, ca, { timeout: 10_000 });
+                        } catch {
+                            try {
+                                const [ic, ia] = priv('iptables', ['-I', 'INPUT', '-m', 'set', '--match-set', list.ipsetName, 'src', '-j', 'DROP']);
+                                await execFileAsync(ic, ia, { timeout: 10_000 });
+                                logger.info('BlocklistService', `Auto-refresh: ${id} iptables rule re-added after refresh`);
+                            } catch (err: unknown) {
+                                logger.error('BlocklistService', `Auto-refresh: ${id} iptables rule restore failed — ${err instanceof Error ? err.message : String(err)}`);
+                            }
+                        }
+                    }
                 } else {
                     logger.error('BlocklistService', `Auto-refresh: ${id} failed — ${r.error}`);
                 }
