@@ -190,7 +190,7 @@ export const TabBlocklists: React.FC = () => {
                   borderRadius: 4,
                   padding: '.2rem .5rem',
                   fontSize: '.75rem',
-                  cursor: 'pointer',
+                  cursor: list.updating ? 'default' : 'pointer',
                   lineHeight: 1,
                 }}
               >
@@ -228,7 +228,7 @@ export const TabBlocklists: React.FC = () => {
               padding: '.07rem .45rem',
               fontSize: '.72rem',
             }}>
-              Source : jsDelivr CDN
+              Source : {list.builtin ? 'jsDelivr CDN' : 'URL personnalisée'}
             </span>
           </div>
 
