@@ -17,6 +17,7 @@ interface ListState {
   count: number;
   error: string | null;
   updating: boolean;
+  builtin: boolean;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -39,6 +40,13 @@ export const TabBlocklists: React.FC = () => {
   const [lists, setLists] = useState<ListState[]>([]);
   const [loading, setLoading] = useState(true);
   const [globalError, setGlobalError] = useState<string | null>(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
+  const [newName, setNewName] = useState('');
+  const [newUrl, setNewUrl] = useState('');
+  const [newIpset, setNewIpset] = useState('');
+  const [newDesc, setNewDesc] = useState('');
 
   const fetchStatus = async () => {
     try {
@@ -81,6 +89,38 @@ export const TabBlocklists: React.FC = () => {
     }
   };
 
+  const handleAdd = async () => {
+    if (lists.some(l => l.id === newIpset)) {
+      setAddError(`Le nom d'ipset "${newIpset}" est déjà utilisé`);
+      return;
+    }
+    setAdding(true);
+    setAddError(null);
+    try {
+      const res = await api.post<{ ok: boolean; error?: string }>(
+        '/api/plugins/fail2ban/blocklists/add',
+        { name: newName, url: newUrl, ipsetName: newIpset, description: newDesc }
+      );
+      if (res.result?.ok) {
+        setShowAddForm(false);
+        setNewName(''); setNewUrl(''); setNewIpset(''); setNewDesc('');
+        await fetchStatus();
+      } else {
+        setAddError(res.result?.error ?? 'Erreur inconnue');
+      }
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const handleRemove = async (id: string) => {
+    try {
+      await api.delete<{ ok: boolean }>(`/api/plugins/fail2ban/blocklists/remove/${id}`);
+    } finally {
+      await fetchStatus();
+    }
+  };
+
   return (
     <div>
       {/* ── Header ── */}
@@ -112,7 +152,7 @@ export const TabBlocklists: React.FC = () => {
         <div key={list.id} style={{
           background: '#161b22',
           border: '1px solid rgba(48,54,61,1)',
-          borderLeft: '4px solid #e86a65',
+          borderLeft: `4px solid ${list.builtin ? '#e86a65' : '#58a6ff'}`,
           borderRadius: 6,
           padding: '1rem',
           marginBottom: '.75rem',
@@ -138,6 +178,25 @@ export const TabBlocklists: React.FC = () => {
             >
               {list.updating ? '...' : (list.enabled ? '● ACTIF' : '○ INACTIF')}
             </button>
+            {!list.builtin && (
+              <button
+                onClick={() => handleRemove(list.id)}
+                disabled={list.updating}
+                title="Supprimer cette liste"
+                style={{
+                  background: 'rgba(248,81,73,.1)',
+                  border: '1px solid rgba(248,81,73,.3)',
+                  color: '#f85149',
+                  borderRadius: 4,
+                  padding: '.2rem .5rem',
+                  fontSize: '.75rem',
+                  cursor: 'pointer',
+                  lineHeight: 1,
+                }}
+              >
+                ✕
+              </button>
+            )}
           </div>
 
           {/* Description */}
@@ -194,6 +253,101 @@ export const TabBlocklists: React.FC = () => {
               ⚠ {list.error}
             </div>
           )}
+        </div>
+      ))}
+
+      {/* ── Add custom list ── */}
+      {!loading && (!showAddForm ? (
+        <button
+          onClick={() => setShowAddForm(true)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: '.4rem',
+            background: 'rgba(88,166,255,.08)', border: '1px dashed rgba(88,166,255,.3)',
+            color: '#58a6ff', borderRadius: 6, padding: '.5rem 1rem',
+            fontSize: '.82rem', cursor: 'pointer', width: '100%', justifyContent: 'center',
+            marginBottom: '.75rem',
+          }}
+        >
+          + Ajouter une liste
+        </button>
+      ) : (
+        <div style={{
+          background: '#161b22', border: '1px solid rgba(88,166,255,.3)',
+          borderLeft: '4px solid #58a6ff', borderRadius: 6,
+          padding: '1rem', marginBottom: '.75rem',
+        }}>
+          <div style={{ fontWeight: 600, color: '#e6edf3', marginBottom: '.75rem', fontSize: '.9rem' }}>
+            Nouvelle liste personnalisée
+          </div>
+
+          {/* Name */}
+          <div style={{ marginBottom: '.5rem' }}>
+            <label style={{ display: 'block', fontSize: '.78rem', color: '#8b949e', marginBottom: '.2rem' }}>Nom *</label>
+            <input value={newName} onChange={e => setNewName(e.target.value)}
+              placeholder="Ex: Spamhaus DROP"
+              style={{ width: '100%', background: '#0d1117', border: '1px solid #30363d', borderRadius: 4, padding: '.3rem .5rem', color: '#e6edf3', fontSize: '.85rem', boxSizing: 'border-box' }} />
+          </div>
+
+          {/* URL */}
+          <div style={{ marginBottom: '.5rem' }}>
+            <label style={{ display: 'block', fontSize: '.78rem', color: '#8b949e', marginBottom: '.2rem' }}>URL *</label>
+            <input value={newUrl} onChange={e => setNewUrl(e.target.value)}
+              placeholder="https://..."
+              style={{ width: '100%', background: '#0d1117', border: '1px solid #30363d', borderRadius: 4, padding: '.3rem .5rem', color: '#e6edf3', fontSize: '.85rem', boxSizing: 'border-box' }} />
+          </div>
+
+          {/* ipset name */}
+          <div style={{ marginBottom: '.5rem' }}>
+            <label style={{ display: 'block', fontSize: '.78rem', color: '#8b949e', marginBottom: '.2rem' }}>Nom d'ipset * <span style={{ color: '#555d69' }}>(lettres minuscules, chiffres, tirets)</span></label>
+            <input value={newIpset} onChange={e => { setNewIpset(e.target.value); setAddError(null); }}
+              placeholder="Ex: spamhaus-drop"
+              style={{
+                width: '100%', background: '#0d1117',
+                border: `1px solid ${lists.some(l => l.id === newIpset) && newIpset ? '#f85149' : '#30363d'}`,
+                borderRadius: 4, padding: '.3rem .5rem', color: '#e6edf3', fontSize: '.85rem', boxSizing: 'border-box',
+              }} />
+            {lists.some(l => l.id === newIpset) && newIpset && (
+              <div style={{ color: '#f85149', fontSize: '.75rem', marginTop: '.2rem' }}>Nom déjà utilisé</div>
+            )}
+          </div>
+
+          {/* Description */}
+          <div style={{ marginBottom: '.75rem' }}>
+            <label style={{ display: 'block', fontSize: '.78rem', color: '#8b949e', marginBottom: '.2rem' }}>Description</label>
+            <input value={newDesc} onChange={e => setNewDesc(e.target.value)}
+              placeholder="Optionnel"
+              style={{ width: '100%', background: '#0d1117', border: '1px solid #30363d', borderRadius: 4, padding: '.3rem .5rem', color: '#e6edf3', fontSize: '.85rem', boxSizing: 'border-box' }} />
+          </div>
+
+          {addError && (
+            <div style={{ color: '#f85149', fontSize: '.78rem', marginBottom: '.5rem', padding: '.3rem .5rem', background: 'rgba(248,81,73,.1)', borderRadius: 4, border: '1px solid rgba(248,81,73,.2)' }}>
+              ⚠ {addError}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: '.5rem' }}>
+            <button
+              onClick={handleAdd}
+              disabled={adding || !newName.trim() || !newUrl.trim() || !newIpset.trim() || lists.some(l => l.id === newIpset)}
+              style={{
+                background: 'rgba(88,166,255,.15)', border: '1px solid rgba(88,166,255,.4)',
+                color: '#58a6ff', borderRadius: 4, padding: '.3rem .85rem',
+                fontSize: '.82rem', cursor: 'pointer', opacity: adding ? 0.6 : 1,
+              }}
+            >
+              {adding ? 'Ajout…' : 'Ajouter'}
+            </button>
+            <button
+              onClick={() => { setShowAddForm(false); setAddError(null); setNewName(''); setNewUrl(''); setNewIpset(''); setNewDesc(''); }}
+              style={{
+                background: 'transparent', border: '1px solid #30363d',
+                color: '#8b949e', borderRadius: 4, padding: '.3rem .75rem',
+                fontSize: '.82rem', cursor: 'pointer',
+              }}
+            >
+              Annuler
+            </button>
+          </div>
         </div>
       ))}
 
