@@ -2889,10 +2889,15 @@ export class Fail2banPlugin extends BasePlugin {
                 return res.json({ success: true, result: { ok: false, error: 'client non initialisé' } });
             }
 
+            const setCheck = await this.client.ipsetEntries(safeSet);
+            if (!setCheck.ok) {
+                return res.json({ success: true, result: { ok: false, error: `Set "${safeSet}" introuvable` } });
+            }
+
             // Server-side IPv4 validation (client already filters, but re-validate for safety)
             const ipv4Re = /^(25[0-5]|2[0-4]\d|[01]?\d\d?)\.(25[0-5]|2[0-4]\d|[01]?\d\d?)\.(25[0-5]|2[0-4]\d|[01]?\d\d?)\.(25[0-5]|2[0-4]\d|[01]?\d\d?)$/;
             const valid = ips.filter((ip): ip is string => typeof ip === 'string').map(ip => ip.trim()).filter(ip => ipv4Re.test(ip));
-            const skipped = ips.length - valid.length;
+            let skipped = ips.length - valid.length;
 
             let added = 0;
             const errors: string[] = [];
@@ -2902,7 +2907,7 @@ export class Fail2banPlugin extends BasePlugin {
                 if (r.ok) {
                     added++;
                 } else if (r.error?.includes('already added') || r.error?.includes('Element cannot be added')) {
-                    // Duplicate — silent skip
+                    skipped++;
                 } else if (r.error) {
                     errors.push(`${ip}: ${r.error}`);
                 }

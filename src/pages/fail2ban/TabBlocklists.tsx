@@ -115,7 +115,10 @@ export const TabBlocklists: React.FC = () => {
 
   const handleRemove = async (id: string) => {
     try {
-      await api.delete<{ ok: boolean }>(`/api/plugins/fail2ban/blocklists/remove/${id}`);
+      const res = await api.delete<{ ok: boolean; error?: string }>(`/api/plugins/fail2ban/blocklists/remove/${id}`);
+      if (res.result && !res.result.ok) {
+        setGlobalError(res.result.error ?? 'Erreur lors de la suppression');
+      }
     } finally {
       await fetchStatus();
     }
