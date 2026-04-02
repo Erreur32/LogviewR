@@ -228,7 +228,8 @@ export class BlocklistService {
         }
 
         const existing = this._allLists();
-        if (ipsetName in existing) {
+        const ipsetNameConflict = Object.values(existing).some(l => l.ipsetName === ipsetName);
+        if (ipsetName in existing || ipsetNameConflict) {
             return { ok: false, error: `Le nom d'ipset "${ipsetName}" est déjà utilisé` };
         }
 
@@ -255,6 +256,10 @@ export class BlocklistService {
         const def = this._customDefs.get(id);
         if (!def) {
             return { ok: false, error: `Liste inconnue: ${id}` };
+        }
+
+        if (this._refreshInProgress.has(id)) {
+            return { ok: false, error: 'Rafraîchissement en cours, réessayez dans un instant' };
         }
 
         // Disable first (removes iptables rule — errors are silently swallowed in disable())
