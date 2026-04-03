@@ -1826,9 +1826,16 @@ export class Fail2banPlugin extends BasePlugin {
             let reloadOutput = 'Socket non disponible — rechargement manuel requis';
             const reloadMethod = 'reload';
             if (this.client?.isAvailable()) {
-                const r = await this.client.reload();
-                reloadOk = r.ok;
-                reloadOutput = r.output || r.error || '';
+                // Ping first — stale socket file (fail2ban dead) would otherwise produce
+                // a red "rechargement échoué" instead of the gentler yellow "non disponible".
+                const alive = await this.client.ping();
+                if (!alive) {
+                    reloadOutput = 'Socket non disponible — rechargement manuel requis';
+                } else {
+                    const r = await this.client.reload();
+                    reloadOk = r.ok;
+                    reloadOutput = r.output || r.error || '';
+                }
             }
             this._routeCache.delete('config/parsed'); // invalidate after file write
             res.json({ success: true, result: { ok: true, reloadOk, reloadOutput, reloadMethod } });
