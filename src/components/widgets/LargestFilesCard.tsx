@@ -6,6 +6,7 @@ import { getPluginIcon } from '../../utils/pluginIcons';
 import { Tooltip } from '../ui/Tooltip';
 import { formatBytes } from '../../utils/constants';
 import { F2bTooltip, TT } from '../../pages/fail2ban/helpers';
+import { DomainInitial } from '../../pages/fail2ban/DomainInitial';
 
 const TYPE_STYLE: Record<string, { color: string; border: string; bg: string }> = {
     access:  { color: '#3fb950', border: 'rgba(63,185,80,.35)',   bg: 'rgba(63,185,80,.08)'   },
@@ -195,7 +196,7 @@ export const LargestFilesCard: React.FC<Props> = ({ limit = 20 }) => {
                                                             {TT.info(`Type : ${file.type}`)}
                                                             {TT.info(`Taille : ${formatBytes(file.size)}`)}
                                                             {file.modified && TT.info(`Modifié : ${new Date(file.modified).toLocaleDateString('fr-FR')}`)}
-                                                            {file.domain && <>{TT.sep()}{TT.info(`Domaine : ${file.domain}`)}</>}
+                                                            {file.domain && <>{TT.sep()}{TT.section('Domaine')}{TT.row(<DomainInitial domain={file.domain} size={12} />, file.domain)}</>}
                                                         </>}
                                                     >
                                                         <a
@@ -207,7 +208,10 @@ export const LargestFilesCard: React.FC<Props> = ({ limit = 20 }) => {
                                                         </a>
                                                     </F2bTooltip>
                                                     {file.domain && (
-                                                        <div className="text-xs text-gray-500 mt-0.5 italic">{file.domain}</div>
+                                                        <div className="flex items-center gap-1 mt-0.5">
+                                                            <DomainInitial domain={file.domain} size={12} />
+                                                            <span className="text-xs text-gray-500 italic">{file.domain}</span>
+                                                        </div>
                                                     )}
                                                 </td>
                                                 <td className="px-4 py-3 text-right">
