@@ -3040,12 +3040,15 @@ export class Fail2banPlugin extends BasePlugin {
             res.json({ success: true, result: r });
         }));
 
-        // POST /blocklists/toggle  { id: string, enabled: boolean }
+        // POST /blocklists/toggle  { id: string, enabled: boolean, force?: boolean }
         router.post('/blocklists/toggle', requireAuth, asyncHandler(async (req, res) => {
-            const { id, enabled } = req.body as { id?: string; enabled?: boolean };
+            const { id, enabled, force } = req.body as { id?: string; enabled?: boolean; force?: boolean };
             if (!id || enabled === undefined) return res.json({ success: true, result: { ok: false, error: 'Paramètres manquants' } });
+            // Extract real client IP for self-ban guard (strip ::ffff: IPv4-mapped prefix)
+            const rawIp = req.ip ?? req.socket.remoteAddress ?? '';
+            const callerIp = rawIp.replace(/^::ffff:/, '');
             const r = enabled
-                ? await this.blocklistService?.enable(id) ?? { ok: false, error: 'service non initialisé' }
+                ? await this.blocklistService?.enable(id, callerIp, force) ?? { ok: false, error: 'service non initialisé' }
                 : await this.blocklistService?.disable(id) ?? { ok: false, error: 'service non initialisé' };
             res.json({ success: true, result: r });
         }));
