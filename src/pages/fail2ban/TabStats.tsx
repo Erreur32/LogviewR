@@ -222,8 +222,9 @@ const DomainDetailModal: React.FC<{
 // ── IPSet historical line chart (module-level — prevents React remount on each IpSetsSection render) ──
 type IpSetHist = { ipset_names: string[]; ipset_days: Record<string, Record<string, number>> } | null;
 
-const HistChart: React.FC<{ hist: IpSetHist; days: number; onDaysChange: (d: number) => void }> = ({ hist, days, onDaysChange }) => {
-    const names = hist?.ipset_names ?? [];
+const HistChart: React.FC<{ hist: IpSetHist; days: number; onDaysChange: (d: number) => void; nonEmptyNames?: Set<string>; colorMap?: Record<string, string> }> = ({ hist, days, onDaysChange, nonEmptyNames, colorMap }) => {
+    const allNames = hist?.ipset_names ?? [];
+    const names = nonEmptyNames ? allNames.filter(nm => nonEmptyNames.has(nm)) : allNames;
     const days_map = hist?.ipset_days ?? {};
     const rawDates = Object.keys(days_map).sort();
     const [hiddenLines, setHiddenLines] = useState<Set<string>>(new Set());
@@ -309,7 +310,7 @@ const HistChart: React.FC<{ hist: IpSetHist; days: number; onDaysChange: (d: num
                 {/* Lines per set */}
                 {names.map((nm, ni) => {
                     if (hiddenLines.has(nm)) return null;
-                    const color = PIE_COLORS[ni % PIE_COLORS.length];
+                    const color = colorMap?.[nm] ?? PIE_COLORS[ni % PIE_COLORS.length];
                     const pts = plotDates.map((dt, i) => {
                         const v = plotMap[dt]?.[nm];
                         return v != null ? `${xOf(i)},${yOf(v)}` : null;
@@ -342,11 +343,18 @@ const HistChart: React.FC<{ hist: IpSetHist; days: number; onDaysChange: (d: num
                 ))}
             </svg>
             </div>
-            {/* Legend — dashed-line icons, clickable to toggle */}
+            {/* Legend — sorted largest→smallest, matching colorMap order */}
+            {(() => {
+                const cmKeys = colorMap ? Object.keys(colorMap) : [];
+                const sortedLegend = [...names].sort((a, b) => {
+                    const ia = cmKeys.indexOf(a); const ib = cmKeys.indexOf(b);
+                    return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+                });
+                return (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.4rem .8rem', marginTop: '.5rem' }}>
-                {names.map((nm, ni) => {
+                {sortedLegend.map((nm, ni) => {
                     const hidden = hiddenLines.has(nm);
-                    const lineColor = hidden ? C.muted : PIE_COLORS[ni % PIE_COLORS.length];
+                    const lineColor = hidden ? C.muted : (colorMap?.[nm] ?? PIE_COLORS[ni % PIE_COLORS.length]);
                     return (
                         <div key={nm} onClick={() => toggleLine(nm)}
                             style={{ display: 'flex', alignItems: 'center', gap: '.3rem', fontSize: '.72rem', cursor: 'pointer', opacity: hidden ? 0.35 : 1 }}>
@@ -358,6 +366,8 @@ const HistChart: React.FC<{ hist: IpSetHist; days: number; onDaysChange: (d: num
                     );
                 })}
             </div>
+                );
+            })()}
         </div>
     );
 };
@@ -407,8 +417,10 @@ const IpSetsSection: React.FC<{ days: number; onDaysChange: (d: number) => void 
         return () => ac.abort();
     }, [days]);
 
-    const maxEntries = Math.max(...sets.map(s => s.entries), 1);
+    const barSets = sets.filter(s => s.entries > 0);
+    const maxEntries = Math.max(...barSets.map(s => s.entries), 1);
     const total = sets.reduce((s, x) => s + x.entries, 0);
+    const barCols = sets.length <= 4 ? 1 : sets.length <= 8 ? 2 : 3;
 
     // IPSet pie toggle
     const [hiddenSets, setHiddenSets] = useState<Set<string>>(new Set());
@@ -426,58 +438,71 @@ const IpSetsSection: React.FC<{ days: number; onDaysChange: (d: number) => void 
         const x2 = cx + r * Math.cos(end);   const y2 = cy + r * Math.sin(end);
         return { ...s, x1, y1, x2, y2, large: deg >= 180 ? 1 : 0, pct: visibleTotal > 0 ? Math.round((s.entries / visibleTotal) * 100) : 0, color: PIE_COLORS[i % PIE_COLORS.length], hidden, deg };
     });
+    const colorMap = Object.fromEntries(slices.map(s => [s.name, s.color]));
 
     return (
         <SCard icon={<Database style={{ width: 14, height: 14 }} />} color={C.purple} title="IPSets" sub={!loading && !error && total > 0 ? <span style={{ color: C.purple, fontWeight: 600 }}>{total} IPs</span> : undefined} collapsible>
             {/* Historical line chart */}
-            <HistChart hist={hist} days={days} onDaysChange={onDaysChange} />
+            <HistChart hist={hist} days={days} onDaysChange={onDaysChange} nonEmptyNames={new Set(barSets.map(s => s.name))} colorMap={colorMap} />
             <div style={{ padding: '.5rem 0 .75rem' }}>
                 {loading && <div style={{ textAlign: 'center', padding: '1.5rem', color: C.muted, fontSize: '.85rem' }}>{t('fail2ban.messages.loadingData')}</div>}
                 {!loading && error && <div style={{ padding: '.75rem 1rem', color: C.orange, fontSize: '.8rem', fontFamily: 'monospace' }}>{error}</div>}
                 {!loading && !error && sets.length === 0 && <div style={{ padding: '1.5rem 1rem', color: C.muted, fontSize: '.85rem', textAlign: 'center' }}>Aucun IPSet fail2ban à afficher</div>}
                 {!loading && !error && sets.length > 0 && (
-                    <div style={{ padding: '0 1rem .75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
-                        {/* Bar list — constrained width so bars don't stretch the full card */}
-                        <div style={{ width: 340, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '.1rem', paddingTop: '.5rem' }}>
-                            {sets.map(s => (
+                    <div style={{ padding: '0 1rem 0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+                        {/* Bar list — multi-column grid (1 col ≤4, 2 cols ≤8, 3 cols 9+) */}
+                        <div style={{ flexShrink: 0, display: 'grid', gridTemplateColumns: `repeat(${barCols}, max-content)`, gridTemplateRows: `repeat(${Math.ceil(sets.length / barCols)}, auto)`, gridAutoFlow: 'column', columnGap: '1.5rem', rowGap: 0, marginTop: '.5rem' }}>
+                            {sets.map(s => {
+                                const barColor = colorMap[s.name] ?? C.purple;
+                                return (
                                 <div key={s.name} style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.28rem 0' }}>
-                                    <span style={{ fontSize: '.78rem', color: C.purple, width: 120, fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 0 }}>{s.name}</span>
+                                    <span style={{ fontSize: '.78rem', color: barColor, width: 120, fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 0 }}>{s.name}</span>
                                     {s.type && <span style={{ fontSize: '.63rem', color: C.muted, width: 65, whiteSpace: 'nowrap', flexShrink: 0 }}>{s.type}</span>}
                                     <div style={{ width: 80, background: C.bg3, borderRadius: 3, height: 5, overflow: 'hidden', flexShrink: 0 }}>
-                                        <div style={{ width: `${s.entries > 0 ? Math.max(2, (s.entries / maxEntries) * 100) : 0}%`, height: '100%', background: C.purple, borderRadius: 3 }} />
+                                        <div style={{ width: `${s.entries > 0 ? Math.max(2, (s.entries / maxEntries) * 100) : 0}%`, height: '100%', background: barColor, borderRadius: 3 }} />
                                     </div>
-                                    <span style={{ fontSize: '.78rem', fontWeight: 700, color: C.purple, minWidth: 36, textAlign: 'right' }}>{s.entries}</span>
+                                    <span style={{ fontSize: '.78rem', fontWeight: 700, color: barColor, minWidth: 36, textAlign: 'right' }}>{s.entries}</span>
                                     <span style={{ fontSize: '.67rem', color: C.muted }}>IP{s.entries !== 1 ? 's' : ''}</span>
                                 </div>
-                            ))}
+                                );
+                            })}
                         </div>
-                        {/* Pie + legend side by side */}
-                        {total > 0 && (
-                            <div style={{ flexShrink: 0, display: 'flex', gap: '1rem', alignItems: 'center', paddingTop: '.5rem' }}>
-                                <svg viewBox="0 0 160 160" style={{ width: 130, height: 130, flexShrink: 0 }}>
-                                    {slices.filter(s => !s.hidden && s.deg > 0).map(s => (
-                                        <path key={s.name} d={`M 80 80 L ${s.x1} ${s.y1} A 65 65 0 ${s.large} 1 ${s.x2} ${s.y2} Z`}
-                                            fill={s.color} stroke={C.bg1} strokeWidth={1.5} opacity={0.9}
-                                            style={{ cursor: 'pointer' }} onClick={() => toggleSet(s.name)}>
-                                            <title>{s.name}: {s.entries} IPs ({s.pct}%) — cliquer pour masquer</title>
-                                        </path>
-                                    ))}
-                                    <circle cx={80} cy={80} r={22.75} fill={C.bg1} stroke={C.border} />
-                                    <text x={80} y={85} fontSize={12} fontWeight={700} fill={C.text} textAnchor="middle">{visibleTotal}</text>
-                                </svg>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '.3rem' }}>
-                                    {slices.map(s => (
-                                        <div key={s.name} style={{ display: 'flex', alignItems: 'center', gap: '.4rem', cursor: 'pointer', opacity: s.hidden ? 0.35 : 1 }}
-                                            onClick={() => toggleSet(s.name)}>
-                                            <span style={{ width: 8, height: 8, borderRadius: '50%', background: s.hidden ? C.muted : s.color, flexShrink: 0 }} />
-                                            <span style={{ fontSize: '.72rem', fontFamily: 'monospace', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: s.hidden ? C.muted : s.color }}>{s.name}</span>
-                                            <span style={{ fontSize: '.72rem', fontWeight: 700, color: s.hidden ? C.muted : s.color, flexShrink: 0 }}>{s.entries}</span>
-                                            <span style={{ fontSize: '.68rem', color: C.muted, flexShrink: 0, minWidth: 30, textAlign: 'right' }}>{s.hidden ? '—' : `${s.pct}%`}</span>
-                                        </div>
-                                    ))}
+                        {/* Pie — legend left | pie center | legend right */}
+                        {total > 0 && (() => {
+                            const half = Math.ceil(slices.length / 2);
+                            const leftSlices  = slices.slice(0, half);
+                            const rightSlices = slices.slice(half);
+                            const legendItem = (s: typeof slices[0]) => (
+                                <div key={s.name} style={{ display: 'flex', alignItems: 'center', gap: '.4rem', cursor: 'pointer', opacity: s.hidden ? 0.35 : 1, padding: '.28rem 0' }}
+                                    onClick={() => toggleSet(s.name)}>
+                                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: s.hidden ? C.muted : s.color, flexShrink: 0 }} />
+                                    <span style={{ fontSize: '.72rem', fontFamily: 'monospace', maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: s.hidden ? C.muted : s.color }}>{s.name}</span>
+                                    <span style={{ fontSize: '.72rem', fontWeight: 700, color: s.hidden ? C.muted : s.color, flexShrink: 0 }}>{s.entries}</span>
+                                    <span style={{ fontSize: '.68rem', color: C.muted, flexShrink: 0, minWidth: 28, textAlign: 'right' }}>{s.hidden ? '—' : `${s.pct}%`}</span>
                                 </div>
-                            </div>
-                        )}
+                            );
+                            return (
+                                <div style={{ flexShrink: 0, display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 0, marginTop: '.5rem' }}>
+                                        {leftSlices.map(legendItem)}
+                                    </div>
+                                    <svg viewBox="0 0 160 160" style={{ width: 130, height: 130, flexShrink: 0 }}>
+                                        {slices.filter(s => !s.hidden && s.deg > 0).map(s => (
+                                            <path key={s.name} d={`M 80 80 L ${s.x1} ${s.y1} A 65 65 0 ${s.large} 1 ${s.x2} ${s.y2} Z`}
+                                                fill={s.color} stroke={C.bg1} strokeWidth={1.5} opacity={0.9}
+                                                style={{ cursor: 'pointer' }} onClick={() => toggleSet(s.name)}>
+                                                <title>{s.name}: {s.entries} IPs ({s.pct}%) — cliquer pour masquer</title>
+                                            </path>
+                                        ))}
+                                        <circle cx={80} cy={80} r={22.75} fill={C.bg1} stroke={C.border} />
+                                        <text x={80} y={85} fontSize={12} fontWeight={700} fill={C.text} textAnchor="middle">{visibleTotal}</text>
+                                    </svg>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 0, marginTop: '.5rem' }}>
+                                        {rightSlices.map(legendItem)}
+                                    </div>
+                                </div>
+                            );
+                        })()}
                     </div>
                 )}
             </div>

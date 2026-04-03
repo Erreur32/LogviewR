@@ -180,9 +180,8 @@ export const TabAudit: React.FC = () => {
             const res = await api.get<F2bCheckResult>('/api/plugins/fail2ban/check');
             if (res.success && res.result) {
                 setF2bResult(res.result);
-                const allOk = Object.values(res.result.checks ?? {}).every(c => c.ok);
-                setF2bStatus(allOk ? 'ok' : 'error');
-                if (!allOk) setOpenF2b(true);
+                setF2bStatus(res.result.ok ? 'ok' : 'error');
+                if (!res.result.ok) setOpenF2b(true);
             } else {
                 setF2bStatus('error');
                 setOpenF2b(true);
@@ -250,10 +249,11 @@ export const TabAudit: React.FC = () => {
     const anyFwLoading = FW_CHECKS.some(c => fwStatuses[c.key] === 'loading') || fwLoading;
 
     const f2bChecks: { key: string; label: string; icon: React.ReactNode; ok: boolean; fix?: string | null }[] = f2bResult ? [
-        { key: 'daemon', label: 'Daemon fail2ban', icon: <Server style={{ width: 12, height: 12 }} />,   ok: f2bResult.checks.daemon.ok, fix: f2bResult.checks.daemon.fix },
-        { key: 'socket', label: 'Socket Unix',     icon: <Shield style={{ width: 12, height: 12 }} />,   ok: f2bResult.checks.socket.ok, fix: f2bResult.checks.socket.fix },
-        { key: 'sqlite', label: 'Base SQLite',     icon: <Database style={{ width: 12, height: 12 }} />, ok: f2bResult.checks.sqlite.ok, fix: f2bResult.checks.sqlite.fix },
-        { key: 'dropin', label: 'Drop-in systemd', icon: <Shield style={{ width: 12, height: 12 }} />,   ok: f2bResult.checks.dropin.ok, fix: f2bResult.checks.dropin.fix },
+        { key: 'daemon', label: 'Daemon fail2ban',    icon: <Server   style={{ width: 12, height: 12 }} />,   ok: f2bResult.checks.daemon.ok, fix: f2bResult.checks.daemon.fix },
+        { key: 'client', label: 'Client fail2ban',    icon: <FileText style={{ width: 12, height: 12 }} />,   ok: f2bResult.checks.client.ok, fix: f2bResult.checks.client.fix },
+        { key: 'socket', label: 'Socket Unix',        icon: <Shield   style={{ width: 12, height: 12 }} />,   ok: f2bResult.checks.socket.ok, fix: f2bResult.checks.socket.fix },
+        { key: 'sqlite', label: 'Base SQLite',        icon: <Database style={{ width: 12, height: 12 }} />,   ok: f2bResult.checks.sqlite.ok, fix: f2bResult.checks.sqlite.fix },
+        { key: 'dropin', label: 'Drop-in systemd',    icon: <Shield   style={{ width: 12, height: 12 }} />,   ok: f2bResult.checks.dropin.ok, fix: f2bResult.checks.dropin.fix },
     ] : [];
 
     const anyF2bErr = f2bChecks.some(c => !c.ok);

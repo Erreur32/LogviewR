@@ -5,6 +5,35 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.27] - 2026-04-03
+
+### For users
+
+> The Fail2ban audit check now shows all failing components correctly, and the IPSet stats section is redesigned with shared colors across bars, pie chart, and history graph.
+
+- **Audit fix** — The status badge in the "Fail2ban — Vérifications" panel now correctly reflects all checks. Previously it could show red while all visible rows were green, because the `fail2ban-client` binary check was counted but not displayed. The client check now appears as its own row.
+- **IPSet bars — multi-column layout** — The bar list automatically switches from 1 to 2 to 3 columns (max) depending on how many sets are present (≤ 4 → 1 col, ≤ 8 → 2 cols, 9+ → 3 cols). Columns fill top-to-bottom so the largest sets are always in the first column.
+- **IPSet — consistent colors** — Each IPSet now uses the same color across the bar list, the pie chart, and the historical line graph. Previously each view assigned colors independently.
+- **IPSet pie — two-sided legend** — The pie chart legend is now split: largest sets on the left, smallest on the right, with the pie in the center. The history graph legend is sorted largest-first.
+- **IPSet — empty sets hidden from graph** — IPSets with 0 current entries are no longer shown as lines in the historical chart.
+
+---
+
+### Technical
+
+#### Frontend — `src/pages/fail2ban/TabAudit.tsx`
+
+- **`checkF2b`** — Changed `allOk` from `Object.values(checks).every(c => c.ok)` to `res.result.ok` (uses the backend-computed field, avoiding spurious red from `version` and `dropin` keys not included in backend `allOk`).
+- **`f2bChecks`** — Added `client` entry (fail2ban-client binary check) between `daemon` and `socket`, using `FileText` icon. Title badge and visible rows are now consistent.
+
+#### Frontend — `src/pages/fail2ban/TabStats.tsx`
+
+- **`IpSetsSection`** — `barSets` derived as `sets.filter(s => s.entries > 0)` for `maxEntries` calculation.
+- **Bar grid** — Replaced `flex-direction: column` (fixed width 340 px) with CSS grid (`grid-auto-flow: column`, `grid-template-rows: repeat(ceil(n/cols), auto)`). Column count: 1 / 2 / 3 based on `sets.length`. `marginTop: .5rem` added.
+- **`colorMap`** — `Record<string, string>` built from `slices` after pie computation; shared via prop to `HistChart` and used inline in bar rows. All three views now use the same color per ipset name.
+- **`HistChart`** — Added `nonEmptyNames?: Set<string>` prop: filters `ipset_names` from backend to exclude sets with 0 current entries. Added `colorMap?: Record<string, string>` prop used for both line colors and legend colors. Legend sorted by `colorMap` key order (largest → smallest).
+- **Pie layout** — Legend split into `leftSlices` (first half) and `rightSlices` (second half) with pie SVG centered between them. `alignItems: flex-start`, `marginTop: .5rem` on both legend columns, bottom padding removed from wrapper.
+
 ## [0.8.23] - 2026-04-03
 
 ### For users
