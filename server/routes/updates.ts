@@ -132,16 +132,19 @@ async function checkDockerImageAvailable(version: string): Promise<boolean> {
  */
 router.get('/check', requireAuth, asyncHandler(async (req: AuthenticatedRequest, res) => {
   const db = getDatabase();
-  
+  const force = req.query.force === 'true';
+
   // Check if update checking is enabled
   const updateConfigStmt = db.prepare('SELECT value FROM app_config WHERE key = ?');
   const updateConfigRow = updateConfigStmt.get('update_check_config') as { value: string } | undefined;
-  
-  let updateCheckEnabled = false; // Default to disabled
+
+  let updateCheckEnabled = false;
+  let frequencyHours = 24;
   if (updateConfigRow) {
     try {
       const config = JSON.parse(updateConfigRow.value);
-      updateCheckEnabled = config.enabled === true; // Only enabled if explicitly set to true
+      updateCheckEnabled = config.enabled === true;
+      if (typeof config.frequency === 'number') frequencyHours = config.frequency;
     } catch {
       // ignore malformed config
     }
@@ -159,7 +162,22 @@ router.get('/check', requireAuth, asyncHandler(async (req: AuthenticatedRequest,
       }
     });
   }
-  
+
+  // Return cached result if fresh enough (avoids GitHub API rate limiting)
+  if (!force) {
+    const cacheRow = db.prepare('SELECT value FROM app_config WHERE key = ?').get('update_check_cache') as { value: string } | undefined;
+    if (cacheRow) {
+      try {
+        const cached = JSON.parse(cacheRow.value) as { cachedAt: string; result: unknown };
+        const ageMs = Date.now() - new Date(cached.cachedAt).getTime();
+        if (ageMs < frequencyHours * 3_600_000) {
+          logger.debug('Updates', `Returning cached result (age ${Math.round(ageMs / 60_000)}min, ttl ${frequencyHours}h)`);
+          return res.json({ success: true, result: cached.result });
+        }
+      } catch { /* ignore malformed cache */ }
+    }
+  }
+
   const currentVersion = getCurrentVersion();
   let latestVersion: string | null = null;
   let updateAvailable = false;
@@ -540,36 +558,44 @@ router.get('/check', requireAuth, asyncHandler(async (req: AuthenticatedRequest,
       }
     }
     
-    // If we reach here, both methods failed
+    // If we reach here, all methods failed — preserve the most specific error
     if (!error && lastError) {
       error = lastError;
     }
     if (!error) {
-      error = 'Unable to retrieve package versions. Both GitHub API and Docker Registry API failed.';
+      error = 'Unable to retrieve package versions from GitHub API (rate limit or network issue).';
     }
-    
-    // Process version tags
+
+    // Don't overwrite a specific error with a generic one
     if (versionTags.length > 0) {
       latestVersion = versionTags[0];
       updateAvailable = compareVersions(latestVersion, currentVersion) > 0;
-    } else {
-      error = 'Problème de récupération de version';
+      error = null; // success — clear any transient error
     }
   } catch (err) {
     logger.error('Updates', `Error checking for updates: ${err instanceof Error ? err.message : String(err)}`);
     error = err instanceof Error ? err.message : 'Unknown error';
   }
-  
-  res.json({
-    success: true,
-    result: {
-      enabled: true,
-      currentVersion,
-      latestVersion,
-      updateAvailable,
-      error: error || undefined
-    }
-  });
+
+  const result = {
+    enabled: true,
+    currentVersion,
+    latestVersion,
+    updateAvailable,
+    error: error || undefined
+  };
+
+  // Cache successful results to avoid hitting GitHub API rate limits on every page load
+  if (!error && latestVersion) {
+    try {
+      db.prepare(`
+        INSERT INTO app_config (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
+      `).run('update_check_cache', JSON.stringify({ cachedAt: new Date().toISOString(), result }));
+    } catch { /* non-critical */ }
+  }
+
+  res.json({ success: true, result });
 }));
 
 /**

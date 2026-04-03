@@ -973,7 +973,7 @@ const UpdateCheckSection: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
 
   const handleCheckNow = async () => {
-    await checkForUpdates();
+    await checkForUpdates(true);
     const info = useUpdateStore.getState().updateInfo;
     if (!info) return;
     if (info.error) {

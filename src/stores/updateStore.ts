@@ -29,7 +29,7 @@ interface UpdateStore {
   lastCheck: Date | null;
 
   // Actions
-  checkForUpdates: () => Promise<void>;
+  checkForUpdates: (force?: boolean) => Promise<void>;
   loadConfig: () => Promise<void>;
   setConfig: (enabled: boolean, frequency?: number) => Promise<void>;
 }
@@ -40,10 +40,10 @@ export const useUpdateStore = create<UpdateStore>((set, get) => ({
   isLoading: false,
   lastCheck: null,
 
-  checkForUpdates: async () => {
+  checkForUpdates: async (force?: boolean) => {
     set({ isLoading: true });
     try {
-      const response = await api.get<UpdateInfo>('/api/updates/check');
+      const response = await api.get<UpdateInfo>(`/api/updates/check${force ? '?force=true' : ''}`);
       if (response.success && response.result) {
         set({
           updateInfo: response.result,
