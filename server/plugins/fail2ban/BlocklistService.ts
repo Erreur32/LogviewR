@@ -15,28 +15,157 @@ import { logger } from '../../utils/logger.js';
 
 const execFileAsync = promisify(execFile);
 
-const LISTS: Record<string, {
+export type ListDirection = 'in' | 'out' | 'both';
+export type IpsetType = 'hash:ip' | 'hash:net';
+
+interface BuiltinListDef {
     name: string;
     url: string;
     ipsetName: string;
     description: string;
     maxelem: number;
-}> = {
+    direction: ListDirection;
+    sourceUrl: string;
+    ipsetType: IpsetType;
+}
+
+const LISTS: Record<string, BuiltinListDef> = {
     prod: {
         name: 'Data-Shield Prod',
         url: 'https://cdn.jsdelivr.net/gh/duggytuxy/Data-Shield_IPv4_Blocklist@main/prod_data-shield_ipv4_blocklist.txt',
         ipsetName: 'data-shield-prod',
         description: 'Web apps, WordPress, Nginx/Apache',
-        maxelem: 150000,
+        maxelem: 200000,
+        direction: 'in',
+        sourceUrl: 'https://github.com/duggytuxy/Data-Shield_IPv4_Blocklist',
+        ipsetType: 'hash:ip',
     },
     critical: {
         name: 'Data-Shield Critical',
         url: 'https://cdn.jsdelivr.net/gh/duggytuxy/Data-Shield_IPv4_Blocklist@main/prod_critical_data-shield_ipv4_blocklist.txt',
         ipsetName: 'data-shield-critical',
         description: 'DMZ, APIs, infrastructure sensible',
-        maxelem: 150000,
+        maxelem: 200000,
+        direction: 'in',
+        sourceUrl: 'https://github.com/duggytuxy/Data-Shield_IPv4_Blocklist',
+        ipsetType: 'hash:ip',
+    },
+    // bitwire-in / bitwire-out removed: list contains ~3.3M entries which exceeds
+    // the kernel ipset hash:ip limit (~520K) on most Docker hosts. Add as a custom
+    // list only if your kernel supports larger ipsets.
+    'tor-exit': {
+        name: 'TOR Exit Nodes',
+        url: 'https://check.torproject.org/cgi-bin/TorBulkExitList.py?ip=1.1.1.1',
+        ipsetName: 'tor-exit',
+        description: 'Nœuds de sortie TOR — anonymisation / contournement',
+        maxelem: 15000,
+        direction: 'in',
+        sourceUrl: 'https://check.torproject.org',
+        ipsetType: 'hash:ip',
+    },
+    bruteforce: {
+        name: 'BruteForceBlocker',
+        url: 'http://danger.rulez.sk/projects/bruteforceblocker/blist.php',
+        ipsetName: 'bruteforce',
+        description: 'IPs actives en brute-force SSH/FTP — danger.rulez.sk',
+        maxelem: 50000,
+        direction: 'in',
+        sourceUrl: 'http://danger.rulez.sk/projects/bruteforceblocker/',
+        ipsetType: 'hash:ip',
+    },
+    'spamhaus-drop': {
+        name: 'Spamhaus DROP',
+        url: 'https://www.spamhaus.org/drop/drop.txt',
+        ipsetName: 'spamhaus-drop',
+        description: 'Spamhaus Don\'t Route Or Peer — réseaux non routables / hijackés (CIDRs)',
+        maxelem: 10000,
+        direction: 'in',
+        sourceUrl: 'https://www.spamhaus.org/drop/',
+        ipsetType: 'hash:net',
+    },
+    'cins-army': {
+        name: 'CINS Army',
+        url: 'https://cinsscore.com/list/ci-badguys.txt',
+        ipsetName: 'cins-army',
+        description: 'C.I. Army — IPs malveillantes confirmées (cinsscore.com)',
+        maxelem: 60000,
+        direction: 'in',
+        sourceUrl: 'https://cinsscore.com',
+        ipsetType: 'hash:ip',
+    },
+    'blocklist-de': {
+        name: 'Blocklist.de All',
+        url: 'https://lists.blocklist.de/lists/all.txt',
+        ipsetName: 'blocklist-de',
+        description: 'Attaquants détectés par blocklist.de (SSH, mail, FTP, SIP…)',
+        maxelem: 500000,
+        direction: 'in',
+        sourceUrl: 'https://www.blocklist.de',
+        ipsetType: 'hash:ip',
+    },
+    greensnow: {
+        name: 'GreenSnow',
+        url: 'https://blocklist.greensnow.co/greensnow.txt',
+        ipsetName: 'greensnow',
+        description: 'IPs blacklistées par GreenSnow — attaques multi-protocoles',
+        maxelem: 200000,
+        direction: 'in',
+        sourceUrl: 'https://greensnow.co',
+        ipsetType: 'hash:ip',
+    },
+    'firehol-l1': {
+        name: 'Firehol Level 1',
+        url: 'https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level1.netset',
+        ipsetName: 'firehol-l1',
+        description: 'Firehol niveau 1 — agrégat des meilleures listes (CIDRs + IPs)',
+        maxelem: 30000,
+        direction: 'in',
+        sourceUrl: 'https://github.com/firehol/blocklist-ipsets',
+        ipsetType: 'hash:net',
+    },
+    stopforumspam: {
+        name: 'Stopforumspam 7j',
+        url: 'https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/stopforumspam_7d.ipset',
+        ipsetName: 'stopforumspam',
+        description: 'Spammeurs de forums actifs sur 7 jours (via Firehol)',
+        maxelem: 200000,
+        direction: 'in',
+        sourceUrl: 'https://www.stopforumspam.com',
+        ipsetType: 'hash:ip',
+    },
+    'country-ru': {
+        name: 'Pays — Russie (CIDRs)',
+        url: 'https://raw.githubusercontent.com/ipverse/rir-ip/master/country/ru/ipv4-aggregated.txt',
+        ipsetName: 'country-ru',
+        description: '⚠ Bloc pays entier — tous les CIDRs IPv4 alloués à la Russie',
+        maxelem: 30000,
+        direction: 'in',
+        sourceUrl: 'https://github.com/ipverse/rir-ip',
+        ipsetType: 'hash:net',
+    },
+    'country-cn': {
+        name: 'Pays — Chine (CIDRs)',
+        url: 'https://raw.githubusercontent.com/ipverse/rir-ip/master/country/cn/ipv4-aggregated.txt',
+        ipsetName: 'country-cn',
+        description: '⚠ Bloc pays entier — tous les CIDRs IPv4 alloués à la Chine',
+        maxelem: 30000,
+        direction: 'in',
+        sourceUrl: 'https://github.com/ipverse/rir-ip',
+        ipsetType: 'hash:net',
     },
 };
+
+/**
+ * Returns [chain, matchFlag] pairs for the given direction.
+ * 'in'   → INPUT / src
+ * 'out'  → OUTPUT / dst
+ * 'both' → INPUT / src + OUTPUT / dst
+ */
+function iptablesChainsFor(direction: ListDirection): Array<[string, string]> {
+    if (direction === 'in')  return [['INPUT', 'src']];
+    if (direction === 'out') return [['OUTPUT', 'dst']];
+    return [['INPUT', 'src'], ['OUTPUT', 'dst']];
+}
 
 export interface CustomListDef {
     id: string;         // = ipsetName (user-supplied, unique)
@@ -45,6 +174,8 @@ export interface CustomListDef {
     ipsetName: string;
     description: string;
     maxelem: number;
+    direction: ListDirection;
+    ipsetType: IpsetType;
 }
 
 export interface BlocklistStatus {
@@ -56,7 +187,10 @@ export interface BlocklistStatus {
     count: number;
     error: string | null;
     updating: boolean;
-    builtin: boolean;   // true for LISTS entries, false for user-added
+    builtin: boolean;       // true for LISTS entries, false for user-added
+    direction: ListDirection;
+    ipsetType: IpsetType;
+    sourceUrl?: string;     // Link to the blocklist project/repo
 }
 
 /** Returns [cmd, args] — prepends sudo when not running as root. */
@@ -135,10 +269,10 @@ export class BlocklistService {
 
     // ── Dynamic list registry ─────────────────────────────────────────────────
 
-    private _allLists(): Record<string, { name: string; url: string; ipsetName: string; description: string; maxelem: number }> {
-        const custom: Record<string, { name: string; url: string; ipsetName: string; description: string; maxelem: number }> = {};
+    private _allLists(): Record<string, { name: string; url: string; ipsetName: string; description: string; maxelem: number; direction: ListDirection; ipsetType: IpsetType; sourceUrl?: string }> {
+        const custom: Record<string, { name: string; url: string; ipsetName: string; description: string; maxelem: number; direction: ListDirection; ipsetType: IpsetType; sourceUrl?: string }> = {};
         for (const [id, def] of this._customDefs.entries()) {
-            custom[id] = { name: def.name, url: def.url, ipsetName: def.ipsetName, description: def.description, maxelem: def.maxelem };
+            custom[id] = { name: def.name, url: def.url, ipsetName: def.ipsetName, description: def.description, maxelem: def.maxelem, direction: def.direction, ipsetType: def.ipsetType };
         }
         return { ...LISTS, ...custom };
     }
@@ -190,6 +324,9 @@ export class BlocklistService {
                 // Crash recovery: reset any stuck updating flag
                 updating: false,
                 builtin: id in LISTS,
+                direction: list.direction,
+                ipsetType: list.ipsetType,
+                sourceUrl: list.sourceUrl,
             };
             this._status.set(id, entry);
         }
@@ -213,12 +350,14 @@ export class BlocklistService {
         return Array.from(this._status.values());
     }
 
-    addCustomList(def: { name: string; url: string; ipsetName: string; description?: string; maxelem?: number }): { ok: boolean; error?: string } {
+    addCustomList(def: { name: string; url: string; ipsetName: string; description?: string; maxelem?: number; direction?: ListDirection; ipsetType?: IpsetType }): { ok: boolean; error?: string } {
         const name = def.name.trim();
         const url = def.url.trim();
         const ipsetName = def.ipsetName.trim();
         const description = def.description?.trim() ?? '';
         const maxelem = def.maxelem ?? 150000;
+        const direction: ListDirection = def.direction ?? 'in';
+        const ipsetType: IpsetType = def.ipsetType ?? 'hash:ip';
 
         if (!name) return { ok: false, error: 'Le nom est requis' };
         if (!url || !url.startsWith('http')) return { ok: false, error: 'URL invalide (doit commencer par http)' };
@@ -234,14 +373,14 @@ export class BlocklistService {
         }
 
         const id = ipsetName;
-        const newDef: CustomListDef = { id, name, url, ipsetName, description, maxelem };
+        const newDef: CustomListDef = { id, name, url, ipsetName, description, maxelem, direction, ipsetType };
         this._customDefs.set(id, newDef);
         this._saveCustomDefs();
 
         this._status.set(id, {
             id, name, description,
             enabled: false, lastUpdate: null, count: 0, error: null, updating: false,
-            builtin: false,
+            builtin: false, direction, ipsetType,
         });
         this._saveStatus();
 
@@ -268,6 +407,11 @@ export class BlocklistService {
         // Destroy ipset kernel object (ignore if already absent)
         try {
             const [c, a] = priv('ipset', ['destroy', def.ipsetName]);
+            await execFileAsync(c, a, { timeout: 10_000 });
+        } catch { /* ignore */ }
+        // Also destroy the temporary set used during refresh (may be orphaned if refresh was interrupted)
+        try {
+            const [c, a] = priv('ipset', ['destroy', def.ipsetName + '-new']);
             await execFileAsync(c, a, { timeout: 10_000 });
         } catch { /* ignore */ }
 
@@ -302,51 +446,102 @@ export class BlocklistService {
             logger.info('BlocklistService', `Downloading ${list.name} from ${list.url}`);
             const body = await downloadUrl(list.url, 30_000);
 
-            // 2. Parse IPs
-            const ipv4Re = /^(25[0-5]|2[0-4]\d|[01]?\d\d?)\.(25[0-5]|2[0-4]\d|[01]?\d\d?)\.(25[0-5]|2[0-4]\d|[01]?\d\d?)\.(25[0-5]|2[0-4]\d|[01]?\d\d?)$/;
-            const ips = [...new Set(
+            // 2. Parse IPs / CIDRs — flexible parser that handles:
+            //    - plain IPs: 1.2.3.4
+            //    - CIDRs: 1.2.3.4/24
+            //    - comments: # or ; at start or after the entry
+            //    - ipset restore format: "add setname 1.2.3.4" (extract IP from 3rd token)
+            const ipOrCidrRe = /(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(?:\/\d{1,2})?)/;
+            const entries = [...new Set(
                 body.split('\n')
-                    .map(l => l.trim())
-                    .filter(l => ipv4Re.test(l))
+                    .map(l => {
+                        // Strip inline comments (# or ;)
+                        const clean = l.replace(/[#;].*$/, '').trim();
+                        if (!clean) return '';
+                        // Find first IP or CIDR pattern anywhere on the line
+                        const m = clean.match(ipOrCidrRe);
+                        return m ? m[1] : '';
+                    })
+                    .filter(Boolean)
             )];
 
-            if (ips.length === 0) {
-                throw new Error(`Aucune IP valide dans la liste ${list.name} (liste vide ou format invalide)`);
+            if (entries.length === 0) {
+                throw new Error(`Aucune IP/CIDR valide dans la liste ${list.name} (liste vide ou format non reconnu)`);
             }
 
-            logger.info('BlocklistService', `${list.name}: parsed ${ips.length} unique IPs`);
+            // Kernel ipset hash tables are capped at ~524 288 entries (2^19) regardless
+            // of maxelem or hashsize. Fail early with a clear message rather than letting
+            // ipset restore crash mid-load.
+            const IPSET_KERNEL_LIMIT = 520000;
+            if (entries.length > IPSET_KERNEL_LIMIT) {
+                throw new Error(
+                    `Liste trop grande pour ipset sur ce kernel : ${entries.length.toLocaleString()} entrées (limite ~${IPSET_KERNEL_LIMIT.toLocaleString()}). ` +
+                    `Désactivez cette liste ou regroupez les IPs en CIDRs.`
+                );
+            }
 
-            // 3. Build ipset restore script
-            const lines = [
-                `create ${list.ipsetName}-new hash:ip family inet hashsize 32768 maxelem ${list.maxelem}`,
-                ...ips.map(ip => `add ${list.ipsetName}-new ${ip}`),
-            ];
-            const script = lines.join('\n') + '\n';
+            const ipsetType = list.ipsetType ?? 'hash:ip';
+            logger.info('BlocklistService', `${list.name}: parsed ${entries.length} unique entries (${ipsetType})`);
 
-            // 4a. Ensure main set exists (ignore "already exists")
+            // 3. Build restore script — only "add" lines; we create the -new set
+            //    explicitly below so we have guaranteed control over maxelem.
+            const script = entries.map(e => `add ${list.ipsetName}-new ${e}`).join('\n') + '\n';
+
+            // 4a. Ensure main set exists with correct type (ignore "already exists").
+            //     If it exists with wrong maxelem, destroy it first so a fresh create picks
+            //     up the new value. Iptables rules are not affected until the swap.
             try {
-                const [c, a] = priv('ipset', ['create', list.ipsetName, 'hash:ip', 'family', 'inet', 'maxelem', String(list.maxelem)]);
+                const [c, a] = priv('ipset', ['create', list.ipsetName, ipsetType, 'family', 'inet', 'maxelem', String(list.maxelem)]);
                 await execFileAsync(c, a, { timeout: 10_000 });
             } catch (err: unknown) {
                 const msg = err instanceof Error ? err.message : String(err);
-                if (!msg.includes('already exists') && !msg.includes('set with the same name')) {
+                if (msg.includes('already exists') || msg.includes('set with the same name')) {
+                    // Set exists — check maxelem; destroy & recreate if too small
+                    try {
+                        const [lc, la] = priv('ipset', ['list', list.ipsetName, '-t']);
+                        const { stdout } = await execFileAsync(lc, la, { timeout: 10_000 });
+                        const maxElemMatch = stdout.match(/Maxelem:\s*(\d+)/i);
+                        const currentMaxelem = maxElemMatch ? parseInt(maxElemMatch[1], 10) : 0;
+                        if (currentMaxelem < list.maxelem) {
+                            logger.info('BlocklistService', `${list.name}: maxelem mismatch (${currentMaxelem} < ${list.maxelem}), recreating`);
+                            const [dc, da] = priv('ipset', ['destroy', list.ipsetName]);
+                            await execFileAsync(dc, da, { timeout: 10_000 });
+                            const [cc, ca] = priv('ipset', ['create', list.ipsetName, ipsetType, 'family', 'inet', 'maxelem', String(list.maxelem)]);
+                            await execFileAsync(cc, ca, { timeout: 10_000 });
+                        }
+                    } catch (innerErr: unknown) {
+                        const innerMsg = innerErr instanceof Error ? innerErr.message : String(innerErr);
+                        logger.warn('BlocklistService', `${list.name}: could not verify/fix maxelem — ${innerMsg}`);
+                    }
+                } else {
                     throw new Error(`ipset create ${list.ipsetName}: ${msg}`);
                 }
             }
 
-            // 4b. Destroy old temp set (ignore errors)
+            // 4b. Destroy -new temp set (always), then recreate it explicitly with
+            //     the correct maxelem. Doing this here — rather than via a "create"
+            //     line inside the restore file — guarantees maxelem is correct even
+            //     if a stale -new set existed in the kernel from a previous run.
             try {
                 const [c, a] = priv('ipset', ['destroy', `${list.ipsetName}-new`]);
                 await execFileAsync(c, a, { timeout: 10_000 });
-            } catch {
-                // Ignore — temp set may not exist
+            } catch { /* ignore — set may not exist */ }
+
+            {
+                // hashsize must be a power-of-2 ≥ maxelem/8 so the kernel hash table
+                // doesn't overflow before maxelem is reached (each bucket holds ~8 entries).
+                const targetBuckets = Math.ceil(list.maxelem / 4);
+                const hashsize = Math.pow(2, Math.ceil(Math.log2(Math.max(1024, targetBuckets))));
+                const [c, a] = priv('ipset', ['create', `${list.ipsetName}-new`, ipsetType, 'family', 'inet', 'hashsize', String(hashsize), 'maxelem', String(list.maxelem)]);
+                await execFileAsync(c, a, { timeout: 10_000 });
+                logger.info('BlocklistService', `${list.name}: created ${list.ipsetName}-new (${ipsetType}, hashsize=${hashsize}, maxelem=${list.maxelem})`);
             }
 
-            // 4c. Write restore script to tmp file
+            // 4c. Write restore script (add-only lines) to tmp file
             tmpFile = path.join(os.tmpdir(), `${list.ipsetName}-restore-${Date.now()}.txt`);
             fs.writeFileSync(tmpFile, script, 'utf8');
 
-            // 4d. ipset restore
+            // 4d. ipset restore — fills -new set
             {
                 const [c, a] = priv('ipset', ['restore', '-f', tmpFile]);
                 await execFileAsync(c, a, { timeout: 60_000, maxBuffer: 16 * 1024 * 1024 });
@@ -373,12 +568,12 @@ export class BlocklistService {
             // 5. Update status
             status.updating = false;
             status.lastUpdate = new Date().toISOString();
-            status.count = ips.length;
+            status.count = entries.length;
             status.error = null;
             this._saveStatus();
 
-            logger.info('BlocklistService', `${list.name}: refresh OK (${ips.length} IPs)`);
-            return { ok: true, count: ips.length };
+            logger.info('BlocklistService', `${list.name}: refresh OK (${entries.length} entries)`);
+            return { ok: true, count: entries.length };
 
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : String(err);
@@ -389,6 +584,12 @@ export class BlocklistService {
                 try { fs.unlinkSync(tmpFile); } catch { /* ignore */ }
             }
 
+            // Cleanup orphaned -new temp set so it doesn't clutter ipset list
+            try {
+                const [c, a] = priv('ipset', ['destroy', `${list.ipsetName}-new`]);
+                await execFileAsync(c, a, { timeout: 10_000 });
+            } catch { /* ignore — set may not exist or still in use */ }
+
             status.updating = false;
             status.error = msg;
             this._saveStatus();
@@ -397,6 +598,57 @@ export class BlocklistService {
         } finally {
             this._refreshInProgress.delete(id);
         }
+    }
+
+    /**
+     * Force-reset: removes iptables rules, destroys existing ipset (main + -new),
+     * then runs a fresh refresh. Use this when a normal refresh fails due to a
+     * stale kernel set (wrong maxelem, corrupted state, etc.).
+     */
+    async forceReset(id: string): Promise<{ ok: boolean; count?: number; error?: string }> {
+        const list = this._allLists()[id];
+        if (!list) return { ok: false, error: `Liste inconnue: ${id}` };
+
+        const status = this._status.get(id)!;
+        const wasEnabled = status.enabled;
+
+        // 1. Remove iptables rules (ignore errors — rules may not exist)
+        for (const [chain, dirFlag] of iptablesChainsFor(list.direction)) {
+            try {
+                const [c, a] = priv('iptables', ['-D', chain, '-m', 'set', '--match-set', list.ipsetName, dirFlag, '-j', 'DROP']);
+                await execFileAsync(c, a, { timeout: 10_000 });
+            } catch { /* ignore */ }
+        }
+
+        // 2. Destroy main set and temp set (ignore errors)
+        for (const setName of [list.ipsetName, `${list.ipsetName}-new`]) {
+            try {
+                const [c, a] = priv('ipset', ['destroy', setName]);
+                await execFileAsync(c, a, { timeout: 10_000 });
+                logger.info('BlocklistService', `forceReset: destroyed ${setName}`);
+            } catch { /* ignore — may not exist */ }
+        }
+
+        // 3. Fresh refresh (re-downloads, recreates set from scratch)
+        const r = await this.refresh(id);
+        if (!r.ok) return r;
+
+        // 4. Re-add iptables rules if it was enabled before
+        if (wasEnabled) {
+            for (const [chain, dirFlag] of iptablesChainsFor(list.direction)) {
+                try {
+                    const [c, a] = priv('iptables', ['-I', chain, '-m', 'set', '--match-set', list.ipsetName, dirFlag, '-j', 'DROP']);
+                    await execFileAsync(c, a, { timeout: 10_000 });
+                } catch (err: unknown) {
+                    const msg = err instanceof Error ? err.message : String(err);
+                    logger.error('BlocklistService', `forceReset: iptables -I ${chain} failed — ${msg}`);
+                }
+            }
+            status.enabled = true;
+            this._saveStatus();
+        }
+
+        return r;
     }
 
     async enable(id: string): Promise<{ ok: boolean; error?: string }> {
@@ -415,20 +667,22 @@ export class BlocklistService {
             }
         }
 
-        // Check if iptables rule already exists
-        try {
-            const [c, a] = priv('iptables', ['-C', 'INPUT', '-m', 'set', '--match-set', list.ipsetName, 'src', '-j', 'DROP']);
-            await execFileAsync(c, a, { timeout: 10_000 });
-            // exit 0 → rule exists, skip insertion
-        } catch {
-            // Rule absent — insert at top
+        // Apply iptables rules for each chain dictated by direction
+        for (const [chain, dirFlag] of iptablesChainsFor(list.direction)) {
             try {
-                const [c, a] = priv('iptables', ['-I', 'INPUT', '-m', 'set', '--match-set', list.ipsetName, 'src', '-j', 'DROP']);
+                const [c, a] = priv('iptables', ['-C', chain, '-m', 'set', '--match-set', list.ipsetName, dirFlag, '-j', 'DROP']);
                 await execFileAsync(c, a, { timeout: 10_000 });
-            } catch (err: unknown) {
-                const msg = err instanceof Error ? err.message : String(err);
-                logger.error('BlocklistService', `enable ${id}: iptables -I failed — ${msg}`);
-                return { ok: false, error: msg };
+                // exit 0 → rule exists, skip insertion
+            } catch {
+                // Rule absent — insert at top
+                try {
+                    const [c, a] = priv('iptables', ['-I', chain, '-m', 'set', '--match-set', list.ipsetName, dirFlag, '-j', 'DROP']);
+                    await execFileAsync(c, a, { timeout: 10_000 });
+                } catch (err: unknown) {
+                    const msg = err instanceof Error ? err.message : String(err);
+                    logger.error('BlocklistService', `enable ${id}: iptables -I ${chain} failed — ${msg}`);
+                    return { ok: false, error: msg };
+                }
             }
         }
 
@@ -445,12 +699,14 @@ export class BlocklistService {
             return { ok: false, error: `Liste inconnue: ${id}` };
         }
 
-        // Remove iptables rule (ignore if absent)
-        try {
-            const [c, a] = priv('iptables', ['-D', 'INPUT', '-m', 'set', '--match-set', list.ipsetName, 'src', '-j', 'DROP']);
-            await execFileAsync(c, a, { timeout: 10_000 });
-        } catch {
-            // Ignore — rule may not exist
+        // Remove iptables rules for each chain dictated by direction
+        for (const [chain, dirFlag] of iptablesChainsFor(list.direction)) {
+            try {
+                const [c, a] = priv('iptables', ['-D', chain, '-m', 'set', '--match-set', list.ipsetName, dirFlag, '-j', 'DROP']);
+                await execFileAsync(c, a, { timeout: 10_000 });
+            } catch {
+                // Ignore — rule may not exist
+            }
         }
 
         const status = this._status.get(id)!;
@@ -481,21 +737,23 @@ export class BlocklistService {
                 continue;
             }
 
-            // Re-add iptables DROP rule if absent.
-            try {
-                const [cc, ca] = priv('iptables', ['-C', 'INPUT', '-m', 'set', '--match-set', list.ipsetName, 'src', '-j', 'DROP']);
-                await execFileAsync(cc, ca, { timeout: 10_000 });
-                logger.info('BlocklistService', `Startup restore: ${id} iptables rule already present`);
-            } catch {
+            // Re-add iptables DROP rules for each chain dictated by direction
+            for (const [chain, dirFlag] of iptablesChainsFor(list.direction)) {
                 try {
-                    const [ic, ia] = priv('iptables', ['-I', 'INPUT', '-m', 'set', '--match-set', list.ipsetName, 'src', '-j', 'DROP']);
-                    await execFileAsync(ic, ia, { timeout: 10_000 });
-                    logger.info('BlocklistService', `Startup restore: ${id} iptables rule re-added`);
-                } catch (err: unknown) {
-                    const msg = err instanceof Error ? err.message : String(err);
-                    logger.error('BlocklistService', `Startup restore: ${id} iptables -I failed — ${msg}`);
-                    status.error = `Restauration au démarrage échouée: ${msg}`;
-                    this._saveStatus();
+                    const [cc, ca] = priv('iptables', ['-C', chain, '-m', 'set', '--match-set', list.ipsetName, dirFlag, '-j', 'DROP']);
+                    await execFileAsync(cc, ca, { timeout: 10_000 });
+                    logger.info('BlocklistService', `Startup restore: ${id} iptables ${chain} rule already present`);
+                } catch {
+                    try {
+                        const [ic, ia] = priv('iptables', ['-I', chain, '-m', 'set', '--match-set', list.ipsetName, dirFlag, '-j', 'DROP']);
+                        await execFileAsync(ic, ia, { timeout: 10_000 });
+                        logger.info('BlocklistService', `Startup restore: ${id} iptables ${chain} rule re-added`);
+                    } catch (err: unknown) {
+                        const msg = err instanceof Error ? err.message : String(err);
+                        logger.error('BlocklistService', `Startup restore: ${id} iptables -I ${chain} failed — ${msg}`);
+                        status.error = `Restauration au démarrage échouée: ${msg}`;
+                        this._saveStatus();
+                    }
                 }
             }
         }
@@ -516,16 +774,18 @@ export class BlocklistService {
                     logger.info('BlocklistService', `Auto-refresh: ${id} OK (${r.count} IPs)`);
                     const list = this._allLists()[id];
                     if (list) {
-                        try {
-                            const [cc, ca] = priv('iptables', ['-C', 'INPUT', '-m', 'set', '--match-set', list.ipsetName, 'src', '-j', 'DROP']);
-                            await execFileAsync(cc, ca, { timeout: 10_000 });
-                        } catch {
+                        for (const [chain, dirFlag] of iptablesChainsFor(list.direction)) {
                             try {
-                                const [ic, ia] = priv('iptables', ['-I', 'INPUT', '-m', 'set', '--match-set', list.ipsetName, 'src', '-j', 'DROP']);
-                                await execFileAsync(ic, ia, { timeout: 10_000 });
-                                logger.info('BlocklistService', `Auto-refresh: ${id} iptables rule re-added after refresh`);
-                            } catch (err: unknown) {
-                                logger.error('BlocklistService', `Auto-refresh: ${id} iptables rule restore failed — ${err instanceof Error ? err.message : String(err)}`);
+                                const [cc, ca] = priv('iptables', ['-C', chain, '-m', 'set', '--match-set', list.ipsetName, dirFlag, '-j', 'DROP']);
+                                await execFileAsync(cc, ca, { timeout: 10_000 });
+                            } catch {
+                                try {
+                                    const [ic, ia] = priv('iptables', ['-I', chain, '-m', 'set', '--match-set', list.ipsetName, dirFlag, '-j', 'DROP']);
+                                    await execFileAsync(ic, ia, { timeout: 10_000 });
+                                    logger.info('BlocklistService', `Auto-refresh: ${id} iptables ${chain} rule re-added`);
+                                } catch (err: unknown) {
+                                    logger.error('BlocklistService', `Auto-refresh: ${id} iptables ${chain} restore failed — ${err instanceof Error ? err.message : String(err)}`);
+                                }
                             }
                         }
                     }

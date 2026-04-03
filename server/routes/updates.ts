@@ -197,32 +197,39 @@ router.get('/check', requireAuth, asyncHandler(async (req: AuthenticatedRequest,
         }>;
 
         if (tags.length > 0) {
-          const tagNames = tags.map(tag => tag.name);
-          versionTags = tagNames
-            .filter(tag => {
-              // Accept: x.y.z, vx.y.z format
-              const isSemanticVersion = /^\d+\.\d+\.\d+/.test(tag) || /^v\d+\.\d+\.\d+/.test(tag);
-              // Also accept partial versions like 0.0, 0.0.0, etc.
-              const isPartialVersion = /^\d+\.\d+$/.test(tag) || /^v\d+\.\d+$/.test(tag);
-              // Exclude: latest, main, dev, etc.
-              const isExcluded = ['latest', 'main', 'dev', 'develop', 'master', 'staging', 'beta', 'alpha', 'rc'].includes(tag.toLowerCase());
-              return (isSemanticVersion || isPartialVersion) && !isExcluded;
-            })
-            .map(tag => tag.replace(/^v/, '')) // Remove 'v' prefix if present
+          const filteredTags = tags.filter(tag => {
+            const name = tag.name;
+            // Accept: x.y.z, vx.y.z format
+            const isSemanticVersion = /^\d+\.\d+\.\d+/.test(name) || /^v\d+\.\d+\.\d+/.test(name);
+            // Also accept partial versions like 0.0, 0.0.0, etc.
+            const isPartialVersion = /^\d+\.\d+$/.test(name) || /^v\d+\.\d+$/.test(name);
+            // Exclude: latest, main, dev, etc.
+            const isExcluded = ['latest', 'main', 'dev', 'develop', 'master', 'staging', 'beta', 'alpha', 'rc'].includes(name.toLowerCase());
+            return (isSemanticVersion || isPartialVersion) && !isExcluded;
+          });
+          versionTags = filteredTags
+            .map(tag => tag.name.replace(/^v/, '')) // Remove 'v' prefix if present
             .filter((tag, index, self) => self.indexOf(tag) === index) // Remove duplicates
             .sort((a, b) => compareVersions(b, a)); // Sort descending (newest first)
-          
+
           logger.debug('Updates', `GitHub tags found: ${versionTags.join(', ')}`);
 
           if (versionTags.length > 0) {
             latestVersion = versionTags[0];
+            // Capture commit URL for the latest tag (used as release notes fallback)
+            const latestTagObj = filteredTags.find(t => t.name.replace(/^v/, '') === latestVersion);
+            const latestTagCommitUrl = latestTagObj?.commit?.url;
+
             updateAvailable = compareVersions(latestVersion, currentVersion) > 0;
             // Only report updateAvailable if the Docker image is actually built and ready
             const dockerReady = updateAvailable
               ? await checkDockerImageAvailable(latestVersion)
               : false;
 
-            // Fetch release notes: GitHub Releases API first, then CHANGELOG.md fallback
+            // Fetch release notes — three sources in priority order:
+            // 1. GitHub Releases API body
+            // 2. Local CHANGELOG.md (only works if running container has the entry)
+            // 3. Commit message from the tag's commit (always available via GitHub API)
             let releaseNotes: string | undefined;
             try {
               const releaseRes = await fetch(
@@ -240,9 +247,20 @@ router.get('/check', requireAuth, asyncHandler(async (req: AuthenticatedRequest,
                 }
               }
             } catch { /* non-critical */ }
-            // Fallback: parse local CHANGELOG.md if GitHub release has no notes
+            // Fallback 2: parse local CHANGELOG.md
             if (!releaseNotes) {
               releaseNotes = getReleaseNotesFromChangelog(latestVersion);
+            }
+            // Fallback 3: commit message of the tag (always works, even from old containers)
+            if (!releaseNotes && latestTagCommitUrl) {
+              try {
+                const commitRes = await fetch(latestTagCommitUrl, { headers });
+                if (commitRes.ok) {
+                  const data = await commitRes.json() as { commit?: { message?: string } };
+                  const firstLine = data.commit?.message?.split('\n')[0]?.trim();
+                  if (firstLine) releaseNotes = firstLine;
+                }
+              } catch { /* non-critical */ }
             }
 
             return res.json({

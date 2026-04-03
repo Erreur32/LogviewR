@@ -8,6 +8,8 @@ import { api } from '../../api/client';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
+type ListDirection = 'in' | 'out' | 'both';
+
 interface ListState {
   id: string;
   name: string;
@@ -18,6 +20,8 @@ interface ListState {
   error: string | null;
   updating: boolean;
   builtin: boolean;
+  direction: ListDirection;
+  sourceUrl?: string;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -47,6 +51,8 @@ export const TabBlocklists: React.FC = () => {
   const [newUrl, setNewUrl] = useState('');
   const [newIpset, setNewIpset] = useState('');
   const [newDesc, setNewDesc] = useState('');
+  const [newMaxelem, setNewMaxelem] = useState(150_000);
+  const [newDirection, setNewDirection] = useState<ListDirection>('in');
 
   const fetchStatus = async () => {
     try {
@@ -89,6 +95,18 @@ export const TabBlocklists: React.FC = () => {
     }
   };
 
+  const handleForceReset = async (id: string) => {
+    setLists(prev => prev.map(l => l.id === id ? { ...l, updating: true } : l));
+    try {
+      await api.post<{ ok: boolean; count?: number; error?: string }>(
+        '/api/plugins/fail2ban/blocklists/force-reset',
+        { id }
+      );
+    } finally {
+      await fetchStatus();
+    }
+  };
+
   const handleAdd = async () => {
     if (lists.some(l => l.id === newIpset)) {
       setAddError(`Le nom d'ipset "${newIpset}" est déjà utilisé`);
@@ -99,11 +117,11 @@ export const TabBlocklists: React.FC = () => {
     try {
       const res = await api.post<{ ok: boolean; error?: string }>(
         '/api/plugins/fail2ban/blocklists/add',
-        { name: newName, url: newUrl, ipsetName: newIpset, description: newDesc }
+        { name: newName, url: newUrl, ipsetName: newIpset, description: newDesc, maxelem: newMaxelem, direction: newDirection }
       );
       if (res.result?.ok) {
         setShowAddForm(false);
-        setNewName(''); setNewUrl(''); setNewIpset(''); setNewDesc('');
+        setNewName(''); setNewUrl(''); setNewIpset(''); setNewDesc(''); setNewMaxelem(150_000); setNewDirection('in');
         await fetchStatus();
       } else {
         setAddError(res.result?.error ?? 'Erreur inconnue');
@@ -150,110 +168,137 @@ export const TabBlocklists: React.FC = () => {
         <div style={{ color: '#8b949e', fontSize: '.85rem', padding: '1rem 0' }}>Chargement…</div>
       )}
 
-      {/* ── List cards ── */}
+      {/* ── List rows — compact horizontal ── */}
       {!loading && lists.map(list => (
         <div key={list.id} style={{
           background: '#161b22',
-          border: '1px solid rgba(48,54,61,1)',
-          borderLeft: `4px solid ${list.builtin ? '#e86a65' : '#58a6ff'}`,
-          borderRadius: 6,
-          padding: '1rem',
-          marginBottom: '.75rem',
+          border: '1px solid rgba(48,54,61,.8)',
+          borderLeft: `3px solid ${list.builtin ? '#e86a65' : '#58a6ff'}`,
+          borderRadius: 5,
+          padding: '.42rem .65rem',
+          marginBottom: '.35rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '.55rem',
+          flexWrap: 'wrap',
+          opacity: list.updating ? 0.75 : 1,
+          transition: 'opacity .15s',
         }}>
-          {/* Card header: name + toggle */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '.5rem', flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '.45rem' }}>
-              <Shield style={{ width: 16, height: 16, color: '#e86a65', flexShrink: 0 }} />
-              <span style={{ fontWeight: 600, fontSize: '.95rem', color: '#e6edf3' }}>{list.name}</span>
+          {/* Toggle button */}
+          <button
+            onClick={() => !list.updating && handleToggle(list.id, list.enabled)}
+            disabled={list.updating}
+            title={list.enabled ? 'Désactiver' : 'Activer'}
+            style={{
+              background: 'none', border: 'none', padding: 0,
+              color: list.updating ? '#555d69' : list.enabled ? '#3fb950' : '#484f58',
+              fontSize: '1rem', lineHeight: 1, cursor: list.updating ? 'default' : 'pointer',
+              flexShrink: 0, width: 16, textAlign: 'center',
+            }}
+          >
+            {list.updating ? '⟳' : list.enabled ? '●' : '○'}
+          </button>
+
+          {/* Name + description */}
+          <div style={{ flex: '1 1 140px', minWidth: 0 }}>
+            <div style={{ fontWeight: 600, fontSize: '.83rem', color: '#e6edf3', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {list.name}
             </div>
-            <button
-              onClick={() => !list.updating && handleToggle(list.id, list.enabled)}
-              disabled={list.updating}
-              style={{
-                background: list.enabled ? 'rgba(63,185,80,.15)' : 'rgba(139,148,158,.1)',
-                border: `1px solid ${list.enabled ? '#3fb950' : '#555d69'}`,
-                color: list.enabled ? '#3fb950' : '#8b949e',
-                borderRadius: 20, padding: '.2rem .75rem',
-                fontSize: '.75rem', fontWeight: 600, cursor: list.updating ? 'default' : 'pointer',
-                display: 'flex', alignItems: 'center', gap: '.3rem',
-                opacity: list.updating ? 0.6 : 1,
-              }}
-            >
-              {list.updating ? '...' : (list.enabled ? '● ACTIF' : '○ INACTIF')}
-            </button>
-            {!list.builtin && (
-              <button
-                onClick={() => handleRemove(list.id)}
-                disabled={list.updating}
-                title="Supprimer cette liste"
-                style={{
-                  background: 'rgba(248,81,73,.1)',
-                  border: '1px solid rgba(248,81,73,.3)',
-                  color: '#f85149',
-                  borderRadius: 4,
-                  padding: '.2rem .5rem',
-                  fontSize: '.75rem',
-                  cursor: list.updating ? 'default' : 'pointer',
-                  lineHeight: 1,
-                }}
-              >
-                ✕
-              </button>
-            )}
+            <div style={{ fontSize: '.7rem', color: '#555d69', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {list.description}
+            </div>
           </div>
 
-          {/* Description */}
-          <div style={{ fontSize: '.82rem', color: '#8b949e', marginTop: '.3rem' }}>
-            {list.description}
-          </div>
-
-          {/* Separator */}
-          <div style={{ borderTop: '1px solid rgba(48,54,61,.6)', margin: '.6rem 0' }} />
-
-          {/* Stats row */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', flexWrap: 'wrap', marginBottom: '.4rem' }}>
-            <span style={{ color: '#bc8cff', fontWeight: 600 }}>
-              {list.count.toLocaleString()}
+          {/* IP count */}
+          {list.count > 0 && (
+            <span style={{ fontSize: '.75rem', color: '#bc8cff', fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 }}>
+              {list.count.toLocaleString()} IPs
             </span>
-            <span style={{ color: '#8b949e', fontSize: '.82rem' }}>IPs</span>
-            <span style={{ color: '#555d69', fontSize: '.8rem' }}>•</span>
-            <span style={{ color: '#8b949e', fontSize: '.8rem' }}>Mis à jour {fmtAge(list.lastUpdate)}</span>
-          </div>
+          )}
 
-          {/* Source badge */}
-          <div style={{ marginBottom: '.65rem' }}>
-            <span style={{
-              display: 'inline-block',
-              background: 'rgba(139,148,158,.08)',
-              border: '1px solid rgba(139,148,158,.2)',
-              color: '#8b949e',
-              borderRadius: 3,
-              padding: '.07rem .45rem',
-              fontSize: '.72rem',
-            }}>
-              Source : {list.builtin ? 'jsDelivr CDN' : 'URL personnalisée'}
-            </span>
-          </div>
+          {/* Age */}
+          <span style={{ fontSize: '.7rem', color: '#484f58', whiteSpace: 'nowrap', flexShrink: 0 }}>
+            {fmtAge(list.lastUpdate)}
+          </span>
+
+          {/* Direction badge */}
+          <span style={{
+            fontSize: '.68rem', fontWeight: 600, borderRadius: 3, padding: '.05rem .35rem', flexShrink: 0,
+            background: list.direction === 'out' ? 'rgba(227,179,65,.1)' : list.direction === 'both' ? 'rgba(188,140,255,.1)' : 'rgba(63,185,80,.07)',
+            border: `1px solid ${list.direction === 'out' ? 'rgba(227,179,65,.3)' : list.direction === 'both' ? 'rgba(188,140,255,.3)' : 'rgba(63,185,80,.2)'}`,
+            color: list.direction === 'out' ? '#e3b341' : list.direction === 'both' ? '#bc8cff' : '#3fb950',
+          }}>
+            {list.direction === 'in' ? '↓ IN' : list.direction === 'out' ? '↑ OUT' : '↕'}
+          </span>
+
+          {/* Source link */}
+          {list.sourceUrl && (
+            <a href={list.sourceUrl} target="_blank" rel="noopener noreferrer"
+              title="Voir la source"
+              style={{ fontSize: '.7rem', color: '#58a6ff', textDecoration: 'none', flexShrink: 0 }}>
+              ↗
+            </a>
+          )}
+
+          {/* Out warning when active */}
+          {(list.direction === 'out' || list.direction === 'both') && list.enabled && (
+            <span style={{ fontSize: '.68rem', color: '#e3b341', flexShrink: 0 }} title="Filtre le trafic sortant">⚠</span>
+          )}
+
+          {/* Spacer */}
+          <div style={{ flex: '0 0 0' }} />
 
           {/* Refresh button */}
           <button
             onClick={() => !list.updating && handleRefresh(list.id)}
             disabled={list.updating}
+            title="Rafraîchir la liste"
             style={{
-              background: 'rgba(88,166,255,.1)', border: '1px solid rgba(88,166,255,.3)',
+              background: 'rgba(88,166,255,.08)', border: '1px solid rgba(88,166,255,.2)',
               color: list.updating ? '#555d69' : '#58a6ff',
-              borderRadius: 4, padding: '.3rem .75rem',
-              fontSize: '.8rem', cursor: list.updating ? 'default' : 'pointer',
-              display: 'flex', alignItems: 'center', gap: '.35rem',
+              borderRadius: 4, padding: '.2rem .5rem',
+              fontSize: '.72rem', cursor: list.updating ? 'default' : 'pointer',
+              display: 'flex', alignItems: 'center', gap: '.25rem', flexShrink: 0,
             }}
           >
-            {list.updating ? '⟳ En cours…' : '↻ Rafraîchir'}
+            ↻{list.updating ? ' …' : ''}
           </button>
 
-          {/* Error display */}
+          {/* Delete button (custom lists only) */}
+          {!list.builtin && (
+            <button
+              onClick={() => handleRemove(list.id)}
+              disabled={list.updating}
+              title="Supprimer cette liste"
+              style={{
+                background: 'rgba(248,81,73,.08)', border: '1px solid rgba(248,81,73,.2)',
+                color: '#f85149', borderRadius: 4, padding: '.2rem .4rem',
+                fontSize: '.72rem', cursor: list.updating ? 'default' : 'pointer',
+                flexShrink: 0, lineHeight: 1,
+              }}
+            >
+              ✕
+            </button>
+          )}
+
+          {/* Error inline + Force reset button */}
           {list.error && (
-            <div style={{ color: '#f85149', fontSize: '.78rem', marginTop: '.4rem', padding: '.3rem .5rem', background: 'rgba(248,81,73,.1)', borderRadius: 4, border: '1px solid rgba(248,81,73,.2)' }}>
-              ⚠ {list.error}
+            <div style={{ width: '100%', display: 'flex', alignItems: 'flex-start', gap: '.5rem', marginTop: '.1rem' }}>
+              <div style={{ flex: 1, color: '#f85149', fontSize: '.72rem', padding: '.2rem .4rem', background: 'rgba(248,81,73,.07)', borderRadius: 3, border: '1px solid rgba(248,81,73,.15)' }}>
+                ⚠ {list.error}
+              </div>
+              <button
+                onClick={() => !list.updating && handleForceReset(list.id)}
+                disabled={list.updating}
+                title="Détruire l'ipset existant et recharger depuis zéro"
+                style={{
+                  flexShrink: 0, background: 'rgba(248,81,73,.12)', border: '1px solid rgba(248,81,73,.35)',
+                  color: list.updating ? '#555d69' : '#f85149', borderRadius: 4, padding: '.2rem .5rem',
+                  fontSize: '.72rem', cursor: list.updating ? 'default' : 'pointer', whiteSpace: 'nowrap',
+                }}
+              >
+                🔄 Reset ipset
+              </button>
             </div>
           )}
         </div>
@@ -315,11 +360,67 @@ export const TabBlocklists: React.FC = () => {
           </div>
 
           {/* Description */}
-          <div style={{ marginBottom: '.75rem' }}>
+          <div style={{ marginBottom: '.5rem' }}>
             <label style={{ display: 'block', fontSize: '.78rem', color: '#8b949e', marginBottom: '.2rem' }}>Description</label>
             <input value={newDesc} onChange={e => setNewDesc(e.target.value)}
               placeholder="Optionnel"
               style={{ width: '100%', background: '#0d1117', border: '1px solid #30363d', borderRadius: 4, padding: '.3rem .5rem', color: '#e6edf3', fontSize: '.85rem', boxSizing: 'border-box' }} />
+          </div>
+
+          {/* Maxelem */}
+          <div style={{ marginBottom: '.75rem' }}>
+            <label style={{ display: 'block', fontSize: '.78rem', color: '#8b949e', marginBottom: '.2rem' }}>
+              Taille max ipset <span style={{ color: '#555d69' }}>(maxelem — nb max d'IPs)</span>
+            </label>
+            <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+              {[65_000, 150_000, 500_000, 1_000_000].map(v => (
+                <button key={v} type="button" onClick={() => setNewMaxelem(v)}
+                  style={{
+                    padding: '.2rem .55rem', borderRadius: 4, fontSize: '.75rem', cursor: 'pointer',
+                    background: newMaxelem === v ? 'rgba(88,166,255,.2)' : 'rgba(139,148,158,.08)',
+                    border: `1px solid ${newMaxelem === v ? 'rgba(88,166,255,.5)' : '#30363d'}`,
+                    color: newMaxelem === v ? '#58a6ff' : '#8b949e',
+                  }}>
+                  {v >= 1_000_000 ? `${v / 1_000_000}M` : `${v / 1_000}K`}
+                </button>
+              ))}
+              <input
+                type="number" min={1000} max={5_000_000} step={1000}
+                value={newMaxelem}
+                onChange={e => setNewMaxelem(Math.max(1000, parseInt(e.target.value) || 150_000))}
+                style={{ width: 110, background: '#0d1117', border: '1px solid #30363d', borderRadius: 4, padding: '.2rem .5rem', color: '#e6edf3', fontSize: '.82rem' }}
+              />
+            </div>
+            {newMaxelem >= 500_000 && (
+              <div style={{ color: '#e3b341', fontSize: '.72rem', marginTop: '.25rem' }}>
+                ⚠ Les grands ipsets consomment plus de RAM kernel. 500K ≈ 14 MB, 1M ≈ 28 MB.
+              </div>
+            )}
+          </div>
+
+          {/* Direction */}
+          <div style={{ marginBottom: '.75rem' }}>
+            <label style={{ display: 'block', fontSize: '.78rem', color: '#8b949e', marginBottom: '.2rem' }}>Direction iptables</label>
+            <div style={{ display: 'flex', gap: '.4rem' }}>
+              {(['in', 'out', 'both'] as ListDirection[]).map(d => (
+                <button key={d} type="button" onClick={() => setNewDirection(d)}
+                  style={{
+                    padding: '.2rem .7rem', borderRadius: 4, fontSize: '.78rem', cursor: 'pointer',
+                    background: newDirection === d ? (d === 'out' ? 'rgba(227,179,65,.2)' : d === 'both' ? 'rgba(188,140,255,.2)' : 'rgba(63,185,80,.12)') : 'rgba(139,148,158,.08)',
+                    border: `1px solid ${newDirection === d ? (d === 'out' ? 'rgba(227,179,65,.5)' : d === 'both' ? 'rgba(188,140,255,.5)' : 'rgba(63,185,80,.4)') : '#30363d'}`,
+                    color: newDirection === d ? (d === 'out' ? '#e3b341' : d === 'both' ? '#bc8cff' : '#3fb950') : '#8b949e',
+                    fontWeight: newDirection === d ? 600 : 400,
+                  }}>
+                  {d === 'in' ? '↓ INPUT' : d === 'out' ? '↑ OUTPUT' : '↕ IN+OUT'}
+                </button>
+              ))}
+            </div>
+            {newDirection !== 'in' && (
+              <div style={{ color: '#e3b341', fontSize: '.72rem', marginTop: '.3rem', padding: '.3rem .5rem', background: 'rgba(227,179,65,.06)', border: '1px solid rgba(227,179,65,.2)', borderRadius: 4 }}>
+                ⚠ <strong>Attention OUTPUT</strong> : bloque les connexions sortantes depuis ce serveur.
+                Si la liste contient des IPs de CDN, DNS ou APIs systèmes, ça peut casser des services. Tester d'abord en environnement non critique.
+              </div>
+            )}
           </div>
 
           {addError && (
@@ -341,7 +442,7 @@ export const TabBlocklists: React.FC = () => {
               {adding ? 'Ajout…' : 'Ajouter'}
             </button>
             <button
-              onClick={() => { setShowAddForm(false); setAddError(null); setNewName(''); setNewUrl(''); setNewIpset(''); setNewDesc(''); }}
+              onClick={() => { setShowAddForm(false); setAddError(null); setNewName(''); setNewUrl(''); setNewIpset(''); setNewDesc(''); setNewMaxelem(150_000); setNewDirection('in'); }}
               style={{
                 background: 'transparent', border: '1px solid #30363d',
                 color: '#8b949e', borderRadius: 4, padding: '.3rem .75rem',
@@ -359,7 +460,7 @@ export const TabBlocklists: React.FC = () => {
         <div style={{ marginTop: '1rem', padding: '.6rem .8rem', background: 'rgba(88,166,255,.06)', border: '1px solid rgba(88,166,255,.15)', borderRadius: 6, fontSize: '.78rem', color: '#8b949e', lineHeight: 1.5 }}>
           <span style={{ color: '#58a6ff', fontWeight: 600 }}>💡 Mise à jour automatique</span> : LogviewR rafraîchit les listes activées toutes les 6h.
           Les règles iptables sont recréées automatiquement si elles disparaissent au prochain rafraîchissement.
-          Trafic entrant (INPUT) uniquement — ne jamais activer sur le trafic sortant.
+          Trafic entrant (INPUT) par défaut — les listes en mode sortant (OUTPUT) peuvent être activées, mais avec précaution : elles bloquent les connexions initiées depuis votre serveur.
         </div>
       )}
     </div>

@@ -5,6 +5,73 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.22] - 2026-04-03
+
+### For users
+
+> The Blocklists tab gets 11 new built-in lists with direction (IN/OUT) support, a compact card layout, and a force-reset button for stuck lists. The IP modal now shows which active blocklists contain a clicked IP. The IPSet tab gains a destroy button per set and a "FULL" indicator.
+
+- **11 new built-in blocklists** — TOR Exit Nodes, BruteForceBlocker, Spamhaus DROP (CIDRs), CINS Army, Blocklist.de All, GreenSnow, Firehol Level 1 (CIDRs), Stopforumspam 7d, Russia CIDRs, China CIDRs. All disabled by default; source repository links shown on each card.
+- **IN/OUT direction support** — Each blocklist targets either INPUT (inbound, default), OUTPUT (outbound), or both chains. An ⚠ badge appears on enabled outbound lists as a reminder.
+- **Compact blocklist cards** — Cards are now a single horizontal row (toggle, name, count, age, direction badge, source link, refresh, delete) instead of tall stacked blocks. Errors appear inline below the row with a "🔄 Reset ipset" button.
+- **Force-reset button** — When a list fails to load (e.g. after a kernel ipset conflict), a "🔄 Reset ipset" button appears. It removes iptables rules, destroys the corrupted ipset, and triggers a clean rebuild from scratch.
+- **IP modal — blocklist membership** — Clicking an IP now shows a "Blocklists" card listing which active lists contain that IP (tested in O(1) via `ipset test`), with direction badge per list.
+- **IPSet tab — destroy button** — Each set in the IPSet list panel now has a trash icon to permanently destroy it from the kernel. A "⚠ PLEIN" badge appears when a set is at 100% capacity.
+- **Nav badges** — The Blocklists tab badge shows the number of active (enabled) lists. The IPSet tab badge shows the total number of kernel sets. Both update live.
+- **Fix: update notification** — The update banner now shows the git commit title (e.g. "feat: … (v0.8.21)") when the GitHub release has no description, via a fallback to the tag's commit message.
+- **Fix: ipset kernel limit guard** — Lists exceeding ~520 000 entries (hard kernel limit for hash:ip sets in most Docker environments) now fail early with a clear message instead of crashing mid-load and leaving orphaned temp sets.
+- **Fix: settings page** — Clicking "Check for updates" no longer shows a duplicate toast when an update is already available (the header banner already signals it).
+
+---
+
+### Technical
+
+#### Backend — `server/plugins/fail2ban/BlocklistService.ts`
+
+- **`ListDirection` / `IpsetType` types** — `'in' | 'out' | 'both'` and `'hash:ip' | 'hash:net'`; added to `BuiltinListDef` and `CustomListDef`.
+- **`iptablesChainsFor(direction)`** — Returns `[chain, matchFlag][]` pairs: `INPUT/src` for `'in'`, `OUTPUT/dst` for `'out'`, both for `'both'`. Used by `enable()`, `disable()`, `restoreOnStartup()`, `startAutoRefresh()`.
+- **`refresh()` — explicit -new set creation** — The temp `<name>-new` set is now created explicitly via `ipset create` (with computed `hashsize` and `maxelem`) before writing the restore file. The restore file contains only `add` lines, eliminating the risk of a stale `-new` set with wrong maxelem silently absorbing entries.
+- **Dynamic `hashsize`** — Computed as the next power of 2 above `maxelem / 4`, so the kernel hash table never needs to grow past its initial allocation for expected list sizes.
+- **Kernel limit guard** — `entries.length > 520 000` throws immediately with an explicit message instead of running `ipset restore` and failing deep in the kernel.
+- **`forceReset(id)`** — Removes iptables rules, destroys main set and `-new` orphan, calls `refresh()`, then re-adds rules if the list was enabled. Exposed via `POST /blocklists/force-reset`.
+- **maxelem bumps** — CINS Army 30 K → 60 K; GreenSnow 100 K → 200 K. Bitwire IN/OUT removed (3.3 M entries exceeds kernel limit).
+
+#### Backend — `server/plugins/fail2ban/Fail2banPlugin.ts`
+
+- **`POST /blocklists/force-reset`** — Delegates to `blocklistService.forceReset(id)`.
+- **`DELETE /ipset/destroy/:setName`** — Sanitises set name; runs `ipset destroy`; used by the IPSet tab trash button.
+- **`GET /blocklists/test/:ip`** — Runs `ipset test <setName> <ip>` in parallel across all lists with `count > 0`; returns `{ id, name, direction, present }[]`. Used by IpModal.
+
+#### Backend — `server/routes/updates.ts`
+
+- **Commit message fallback** — When the latest GitHub release has no body and the CHANGELOG doesn't contain the version, the tag's commit message (first line) is fetched and used as release notes.
+
+#### Frontend — `src/pages/fail2ban/TabBlocklists.tsx`
+
+- **Compact card layout** — Single flex row per list; error row spans full width with inline "🔄 Reset ipset" button.
+- **`handleForceReset(id)`** — Posts to `/blocklists/force-reset`, sets `updating: true` while in-flight.
+- **`newMaxelem` presets** — 65 K / 150 K / 500 K / 1 M dropdown when adding a custom list.
+- **`newDirection`** — IN / OUT / BOTH selector in the add form.
+- **Info note** — Outbound warning reworded: lists can target OUTPUT but require care.
+
+#### Frontend — `src/pages/fail2ban/IpModal.tsx`
+
+- **`blocklistHits` state** — Fourth parallel fetch on IP modal open: calls `/blocklists/test/:ip`; renders a "Blocklists" card with ✓/○ per list and a direction badge.
+
+#### Frontend — `src/pages/fail2ban/TabIPSet.tsx`
+
+- **Destroy button** — Trash2 icon per set; calls `DELETE /api/plugins/fail2ban/ipset/destroy/:name`; invalidates set cache and refreshes list.
+- **"⚠ PLEIN" badge** — Shown when `set.entries >= set.maxelem`.
+
+#### Frontend — `src/pages/Fail2banPage.tsx`
+
+- **`ipsetCount` state** — Fetched from `/ipset/info` on mount; used for the IPSet nav badge (purple `#bc8cff`).
+- **Blocklists badge** — Active (enabled) list count; red `#e86a65`.
+
+#### Frontend — `src/pages/SettingsPage.tsx`
+
+- **No duplicate toast** — `handleCheckNow` no longer adds an action toast when an update is available; the header banner is sufficient.
+
 ## [0.8.21] - 2026-04-02
 
 ### For users

@@ -169,6 +169,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
     const [npmDataPath, setNpmDataPath] = useState<string>('');
     const [npmMysqlConfigured, setNpmMysqlConfigured] = useState(false);
     const [blocklistsStatus, setBlocklistsStatus] = useState<{ id: string; name: string; enabled: boolean; lastUpdate: string | null; count: number }[]>([]);
+    const [ipsetCount, setIpsetCount] = useState<number | null>(null);
     const { addBan, addAttempt } = useNotificationStore();
     const lastRowidRef = useRef<number>(-1); // -1 = not bootstrapped yet
     const prevFailedRef = useRef<Record<string, number>>({}); // jail → currentlyFailed snapshot
@@ -230,10 +231,13 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
             .catch(() => {});
     }, []);
 
-    // Load blocklist status for nav tooltip
+    // Load blocklist status + ipset count for nav badges/tooltips
     useEffect(() => {
         api.get<{ lists: { id: string; name: string; enabled: boolean; lastUpdate: string | null; count: number }[] }>('/api/plugins/fail2ban/blocklists/status')
             .then(res => { if (res.success && res.result?.lists) setBlocklistsStatus(res.result.lists); })
+            .catch(() => {});
+        api.get<{ ok: boolean; sets: { name: string; entries: number }[] }>('/api/plugins/fail2ban/ipset/info')
+            .then(res => { if (res.success && res.result?.ok) setIpsetCount(res.result.sets?.length ?? 0); })
             .catch(() => {});
     }, []);
 
@@ -748,10 +752,13 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
         },
     };
 
+    const activeBlocklists = blocklistsStatus.filter(b => b.enabled).length;
     const badges: Partial<Record<TabId, number>> = {
         jails:   jails.length,
         tracker: totalBanned,
-        ...(configBadge > 0 ? { config: configBadge } : {}),
+        ...(configBadge > 0      ? { config: configBadge }         : {}),
+        ...(activeBlocklists > 0 ? { blocklists: activeBlocklists } : {}),
+        ...(ipsetCount !== null && ipsetCount > 0 ? { ipset: ipsetCount } : {}),
     };
 
     const allNavItems = ([] as { id: TabId; labelKey: string; color: string }[]).concat(...NAV_GROUPS.map(g => g.items as unknown as { id: TabId; labelKey: string; color: string }[]));
@@ -809,20 +816,33 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
                                                 <span style={{ color: '#8b949e' }}>{trackerTotal ?? uniqueIpsTotal}</span>
                                               </span>
                                             : <span title={
-                                                id === 'config' ? `${badge} warning${badge > 1 ? 's' : ''} — voir onglet Config` :
-                                                id === 'jails'  ? `${badge} jail${badge > 1 ? 's' : ''} configuré${badge > 1 ? 's' : ''}` :
+                                                id === 'config'     ? `${badge} warning${badge > 1 ? 's' : ''} — voir onglet Config` :
+                                                id === 'jails'      ? `${badge} jail${badge > 1 ? 's' : ''} configuré${badge > 1 ? 's' : ''}` :
+                                                id === 'blocklists' ? `${badge} liste${badge > 1 ? 's' : ''} active${badge > 1 ? 's' : ''}` :
+                                                id === 'ipset'      ? `${badge} set${badge > 1 ? 's' : ''} ipset` :
                                                 String(badge)
-                                              } style={{ background: id === 'config' ? '#e3b341' : id === 'jails' ? '#58a6ff' : '#e86a65', color: id === 'config' ? '#0d1117' : '#fff', fontSize: '.65rem', borderRadius: 999, padding: '.05rem .45rem', fontWeight: 700 }}>
+                                              } style={{
+                                                background: id === 'config' ? '#e3b341' : id === 'jails' ? '#58a6ff' : id === 'blocklists' ? '#e86a65' : id === 'ipset' ? '#bc8cff' : '#e86a65',
+                                                color: id === 'config' ? '#0d1117' : '#fff',
+                                                fontSize: '.65rem', borderRadius: 999, padding: '.05rem .45rem', fontWeight: 700,
+                                              }}>
                                                 {id === 'config' ? '!' : badge}
                                               </span>
                                         )}
                                         {collapsed && badge !== undefined && badge > 0 && (
                                             <span title={
-                                                id === 'config'  ? `${badge} warning${badge > 1 ? 's' : ''} — voir Config` :
-                                                id === 'tracker' ? `${totalBanned} bannis actifs · ${trackerTotal ?? uniqueIpsTotal} total historique` :
-                                                id === 'jails'   ? `${badge} jails` :
+                                                id === 'config'     ? `${badge} warning${badge > 1 ? 's' : ''} — voir Config` :
+                                                id === 'tracker'    ? `${totalBanned} bannis actifs · ${trackerTotal ?? uniqueIpsTotal} total historique` :
+                                                id === 'jails'      ? `${badge} jails` :
+                                                id === 'blocklists' ? `${badge} liste${badge > 1 ? 's' : ''} active${badge > 1 ? 's' : ''}` :
+                                                id === 'ipset'      ? `${badge} sets ipset` :
                                                 String(badge)
-                                            } style={{ position: 'absolute', top: 3, right: 3, background: id === 'config' ? '#e3b341' : id === 'jails' ? '#58a6ff' : '#e86a65', color: id === 'config' ? '#0d1117' : '#fff', fontSize: '.55rem', borderRadius: 6, padding: '0 .25rem', lineHeight: 1.6, zIndex: 1 }}>
+                                            } style={{
+                                                position: 'absolute', top: 3, right: 3,
+                                                background: id === 'config' ? '#e3b341' : id === 'jails' ? '#58a6ff' : id === 'blocklists' ? '#e86a65' : id === 'ipset' ? '#bc8cff' : '#e86a65',
+                                                color: id === 'config' ? '#0d1117' : '#fff',
+                                                fontSize: '.55rem', borderRadius: 6, padding: '0 .25rem', lineHeight: 1.6, zIndex: 1,
+                                            }}>
                                                 {id === 'config' ? '!' : badge}
                                             </span>
                                         )}

@@ -34,11 +34,12 @@ function TypeBadge({ type }: { type: string }) {
 
 // ── Set List (left panel) ──────────────────────────────────────────────────────
 
-function SetList({ sets, selected, onSelect, loading }: {
+function SetList({ sets, selected, onSelect, loading, onDestroy }: {
     sets: IpsetInfo[];
     selected: string | null;
     onSelect: (name: string) => void;
     loading: boolean;
+    onDestroy: (name: string) => void;
 }) {
     return (
         <div style={card}>
@@ -62,7 +63,7 @@ function SetList({ sets, selected, onSelect, loading }: {
                 {sets.map(s => {
                     const pct  = s.maxelem > 0 ? Math.min(100, Math.round(s.entries / s.maxelem * 100)) : 0;
                     const isSelected = s.name === selected;
-                    const barColor = pct > 90 ? '#e86a65' : pct > 70 ? '#e3b341' : '#bc8cff';
+                    const barColor = pct >= 100 ? '#e86a65' : pct > 90 ? '#e86a65' : pct > 70 ? '#e3b341' : '#bc8cff';
                     return (
                         <div key={s.name}
                             onClick={() => onSelect(s.name)}
@@ -72,9 +73,15 @@ function SetList({ sets, selected, onSelect, loading }: {
                             <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.3rem', flexWrap: 'wrap' }}>
                                 <span style={{ fontWeight: 600, fontSize: '.82rem', color: isSelected ? '#bc8cff' : '#e6edf3', fontFamily: 'monospace' }}>{s.name}</span>
                                 <TypeBadge type={s.type} />
-                                <span style={{ marginLeft: 'auto', fontSize: '.72rem', color: '#8b949e', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
+                                <span style={{ marginLeft: 'auto', fontSize: '.72rem', color: pct >= 100 ? '#e86a65' : '#8b949e', fontFamily: 'monospace', whiteSpace: 'nowrap', fontWeight: pct >= 100 ? 700 : 400 }}>
                                     {s.entries.toLocaleString()} / {s.maxelem.toLocaleString()}
                                 </span>
+                                <button
+                                    onClick={e => { e.stopPropagation(); onDestroy(s.name); }}
+                                    title={`Supprimer l'ipset ${s.name}`}
+                                    style={{ background: 'rgba(232,106,101,.08)', border: '1px solid rgba(232,106,101,.2)', color: '#e86a65', borderRadius: 3, cursor: 'pointer', padding: '.15rem .3rem', display: 'inline-flex', alignItems: 'center', flexShrink: 0 }}>
+                                    <Trash2 style={{ width: 10, height: 10 }} />
+                                </button>
                             </div>
                             {/* Progress bar */}
                             <div style={{ background: '#2d333b', borderRadius: 3, height: 4, overflow: 'hidden' }}>
@@ -82,7 +89,9 @@ function SetList({ sets, selected, onSelect, loading }: {
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '.25rem', fontSize: '.67rem', color: '#555d69' }}>
                                 <span>{fmtSize(s.size)}</span>
-                                <span>{pct}% utilisé</span>
+                                <span style={{ color: pct >= 100 ? '#e86a65' : '#555d69', fontWeight: pct >= 100 ? 700 : 400 }}>
+                                    {pct >= 100 ? '⚠ PLEIN' : `${pct}% utilisé`}
+                                </span>
                             </div>
                         </div>
                     );
@@ -418,6 +427,17 @@ export const TabIPSet: React.FC<{ onIpClick?: (ip: string) => void }> = ({ onIpC
     const [loading, setLoading]     = useState(false);
     const [installed, setInstalled] = useState<boolean | null>(null);
 
+    const handleDestroySet = async (name: string) => {
+        if (!confirm(`Supprimer définitivement l'ipset "${name}" et toutes ses entrées ?\n\nCette action est irréversible.`)) return;
+        try {
+            await api.delete<{ ok: boolean; error?: string }>(`/api/plugins/fail2ban/ipset/destroy/${encodeURIComponent(name)}`);
+        } catch { /* ignore */ }
+        // Invalidate cache so fetchSets fetches fresh data
+        delete _cache['ipset:sets'];
+        setSelected(prev => prev === name ? null : prev);
+        fetchSets();
+    };
+
     const fetchSets = useCallback(async () => {
         const cached = getCached<IpsetInfo[]>('ipset:sets');
         if (cached) {
@@ -457,6 +477,7 @@ export const TabIPSet: React.FC<{ onIpClick?: (ip: string) => void }> = ({ onIpC
                 selected={selected}
                 onSelect={setSelected}
                 loading={loading}
+                onDestroy={handleDestroySet}
             />
             {selected
                 ? <EntriesPanel key={selected} setName={selected} onEntryDeleted={fetchSets} onIpClick={onIpClick} />

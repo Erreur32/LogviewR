@@ -978,11 +978,10 @@ const UpdateCheckSection: React.FC = () => {
     if (!info) return;
     if (info.error) {
       addAction(`Vérification MAJ échouée : ${info.error}`, false);
-    } else if (info.updateAvailable) {
-      addAction(`Mise à jour disponible : v${info.latestVersion}`, true);
-    } else {
+    } else if (!info.updateAvailable) {
       addAction(`LogviewR v${info.currentVersion} — déjà à jour`, true);
     }
+    // update available: the header banner already signals it — no duplicate toast
   };
 
   useEffect(() => {
@@ -1100,7 +1099,7 @@ const UpdateCheckSection: React.FC = () => {
               </p>
               {updateInfo.releaseNotes && (
                 <div className="mb-2">
-                  <p className="text-xs text-gray-400 leading-relaxed overflow-hidden line-clamp-3">
+                  <p className="text-xs text-gray-400 leading-relaxed whitespace-pre-wrap">
                     {updateInfo.releaseNotes}
                   </p>
                   <a

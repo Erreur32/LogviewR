@@ -2987,6 +2987,26 @@ export class Fail2banPlugin extends BasePlugin {
             res.json({ success: true, result: r });
         }));
 
+        // DELETE /ipset/destroy/:setName — destroy an entire ipset set (all entries + kernel object)
+        router.delete('/ipset/destroy/:setName', requireAuth, asyncHandler(async (req, res) => {
+            if (!this.isEnabled()) return res.json({ success: true, result: { ok: false, error: 'Plugin désactivé' } });
+            const { setName } = req.params;
+            const safeSet = setName.replace(/[^a-zA-Z0-9_.-]/g, '');
+            if (!safeSet) return res.json({ success: true, result: { ok: false, error: 'Nom d\'ipset invalide' } });
+            const isRoot = typeof process.getuid === 'function' && process.getuid() === 0;
+            const [cmd, args] = isRoot
+                ? ['ipset', ['destroy', safeSet]]
+                : ['sudo', ['-n', 'ipset', 'destroy', safeSet]];
+            try {
+                await execFileAsync(cmd, args, { timeout: 10_000 });
+                logger.info('Fail2banPlugin', `ipset destroyed manually: ${safeSet}`);
+                res.json({ success: true, result: { ok: true } });
+            } catch (err) {
+                const msg = err instanceof Error ? err.message : 'Erreur ipset destroy';
+                res.json({ success: true, result: { ok: false, error: msg } });
+            }
+        }));
+
         // GET /dns/batch?ips=1.2.3.4,5.6.7.8 — reverse DNS pour une liste d'IPs (max 50)
         router.get('/dns/batch', requireAuth, asyncHandler(async (req, res) => {
             const raw = (req.query.ips as string) ?? '';
@@ -3012,6 +3032,14 @@ export class Fail2banPlugin extends BasePlugin {
             res.json({ success: true, result: r });
         }));
 
+        // POST /blocklists/force-reset  { id: string } — destroys ipset then refreshes
+        router.post('/blocklists/force-reset', requireAuth, asyncHandler(async (req, res) => {
+            const { id } = req.body as { id?: string };
+            if (!id) return res.json({ success: true, result: { ok: false, error: 'id manquant' } });
+            const r = await this.blocklistService?.forceReset(id) ?? { ok: false, error: 'service non initialisé' };
+            res.json({ success: true, result: r });
+        }));
+
         // POST /blocklists/toggle  { id: string, enabled: boolean }
         router.post('/blocklists/toggle', requireAuth, asyncHandler(async (req, res) => {
             const { id, enabled } = req.body as { id?: string; enabled?: boolean };
@@ -3022,17 +3050,47 @@ export class Fail2banPlugin extends BasePlugin {
             res.json({ success: true, result: r });
         }));
 
-        // POST /blocklists/add  { name, url, ipsetName, description?, maxelem? }
+        // POST /blocklists/add  { name, url, ipsetName, description?, maxelem?, direction? }
         router.post('/blocklists/add', requireAuth, asyncHandler(async (req, res) => {
-            const { name, url, ipsetName, description, maxelem } = req.body as {
-                name?: string; url?: string; ipsetName?: string; description?: string; maxelem?: number;
+            const { name, url, ipsetName, description, maxelem, direction } = req.body as {
+                name?: string; url?: string; ipsetName?: string; description?: string; maxelem?: number; direction?: string;
             };
             if (!name || !url || !ipsetName) {
                 return res.json({ success: true, result: { ok: false, error: 'name, url et ipsetName sont requis' } });
             }
-            const r = this.blocklistService?.addCustomList({ name, url, ipsetName, description, maxelem })
+            const safeDir = direction === 'out' ? 'out' : direction === 'both' ? 'both' : 'in';
+            const r = this.blocklistService?.addCustomList({ name, url, ipsetName, description, maxelem, direction: safeDir })
                 ?? { ok: false, error: 'service non initialisé' };
             res.json({ success: true, result: r });
+        }));
+
+        // GET /blocklists/test/:ip — check which blocklist ipsets contain a given IP (parallel ipset test)
+        router.get('/blocklists/test/:ip', requireAuth, asyncHandler(async (req, res) => {
+            if (!this.isEnabled()) return res.json({ success: true, result: { ok: false, results: [] } });
+            const { ip } = req.params;
+            // Basic IPv4 validation to prevent injection
+            if (!/^[\d.]+$/.test(ip)) return res.json({ success: true, result: { ok: false, error: 'IP invalide', results: [] } });
+
+            const lists = this.blocklistService?.getStatus() ?? [];
+            const isRoot = typeof process.getuid === 'function' && process.getuid() === 0;
+
+            const checks = await Promise.all(
+                lists.map(async list => {
+                    if (list.count === 0) return { id: list.id, name: list.name, direction: list.direction, present: false };
+                    try {
+                        const cmd = isRoot ? 'ipset' : 'sudo';
+                        const args = isRoot
+                            ? ['test', list.id, ip]
+                            : ['-n', 'ipset', 'test', list.id, ip];
+                        await execFileAsync(cmd, args, { timeout: 5_000 });
+                        return { id: list.id, name: list.name, direction: list.direction, present: true };
+                    } catch {
+                        return { id: list.id, name: list.name, direction: list.direction, present: false };
+                    }
+                })
+            );
+
+            res.json({ success: true, result: { ok: true, results: checks } });
         }));
 
         // DELETE /blocklists/remove/:id

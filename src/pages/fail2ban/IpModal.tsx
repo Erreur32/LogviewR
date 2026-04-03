@@ -343,6 +343,7 @@ export const IpModal: React.FC<{
     const [geo,          setGeo]          = useState<GeoInfo | null>(geoProp ?? null);
     const [details,      setDetails]      = useState<IpDetails | null>(null);
     const [actionMsg,    setActionMsg]    = useState<{ ok: boolean; text: string } | null>(null);
+    const [blocklistHits, setBlocklistHits] = useState<Array<{ id: string; name: string; direction: string; present: boolean }> | null>(null);
     const [banning,      setBanning]      = useState(false);
     const [unbanning,    setUnbanning]    = useState(false);
     const [ipsetBanning, setIpsetBanning] = useState<string | null>(null);
@@ -354,7 +355,7 @@ export const IpModal: React.FC<{
     const LOG_LINES_DEFAULT = 4;
 
     useEffect(() => {
-        setHistory([]); setLoading(true); setActionMsg(null); setDetails(null); setLogsOpen(true); setExpandedLogs(new Set()); setUnbanning(false); setIpsetRemoving(null); setSelUnbanJail('');
+        setHistory([]); setLoading(true); setActionMsg(null); setDetails(null); setBlocklistHits(null); setLogsOpen(true); setExpandedLogs(new Set()); setUnbanning(false); setIpsetRemoving(null); setSelUnbanJail('');
         if (!geoProp) setGeo(null);
 
         Promise.all([
@@ -367,7 +368,10 @@ export const IpModal: React.FC<{
             geoProp ? Promise.resolve(null) : api.get<{ ok: boolean; geo: GeoInfo }>(
                 `/api/plugins/fail2ban/geo/${encodeURIComponent(ip)}`
             ),
-        ]).then(([histRes, detRes, geoRes]) => {
+            api.get<{ ok: boolean; results: Array<{ id: string; name: string; direction: string; present: boolean }> }>(
+                `/api/plugins/fail2ban/blocklists/test/${encodeURIComponent(ip)}`
+            ),
+        ]).then(([histRes, detRes, geoRes, blRes]) => {
             if (histRes.success && histRes.result?.ok) setHistory(histRes.result.bans ?? []);
             if (detRes.success && detRes.result?.ok) {
                 setDetails({
@@ -383,6 +387,7 @@ export const IpModal: React.FC<{
                 });
             }
             if (geoRes && geoRes.success && geoRes.result?.ok) setGeo(geoRes.result.geo);
+            if (blRes && blRes.success && blRes.result?.ok) setBlocklistHits(blRes.result.results ?? []);
             if (detRes.success && detRes.result?.ok) {
                 const first = detRes.result.allIpsets?.[0] ?? '';
                 setSelIpset(s => s || first);
@@ -640,6 +645,46 @@ export const IpModal: React.FC<{
                                                 background: 'rgba(188,140,255,.1)', color: '#bc8cff',
                                                 border: '1px solid rgba(188,140,255,.25)', fontFamily: 'monospace' }}>{s}</span>
                                         ))}
+                                    </div>
+                                </div>
+                            )}
+                            {/* Blocklist membership — ipset test results */}
+                            {blocklistHits !== null && blocklistHits.length > 0 && (
+                                <div style={{ ...card, flex: 1, minWidth: 0 }}>
+                                    <div style={cardH}>
+                                        <Shield style={{ width: 12, height: 12, color: '#e86a65' }} />
+                                        <span style={{ fontWeight: 600, fontSize: '.8rem' }}>Blocklists</span>
+                                        {blocklistHits.some(b => b.present) && (
+                                            <span style={{ marginLeft: 'auto', fontSize: '.68rem', color: '#e86a65', fontWeight: 700 }}>
+                                                {blocklistHits.filter(b => b.present).length} liste{blocklistHits.filter(b => b.present).length > 1 ? 's' : ''}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div style={{ padding: '.6rem .85rem', display: 'flex', flexDirection: 'column', gap: '.3rem' }}>
+                                        {blocklistHits.map(b => (
+                                            <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: '.4rem' }}>
+                                                <span style={{
+                                                    fontSize: '.65rem', fontWeight: 700, minWidth: 16, textAlign: 'center',
+                                                    color: b.present ? '#e86a65' : '#555d69',
+                                                }}>
+                                                    {b.present ? '✓' : '○'}
+                                                </span>
+                                                <span style={{ fontSize: '.75rem', color: b.present ? '#e6edf3' : '#555d69', flex: 1 }}>
+                                                    {b.name}
+                                                </span>
+                                                <span style={{
+                                                    fontSize: '.65rem', padding: '.04rem .3rem', borderRadius: 3,
+                                                    background: b.direction === 'out' ? 'rgba(227,179,65,.1)' : 'rgba(63,185,80,.07)',
+                                                    border: `1px solid ${b.direction === 'out' ? 'rgba(227,179,65,.25)' : 'rgba(63,185,80,.2)'}`,
+                                                    color: b.direction === 'out' ? '#e3b341' : '#8b949e',
+                                                }}>
+                                                    {b.direction === 'in' ? 'IN' : b.direction === 'out' ? 'OUT' : 'IN+OUT'}
+                                                </span>
+                                            </div>
+                                        ))}
+                                        {!blocklistHits.some(b => b.present) && (
+                                            <span style={{ fontSize: '.75rem', color: '#555d69' }}>Non présente dans les blocklists actives</span>
+                                        )}
                                     </div>
                                 </div>
                             )}
