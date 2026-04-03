@@ -651,7 +651,7 @@ export class BlocklistService {
         return r;
     }
 
-    async enable(id: string): Promise<{ ok: boolean; error?: string }> {
+    async enable(id: string, callerIp?: string, force?: boolean): Promise<{ ok: boolean; selfBan?: boolean; error?: string }> {
         const list = this._allLists()[id];
         if (!list) {
             return { ok: false, error: `Liste inconnue: ${id}` };
@@ -664,6 +664,19 @@ export class BlocklistService {
             const r = await this.refresh(id);
             if (!r.ok) {
                 return { ok: false, error: r.error };
+            }
+        }
+
+        // Self-ban guard: refuse to activate if caller's own IP is in the set (unless forced)
+        if (callerIp && !force) {
+            try {
+                const [tc, ta] = priv('ipset', ['test', list.ipsetName, callerIp]);
+                await execFileAsync(tc, ta, { timeout: 5_000 });
+                // exit 0 → caller IP is in the set — refuse
+                logger.warn('BlocklistService', `enable ${id}: self-ban guard triggered for IP ${callerIp}`);
+                return { ok: false, selfBan: true, error: `Votre IP (${callerIp}) est dans cette liste — l'activer vous bannirait.` };
+            } catch {
+                // exit 1 → IP not in set — safe to continue
             }
         }
 
