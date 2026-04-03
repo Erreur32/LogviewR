@@ -53,6 +53,8 @@ export const TabBlocklists: React.FC = () => {
   const [newDesc, setNewDesc] = useState('');
   const [newMaxelem, setNewMaxelem] = useState(150_000);
   const [newDirection, setNewDirection] = useState<ListDirection>('in');
+  const [selfBanConfirm, setSelfBanConfirm] = useState<{ id: string; ip: string; listName: string } | null>(null);
+  const [forceToggling, setForceToggling] = useState(false);
 
   const fetchStatus = async () => {
     try {
@@ -71,15 +73,35 @@ export const TabBlocklists: React.FC = () => {
 
   useEffect(() => { fetchStatus(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleToggle = async (id: string, currentEnabled: boolean) => {
+  const handleToggle = async (id: string, currentEnabled: boolean, force?: boolean) => {
     setLists(prev => prev.map(l => l.id === id ? { ...l, updating: true } : l));
     try {
-      await api.post<{ ok: boolean; error?: string }>(
+      const res = await api.post<{ ok: boolean; selfBan?: boolean; error?: string }>(
         '/api/plugins/fail2ban/blocklists/toggle',
-        { id, enabled: !currentEnabled }
+        { id, enabled: !currentEnabled, force }
       );
-    } finally {
+      if (res.result?.selfBan) {
+        const match = res.result.error?.match(/\(([^)]+)\)/);
+        const ip = match ? match[1] : '?';
+        const listName = lists.find(l => l.id === id)?.name ?? id;
+        setLists(prev => prev.map(l => l.id === id ? { ...l, updating: false } : l));
+        setSelfBanConfirm({ id, ip, listName });
+        return;
+      }
       await fetchStatus();
+    } catch {
+      await fetchStatus();
+    }
+  };
+
+  const handleForceConfirm = async () => {
+    if (!selfBanConfirm) return;
+    setForceToggling(true);
+    try {
+      await handleToggle(selfBanConfirm.id, false, true);
+    } finally {
+      setSelfBanConfirm(null);
+      setForceToggling(false);
     }
   };
 
@@ -461,6 +483,54 @@ export const TabBlocklists: React.FC = () => {
           <span style={{ color: '#58a6ff', fontWeight: 600 }}>💡 Mise à jour automatique</span> : LogviewR rafraîchit les listes activées toutes les 6h.
           Les règles iptables sont recréées automatiquement si elles disparaissent au prochain rafraîchissement.
           Trafic entrant (INPUT) par défaut — les listes en mode sortant (OUTPUT) peuvent être activées, mais avec précaution : elles bloquent les connexions initiées depuis votre serveur.
+        </div>
+      )}
+
+      {/* ── Self-ban warning modal ── */}
+      {selfBanConfirm && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,.65)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999,
+        }}>
+          <div style={{
+            background: '#161b22', border: '1px solid rgba(248,81,73,.4)',
+            borderRadius: 8, padding: '1.5rem', maxWidth: 420, width: '90%',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.75rem' }}>
+              <span style={{ fontSize: '1.2rem' }}>⚠️</span>
+              <span style={{ fontWeight: 700, color: '#f85149', fontSize: '.95rem' }}>Risque d'auto-bannissement</span>
+            </div>
+            <p style={{ color: '#e6edf3', fontSize: '.85rem', margin: '0 0 .5rem' }}>
+              Votre IP <strong style={{ color: '#ffa657' }}>{selfBanConfirm.ip}</strong> est présente dans la liste <strong style={{ color: '#e6edf3' }}>{selfBanConfirm.listName}</strong>.
+            </p>
+            <p style={{ color: '#8b949e', fontSize: '.82rem', margin: '0 0 1.25rem' }}>
+              L'activer vous bannirait immédiatement de l'interface. Ajoutez votre IP en whitelist iptables avant de continuer, ou forcez si vous savez ce que vous faites.
+            </p>
+            <div style={{ display: 'flex', gap: '.5rem', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setSelfBanConfirm(null)}
+                style={{
+                  background: 'rgba(139,148,158,.12)', border: '1px solid rgba(139,148,158,.3)',
+                  color: '#e6edf3', borderRadius: 5, padding: '.35rem .85rem',
+                  fontSize: '.82rem', cursor: 'pointer',
+                }}
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleForceConfirm}
+                disabled={forceToggling}
+                style={{
+                  background: 'rgba(248,81,73,.15)', border: '1px solid rgba(248,81,73,.4)',
+                  color: '#f85149', borderRadius: 5, padding: '.35rem .85rem',
+                  fontSize: '.82rem', cursor: forceToggling ? 'default' : 'pointer',
+                  opacity: forceToggling ? 0.6 : 1,
+                }}
+              >
+                {forceToggling ? 'Activation…' : "Forcer l'activation"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
