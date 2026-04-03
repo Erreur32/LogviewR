@@ -466,6 +466,13 @@ export const TabIPSet: React.FC<{ onIpClick?: (ip: string) => void }> = ({ onIpC
 
     useEffect(() => { fetchSets(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+    // Invalidate cache when a blocklist is enabled/refreshed from the Blocklists tab
+    useEffect(() => {
+        const handler = () => { delete _cache['ipset:sets']; fetchSets(); };
+        window.addEventListener('ipset:invalidate', handler);
+        return () => window.removeEventListener('ipset:invalidate', handler);
+    }, [fetchSets]);
+
     if (installed === false) {
         return <NotInstalledBanner />;
     }

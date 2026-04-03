@@ -88,6 +88,7 @@ export const TabBlocklists: React.FC = () => {
         setSelfBanConfirm({ id, ip, listName });
         return;
       }
+      window.dispatchEvent(new CustomEvent('ipset:invalidate'));
       await fetchStatus();
     } catch {
       await fetchStatus();
@@ -112,6 +113,7 @@ export const TabBlocklists: React.FC = () => {
         '/api/plugins/fail2ban/blocklists/refresh',
         { id }
       );
+      window.dispatchEvent(new CustomEvent('ipset:invalidate'));
     } finally {
       await fetchStatus();
     }
@@ -124,6 +126,7 @@ export const TabBlocklists: React.FC = () => {
         '/api/plugins/fail2ban/blocklists/force-reset',
         { id }
       );
+      window.dispatchEvent(new CustomEvent('ipset:invalidate'));
     } finally {
       await fetchStatus();
     }
