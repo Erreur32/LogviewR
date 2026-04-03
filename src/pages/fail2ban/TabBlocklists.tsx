@@ -523,7 +523,7 @@ export const TabBlocklists: React.FC = () => {
                 style={{
                   background: 'rgba(248,81,73,.15)', border: '1px solid rgba(248,81,73,.4)',
                   color: '#f85149', borderRadius: 5, padding: '.35rem .85rem',
-                  fontSize: '.82rem', cursor: forceToggling ? 'default' : 'pointer',
+                  fontSize: '.82rem', cursor: forceToggling ? 'not-allowed' : 'pointer',
                   opacity: forceToggling ? 0.6 : 1,
                 }}
               >

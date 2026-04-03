@@ -5,6 +5,31 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.23] - 2026-04-03
+
+### For users
+
+> Activating a blocklist that contains your own IP now shows a warning instead of instantly locking you out.
+
+- **Self-ban protection** — Before applying any blocklist to iptables, LogviewR checks whether your current IP is inside the list. If it is, a warning modal appears showing your IP and the list name, and the activation is blocked. You can still force-activate if you know what you are doing (e.g. you have physical or out-of-band access), but the accidental self-ban scenario is prevented by default.
+
+---
+
+### Technical
+
+#### Backend — `server/plugins/fail2ban/BlocklistService.ts`
+
+- **`enable(id, callerIp?, force?)`** — Signature extended with optional `callerIp` and `force` parameters. After the ipset is populated (refresh if needed), runs `ipset test <setname> <callerIp>`. Exit 0 (IP present) returns `{ ok: false, selfBan: true, error: "Votre IP (<ip>) est dans cette liste…" }` without touching iptables. Exit 1 (IP absent) falls through normally. `force: true` bypasses the check entirely. Return type extended with `selfBan?: boolean`.
+
+#### Backend — `server/plugins/fail2ban/Fail2banPlugin.ts`
+
+- **`POST /blocklists/toggle`** — Now accepts optional `force: boolean` in the request body. Extracts the caller IP from `req.ip ?? req.socket.remoteAddress`, strips the `::ffff:` IPv4-mapped prefix, and passes both to `enable()`.
+
+#### Frontend — `src/pages/fail2ban/TabBlocklists.tsx`
+
+- **`handleToggle(id, currentEnabled, force?)`** — Intercepts `selfBan: true` in the API response: extracts the IP from the error message via regex, reverts the `updating` spinner, and opens the warning modal instead of proceeding.
+- **Self-ban warning modal** — Fixed overlay with danger border. Shows caller IP (orange) and list name. "Annuler" closes the modal; "Forcer l'activation" retries with `force: true`.
+
 ## [0.8.22] - 2026-04-03
 
 ### For users
