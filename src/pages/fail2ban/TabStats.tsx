@@ -1516,6 +1516,7 @@ const StatsSummaryBanner: React.FC<{
         const c = getCached<{ sets: IpSetInfo[] }>('ipset:info');
         return c ? c.sets.filter(s => !s.name.startsWith('docker-')) : [];
     });
+    const [failingIps, setFailingIps] = useState<{ jail: string; ip: string; count: number; lastSeen: number }[]>([]);
 
     useEffect(() => {
         const c = getCached<{ sets: IpSetInfo[] }>('ipset:info');
@@ -1530,6 +1531,18 @@ const StatsSummaryBanner: React.FC<{
                     }
                 }).catch(() => {});
         }
+    }, []);
+
+    // Poll /failing-ips every 20s
+    useEffect(() => {
+        const fetchFailing = () => {
+            api.get<{ ok: boolean; ips: { jail: string; ip: string; count: number; lastSeen: number }[] }>('/api/plugins/fail2ban/failing-ips')
+                .then(res => { if (res.success && res.result?.ok) setFailingIps(res.result.ips); })
+                .catch(() => {});
+        };
+        fetchFailing();
+        const t = setInterval(fetchFailing, 20_000);
+        return () => clearInterval(t);
     }, []);
 
     const ipsetTotal    = ipsetSets.reduce((a, s) => a + s.entries, 0);
@@ -1764,7 +1777,7 @@ const StatsSummaryBanner: React.FC<{
                     )}
 
                     {/* Jails sous pression (currentlyFailed) */}
-                    {jailsUnderPressure.length > 0 && (
+                    {(jailsUnderPressure.length > 0 || failingIps.length > 0) && (
                         <>
                             {failuresTrendUp && sep}
                             <span style={{ fontSize: '.65rem', color: C.muted, flexShrink: 0 }}>En cours :</span>
@@ -1779,6 +1792,24 @@ const StatsSummaryBanner: React.FC<{
                                     )}
                                 </span>
                             ))}
+                            {/* IPs currently failing from log parsing */}
+                            {failingIps.slice(0, 6).map(f => (
+                                <F2bTooltip key={`${f.jail}:${f.ip}`}
+                                    title={f.ip}
+                                    body={`Jail : ${f.jail}\n${f.count} tentative${f.count > 1 ? 's' : ''} (5 dernières min)`}
+                                    color="red"
+                                >
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.22rem', fontFamily: 'monospace', fontSize: '.65rem', background: `${C.red}10`, border: `1px solid ${C.red}33`, borderRadius: 4, padding: '.08rem .35rem', color: C.red, cursor: 'default' }}>
+                                        <span style={{ width: 5, height: 5, borderRadius: '50%', background: C.red, display: 'inline-block', flexShrink: 0 }} />
+                                        {f.ip}
+                                        <span style={{ color: C.muted, fontSize: '.6rem' }}>{f.jail}</span>
+                                        <span style={{ color: C.text, fontWeight: 700 }}>×{f.count}</span>
+                                    </span>
+                                </F2bTooltip>
+                            ))}
+                            {failingIps.length > 6 && (
+                                <span style={{ fontSize: '.65rem', color: C.muted }}>+{failingIps.length - 6} autres</span>
+                            )}
                         </>
                     )}
                 </div>

@@ -2045,6 +2045,61 @@ export class Fail2banPlugin extends BasePlugin {
             res.json({ success: true, result: { ok: true, events: enriched, serverTime: now } });
         }));
 
+        // GET /failing-ips  — IPs currently failing (recent "Found" lines in fail2ban.log)
+        router.get('/failing-ips', requireAuth, asyncHandler(async (_req, res) => {
+            if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
+
+            // TTL cache: 15s
+            const _fCached = this._cachePeek<unknown>('failing-ips', 15_000);
+            if (_fCached) return res.json({ success: true, result: _fCached });
+
+            const logPath = this.resolveDockerPathSync('/var/log/fail2ban.log');
+            const cutoff  = Math.floor(Date.now() / 1000) - 5 * 60; // last 5 min
+
+            let logContent = '';
+            try {
+                fs.accessSync(logPath, fs.constants.R_OK);
+                logContent = readLogTail(logPath, 2000).content;
+            } catch {
+                const _empty = { ok: true, ips: [] };
+                this._cachePut('failing-ips', _empty);
+                return res.json({ success: true, result: _empty });
+            }
+
+            // Parse: "2025-01-15 12:34:56,789 fail2ban.filter ... [sshd] Found 1.2.3.4 - ..."
+            const foundRe = /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})[,.]?\d*\s+\S+\s+\[([^\]]+)\]\s+Found\s+([\d.a-f:]+)/i;
+            const failMap = new Map<string, { jail: string; ip: string; count: number; lastSeen: number }>();
+
+            // Exclude already-banned IPs
+            let bannedSet = new Set<string>();
+            try {
+                const evDb  = getDatabase();
+                const nowTs = Math.floor(Date.now() / 1000);
+                const bans  = evDb.prepare(
+                    `SELECT ip FROM f2b_events WHERE event_type='ban' AND (timeofban + banduration) > @now AND banduration > 0`
+                ).all({ now: nowTs }) as { ip: string }[];
+                bannedSet = new Set(bans.map(b => b.ip));
+            } catch { /* ignore */ }
+
+            for (const line of logContent.split(/\r?\n/)) {
+                const m = foundRe.exec(line);
+                if (!m) continue;
+                const [, tsStr, jail, ip] = m;
+                const ts = Math.floor(new Date(tsStr.replace(' ', 'T')).getTime() / 1000);
+                if (ts < cutoff) continue;
+                if (bannedSet.has(ip)) continue;
+                const key = `${jail}:${ip}`;
+                const existing = failMap.get(key);
+                if (existing) { existing.count++; if (ts > existing.lastSeen) existing.lastSeen = ts; }
+                else failMap.set(key, { jail, ip, count: 1, lastSeen: ts });
+            }
+
+            const ips = [...failMap.values()].sort((a, b) => b.lastSeen - a.lastSeen || b.count - a.count);
+            const _fResult = { ok: true, ips };
+            this._cachePut('failing-ips', _fResult);
+            res.json({ success: true, result: _fResult });
+        }));
+
         // GET /bans-today  — Bans depuis minuit (heure locale)
         router.get('/bans-today', requireAuth, asyncHandler(async (_req, res) => {
             if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');

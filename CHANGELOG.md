@@ -5,6 +5,26 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.31] - 2026-04-04
+
+### For users
+
+> The stats summary banner now shows IPs that are currently attempting connections (not yet banned) in the "En cours" section.
+
+- **Failing IPs in "En cours"** — Red monospace chips appear for each IP that has generated `Found` log entries in the last 5 minutes but has not yet been banned. Each chip shows the IP address, the jail it was found in, and a ×N attempt count. A tooltip gives the full details. If more than 6 are active, the overflow is shown as "+N autres". The list refreshes every 20 seconds.
+
+---
+
+### Technical
+
+#### Backend — `server/plugins/fail2ban/Fail2banPlugin.ts`
+
+- **`GET /failing-ips`** — New endpoint: reads the last 2000 lines of `fail2ban.log` (via `readLogTail`), filters to entries within the past 5 minutes, parses `[<jail>] Found <ip>` lines, excludes IPs that are currently banned (cross-referenced against `f2b_events`), groups by `jail:ip`, returns sorted by most recent first. TTL cache: 15s.
+
+#### Frontend — `src/pages/fail2ban/TabStats.tsx`
+
+- **`StatsSummaryBanner`** — Added `failingIps` state + `useEffect` polling `/failing-ips` every 20s. The "En cours" row now renders up to 6 failing IP chips (red) alongside the existing jail-pressure badges. Overflow count shown as "+N autres".
+
 ## [0.8.30] - 2026-04-04
 
 ### For users
