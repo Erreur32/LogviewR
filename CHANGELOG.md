@@ -5,6 +5,22 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.30] - 2026-04-04
+
+### For users
+
+> Fix: the "Bans actifs" stat card in the État actuel panel is no longer smaller than its siblings.
+
+- **Stat card alignment** — The "Bans actifs" card had a tooltip wrapper with `display: inline-flex` that caused it to shrink relative to the other three cards (Jails actifs, Échecs en cours, Total bans). All four cards now align uniformly.
+
+---
+
+### Technical
+
+#### Frontend — `src/pages/fail2ban/TabStats.tsx`
+
+- **`F2bTooltip` on Bans actifs** — Added `block` prop so the wrapper renders as `display: block` instead of `display: inline-flex`, matching plain `<div>` siblings in the `repeat(4,1fr)` grid.
+
 ## [0.8.29] - 2026-04-04
 
 ### For users

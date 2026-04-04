@@ -2030,7 +2030,7 @@ export const TabStats: React.FC<TabStatsProps> = ({
                                     </div>
                                 );
                                 return tt
-                                    ? <F2bTooltip key={label} title={label} bodyNode={tt} color="red">{inner}</F2bTooltip>
+                                    ? <F2bTooltip key={label} title={label} bodyNode={tt} color="red" block>{inner}</F2bTooltip>
                                     : inner;
                             })}
                         </div>
