@@ -1782,15 +1782,21 @@ const StatsSummaryBanner: React.FC<{
                             {failuresTrendUp && sep}
                             <span style={{ fontSize: '.65rem', color: C.muted, flexShrink: 0 }}>En cours :</span>
                             {jailsUnderPressure.map(j => (
-                                <span key={j.jail} style={{ display: 'inline-flex', alignItems: 'center', gap: '.22rem', fontFamily: 'monospace', fontSize: '.65rem', background: `${C.orange}10`, border: `1px solid ${C.orange}33`, borderRadius: 4, padding: '.08rem .35rem', color: C.orange }}>
-                                    <AlertTriangle style={{ width: 8, height: 8 }} />
-                                    {j.jail}
-                                    <span style={{ color: C.text, fontWeight: 700 }}>{j.currentlyFailed}</span>
-                                    <span style={{ color: C.muted, fontSize: '.6rem' }}>tentatives</span>
-                                    {j.maxretry && j.currentlyFailed >= j.maxretry - 1 && (
-                                        <span style={{ color: C.red, fontSize: '.6rem', fontWeight: 700 }}>→ ban imminent</span>
-                                    )}
-                                </span>
+                                <F2bTooltip key={j.jail}
+                                    title={j.jail}
+                                    body={`${j.currentlyFailed} tentative${j.currentlyFailed > 1 ? 's' : ''} en cours${j.maxretry ? ` (maxretry: ${j.maxretry})` : ''}${j.maxretry && j.currentlyFailed >= j.maxretry - 1 ? '\n⚠ Ban imminent' : ''}`}
+                                    color="orange"
+                                >
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.22rem', fontFamily: 'monospace', fontSize: '.65rem', background: `${C.orange}10`, border: `1px solid ${C.orange}33`, borderRadius: 4, padding: '.08rem .35rem', color: C.orange, cursor: 'default' }}>
+                                        <AlertTriangle style={{ width: 8, height: 8 }} />
+                                        {j.jail}
+                                        <span style={{ color: C.text, fontWeight: 700 }}>{j.currentlyFailed}</span>
+                                        <span style={{ color: C.muted, fontSize: '.6rem' }}>tentatives</span>
+                                        {j.maxretry && j.currentlyFailed >= j.maxretry - 1 && (
+                                            <span style={{ color: C.red, fontSize: '.6rem', fontWeight: 700 }}>→ ban imminent</span>
+                                        )}
+                                    </span>
+                                </F2bTooltip>
                             ))}
                             {/* IPs currently failing from log parsing */}
                             {failingIps.slice(0, 6).map(f => (
