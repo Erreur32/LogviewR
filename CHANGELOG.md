@@ -5,6 +5,31 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.28] - 2026-04-04
+
+### For users
+
+> The Fail2ban Stats tab now shows a smart summary banner at the top with a real-time security situation overview, total blocked IPs (fail2ban + IPSet), period comparison, and alerts for jails under pressure.
+
+- **Stats summary banner** — A contextual banner appears at the top of the Stats tab. It shows: current security status based on live fail2ban bans only (Calm / Normal / Moderate / High), total IPs blocked combining fail2ban and IPSet, and active jail count.
+- **IPSet framed as protection** — IPSet entries are now displayed as "X IPs blocked upstream" with a tooltip listing each set and explaining they are kernel-level filters applied before fail2ban — not a threat indicator. This prevents the banner from showing false "High activity" when blocklists are well populated.
+- **Period comparison with trends** — The banner shows bans, unique IPs, and attempts for the selected period with ▲/▼/= trend badges compared to the previous equivalent period.
+- **Jails under pressure** — Jails with `currentlyFailed > 0` are listed in orange with their attempt count. If `currentlyFailed ≥ maxretry − 1`, a "→ ban imminent" warning is shown.
+- **Attempt trend alert** — If attempts increased vs the previous period, an orange alert badge appears with the delta and a tooltip explaining possible causes (service not covered by fail2ban, `maxretry` too high).
+
+---
+
+### Technical
+
+#### Frontend — `src/pages/fail2ban/TabStats.tsx`
+
+- **`StatsSummaryBanner`** — New component inserted between the `<h2>` title and `IpSetsSection`. Four rows: live status + protection totals; period stats with `TrendBadge`; active bans by jail + top domain; attempt pressure row.
+- **`TrendBadge`** — Reuses the existing component (line ~676) with `curr`/`prev` props for all three period metrics (bans, unique IPs, attempts).
+- **Status logic** — Based solely on `totalBanned` (fail2ban live count): 0 → Calm (green), 1–5 → Normal (blue), 6–20 → Moderate (orange), >20 → High (red). IPSet entry count no longer influences status.
+- **IPSet fetch** — Reads from `_cache['ipset:info']` first (populated by `IpSetsSection`); falls back to `/api/plugins/fail2ban/ipset/info` on cold load. No duplicate network request.
+- **`jailsUnderPressure`** — Derived from `jails.filter(j => j.currentlyFailed > 0)` sorted descending, top 4 shown.
+- **`failuresDelta`** — Computed from `summary.totalFailures − prevSummary.totalFailures`; row 4 only renders when delta > 0 or jails have active failures.
+
 ## [0.8.27] - 2026-04-03
 
 ### For users

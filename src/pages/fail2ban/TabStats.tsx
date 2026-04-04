@@ -1447,6 +1447,293 @@ const JailBanShareBars: React.FC<{ jails: JailStatus[] }> = ({ jails }) => {
     );
 };
 
+// ── Stats Summary Banner ──────────────────────────────────────────────────────
+
+const StatsSummaryBanner: React.FC<{
+    totalBanned: number;
+    totalAllTime: number;
+    activeJails: number;
+    jails: JailStatus[];
+    statusHydrated: boolean;
+    topsData: TopsData | null;
+    topsLoading: boolean;
+    days: number;
+}> = ({ totalBanned, totalAllTime, activeJails, jails, statusHydrated, topsData, topsLoading, days }) => {
+    const [ipsetSets, setIpsetSets] = useState<IpSetInfo[]>(() => {
+        const c = getCached<{ sets: IpSetInfo[] }>('ipset:info');
+        return c ? c.sets.filter(s => !s.name.startsWith('docker-')) : [];
+    });
+
+    useEffect(() => {
+        const c = getCached<{ sets: IpSetInfo[] }>('ipset:info');
+        if (c) {
+            setIpsetSets(c.sets.filter(s => !s.name.startsWith('docker-')));
+        } else {
+            api.get<{ ok: boolean; sets: IpSetInfo[] }>('/api/plugins/fail2ban/ipset/info')
+                .then(res => {
+                    if (res.success && res.result?.ok) {
+                        setCached('ipset:info', res.result);
+                        setIpsetSets(res.result.sets.filter(s => !s.name.startsWith('docker-')));
+                    }
+                }).catch(() => {});
+        }
+    }, []);
+
+    const ipsetTotal    = ipsetSets.reduce((a, s) => a + s.entries, 0);
+    const ipsetSetCount = ipsetSets.length;
+    const totalProtection = totalBanned + ipsetTotal;
+
+    const jailsWithBans = jails.filter(j => j.currentlyBanned > 0).sort((a, b) => b.currentlyBanned - a.currentlyBanned);
+    const summary    = topsData?.summary ?? null;
+    const prevSummary = topsData?.prevSummary ?? null;
+    const topDomain  = topsData?.topDomains?.[0] ?? null;
+    const topJail    = topsData?.topJails?.[0] ?? null;
+    const periodLabel = PERIODS.find(p => p.days === days)?.label ?? `${days}j`;
+
+    // ── Status: based ONLY on fail2ban live bans, NOT on ipset (ipset = protection, not menace)
+    const { statusColor, statusText, statusSub } = (() => {
+        if (!statusHydrated) return { statusColor: C.muted, statusText: '…', statusSub: '' };
+        if (totalBanned === 0)      return { statusColor: C.green,  statusText: 'Calme',    statusSub: 'Aucun ban actif en ce moment' };
+        if (totalBanned <= 5)       return { statusColor: C.blue,   statusText: 'Normal',   statusSub: `${totalBanned} IP${totalBanned > 1 ? 's' : ''} en jail` };
+        if (totalBanned <= 20)      return { statusColor: C.orange, statusText: 'Modéré',   statusSub: `${totalBanned} IPs actuellement en jail` };
+        return                             { statusColor: C.red,    statusText: 'Élevé',    statusSub: `${totalBanned} IPs actuellement en jail` };
+    })();
+
+    // ── Tentatives alert: jails with high currentlyFailed (pressure before ban)
+    const jailsUnderPressure = jails
+        .filter(j => j.currentlyFailed > 0)
+        .sort((a, b) => b.currentlyFailed - a.currentlyFailed)
+        .slice(0, 4);
+
+    // Trend on failures vs previous period
+    const failuresDelta = (summary && prevSummary && prevSummary.totalFailures > 0)
+        ? summary.totalFailures - prevSummary.totalFailures : null;
+    const failuresTrendUp = failuresDelta !== null && failuresDelta > 0;
+
+    // ── Row separator
+    const sep = <span style={{ color: C.border, userSelect: 'none' as const }}>·</span>;
+
+    return (
+        <div style={{ background: C.bg1, border: `1px solid ${C.border}`, borderRadius: 8, overflow: 'hidden' }}>
+            {/* ── Row 1: statut fail2ban live + protection totale ── */}
+            <div style={{ padding: '.65rem 1rem', display: 'flex', alignItems: 'center', gap: '.6rem', flexWrap: 'wrap', borderBottom: `1px solid ${C.border}` }}>
+                {/* Status pill */}
+                <F2bTooltip title={statusText} body={statusSub} color="blue">
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.3rem', background: `${statusColor}18`, border: `1px solid ${statusColor}44`, borderRadius: 20, padding: '.15rem .65rem', fontSize: '.7rem', fontWeight: 700, color: statusColor, letterSpacing: '.03em', cursor: 'default' }}>
+                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: statusColor, display: 'inline-block', flexShrink: 0 }} />
+                        {statusText}
+                    </span>
+                </F2bTooltip>
+
+                {sep}
+
+                {/* Fail2ban live — vraie activité */}
+                <span style={{ fontSize: '.75rem', color: C.muted }}>
+                    <span style={{ color: totalBanned > 0 ? C.red : C.green, fontWeight: 700, fontSize: '.88rem' }}>{statusHydrated ? totalBanned : '…'}</span>
+                    {' IPs en jail'}
+                </span>
+
+                {sep}
+
+                {/* IPSet — protection en amont (positif) */}
+                {ipsetSetCount > 0 && (
+                    <>
+                        <F2bTooltip
+                            title="Protection IPSet"
+                            bodyNode={
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '.3rem' }}>
+                                    <div style={{ fontSize: '.75rem', color: C.text, lineHeight: 1.5 }}>
+                                        <strong style={{ color: C.purple }}>{ipsetTotal.toLocaleString('fr-FR')} IPs</strong> bloquées <em>en amont</em> via {ipsetSetCount} set{ipsetSetCount > 1 ? 's' : ''} IPSet.
+                                    </div>
+                                    <div style={{ fontSize: '.69rem', color: C.muted, lineHeight: 1.5 }}>
+                                        Ces IPs sont refusées au niveau noyau <strong>avant</strong> d'atteindre fail2ban — c'est une couche de protection supplémentaire, pas une menace active.
+                                    </div>
+                                    {ipsetSets.slice(0, 5).map(s => (
+                                        <div key={s.name} style={{ fontSize: '.68rem', fontFamily: 'monospace', color: C.muted }}>
+                                            <span style={{ color: C.purple }}>{s.name}</span>
+                                            {' · '}<span style={{ color: C.text }}>{s.entries.toLocaleString('fr-FR')} entrées</span>
+                                            {' · '}<span style={{ color: C.muted, fontSize: '.62rem' }}>{s.type}</span>
+                                        </div>
+                                    ))}
+                                    {ipsetSets.length > 5 && <div style={{ fontSize: '.65rem', color: C.muted }}>+{ipsetSets.length - 5} autres sets</div>}
+                                </div>
+                            }
+                            color="purple"
+                        >
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.25rem', fontSize: '.75rem', cursor: 'default' }}>
+                                <Shield style={{ width: 11, height: 11, color: C.purple }} />
+                                <span style={{ color: C.purple, fontWeight: 700 }}>{ipsetTotal.toLocaleString('fr-FR')}</span>
+                                <span style={{ color: C.muted }}>IPs bloquées en amont</span>
+                                <span style={{ fontSize: '.62rem', color: C.purple, background: `${C.purple}18`, border: `1px solid ${C.purple}33`, borderRadius: 3, padding: '.05rem .3rem' }}>{ipsetSetCount} set{ipsetSetCount > 1 ? 's' : ''} IPSet</span>
+                            </span>
+                        </F2bTooltip>
+                        {sep}
+                    </>
+                )}
+
+                {/* Total protection combinée */}
+                <span style={{ fontSize: '.72rem', color: C.muted }}>
+                    Total bloqué : <span style={{ color: C.text, fontWeight: 700 }}>{statusHydrated ? totalProtection.toLocaleString('fr-FR') : '…'}</span> IPs
+                </span>
+
+                {sep}
+
+                {/* Jails actifs + all-time */}
+                <span style={{ fontSize: '.72rem', color: C.muted }}>
+                    <span style={{ color: C.blue, fontWeight: 600 }}>{statusHydrated ? activeJails : '…'}</span>
+                    {` jail${activeJails !== 1 ? 's' : ''}`}
+                </span>
+
+                {totalAllTime > 0 && (
+                    <>
+                        {sep}
+                        <span style={{ fontSize: '.72rem', color: C.muted }}>
+                            <span style={{ color: C.purple, fontWeight: 600 }}>{totalAllTime.toLocaleString('fr-FR')}</span>
+                            {' bans cumulés (BDD)'}
+                        </span>
+                    </>
+                )}
+            </div>
+
+            {/* ── Row 2: stats période + comparaison période précédente ── */}
+            {!topsLoading && summary && summary.totalBans > 0 && (
+                <div style={{ padding: '.5rem 1rem', display: 'flex', alignItems: 'center', gap: '.55rem', flexWrap: 'wrap', borderBottom: `1px solid ${C.border}`, background: `${C.bg2}88` }}>
+                    <span style={{ fontSize: '.68rem', color: C.muted, fontWeight: 600, flexShrink: 0 }}>Sur {periodLabel} :</span>
+
+                    {/* Bans */}
+                    <span style={{ fontSize: '.72rem', color: C.muted }}>
+                        <span style={{ color: C.orange, fontWeight: 700 }}>{summary.totalBans.toLocaleString('fr-FR')}</span>
+                        {' bans'}
+                        {prevSummary && <TrendBadge curr={summary.totalBans} prev={prevSummary.totalBans} />}
+                    </span>
+                    {sep}
+                    {/* IPs uniques */}
+                    <span style={{ fontSize: '.72rem', color: C.muted }}>
+                        <span style={{ color: C.blue, fontWeight: 700 }}>{summary.uniqueIps.toLocaleString('fr-FR')}</span>
+                        {' IPs uniques'}
+                        {prevSummary && <TrendBadge curr={summary.uniqueIps} prev={prevSummary.uniqueIps} />}
+                    </span>
+                    {sep}
+                    {/* Tentatives */}
+                    <span style={{ fontSize: '.72rem', color: C.muted }}>
+                        <span style={{ color: C.orange, fontWeight: 600 }}>{summary.totalFailures.toLocaleString('fr-FR')}</span>
+                        {' tentatives'}
+                        {prevSummary && <TrendBadge curr={summary.totalFailures} prev={prevSummary.totalFailures} />}
+                    </span>
+                    {/* Top jail période */}
+                    {topJail && (
+                        <>
+                            {sep}
+                            <span style={{ fontSize: '.68rem', color: C.muted }}>
+                                Top jail : <span style={{ fontFamily: 'monospace', color: C.green, fontWeight: 600 }}>{topJail.jail}</span>
+                                <span style={{ color: C.muted }}> ({topJail.count.toLocaleString('fr-FR')} bans)</span>
+                            </span>
+                        </>
+                    )}
+                    {/* Expirations */}
+                    {summary.expiredInPeriod > 0 && (
+                        <>
+                            {sep}
+                            <span style={{ fontSize: '.68rem', color: C.muted }}>
+                                <span style={{ color: C.muted }}>{summary.expiredInPeriod.toLocaleString('fr-FR')} bans expirés</span>
+                            </span>
+                        </>
+                    )}
+                    {/* Prev period label */}
+                    {prevSummary && (
+                        <span style={{ fontSize: '.62rem', color: C.muted, marginLeft: 'auto', fontStyle: 'italic' }}>vs période préc.</span>
+                    )}
+                </div>
+            )}
+
+            {/* ── Row 3: jails avec bans actifs + top domaine ── */}
+            {statusHydrated && (jailsWithBans.length > 0 || (topDomain && !topsLoading)) && (
+                <div style={{ padding: '.45rem 1rem', display: 'flex', alignItems: 'center', gap: '.5rem', flexWrap: 'wrap' }}>
+                    {jailsWithBans.length > 0 && (
+                        <>
+                            <span style={{ fontSize: '.65rem', color: C.muted, flexShrink: 0 }}>Bans actifs :</span>
+                            {jailsWithBans.slice(0, 6).map(j => (
+                                <span key={j.jail} style={{ display: 'inline-flex', alignItems: 'center', gap: '.22rem', fontFamily: 'monospace', fontSize: '.65rem', background: `${C.red}10`, border: `1px solid ${C.red}33`, borderRadius: 4, padding: '.08rem .35rem', color: C.red }}>
+                                    <Ban style={{ width: 8, height: 8 }} />
+                                    {j.jail}
+                                    <span style={{ color: C.text, fontWeight: 700 }}>{j.currentlyBanned}</span>
+                                    {j.currentlyFailed > 0 && <span style={{ color: C.orange, fontSize: '.6rem' }}>({j.currentlyFailed}⚡)</span>}
+                                </span>
+                            ))}
+                            {jailsWithBans.length > 6 && (
+                                <span style={{ fontSize: '.62rem', color: C.muted }}>+{jailsWithBans.length - 6} autres</span>
+                            )}
+                        </>
+                    )}
+
+                    {topDomain && !topsLoading && (
+                        <>
+                            {jailsWithBans.length > 0 && sep}
+                            <span style={{ fontSize: '.65rem', color: C.muted }}>Top domaine :</span>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.22rem', fontSize: '.65rem', background: `${C.cyan}10`, border: `1px solid ${C.cyan}33`, borderRadius: 4, padding: '.08rem .35rem', color: C.cyan }}>
+                                <Globe style={{ width: 8, height: 8 }} />
+                                <span style={{ fontFamily: 'monospace' }}>{topDomain.domain}</span>
+                                <span style={{ color: C.text, fontWeight: 700 }}>{topDomain.count}</span>
+                                <span style={{ color: C.muted }}>bans</span>
+                                {topDomain.failures != null && topDomain.failures > 0 && (
+                                    <span style={{ color: C.orange, fontSize: '.6rem' }}>· {topDomain.failures} tentatives</span>
+                                )}
+                            </span>
+                        </>
+                    )}
+                </div>
+            )}
+
+            {/* ── Row 4: tentatives en cours (pression) + alerte si hausse ── */}
+            {statusHydrated && (jailsUnderPressure.length > 0 || failuresTrendUp) && (
+                <div style={{ padding: '.45rem 1rem', display: 'flex', alignItems: 'center', gap: '.5rem', flexWrap: 'wrap', borderTop: `1px solid ${C.border}`, background: failuresTrendUp ? `${C.orange}08` : undefined }}>
+                    {/* Alerte hausse tentatives */}
+                    {failuresTrendUp && failuresDelta !== null && (
+                        <F2bTooltip
+                            title="Tentatives en hausse"
+                            bodyNode={
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '.3rem' }}>
+                                    <div style={{ fontSize: '.75rem', color: C.text, lineHeight: 1.5 }}>
+                                        <strong style={{ color: C.orange }}>+{failuresDelta.toLocaleString('fr-FR')} tentatives</strong> de plus que la période précédente.
+                                    </div>
+                                    <div style={{ fontSize: '.69rem', color: C.muted, lineHeight: 1.5 }}>
+                                        Une hausse des tentatives sans ban correspondant peut indiquer des attaques sur des services non couverts par fail2ban, ou un <code style={{ color: '#e3b341' }}>maxretry</code> trop élevé.
+                                    </div>
+                                </div>
+                            }
+                            color="orange"
+                        >
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.25rem', fontSize: '.65rem', background: `${C.orange}18`, border: `1px solid ${C.orange}44`, borderRadius: 4, padding: '.1rem .45rem', color: C.orange, fontWeight: 700, cursor: 'default' }}>
+                                <AlertTriangle style={{ width: 9, height: 9 }} />
+                                Tentatives en hausse +{failuresDelta.toLocaleString('fr-FR')} vs période préc.
+                            </span>
+                        </F2bTooltip>
+                    )}
+
+                    {/* Jails sous pression (currentlyFailed) */}
+                    {jailsUnderPressure.length > 0 && (
+                        <>
+                            {failuresTrendUp && sep}
+                            <span style={{ fontSize: '.65rem', color: C.muted, flexShrink: 0 }}>En cours :</span>
+                            {jailsUnderPressure.map(j => (
+                                <span key={j.jail} style={{ display: 'inline-flex', alignItems: 'center', gap: '.22rem', fontFamily: 'monospace', fontSize: '.65rem', background: `${C.orange}10`, border: `1px solid ${C.orange}33`, borderRadius: 4, padding: '.08rem .35rem', color: C.orange }}>
+                                    <AlertTriangle style={{ width: 8, height: 8 }} />
+                                    {j.jail}
+                                    <span style={{ color: C.text, fontWeight: 700 }}>{j.currentlyFailed}</span>
+                                    <span style={{ color: C.muted, fontSize: '.6rem' }}>tentatives</span>
+                                    {j.maxretry && j.currentlyFailed >= j.maxretry - 1 && (
+                                        <span style={{ color: C.red, fontSize: '.6rem', fontWeight: 700 }}>→ ban imminent</span>
+                                    )}
+                                </span>
+                            ))}
+                        </>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+};
+
 // ── Main component ────────────────────────────────────────────────────────────
 interface TabStatsProps {
     jails: JailStatus[];
@@ -1634,6 +1921,18 @@ export const TabStats: React.FC<TabStatsProps> = ({
             <h2 style={{ fontSize: '.78rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.07em', color: C.muted, margin: 0 }}>
                 {t('fail2ban.tabs.stats')}
             </h2>
+
+            {/* Summary banner */}
+            <StatsSummaryBanner
+                totalBanned={totalBanned}
+                totalAllTime={totalAllTime}
+                activeJails={activeJails}
+                jails={jails}
+                statusHydrated={statusHydrated}
+                topsData={topsData}
+                topsLoading={topsLoading}
+                days={days}
+            />
 
             {/* IPSets */}
             <IpSetsSection days={days} onDaysChange={onDaysChange} />
