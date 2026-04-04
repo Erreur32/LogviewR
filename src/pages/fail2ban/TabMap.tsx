@@ -18,12 +18,13 @@ L.Icon.Default.mergeOptions({ iconUrl, iconRetinaUrl, shadowUrl });
 import { useTranslation } from 'react-i18next';
 import { api } from '../../api/client';
 import { card, cardH, F2bTooltip } from './helpers';
-import { Map as MapIcon, SlidersHorizontal } from 'lucide-react';
+import { Map as MapIcon, SlidersHorizontal, Zap } from 'lucide-react';
 import { FlagImg } from './FlagImg';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface GeoData { lat: number; lng: number; country: string; countryCode: string; region: string; city: string; org: string }
 interface MapPoint { ip: string; jails: string[]; cached: GeoData | null }
+interface LiveEvent { ip: string; jail: string; timeofban: number; failures: number; geo: { lat: number; lng: number; country: string; countryCode: string; city: string; org: string } }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -82,6 +83,14 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker, onIpClick, refres
     const [resolveDelayMs, setResolveDelayMs] = useState(380);
     const [mapSource, setMapSource]           = useState<'live' | 'history'>('live');
 
+    // ── Live attack mode ──────────────────────────────────────────────────────
+    const [liveMode, setLiveMode]             = useState(false);
+    const [serverGeo, setServerGeo]           = useState<{ lat: number; lng: number; country: string; city: string } | null>(null);
+    const [liveEvents, setLiveEvents]         = useState<LiveEvent[]>([]);
+    const liveIntervalRef                     = useRef<ReturnType<typeof setInterval> | null>(null);
+    const liveSinceRef                        = useRef<number>(0);
+    const attackLinesRef                      = useRef<any[]>([]);
+
     // ── Inject dark popup CSS once ─────────────────────────────────────────────
     useEffect(() => {
         if (!document.getElementById('f2b-map-popup-style')) {
@@ -90,6 +99,16 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker, onIpClick, refres
             s.textContent = `
                 @keyframes f2b-spin { to { transform: rotate(360deg) translateZ(0); } }
                 .f2b-geo-spin { animation: f2b-spin 1.2s linear infinite; transform-origin: 5.5px 5.5px; }
+                @keyframes f2b-attack-fly {
+                    0%   { stroke-dashoffset: 1000; opacity: 0; }
+                    6%   { opacity: 0.9; }
+                    75%  { opacity: 0.8; }
+                    100% { stroke-dashoffset: 0; opacity: 0; }
+                }
+                @keyframes f2b-pulse-ring {
+                    0%   { transform: scale(1); opacity: 0.8; }
+                    100% { transform: scale(2.5); opacity: 0; }
+                }
                 .f2b-map-popup .leaflet-popup-content-wrapper {
                     background: #161b22; border: 1px solid #30363d;
                     border-radius: 8px; box-shadow: 0 4px 24px rgba(0,0,0,.6);
@@ -281,6 +300,143 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker, onIpClick, refres
         pump();
     }, [mapReady, points, resolveDelayMs, addMarker, applyFilter, rebuildStats, filterCountry, filterRegion]);
 
+    // ── Live attack mode ───────────────────────────────────────────────────────
+
+    /** Inject arrowhead <marker> into Leaflet's overlay SVG once */
+    const ensureArrowMarker = useCallback(() => {
+        if (!mapRef.current) return;
+        const overlayPane = mapRef.current.getPanes().overlayPane as HTMLElement;
+        const svg = overlayPane.querySelector('svg');
+        if (!svg || svg.querySelector('#f2b-arrow')) return;
+        const ns = 'http://www.w3.org/2000/svg';
+        const defs  = document.createElementNS(ns, 'defs');
+        const mkr   = document.createElementNS(ns, 'marker');
+        mkr.setAttribute('id', 'f2b-arrow');
+        mkr.setAttribute('markerWidth', '6');
+        mkr.setAttribute('markerHeight', '6');
+        mkr.setAttribute('refX', '5');
+        mkr.setAttribute('refY', '3');
+        mkr.setAttribute('orient', 'auto');
+        mkr.setAttribute('markerUnits', 'strokeWidth');
+        const arrowTip = document.createElementNS(ns, 'path');
+        arrowTip.setAttribute('d', 'M0,0 L0,6 L6,3 z');
+        arrowTip.setAttribute('fill', 'rgba(232,106,101,0.9)');
+        mkr.appendChild(arrowTip);
+        defs.appendChild(mkr);
+        svg.prepend(defs);
+    }, []);
+
+    const drawAttackArc = useCallback((srcLat: number, srcLng: number, geo: { country: string; countryCode: string; city: string; org: string }, ip: string, jail: string) => {
+        if (!mapRef.current || !serverGeo) return;
+        ensureArrowMarker();
+
+        const src = L.latLng(srcLat, srcLng);
+        const dst = L.latLng(serverGeo.lat, serverGeo.lng);
+
+        // Polyline — opacity:0 initially, animation takes over
+        const line = L.polyline([src, dst], { color: '#e86a65', weight: 2, opacity: 0 } as any);
+        line.addTo(mapRef.current);
+
+        // Apply after rAF so the element is in the DOM
+        requestAnimationFrame(() => {
+            const el = (line as any).getElement() as SVGElement | null;
+            if (!el) return;
+            el.setAttribute('stroke', '#e86a65');
+            el.setAttribute('stroke-width', '2');
+            el.setAttribute('stroke-dasharray', '1000');
+            el.setAttribute('stroke-dashoffset', '1000');
+            el.setAttribute('marker-end', 'url(#f2b-arrow)');
+            el.setAttribute('fill', 'none');
+            el.style.cssText = 'stroke-dasharray:1000;stroke-dashoffset:1000;animation:f2b-attack-fly 2.5s ease-out forwards;';
+        });
+
+        // Pulsing origin dot (two rings)
+        const dotDiv = document.createElement('div');
+        dotDiv.style.cssText = 'width:12px;height:12px;border-radius:50%;background:rgba(232,106,101,.85);border:2px solid #e86a65;position:relative;';
+        const ring1 = document.createElement('div');
+        ring1.style.cssText = 'position:absolute;inset:-5px;border-radius:50%;border:2px solid rgba(232,106,101,.5);animation:f2b-pulse-ring 1.2s ease-out infinite;';
+        const ring2 = document.createElement('div');
+        ring2.style.cssText = 'position:absolute;inset:-10px;border-radius:50%;border:1px solid rgba(232,106,101,.25);animation:f2b-pulse-ring 1.2s ease-out 0.4s infinite;';
+        dotDiv.appendChild(ring1);
+        dotDiv.appendChild(ring2);
+
+        const pulseIcon = L.divIcon({ className: '', html: dotDiv.outerHTML, iconSize: [12, 12], iconAnchor: [6, 6] });
+        const dot = L.marker(src, { icon: pulseIcon, interactive: true });
+
+        // Safe popup — build via DOM, not via HTML string with user data
+        const popupDiv = document.createElement('div');
+        const ipEl = document.createElement('div');
+        ipEl.style.cssText = 'font-family:monospace;font-size:.75rem;color:#e86a65;font-weight:700;';
+        ipEl.textContent = ip;
+        const locEl = document.createElement('div');
+        locEl.style.cssText = 'font-size:.7rem;color:#8b949e;margin-top:.2rem;';
+        locEl.textContent = [geo.city, geo.country].filter(Boolean).join(', ') || '—';
+        const jailEl = document.createElement('div');
+        jailEl.style.cssText = 'font-size:.68rem;color:#3fb950;margin-top:.15rem;';
+        jailEl.textContent = `jail : ${jail}`;
+        popupDiv.appendChild(ipEl);
+        popupDiv.appendChild(locEl);
+        popupDiv.appendChild(jailEl);
+        dot.bindPopup(popupDiv, { maxWidth: 200, className: 'f2b-map-popup' });
+        dot.addTo(mapRef.current);
+
+        attackLinesRef.current.push(line, dot);
+        setTimeout(() => { if (mapRef.current) line.remove(); attackLinesRef.current = attackLinesRef.current.filter(l => l !== line); }, 2700);
+        setTimeout(() => { if (mapRef.current) dot.remove();  attackLinesRef.current = attackLinesRef.current.filter(l => l !== dot);  }, 6000);
+    }, [serverGeo, ensureArrowMarker]);
+
+    const pollLiveEvents = useCallback(() => {
+        const since = liveSinceRef.current;
+        api.get<{ ok: boolean; events: LiveEvent[]; serverTime: number }>(`/api/plugins/fail2ban/map/events?since=${since}&limit=30`)
+            .then(res => {
+                if (!res.success || !res.result?.ok) return;
+                const evts = res.result.events;
+                if (evts.length > 0) {
+                    setLiveEvents(prev => [...evts, ...prev].slice(0, 50));
+                    evts.forEach(e => drawAttackArc(e.geo.lat, e.geo.lng, e.geo, e.ip, e.jail));
+                }
+                liveSinceRef.current = res.result.serverTime;
+            })
+            .catch(() => {});
+    }, [drawAttackArc]);
+
+    useEffect(() => {
+        if (!liveMode) {
+            if (liveIntervalRef.current) clearInterval(liveIntervalRef.current);
+            // Clean up attack lines and restore ban markers
+            attackLinesRef.current.forEach(l => { try { l.remove(); } catch { /* already removed */ } });
+            attackLinesRef.current = [];
+            // Restore existing ban markers into cluster
+            if (clusterRef.current) {
+                clusterRef.current.clearLayers();
+                for (const [, marker] of markerByIp.current) clusterRef.current.addLayer(marker);
+            }
+            setLiveEvents([]);
+            return;
+        }
+        // Clear existing ban markers — live mode shows only attack arcs
+        if (clusterRef.current) clusterRef.current.clearLayers();
+
+        // Fetch server geo once
+        if (!serverGeo) {
+            api.get<{ ok: boolean; lat: number; lng: number; country: string; city: string }>('/api/plugins/fail2ban/map/server-geo')
+                .then(res => {
+                    if (res.success && res.result?.ok) setServerGeo({ lat: res.result.lat, lng: res.result.lng, country: res.result.country ?? '', city: res.result.city ?? '' });
+                })
+                .catch(() => {});
+        }
+        // Seed since = now − 60s to show last minute of attacks on first load
+        liveSinceRef.current = Math.floor(Date.now() / 1000) - 60;
+        pollLiveEvents();
+        liveIntervalRef.current = setInterval(pollLiveEvents, 5000);
+        return () => { if (liveIntervalRef.current) clearInterval(liveIntervalRef.current); };
+    }, [liveMode]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Re-run pollLiveEvents when serverGeo becomes available (first activation)
+    useEffect(() => {
+        if (liveMode && serverGeo) pollLiveEvents();
+    }, [serverGeo]); // eslint-disable-line react-hooks/exhaustive-deps
+
     // ── Filter handlers ────────────────────────────────────────────────────────
     const handleCountryClick = useCallback((code: string) => {
         const next = filterCountry === code ? '' : code;
@@ -326,7 +482,7 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker, onIpClick, refres
     const minR = Math.min(...rVals, 0); const maxR = Math.max(...rVals, 1);
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '.75rem', height: 'calc(100vh - 165px)' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '.75rem', height: 'calc(100vh - 165px)', overflow: 'hidden' }}>
 
             {/* Top bar */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', flexShrink: 0 }}>
@@ -351,12 +507,30 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker, onIpClick, refres
                     <span style={{ fontSize: '.72rem', color: '#3fb950' }}>✓ {total} géolocalisée{total > 1 ? 's' : ''}</span>
                 )}
 
-                {/* Source toggle */}
-                <div style={{ display: 'flex', gap: '.25rem', marginLeft: 'auto', background: '#21262d', border: '1px solid #30363d', borderRadius: 6, padding: '.15rem' }}>
+                {/* Live mode toggle */}
+                <F2bTooltip color="red" title="⚡ Mode Live"
+                    bodyNode={<>Suit les <strong style={{ color: '#e6edf3' }}>nouveaux bans en temps réel</strong> (poll toutes les 5s).<br/>Affiche des arcs animés depuis la source de l'attaque vers votre serveur.<br/><span style={{ color: '#8b949e', fontSize: '.72rem' }}>Les IPs sans géolocalisation cachée sont silencieusement ignorées.</span></>}>
+                    <button onClick={() => setLiveMode(m => !m)} style={{
+                        display: 'inline-flex', alignItems: 'center', gap: '.3rem',
+                        padding: '.2rem .65rem', fontSize: '.72rem', borderRadius: 6, cursor: 'pointer', fontWeight: 700,
+                        border: `1px solid ${liveMode ? 'rgba(232,106,101,.6)' : '#30363d'}`,
+                        background: liveMode ? 'rgba(232,106,101,.15)' : '#21262d',
+                        color: liveMode ? '#e86a65' : '#8b949e',
+                        marginLeft: 'auto',
+                        animation: liveMode ? undefined : undefined,
+                    }}>
+                        <Zap style={{ width: 11, height: 11 }} />
+                        Live
+                        {liveMode && <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#e86a65', display: 'inline-block', animation: 'f2b-pulse-ring .9s ease-out infinite', flexShrink: 0 }} />}
+                    </button>
+                </F2bTooltip>
+
+                {/* Source toggle — disabled when live mode is on */}
+                <div style={{ display: 'flex', gap: '.25rem', background: '#21262d', border: `1px solid ${liveMode ? 'rgba(255,255,255,.06)' : '#30363d'}`, borderRadius: 6, padding: '.15rem', opacity: liveMode ? 0.35 : 1, pointerEvents: liveMode ? 'none' : undefined, transition: 'opacity .2s' }}>
                     <F2bTooltip color="red" title="🔴 Bans actifs"
                         bodyNode={<>IPs <strong style={{ color: '#e6edf3' }}>actuellement en jail</strong> dans fail2ban (ban non expiré).<br/>Source : <code style={{ fontFamily: 'monospace', fontSize: '.72rem', color: '#8b949e' }}>fail2ban.sqlite3</code><br/><span style={{ color: '#8b949e', fontSize: '.72rem' }}>Se vide si fail2ban redémarre ou purge sa DB (<code style={{ fontFamily: 'monospace' }}>dbpurgeage</code>).</span></>}>
                         <button onClick={() => setMapSource('live')} style={{
-                            padding: '.2rem .65rem', fontSize: '.72rem', borderRadius: 4, cursor: 'pointer', fontWeight: 600,
+                            padding: '.2rem .65rem', fontSize: '.72rem', borderRadius: 4, cursor: liveMode ? 'default' : 'pointer', fontWeight: 600,
                             border: `1px solid ${mapSource === 'live' ? 'rgba(232,106,101,.4)' : 'transparent'}`,
                             background: mapSource === 'live' ? 'rgba(232,106,101,.15)' : 'transparent',
                             color: mapSource === 'live' ? '#e86a65' : '#8b949e',
@@ -365,7 +539,7 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker, onIpClick, refres
                     <F2bTooltip color="blue" title="📦 Historique"
                         bodyNode={<>Toutes les IPs <strong style={{ color: '#e6edf3' }}>jamais bannies</strong> depuis le démarrage de la surveillance, bans expirés inclus.<br/>Source : <code style={{ fontFamily: 'monospace', fontSize: '.72rem', color: '#8b949e' }}>f2b_events</code><br/><span style={{ color: '#8b949e', fontSize: '.72rem' }}>Conservé indéfiniment, même après un redémarrage de fail2ban.</span></>}>
                         <button onClick={() => setMapSource('history')} style={{
-                            padding: '.2rem .65rem', fontSize: '.72rem', borderRadius: 4, cursor: 'pointer', fontWeight: 600,
+                            padding: '.2rem .65rem', fontSize: '.72rem', borderRadius: 4, cursor: liveMode ? 'default' : 'pointer', fontWeight: 600,
                             border: `1px solid ${mapSource === 'history' ? 'rgba(88,166,255,.4)' : 'transparent'}`,
                             background: mapSource === 'history' ? 'rgba(88,166,255,.15)' : 'transparent',
                             color: mapSource === 'history' ? '#58a6ff' : '#8b949e',
@@ -390,6 +564,46 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker, onIpClick, refres
             {(loading || total > 0) && (
                 <div style={{ ...card, flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
 
+                    {/* Live attack feed — left panel */}
+                    {liveMode && (
+                        <aside style={{ width: 220, flexShrink: 0, borderRight: '1px solid #30363d', display: 'flex', flexDirection: 'column', background: '#0d1117' }}>
+                            <div style={{ padding: '.5rem .75rem', borderBottom: '1px solid #30363d', display: 'flex', alignItems: 'center', gap: '.35rem', flexShrink: 0 }}>
+                                <Zap style={{ width: 12, height: 12, color: '#e86a65' }} />
+                                <span style={{ fontSize: '.72rem', fontWeight: 700, color: '#e86a65', letterSpacing: '.04em', textTransform: 'uppercase' as const }}>Flux live</span>
+                                {serverGeo && <span style={{ marginLeft: 'auto', fontSize: '.6rem', color: '#555d69' }}>→ {serverGeo.city || serverGeo.country || '?'}</span>}
+                            </div>
+                            <div style={{ overflowY: 'auto', flex: 1 }}>
+                                {liveEvents.length === 0 ? (
+                                    <div style={{ padding: '.75rem', fontSize: '.72rem', color: '#555d69', fontStyle: 'italic', textAlign: 'center', marginTop: '.5rem' }}>
+                                        En attente de bans…
+                                        <div style={{ marginTop: '.4rem', display: 'flex', justifyContent: 'center' }}>
+                                            <svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="rgba(232,106,101,.3)" strokeWidth="2"/><circle className="f2b-geo-spin" cx="8" cy="8" r="6" fill="none" stroke="#e86a65" strokeWidth="2" strokeDasharray="10 28" strokeLinecap="round"/></svg>
+                                        </div>
+                                    </div>
+                                ) : liveEvents.map((e, i) => {
+                                    const ago = Math.floor(Date.now() / 1000) - e.timeofban;
+                                    const agoStr = ago < 60 ? `${ago}s` : ago < 3600 ? `${Math.floor(ago / 60)}m` : `${Math.floor(ago / 3600)}h`;
+                                    const isRecent = ago < 10;
+                                    return (
+                                        <div key={`${e.ip}-${e.timeofban}-${i}`} style={{ padding: '.35rem .65rem', borderBottom: '1px solid rgba(255,255,255,.035)', background: isRecent ? 'rgba(232,106,101,.06)' : undefined }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '.25rem', marginBottom: '.1rem' }}>
+                                                {isRecent && <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#e86a65', flexShrink: 0, display: 'inline-block' }} />}
+                                                <span style={{ fontFamily: 'monospace', fontSize: '.68rem', color: isRecent ? '#e86a65' : '#c9d1d9', fontWeight: isRecent ? 700 : 400, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{e.ip}</span>
+                                                <span style={{ fontSize: '.58rem', color: '#444d56', flexShrink: 0 }}>{agoStr}</span>
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '.25rem', flexWrap: 'wrap' as const }}>
+                                                <span style={{ fontSize: '.62rem', color: '#3fb950' }}>{e.jail}</span>
+                                                {e.geo.city && <><span style={{ color: '#30363d' }}>·</span><span style={{ fontSize: '.6rem', color: '#8b949e' }}>{e.geo.city}</span></>}
+                                                {e.geo.countryCode && <FlagImg code={e.geo.countryCode} size={11} />}
+                                                {e.failures > 0 && <span style={{ fontSize: '.6rem', color: '#e3b341', marginLeft: 'auto' }}>{e.failures}×</span>}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </aside>
+                    )}
+
                     {/* Map canvas */}
                     <div style={{ flex: 1, position: 'relative', minWidth: 0 }}>
                         <div ref={mapContainerRef} style={{ width: '100%', height: '100%', background: '#0d1117' }} />
@@ -413,8 +627,8 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker, onIpClick, refres
                                 <span style={{ fontWeight: 600, fontSize: '.82rem' }}>Contrôle &amp; filtres</span>
                             </div>
 
-                            {/* Country section */}
-                            <div style={{ borderBottom: '1px solid #30363d' }}>
+                            {/* Country section — disabled in live mode */}
+                            <div style={{ borderBottom: '1px solid #30363d', opacity: liveMode ? 0.3 : 1, pointerEvents: liveMode ? 'none' : undefined, transition: 'opacity .2s' }}>
                                 <div style={{ padding: '.5rem .75rem .35rem', fontSize: '.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: '#8b949e', display: 'flex', alignItems: 'center', gap: '.35rem' }}>
                                     <span style={{ fontSize: '.85rem' }}>🌍</span> {t('fail2ban.map.filterByCountry')}
                                 </div>
@@ -442,8 +656,8 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker, onIpClick, refres
                                 </div>
                             </div>
 
-                            {/* Region section */}
-                            {filterCountry && (
+                            {/* Region section — disabled in live mode */}
+                            {filterCountry && !liveMode && (
                                 <div style={{ borderBottom: '1px solid #30363d' }}>
                                     <div style={{ padding: '.5rem .75rem .35rem', fontSize: '.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: '#8b949e', display: 'flex', alignItems: 'center', gap: '.35rem' }}>
                                         <span style={{ fontSize: '.85rem' }}>🗺️</span> Détail par région

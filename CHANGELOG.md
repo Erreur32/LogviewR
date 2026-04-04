@@ -5,6 +5,44 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.29] - 2026-04-04
+
+### For users
+
+> The Fail2ban map gets a live attack mode with animated arcs, a monthly bar chart is added below each heatmap, and the map no longer double-scrolls in history mode.
+
+- **Live attack mode** — A new "⚡ Live" toggle on the map activates real-time tracking. New bans are polled every 5 seconds. For each ban with a known geo location, an animated arc draws itself from the attacker's location toward your server, with an arrowhead at the tip. A double pulsing ring marks the source.
+- **Live feed panel** — When live mode is on, a dedicated left panel lists incoming bans in real time: IP, jail, city, flag, attempt count, and time since ban. The most recent entries (< 10s) are highlighted in red.
+- **Source buttons disabled in live mode** — The "Bans actifs" and "Historique" toggles and country filters are grayed out and non-clickable while live mode is on. Existing ban markers are cleared from the map; they are restored when live mode is turned off.
+- **Monthly bar chart** — Each "Bans per hour" and "Attempts per hour" heatmap card now includes a bar chart by month (Jan–Déc) below the weekly grid. Hover a bar to see the exact count and share of total. Only shown when data exists for the period.
+- **Map double-scroll fixed** — In history mode with many banned IPs, the map container no longer produces a second vertical scrollbar.
+
+---
+
+### Technical
+
+#### Backend — `server/plugins/fail2ban/Fail2banPlugin.ts`
+
+- **`GET /map/server-geo`** — Resolves the server's own public IP via `ip-api.com/json/` (no IP = caller's IP). Result cached in `f2b_ip_geo` with key `_server_geo_` for 24h. Falls back to Paris coordinates if resolution fails.
+- **`GET /map/events?since=<ts>&limit=<n>`** — Returns recent ban events from `f2b_events` since the given Unix timestamp, joined with cached geo from `f2b_ip_geo`. Only events with known geo are returned (no network calls — keeps the endpoint fast). Used by the live mode poll.
+- **Monthly heatmap data** — `/tops` now computes `heatmapMonth` and `heatmapFailedMonth` via `strftime('%m', timeofban, 'unixepoch')` GROUP BY queries. Included in both `phase=fast` and `phase=full` responses.
+
+#### Frontend — `src/pages/fail2ban/TabMap.tsx`
+
+- **`LiveEvent` interface** — New type for live attack events with embedded geo.
+- **`liveMode` state** — Boolean toggle; when true starts polling `/map/events` every 5s via `setInterval`. Cleaned up on toggle-off (lines removed, interval cleared).
+- **`drawAttackArc()`** — Creates `L.polyline` from source to server geo with `stroke-dasharray: 8 6` and CSS `f2b-attack-fly` animation (2.2s ease-out, fades out). Adds a pulsing `L.divIcon` marker at source. Both auto-removed after 3s.
+- **`serverGeo` state** — Fetched once from `/map/server-geo` on first live activation; cached in React state for subsequent polls.
+- **CSS keyframes** — `f2b-attack-fly` (stroke-dashoffset 300→0, opacity 0→0.9→0) and `f2b-pulse-ring` (scale 1→2.5, opacity fade) injected in the existing style block.
+- **Left live panel** — 220px aside prepended to map row when `liveMode` is true. Shows scrollable event list with IP, jail, city, flag, attempts × count. Recent entries (< 10s) highlighted.
+- **Double-scroll fix** — Added `overflow: hidden` to the outer `height: calc(100vh - 165px)` container.
+
+#### Frontend — `src/pages/fail2ban/TabStats.tsx`
+
+- **`TopsData`** — Added optional `heatmapMonth` and `heatmapFailedMonth` fields (`{ month: number; count: number }[]`).
+- **`HeatmapSection`** — Added `monthKey` prop (`'heatmapMonth' | 'heatmapFailedMonth'`). Monthly bar chart rendered below weekly heatmap legend: 12 columns, hover tooltip, peak month outlined, hidden when all zeros.
+- **`MONTHS_FR`** — `['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc']`
+
 ## [0.8.28] - 2026-04-04
 
 ### For users

@@ -522,6 +522,8 @@ interface TopsData {
     heatmapFailed: { hour: number; count: number }[];
     heatmapWeek: number[][];
     heatmapFailedWeek: number[][];
+    heatmapMonth?: { month: number; count: number }[];
+    heatmapFailedMonth?: { month: number; count: number }[];
     summary: { totalBans: number; uniqueIps: number; topJail: string | null; topJailCount: number; totalFailures: number; expiredInPeriod: number };
     prevSummary?: { totalBans: number; uniqueIps: number; topJail: string | null; topJailCount: number; totalFailures: number; expiredInPeriod: number } | null;
 }
@@ -781,12 +783,15 @@ const TypesAttaqueSection: React.FC<{ days: number; onDaysChange: (d: number) =>
 // ── Heatmap (bans or failures) — peak-hours bars + 7×24 week grid ─────────────
 const DAYS_FR = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 
+const MONTHS_FR = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
+
 const HeatmapSection: React.FC<{
     days: number; onDaysChange: (d: number) => void;
     dataKey: 'heatmap' | 'heatmapFailed'; weekKey: 'heatmapWeek' | 'heatmapFailedWeek';
+    monthKey: 'heatmapMonth' | 'heatmapFailedMonth';
     title: string; icon: React.ReactNode; color: string; barRgb: string; cellRgb: string; label: string;
     data: TopsData | null; loading: boolean;
-}> = ({ days, onDaysChange, dataKey, weekKey, title, icon, color, barRgb, cellRgb, label, data, loading }) => {
+}> = ({ days, onDaysChange, dataKey, weekKey, monthKey, title, icon, color, barRgb, cellRgb, label, data, loading }) => {
 
     const hours = useMemo(() => {
         const raw = data?.[dataKey] ?? [];
@@ -799,6 +804,12 @@ const HeatmapSection: React.FC<{
         if (Array.isArray(raw) && raw.length === 7) return raw as number[][];
         return Array.from({ length: 7 }, () => new Array(24).fill(0));
     }, [data, weekKey]);
+
+    const months = useMemo(() => {
+        const raw = (data?.[monthKey] ?? []) as { month: number; count: number }[];
+        const map = new Map(raw.map(m => [m.month, m.count]));
+        return Array.from({ length: 12 }, (_, i) => map.get(i + 1) ?? 0);
+    }, [data, monthKey]);
 
     const maxH        = Math.max(...hours, 1);
     const maxW        = Math.max(...week.flat(), 1);
@@ -988,6 +999,48 @@ const HeatmapSection: React.FC<{
                             <span>Plus</span>
                         </div>
                     </div>
+
+                    {/* ── Monthly bars ── */}
+                    {(() => {
+                        const maxM   = Math.max(...months, 1);
+                        const totalM = months.reduce((s, c) => s + c, 0);
+                        const peakMIdx = months.indexOf(Math.max(...months));
+                        if (totalM === 0) return null;
+                        return (
+                            <div>
+                                <div style={{ fontSize: '.68rem', color: C.muted, marginBottom: '.4rem', fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '.05em' }}>
+                                    Par mois
+                                </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 4, height: 72, alignItems: 'end' }}>
+                                    {months.map((cnt, m) => {
+                                        const barH  = cnt === 0 ? 4 : Math.max(6, Math.round(cnt / maxM * 72));
+                                        const alpha = cnt === 0 ? 0 : 0.2 + (cnt / maxM) * 0.8;
+                                        const bg    = cnt === 0 ? C.bg3 : `rgba(${barRgb},${alpha.toFixed(2)})`;
+                                        const isPeak = m === peakMIdx && cnt > 0;
+                                        return (
+                                            <div key={m}
+                                                style={{ height: barH, background: bg, borderRadius: '3px 3px 0 0', outline: isPeak ? `1px solid rgba(${barRgb},.7)` : undefined, cursor: cnt > 0 ? 'default' : undefined }}
+                                                onMouseMove={e => setTip({ x: e.clientX, y: e.clientY, content: (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '.18rem' }}>
+                                                        <div style={{ fontWeight: 700, color, fontSize: '.85rem' }}>{MONTHS_FR[m]}</div>
+                                                        <div style={{ fontSize: '.78rem', color: '#e6edf3' }}>{cnt} {label}{cnt > 1 ? 's' : ''}</div>
+                                                        {totalM > 0 && cnt > 0 && <div style={{ fontSize: '.7rem', color: C.muted }}>{Math.round(cnt / totalM * 100)}% du total</div>}
+                                                        {isPeak && <div style={{ fontSize: '.7rem', color, fontWeight: 600 }}>▲ Mois de pic</div>}
+                                                    </div>
+                                                )})}
+                                                onMouseLeave={() => setTip(null)}
+                                            />
+                                        );
+                                    })}
+                                </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 4, paddingTop: '.25rem' }}>
+                                    {MONTHS_FR.map(m => (
+                                        <div key={m} style={{ fontSize: '.55rem', color: C.muted, textAlign: 'center', lineHeight: 1 }}>{m}</div>
+                                    ))}
+                                </div>
+                            </div>
+                        );
+                    })()}
                 </>}
             </div>
         </SCard>
@@ -2001,8 +2054,8 @@ export const TabStats: React.FC<TabStatsProps> = ({
 
             {/* Bans par heure | Tentatives par heure | Synthèse par jail — 3 colonnes */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1.25rem', alignItems: 'start' }}>
-                <HeatmapSection dataKey="heatmap" weekKey="heatmapWeek" title="Bans par heure" icon={<Clock style={{ width: 14, height: 14 }} />} color={C.red} barRgb="232,106,101" cellRgb="232,106,101" label="ban" days={days} onDaysChange={onDaysChange} data={topsData} loading={topsLoading} />
-                <HeatmapSection dataKey="heatmapFailed" weekKey="heatmapFailedWeek" title="Tentatives par heure" icon={<AlertTriangle style={{ width: 14, height: 14 }} />} color={C.orange} barRgb="227,179,65" cellRgb="227,179,65" label="tentative" days={days} onDaysChange={onDaysChange} data={topsData} loading={topsLoading} />
+                <HeatmapSection dataKey="heatmap" weekKey="heatmapWeek" monthKey="heatmapMonth" title="Bans par heure" icon={<Clock style={{ width: 14, height: 14 }} />} color={C.red} barRgb="232,106,101" cellRgb="232,106,101" label="ban" days={days} onDaysChange={onDaysChange} data={topsData} loading={topsLoading} />
+                <HeatmapSection dataKey="heatmapFailed" weekKey="heatmapFailedWeek" monthKey="heatmapFailedMonth" title="Tentatives par heure" icon={<AlertTriangle style={{ width: 14, height: 14 }} />} color={C.orange} barRgb="227,179,65" cellRgb="227,179,65" label="tentative" days={days} onDaysChange={onDaysChange} data={topsData} loading={topsLoading} />
                 <SCard icon={<Shield style={{ width: 14, height: 14 }} />} color={C.blue} title={t('fail2ban.stats.jailSummary')} collapsible>
                     <div style={{ overflowX: 'auto' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.83rem' }}>

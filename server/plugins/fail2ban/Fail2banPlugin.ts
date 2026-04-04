@@ -1984,6 +1984,67 @@ export class Fail2banPlugin extends BasePlugin {
             }
         }));
 
+        // GET /map/server-geo  — Geo of the server's own public IP (for live attack arcs)
+        router.get('/map/server-geo', requireAuth, asyncHandler(async (_req, res) => {
+            if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
+            const CACHE_KEY = '_server_geo_';
+            const TTL = 24 * 3600; // 24h
+            const now = Math.floor(Date.now() / 1000);
+            const appDb = getDatabase();
+            const cached = appDb.prepare(`SELECT lat, lng, country, countryCode, region, city, org, ts FROM f2b_ip_geo WHERE ip = ?`).get(CACHE_KEY) as { lat: number; lng: number; country: string; countryCode: string; region: string; city: string; org: string; ts: number } | undefined;
+            if (cached && now - cached.ts <= TTL) {
+                return res.json({ success: true, result: { ok: true, lat: cached.lat, lng: cached.lng, country: cached.country, countryCode: cached.countryCode, city: cached.city } });
+            }
+            try {
+                const r = await globalThis.fetch('http://ip-api.com/json/?fields=status,country,countryCode,region,city,lat,lon', { signal: AbortSignal.timeout(5000) });
+                const data = await r.json() as Record<string, unknown>;
+                if (data.status === 'success' && typeof data.lat === 'number' && typeof data.lon === 'number') {
+                    appDb.prepare(`INSERT OR REPLACE INTO f2b_ip_geo (ip,lat,lng,country,countryCode,region,city,org,ts) VALUES (?,?,?,?,?,?,?,?,?)`)
+                        .run(CACHE_KEY, data.lat, data.lon, data.country ?? '', data.countryCode ?? '', data.region ?? '', data.city ?? '', '', now);
+                    return res.json({ success: true, result: { ok: true, lat: data.lat, lng: data.lon, country: data.country, countryCode: data.countryCode, city: data.city } });
+                }
+            } catch { /* fallback below */ }
+            // Fallback: Paris (neutral default)
+            res.json({ success: true, result: { ok: true, lat: 48.8566, lng: 2.3522, country: 'Unknown', countryCode: '', city: '' } });
+        }));
+
+        // GET /map/events  — Recent ban events with cached geo (for live attack mode)
+        router.get('/map/events', requireAuth, asyncHandler(async (req, res) => {
+            if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
+            const since = parseInt(String(req.query.since ?? '0'), 10);
+            const limit = Math.min(parseInt(String(req.query.limit ?? '50'), 10), 100);
+            const appDb = getDatabase();
+            const now   = Math.floor(Date.now() / 1000);
+            const TTL   = 30 * 86400;
+
+            // Recent ban events since the given timestamp
+            const events = appDb.prepare(`
+                SELECT ip, jail, timeofban, failures
+                FROM f2b_events
+                WHERE event_type='ban' AND timeofban > @since
+                ORDER BY timeofban DESC
+                LIMIT @limit
+            `).all({ since, limit }) as { ip: string; jail: string; timeofban: number; failures: number }[];
+
+            // Enrich with cached geo only (no network calls — keep this endpoint fast)
+            const ips = [...new Set(events.map(e => e.ip))];
+            const geoMap = new Map<string, { lat: number; lng: number; country: string; countryCode: string; city: string; org: string }>();
+            for (let i = 0; i < ips.length; i += 200) {
+                const chunk = ips.slice(i, i + 200);
+                const ph = chunk.map(() => '?').join(',');
+                const rows = appDb.prepare(`SELECT ip, lat, lng, country, countryCode, city, org, ts FROM f2b_ip_geo WHERE ip IN (${ph})`).all(...chunk) as { ip: string; lat: number; lng: number; country: string; countryCode: string; city: string; org: string; ts: number }[];
+                for (const r of rows) {
+                    if (now - r.ts <= TTL) geoMap.set(r.ip, { lat: r.lat, lng: r.lng, country: r.country, countryCode: r.countryCode, city: r.city, org: r.org });
+                }
+            }
+
+            const enriched = events
+                .map(e => ({ ...e, geo: geoMap.get(e.ip) ?? null }))
+                .filter(e => e.geo !== null); // only events with known geo
+
+            res.json({ success: true, result: { ok: true, events: enriched, serverTime: now } });
+        }));
+
         // GET /bans-today  — Bans depuis minuit (heure locale)
         router.get('/bans-today', requireAuth, asyncHandler(async (_req, res) => {
             if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
@@ -2016,7 +2077,7 @@ export class Fail2banPlugin extends BasePlugin {
             const _tCacheKey = phase === 'fast'
                 ? `tops:fast:${days}`
                 : `tops:${days}:${compareFlag}`;
-            type TopsPayload = { ok: boolean; topIps: unknown[]; topJails: unknown[]; topRecidivists: unknown[]; topDomains: unknown[]; heatmap: unknown; heatmapFailed: unknown; heatmapWeek: unknown; heatmapFailedWeek: unknown; summary: unknown; prevSummary: unknown };
+            type TopsPayload = { ok: boolean; topIps: unknown[]; topJails: unknown[]; topRecidivists: unknown[]; topDomains: unknown[]; heatmap: unknown; heatmapFailed: unknown; heatmapWeek: unknown; heatmapFailedWeek: unknown; heatmapMonth: unknown; heatmapFailedMonth: unknown; summary: unknown; prevSummary: unknown };
             const _tCached = this._cachePeek<TopsPayload>(_tCacheKey, this._adaptiveTtl(days));
             if (_tCached) {
                 return res.json({ success: true, result: {
@@ -2058,6 +2119,16 @@ export class Fail2banPlugin extends BasePlugin {
                 ? evDb.prepare(`SELECT (CAST(strftime('%w',timeofban,'unixepoch') AS INTEGER)+6)%7 as dow, CAST(strftime('%H',timeofban,'unixepoch') AS INTEGER) as hour, COALESCE(SUM(failures),0) as count FROM f2b_events WHERE event_type='ban' GROUP BY dow, hour`).all()
                 : evDb.prepare(`SELECT (CAST(strftime('%w',timeofban,'unixepoch') AS INTEGER)+6)%7 as dow, CAST(strftime('%H',timeofban,'unixepoch') AS INTEGER) as hour, COALESCE(SUM(failures),0) as count FROM f2b_events WHERE event_type='ban' AND timeofban >= @since GROUP BY dow, hour`).all({ since })
             ) as { dow: number; hour: number; count: number }[]);
+
+            const heatmapMonth = (allTime
+                ? evDb.prepare(`SELECT CAST(strftime('%m',timeofban,'unixepoch') AS INTEGER) as month, COUNT(*) as count FROM f2b_events WHERE event_type='ban' GROUP BY month ORDER BY month`).all()
+                : evDb.prepare(`SELECT CAST(strftime('%m',timeofban,'unixepoch') AS INTEGER) as month, COUNT(*) as count FROM f2b_events WHERE event_type='ban' AND timeofban >= @since GROUP BY month ORDER BY month`).all({ since })
+            ) as { month: number; count: number }[];
+
+            const heatmapFailedMonth = (allTime
+                ? evDb.prepare(`SELECT CAST(strftime('%m',timeofban,'unixepoch') AS INTEGER) as month, COALESCE(SUM(failures),0) as count FROM f2b_events WHERE event_type='ban' GROUP BY month ORDER BY month`).all()
+                : evDb.prepare(`SELECT CAST(strftime('%m',timeofban,'unixepoch') AS INTEGER) as month, COALESCE(SUM(failures),0) as count FROM f2b_events WHERE event_type='ban' AND timeofban >= @since GROUP BY month ORDER BY month`).all({ since })
+            ) as { month: number; count: number }[];
 
             const now = Math.floor(Date.now() / 1000);
             const summaryRow = (allTime
@@ -2103,7 +2174,7 @@ export class Fail2banPlugin extends BasePlugin {
                     topJails: [] as { jail: string; count: number }[],
                     topRecidivists: [] as { ip: string; count: number }[],
                     topDomains: [] as { domain: string; count: number; failures: number }[],
-                    heatmap, heatmapFailed, heatmapWeek, heatmapFailedWeek,
+                    heatmap, heatmapFailed, heatmapWeek, heatmapFailedWeek, heatmapMonth, heatmapFailedMonth,
                     summary, prevSummary,
                 };
                 this._cachePut(_tCacheKey, _fastResult);
@@ -2134,7 +2205,7 @@ export class Fail2banPlugin extends BasePlugin {
             const topDomains: { domain: string; count: number; failures: number }[] = [];
 
             // Cache the full dataset (STORE_LIMIT items), then slice to `limit` for the response.
-            const _tResult: TopsPayload = { ok: true, topIps, topJails, topRecidivists, topDomains, heatmap, heatmapFailed, heatmapWeek, heatmapFailedWeek, summary, prevSummary };
+            const _tResult: TopsPayload = { ok: true, topIps, topJails, topRecidivists, topDomains, heatmap, heatmapFailed, heatmapWeek, heatmapFailedWeek, heatmapMonth, heatmapFailedMonth, summary, prevSummary };
             this._cachePut(_tCacheKey, _tResult);
             res.json({ success: true, result: {
                 ..._tResult,
