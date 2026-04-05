@@ -649,58 +649,65 @@ export const IpModal: React.FC<{
                                 </div>
                             )}
                             {/* Blocklist membership — ipset test results */}
-                            {blocklistHits !== null && blocklistHits.length > 0 && (
-                                <div style={{ ...card, flex: 1, minWidth: 0 }}>
-                                    <div style={cardH}>
-                                        <Shield style={{ width: 12, height: 12, color: '#e86a65' }} />
-                                        <span style={{ fontWeight: 600, fontSize: '.8rem' }}>Blocklists</span>
-                                        {blocklistHits.some(b => b.present) && (
-                                            <span style={{ marginLeft: 'auto', fontSize: '.68rem', color: '#e86a65', fontWeight: 700 }}>
-                                                {blocklistHits.filter(b => b.present).length} liste{blocklistHits.filter(b => b.present).length > 1 ? 's' : ''}
-                                            </span>
-                                        )}
-                                    </div>
-                                    <div style={{ padding: '.6rem .85rem', display: 'flex', flexDirection: 'column', gap: '.3rem' }}>
-                                        {blocklistHits.map(b => (
-                                            <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: '.4rem' }}>
-                                                <span style={{
-                                                    fontSize: '.65rem', fontWeight: 700, minWidth: 16, textAlign: 'center',
-                                                    color: b.present ? '#e86a65' : '#555d69',
-                                                }}>
-                                                    {b.present ? '✓' : '○'}
-                                                </span>
-                                                <span style={{ fontSize: '.75rem', color: b.present ? '#e6edf3' : '#555d69', flex: 1 }}>
-                                                    {b.name}
-                                                </span>
-                                                <span style={{
-                                                    fontSize: '.65rem', padding: '.04rem .3rem', borderRadius: 3,
-                                                    background: b.direction === 'out' ? 'rgba(227,179,65,.1)' : 'rgba(63,185,80,.07)',
-                                                    border: `1px solid ${b.direction === 'out' ? 'rgba(227,179,65,.25)' : 'rgba(63,185,80,.2)'}`,
-                                                    color: b.direction === 'out' ? '#e3b341' : '#8b949e',
-                                                }}>
-                                                    {b.direction === 'in' ? 'IN' : b.direction === 'out' ? 'OUT' : 'IN+OUT'}
-                                                </span>
+                            {blocklistHits !== null && blocklistHits.length > 0 && (() => {
+                                const hits = blocklistHits.filter(b => b.present);
+                                const hasHits = hits.length > 0;
+                                return (
+                                    <div style={{ ...card, flex: 1, minWidth: 0 }}>
+                                        <div style={cardH}>
+                                            <Shield style={{ width: 12, height: 12, color: hasHits ? '#e86a65' : '#555d69' }} />
+                                            <span style={{ fontWeight: 600, fontSize: '.8rem' }}>Blocklists</span>
+                                            {hasHits
+                                                ? <>
+                                                    <AlertTriangle style={{ width: 11, height: 11, color: '#e3b341', marginLeft: 2 }} />
+                                                    <span style={{ marginLeft: 'auto', fontSize: '.68rem', color: '#e86a65', fontWeight: 700 }}>
+                                                        {hits.length} liste{hits.length > 1 ? 's' : ''}
+                                                    </span>
+                                                  </>
+                                                : <span style={{ marginLeft: 'auto', fontSize: '.68rem', color: '#555d69', fontStyle: 'italic' }}>
+                                                    Non présente dans les blocklists actives
+                                                  </span>
+                                            }
+                                        </div>
+                                        {hasHits && (
+                                            <div style={{ padding: '.6rem .85rem', display: 'flex', flexDirection: 'column', gap: '.3rem' }}>
+                                                {blocklistHits.map(b => (
+                                                    <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: '.4rem' }}>
+                                                        <span style={{ fontSize: '.65rem', fontWeight: 700, minWidth: 16, textAlign: 'center', color: b.present ? '#e86a65' : '#555d69' }}>
+                                                            {b.present ? '✓' : '○'}
+                                                        </span>
+                                                        <span style={{ fontSize: '.75rem', color: b.present ? '#e6edf3' : '#555d69', flex: 1 }}>
+                                                            {b.name}
+                                                        </span>
+                                                        <span style={{
+                                                            fontSize: '.65rem', padding: '.04rem .3rem', borderRadius: 3,
+                                                            background: b.direction === 'out' ? 'rgba(227,179,65,.1)' : 'rgba(63,185,80,.07)',
+                                                            border: `1px solid ${b.direction === 'out' ? 'rgba(227,179,65,.25)' : 'rgba(63,185,80,.2)'}`,
+                                                            color: b.direction === 'out' ? '#e3b341' : '#8b949e',
+                                                        }}>
+                                                            {b.direction === 'in' ? 'IN' : b.direction === 'out' ? 'OUT' : 'IN+OUT'}
+                                                        </span>
+                                                    </div>
+                                                ))}
                                             </div>
-                                        ))}
-                                        {!blocklistHits.some(b => b.present) && (
-                                            <span style={{ fontSize: '.75rem', color: '#555d69' }}>Non présente dans les blocklists actives</span>
                                         )}
                                     </div>
-                                </div>
-                            )}
+                                );
+                            })()}
                             <div style={{ ...card, flex: 1, minWidth: 0 }}>
                                 <div style={cardH}>
                                     <Shield style={{ width: 12, height: 12, color: '#e86a65' }} />
                                     <span style={{ fontWeight: 600, fontSize: '.8rem' }}>Actions rapides</span>
                                 </div>
-                                <div style={{ ...cardB, gap: '.55rem' }}>
+                                <div style={{ ...cardB, gap: '.5rem' }}>
+
                                     {/* ── Bannir dans recidive ── */}
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
-                                        <span style={{ fontSize: '.72rem', color: '#8b949e', minWidth: 52 }}>Recidive</span>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '.22rem' }}>
+                                        <span style={{ fontSize: '.68rem', color: '#8b949e', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>Recidive</span>
                                         {inRecidive
-                                            ? <span style={{ fontSize: '.72rem', color: '#e86a65', fontWeight: 600 }}>⚠ déjà banni</span>
+                                            ? <div style={{ fontSize: '.72rem', color: '#e86a65', fontWeight: 600, padding: '.28rem .6rem', borderRadius: 5, background: 'rgba(232,106,101,.07)', border: '1px solid rgba(232,106,101,.2)' }}>⚠ déjà banni en récidive</div>
                                             : <button onClick={banRecidive} disabled={banning}
-                                                style={{ flex: 1, padding: '.25rem .6rem', borderRadius: 5,
+                                                style={{ width: '100%', padding: '.3rem .6rem', borderRadius: 5,
                                                     background: 'rgba(232,106,101,.08)', border: '1px solid rgba(232,106,101,.3)',
                                                     color: '#e86a65', cursor: banning ? 'default' : 'pointer',
                                                     fontSize: '.74rem', fontWeight: 600, opacity: banning ? .6 : 1,
@@ -710,83 +717,87 @@ export const IpModal: React.FC<{
                                             </button>
                                         }
                                     </div>
+
                                     {/* ── Débannir d'un jail ── */}
                                     {(details?.activeJails ?? []).length > 0 && (
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
-                                            <span style={{ fontSize: '.72rem', color: '#8b949e', minWidth: 52 }}>Débannir</span>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '.22rem' }}>
+                                            <span style={{ fontSize: '.68rem', color: '#8b949e', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>Débannir</span>
                                             {details!.activeJails.length === 1
                                                 ? <button onClick={() => unbanFromJail(details!.activeJails[0])} disabled={unbanning}
-                                                    style={{ flex: 1, padding: '.25rem .6rem', borderRadius: 5,
+                                                    style={{ width: '100%', padding: '.3rem .6rem', borderRadius: 5,
                                                         background: 'rgba(63,185,80,.08)', border: '1px solid rgba(63,185,80,.3)',
                                                         color: '#3fb950', cursor: unbanning ? 'default' : 'pointer',
                                                         fontSize: '.74rem', fontWeight: 600, opacity: unbanning ? .6 : 1,
                                                         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '.3rem' }}>
-                                                    {unbanning ? 'Déban…' : `− Débannir de ${details!.activeJails[0]}`}
+                                                    {unbanning ? 'Déban…' : `Débannir de ${details!.activeJails[0]}`}
                                                   </button>
-                                                : <>
+                                                : <div style={{ display: 'flex', gap: '.35rem' }}>
                                                     <select value={selUnbanJail} onChange={e => setSelUnbanJail(e.target.value)}
-                                                        style={{ flex: 1, background: '#21262d', border: '1px solid #30363d', color: '#e6edf3',
-                                                            borderRadius: 4, padding: '.2rem .4rem', fontSize: '.74rem', outline: 'none', cursor: 'pointer' }}>
+                                                        style={{ flex: 1, minWidth: 0, background: '#21262d', border: '1px solid #30363d', color: '#e6edf3',
+                                                            borderRadius: 4, padding: '.28rem .4rem', fontSize: '.74rem', outline: 'none', cursor: 'pointer' }}>
                                                         {details!.activeJails.map(j => <option key={j} value={j} style={{ background: '#21262d' }}>{j}</option>)}
                                                     </select>
                                                     <button onClick={() => selUnbanJail && unbanFromJail(selUnbanJail)} disabled={!selUnbanJail || unbanning}
-                                                        style={{ padding: '.25rem .6rem', borderRadius: 5, whiteSpace: 'nowrap',
+                                                        style={{ flexShrink: 0, padding: '.28rem .6rem', borderRadius: 5,
                                                             background: 'rgba(63,185,80,.08)', border: '1px solid rgba(63,185,80,.3)',
                                                             color: '#3fb950', cursor: (!selUnbanJail || unbanning) ? 'default' : 'pointer',
-                                                            fontSize: '.74rem', fontWeight: 600, opacity: (!selUnbanJail || unbanning) ? .5 : 1,
-                                                            display: 'flex', alignItems: 'center', gap: '.3rem' }}>
-                                                        {unbanning ? 'Déban…' : '− Débannir'}
+                                                            fontSize: '.74rem', fontWeight: 600, opacity: (!selUnbanJail || unbanning) ? .5 : 1 }}>
+                                                        {unbanning ? 'Déban…' : 'Débannir'}
                                                     </button>
-                                                  </>
+                                                  </div>
                                             }
                                         </div>
                                     )}
+
                                     {/* ── IPSet : ajouter + retirer ── */}
                                     {(details?.allIpsets ?? []).length > 0 && (
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
-                                            <span style={{ fontSize: '.72rem', color: '#8b949e', minWidth: 52 }}>IPSet</span>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '.22rem' }}>
+                                            <span style={{ fontSize: '.68rem', color: '#8b949e', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>IPSet</span>
                                             <select value={selIpset} onChange={e => setSelIpset(e.target.value)}
-                                                style={{ flex: 1, background: '#21262d', border: '1px solid #30363d', color: '#e6edf3',
-                                                    borderRadius: 4, padding: '.2rem .4rem', fontSize: '.74rem', outline: 'none', cursor: 'pointer' }}>
+                                                style={{ width: '100%', background: '#21262d', border: '1px solid #30363d', color: '#e6edf3',
+                                                    borderRadius: 4, padding: '.28rem .4rem', fontSize: '.74rem', outline: 'none', cursor: 'pointer' }}>
                                                 {(details?.allIpsets ?? []).map(s => (
                                                     <option key={s} value={s} style={{ background: '#21262d' }}>
                                                         {s}{(details?.ipsets ?? []).includes(s) ? ' ✓' : ''}
                                                     </option>
                                                 ))}
                                             </select>
-                                            <button
-                                                onClick={() => selIpset && banIpset(selIpset)}
-                                                disabled={!selIpset || !!ipsetBanning || (details?.ipsets ?? []).includes(selIpset)}
-                                                title="Ajouter l'IP dans ce set"
-                                                style={{ padding: '.25rem .5rem', borderRadius: 5, whiteSpace: 'nowrap',
-                                                    background: (details?.ipsets ?? []).includes(selIpset) ? 'rgba(188,140,255,.06)' : 'rgba(188,140,255,.1)',
-                                                    border: '1px solid rgba(188,140,255,.3)', color: '#bc8cff',
-                                                    cursor: (!selIpset || !!ipsetBanning || (details?.ipsets ?? []).includes(selIpset)) ? 'default' : 'pointer',
-                                                    fontSize: '.74rem', fontWeight: 600,
-                                                    opacity: (!selIpset || !!ipsetBanning) ? .5 : 1,
-                                                    display: 'flex', alignItems: 'center', gap: '.3rem' }}>
-                                                {(details?.ipsets ?? []).includes(selIpset)
-                                                    ? '✓ présent'
-                                                    : ipsetBanning === selIpset ? 'Ajout…' : '+ Ajouter'}
-                                            </button>
-                                            <button
-                                                onClick={() => selIpset && removeFromIpset(selIpset)}
-                                                disabled={!selIpset || !!ipsetRemoving || !(details?.ipsets ?? []).includes(selIpset)}
-                                                title="Retirer l'IP de ce set"
-                                                style={{ padding: '.25rem .5rem', borderRadius: 5, whiteSpace: 'nowrap',
-                                                    background: !(details?.ipsets ?? []).includes(selIpset) ? 'rgba(232,106,101,.03)' : 'rgba(232,106,101,.08)',
-                                                    border: '1px solid rgba(232,106,101,.3)', color: '#e86a65',
-                                                    cursor: (!selIpset || !!ipsetRemoving || !(details?.ipsets ?? []).includes(selIpset)) ? 'default' : 'pointer',
-                                                    fontSize: '.74rem', fontWeight: 600,
-                                                    opacity: (!selIpset || !!ipsetRemoving || !(details?.ipsets ?? []).includes(selIpset)) ? .4 : 1,
-                                                    display: 'flex', alignItems: 'center', gap: '.3rem' }}>
-                                                {ipsetRemoving === selIpset ? 'Retrait…' : '− Retirer'}
-                                            </button>
+                                            <div style={{ display: 'flex', gap: '.35rem' }}>
+                                                <button
+                                                    onClick={() => selIpset && banIpset(selIpset)}
+                                                    disabled={!selIpset || !!ipsetBanning || (details?.ipsets ?? []).includes(selIpset)}
+                                                    title="Ajouter l'IP dans ce set"
+                                                    style={{ flex: 1, padding: '.28rem .5rem', borderRadius: 5,
+                                                        background: (details?.ipsets ?? []).includes(selIpset) ? 'rgba(188,140,255,.06)' : 'rgba(188,140,255,.1)',
+                                                        border: '1px solid rgba(188,140,255,.3)', color: '#bc8cff',
+                                                        cursor: (!selIpset || !!ipsetBanning || (details?.ipsets ?? []).includes(selIpset)) ? 'default' : 'pointer',
+                                                        fontSize: '.74rem', fontWeight: 600,
+                                                        opacity: (!selIpset || !!ipsetBanning) ? .5 : 1 }}>
+                                                    {(details?.ipsets ?? []).includes(selIpset)
+                                                        ? '✓ présent'
+                                                        : ipsetBanning === selIpset ? 'Ajout…' : '+ Ajouter'}
+                                                </button>
+                                                <button
+                                                    onClick={() => selIpset && removeFromIpset(selIpset)}
+                                                    disabled={!selIpset || !!ipsetRemoving || !(details?.ipsets ?? []).includes(selIpset)}
+                                                    title="Retirer l'IP de ce set"
+                                                    style={{ flex: 1, padding: '.28rem .5rem', borderRadius: 5,
+                                                        background: !(details?.ipsets ?? []).includes(selIpset) ? 'rgba(232,106,101,.03)' : 'rgba(232,106,101,.08)',
+                                                        border: '1px solid rgba(232,106,101,.3)', color: '#e86a65',
+                                                        cursor: (!selIpset || !!ipsetRemoving || !(details?.ipsets ?? []).includes(selIpset)) ? 'default' : 'pointer',
+                                                        fontSize: '.74rem', fontWeight: 600,
+                                                        opacity: (!selIpset || !!ipsetRemoving || !(details?.ipsets ?? []).includes(selIpset)) ? .4 : 1 }}>
+                                                    {ipsetRemoving === selIpset ? 'Retrait…' : '− Retirer'}
+                                                </button>
+                                            </div>
                                         </div>
                                     )}
+
                                     {actionMsg && (
                                         <div style={{ fontSize: '.72rem', color: actionMsg.ok ? '#3fb950' : '#e86a65',
-                                            display: 'flex', alignItems: 'center', gap: '.3rem' }}>
+                                            padding: '.25rem .5rem', borderRadius: 4,
+                                            background: actionMsg.ok ? 'rgba(63,185,80,.07)' : 'rgba(232,106,101,.07)',
+                                            border: `1px solid ${actionMsg.ok ? 'rgba(63,185,80,.2)' : 'rgba(232,106,101,.2)'}` }}>
                                             {actionMsg.text}
                                         </div>
                                     )}

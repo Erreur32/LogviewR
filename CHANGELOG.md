@@ -5,6 +5,35 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.32] - 2026-04-05
+
+### For users
+
+> Live attack map improvements: toast alerts on new bans, fixed live mode conflicts, and a cleaner IP details modal.
+
+- **Live map — toast on new ban** — When Live mode is active on the map tab, each newly detected ban triggers a notification toast in the header so you know when to look at the map, even from another tab.
+- **Live map — source buttons now always work** — Clicking "Bans actifs" or "Historique" while Live mode is on now switches the source and disables Live mode directly, without having to click Live first.
+- **Live map — accurate status bar** — The "88 IPs on map" counter is replaced by "⚡ Mode Live" and a live event counter while Live mode is active. The geo-resolution progress badge is hidden during Live mode.
+- **IP modal — Actions rapides redesigned** — Each action (Recidive, Débannir, IPSet) now has its own labelled block with full-width buttons. The IPSet select is on its own line, with Add/Remove side by side below. Feedback messages appear in a coloured banner.
+- **IP modal — Blocklist header** — When the IP is not found in any active blocklist, the message moves to the card header and the body collapses. When the IP is detected, a warning icon appears in the header.
+
+---
+
+### Technical
+
+#### Frontend — `src/pages/fail2ban/TabMap.tsx`
+
+- **Toast on live events** — `pollLiveEvents` now calls `useNotificationStore.getState().addBan()` for each new event, reusing the existing ban toast TTL (10s).
+- **Source buttons** — Removed `pointerEvents: none` / `opacity` dimming on the source toggle when Live mode is on. Both buttons call `setLiveMode(false)` alongside `setMapSource(...)`. Active button highlight also checks `!liveMode` so neither appears selected during Live.
+- **Live mode header** — Title shows `"⚡ Mode Live"` instead of IP count. Geo-resolution progress badge conditionally hidden (`!liveMode`). New live event counter badge added.
+- **Live mode marker bleed fix** — The `points` useEffect that populates cluster markers now early-returns when `liveMode` is true, preventing ban markers from reappearing after a background refresh cycle (~10–15 s).
+- **Live loading spinner** — Fixed `transform-origin` mismatch: spinner SVG resized from 16×16 (cx=8) to 11×11 (cx=5.5) to match the existing `f2b-geo-spin` CSS `transform-origin: 5.5px 5.5px`.
+
+#### Frontend — `src/pages/fail2ban/IpModal.tsx`
+
+- **Actions rapides** — Replaced flat `label + row` layout with vertical blocks per action. Each block has an uppercase label, then full-width button(s) or `select + button` row. IPSet gets a full-width select then a two-column button row. `actionMsg` displayed in a tinted bordered banner.
+- **Blocklist card** — When no hits: body hidden, "Non présente dans les blocklists actives" moved to `cardH` as italic grey trailing text, shield icon dimmed. When hits present: `AlertTriangle` icon added to header alongside the existing hit count badge.
+
 ## [0.8.31] - 2026-04-04
 
 ### For users

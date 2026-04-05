@@ -20,6 +20,7 @@ import { api } from '../../api/client';
 import { card, cardH, F2bTooltip } from './helpers';
 import { Map as MapIcon, SlidersHorizontal, Zap } from 'lucide-react';
 import { FlagImg } from './FlagImg';
+import { useNotificationStore } from '../../stores/notificationStore';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface GeoData { lat: number; lng: number; country: string; countryCode: string; region: string; city: string; org: string }
@@ -251,7 +252,7 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker, onIpClick, refres
 
     // ── Add cached markers whenever points change (source switch or first load) ─
     useEffect(() => {
-        if (!mapRef.current || !clusterRef.current || !points.length) return;
+        if (!mapRef.current || !clusterRef.current || !points.length || liveMode) return;
         let done = 0;
         for (const p of points) {
             if (p.cached) { addMarker(p, p.cached); done++; }
@@ -259,7 +260,7 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker, onIpClick, refres
         setResolved(done);
         applyFilter('', '');
         rebuildStats();
-    }, [points, addMarker, applyFilter, rebuildStats]);
+    }, [points, liveMode, addMarker, applyFilter, rebuildStats]);
 
     // ── Invalidate size when side panel toggles ────────────────────────────────
     useEffect(() => {
@@ -393,7 +394,11 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker, onIpClick, refres
                 const evts = res.result.events;
                 if (evts.length > 0) {
                     setLiveEvents(prev => [...evts, ...prev].slice(0, 50));
-                    evts.forEach(e => drawAttackArc(e.geo.lat, e.geo.lng, e.geo, e.ip, e.jail));
+                    const { addBan } = useNotificationStore.getState();
+                    evts.forEach(e => {
+                        drawAttackArc(e.geo.lat, e.geo.lng, e.geo, e.ip, e.jail);
+                        addBan({ ip: e.ip, jail: e.jail, failures: e.failures, timeofban: e.timeofban });
+                    });
                 }
                 liveSinceRef.current = res.result.serverTime;
             })
@@ -488,9 +493,9 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker, onIpClick, refres
             <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', flexShrink: 0 }}>
                 <MapIcon style={{ width: 15, height: 15, color: '#58a6ff' }} />
                 <span style={{ fontWeight: 600, fontSize: '.88rem', color: '#58a6ff' }}>
-                    {loading ? t('fail2ban.map.loading') : `${total} IP${total > 1 ? 's' : ''} sur la carte`}
+                    {loading ? t('fail2ban.map.loading') : liveMode ? '⚡ Mode Live' : `${total} IP${total > 1 ? 's' : ''} sur la carte`}
                 </span>
-                {!loading && total > 0 && mapReady && resolved < total && (
+                {!liveMode && !loading && total > 0 && mapReady && resolved < total && (
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.4rem', padding: '.18rem .6rem', borderRadius: 20, background: 'rgba(227,179,65,.1)', border: '1px solid rgba(227,179,65,.25)' }}>
                         <svg width="11" height="11" viewBox="0 0 11 11" style={{ flexShrink: 0 }}>
                             <circle cx="5.5" cy="5.5" r="4.5" fill="none" stroke="rgba(227,179,65,.3)" strokeWidth="1.5"/>
@@ -503,8 +508,15 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker, onIpClick, refres
                         <span style={{ fontSize: '.68rem', color: '#8b949e' }}>{total - resolved} restante{total - resolved > 1 ? 's' : ''}</span>
                     </span>
                 )}
-                {!loading && total > 0 && mapReady && resolved >= total && total > 0 && (
+                {!liveMode && !loading && total > 0 && mapReady && resolved >= total && total > 0 && (
                     <span style={{ fontSize: '.72rem', color: '#3fb950' }}>✓ {total} géolocalisée{total > 1 ? 's' : ''}</span>
+                )}
+                {liveMode && (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.4rem', padding: '.18rem .6rem', borderRadius: 20, background: 'rgba(232,106,101,.08)', border: '1px solid rgba(232,106,101,.25)' }}>
+                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#e86a65', display: 'inline-block', animation: 'f2b-pulse-ring .9s ease-out infinite', flexShrink: 0 }} />
+                        <span style={{ fontSize: '.72rem', color: '#e86a65', fontWeight: 700 }}>{liveEvents.length}</span>
+                        <span style={{ fontSize: '.68rem', color: '#8b949e' }}>tentative{liveEvents.length !== 1 ? 's' : ''} détectée{liveEvents.length !== 1 ? 's' : ''}</span>
+                    </span>
                 )}
 
                 {/* Live mode toggle */}
@@ -525,24 +537,24 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker, onIpClick, refres
                     </button>
                 </F2bTooltip>
 
-                {/* Source toggle — disabled when live mode is on */}
-                <div style={{ display: 'flex', gap: '.25rem', background: '#21262d', border: `1px solid ${liveMode ? 'rgba(255,255,255,.06)' : '#30363d'}`, borderRadius: 6, padding: '.15rem', opacity: liveMode ? 0.35 : 1, pointerEvents: liveMode ? 'none' : undefined, transition: 'opacity .2s' }}>
+                {/* Source toggle */}
+                <div style={{ display: 'flex', gap: '.25rem', background: '#21262d', border: '1px solid #30363d', borderRadius: 6, padding: '.15rem' }}>
                     <F2bTooltip color="red" title="🔴 Bans actifs"
                         bodyNode={<>IPs <strong style={{ color: '#e6edf3' }}>actuellement en jail</strong> dans fail2ban (ban non expiré).<br/>Source : <code style={{ fontFamily: 'monospace', fontSize: '.72rem', color: '#8b949e' }}>fail2ban.sqlite3</code><br/><span style={{ color: '#8b949e', fontSize: '.72rem' }}>Se vide si fail2ban redémarre ou purge sa DB (<code style={{ fontFamily: 'monospace' }}>dbpurgeage</code>).</span></>}>
-                        <button onClick={() => setMapSource('live')} style={{
-                            padding: '.2rem .65rem', fontSize: '.72rem', borderRadius: 4, cursor: liveMode ? 'default' : 'pointer', fontWeight: 600,
-                            border: `1px solid ${mapSource === 'live' ? 'rgba(232,106,101,.4)' : 'transparent'}`,
-                            background: mapSource === 'live' ? 'rgba(232,106,101,.15)' : 'transparent',
-                            color: mapSource === 'live' ? '#e86a65' : '#8b949e',
+                        <button onClick={() => { setMapSource('live'); setLiveMode(false); }} style={{
+                            padding: '.2rem .65rem', fontSize: '.72rem', borderRadius: 4, cursor: 'pointer', fontWeight: 600,
+                            border: `1px solid ${!liveMode && mapSource === 'live' ? 'rgba(232,106,101,.4)' : 'transparent'}`,
+                            background: !liveMode && mapSource === 'live' ? 'rgba(232,106,101,.15)' : 'transparent',
+                            color: !liveMode && mapSource === 'live' ? '#e86a65' : '#8b949e',
                         }}>🔴 Bans actifs</button>
                     </F2bTooltip>
                     <F2bTooltip color="blue" title="📦 Historique"
                         bodyNode={<>Toutes les IPs <strong style={{ color: '#e6edf3' }}>jamais bannies</strong> depuis le démarrage de la surveillance, bans expirés inclus.<br/>Source : <code style={{ fontFamily: 'monospace', fontSize: '.72rem', color: '#8b949e' }}>f2b_events</code><br/><span style={{ color: '#8b949e', fontSize: '.72rem' }}>Conservé indéfiniment, même après un redémarrage de fail2ban.</span></>}>
-                        <button onClick={() => setMapSource('history')} style={{
-                            padding: '.2rem .65rem', fontSize: '.72rem', borderRadius: 4, cursor: liveMode ? 'default' : 'pointer', fontWeight: 600,
-                            border: `1px solid ${mapSource === 'history' ? 'rgba(88,166,255,.4)' : 'transparent'}`,
-                            background: mapSource === 'history' ? 'rgba(88,166,255,.15)' : 'transparent',
-                            color: mapSource === 'history' ? '#58a6ff' : '#8b949e',
+                        <button onClick={() => { setMapSource('history'); setLiveMode(false); }} style={{
+                            padding: '.2rem .65rem', fontSize: '.72rem', borderRadius: 4, cursor: 'pointer', fontWeight: 600,
+                            border: `1px solid ${!liveMode && mapSource === 'history' ? 'rgba(88,166,255,.4)' : 'transparent'}`,
+                            background: !liveMode && mapSource === 'history' ? 'rgba(88,166,255,.15)' : 'transparent',
+                            color: !liveMode && mapSource === 'history' ? '#58a6ff' : '#8b949e',
                         }}>📦 Historique</button>
                     </F2bTooltip>
                 </div>
@@ -577,7 +589,7 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker, onIpClick, refres
                                     <div style={{ padding: '.75rem', fontSize: '.72rem', color: '#555d69', fontStyle: 'italic', textAlign: 'center', marginTop: '.5rem' }}>
                                         En attente de bans…
                                         <div style={{ marginTop: '.4rem', display: 'flex', justifyContent: 'center' }}>
-                                            <svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="rgba(232,106,101,.3)" strokeWidth="2"/><circle className="f2b-geo-spin" cx="8" cy="8" r="6" fill="none" stroke="#e86a65" strokeWidth="2" strokeDasharray="10 28" strokeLinecap="round"/></svg>
+                                            <svg width="11" height="11" viewBox="0 0 11 11"><circle cx="5.5" cy="5.5" r="4.5" fill="none" stroke="rgba(232,106,101,.3)" strokeWidth="1.5"/><circle className="f2b-geo-spin" cx="5.5" cy="5.5" r="4.5" fill="none" stroke="#e86a65" strokeWidth="1.5" strokeDasharray="8 20" strokeLinecap="round"/></svg>
                                         </div>
                                     </div>
                                 ) : liveEvents.map((e, i) => {
