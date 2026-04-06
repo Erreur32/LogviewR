@@ -5,6 +5,24 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.33] - 2026-04-06
+
+### For users
+
+> Removed a false version mismatch warning in the Fail2ban configuration panel.
+
+- **Fail2ban config — version check removed** — The red "Version mismatch" warning (container vs host fail2ban versions) no longer appears. The check was a false alarm: the socket protocol is compatible across 1.0.x/1.1.x versions and everything works correctly.
+
+---
+
+### Technical
+
+#### Backend — `server/plugins/fail2ban/Fail2banPlugin.ts`
+
+- **Version check removed from `/check` endpoint** — Dropped the `version` entry from the `checks` object in the diagnostic route. Also removed the `versions()` call and the `versionInfo` variable from the ping block — they no longer serve any purpose.
+
+---
+
 ## [0.8.32] - 2026-04-05
 
 ### For users
