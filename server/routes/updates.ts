@@ -379,9 +379,12 @@ router.get('/check', requireAuth, asyncHandler(async (req: AuthenticatedRequest,
           });
         }
       } else if (githubResponse.status === 401 || githubResponse.status === 403) {
-        lastError = 'GitHub API requires authentication even for public packages.';
+        const rl = githubResponse.headers.get('x-ratelimit-remaining');
+        lastError = rl === '0'
+          ? 'GitHub API rate limit exceeded. Set GITHUB_TOKEN in .env for 5000 req/h instead of 60.'
+          : 'GitHub API requires authentication for packages. Set GITHUB_TOKEN in .env.';
       } else if (githubResponse.status === 404) {
-        lastError = 'Package not found via GitHub API.';
+        lastError = 'Package not found. Verify the package name and visibility settings.';
       } else {
         lastError = `GitHub API error: ${githubResponse.status} ${githubResponse.statusText}`;
       }
