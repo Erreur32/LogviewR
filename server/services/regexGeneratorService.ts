@@ -23,8 +23,8 @@ export function generateRegexFromLogLine(logLine: string): {
     const patterns = {
         // IPv4 address
         ipv4: /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/,
-        // IPv6 address (simplified)
-        ipv6: /^[0-9a-fA-F:]+(::[0-9a-fA-F:]*)?$/,
+        // IPv6 address (simplified, non-backtracking)
+        ipv6: /^[0-9a-fA-F]{1,4}(:[0-9a-fA-F]{0,4}){2,7}$/,
         // HTTP methods
         httpMethod: /^(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS|TRACE|CONNECT)$/i,
         // HTTP status codes

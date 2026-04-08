@@ -92,7 +92,8 @@ function getCorsConfig() {
       const corsConfig = JSON.parse(corsConfigJson);
       
       // Process allowedOrigins - convert regex strings to RegExp objects
-      let origin: boolean | string[] | RegExp[] = corsConfig.allowedOrigins || true;
+      // Default to false (same-origin) if no allowedOrigins configured — never default to true (wildcard)
+      let origin: boolean | string[] | RegExp[] = corsConfig.allowedOrigins || false;
       if (Array.isArray(origin)) {
         const processedOrigin: (string | RegExp)[] = (origin as string[]).map((o: string): string | RegExp => {
           // Check if it's a regex pattern (starts and ends with /)

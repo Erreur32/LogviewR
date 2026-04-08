@@ -615,6 +615,24 @@ export class Fail2banPlugin extends BasePlugin {
     getRoutes(): Router {
         const router = Router();
 
+        // ── Rate limiter for all fail2ban plugin routes (per IP) ─────────────
+        const _f2bRl = new Map<string, { count: number; resetAt: number }>();
+        router.use((req, res, next) => {
+            const ip = (req.ip ?? req.socket.remoteAddress ?? 'unknown').replace(/^::ffff:/, '');
+            const now = Date.now();
+            let entry = _f2bRl.get(ip);
+            if (!entry || now > entry.resetAt) {
+                _f2bRl.set(ip, { count: 1, resetAt: now + 60_000 });
+                return next();
+            }
+            entry.count++;
+            if (entry.count > 60) { // 60 req/min per IP across all fail2ban routes
+                res.status(429).json({ success: false, error: { code: 'RATE_LIMITED', message: 'Too many requests' } });
+                return;
+            }
+            next();
+        });
+
         // GET /api/plugins/fail2ban/check
         // Diagnostic complet : socket, client, SQLite, daemon
         router.get('/check', requireAuth, asyncHandler(async (_req, res) => {
@@ -1333,7 +1351,9 @@ export class Fail2banPlugin extends BasePlugin {
             for (const line of lines) {
                 let found = false;
                 for (const pat of patterns) {
+                    // Sanitize: replace fail2ban <HOST> placeholder with IP pattern, reject overly long patterns
                     const jsPatStr = pat.replace(/<HOST>/g, '(?:[0-9]{1,3}\\.){3}[0-9]{1,3}|[0-9a-fA-F:]{2,39}');
+                    if (jsPatStr.length > 1000) continue; // skip excessively long patterns
                     try {
                         const re = new RegExp(jsPatStr);
                         const m = re.exec(line);
@@ -1673,6 +1693,7 @@ export class Fail2banPlugin extends BasePlugin {
                 }
 
                 // ── Key = value ──────────────────────────────────────────────────
+                if (t.length > 4096) { errors.push(`Ligne ${ln}: ligne trop longue (${t.length} chars)`); continue; }
                 const kvM = t.match(/^([A-Za-z0-9_.\/\-]+)\s*=\s*(.*)$/);
                 if (!kvM) {
                     errors.push(`Ligne ${ln}: syntaxe invalide — attendu "clé = valeur", reçu : "${raw.slice(0, 80)}"`);

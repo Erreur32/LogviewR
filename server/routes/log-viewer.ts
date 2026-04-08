@@ -1991,15 +1991,19 @@ router.put('/plugins/:pluginId/regex-config', async (req, res) => {
             return res.status(400).json({ error: 'filePath and regex are required' });
         }
 
-        // Validate regex — reject patterns with nested quantifiers that cause catastrophic backtracking
+        // Validate regex — reject dangerous patterns before compiling
+        const regexStr = String(regex).trim();
+        if (regexStr.length > 500) {
+            return res.status(400).json({ error: 'Regex too long (max 500 chars)' });
+        }
+        // Block nested quantifiers (e.g. (a+)+, (a*)*b ) that cause catastrophic backtracking (ReDoS)
+        if (/([+*])\)?[+*{]/.test(regexStr)) {
+            return res.status(400).json({ error: 'Regex rejected: potential catastrophic backtracking' });
+        }
         try {
-            new RegExp(regex);
+            new RegExp(regexStr);
         } catch (err) {
             return res.status(400).json({ error: `Invalid regex: ${err instanceof Error ? err.message : String(err)}` });
-        }
-        // Block nested quantifiers (e.g. (a+)+, (a*)*b, (a|a)+ ) that cause ReDoS
-        if (/([+*])\)?[+*{]/.test(regex) || regex.length > 500) {
-            return res.status(400).json({ error: 'Regex rejected: potential catastrophic backtracking or pattern too long (max 500 chars)' });
         }
 
         // Get plugin

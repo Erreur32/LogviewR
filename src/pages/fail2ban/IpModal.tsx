@@ -290,7 +290,7 @@ const isKnownBotHostname = (hostname: string | null): string | null => {
     if (!hostname) return null;
     const h = hostname.toLowerCase();
     if (h.includes('googlebot') || h.includes('crawl.google'))  return 'Googlebot';
-    if (h.includes('bingbot') || h.includes('msn.com'))         return 'Bingbot';
+    if (h.includes('bingbot') || h.endsWith('.msn.com') || h === 'msn.com') return 'Bingbot';
     if (h.includes('crawl.yahoo'))                               return 'Yahoo Crawler';
     if (h.includes('semrush'))                                   return 'SEMrush Bot';
     if (h.includes('ahrefs'))                                    return 'Ahrefs Bot';

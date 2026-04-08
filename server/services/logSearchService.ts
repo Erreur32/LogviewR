@@ -166,6 +166,10 @@ export async function searchAllLogs(options: LogSearchOptions): Promise<LogSearc
     let testFn: (line: string) => boolean;
     try {
         if (useRegex) {
+            // Reject dangerous patterns: nested quantifiers (ReDoS) and excessive length
+            if (trimmedQuery.length > 500 || /([+*])\)?[+*{]/.test(trimmedQuery)) {
+                throw new Error('Regex rejected: potential catastrophic backtracking or too long');
+            }
             const flags = caseSensitive ? '' : 'i';
             const regex = new RegExp(trimmedQuery, flags);
             testFn = (line) => regex.test(line);

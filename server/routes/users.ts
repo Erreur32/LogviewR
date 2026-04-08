@@ -263,7 +263,7 @@ router.post('/logout', requireAuth, asyncHandler(async (req: AuthenticatedReques
 }));
 
 // GET /api/users/me - Get current user info
-router.get('/me', requireAuth, asyncHandler(async (req: AuthenticatedRequest, res) => {
+router.get('/me', rateLimit(30, 60_000), requireAuth, asyncHandler(async (req: AuthenticatedRequest, res) => {
     const user = UserRepository.findById(req.user!.userId);
     
     if (!user) {

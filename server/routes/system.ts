@@ -99,8 +99,21 @@ router.get('/environment', asyncHandler(async (_req, res) => {
   });
 }));
 
-// GET /api/system/security-status - Check JWT_SECRET status (auth required to prevent info disclosure)
-router.get('/security-status', requireAuth, asyncHandler(async (req, res) => {
+// GET /api/system/security-status - Check JWT_SECRET status (auth + rate limited)
+const _sysRl = new Map<string, { count: number; resetAt: number }>();
+function sysRateLimit(maxReq: number, windowMs: number) {
+    return (req: import('express').Request, res: import('express').Response, next: import('express').NextFunction) => {
+        const ip = (req.ip ?? req.socket.remoteAddress ?? 'unknown').replace(/^::ffff:/, '');
+        const now = Date.now();
+        const key = `${req.path}:${ip}`;
+        let entry = _sysRl.get(key);
+        if (!entry || now > entry.resetAt) { _sysRl.set(key, { count: 1, resetAt: now + windowMs }); return next(); }
+        entry.count++;
+        if (entry.count > maxReq) { res.status(429).json({ success: false, error: { code: 'RATE_LIMITED', message: 'Too many requests' } }); return; }
+        next();
+    };
+}
+router.get('/security-status', sysRateLimit(10, 60_000), requireAuth, asyncHandler(async (req, res) => {
   const defaultSecrets = [
     'change-me-in-production-please-use-strong-secret',
     'dev_secret_change_in_production'
