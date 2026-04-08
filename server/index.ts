@@ -165,7 +165,7 @@ app.use((_req, res, next) => {
         res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
     }
     // CSP — restrict sources while allowing Leaflet tiles, GitHub API, and WebSocket connections
-    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://*.basemaps.cartocdn.com https://*.tile.openstreetmap.org; connect-src 'self' ws: wss: https://api.github.com; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'");
+    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://*.basemaps.cartocdn.com https://*.tile.openstreetmap.org https://icons.duckduckgo.com https://www.google.com; connect-src 'self' ws: wss: https://api.github.com; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'");
     next();
 });
 
