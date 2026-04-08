@@ -9,12 +9,16 @@
 
 <img src="LogviewR_banner.svg" alt="LogviewR" width="512" height="256" />
 
-![LogviewR](https://img.shields.io/badge/LogviewR-0.6.3-111827?style=for-the-badge)
+![LogviewR](https://img.shields.io/badge/LogviewR-0.8.35-111827?style=for-the-badge)
 ![Status](https://img.shields.io/badge/Status-DEVELOPMENT-374151?style=for-the-badge)
 ![Docker](https://img.shields.io/badge/Docker-Ready-1f2937?style=for-the-badge&logo=docker&logoColor=38bdf8)
 ![React](https://img.shields.io/badge/React-19-111827?style=for-the-badge&logo=react&logoColor=38bdf8)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-111827?style=for-the-badge&logo=typescript&logoColor=60a5fa)
 ![License](https://img.shields.io/badge/License-MIT-111827?style=for-the-badge&color=111827&labelColor=111827&logoColor=white)
+
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/Erreur32/LogviewR/badge)](https://securityscorecards.dev/viewer/?uri=github.com/Erreur32/LogviewR)
+[![CodeQL](https://github.com/Erreur32/LogviewR/actions/workflows/codeql.yml/badge.svg)](https://github.com/Erreur32/LogviewR/actions/workflows/codeql.yml)
+[![Docker Build](https://github.com/Erreur32/LogviewR/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/Erreur32/LogviewR/actions/workflows/docker-publish.yml)
 
 **Application de visualisation de logs en temps réel pour Apache, Nginx, NPM, logs système et Fail2ban**
 
