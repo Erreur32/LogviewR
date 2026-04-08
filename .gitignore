@@ -12,73 +12,62 @@ dist
 dist-ssr
 *.local
 
-# Editor directories and files
+# Editor / IDE
 .vscode/*
 !.vscode/extensions.json
 .idea
-.cursor
- 
 *.code-workspace
-.DS_Store
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
 
-# Tokens and sensitive files (if any)
-*.token
-*.token-dev
+# AI tools / dev assistants
+.claude
+.claude.*
+CLAUDE.md
+.cursor
+.copilot
+.gemini
+.aider*
+.bolt
+.codeium
+.continue
+.supermaven
+.tabby
+.windsurf
+.mcp.json
+.worktrees/
+.planning/
+.reboot_schedule.json
+resume_*.txt
 
-# Database files (contains sensitive data: users, passwords, tokens, configs)
+# AI / dev session files
+commit-message.txt
+log_npm.sh
+test-backend.sh
+
+# Database files (contains sensitive data)
 data/
+data-test/
 *.db
 *.db-shm
 *.db-wal
 
-# Environment variables (sensitive - contains secrets, tokens, API keys)
+# Environment variables (sensitive)
 .env
-.env.local
-.env.*.local
-.env.production
-.env.development
-.env.test
 .env.*
-commit-message.txt
-mynetwork_app/
-# Configuration files (contains sensitive data: passwords, tokens, API keys)
+
+# Configuration files (sensitive)
 config/logviewr.conf
 config/*.conf
 !config/*.example
 !config/*.example.conf
 
-# Claude Code / AI dev files
-.claude
-CLAUDE.md
-resume_claude*.txt
-data-test/
-.planning/
-.reboot_schedule.json
-
-Fail2ban-web/
-
-# Local comparison / archives that must never be committed
-# Private development folder (contains tokens, internal docs, secrets)
-Doc_dev
-Doc_Dev/
-Aide*
-
-# Scripts with hardcoded credentials (development only)
-# These scripts contain sensitive credentials and should not be committed
-test-backend.sh
- 
-
-# Backup files
-*.backup
-*.bak
-*~
-
-# Secrets and sensitive files (additional patterns)
+# Tokens and sensitive files
+*.token
+*.token-dev
 *secret*
 *token*
 *.key
@@ -93,13 +82,21 @@ test-backend.sh
 *.passwd
 *.password
 
+# Private dev folders
+Doc_dev
+Doc_Dev/
+Aide*
+mynetwork_app/
+Fail2ban-web/
+
+# Backup files
+*.backup
+*.bak
+*~
+
 # OS files
 Thumbs.db
 .DS_Store
 .AppleDouble
 .LSOverride
 ._*
-
-# MCP config (contains tokens)
-.mcp.json
-.worktrees/
