@@ -5,6 +5,23 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.36] - 2026-04-08
+
+### For users
+
+- **Favicons restored** — Domain favicons (DuckDuckGo, Google) were blocked by the new CSP header added in v0.8.34. Now allowed.
+
+---
+
+### Technical
+
+- **CSP fix** — Added `icons.duckduckgo.com` and `www.google.com` to `img-src` directive.
+- **OpenSSF Scorecard** — Added workflow (weekly scan), badge on both READMEs.
+- **CodeQL badge** — Fixed URL for dynamic default setup (uses workflow ID).
+- **Docker Build badge** — Added to both READMEs.
+
+---
+
 ## [0.8.35] - 2026-04-08
 
 ### For users

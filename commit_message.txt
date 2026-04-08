@@ -1,13 +1,9 @@
-release: v0.8.35 — dependency cleanup + CodeQL fixes
+release: v0.8.36 — CSP favicon fix, Scorecard + badges
 
 ## For users
-- Zero vulnerabilities (npm audit + GitHub CodeQL + Dependabot)
-- Lighter install: vitest removed (27 packages), unused deps cleaned
+- Domain favicons restored (DuckDuckGo/Google were blocked by CSP)
 
 ## Technical
-- Tests migrated to Node.js built-in node:test (zero dependency)
-- Removed brace-expansion, stale overrides; moved concurrently/cross-env to devDeps
-- CodeQL: regex injection validation, rate limiters on all fail2ban routes,
-  ReDoS-safe IPv6 regex, CORS default false, URL substring fix
-- .gitignore: all AI/dev tool patterns consolidated
-- GitHub: 15 SEO topics added, Projects tab disabled
+- CSP: added icons.duckduckgo.com and www.google.com to img-src
+- OpenSSF Scorecard workflow added (weekly scan)
+- CodeQL + Docker Build + Scorecard badges on both READMEs
