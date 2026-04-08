@@ -17,7 +17,7 @@
 ![License](https://img.shields.io/badge/License-MIT-111827?style=for-the-badge&color=111827&labelColor=111827&logoColor=white)
 
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/Erreur32/LogviewR/badge)](https://securityscorecards.dev/viewer/?uri=github.com/Erreur32/LogviewR)
-[![CodeQL](https://github.com/Erreur32/LogviewR/actions/workflows/256784431/badge.svg)](https://github.com/Erreur32/LogviewR/actions/workflows/256784431)
+[![CodeQL](https://img.shields.io/badge/CodeQL-active-brightgreen?logo=github)](https://github.com/Erreur32/LogviewR/security/code-scanning)
 [![Docker Build](https://github.com/Erreur32/LogviewR/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/Erreur32/LogviewR/actions/workflows/docker-publish.yml)
 
 **Application de visualisation de logs en temps réel pour Apache, Nginx, NPM, logs système et Fail2ban**
