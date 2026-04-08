@@ -5,6 +5,38 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.35] - 2026-04-08
+
+### For users
+
+> Dependency cleanup and GitHub CodeQL security alerts resolved — no UI changes.
+
+- **Zero vulnerabilities** — all npm audit and GitHub Dependabot/CodeQL alerts resolved.
+- **Lighter install** — removed vitest (27 packages), unused dependencies, cleaned devDependencies.
+
+---
+
+### Technical
+
+#### Dependencies
+- **Removed vitest** — tests migrated to Node.js built-in `node:test` runner (zero dependency, 12 tests pass).
+- **Removed `brace-expansion`** (unused direct dep), stale npm overrides (tough-cookie, esbuild, minimatch).
+- **Moved to devDependencies**: `concurrently`, `cross-env`, `@types/leaflet`, `@types/leaflet.markercluster`.
+- Deleted `vitest.config.ts` and test setup file.
+
+#### CodeQL fixes (30 alerts → 0)
+- **Regex injection** — added ReDoS validation (length cap, nested quantifier rejection) before all user-supplied `new RegExp()` calls in logSearchService, Fail2banPlugin, and log-viewer.
+- **Rate limiting** — added per-IP rate limiter (60 req/min) on all fail2ban plugin routes via `router.use()`, plus explicit rate limits on `GET /me` (30/min) and `GET /security-status` (10/min).
+- **ReDoS** — rewrote IPv6 regex in regexGeneratorService to avoid polynomial backtracking; added line length cap (4096) in Fail2banPlugin config parser.
+- **CORS** — DB config fallback now defaults to `false` (same-origin) instead of `true` (wildcard).
+- **URL substring** — `IpModal.tsx` bot detection uses `endsWith('.msn.com')` instead of `includes('msn.com')`.
+
+#### Other
+- **`.gitignore`** — consolidated all AI/dev tool patterns (Copilot, Gemini, Aider, Bolt, Codeium, etc.), removed duplicates.
+- **GitHub repo** — added 15 SEO topics, disabled unused Projects tab.
+
+---
+
 ## [0.8.34] - 2026-04-08
 
 ### For users

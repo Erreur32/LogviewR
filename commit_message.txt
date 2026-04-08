@@ -1,19 +1,13 @@
-release: v0.8.34 — security hardening
+release: v0.8.35 — dependency cleanup + CodeQL fixes
 
 ## For users
-- JWT pinned to HS256 — prevents alg:none bypass attacks
-- Logout endpoint revokes token server-side (POST /api/users/logout)
-- HSTS + CSP security headers on all responses
-- Login rate-limited (10 req/min) as defense-in-depth
-- Webhook URLs validated against private/internal IPs (SSRF protection)
+- Zero vulnerabilities (npm audit + GitHub CodeQL + Dependabot)
+- Lighter install: vitest removed (27 packages), unused deps cleaned
 
 ## Technical
-- authService: jwt.verify with { algorithms: ['HS256'] }, token blacklist with 10min cleanup
-- users.ts: POST /logout route, rateLimit on POST /login
-- index.ts: Strict-Transport-Security (prod), Content-Security-Policy (Leaflet tiles, GitHub API, WSS)
-- system.ts: /security-status now requires auth
-- log-viewer.ts: null byte check in validatePathSafe, ReDoS protection for user regex
-- notifications.ts: validateWebhookUrl blocks localhost, RFC1918, cloud metadata
-- systemServer.ts: quoted HOST_ROOT_PATH in chroot commands
-- Vite 6.2.0 → 6.4.2 (2 CVE fixes)
-- .gitignore: added CLAUDE.md, resume_claude*.txt, data-test/, .planning/
+- Tests migrated to Node.js built-in node:test (zero dependency)
+- Removed brace-expansion, stale overrides; moved concurrently/cross-env to devDeps
+- CodeQL: regex injection validation, rate limiters on all fail2ban routes,
+  ReDoS-safe IPv6 regex, CORS default false, URL substring fix
+- .gitignore: all AI/dev tool patterns consolidated
+- GitHub: 15 SEO topics added, Projects tab disabled
