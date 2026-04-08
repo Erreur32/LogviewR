@@ -1,9 +1,8 @@
-release: v0.8.36 — CSP favicon fix, Scorecard + badges
+release: v0.8.37 — update check error message fix
 
 ## For users
-- Domain favicons restored (DuckDuckGo/Google were blocked by CSP)
+- Update check now shows "rate limit exceeded" instead of "Package not found"
+- Suggests setting GITHUB_TOKEN in .env for 5000 req/h
 
 ## Technical
-- CSP: added icons.duckduckgo.com and www.google.com to img-src
-- OpenSSF Scorecard workflow added (weekly scan)
-- CodeQL + Docker Build + Scorecard badges on both READMEs
+- updates.ts: check x-ratelimit-remaining header on 401/403 responses

@@ -5,6 +5,20 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.37] - 2026-04-08
+
+### For users
+
+- **Update check — clearer error** — When GitHub API rate limit is hit, the error now says so instead of the misleading "Package not found". Suggests setting `GITHUB_TOKEN` in `.env` for higher limits (5000 req/h vs 60).
+
+---
+
+### Technical
+
+- **`server/routes/updates.ts`** — Method 2 (packages API) now checks `x-ratelimit-remaining` header on 401/403 and returns a specific rate-limit message instead of generic "requires authentication".
+
+---
+
 ## [0.8.36] - 2026-04-08
 
 ### For users
