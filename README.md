@@ -18,7 +18,7 @@
 ![License](https://img.shields.io/badge/License-MIT-111827?style=for-the-badge&color=111827&labelColor=111827&logoColor=white)
 
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/Erreur32/LogviewR/badge)](https://securityscorecards.dev/viewer/?uri=github.com/Erreur32/LogviewR)
-[![CodeQL](https://github.com/Erreur32/LogviewR/actions/workflows/codeql.yml/badge.svg)](https://github.com/Erreur32/LogviewR/actions/workflows/codeql.yml)
+[![CodeQL](https://github.com/Erreur32/LogviewR/actions/workflows/256784431/badge.svg)](https://github.com/Erreur32/LogviewR/actions/workflows/256784431)
 [![Docker Build](https://github.com/Erreur32/LogviewR/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/Erreur32/LogviewR/actions/workflows/docker-publish.yml)
 
 **Real-time log viewer for Apache, Nginx, NPM, system logs and Fail2ban**
