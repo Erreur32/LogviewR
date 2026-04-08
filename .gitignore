@@ -52,8 +52,12 @@ config/*.conf
 !config/*.example
 !config/*.example.conf
 
-# Claude Code
+# Claude Code / AI dev files
 .claude
+CLAUDE.md
+resume_claude*.txt
+data-test/
+.planning/
 .reboot_schedule.json
 
 Fail2ban-web/

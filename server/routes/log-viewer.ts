@@ -65,14 +65,22 @@ function normalizeLogFilePath(filePath: string): string {
  * files-direct), we use the path configured in Settings (e.g. /home/docker/nginx_proxy/data/logs for NPM).
  */
 /**
- * Reject paths containing traversal sequences before resolution.
- * This prevents ../../../etc/passwd style attacks from user-supplied basePath.
+ * Reject paths containing traversal sequences.
+ * Blocks '..', null bytes. When allowedBase is provided, verifies the
+ * resolved path stays within the base directory.
  */
-function validatePathSafe(p: string): void {
-    if (p.includes('..')) {
+function validatePathSafe(p: string, allowedBase?: string): void {
+    if (p.includes('..') || p.includes('\0')) {
         throw new Error(`Path traversal attempt blocked: ${p}`);
     }
+    if (allowedBase) {
+        const resolved = path.resolve(allowedBase, p);
+        if (!resolved.startsWith(path.resolve(allowedBase))) {
+            throw new Error(`Path traversal attempt blocked: ${p}`);
+        }
+    }
 }
+
 
 function getEffectiveBasePath(
     pluginId: string,
@@ -493,10 +501,13 @@ router.post('/plugins/:pluginId/read-direct', async (req, res) => {
 
         if (!filePath || !logType) {
             logger.warn('LogViewer', `[read-direct] Missing required fields: filePath=${filePath}, logType=${logType}`);
-            return res.status(400).json({ 
-                error: 'Missing required fields: filePath and logType are required' 
+            return res.status(400).json({
+                error: 'Missing required fields: filePath and logType are required'
             });
         }
+
+        // Validate path safety
+        validatePathSafe(filePath as string);
 
         // Get plugin
         const plugin = pluginManager.getPlugin(pluginId);
@@ -595,10 +606,13 @@ router.post('/plugins/:pluginId/read-raw', async (req, res) => {
         logger.info('LogViewer', `[read-raw] Request received: pluginId=${pluginId}, filePath=${filePath}, maxLines=${maxLines}, fromLine=${fromLine}`);
 
         if (!filePath) {
-            return res.status(400).json({ 
-                error: 'Missing required field: filePath is required' 
+            return res.status(400).json({
+                error: 'Missing required field: filePath is required'
             });
         }
+
+        // Validate path safety
+        validatePathSafe(filePath as string);
 
         // Get plugin
         const plugin = pluginManager.getPlugin(pluginId);
@@ -1977,11 +1991,15 @@ router.put('/plugins/:pluginId/regex-config', async (req, res) => {
             return res.status(400).json({ error: 'filePath and regex are required' });
         }
 
-        // Validate regex
+        // Validate regex — reject patterns with nested quantifiers that cause catastrophic backtracking
         try {
             new RegExp(regex);
         } catch (err) {
             return res.status(400).json({ error: `Invalid regex: ${err instanceof Error ? err.message : String(err)}` });
+        }
+        // Block nested quantifiers (e.g. (a+)+, (a*)*b, (a|a)+ ) that cause ReDoS
+        if (/([+*])\)?[+*{]/.test(regex) || regex.length > 500) {
+            return res.status(400).json({ error: 'Regex rejected: potential catastrophic backtracking or pattern too long (max 500 chars)' });
         }
 
         // Get plugin

@@ -25,6 +25,8 @@ export interface TokenPayload {
 export class AuthService {
     private jwtSecret: string;
     private jwtExpiresIn: string;
+    /** In-memory blacklist for revoked tokens (token → expiry timestamp) */
+    private revokedTokens = new Map<string, number>();
 
     constructor() {
         const defaultSecrets = [
@@ -48,6 +50,9 @@ export class AuthService {
 
         // Load JWT expiration from database, fallback to environment variable, then default
         this.jwtExpiresIn = this.getJwtExpiresIn();
+
+        // Periodically clean up expired entries from the token blacklist (every 10 min)
+        setInterval(() => this.cleanupRevokedTokens(), 10 * 60 * 1000);
     }
 
     /**
@@ -203,6 +208,7 @@ export class AuthService {
         };
 
         const token = jwt.sign(payload, this.jwtSecret, {
+            algorithm: 'HS256',
             expiresIn: this.jwtExpiresIn
         } as jwt.SignOptions);
 
@@ -215,11 +221,48 @@ export class AuthService {
     }
 
     /**
+     * Revoke a token (add to blacklist until it naturally expires)
+     */
+    revokeToken(token: string): void {
+        try {
+            const decoded = jwt.decode(token) as { exp?: number } | null;
+            const expiry = decoded?.exp ? decoded.exp * 1000 : Date.now() + 7 * 24 * 3600 * 1000;
+            this.revokedTokens.set(token, expiry);
+        } catch {
+            // If token can't be decoded, blacklist with 7d TTL
+            this.revokedTokens.set(token, Date.now() + 7 * 24 * 3600 * 1000);
+        }
+        // Cleanup expired entries periodically
+        this.cleanupRevokedTokens();
+    }
+
+    /**
+     * Check if a token has been revoked
+     */
+    isRevoked(token: string): boolean {
+        return this.revokedTokens.has(token);
+    }
+
+    /**
+     * Remove expired entries from the revocation list
+     */
+    private cleanupRevokedTokens(): void {
+        const now = Date.now();
+        for (const [tok, expiry] of this.revokedTokens) {
+            if (expiry < now) this.revokedTokens.delete(tok);
+        }
+    }
+
+    /**
      * Verify JWT token and return payload
      */
     async verifyToken(token: string): Promise<TokenPayload> {
+        // Check blacklist first
+        if (this.isRevoked(token)) {
+            throw new Error('Token has been revoked');
+        }
         try {
-            const payload = jwt.verify(token, this.jwtSecret) as TokenPayload;
+            const payload = jwt.verify(token, this.jwtSecret, { algorithms: ['HS256'] }) as TokenPayload;
             return payload;
         } catch (error) {
             if (error instanceof jwt.TokenExpiredError) {

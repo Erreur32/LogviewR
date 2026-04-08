@@ -15,6 +15,33 @@ import { logger } from '../utils/logger.js';
 
 const router = Router();
 
+// ── SSRF protection — block internal/private URLs in webhooks ────────────────
+function validateWebhookUrl(url: string): string | null {
+    let parsed: URL;
+    try {
+        parsed = new URL(url);
+    } catch {
+        return 'Invalid URL format';
+    }
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        return 'Only http/https URLs are allowed';
+    }
+    const hostname = parsed.hostname.toLowerCase();
+    // Block localhost variants
+    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '[::1]' || hostname === '0.0.0.0') {
+        return 'Localhost URLs are not allowed';
+    }
+    // Block private IP ranges and cloud metadata
+    const ipv4Match = hostname.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
+    if (ipv4Match) {
+        const [, a, b] = ipv4Match.map(Number);
+        if (a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254)) {
+            return 'Private/internal IP addresses are not allowed';
+        }
+    }
+    return null; // OK
+}
+
 // ── Interfaces ──────────────────────────────────────────────────────────────────
 
 export interface NotificationPrefs {
@@ -149,6 +176,11 @@ router.post('/webhooks', requireAuth, requireAdmin,
         if (type === 'generic' && !url) {
             throw createError('url is required for generic webhooks', 400, 'WEBHOOK_INVALID');
         }
+        // SSRF check — block private/internal URLs
+        if (url) {
+            const ssrfErr = validateWebhookUrl(url);
+            if (ssrfErr) throw createError(ssrfErr, 400, 'WEBHOOK_INVALID_URL');
+        }
 
         const entry: WebhookEntry = {
             id:      crypto.randomUUID(),
@@ -198,6 +230,11 @@ router.put('/webhooks/:id', requireAuth, requireAdmin,
         if (idx === -1) throw createError('Webhook not found', 404, 'WEBHOOK_NOT_FOUND');
 
         const patch = req.body as Partial<WebhookEntry>;
+        // SSRF check on URL update
+        if (patch.url) {
+            const ssrfErr = validateWebhookUrl(patch.url);
+            if (ssrfErr) throw createError(ssrfErr, 400, 'WEBHOOK_INVALID_URL');
+        }
         // Merge — only override fields that are explicitly present in the body
         const updated: WebhookEntry = { ...webhooks[idx] };
         if (patch.name                !== undefined) updated.name                = patch.name;

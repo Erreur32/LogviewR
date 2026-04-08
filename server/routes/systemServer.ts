@@ -141,7 +141,7 @@ const getAllDiskUsage = async (): Promise<Array<{ mount: string; total: number; 
     if (runningInDocker && HOST_ROOT_PATH) {
       try {
         // Method 1: Use chroot to execute df from host context
-        const chrootDfCommand = `chroot ${HOST_ROOT_PATH} df -k 2>&1 | grep -E '^/dev/[^l]' | awk '{print $6" "$2" "$4" "$3}'`;
+        const chrootDfCommand = `chroot "${HOST_ROOT_PATH}" df -k 2>&1 | grep -E '^/dev/[^l]' | awk '{print $6" "$2" "$4" "$3}'`;
         const { stdout, stderr } = await execAsync(chrootDfCommand, { timeout: 5000 });
         
         if (stderr && !stderr.includes('df:')) {
@@ -399,7 +399,7 @@ const getDockerVersion = async (): Promise<string | null> => {
     
     // Method 2: Try via chroot
     try {
-      const { stdout } = await execAsync(`chroot ${HOST_ROOT_PATH} docker --version 2>/dev/null`, { timeout: 2000 });
+      const { stdout } = await execAsync(`chroot "${HOST_ROOT_PATH}" docker --version 2>/dev/null`, { timeout: 2000 });
       if (stdout && stdout.trim()) {
         debugLog(`[SystemServer] ✓ Docker version found via chroot`);
         return stdout.trim();

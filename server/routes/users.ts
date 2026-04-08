@@ -121,8 +121,8 @@ router.post('/register', rateLimit(5, 60_000), asyncHandler(async (req, res) => 
     });
 }));
 
-// POST /api/users/login - Login user
-router.post('/login', asyncHandler(async (req, res) => {
+// POST /api/users/login - Login user (rate-limited as defense-in-depth alongside bruteForceProtection)
+router.post('/login', rateLimit(10, 60_000), asyncHandler(async (req, res) => {
     const { username, password } = req.body;
 
     if (!username || !password) {
@@ -236,6 +236,30 @@ router.post('/login', asyncHandler(async (req, res) => {
         // Re-throw the original error
         throw error;
     }
+}));
+
+// POST /api/users/logout - Revoke current token
+router.post('/logout', requireAuth, asyncHandler(async (req: AuthenticatedRequest, res) => {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.substring(7);
+        authService.revokeToken(token);
+    }
+
+    await loggingService.log({
+        action: 'user.logout',
+        resource: 'user',
+        resourceId: req.user!.userId.toString(),
+        username: req.user!.username,
+        ipAddress: getClientIp(req),
+        userAgent: req.get('user-agent') || undefined,
+        level: 'info'
+    });
+
+    res.json({
+        success: true,
+        result: { message: 'Logged out successfully' }
+    });
 }));
 
 // GET /api/users/me - Get current user info

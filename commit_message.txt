@@ -1,19 +1,19 @@
-release: v0.8.15
+release: v0.8.34 — security hardening
 
 ## For users
-- Active ban counter now matches fail2ban exactly (unban sync every 30s, history preserved)
-- Ban history chart: grouped side-by-side bars sorted largest first
-- Y-axis shows real data max, no artificial rounding
-- Attempt notifications: domain badge added, jail badge and "actives" text removed
-- Top Domains counts unique banned IPs across all jails combined
-- Config cards (Runtime / Database / Config files) collapse to uniform height, no ghost border
+- JWT pinned to HS256 — prevents alg:none bypass attacks
+- Logout endpoint revokes token server-side (POST /api/users/logout)
+- HSTS + CSP security headers on all responses
+- Login rate-limited (10 req/min) as defense-in-depth
+- Webhook URLs validated against private/internal IPs (SSRF protection)
 
 ## Technical
-- connection.ts: unban_at INTEGER migration + index + backfill expired bans on startup
-- Fail2banPlugin: _syncUnbans() on each /status poll; active-ban queries use unban_at IS NULL
-- BanHistoryChart: effectiveMax = raw max, grouped bars (groupW/subBarW), sortedJails desc
-- TabStats: TopCard titleTooltip prop + domainTitleTooltip (F2bTooltip 360px cyan)
-- TabConfig: conditional alignSelf + borderBottom per card for clean collapsed state
-- Fail2banPage: trackerActive from /tracker on mount; jailDomainsRef lazy enrichment fetch
-- TabTracker: onActiveChange prop bubbles activeCount to parent
-- Header: domain badge (orange); notificationStore: domain field on AppNotification
+- authService: jwt.verify with { algorithms: ['HS256'] }, token blacklist with 10min cleanup
+- users.ts: POST /logout route, rateLimit on POST /login
+- index.ts: Strict-Transport-Security (prod), Content-Security-Policy (Leaflet tiles, GitHub API, WSS)
+- system.ts: /security-status now requires auth
+- log-viewer.ts: null byte check in validatePathSafe, ReDoS protection for user regex
+- notifications.ts: validateWebhookUrl blocks localhost, RFC1918, cloud metadata
+- systemServer.ts: quoted HOST_ROOT_PATH in chroot commands
+- Vite 6.2.0 → 6.4.2 (2 CVE fixes)
+- .gitignore: added CLAUDE.md, resume_claude*.txt, data-test/, .planning/

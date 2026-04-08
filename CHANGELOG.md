@@ -5,6 +5,42 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.34] - 2026-04-08
+
+### For users
+
+> Security hardening release — no UI changes, no new features.
+
+- **JWT security** — Tokens are now pinned to HS256 algorithm, preventing `alg: "none"` bypass attacks.
+- **Logout endpoint** — `POST /api/users/logout` now revokes the current token server-side (previously only cleared localStorage).
+- **Security headers** — Added HSTS (production) and Content-Security-Policy to all responses.
+- **Login rate limiting** — Login endpoint now has a 10 req/min rate limit as defense-in-depth.
+- **Webhook URL validation** — Webhook URLs are now checked against private/internal IP ranges (SSRF protection).
+
+---
+
+### Technical
+
+#### Backend — Security fixes
+
+- **`authService.ts`** — `jwt.verify()` now uses `{ algorithms: ['HS256'] }` to prevent algorithm confusion attacks. `jwt.sign()` also explicitly pins `algorithm: 'HS256'`. Added in-memory token blacklist with periodic cleanup (10 min interval) for logout/revocation.
+- **`users.ts`** — Added `POST /logout` route that calls `authService.revokeToken()`. Added `rateLimit(10, 60_000)` to `POST /login`.
+- **`index.ts`** — Added `Strict-Transport-Security` (production only) and `Content-Security-Policy` headers. CSP allows Leaflet tiles (`*.basemaps.cartocdn.com`, `*.tile.openstreetmap.org`), GitHub API, WebSocket, and inline styles/scripts.
+- **`system.ts`** — `GET /security-status` now requires authentication (was public, disclosed whether JWT secret was default).
+- **`log-viewer.ts`** — `validatePathSafe()` now also blocks null bytes. Added path validation to `read-direct` and `read-raw` endpoints. User-supplied regex patterns are rejected if they contain nested quantifiers (ReDoS) or exceed 500 chars.
+- **`notifications.ts`** — Added `validateWebhookUrl()` that blocks localhost, private IPs (10.x, 172.16-31.x, 192.168.x), and cloud metadata (169.254.x) for SSRF protection.
+- **`systemServer.ts`** — Quoted `HOST_ROOT_PATH` in `chroot` shell commands to prevent injection with special characters.
+
+#### Dependencies
+
+- **Vite** updated from 6.2.0 → 6.4.2 (fixes GHSA-4w7w-66w2-5vf9 path traversal and GHSA-p9ff-h696-f583 arbitrary file read).
+
+#### Other
+
+- **`.gitignore`** — Added `CLAUDE.md`, `resume_claude*.txt`, `data-test/`, `.planning/`; removed tracked `resume_claude_last.txt`.
+
+---
+
 ## [0.8.33] - 2026-04-06
 
 ### For users

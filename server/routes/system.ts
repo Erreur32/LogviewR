@@ -62,7 +62,7 @@ router.get('/environment', asyncHandler(async (_req, res) => {
   }
   
   // Read app version
-  let appVersion = '0.8.33';
+  let appVersion = '0.8.34';
   try {
     const packageJsonPath = path.join(__dirname, '..', '..', 'package.json');
     const packageJson = JSON.parse(fsSync.readFileSync(packageJsonPath, 'utf8'));
@@ -99,8 +99,8 @@ router.get('/environment', asyncHandler(async (_req, res) => {
   });
 }));
 
-// GET /api/system/security-status - Public endpoint to check JWT_SECRET status (no auth required)
-router.get('/security-status', asyncHandler(async (req, res) => {
+// GET /api/system/security-status - Check JWT_SECRET status (auth required to prevent info disclosure)
+router.get('/security-status', requireAuth, asyncHandler(async (req, res) => {
   const defaultSecrets = [
     'change-me-in-production-please-use-strong-secret',
     'dev_secret_change_in_production'

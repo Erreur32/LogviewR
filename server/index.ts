@@ -159,6 +159,12 @@ app.use((_req, res, next) => {
     res.setHeader('X-XSS-Protection', '1; mode=block');
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
     res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+    // HSTS — instruct browsers to always use HTTPS (effective behind TLS-terminating reverse proxy)
+    if (process.env.NODE_ENV === 'production') {
+        res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    }
+    // CSP — restrict sources while allowing Leaflet tiles, GitHub API, and WebSocket connections
+    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://*.basemaps.cartocdn.com https://*.tile.openstreetmap.org; connect-src 'self' ws: wss: https://api.github.com; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'");
     next();
 });
 
@@ -592,7 +598,7 @@ server.listen(port, host, () => {
   };
 
   // Read app version from package.json
-  let appVersion = '0.8.33'; // Default fallback
+  let appVersion = '0.8.34'; // Default fallback
   try {
     const packageJsonPath = path.join(__dirname, '..', 'package.json');
     const packageJson = JSON.parse(fsSync.readFileSync(packageJsonPath, 'utf8'));
