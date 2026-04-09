@@ -4,6 +4,7 @@
  */
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { usePolling } from '../hooks/usePolling';
 import {
@@ -116,7 +117,12 @@ const Sparkline: React.FC<{ data: number[]; color: string }> = ({ data, color })
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
-export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }> = ({ initialTab }) => {
+const VALID_TABS = new Set<TabId>([
+    'jails', 'filtres', 'actions', 'tracker', 'ban', 'stats', 'carte',
+    'iptables', 'ipset', 'nftables', 'config', 'audit', 'aide', 'backup',
+]);
+
+export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
     const { t } = useTranslation();
 
     const fmtAge = (ts: number): string => {
@@ -130,7 +136,12 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
 
     const contentRef = useRef<HTMLDivElement>(null);
     const timedTabRef = useRef(false);
-    const [tab, setTab]           = useState<TabId>(initialTab ?? 'jails');
+    const { tab: urlTab } = useParams<{ tab?: string }>();
+    const navigateRouter = useNavigate();
+    const tab: TabId = (urlTab && VALID_TABS.has(urlTab as TabId)) ? urlTab as TabId : 'jails';
+    const setTab = useCallback((newTab: TabId) => {
+        navigateRouter(`/fail2ban/${newTab}`);
+    }, [navigateRouter]);
     const [selectedIp, setSelectedIp] = useState<string | null>(null);
     const [collapsed, setCollapsed] = useState(false);
     const [status, setStatus]     = useState<StatusResponse | null>(null);
@@ -240,11 +251,6 @@ export const Fail2banPage: React.FC<{ onBack?: () => void; initialTab?: TabId }>
             .then(res => { if (res.success && res.result?.ok) setIpsetCount(res.result.sets?.length ?? 0); })
             .catch(() => {});
     }, []);
-
-    // ── URL hash sync — update hash on tab change for bookmarkable deep links ──
-    useEffect(() => {
-        window.history.replaceState(null, '', `#fail2ban/${tab}`);
-    }, [tab]);
 
     // ── Tab load timer — dispatch after render (fast tabs report immediately) ──
     useEffect(() => {

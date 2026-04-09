@@ -70,6 +70,7 @@ import { useUpdateStore } from '../stores/updateStore';
 import { UserMenu, Clock } from '../components/ui';
 import { useTranslation } from 'react-i18next';
 import { setAppLanguage, getAppLanguage } from '../i18n';
+import { useParams, useNavigate } from 'react-router-dom';
 
 export interface SettingsPageProps {
   onBack: () => void;
@@ -3833,12 +3834,19 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   onLogout
 }) => {
   const { t } = useTranslation();
+  const { tab: urlTab, subtab: urlSubtab } = useParams<{ tab?: string; subtab?: string }>();
+  const navigateRouter = useNavigate();
   const { user: currentUser } = useUserAuthStore();
   const { plugins } = usePluginStore();
   const activePluginCount = plugins.filter(p => p.enabled).length;
   // Check sessionStorage on mount in case initialAdminTab wasn't passed correctly
   const storedAdminTab = sessionStorage.getItem('adminTab');
-  const [activeAdminTab, setActiveAdminTab] = useState<AdminTab>(() => toAdminTab(storedAdminTab || initialAdminTab));
+  const resolvedTab = urlTab || storedAdminTab || initialAdminTab;
+  const [activeAdminTab, setActiveAdminTabState] = useState<AdminTab>(() => toAdminTab(resolvedTab));
+  const setActiveAdminTab = useCallback((newTab: AdminTab) => {
+    setActiveAdminTabState(newTab);
+    navigateRouter(`/settings/${newTab}`);
+  }, [navigateRouter]);
   const [pluginSubTab, setPluginSubTab]     = useState<'plugins' | 'regex'>('plugins');
   const [regexCount, setRegexCount]         = useState<number | null>(null);
   useEffect(() => {
@@ -3852,7 +3860,16 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       .catch(() => {});
   }, []);
   const [infoSubTab, setInfoSubTab]         = useState<'logviewr' | 'applogs'>('logviewr');
-  const [securitySubTab, setSecuritySubTab] = useState<'users' | 'protection' | 'network' | 'logs'>(initialSecuritySubTab ?? 'users');
+  type SecuritySubTab = 'users' | 'protection' | 'network' | 'logs';
+  const VALID_SECURITY_SUBTABS = new Set<SecuritySubTab>(['users', 'protection', 'network', 'logs']);
+  const resolvedSubtab: SecuritySubTab = (urlSubtab && VALID_SECURITY_SUBTABS.has(urlSubtab as SecuritySubTab))
+    ? urlSubtab as SecuritySubTab
+    : (initialSecuritySubTab ?? 'users');
+  const [securitySubTab, setSecuritySubTabState] = useState<SecuritySubTab>(resolvedSubtab);
+  const setSecuritySubTab = useCallback((st: SecuritySubTab) => {
+    setSecuritySubTabState(st);
+    navigateRouter(`/settings/security/${st}`);
+  }, [navigateRouter]);
   const PRESET_TIMEZONES = ['Europe/Paris', 'Europe/London', 'UTC', 'America/New_York', 'America/Chicago', 'America/Los_Angeles', 'Asia/Tokyo', 'Asia/Shanghai', 'Australia/Sydney'];
   const [timezone, setTimezone]             = useState('Europe/Paris');
   const [customTz, setCustomTz]             = useState('');
@@ -3867,19 +3884,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     } else if (initialAdminTab && initialAdminTab !== 'general') {
       setActiveAdminTab(toAdminTab(initialAdminTab));
     }
-    // Clean URL hash if present
-    if (window.location.hash === '#admin') {
-      window.history.replaceState(null, '', window.location.pathname);
-    }
   }, [initialAdminTab]);
-  // Sync URL hash with current tab for deep linking (#config/TAB[/SUBTAB])
-  useEffect(() => {
-    const hash = activeAdminTab === 'security'
-      ? `#config/security/${securitySubTab}`
-      : `#config/${activeAdminTab}`;
-    window.history.replaceState(null, '', hash);
-    return () => { window.history.replaceState(null, '', window.location.pathname); };
-  }, [activeAdminTab, securitySubTab]);
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
