@@ -1,5 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import './i18n';
@@ -66,10 +67,24 @@ if (import.meta.env.PROD) {
 // Initialize theme before rendering (async, but don't block rendering)
 initTheme().catch(err => console.warn('Theme initialization error:', err));
 
+// Rybbit analytics — opt-in: only active when env vars are set
+const analyticsHost = import.meta.env.VITE_ANALYTICS_HOST;
+const analyticsSiteId = import.meta.env.VITE_ANALYTICS_SITE_ID;
+if (analyticsHost && analyticsSiteId && !document.querySelector('script[data-site-id]')) {
+  const s = document.createElement('script');
+  s.src = `${analyticsHost}/api/script.js`;
+  s.dataset.siteId = analyticsSiteId;
+  s.dataset.disableSessionReplay = 'true';
+  s.defer = true;
+  document.head.appendChild(s);
+}
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <ErrorBoundary>
-      <App />
-    </ErrorBoundary>
+    <BrowserRouter>
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>
+    </BrowserRouter>
   </React.StrictMode>
 );
