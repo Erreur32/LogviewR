@@ -200,7 +200,7 @@ export const LargestFilesCard: React.FC<Props> = ({ limit = 20 }) => {
                                                         </>}
                                                     >
                                                         <a
-                                                            href={`#log/${file.pluginId}${file.path}`}
+                                                            href={`/log/${file.pluginId}?file=${encodeURIComponent(file.path)}`}
                                                             className="text-xs md:text-sm text-blue-400 hover:text-blue-300 font-mono break-all hover:underline"
                                                             onClick={e => e.stopPropagation()}
                                                         >
