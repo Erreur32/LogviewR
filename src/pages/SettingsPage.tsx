@@ -70,7 +70,7 @@ import { useUpdateStore } from '../stores/updateStore';
 import { UserMenu, Clock } from '../components/ui';
 import { useTranslation } from 'react-i18next';
 import { setAppLanguage, getAppLanguage } from '../i18n';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 export interface SettingsPageProps {
   onBack: () => void;
@@ -3834,7 +3834,10 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   onLogout
 }) => {
   const { t } = useTranslation();
-  const { tab: urlTab, subtab: urlSubtab } = useParams<{ tab?: string; subtab?: string }>();
+  const settingsLocation = useLocation();
+  const settingsSegments = settingsLocation.pathname.split('/');
+  const urlTab = settingsSegments[2]; // /settings/security → 'security'
+  const urlSubtab = settingsSegments[3]; // /settings/security/users → 'users'
   const navigateRouter = useNavigate();
   const { user: currentUser } = useUserAuthStore();
   const { plugins } = usePluginStore();

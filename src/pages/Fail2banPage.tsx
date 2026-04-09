@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { usePolling } from '../hooks/usePolling';
 import {
@@ -136,8 +136,9 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
 
     const contentRef = useRef<HTMLDivElement>(null);
     const timedTabRef = useRef(false);
-    const { tab: urlTab } = useParams<{ tab?: string }>();
+    const location = useLocation();
     const navigateRouter = useNavigate();
+    const urlTab = location.pathname.split('/')[2]; // /fail2ban/stats → 'stats'
     const tab: TabId = (urlTab && VALID_TABS.has(urlTab as TabId)) ? urlTab as TabId : 'jails';
     const setTab = useCallback((newTab: TabId) => {
         navigateRouter(`/fail2ban/${newTab}`);
