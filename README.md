@@ -10,16 +10,18 @@
 
 <img src="LogviewR_banner.svg" alt="LogviewR" width="512" height="256" />
 
-![LogviewR](https://img.shields.io/badge/LogviewR-0.8.37-111827?style=for-the-badge)
+![LogviewR](https://img.shields.io/badge/LogviewR-0.8.38-111827?style=for-the-badge)
 ![Status](https://img.shields.io/badge/Status-DEVELOPMENT-374151?style=for-the-badge)
 ![Docker](https://img.shields.io/badge/Docker-Ready-1f2937?style=for-the-badge&logo=docker&logoColor=38bdf8)
 ![React](https://img.shields.io/badge/React-19-111827?style=for-the-badge&logo=react&logoColor=38bdf8)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-111827?style=for-the-badge&logo=typescript&logoColor=60a5fa)
 ![License](https://img.shields.io/badge/License-MIT-111827?style=for-the-badge&color=111827&labelColor=111827&logoColor=white)
 
-[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/Erreur32/LogviewR/badge)](https://securityscorecards.dev/viewer/?uri=github.com/Erreur32/LogviewR)
-[![CodeQL](https://img.shields.io/badge/CodeQL-active-brightgreen?logo=github)](https://github.com/Erreur32/LogviewR/security/code-scanning)
-[![Docker Build](https://github.com/Erreur32/LogviewR/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/Erreur32/LogviewR/actions/workflows/docker-publish.yml)
+[![Build](https://img.shields.io/github/actions/workflow/status/Erreur32/LogviewR/docker-publish.yml?style=for-the-badge&logo=github&logoColor=white&label=Build&color=111827)](https://github.com/Erreur32/LogviewR/actions/workflows/docker-publish.yml)
+[![CodeQL](https://img.shields.io/badge/CodeQL-active-brightgreen?style=for-the-badge&logo=github)](https://github.com/Erreur32/LogviewR/security/code-scanning)
+[![OSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/Erreur32/LogviewR?style=for-the-badge&label=Scorecard)](https://scorecard.dev/viewer/?uri=github.com/Erreur32/LogviewR)
+[![SonarCloud](https://img.shields.io/sonar/quality_gate/Erreur32_LogviewR?server=https%3A%2F%2Fsonarcloud.io&style=for-the-badge&logo=sonarcloud&logoColor=white&label=Sonar)](https://sonarcloud.io/summary/overall?id=Erreur32_LogviewR)
+[![Snyk](https://img.shields.io/github/actions/workflow/status/Erreur32/LogviewR/snyk.yml?style=for-the-badge&logo=snyk&logoColor=white&label=Snyk&color=111827)](https://github.com/Erreur32/LogviewR/actions/workflows/snyk.yml)
 
 **Real-time log viewer for Apache, Nginx, NPM, system logs and Fail2ban**
 

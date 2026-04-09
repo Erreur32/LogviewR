@@ -5,6 +5,36 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.38] - 2026-04-09
+
+### For users
+
+> Navigation now uses clean URLs — bookmarkable, refreshable, and tracked by Rybbit analytics.
+
+- **Clean URL navigation** — Pages now use proper URLs (`/fail2ban/stats`, `/settings/security/users`, `/log/nginx?file=...`) instead of hash fragments (`#fail2ban/stats`). Refreshing the browser keeps you on the same page and tab.
+- **Rybbit analytics** — Opt-in pageview tracking via self-hosted Rybbit (Umami clone). Each page and tab is tracked individually. Disabled by default — requires `VITE_ANALYTICS_HOST` and `VITE_ANALYTICS_SITE_ID` in `.env`.
+- **Favicon** — Browser tab now shows the LogviewR icon instead of a 404.
+
+---
+
+### Technical
+
+#### Frontend
+
+- **React Router migration** — Replaced hash-based navigation (`window.location.hash` + `parseHashNav()`) with `react-router-dom` v7 (`BrowserRouter`, `useLocation`, `useNavigate`). `currentPage` derived from `location.pathname` via `pathToPage()` helper. All `setCurrentPage()` calls replaced with `navigate()`.
+- **`src/App.tsx`** — Removed 165 lines: `parseHashNav()`, `HashNav` type, `VALID_FAIL2BAN_TABS`, `isSafeFilePath()`, hash sync useEffects, `hashchange` listener, sessionStorage deep link stashing. Added `pageToPath()`/`pathToPage()` helpers, URL-derived state via `useMemo`.
+- **`src/pages/Fail2banPage.tsx`** — Tab derived from `useLocation().pathname.split('/')[2]` with `VALID_TABS` validation. `setTab()` wrapped in `useCallback` calling `navigate()`.
+- **`src/pages/SettingsPage.tsx`** — Tab/subtab derived from `useLocation().pathname.split('/')`. Removed hash sync useEffect and `#admin` hash check.
+- **`src/main.tsx`** — Wrapped `<App>` with `<BrowserRouter>`. Added Rybbit script tag injection (opt-in, `disableSessionReplay=true`).
+- **`src/components/widgets/LargestFilesCard.tsx`** — Converted last hash link to Router URL.
+- **`index.html`** — Added `<link rel="icon">` pointing to existing SVG favicon.
+
+#### Backend
+
+- **`server/index.ts`** — Added `https://way.myoueb.fr` to CSP `script-src` and `connect-src` for Rybbit analytics. SPA fallback already existed.
+
+---
+
 ## [0.8.37] - 2026-04-08
 
 ### For users
