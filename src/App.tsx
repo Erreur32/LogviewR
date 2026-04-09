@@ -1,4 +1,5 @@
 import React, { useEffect, useState, Suspense, lazy, useMemo, useRef } from 'react';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Header, Footer, type PageType } from './components/layout';
 import {
   Card,
@@ -13,96 +14,38 @@ import {
 import { ActionButton, UnsupportedFeature } from './components/ui';
 import { UserLoginModal, UserRegistrationModal } from './components/modals';
 
-// ── Hash-based navigation (fail2ban deep links) ───────────────────────────────
+// ── URL-based navigation (React Router) ─────────────────────────────────────
 
-// ── Hash navigation constants ─────────────────────────────────────────────────
-
-/** Valid fail2ban tab IDs — whitelist, never used in DOM/fetch/eval. */
-const VALID_FAIL2BAN_TABS = new Set([
-    'jails', 'filtres', 'actions', 'tracker', 'ban', 'stats', 'carte',
-    'iptables', 'ipset', 'nftables', 'config', 'audit', 'aide', 'backup',
-]);
-
-/** Plugin IDs are lowercase alphanumeric + hyphens, max 40 chars. */
-const VALID_PLUGIN_ID_RE = /^[a-z][a-z0-9-]{0,39}$/;
-
-/**
- * Validate a decoded log file path from the URL hash.
- * Rules: must start with /, no null bytes, no path traversal (..),
- * only safe chars, max 500 chars. Never used in DOM or HTML injection.
- */
-function isSafeFilePath(p: string): boolean {
-    if (!p || p.length > 500) return false;
-    if (p.includes('\0')) return false;              // null byte
-    if (!p.startsWith('/')) return false;            // must be absolute
-    if (/(?:^|\/)\.\.(?:\/|$)/.test(p)) return false; // path traversal
-    // Allow: letters, digits, / . - _ (no spaces, no shell metacharacters)
-    if (!/^[a-zA-Z0-9/._-]+$/.test(p)) return false;
-    return true;
+/** Map PageType to URL path */
+function pageToPath(page: PageType, pluginId?: string): string {
+    switch (page) {
+        case 'fail2ban':       return '/fail2ban';
+        case 'log-viewer':     return pluginId ? `/log/${pluginId}` : '/log';
+        case 'settings':       return '/settings';
+        case 'goaccess-stats': return '/goaccess';
+        case 'analytics':      return '/analytics';
+        case 'plugins':        return '/plugins';
+        case 'users':          return '/users';
+        case 'logs':           return '/logs';
+        case 'log-viewer-test': return '/log-test';
+        case 'profile':        return '/profile';
+        default:               return '/';
+    }
 }
 
-/**
- * Parse window.location.hash into typed navigation intent.
- *
- * Supported formats:
- *   #fail2ban           → fail2ban page, default tab (jails)
- *   #fail2ban/TAB       → fail2ban page, TAB (whitelist-validated)
- *   #log/PLUGIN_ID      → log viewer for PLUGIN_ID
- *   #log/PLUGIN_ID/FILE → log viewer for PLUGIN_ID + encoded file path
- *
- * All values are validated/sanitized before use.
- * Returns null if the hash is not a recognized deep link.
- */
-type HashNav =
-    | { type: 'fail2ban'; tab: string }
-    | { type: 'log'; pluginId: string; filePath: string | null }
-    | { type: 'config'; tab: string; subtab: string | null };
-
-function parseHashNav(): HashNav | null {
-    const raw = window.location.hash.slice(1); // strip '#'
-    if (!raw) return null;
-    // Split only on the FIRST slash to separate page from rest
-    const slashIdx = raw.indexOf('/');
-    const page = slashIdx === -1 ? raw : raw.slice(0, slashIdx);
-    const rest  = slashIdx === -1 ? '' : raw.slice(slashIdx + 1);
-
-    if (page === 'fail2ban') {
-        const slashIdx2 = rest.indexOf('/');
-        const tab = slashIdx2 === -1 ? rest : rest.slice(0, slashIdx2);
-        return { type: 'fail2ban', tab: VALID_FAIL2BAN_TABS.has(tab) ? tab : 'jails' };
-    }
-
-    const VALID_CONFIG_TABS = new Set(['general','plugins','analysis','notifications','theme','security','exporter','database','info']);
-    const VALID_SECURITY_SUBTABS = new Set(['users','protection','network','logs']);
-    if (page === 'config') {
-        const slashIdx2 = rest.indexOf('/');
-        const tab    = slashIdx2 === -1 ? rest : rest.slice(0, slashIdx2);
-        const subtab = slashIdx2 === -1 ? null  : rest.slice(slashIdx2 + 1);
-        if (!VALID_CONFIG_TABS.has(tab)) return null;
-        if (subtab && !VALID_SECURITY_SUBTABS.has(subtab)) return null;
-        return { type: 'config', tab, subtab };
-    }
-
-    if (page === 'log') {
-        const slashIdx2 = rest.indexOf('/');
-        const pluginId  = slashIdx2 === -1 ? rest : rest.slice(0, slashIdx2);
-        const encodedFile = slashIdx2 === -1 ? '' : rest.slice(slashIdx2 + 1);
-        if (!VALID_PLUGIN_ID_RE.test(pluginId)) return null;
-        let filePath: string | null = null;
-        if (encodedFile) {
-            try {
-                const decoded = decodeURIComponent(encodedFile);
-                // Support both formats:
-                //   clean:  #log/plugin/var/log/file.log  → decoded = 'var/log/file.log' (no leading /)
-                //   legacy: #log/plugin/%2Fvar%2Flog%2Ffile.log → decoded = '/var/log/file.log' (with /)
-                const fullPath = decoded.startsWith('/') ? decoded : '/' + decoded;
-                if (isSafeFilePath(fullPath)) filePath = fullPath;
-            } catch { /* malformed encoding — ignore */ }
-        }
-        return { type: 'log', pluginId, filePath };
-    }
-
-    return null;
+/** Derive PageType from URL pathname */
+function pathToPage(pathname: string): PageType {
+    if (pathname.startsWith('/fail2ban')) return 'fail2ban';
+    if (pathname.startsWith('/log-test')) return 'log-viewer-test';
+    if (pathname.startsWith('/log'))      return 'log-viewer';
+    if (pathname.startsWith('/settings')) return 'settings';
+    if (pathname.startsWith('/goaccess')) return 'goaccess-stats';
+    if (pathname.startsWith('/analytics')) return 'analytics';
+    if (pathname.startsWith('/plugins'))  return 'plugins';
+    if (pathname.startsWith('/users'))    return 'users';
+    if (pathname.startsWith('/logs'))     return 'logs';
+    if (pathname.startsWith('/profile'))  return 'profile';
+    return 'dashboard';
 }
 
 // Lazy load pages for code splitting
@@ -173,11 +116,21 @@ const App: React.FC = () => {
   // Tab load timer — tracks whether a timed navigation is pending dispatch
   const timedNavRef = useRef(false);
 
+  // React Router hooks
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  // Derive navigation state from URL
+  const currentPage: PageType = useMemo(() => pathToPage(location.pathname), [location.pathname]);
+  const selectedPluginId: string | null = useMemo(() => {
+      if (!location.pathname.startsWith('/log/')) return null;
+      const id = location.pathname.split('/')[2];
+      return id || null;
+  }, [location.pathname]);
+  const defaultLogFile: string | null = searchParams.get('file');
+
   // Local state
-  const [currentPage, setCurrentPage] = useState<PageType>('dashboard');
-  const [selectedPluginId, setSelectedPluginId] = useState<string | null>(null);
-  const [defaultLogFile, setDefaultLogFile] = useState<string | null>(null);
-  const [defaultFail2banTab, setDefaultFail2banTab] = useState<string | null>(null);
   const [hasUsers, setHasUsers] = useState<boolean | null>(null);
   const [checkingUsers, setCheckingUsers] = useState(true);
   const [pluginHeaderData, setPluginHeaderData] = useState<{
@@ -249,31 +202,16 @@ const App: React.FC = () => {
     checkUsers();
   }, []);
 
-  // Check user auth on mount and handle URL hash
+  // Check user auth on mount
   useEffect(() => {
-    // Legacy admin hash
-    if (window.location.hash === '#admin') {
-      window.history.replaceState(null, '', window.location.pathname);
-      sessionStorage.setItem('adminMode', 'true');
-    }
-    // Deep link hash: #fail2ban/TAB  or  #log/PLUGIN_ID[/FILE]
-    // Store intent in sessionStorage; actual navigation happens after auth resolves.
-    const hashNav = parseHashNav();
-    if (hashNav?.type === 'fail2ban') {
-      sessionStorage.setItem('_hashNavFail2ban', hashNav.tab);
-    } else if (hashNav?.type === 'log') {
-      sessionStorage.setItem('_hashNavLog', JSON.stringify({ pluginId: hashNav.pluginId, filePath: hashNav.filePath }));
-    } else if (hashNav?.type === 'config') {
-      sessionStorage.setItem('_hashNavConfig', JSON.stringify({ tab: hashNav.tab, subtab: hashNav.subtab }));
-    }
     checkUserAuth();
-    
+
     // Listen for theme changes to force re-render
     const handleThemeChange = () => {
-      // Force component re-render when theme changes by updating a dummy state
-      setCurrentPage(prev => prev);
+      // Force component re-render when theme changes
+      void 0; // no-op — React Router location changes trigger re-render
     };
-    
+
     window.addEventListener('themechange', handleThemeChange);
     window.addEventListener('themeupdate', handleThemeChange);
 
@@ -283,15 +221,15 @@ const App: React.FC = () => {
     };
     window.addEventListener('auth:session-expired', handleSessionExpired);
 
+    // Fetch environment info on mount
+    fetchEnvironmentInfo();
+
     return () => {
       window.removeEventListener('themechange', handleThemeChange);
       window.removeEventListener('themeupdate', handleThemeChange);
       window.removeEventListener('auth:session-expired', handleSessionExpired);
     };
-    
-    // Fetch environment info on mount
-    fetchEnvironmentInfo();
-    
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only run once on mount
 
@@ -340,56 +278,28 @@ const App: React.FC = () => {
         }
       });
 
-      // ── Deep link priority: hash nav takes precedence over server default page ──
-
-      // fail2ban deep link
-      const hashF2b = sessionStorage.getItem('_hashNavFail2ban');
-      if (hashF2b) {
-        sessionStorage.removeItem('_hashNavFail2ban');
-        // Re-validate: only accept known tab IDs (sessionStorage could be tampered)
-        const safeTab = VALID_FAIL2BAN_TABS.has(hashF2b) ? hashF2b : 'jails';
-        setDefaultFail2banTab(safeTab);
-        setCurrentPage('fail2ban');
-        return;
-      }
-
-      // log-viewer deep link
-      const hashLog = sessionStorage.getItem('_hashNavLog');
-      if (hashLog) {
-        sessionStorage.removeItem('_hashNavLog');
-        try {
-          const nav = JSON.parse(hashLog) as { pluginId?: unknown; filePath?: unknown };
-          const pluginId = typeof nav.pluginId === 'string' && VALID_PLUGIN_ID_RE.test(nav.pluginId) ? nav.pluginId : null;
-          const filePath = typeof nav.filePath === 'string' && isSafeFilePath(nav.filePath) ? nav.filePath : null;
-          if (pluginId) {
-            setSelectedPluginId(pluginId);
-            if (filePath) setDefaultLogFile(filePath);
-            setCurrentPage('log-viewer');
-            return;
+      // Default page redirect — only when on root URL (no deep link)
+      if (location.pathname === '/') {
+        api.get<{ defaultPage?: string; defaultPluginId?: string; defaultLogFile?: string; defaultFail2banTab?: string }>(
+          '/api/system/general'
+        ).then(response => {
+          if (!response.success || !response.result) return;
+          const { defaultPage, defaultPluginId, defaultLogFile: dlf, defaultFail2banTab: dft } = response.result;
+          if (defaultPage === 'log-viewer' && defaultPluginId) {
+            const url = dlf
+              ? `/log/${defaultPluginId}?file=${encodeURIComponent(dlf)}`
+              : `/log/${defaultPluginId}`;
+            navigate(url, { replace: true });
+          } else if (defaultPage === 'fail2ban') {
+            navigate(dft ? `/fail2ban/${dft}` : '/fail2ban', { replace: true });
+          } else if (defaultPage && defaultPage !== 'dashboard') {
+            navigate(pageToPath(defaultPage as PageType), { replace: true });
           }
-        } catch { /* malformed sessionStorage — ignore */ }
+        }).catch(() => { /* keep dashboard on error */ });
       }
-
-      // Navigate to configured default page on login
-      api.get<{ defaultPage?: string; defaultPluginId?: string; defaultLogFile?: string; defaultFail2banTab?: string }>(
-        '/api/system/general'
-      ).then(response => {
-        if (!response.success || !response.result) return;
-        const { defaultPage, defaultPluginId, defaultLogFile: dlf, defaultFail2banTab: dft } = response.result;
-        if (defaultPage === 'log-viewer' && defaultPluginId) {
-          setSelectedPluginId(defaultPluginId);
-          if (dlf) setDefaultLogFile(dlf);
-          setCurrentPage('log-viewer');
-        } else if (defaultPage === 'fail2ban') {
-          if (dft) setDefaultFail2banTab(dft);
-          setCurrentPage('fail2ban');
-        } else if (defaultPage && defaultPage !== 'dashboard') {
-          setCurrentPage(defaultPage as PageType);
-        }
-      }).catch(() => { /* keep dashboard on error */ });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isUserAuthenticated]); // Zustand functions are stable, no need to include them
+  }, [isUserAuthenticated]);
 
   // Polling for stats using usePolling hook
   usePolling(() => {
@@ -414,72 +324,24 @@ const App: React.FC = () => {
 
 
 
-  // ── Hash sync for log-viewer ─────────────────────────────────────────────────
-  // When a plugin + file is open, keep the URL hash updated so it can be bookmarked/shared.
-  // Uses replaceState (no history entry per file change).
-  useEffect(() => {
-    if (currentPage !== 'log-viewer' || !selectedPluginId) return;
-    const filePath = pluginHeaderData?.selectedFilePath;
-    // Clean URL format: #log/plugin-id/var/log/file.log (path starts with /, no %2F encoding)
-    const hash = filePath
-      ? `#log/${selectedPluginId}${filePath}`
-      : `#log/${selectedPluginId}`;
-    window.history.replaceState(null, '', hash);
-  }, [currentPage, selectedPluginId, pluginHeaderData?.selectedFilePath]);
-
-  // ── In-session hash navigation (e.g. clicking #log/... links while already logged in) ──
-  useEffect(() => {
-    if (!isUserAuthenticated) return;
-    const onHashChange = () => {
-      const hashNav = parseHashNav();
-      if (hashNav?.type === 'log') {
-        const { pluginId, filePath } = hashNav;
-        // Clear hash via replaceState (does NOT re-trigger hashchange)
-        window.history.replaceState(null, '', window.location.pathname);
-        setSelectedPluginId(pluginId);
-        if (filePath) setDefaultLogFile(filePath);
-        setCurrentPage('log-viewer');
-      }
-    };
-    window.addEventListener('hashchange', onHashChange);
-    return () => window.removeEventListener('hashchange', onHashChange);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isUserAuthenticated]);
-
   const handleLogout = () => {
-    // Clear any pending deep-link navigation so a re-login starts fresh
-    sessionStorage.removeItem('_hashNavFail2ban');
-    sessionStorage.removeItem('_hashNavLog');
-    window.history.replaceState(null, '', window.location.pathname);
     userLogout();
+    navigate('/', { replace: true });
   };
 
   const handlePageChange = (page: PageType) => {
     startTabTimer();
     timedNavRef.current = true;
-    // If navigating to log-viewer, check for selectedPluginId in sessionStorage FIRST
-    // This ensures selectedPluginId is set before the page renders
     if (page === 'log-viewer') {
       const storedPluginId = sessionStorage.getItem('selectedPluginId');
       if (storedPluginId) {
-        setSelectedPluginId(storedPluginId);
+        navigate(`/log/${storedPluginId}`);
+        return;
       }
     } else {
-      // Clear selectedPluginId when leaving log-viewer page
-      setSelectedPluginId(null);
       sessionStorage.removeItem('selectedPluginId');
     }
-
-    // Clear deep-link hash when leaving the page it belongs to
-    const h = window.location.hash;
-    if (page !== 'fail2ban' && h.startsWith('#fail2ban')) {
-      window.history.replaceState(null, '', window.location.pathname);
-    } else if (page !== 'log-viewer' && h.startsWith('#log')) {
-      window.history.replaceState(null, '', window.location.pathname);
-    }
-
-    // Change page after state is updated
-    setCurrentPage(page);
+    navigate(pageToPath(page));
   };
 
   // Dispatch tab-loaded after page render (covers non-fail2ban pages)
@@ -491,27 +353,25 @@ const App: React.FC = () => {
   }, [currentPage]);
 
   const handleHomeClick = () => {
-    window.history.replaceState(null, '', window.location.pathname);
     handlePageChange('dashboard');
   };
 
   const handleSettingsClick = () => {
-    setCurrentPage('settings');
+    navigate('/settings');
   };
 
   const handleAdminClick = () => {
     sessionStorage.setItem('adminMode', 'true');
-    setCurrentPage('settings');
-    // SettingsPage will handle showing the admin tab
+    navigate('/settings');
   };
 
   const handleProfileClick = () => {
-    setCurrentPage('profile');
+    navigate('/profile');
   };
 
   // Handle users click (navigate to users page)
   const handleUsersClick = () => {
-    setCurrentPage('users');
+    navigate('/users');
   };
 
 
@@ -619,15 +479,14 @@ const App: React.FC = () => {
           onLogout={handleLogout}
           onPluginClick={(pluginId) => {
             if (pluginId === 'fail2ban') {
-              setCurrentPage('fail2ban');
+              navigate('/fail2ban');
             } else {
-              setSelectedPluginId(pluginId);
-              setCurrentPage('log-viewer');
+              navigate(`/log/${pluginId}`);
             }
           }}
           updateBanner={{ show: showUpdateBanner, latestVersion: updateInfo?.latestVersion, releaseNotes: updateInfo?.releaseNotes, onDismiss: dismissBanner }}
         />
-        <GoAccessStyleStatsPage onBack={() => setCurrentPage('dashboard')} />
+        <GoAccessStyleStatsPage onBack={() => navigate('/')} />
       </>
     ));
   }
@@ -647,15 +506,14 @@ const App: React.FC = () => {
           onLogout={handleLogout}
           onPluginClick={(pluginId) => {
             if (pluginId === 'fail2ban') {
-              setCurrentPage('fail2ban');
+              navigate('/fail2ban');
             } else {
-              setSelectedPluginId(pluginId);
-              setCurrentPage('log-viewer');
+              navigate(`/log/${pluginId}`);
             }
           }}
           updateBanner={{ show: showUpdateBanner, latestVersion: updateInfo?.latestVersion, releaseNotes: updateInfo?.releaseNotes, onDismiss: dismissBanner }}
         />
-        <AnalyticsPage onBack={() => setCurrentPage('dashboard')} />
+        <AnalyticsPage onBack={() => navigate('/')} />
       </>
     ));
   }
@@ -664,7 +522,7 @@ const App: React.FC = () => {
   if (currentPage === 'profile') {
     return wrapWithBackground(renderPageWithFooter(
       <ProfilePage
-          onBack={() => setCurrentPage('dashboard')}
+          onBack={() => navigate('/')}
           onLogout={handleLogout}
           onSettingsClick={handleSettingsClick}
           onAdminClick={handleAdminClick}
@@ -675,24 +533,14 @@ const App: React.FC = () => {
 
   // Render Settings page
   if (currentPage === 'settings') {
-    // Check if we should show administration mode (from sessionStorage)
-    // Clean URL hash if present
-    if (window.location.hash === '#admin') {
-      window.history.replaceState(null, '', window.location.pathname);
-    }
     const showAdmin = sessionStorage.getItem('adminMode') === 'true' || false;
     const adminTab = sessionStorage.getItem('adminTab') as 'general' | 'users' | 'plugins' | 'security' | 'exporter' | 'theme' | 'debug' | 'info' | undefined;
-    // Hash-based config deep link: #config/TAB[/SUBTAB]
-    const configHashRaw = sessionStorage.getItem('_hashNavConfig');
-    const configHash = configHashRaw ? (() => { try { return JSON.parse(configHashRaw); } catch { return null; } })() : null;
-    if (configHash) sessionStorage.removeItem('_hashNavConfig');
     return wrapWithBackground(renderPageWithFooter(
       <SettingsPage
-        onBack={() => setCurrentPage('dashboard')}
+        onBack={() => navigate('/')}
         mode={showAdmin ? 'administration' : undefined}
-        initialAdminTab={configHash?.tab ?? adminTab ?? 'general'}
-        initialSecuritySubTab={configHash?.subtab ?? undefined}
-        onNavigateToPage={(page) => setCurrentPage(page)}
+        initialAdminTab={adminTab ?? 'general'}
+        onNavigateToPage={(page) => navigate(pageToPath(page))}
         onUsersClick={handleUsersClick}
         onSettingsClick={handleSettingsClick}
         onAdminClick={handleAdminClick}
@@ -705,12 +553,12 @@ const App: React.FC = () => {
   // Render Plugins page
   if (currentPage === 'plugins') {
     return wrapWithBackground(renderPageWithFooter(
-      <PluginsPage 
-        onBack={() => setCurrentPage('dashboard')}
+      <PluginsPage
+        onBack={() => navigate('/')}
         onNavigateToSettings={() => {
           sessionStorage.setItem('adminMode', 'true');
           sessionStorage.setItem('adminTab', 'plugins');
-          setCurrentPage('settings');
+          navigate('/settings');
         }}
       />
     ));
@@ -719,14 +567,14 @@ const App: React.FC = () => {
   // Render Users page (admin only)
   if (currentPage === 'users') {
     return wrapWithBackground(renderPageWithFooter(
-      <UsersPage onBack={() => setCurrentPage('dashboard')} />
+      <UsersPage onBack={() => navigate('/')} />
     ));
   }
 
   // Render Logs page (admin only)
   if (currentPage === 'logs') {
     return wrapWithBackground(renderPageWithFooter(
-      <LogsPage onBack={() => setCurrentPage('dashboard')} />
+      <LogsPage onBack={() => navigate('/')} />
     ));
   }
 
@@ -747,10 +595,8 @@ const App: React.FC = () => {
           pageType="log-viewer"
           user={user || undefined}
           onHomeClick={() => {
-            window.history.replaceState(null, '', window.location.pathname);
-            setSelectedPluginId(null);
             setPluginHeaderData(null);
-            handlePageChange('dashboard');
+            navigate('/');
           }}
           onSettingsClick={handleSettingsClick}
           onAdminClick={handleAdminClick}
@@ -775,9 +621,8 @@ const App: React.FC = () => {
           onToggleAutoRefresh={pluginHeaderData?.onToggleAutoRefresh}
           autoRefreshIntervalMs={pluginHeaderData?.autoRefreshIntervalMs}
           onPluginClick={(pluginId) => {
-            setSelectedPluginId(pluginId);
             setPluginHeaderData(null);
-            // The LogViewerPage will reload with the new plugin
+            navigate(`/log/${pluginId}`);
           }}
           updateBanner={{ show: showUpdateBanner, latestVersion: updateInfo?.latestVersion, releaseNotes: updateInfo?.releaseNotes, onDismiss: dismissBanner }}
         />
@@ -787,10 +632,8 @@ const App: React.FC = () => {
               pluginId={selectedPluginId || undefined}
               defaultLogFile={defaultLogFile || undefined}
               onBack={() => {
-                setCurrentPage('dashboard');
-                setSelectedPluginId(null);
                 setPluginHeaderData(null);
-                setDefaultLogFile(null);
+                navigate('/');
               }}
               onPluginDataChange={setPluginHeaderData}
             />
@@ -822,17 +665,16 @@ const App: React.FC = () => {
           onLogout={handleLogout}
           onPluginClick={(pluginId) => {
             if (pluginId === 'fail2ban') {
-              setCurrentPage('fail2ban');
+              navigate('/fail2ban');
             } else {
-              setSelectedPluginId(pluginId);
-              setCurrentPage('log-viewer');
+              navigate(`/log/${pluginId}`);
             }
           }}
           updateBanner={{ show: showUpdateBanner, latestVersion: updateInfo?.latestVersion, releaseNotes: updateInfo?.releaseNotes, onDismiss: dismissBanner }}
         />
         <div className="flex-1 overflow-hidden">
           <Suspense fallback={<PageLoader />}>
-            <Fail2banPage onBack={() => setCurrentPage('dashboard')} initialTab={defaultFail2banTab as any ?? undefined} />
+            <Fail2banPage onBack={() => navigate('/')} />
           </Suspense>
         </div>
         <Footer
@@ -862,10 +704,9 @@ const App: React.FC = () => {
           onLogout={handleLogout}
           onPluginClick={(pluginId) => {
             if (pluginId === 'fail2ban') {
-              setCurrentPage('fail2ban');
+              navigate('/fail2ban');
             } else {
-              setSelectedPluginId(pluginId);
-              setCurrentPage('log-viewer');
+              navigate(`/log/${pluginId}`);
             }
           }}
           updateBanner={{ show: showUpdateBanner, latestVersion: updateInfo?.latestVersion, releaseNotes: updateInfo?.releaseNotes, onDismiss: dismissBanner }}
@@ -886,10 +727,8 @@ const App: React.FC = () => {
               {/* Recherche globale dans tous les logs actifs */}
               <div className="mb-8">
                 <DashboardSearchCard
-                  onOpenFile={(pluginId, filePath, logType) => {
-                    setSelectedPluginId(pluginId);
-                    setDefaultLogFile(filePath);
-                    setCurrentPage('log-viewer');
+                  onOpenFile={(pluginId, filePath, _logType) => {
+                    navigate(`/log/${pluginId}?file=${encodeURIComponent(filePath)}`);
                   }}
                   osType={pluginHeaderData?.osType}
                   enabledPluginIds={[
@@ -910,14 +749,12 @@ const App: React.FC = () => {
               <div className="mb-8">
                 <ErrorFilesCard
                   onOpenFile={(pluginId, filePath, _logType) => {
-                    setSelectedPluginId(pluginId);
-                    setDefaultLogFile(filePath);
-                    setCurrentPage('log-viewer');
+                    navigate(`/log/${pluginId}?file=${encodeURIComponent(filePath)}`);
                   }}
                   onNavigateToAnalysis={() => {
                     sessionStorage.setItem('adminMode', 'true');
                     sessionStorage.setItem('adminTab', 'analysis');
-                    setCurrentPage('settings');
+                    navigate('/settings');
                   }}
                 />
               </div>
@@ -934,9 +771,7 @@ const App: React.FC = () => {
               {/* Historique des logs */}
               <LogHistoryCard
                 onOpenLog={(entry) => {
-                  setSelectedPluginId(entry.pluginId);
-                  setDefaultLogFile(entry.filePath);
-                  setCurrentPage('log-viewer');
+                  navigate(`/log/${entry.pluginId}?file=${encodeURIComponent(entry.filePath)}`);
                 }}
               />
             </>
