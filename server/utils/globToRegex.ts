@@ -27,3 +27,15 @@ export function globToRegexStr(pattern: string): string {
 export function globToRegex(pattern: string): RegExp {
     return new RegExp(`^${globToRegexStr(pattern)}$`);
 }
+
+/**
+ * Compile a glob pattern for log files, allowing optional rotation
+ * suffixes (.1, .2, .gz, .bz2, .xz) after .log extensions.
+ */
+export function globToLogRegex(pattern: string): RegExp {
+    let s = globToRegexStr(pattern);
+    if (s.endsWith('\\.log')) {
+        s += '(?:\\.\\d+)?(?:\\.(?:gz|bz2|xz))?';
+    }
+    return new RegExp(`^${s}$`);
+}

@@ -10,7 +10,7 @@ import type { LogSourcePlugin, LogFileInfo, ParsedLogEntry } from '../base/LogSo
 import type { PluginStats } from '../base/PluginInterface.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { globToRegexStr } from '../../utils/globToRegex.js';
+import { globToLogRegex } from '../../utils/globToRegex.js';
 
 export interface NpmPluginConfig {
     basePath: string;
@@ -57,14 +57,7 @@ export class NpmLogPlugin extends BasePlugin implements LogSourcePlugin {
         const results: LogFileInfo[] = [];
         const actualBasePath = this.resolveDockerPathSync(basePath);
         try {
-            // Same glob-to-regex as Apache: optional rotation (.1, .2) and compression (.gz, .bz2, .xz) after .log
-            const regexPatterns = patterns.map(p => {
-                let regexStr = globToRegexStr(p);
-                if (regexStr.endsWith('\\.log')) {
-                    regexStr = regexStr + '(?:\\.\\d+)?(?:\\.(?:gz|bz2|xz))?';
-                }
-                return new RegExp(`^${regexStr}$`);
-            });
+            const regexPatterns = patterns.map(p => globToLogRegex(p));
 
             const scanDirectory = async (dir: string): Promise<void> => {
                 try {

@@ -22,7 +22,7 @@ import * as fs from 'fs/promises';
 import * as fsSync from 'fs';
 import * as path from 'path';
 import { logger } from '../../utils/logger.js';
-import { globToRegexStr } from '../../utils/globToRegex.js';
+import { globToLogRegex } from '../../utils/globToRegex.js';
 
 export interface HostSystemPluginConfig {
     // Catégorie 1 : Fichiers Système de Base
@@ -205,15 +205,7 @@ export class HostSystemLogPlugin extends BasePlugin implements LogSourcePlugin {
             // If no patterns provided, use default patterns
             const actualPatterns = patterns.length > 0 ? patterns : this.getDefaultFilePatterns();
 
-            // Convert glob patterns to regex patterns
-            const regexPatterns = actualPatterns.map(p => {
-                let regexStr = globToRegexStr(p);
-                // If pattern ends with .log, allow optional rotation numbers (.1, .2, etc.) and compression extensions (.gz, .bz2, .xz)
-                if (regexStr.endsWith('\\.log')) {
-                    regexStr = regexStr + '(?:\\.\\d+)?(?:\\.(?:gz|bz2|xz))?';
-                }
-                return new RegExp(`^${regexStr}$`);
-            });
+            const regexPatterns = actualPatterns.map(p => globToLogRegex(p));
 
             // For host-system: only scan the base directory, not subdirectories
             // System log files are already detected via logging service detection
