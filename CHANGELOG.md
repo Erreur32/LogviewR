@@ -5,6 +5,27 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.40] - 2026-04-10
+
+### For users
+
+> Code quality & security hardening — no visible changes, same features.
+
+- **Security audit clean** — All SonarCloud security issues resolved (was D, now A). All CodeQL alerts resolved.
+- **Reliability improvements** — 500+ code modernizations (ES2015+ methods) reducing reliability issues by 63%.
+
+---
+
+### Technical
+
+- **SonarCloud security hotspots** — Regex DoS fix in ApacheParser (split instead of backtracking regex), HTTPS for blocklist URLs, `crypto.randomBytes()` replacing `Math.random()`.
+- **CodeQL fixes** — `safe-regex2` for user-controlled regex validation, `express-rate-limit` on user routes, `globToRegex` utility with full regex escaping (replaces 8 duplicated inline implementations).
+- **ES2015+ migration** — `parseInt`→`Number.parseInt`, `parseFloat`→`Number.parseFloat`, `isNaN`→`Number.isNaN`, `.replace(/g)`→`.replaceAll(/g)` across 77 files.
+- **Code deduplication** — `shouldExcludeByFilters()` and `ExcludeFilters` type extracted to BasePlugin, `globToLogRegex()` utility for rotation-aware log matching. Net -200 lines removed from plugin files.
+- **Version script** — `sonar-project.properties` added as 7th versioned file in `update-version.sh`.
+
+---
+
 ## [0.8.39] - 2026-04-10
 
 ### For users
