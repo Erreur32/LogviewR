@@ -357,7 +357,7 @@ router.post('/', requireAuth, requireAdmin, asyncHandler(async (req: Authenticat
 }), autoLog('user.create', 'user'));
 
 // PUT /api/users/:id - Update user (admin only, or self for non-sensitive fields)
-router.put('/:id', requireAuth, asyncHandler(async (req: AuthenticatedRequest, res) => {
+router.put('/:id', rateLimit(10, 60_000), requireAuth, asyncHandler(async (req: AuthenticatedRequest, res) => {
     const userId = Number.parseInt(req.params.id, 10);
     
     if (Number.isNaN(userId)) {

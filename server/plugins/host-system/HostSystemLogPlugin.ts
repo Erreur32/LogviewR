@@ -22,6 +22,7 @@ import * as fs from 'fs/promises';
 import * as fsSync from 'fs';
 import * as path from 'path';
 import { logger } from '../../utils/logger.js';
+import { globToRegex, globToRegexStr } from '../../utils/globToRegex.js';
 
 export interface HostSystemPluginConfig {
     // Catégorie 1 : Fichiers Système de Base
@@ -225,15 +226,7 @@ export class HostSystemLogPlugin extends BasePlugin implements LogSourcePlugin {
             }
         }
         
-        // Convert glob patterns to regex
-        const globToRegex = (pattern: string): RegExp => {
-            let regexStr = pattern
-                .replaceAll(/\./g, '\\.')
-                .replaceAll(/\*\*/g, '.*')
-                .replaceAll(/\*/g, '[^/]*')
-                .replaceAll(/\?/g, '.');
-            return new RegExp(`^${regexStr}$`);
-        };
+        // globToRegex imported at top of file
         
         // Check directory exclusions (explicit user configuration)
         if (isDirectory && excludeFilters.directories && excludeFilters.directories.length > 0) {
@@ -270,21 +263,11 @@ export class HostSystemLogPlugin extends BasePlugin implements LogSourcePlugin {
 
             // Convert glob patterns to regex patterns
             const regexPatterns = actualPatterns.map(p => {
-                // Convert glob pattern to regex
-                // * -> .*, ? -> ., ** -> .*
-                let regexStr = p
-                    .replaceAll(/\./g, '\\.')
-                    .replaceAll(/\*\*/g, '.*')
-                    .replaceAll(/\*/g, '[^/]*')
-                    .replaceAll(/\?/g, '.');
-                
+                let regexStr = globToRegexStr(p);
                 // If pattern ends with .log, allow optional rotation numbers (.1, .2, etc.) and compression extensions (.gz, .bz2, .xz)
-                // This handles: syslog, syslog.1, syslog.1.gz, auth.log, auth.log.1, auth.log.1.gz, etc.
                 if (regexStr.endsWith('\\.log')) {
-                    // Allow optional rotation number (.1, .2, .20240101, etc.) followed by optional compression
                     regexStr = regexStr + '(?:\\.\\d+)?(?:\\.(?:gz|bz2|xz))?';
                 }
-                
                 return new RegExp(`^${regexStr}$`);
             });
 

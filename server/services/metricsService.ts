@@ -138,8 +138,8 @@ export async function generatePrometheusMetrics(): Promise<string> {
                     lines.push(`# TYPE logviewr_disk_usage gauge`);
                     
                     sys.disks.forEach((disk: any, index: number) => {
-                        const mountpoint = (disk.mountpoint || disk.mount || `/disk${index}`).replaceAll(/"/g, '\\"');
-                        const device = (disk.device || 'unknown').replaceAll(/"/g, '\\"');
+                        const mountpoint = (disk.mountpoint || disk.mount || `/disk${index}`).replaceAll(/\\/g, '\\\\').replaceAll(/"/g, '\\"');
+                        const device = (disk.device || 'unknown').replaceAll(/\\/g, '\\\\').replaceAll(/"/g, '\\"');
                         const labels = `{mountpoint="${mountpoint}",device="${device}"}`;
                         
                         const diskTotal = toPrometheusNumber(disk.total);

@@ -10,6 +10,7 @@ import type { LogSourcePlugin, LogFileInfo, ParsedLogEntry } from '../base/LogSo
 import type { PluginStats } from '../base/PluginInterface.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { globToRegex, globToRegexStr } from '../../utils/globToRegex.js';
 
 export interface NpmPluginConfig {
     basePath: string;
@@ -71,15 +72,7 @@ export class NpmLogPlugin extends BasePlugin implements LogSourcePlugin {
             }
         }
         
-        // Convert glob patterns to regex
-        const globToRegex = (pattern: string): RegExp => {
-            let regexStr = pattern
-                .replaceAll(/\./g, '\\.')
-                .replaceAll(/\*\*/g, '.*')
-                .replaceAll(/\*/g, '[^/]*')
-                .replaceAll(/\?/g, '.');
-            return new RegExp(`^${regexStr}$`);
-        };
+        // globToRegex imported at top of file
         
         // Check directory exclusions
         if (isDirectory && excludeFilters.directories && excludeFilters.directories.length > 0) {
@@ -110,11 +103,7 @@ export class NpmLogPlugin extends BasePlugin implements LogSourcePlugin {
         try {
             // Same glob-to-regex as Apache: optional rotation (.1, .2) and compression (.gz, .bz2, .xz) after .log
             const regexPatterns = patterns.map(p => {
-                let regexStr = p
-                    .replaceAll(/\./g, '\\.')
-                    .replaceAll(/\*\*/g, '.*')
-                    .replaceAll(/\*/g, '[^/]*')
-                    .replaceAll(/\?/g, '.');
+                let regexStr = globToRegexStr(p);
                 if (regexStr.endsWith('\\.log')) {
                     regexStr = regexStr + '(?:\\.\\d+)?(?:\\.(?:gz|bz2|xz))?';
                 }

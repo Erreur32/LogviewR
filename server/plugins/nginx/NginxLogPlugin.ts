@@ -10,6 +10,7 @@ import type { LogSourcePlugin, LogFileInfo, ParsedLogEntry } from '../base/LogSo
 import type { PluginStats } from '../base/PluginInterface.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { globToRegex } from '../../utils/globToRegex.js';
 
 export interface NginxPluginConfig {
     basePath: string;
@@ -69,15 +70,7 @@ export class NginxLogPlugin extends BasePlugin implements LogSourcePlugin {
             }
         }
         
-        // Convert glob patterns to regex
-        const globToRegex = (pattern: string): RegExp => {
-            let regexStr = pattern
-                .replaceAll(/\./g, '\\.')
-                .replaceAll(/\*\*/g, '.*')
-                .replaceAll(/\*/g, '[^/]*')
-                .replaceAll(/\?/g, '.');
-            return new RegExp(`^${regexStr}$`);
-        };
+        // globToRegex imported at top of file
         
         // Check directory exclusions
         if (isDirectory && excludeFilters.directories && excludeFilters.directories.length > 0) {
@@ -110,14 +103,7 @@ export class NginxLogPlugin extends BasePlugin implements LogSourcePlugin {
             const actualBasePath = this.convertToDockerPath(basePath);
             
             // Convert glob patterns to regex patterns
-            const regexPatterns = patterns.map(p => {
-                const regexStr = p
-                    .replaceAll(/\./g, '\\.')
-                    .replaceAll(/\*\*/g, '.*')
-                    .replaceAll(/\*/g, '[^/]*')
-                    .replaceAll(/\?/g, '.');
-                return new RegExp(`^${regexStr}$`);
-            });
+            const regexPatterns = patterns.map(p => globToRegex(p));
 
             const scanDirectory = async (dir: string): Promise<void> => {
                 try {

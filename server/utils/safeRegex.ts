@@ -21,5 +21,6 @@ export function compileSafeRegex(pattern: string, flags?: string): RegExp {
         throw new Error('Regex rejected: potential catastrophic backtracking (ReDoS)');
     }
 
-    return new RegExp(trimmed, flags);
+    // Intentional: user-configured regex for log parsing, validated by safe-regex2 above
+    return new RegExp(trimmed, flags); // CodeQL[js/regex-injection] — safe-regex2 validated
 }
