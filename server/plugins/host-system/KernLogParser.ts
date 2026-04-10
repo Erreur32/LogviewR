@@ -33,7 +33,7 @@ export class KernLogParser {
                 const level = this.extractLevelFromMessage(message);
                 const component = this.extractComponent(message);
                 const kernelTimestampMatch = message.match(/\[([\d.]+)\]/);
-                const kernelTimestamp = kernelTimestampMatch ? parseFloat(kernelTimestampMatch[1]) : undefined;
+                const kernelTimestamp = kernelTimestampMatch ? Number.parseFloat(kernelTimestampMatch[1]) : undefined;
 
                 return {
                     timestamp: parseTimestamp(timestamp),
@@ -51,7 +51,7 @@ export class KernLogParser {
                 const level = this.extractLevelFromMessage(message);
                 const component = this.extractComponent(message);
                 const kernelTimestampMatch = message.match(/\[([\d.]+)\]/);
-                const kernelTimestamp = kernelTimestampMatch ? parseFloat(kernelTimestampMatch[1]) : undefined;
+                const kernelTimestamp = kernelTimestampMatch ? Number.parseFloat(kernelTimestampMatch[1]) : undefined;
 
                 return {
                     timestamp: parseTimestamp(timestamp),
@@ -76,7 +76,7 @@ export class KernLogParser {
             
             // Extract kernel timestamp from message if present: [12345.678]
             const kernelTimestampMatch = message.match(/\[([\d.]+)\]/);
-            const kernelTimestamp = kernelTimestampMatch ? parseFloat(kernelTimestampMatch[1]) : undefined;
+            const kernelTimestamp = kernelTimestampMatch ? Number.parseFloat(kernelTimestampMatch[1]) : undefined;
 
             return {
                 timestamp: parseTimestamp(match.timestamp),
@@ -103,7 +103,7 @@ export class KernLogParser {
                 level,
                 message: message.trim(),
                 component,
-                kernelTimestamp: kernelTimestamp ? parseFloat(kernelTimestamp) : undefined
+                kernelTimestamp: kernelTimestamp ? Number.parseFloat(kernelTimestamp) : undefined
             };
         }
 

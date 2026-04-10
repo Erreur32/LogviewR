@@ -156,9 +156,9 @@ const getAllDiskUsage = async (): Promise<Array<{ mount: string; total: number; 
           const parts = line.trim().split(/\s+/);
           if (parts.length >= 4) {
             const mount = parts[0];
-            const total = parseInt(parts[1], 10) * 1024;
-            const free = parseInt(parts[2], 10) * 1024;
-            const used = parseInt(parts[3], 10) * 1024;
+            const total = Number.parseInt(parts[1], 10) * 1024;
+            const free = Number.parseInt(parts[2], 10) * 1024;
+            const used = Number.parseInt(parts[3], 10) * 1024;
             const percentage = total > 0 ? (used / total) * 100 : 0;
             
             // Filter out system directories
@@ -261,10 +261,10 @@ const getAllDiskUsage = async (): Promise<Array<{ mount: string; total: number; 
               const parts = stdout.trim().split(/\s+/);
               
               if (parts.length >= 6) {
-                const total = parseInt(parts[1], 10) * 1024;
-                const used = parseInt(parts[2], 10) * 1024;
-                const available = parseInt(parts[3], 10) * 1024;
-                const percentage = parseFloat(parts[4].replace('%', ''));
+                const total = Number.parseInt(parts[1], 10) * 1024;
+                const used = Number.parseInt(parts[2], 10) * 1024;
+                const available = Number.parseInt(parts[3], 10) * 1024;
+                const percentage = Number.parseFloat(parts[4].replace('%', ''));
                 
                 // Only include disks > 100MB
                 if (!Number.isNaN(total) && total > 100 * 1024 * 1024) {
@@ -300,10 +300,10 @@ const getAllDiskUsage = async (): Promise<Array<{ mount: string; total: number; 
         const parts = stdout.trim().split(/\s+/);
 
         if (parts.length >= 6) {
-          const total = parseInt(parts[1], 10) * 1024;
-          const used = parseInt(parts[2], 10) * 1024;
-          const available = parseInt(parts[3], 10) * 1024;
-          const percentage = parseFloat(parts[4].replace('%', ''));
+          const total = Number.parseInt(parts[1], 10) * 1024;
+          const used = Number.parseInt(parts[2], 10) * 1024;
+          const available = Number.parseInt(parts[3], 10) * 1024;
+          const percentage = Number.parseFloat(parts[4].replace('%', ''));
 
           if (!Number.isNaN(total) && total > 0) {
             debugLog(`[SystemServer] ✓ Found disk using direct df method (fallback)`);
@@ -334,9 +334,9 @@ const getAllDiskUsage = async (): Promise<Array<{ mount: string; total: number; 
         const parts = line.trim().split(/\s+/);
         if (parts.length >= 4) {
           const mount = parts[0];
-          const total = parseInt(parts[1], 10) * 1024;
-          const free = parseInt(parts[2], 10) * 1024;
-          const used = parseInt(parts[3], 10) * 1024;
+          const total = Number.parseInt(parts[1], 10) * 1024;
+          const free = Number.parseInt(parts[2], 10) * 1024;
+          const used = Number.parseInt(parts[3], 10) * 1024;
           const percentage = total > 0 ? (used / total) * 100 : 0;
 
           disks.push({
@@ -792,7 +792,7 @@ router.get('/server', async (_req, res) => {
           await fs.access(hostUptimePath);
           const uptimeContent = await fs.readFile(hostUptimePath, 'utf8');
           const firstField = uptimeContent.split(' ')[0];
-          const hostUptimeSeconds = parseFloat(firstField);
+          const hostUptimeSeconds = Number.parseFloat(firstField);
           if (!Number.isNaN(hostUptimeSeconds) && hostUptimeSeconds > 0) {
             uptime = hostUptimeSeconds;
             debugLog(`[SystemServer] Read host uptime from ${hostUptimePath}: ${Math.floor(uptime / 3600)}h`);
@@ -914,10 +914,10 @@ const getNetworkStats = async (): Promise<{ rxBytes: number; txBytes: number } |
             continue;
           }
           
-          const rxBytes = parseInt(parts[1], 10);
-          const txBytes = parseInt(parts[9], 10);
+          const rxBytes = Number.parseInt(parts[1], 10);
+          const txBytes = Number.parseInt(parts[9], 10);
           
-          if (!isNaN(rxBytes) && !isNaN(txBytes) && rxBytes > 0 && txBytes > 0) {
+          if (!Number.isNaN(rxBytes) && !Number.isNaN(txBytes) && rxBytes > 0 && txBytes > 0) {
             totalRxBytes += rxBytes;
             totalTxBytes += txBytes;
             validInterfaces++;
@@ -965,10 +965,10 @@ const getNetworkStats = async (): Promise<{ rxBytes: number; txBytes: number } |
               continue;
             }
             
-            const rxBytes = parseInt(parts[1], 10);
-            const txBytes = parseInt(parts[9], 10);
+            const rxBytes = Number.parseInt(parts[1], 10);
+            const txBytes = Number.parseInt(parts[9], 10);
             
-            if (!isNaN(rxBytes) && !isNaN(txBytes) && rxBytes > 0 && txBytes > 0) {
+            if (!Number.isNaN(rxBytes) && !Number.isNaN(txBytes) && rxBytes > 0 && txBytes > 0) {
               totalRxBytes += rxBytes;
               totalTxBytes += txBytes;
               validInterfaces++;

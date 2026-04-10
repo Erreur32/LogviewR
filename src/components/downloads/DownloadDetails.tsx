@@ -28,13 +28,13 @@ import type { DownloadTracker, DownloadPeer, DownloadFile, DownloadBlacklistEntr
 
 // Format file size
 const formatSize = (bytes: number | undefined | null): string => {
-  if (bytes === undefined || bytes === null || bytes === 0 || isNaN(bytes)) return '0 B';
+  if (bytes === undefined || bytes === null || bytes === 0 || Number.isNaN(bytes)) return '0 B';
   if (bytes < 0) return '0 B';
   const k = 1024;
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   if (i < 0 || i >= sizes.length) return '0 B';
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  return Number.parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
 
 // Format speed

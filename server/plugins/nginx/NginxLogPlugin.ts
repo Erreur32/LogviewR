@@ -72,10 +72,10 @@ export class NginxLogPlugin extends BasePlugin implements LogSourcePlugin {
         // Convert glob patterns to regex
         const globToRegex = (pattern: string): RegExp => {
             let regexStr = pattern
-                .replace(/\./g, '\\.')
-                .replace(/\*\*/g, '.*')
-                .replace(/\*/g, '[^/]*')
-                .replace(/\?/g, '.');
+                .replaceAll(/\./g, '\\.')
+                .replaceAll(/\*\*/g, '.*')
+                .replaceAll(/\*/g, '[^/]*')
+                .replaceAll(/\?/g, '.');
             return new RegExp(`^${regexStr}$`);
         };
         
@@ -112,10 +112,10 @@ export class NginxLogPlugin extends BasePlugin implements LogSourcePlugin {
             // Convert glob patterns to regex patterns
             const regexPatterns = patterns.map(p => {
                 const regexStr = p
-                    .replace(/\./g, '\\.')
-                    .replace(/\*\*/g, '.*')
-                    .replace(/\*/g, '[^/]*')
-                    .replace(/\?/g, '.');
+                    .replaceAll(/\./g, '\\.')
+                    .replaceAll(/\*\*/g, '.*')
+                    .replaceAll(/\*/g, '[^/]*')
+                    .replaceAll(/\?/g, '.');
                 return new RegExp(`^${regexStr}$`);
             });
 

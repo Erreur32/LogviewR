@@ -195,8 +195,8 @@ export class HostSystemLogPlugin extends BasePlugin implements LogSourcePlugin {
         if (isDirectory) {
             // Check if this directory is within the basePath
             // Normalize paths to handle different separators and relative paths
-            const normalizedBasePath = path.resolve(basePath).replace(/\\/g, '/');
-            const normalizedFilePath = path.resolve(filePath).replace(/\\/g, '/');
+            const normalizedBasePath = path.resolve(basePath).replaceAll(/\\/g, '/');
+            const normalizedFilePath = path.resolve(filePath).replaceAll(/\\/g, '/');
             
             // If directory is inside basePath (but not the basePath itself) and no explicit filters are configured
             if (normalizedFilePath.startsWith(normalizedBasePath + '/') && 
@@ -228,10 +228,10 @@ export class HostSystemLogPlugin extends BasePlugin implements LogSourcePlugin {
         // Convert glob patterns to regex
         const globToRegex = (pattern: string): RegExp => {
             let regexStr = pattern
-                .replace(/\./g, '\\.')
-                .replace(/\*\*/g, '.*')
-                .replace(/\*/g, '[^/]*')
-                .replace(/\?/g, '.');
+                .replaceAll(/\./g, '\\.')
+                .replaceAll(/\*\*/g, '.*')
+                .replaceAll(/\*/g, '[^/]*')
+                .replaceAll(/\?/g, '.');
             return new RegExp(`^${regexStr}$`);
         };
         
@@ -273,10 +273,10 @@ export class HostSystemLogPlugin extends BasePlugin implements LogSourcePlugin {
                 // Convert glob pattern to regex
                 // * -> .*, ? -> ., ** -> .*
                 let regexStr = p
-                    .replace(/\./g, '\\.')
-                    .replace(/\*\*/g, '.*')
-                    .replace(/\*/g, '[^/]*')
-                    .replace(/\?/g, '.');
+                    .replaceAll(/\./g, '\\.')
+                    .replaceAll(/\*\*/g, '.*')
+                    .replaceAll(/\*/g, '[^/]*')
+                    .replaceAll(/\?/g, '.');
                 
                 // If pattern ends with .log, allow optional rotation numbers (.1, .2, etc.) and compression extensions (.gz, .bz2, .xz)
                 // This handles: syslog, syslog.1, syslog.1.gz, auth.log, auth.log.1, auth.log.1.gz, etc.

@@ -257,13 +257,13 @@ const HistChart: React.FC<{ hist: IpSetHist; days: number; onDaysChange: (d: num
     }
 
     const xLabel = (dt: string) => {
-        if (hourly && dt.includes(' ')) return `${parseInt(dt.split(' ')[1], 10)}h`;
+        if (hourly && dt.includes(' ')) return `${Number.parseInt(dt.split(' ')[1], 10)}h`;
         return dt.slice(5);
     };
     const tipText = (dt: string, nm: string, v: number) => {
         if (hourly && dt.includes(' ')) {
             const [datePart, hStr] = dt.split(' ');
-            const h = parseInt(hStr, 10);
+            const h = Number.parseInt(hStr, 10);
             const [, mo, d] = datePart.split('-');
             return `${d}/${mo} ${String(h).padStart(2, '0')}:00–${String(h + 1).padStart(2, '0')}:00 — ${nm}: ${v}`;
         }

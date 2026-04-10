@@ -35,7 +35,7 @@ export class SyslogParser {
                 tag,
                 message: message.trim(),
                 level: this.extractLevelFromMessage(message),
-                pid: pid ? parseInt(pid, 10) : undefined
+                pid: pid ? Number.parseInt(pid, 10) : undefined
             };
         }
 
@@ -45,7 +45,7 @@ export class SyslogParser {
         
         if (priorityMatch && priorityMatch.priority && priorityMatch.timestamp && 
             priorityMatch.hostname && priorityMatch.program && priorityMatch.message) {
-            const priority = parseInt(priorityMatch.priority, 10);
+            const priority = Number.parseInt(priorityMatch.priority, 10);
             const level = this.getLevelFromPriority(priority);
 
             return {
@@ -55,7 +55,7 @@ export class SyslogParser {
                 tag: priorityMatch.program,
                 message: priorityMatch.message.trim(),
                 priority,
-                pid: priorityMatch.pid ? parseInt(priorityMatch.pid, 10) : undefined
+                pid: priorityMatch.pid ? Number.parseInt(priorityMatch.pid, 10) : undefined
             };
         }
 
@@ -71,7 +71,7 @@ export class SyslogParser {
                 tag: baseMatch.program,
                 message: baseMatch.message.trim(),
                 level: this.extractLevelFromMessage(baseMatch.message),
-                pid: baseMatch.pid ? parseInt(baseMatch.pid, 10) : undefined
+                pid: baseMatch.pid ? Number.parseInt(baseMatch.pid, 10) : undefined
             };
         }
         
@@ -84,7 +84,7 @@ export class SyslogParser {
                 tag: baseMatch.program,
                 message: baseMatch.message.trim(),
                 level: this.extractLevelFromMessage(baseMatch.message),
-                pid: baseMatch.pid ? parseInt(baseMatch.pid, 10) : undefined
+                pid: baseMatch.pid ? Number.parseInt(baseMatch.pid, 10) : undefined
             };
         }
         
@@ -97,7 +97,7 @@ export class SyslogParser {
                 tag: baseMatch.program,
                 message: baseMatch.message.trim(),
                 level: this.extractLevelFromMessage(baseMatch.message),
-                pid: baseMatch.pid ? parseInt(baseMatch.pid, 10) : undefined
+                pid: baseMatch.pid ? Number.parseInt(baseMatch.pid, 10) : undefined
             };
         }
 
@@ -107,7 +107,7 @@ export class SyslogParser {
 
         if (match) {
             const [, priority, timestamp, hostname, tag, message] = match;
-            const level = this.getLevelFromPriority(parseInt(priority, 10));
+            const level = this.getLevelFromPriority(Number.parseInt(priority, 10));
 
             return {
                 timestamp: parseTimestamp(timestamp),
@@ -115,7 +115,7 @@ export class SyslogParser {
                 hostname,
                 tag,
                 message: message.trim(),
-                priority: parseInt(priority, 10)
+                priority: Number.parseInt(priority, 10)
             };
         }
 
@@ -211,7 +211,7 @@ export class SyslogParser {
                 timestamp: parseTimestamp(match.timestamp),
                 hostname: match.hostname,
                 tag: match.program,
-                pid: match.pid ? parseInt(match.pid, 10) : undefined,
+                pid: match.pid ? Number.parseInt(match.pid, 10) : undefined,
                 message: match.message.trim(),
                 level: this.extractLevelFromMessage(match.message)
             };
@@ -228,7 +228,7 @@ export class SyslogParser {
                 timestamp: parseTimestamp(timestamp),
                 hostname,
                 tag,
-                pid: parseInt(pid, 10),
+                pid: Number.parseInt(pid, 10),
                 message: message.trim(),
                 level: this.extractLevelFromMessage(message)
             };

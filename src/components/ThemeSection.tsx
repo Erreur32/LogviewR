@@ -283,7 +283,7 @@ const CARD_OPACITY_STORAGE_KEY = 'logviewr_card_opacity';
 const VALID_THEMES_LIST: Theme[] = ['dark', 'glass', 'modern', 'nightly', 'neon', 'elegant', 'full-animation'];
 
 /** Maps animation id to i18n key (dots to underscores) */
-const animationLabelKey = (id: string): string => id.replace(/\./g, '_');
+const animationLabelKey = (id: string): string => id.replaceAll(/\./g, '_');
 
 export const ThemeSection: React.FC = () => {
     const { t } = useTranslation();
@@ -412,7 +412,7 @@ export const ThemeSection: React.FC = () => {
         setCustomColors({});
         const root = document.documentElement;
         Object.keys(DEFAULT_COLORS[theme]).forEach((key) => {
-            const cssVar = `--${key.replace(/([A-Z])/g, '-$1').toLowerCase()}`;
+            const cssVar = `--${key.replaceAll(/([A-Z])/g, '-$1').toLowerCase()}`;
             root.style.removeProperty(cssVar);
         });
         const opacity = cardOpacity[theme] ?? 1;
@@ -476,7 +476,7 @@ export const ThemeSection: React.FC = () => {
         
         // Apply custom colors as CSS variables
         Object.entries(colors).forEach(([key, value]) => {
-            const cssVarName = cssVarMap[key] || key.replace(/([A-Z])/g, '-$1').toLowerCase();
+            const cssVarName = cssVarMap[key] || key.replaceAll(/([A-Z])/g, '-$1').toLowerCase();
             root.style.setProperty(`--${cssVarName}`, value as string);
         });
         
@@ -501,7 +501,7 @@ export const ThemeSection: React.FC = () => {
             // Clear any custom CSS variables to use theme defaults
             const root = document.documentElement;
             Object.keys(DEFAULT_COLORS[currentTheme]).forEach((key) => {
-                const cssVar = `--${key.replace(/([A-Z])/g, '-$1').toLowerCase()}`;
+                const cssVar = `--${key.replaceAll(/([A-Z])/g, '-$1').toLowerCase()}`;
                 root.style.removeProperty(cssVar);
             });
             // Ensure theme is applied
@@ -539,7 +539,7 @@ export const ThemeSection: React.FC = () => {
         // Clear custom CSS variables to use theme defaults
         const root = document.documentElement;
         Object.keys(DEFAULT_COLORS[currentTheme]).forEach((key) => {
-            const cssVar = `--${key.replace(/([A-Z])/g, '-$1').toLowerCase()}`;
+            const cssVar = `--${key.replaceAll(/([A-Z])/g, '-$1').toLowerCase()}`;
             root.style.removeProperty(cssVar);
         });
         // Re-apply theme to ensure defaults are used
@@ -1074,7 +1074,7 @@ export const ThemeSection: React.FC = () => {
                                             max={MAX_SPEED}
                                             step={0.05}
                                             value={MAX_SPEED - animationSpeed}
-                                            onChange={(e) => setAnimationSpeed(MAX_SPEED - parseFloat(e.target.value))}
+                                            onChange={(e) => setAnimationSpeed(MAX_SPEED - Number.parseFloat(e.target.value))}
                                             className="flex-1 h-2 rounded-lg appearance-none cursor-pointer bg-theme-primary accent-yellow-500"
                                         />
                                         <button
@@ -1179,7 +1179,7 @@ export const ThemeSection: React.FC = () => {
                                                             max={param.max}
                                                             step={step}
                                                             value={rangeValue}
-                                                            onChange={(e) => animationParamsContext.setParameter(param.name, parseFloat(e.target.value))}
+                                                            onChange={(e) => animationParamsContext.setParameter(param.name, Number.parseFloat(e.target.value))}
                                                             className="flex-1 h-2 rounded-lg appearance-none cursor-pointer bg-theme-primary accent-yellow-500"
                                                         />
                                                         <button
@@ -1270,7 +1270,7 @@ export const ThemeSection: React.FC = () => {
                                 step={0.05}
                                 value={cardOpacity[currentTheme] ?? 1}
                                 onChange={(e) => {
-                                    const v = parseFloat(e.target.value);
+                                    const v = Number.parseFloat(e.target.value);
                                     setCardOpacity((prev) => ({ ...prev, [currentTheme]: v }));
                                     document.documentElement.style.setProperty('--card-opacity', String(v));
                                     try {

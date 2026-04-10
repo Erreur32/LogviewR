@@ -40,7 +40,7 @@ function toPrometheusNumber(value: any): number {
     
     // If value is already a number, return it
     if (typeof value === 'number') {
-        return isNaN(value) || !isFinite(value) ? 0 : value;
+        return Number.isNaN(value) || !isFinite(value) ? 0 : value;
     }
     
     // If value is a boolean, convert to 0 or 1
@@ -67,8 +67,8 @@ function toPrometheusNumber(value: any): number {
     }
     
     // Try to parse as number
-    const parsed = parseFloat(String(value));
-    return isNaN(parsed) || !isFinite(parsed) ? 0 : parsed;
+    const parsed = Number.parseFloat(String(value));
+    return Number.isNaN(parsed) || !isFinite(parsed) ? 0 : parsed;
 }
 
 /**
@@ -138,8 +138,8 @@ export async function generatePrometheusMetrics(): Promise<string> {
                     lines.push(`# TYPE logviewr_disk_usage gauge`);
                     
                     sys.disks.forEach((disk: any, index: number) => {
-                        const mountpoint = (disk.mountpoint || disk.mount || `/disk${index}`).replace(/"/g, '\\"');
-                        const device = (disk.device || 'unknown').replace(/"/g, '\\"');
+                        const mountpoint = (disk.mountpoint || disk.mount || `/disk${index}`).replaceAll(/"/g, '\\"');
+                        const device = (disk.device || 'unknown').replaceAll(/"/g, '\\"');
                         const labels = `{mountpoint="${mountpoint}",device="${device}"}`;
                         
                         const diskTotal = toPrometheusNumber(disk.total);

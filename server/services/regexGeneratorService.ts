@@ -173,7 +173,7 @@ export function generateRegexFromLogLine(logLine: string): {
         } else if (patterns.httpMethod.test(token.value)) {
             baseGroupName = 'method';
             pattern = `(${token.value})`;
-        } else if (patterns.statusCode.test(token.value) && parseInt(token.value) >= 100 && parseInt(token.value) < 600) {
+        } else if (patterns.statusCode.test(token.value) && Number.parseInt(token.value) >= 100 && Number.parseInt(token.value) < 600) {
             baseGroupName = 'status';
             pattern = `(\\d{3})`;
         } else if (patterns.number.test(token.value)) {
@@ -212,7 +212,7 @@ export function generateRegexFromLogLine(logLine: string): {
             token.groupName = groupName;
         } else {
             // Escape special regex characters
-            regexParts.push(token.value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+            regexParts.push(token.value.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&'));
         }
 
         // Add space between tokens (most log formats use spaces as separators)

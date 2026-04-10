@@ -306,7 +306,7 @@ function executeVacuumIfAllowed(): void {
         const oneDayInMs = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
         
         if (lastVacuumJson) {
-            const lastVacuum = parseInt(lastVacuumJson, 10);
+            const lastVacuum = Number.parseInt(lastVacuumJson, 10);
             const timeSinceLastVacuum = now - lastVacuum;
             
             if (timeSinceLastVacuum < oneDayInMs) {

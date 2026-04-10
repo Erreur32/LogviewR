@@ -100,7 +100,7 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
         try {
             const stored = localStorage.getItem(AUTO_REFRESH_STORAGE_KEY);
             if (stored) {
-                const n = parseInt(stored, 10);
+                const n = Number.parseInt(stored, 10);
                 if (Number.isFinite(n) && n > 0) return n;
             }
         } catch {
@@ -598,7 +598,7 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
             .map(log => {
                 if (log.timestamp) {
                     const date = typeof log.timestamp === 'string' ? new Date(log.timestamp) : log.timestamp;
-                    return isNaN(date.getTime()) ? null : date;
+                    return Number.isNaN(date.getTime()) ? null : date;
                 }
                 return null;
             })
@@ -835,7 +835,7 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
                                                             <select
                                                                 value={pageSize}
                                                                 onChange={(e) => {
-                                                                    const newSize = parseInt(e.target.value, 10);
+                                                                    const newSize = Number.parseInt(e.target.value, 10);
                                                                     setPageSize(newSize);
                                                                     setPage(1);
                                                                     // Reload raw logs with new page size

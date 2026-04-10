@@ -262,7 +262,7 @@ const server = http.createServer(app);
 if (process.env.DEBUG_UPGRADE === 'true') {
 server.on('upgrade', (request, socket, head) => {
   // Sanitize URL before logging to prevent log injection (SonarCloud S5145)
-  const safeUrl = (request.url || '').replace(/[\r\n]/g, '').slice(0, 200);
+  const safeUrl = (request.url || '').replaceAll(/[\r\n]/g, '').slice(0, 200);
   console.log('[HTTP] Upgrade request received:', safeUrl);
 });
 }
@@ -393,10 +393,10 @@ function getHostMachineIP(): string | null {
               // Format: hex string like "0101A8C0" -> "192.168.1.1"
               const gatewayHex = gateway;
               if (gatewayHex.length === 8) {
-                const octet1 = parseInt(gatewayHex.substring(6, 8), 16);
-                const octet2 = parseInt(gatewayHex.substring(4, 6), 16);
-                const octet3 = parseInt(gatewayHex.substring(2, 4), 16);
-                const octet4 = parseInt(gatewayHex.substring(0, 2), 16);
+                const octet1 = Number.parseInt(gatewayHex.substring(6, 8), 16);
+                const octet2 = Number.parseInt(gatewayHex.substring(4, 6), 16);
+                const octet3 = Number.parseInt(gatewayHex.substring(2, 4), 16);
+                const octet4 = Number.parseInt(gatewayHex.substring(0, 2), 16);
                 const gatewayIP = `${octet1}.${octet2}.${octet3}.${octet4}`;
                 
                 // Return gateway IP (Docker bridge IP, e.g., 172.17.0.1)
@@ -690,7 +690,7 @@ ${colors.bright}${colors.cyan}╔${'═'.repeat(width)}${colors.reset}
 ${colors.bright}${colors.cyan}║${' '.repeat(titlePadding)}${colors.white}${colors.bright}${title}${colors.reset}${' '.repeat(width - titlePadding - visibleLength(title))}${colors.reset}
 ${colors.bright}${colors.cyan}║${' '.repeat(subtitlePadding)}${colors.dim}${subtitle}${colors.reset}${' '.repeat(width - subtitlePadding - visibleLength(subtitle))}${colors.reset}
 ${colors.bright}${colors.cyan}╠${'═'.repeat(width)}${colors.reset}
-${colors.bright}${colors.cyan}║${' '.repeat(versionPadding)}${isDockerProd ? colors.yellow : (isNpmDev || isDockerDev ? colors.bright : colors.bright)}${colors.green}${colors.bright}${versionLabel}${colors.reset}${' '.repeat(width - versionPadding - visibleLength(versionLabel))}${colors.reset}
+${colors.bright}${colors.cyan}║${' '.repeat(versionPadding)}${isDockerProd ? colors.yellow : colors.bright}${colors.green}${colors.bright}${versionLabel}${colors.reset}${' '.repeat(width - versionPadding - visibleLength(versionLabel))}${colors.reset}
 ${colors.bright}${colors.cyan}║${colors.reset}  ${colors.cyan}📦${colors.reset} ${colors.bright}Container:${colors.reset}           ${colors.cyan}${containerName}${colors.reset}${colors.reset}
 ${colors.bright}${colors.cyan}╠${'═'.repeat(width)}${colors.reset}
 ${colors.bright}${colors.cyan}║${colors.reset}  ${colors.green}🌐${colors.reset} ${colors.bright}${padLabel('Frontend WEB')}:${colors.reset} ${colors.cyan}${frontendWebUrl}${colors.reset}${colors.reset}

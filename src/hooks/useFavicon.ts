@@ -54,9 +54,9 @@ export const useFavicon = (iconUrl: string, autoInvert: boolean = true) => {
           let svgText = await response.text();
 
           // Replace white/light colors with dark colors for favicon visibility
-          svgText = svgText.replace(/#FDFDFD/gi, '#1a1a1a');
-          svgText = svgText.replace(/#FFFFFF/gi, '#1a1a1a');
-          svgText = svgText.replace(/white/gi, '#1a1a1a');
+          svgText = svgText.replaceAll(/#FDFDFD/gi, '#1a1a1a');
+          svgText = svgText.replaceAll(/#FFFFFF/gi, '#1a1a1a');
+          svgText = svgText.replaceAll(/white/gi, '#1a1a1a');
 
           // Create a data URL from the modified SVG
           const dataUrl = `data:image/svg+xml,${encodeURIComponent(svgText)}`;

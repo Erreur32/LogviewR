@@ -37,7 +37,7 @@ interface JailParams {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function fmtHint(secs: number): string {
-    if (isNaN(secs)) return '';
+    if (Number.isNaN(secs)) return '';
     if (secs < 0) return 'Permanent';
     if (secs === 0) return '0 sec';
     const d = Math.floor(secs / 86400);
@@ -119,7 +119,7 @@ const FailregexSection: React.FC<{ jailName: string }> = ({ jailName }) => {
 // ── Param row ─────────────────────────────────────────────────────────────────
 
 const ParamRow: React.FC<{ label: string; hint: string; id: string; value: string; onChange: (v: string) => void; min?: number }> = ({ label, hint, id, value, onChange, min = -1 }) => {
-    const numVal = parseInt(value, 10);
+    const numVal = Number.parseInt(value, 10);
     const hintStr = fmtHint(numVal);
     return (
         <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr auto', gap: '.5rem', alignItems: 'center', marginBottom: '.55rem' }}>
@@ -130,9 +130,9 @@ const ParamRow: React.FC<{ label: string; hint: string; id: string; value: strin
                 <span style={{ fontSize: '.7rem', color: numVal < 0 ? '#e86a65' : '#8b949e', whiteSpace: 'nowrap', minWidth: 60 }}>{hintStr}</span>
             </div>
             <div style={{ display: 'flex', gap: '.2rem' }}>
-                <button type="button" onClick={() => onChange(String(Math.max(min, (parseInt(value) || 0) - (Math.abs(parseInt(value) || 60) > 3600 ? 3600 : 60))))}
+                <button type="button" onClick={() => onChange(String(Math.max(min, (Number.parseInt(value) || 0) - (Math.abs(Number.parseInt(value) || 60) > 3600 ? 3600 : 60))))}
                     style={{ ...btnBase, padding: '.2rem .45rem', fontSize: '.8rem', borderColor: '#30363d', background: 'transparent', color: '#8b949e' }}>−</button>
-                <button type="button" onClick={() => onChange(String((parseInt(value) || 0) + (Math.abs(parseInt(value) || 60) >= 3600 ? 3600 : 60)))}
+                <button type="button" onClick={() => onChange(String((Number.parseInt(value) || 0) + (Math.abs(Number.parseInt(value) || 60) >= 3600 ? 3600 : 60)))}
                     style={{ ...btnBase, padding: '.2rem .45rem', fontSize: '.8rem', borderColor: '#30363d', background: 'transparent', color: '#8b949e' }}>+</button>
             </div>
         </div>
@@ -202,9 +202,9 @@ export const JailConfigModal: React.FC<JailConfigModalProps> = ({ jailName, isAc
         }
         setSaving(true); setMsg(null);
         const body: Record<string, unknown> = {
-            bantime:  parseInt(bantime,  10),
-            findtime: parseInt(findtime, 10),
-            maxretry: parseInt(maxretry, 10),
+            bantime:  Number.parseInt(bantime,  10),
+            findtime: Number.parseInt(findtime, 10),
+            maxretry: Number.parseInt(maxretry, 10),
             ignoreip: ignoreipList.join(' '),
             usedns,
             logpath,
@@ -339,8 +339,8 @@ export const JailConfigModal: React.FC<JailConfigModalProps> = ({ jailName, isAc
                                         <span style={{ fontSize: '.7rem', color: '#8b949e', whiteSpace: 'nowrap', minWidth: 60 }}>tentatives</span>
                                     </div>
                                     <div style={{ display: 'flex', gap: '.2rem' }}>
-                                        <button type="button" onClick={() => setMaxretry(v => String(Math.max(1, (parseInt(v) || 1) - 1)))} style={{ ...btnBase, padding: '.2rem .45rem', fontSize: '.8rem', borderColor: '#30363d', background: 'transparent', color: '#8b949e' }}>−</button>
-                                        <button type="button" onClick={() => setMaxretry(v => String((parseInt(v) || 1) + 1))} style={{ ...btnBase, padding: '.2rem .45rem', fontSize: '.8rem', borderColor: '#30363d', background: 'transparent', color: '#8b949e' }}>+</button>
+                                        <button type="button" onClick={() => setMaxretry(v => String(Math.max(1, (Number.parseInt(v) || 1) - 1)))} style={{ ...btnBase, padding: '.2rem .45rem', fontSize: '.8rem', borderColor: '#30363d', background: 'transparent', color: '#8b949e' }}>−</button>
+                                        <button type="button" onClick={() => setMaxretry(v => String((Number.parseInt(v) || 1) + 1))} style={{ ...btnBase, padding: '.2rem .45rem', fontSize: '.8rem', borderColor: '#30363d', background: 'transparent', color: '#8b949e' }}>+</button>
                                     </div>
                                 </div>
                             </div>

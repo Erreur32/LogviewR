@@ -462,7 +462,7 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
     const formatTsLabel = useCallback((raw: string, bucket: 'minute' | 'hour' | 'day') => {
         try {
             let d = new Date(raw);
-            if (isNaN(d.getTime())) {
+            if (Number.isNaN(d.getTime())) {
                 const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{1,2})(?::(\d{2}))?(?::(\d{2}))?/);
                 if (m) d = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +(m[5] ?? 0), +(m[6] ?? 0));
                 else return raw;
@@ -532,7 +532,7 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                 else if (s.length === 13) s += ':00:00';
                 else if (s.length === 16) s += ':00';
                 const d = new Date(s);
-                if (isNaN(d.getTime())) continue;
+                if (Number.isNaN(d.getTime())) continue;
                 const jsDay = d.getDay();
                 byDay[jsDay === 0 ? 6 : jsDay - 1] += b.count;
                 byHour[d.getHours()] += b.count;

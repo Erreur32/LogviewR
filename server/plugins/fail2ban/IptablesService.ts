@@ -38,8 +38,8 @@ function parseIptOutput(text: string): IptChain[] {
         if (!line.trim()) continue;
         const p = line.trim().split(/\s+/);
         if (p.length < 10) continue;
-        const num = parseInt(p[0], 10);
-        if (isNaN(num)) continue;
+        const num = Number.parseInt(p[0], 10);
+        if (Number.isNaN(num)) continue;
         // Fields: num pkts bytes target prot opt in out source dest [options...]
         current.rules.push({ num, pkts: p[1], bytes: p[2], target: p[3], prot: p[4], iface_in: p[6], iface_out: p[7], source: p[8], dest: p[9], options: p.slice(10).join(' ') });
     }
@@ -189,8 +189,8 @@ export class IptablesService {
         ensureBackupDir();
         const r = await this.save();
         if (!r.ok) return { ok: false, error: r.error };
-        const ts = new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').slice(0, 19);
-        const safe = (label ?? '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 40);
+        const ts = new Date().toISOString().replaceAll(/[:.]/g, '-').replace('T', '_').slice(0, 19);
+        const safe = (label ?? '').replaceAll(/[^a-zA-Z0-9_-]/g, '').slice(0, 40);
         const filename = safe ? `${ts}-${safe}.rules` : `${ts}.rules`;
         try {
             fs.writeFileSync(path.join(getBackupDir(), filename), r.output, 'utf8');
@@ -240,8 +240,8 @@ export class IptablesService {
         try {
             const [c, a] = priv('ipset', ['save']);
             const { stdout } = await execFileAsync(c, a, { timeout: EXEC_TIMEOUT, maxBuffer: 16 * 1024 * 1024 });
-            const ts = new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').slice(0, 19);
-            const safe = (label ?? '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 40);
+            const ts = new Date().toISOString().replaceAll(/[:.]/g, '-').replace('T', '_').slice(0, 19);
+            const safe = (label ?? '').replaceAll(/[^a-zA-Z0-9_-]/g, '').slice(0, 40);
             const filename = safe ? `${ts}-${safe}.ipset` : `${ts}.ipset`;
             fs.writeFileSync(path.join(getBackupDir(), filename), stdout, 'utf8');
             return { ok: true, filename };

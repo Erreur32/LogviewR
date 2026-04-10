@@ -137,7 +137,7 @@ function toDate(ts: Date | string | undefined): Date | null {
     if (!ts) return null;
     if (ts instanceof Date) return ts;
     const d = new Date(ts);
-    return isNaN(d.getTime()) ? null : d;
+    return Number.isNaN(d.getTime()) ? null : d;
 }
 
 export type FileScopeOption = 'latest' | 'all';

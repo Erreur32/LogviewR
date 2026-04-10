@@ -72,7 +72,7 @@ function checkKnownProvider(ip: string): KnownProvider | null {
     // IPv6 not supported for CIDR check
     if (!ip || ip.includes(':')) return null;
     const parts = ip.split('.').map(Number);
-    if (parts.length !== 4 || parts.some(p => isNaN(p) || p < 0 || p > 255)) return null;
+    if (parts.length !== 4 || parts.some(p => Number.isNaN(p) || p < 0 || p > 255)) return null;
     const ipLong = ((parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3]) >>> 0;
 
     let ranges: Record<string, string[]>;
@@ -83,8 +83,8 @@ function checkKnownProvider(ip: string): KnownProvider | null {
     for (const [provider, cidrs] of Object.entries(ranges)) {
         for (const cidr of cidrs) {
             const [subnet, bits] = cidr.split('/');
-            const b = parseInt(bits, 10);
-            if (!subnet || isNaN(b) || b < 1 || b > 32) continue;
+            const b = Number.parseInt(bits, 10);
+            if (!subnet || Number.isNaN(b) || b < 1 || b > 32) continue;
             const sp = subnet.split('.').map(Number);
             if (sp.length !== 4) continue;
             const subnetLong = ((sp[0] << 24) | (sp[1] << 16) | (sp[2] << 8) | sp[3]) >>> 0;
@@ -185,7 +185,7 @@ function parseJailConfigs(confBase: string): Record<string, JailMeta> {
             // handle -1 (permanent ban) and time suffixes: 10m→600, 1h→3600, 1d→86400, 1w→604800
             const suffixMatch = v.trim().match(/^(-?\d+(?:\.\d+)?)\s*([smhdw])?$/i);
             if (!suffixMatch) return undefined;
-            const n = parseFloat(suffixMatch[1]);
+            const n = Number.parseFloat(suffixMatch[1]);
             if (n < 0) return n; // -1 = permanent, keep as-is
             const unit = (suffixMatch[2] ?? 's').toLowerCase();
             const mult: Record<string, number> = { s: 1, m: 60, h: 3600, d: 86400, w: 604800 };
@@ -206,7 +206,7 @@ function parseJailConfigs(confBase: string): Record<string, JailMeta> {
         // Resolve %(var)s interpolation — %(__name__)s = jail name, %(key)s = config value
         const resolveVars = (v: string | undefined): string | undefined => {
             if (!v) return v;
-            return v.replace(/%\(([^)]+)\)s/g, (_, key) => {
+            return v.replaceAll(/%\(([^)]+)\)s/g, (_, key) => {
                 if (key === '__name__') return jail;
                 return get(key) ?? `%(${key})s`;
             });
@@ -225,7 +225,7 @@ function parseJailConfigs(confBase: string): Record<string, JailMeta> {
             actions:   actions?.length ? actions : undefined,
             bantime:   parseNum(get('bantime')),
             findtime:  parseNum(get('findtime')),
-            maxretry:  get('maxretry') !== undefined ? parseInt(get('maxretry')!, 10) : undefined,
+            maxretry:  get('maxretry') !== undefined ? Number.parseInt(get('maxretry')!, 10) : undefined,
             enabled:   enabledRaw !== undefined ? (enabledRaw.toLowerCase() !== 'false' && enabledRaw !== '0') : true,
             logpath:   resolveVars(get('logpath')),
         };
@@ -306,7 +306,7 @@ function writeIniValue(filePath: string, key: string, value: string): void {
     try { text = fs.readFileSync(filePath, 'utf8'); } catch { /* create */ }
 
     const lines = text.split(/\r?\n/);
-    const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const escapedKey = key.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const keyRegex = new RegExp(`^(\\s*${escapedKey}\\s*=)(.*)$`, 'i');
 
     let inDefinition = false;
@@ -814,7 +814,7 @@ export class Fail2banPlugin extends BasePlugin {
         router.get('/status', requireAuth, asyncHandler(async (req, res) => {
             if (!this.isEnabled()) throw createError('Fail2ban plugin not enabled', 503, 'PLUGIN_DISABLED');
 
-            const rawDays = parseInt(String(req.query.days ?? '1'), 10);
+            const rawDays = Number.parseInt(String(req.query.days ?? '1'), 10);
             const days = Number.isNaN(rawDays) ? 1 : rawDays;
 
             // TTL cache: 8s (short — live ban counts change frequently)
@@ -943,7 +943,7 @@ export class Fail2banPlugin extends BasePlugin {
         // GET /api/plugins/fail2ban/history?days=30
         router.get('/history', requireAuth, asyncHandler(async (req, res) => {
             if (!this.isEnabled()) throw createError('Fail2ban plugin not enabled', 503, 'PLUGIN_DISABLED');
-            const raw  = parseInt(String(req.query.days ?? '30'), 10);
+            const raw  = Number.parseInt(String(req.query.days ?? '30'), 10);
             const days = Number.isNaN(raw) ? 30 : raw;
 
             // TTL cache: adaptive (see _adaptiveTtl) — ban history is slow to query and doesn't change second-by-second
@@ -1019,7 +1019,7 @@ export class Fail2banPlugin extends BasePlugin {
         // rowid=0 (bootstrap): returns current max rowid + empty events array
         router.get('/events/since', requireAuth, asyncHandler(async (req, res) => {
             if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
-            const sinceRowid = parseInt(String(req.query.rowid ?? '0'), 10);
+            const sinceRowid = Number.parseInt(String(req.query.rowid ?? '0'), 10);
             const appDb = getDatabase();
 
             if (sinceRowid === 0) {
@@ -1165,7 +1165,7 @@ export class Fail2banPlugin extends BasePlugin {
             function ipInCidr(ip: string, cidr: string): boolean {
                 if (ip.includes(':')) return false; // skip IPv6
                 const [subnet, bits] = cidr.split('/');
-                const b = parseInt(bits, 10);
+                const b = Number.parseInt(bits, 10);
                 const toL = (s: string) => { const p = s.split('.').map(Number); return ((p[0] << 24) | (p[1] << 16) | (p[2] << 8) | p[3]) >>> 0; };
                 const mask = b === 32 ? 0xFFFFFFFF : (~(0xFFFFFFFF >>> b)) >>> 0;
                 return (toL(ip) & mask) === (toL(subnet) & mask);
@@ -1206,7 +1206,7 @@ export class Fail2banPlugin extends BasePlugin {
         // GET /jails/:name/params  — read current effective + local override values
         router.get('/jails/:name/params', requireAuth, asyncHandler(async (req, res) => {
             if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
-            const jailName = req.params.name.replace(/[^a-zA-Z0-9._-]/g, '');
+            const jailName = req.params.name.replaceAll(/[^a-zA-Z0-9._-]/g, '');
             const confBase = this.resolveDockerPathSync('/etc/fail2ban');
             const jailMeta = parseJailConfigs(confBase);
             const meta = jailMeta[jailName] ?? {};
@@ -1241,7 +1241,7 @@ export class Fail2banPlugin extends BasePlugin {
         // POST /jails/:name/params  — write params to jail.d/<name>.local + reload
         router.post('/jails/:name/params', requireAuth, asyncHandler(async (req, res) => {
             if (!this.isEnabled()) return res.json({ success: true, result: { ok: false, error: 'Plugin désactivé' } });
-            const jailName = req.params.name.replace(/[^a-zA-Z0-9._-]/g, '');
+            const jailName = req.params.name.replaceAll(/[^a-zA-Z0-9._-]/g, '');
             if (!jailName) return res.json({ success: true, result: { ok: false, error: 'Jail invalide' } });
             const { bantime, findtime, maxretry, ignoreip, usedns, logpath, port } = req.body as {
                 bantime?: number; findtime?: number; maxretry?: number;
@@ -1274,7 +1274,7 @@ export class Fail2banPlugin extends BasePlugin {
         router.post('/jails/:name/stop', requireAuth, asyncHandler(async (req, res) => {
             if (!this.isEnabled()) return res.json({ success: true, result: { ok: false, error: 'Plugin désactivé' } });
             if (!this.client?.isAvailable()) return res.json({ success: true, result: { ok: false, error: 'Socket fail2ban inaccessible' } });
-            const jailName = req.params.name.replace(/[^a-zA-Z0-9._-]/g, '');
+            const jailName = req.params.name.replaceAll(/[^a-zA-Z0-9._-]/g, '');
             res.json({ success: true, result: await this.client.stopJail(jailName) });
         }));
 
@@ -1282,7 +1282,7 @@ export class Fail2banPlugin extends BasePlugin {
         router.post('/jails/:name/start', requireAuth, asyncHandler(async (req, res) => {
             if (!this.isEnabled()) return res.json({ success: true, result: { ok: false, error: 'Plugin désactivé' } });
             if (!this.client?.isAvailable()) return res.json({ success: true, result: { ok: false, error: 'Socket fail2ban inaccessible' } });
-            const jailName = req.params.name.replace(/[^a-zA-Z0-9._-]/g, '');
+            const jailName = req.params.name.replaceAll(/[^a-zA-Z0-9._-]/g, '');
             res.json({ success: true, result: await this.client.startJail(jailName) });
         }));
 
@@ -1301,7 +1301,7 @@ export class Fail2banPlugin extends BasePlugin {
         // GET /filters/:name
         router.get('/filters/:name', requireAuth, asyncHandler(async (req, res) => {
             if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
-            const name = req.params.name.replace(/[^a-zA-Z0-9._-]/g, '');
+            const name = req.params.name.replaceAll(/[^a-zA-Z0-9._-]/g, '');
             try {
                 const content = fs.readFileSync(this.resolveDockerPathSync(`/etc/fail2ban/filter.d/${name}`), 'utf8');
                 res.json({ success: true, result: { ok: true, name, content } });
@@ -1311,7 +1311,7 @@ export class Fail2banPlugin extends BasePlugin {
         // POST /filters/:name/save  — write filter file then reload affected jails
         router.post('/filters/:name/save', requireAuth, asyncHandler(async (req, res) => {
             if (!this.isEnabled()) return res.json({ success: true, result: { ok: false, error: 'Plugin désactivé' } });
-            const name = req.params.name.replace(/[^a-zA-Z0-9._-]/g, '');
+            const name = req.params.name.replaceAll(/[^a-zA-Z0-9._-]/g, '');
             if (!name.endsWith('.conf') && !name.endsWith('.local')) {
                 return res.json({ success: true, result: { ok: false, error: 'Nom de fichier invalide (doit finir par .conf ou .local)' } });
             }
@@ -1329,7 +1329,7 @@ export class Fail2banPlugin extends BasePlugin {
             const reloadResults: { jail: string; ok: boolean; output: string; error?: string }[] = [];
             if (Array.isArray(jails) && jails.length > 0 && this.client?.isAvailable()) {
                 for (const jail of jails) {
-                    const r = await this.client.reloadJail(jail.replace(/[^a-zA-Z0-9._-]/g, ''));
+                    const r = await this.client.reloadJail(jail.replaceAll(/[^a-zA-Z0-9._-]/g, ''));
                     reloadResults.push({ jail, ok: r.ok, output: r.output, error: r.error });
                 }
             }
@@ -1339,7 +1339,7 @@ export class Fail2banPlugin extends BasePlugin {
         // POST /filters/:name/test  — test failregex against log lines (JS-side regex match)
         router.post('/filters/:name/test', requireAuth, asyncHandler(async (req, res) => {
             if (!this.isEnabled()) return res.json({ success: true, result: { ok: false, error: 'Plugin désactivé' } });
-            const name = req.params.name.replace(/[^a-zA-Z0-9._-]/g, '');
+            const name = req.params.name.replaceAll(/[^a-zA-Z0-9._-]/g, '');
             const { failregex, log_lines } = req.body as { failregex?: string; log_lines?: string };
             if (!failregex || !log_lines) {
                 return res.json({ success: true, result: { ok: false, error: 'failregex et log_lines requis' } });
@@ -1352,7 +1352,7 @@ export class Fail2banPlugin extends BasePlugin {
                 let found = false;
                 for (const pat of patterns) {
                     // Sanitize: replace fail2ban <HOST> placeholder with IP pattern, reject overly long patterns
-                    const jsPatStr = pat.replace(/<HOST>/g, '(?:[0-9]{1,3}\\.){3}[0-9]{1,3}|[0-9a-fA-F:]{2,39}');
+                    const jsPatStr = pat.replaceAll(/<HOST>/g, '(?:[0-9]{1,3}\\.){3}[0-9]{1,3}|[0-9a-fA-F:]{2,39}');
                     if (jsPatStr.length > 1000) continue; // skip excessively long patterns
                     try {
                         const re = new RegExp(jsPatStr);
@@ -1382,7 +1382,7 @@ export class Fail2banPlugin extends BasePlugin {
         // GET /actions/:name
         router.get('/actions/:name', requireAuth, asyncHandler(async (req, res) => {
             if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
-            const name = req.params.name.replace(/[^a-zA-Z0-9._-]/g, '');
+            const name = req.params.name.replaceAll(/[^a-zA-Z0-9._-]/g, '');
             try {
                 const content = fs.readFileSync(this.resolveDockerPathSync(`/etc/fail2ban/action.d/${name}`), 'utf8');
                 res.json({ success: true, result: { ok: true, name, content } });
@@ -1392,7 +1392,7 @@ export class Fail2banPlugin extends BasePlugin {
         // POST /actions/:name/save  — write action file then reload affected jails
         router.post('/actions/:name/save', requireAuth, asyncHandler(async (req, res) => {
             if (!this.isEnabled()) return res.json({ success: true, result: { ok: false, error: 'Plugin désactivé' } });
-            const name = req.params.name.replace(/[^a-zA-Z0-9._-]/g, '');
+            const name = req.params.name.replaceAll(/[^a-zA-Z0-9._-]/g, '');
             if (!name.endsWith('.conf') && !name.endsWith('.local')) {
                 return res.json({ success: true, result: { ok: false, error: 'Nom de fichier invalide (doit finir par .conf ou .local)' } });
             }
@@ -1409,7 +1409,7 @@ export class Fail2banPlugin extends BasePlugin {
             const reloadResults: { jail: string; ok: boolean; output: string; error?: string }[] = [];
             if (Array.isArray(jails) && jails.length > 0 && this.client?.isAvailable()) {
                 for (const jail of jails) {
-                    const r = await this.client.reloadJail(jail.replace(/[^a-zA-Z0-9._-]/g, ''));
+                    const r = await this.client.reloadJail(jail.replaceAll(/[^a-zA-Z0-9._-]/g, ''));
                     reloadResults.push({ jail, ok: r.ok, output: r.output, error: r.error });
                 }
             }
@@ -1568,8 +1568,8 @@ export class Fail2banPlugin extends BasePlugin {
             const allowed: Record<string, (v: string) => boolean> = {
                 loglevel:     v => ['CRITICAL', 'ERROR', 'WARNING', 'NOTICE', 'INFO', 'DEBUG'].includes(v.toUpperCase()),
                 logtarget:    v => !!v && v.length < 500,
-                dbpurgeage:   v => /^\d+$/.test(v) && parseInt(v, 10) >= 0,
-                dbmaxmatches: v => /^\d+$/.test(v) && parseInt(v, 10) >= 1 && parseInt(v, 10) <= 10000,
+                dbpurgeage:   v => /^\d+$/.test(v) && Number.parseInt(v, 10) >= 0,
+                dbmaxmatches: v => /^\d+$/.test(v) && Number.parseInt(v, 10) >= 1 && Number.parseInt(v, 10) <= 10000,
             };
             const body = req.body as Record<string, string>;
             const confBase = this.resolveDockerPathSync('/etc/fail2ban');
@@ -1720,7 +1720,7 @@ export class Fail2banPlugin extends BasePlugin {
                         errors.push(`Ligne ${ln}: loglevel invalide « ${val} » — valeurs acceptées: ${[...LOGLEVELS].join(', ')}`);
                     if (key === 'dbpurgeage' && !/^\d+$/.test(val))
                         errors.push(`Ligne ${ln}: dbpurgeage doit être un entier positif (secondes), reçu: "${val}"`);
-                    if (key === 'dbmaxmatches' && (!/^\d+$/.test(val) || parseInt(val, 10) < 1))
+                    if (key === 'dbmaxmatches' && (!/^\d+$/.test(val) || Number.parseInt(val, 10) < 1))
                         errors.push(`Ligne ${ln}: dbmaxmatches doit être un entier >= 1, reçu: "${val}"`);
                     if (key === 'logtarget' && !/^(STDOUT|STDERR|SYSLOG|SYSTEMD-JOURNAL|\/\S+)$/i.test(val))
                         warnings.push(`Ligne ${ln}: logtarget inhabituel « ${val} » — valeurs typiques: STDOUT, STDERR, SYSLOG, /var/log/fail2ban.log`);
@@ -1738,9 +1738,9 @@ export class Fail2banPlugin extends BasePlugin {
                         errors.push(`Ligne ${ln}: enabled doit être true/false/1/0, reçu: "${val}"`);
 
                     if (key === 'maxretry') {
-                        if (!/^\d+$/.test(val) || parseInt(val, 10) < 1)
+                        if (!/^\d+$/.test(val) || Number.parseInt(val, 10) < 1)
                             errors.push(`Ligne ${ln}: maxretry doit être un entier >= 1, reçu: "${val}"`);
-                        else if (parseInt(val, 10) > 100)
+                        else if (Number.parseInt(val, 10) > 100)
                             warnings.push(`Ligne ${ln}: maxretry = ${val} est très élevé — valeur typique entre 3 et 10`);
                     }
 
@@ -1750,7 +1750,7 @@ export class Fail2banPlugin extends BasePlugin {
                     if (key === 'bantime') {
                         if (!reDuration.test(val) && !/^-1$/.test(val))
                             errors.push(`Ligne ${ln}: bantime invalide « ${val} » — entier (secondes) ou suffixe s/m/h/d/w/mo/y, -1 pour ban permanent`);
-                        else if (/^\d+$/.test(val) && parseInt(val, 10) > 0 && parseInt(val, 10) < 30)
+                        else if (/^\d+$/.test(val) && Number.parseInt(val, 10) > 0 && Number.parseInt(val, 10) < 30)
                             warnings.push(`Ligne ${ln}: bantime = ${val}s est très court — valeur typique 600s (10 min) ou plus`);
                     }
 
@@ -1762,7 +1762,7 @@ export class Fail2banPlugin extends BasePlugin {
                         for (const p of ports) {
                             if (!p) continue;
                             if (/^\d+$/.test(p)) {
-                                const pn = parseInt(p, 10);
+                                const pn = Number.parseInt(p, 10);
                                 if (pn < 1 || pn > 65535)
                                     errors.push(`Ligne ${ln}: port invalide ${p} — doit être entre 1 et 65535`);
                             } else if (/^\d+:\d+$/.test(p)) {
@@ -1814,7 +1814,7 @@ export class Fail2banPlugin extends BasePlugin {
             const filePath = path.join(confBase, filename);
             // Normalize line endings — CRLF from browser/editor would make fail2ban
             // read logpath as "/var/log/auth.log\r" and fail with "no log file found"
-            const normalized = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+            const normalized = content.replaceAll(/\r\n/g, '\n').replaceAll(/\r/g, '\n');
             try {
                 fs.writeFileSync(filePath, normalized, 'utf8');
             } catch (e) {
@@ -1863,7 +1863,7 @@ export class Fail2banPlugin extends BasePlugin {
         // Source is the project DB, not fail2ban SQLite — survives fail2ban dbpurge
         router.get('/tracker', requireAuth, asyncHandler(async (req, res) => {
             if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
-            const limit = Math.min(parseInt(String(req.query.limit ?? '2000'), 10), 5000);
+            const limit = Math.min(Number.parseInt(String(req.query.limit ?? '2000'), 10), 5000);
 
             // All unique IPs with aggregated stats from internal DB
             const appDb = getDatabase();
@@ -2020,8 +2020,8 @@ export class Fail2banPlugin extends BasePlugin {
         // GET /map/events  — Recent ban events with cached geo (for live attack mode)
         router.get('/map/events', requireAuth, asyncHandler(async (req, res) => {
             if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
-            const since = parseInt(String(req.query.since ?? '0'), 10);
-            const limit = Math.min(parseInt(String(req.query.limit ?? '50'), 10), 100);
+            const since = Number.parseInt(String(req.query.since ?? '0'), 10);
+            const limit = Math.min(Number.parseInt(String(req.query.limit ?? '50'), 10), 100);
             const appDb = getDatabase();
             const now   = Math.floor(Date.now() / 1000);
             const TTL   = 30 * 86400;
@@ -2130,8 +2130,8 @@ export class Fail2banPlugin extends BasePlugin {
         // GET /tops  — Top IPs, Jails, Récidivistes + heatmap
         router.get('/tops', requireAuth, asyncHandler(async (req, res) => {
             if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
-            const days  = parseInt(String(req.query.days  ?? '30'), 10);
-            const limit = Math.min(parseInt(String(req.query.limit ?? '10'), 10), 100);
+            const days  = Number.parseInt(String(req.query.days  ?? '30'), 10);
+            const limit = Math.min(Number.parseInt(String(req.query.limit ?? '10'), 10), 100);
             const compareFlag = req.query.compare === '1' ? 1 : 0;
             const phase = req.query.phase === 'fast' ? 'fast' : 'full';
 
@@ -2284,7 +2284,7 @@ export class Fail2banPlugin extends BasePlugin {
         router.get('/tops/domain-detail', requireAuth, asyncHandler(async (req, res) => {
             if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
             const domain   = String(req.query.domain ?? '').toLowerCase().trim();
-            const days     = parseInt(String(req.query.days ?? '30'), 10);
+            const days     = Number.parseInt(String(req.query.days ?? '30'), 10);
             if (!domain) return res.json({ success: true, result: { ok: false, error: 'domain required' } });
 
             const npmDataPath = (this.config?.settings as unknown as Fail2banPluginConfig | undefined)?.npmDataPath ?? '';
@@ -2371,8 +2371,8 @@ export class Fail2banPlugin extends BasePlugin {
         // GET /tops/domains  — NPM log scan for top domains (extracted from /tops for perf; call only when tab visible)
         router.get('/tops/domains', requireAuth, asyncHandler(async (req, res) => {
             if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
-            const days  = parseInt(String(req.query.days  ?? '30'), 10);
-            const limit = Math.min(parseInt(String(req.query.limit ?? '10'), 10), 100);
+            const days  = Number.parseInt(String(req.query.days  ?? '30'), 10);
+            const limit = Math.min(Number.parseInt(String(req.query.limit ?? '10'), 10), 100);
 
             const STORE_LIMIT = 100;
             const _tdKey = `tops:domains:${days}`;
@@ -2512,8 +2512,8 @@ export class Fail2banPlugin extends BasePlugin {
 
         router.get('/audit', requireAuth, asyncHandler(async (req, res) => {
             if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
-            const limit      = Math.min(parseInt(String(req.query.limit ?? '200'), 10), 1000);
-            const daysParam  = parseInt(String(req.query.days  ?? '0'),  10);
+            const limit      = Math.min(Number.parseInt(String(req.query.limit ?? '200'), 10), 1000);
+            const daysParam  = Number.parseInt(String(req.query.days  ?? '0'),  10);
             const jailFilter = req.query.jail ? String(req.query.jail) : null;
 
             // Read from our long-term f2b_events (never purged, unlike fail2ban's own DB)
@@ -2874,8 +2874,8 @@ export class Fail2banPlugin extends BasePlugin {
         // Supports ?ip=X for single-IP history (modal), ?days=N, ?limit=N
         router.get('/audit/internal', requireAuth, asyncHandler(async (req, res) => {
             if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
-            const days  = parseInt(String(req.query.days  ?? '-1'), 10);
-            const limit = Math.min(parseInt(String(req.query.limit ?? '500'), 10), 5000);
+            const days  = Number.parseInt(String(req.query.days  ?? '-1'), 10);
+            const limit = Math.min(Number.parseInt(String(req.query.limit ?? '500'), 10), 5000);
             const ipFilter = req.query.ip ? String(req.query.ip) : null;
             // Basic IPv4/IPv6 validation
             if (ipFilter && !/^[\d:.a-fA-F]{2,45}$/.test(ipFilter)) throw createError('Invalid IP', 400, 'BAD_PARAM');
@@ -3009,8 +3009,8 @@ export class Fail2banPlugin extends BasePlugin {
             if (!this.isEnabled()) return res.json({ success: true, result: { ok: false, error: 'Plugin désactivé' } });
             const { set, entry } = req.body as { set?: string; entry?: string };
             if (!set || !entry) return res.json({ success: true, result: { ok: false, error: 'Paramètres manquants' } });
-            const safeSet   = set.replace(/[^a-zA-Z0-9_.-]/g, '');
-            const safeEntry = entry.replace(/[^0-9a-fA-F.:\/]/g, '');
+            const safeSet   = set.replaceAll(/[^a-zA-Z0-9_.-]/g, '');
+            const safeEntry = entry.replaceAll(/[^0-9a-fA-F.:\/]/g, '');
             if (!safeSet || !safeEntry) return res.json({ success: true, result: { ok: false, error: 'Valeurs invalides' } });
             const r = await this.client?.ipsetAdd(safeSet, safeEntry) ?? { ok: false, output: '', error: 'client not initialized' };
             res.json({ success: true, result: r });
@@ -3025,7 +3025,7 @@ export class Fail2banPlugin extends BasePlugin {
                 return res.json({ success: true, result: { ok: false, error: 'set et ips[] requis' } });
             }
 
-            const safeSet = set.replace(/[^a-zA-Z0-9_.-]/g, '');
+            const safeSet = set.replaceAll(/[^a-zA-Z0-9_.-]/g, '');
             if (!safeSet) return res.json({ success: true, result: { ok: false, error: 'Nom de set invalide' } });
             if (!this.client) {
                 return res.json({ success: true, result: { ok: false, error: 'client non initialisé' } });
@@ -3086,7 +3086,7 @@ export class Fail2banPlugin extends BasePlugin {
         // GET /ipset/history?days=30 — historical IPSet entry counts per day
         router.get('/ipset/history', requireAuth, asyncHandler(async (req, res) => {
             if (!this.isEnabled()) return res.json({ success: true, result: { ok: false, ipset_names: [], ipset_days: {} } });
-            const days = Math.min(Math.max(1, parseInt(String(req.query.days ?? '30'), 10)), 365);
+            const days = Math.min(Math.max(1, Number.parseInt(String(req.query.days ?? '30'), 10)), 365);
             const _ihKey = `ipset:history:${days}`;
             const _ihCached = this._cachePeek<unknown>(_ihKey, this._adaptiveTtl(days));
             if (_ihCached) return res.json({ success: true, result: _ihCached });
@@ -3111,7 +3111,7 @@ export class Fail2banPlugin extends BasePlugin {
         // GET /ipset/entries/:set — list members of a specific set
         router.get('/ipset/entries/:set', requireAuth, asyncHandler(async (req, res) => {
             if (!this.isEnabled()) return res.json({ success: true, result: { ok: false, entries: [], error: 'Plugin désactivé' } });
-            const setName = String(req.params.set).replace(/[^a-zA-Z0-9_.-]/g, '');
+            const setName = String(req.params.set).replaceAll(/[^a-zA-Z0-9_.-]/g, '');
             if (!setName) return res.json({ success: true, result: { ok: false, entries: [], error: 'Nom de set invalide' } });
             const r = await this.client?.ipsetEntries(setName) ?? { ok: false, entries: [], error: 'client not initialized' };
             res.json({ success: true, result: r });
@@ -3122,8 +3122,8 @@ export class Fail2banPlugin extends BasePlugin {
             if (!this.isEnabled()) return res.json({ success: true, result: { ok: false, error: 'Plugin désactivé' } });
             const { set, entry } = req.body as { set?: string; entry?: string };
             if (!set || !entry) return res.json({ success: true, result: { ok: false, error: 'Paramètres manquants' } });
-            const safeSet   = set.replace(/[^a-zA-Z0-9_.-]/g, '');
-            const safeEntry = entry.replace(/[^0-9a-fA-F.:\/]/g, '');
+            const safeSet   = set.replaceAll(/[^a-zA-Z0-9_.-]/g, '');
+            const safeEntry = entry.replaceAll(/[^0-9a-fA-F.:\/]/g, '');
             if (!safeSet || !safeEntry) return res.json({ success: true, result: { ok: false, error: 'Valeurs invalides' } });
             const r = await this.client?.ipsetDel(safeSet, safeEntry) ?? { ok: false, output: '', error: 'client not initialized' };
             res.json({ success: true, result: r });
@@ -3133,7 +3133,7 @@ export class Fail2banPlugin extends BasePlugin {
         router.delete('/ipset/destroy/:setName', requireAuth, asyncHandler(async (req, res) => {
             if (!this.isEnabled()) return res.json({ success: true, result: { ok: false, error: 'Plugin désactivé' } });
             const { setName } = req.params;
-            const safeSet = setName.replace(/[^a-zA-Z0-9_.-]/g, '');
+            const safeSet = setName.replaceAll(/[^a-zA-Z0-9_.-]/g, '');
             if (!safeSet) return res.json({ success: true, result: { ok: false, error: 'Nom d\'ipset invalide' } });
             const isRoot = typeof process.getuid === 'function' && process.getuid() === 0;
             const [cmd, args] = isRoot
@@ -3288,7 +3288,7 @@ export class Fail2banPlugin extends BasePlugin {
             if (!FAIL2BAN_LOG_NAME.test(name)) {
                 throw createError('Invalid log file name', 400, 'BAD_PARAM');
             }
-            const lines = Math.min(Math.max(parseInt(String(req.query.lines ?? '400'), 10) || 400, 1), 5000);
+            const lines = Math.min(Math.max(Number.parseInt(String(req.query.lines ?? '400'), 10) || 400, 1), 5000);
             const abs = this.resolveDockerPathSync(path.join('/var/log', name));
             const logRoot = this.resolveDockerPathSync('/var/log');
             if (!abs.startsWith(logRoot)) {
@@ -3702,7 +3702,7 @@ export class Fail2banPlugin extends BasePlugin {
         // GET /iptables/parsed?table=filter — structured chains from iptables -L -v -n --line-numbers
         router.get('/iptables/parsed', requireAuth, asyncHandler(async (req, res) => {
             if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
-            const table = typeof req.query.table === 'string' ? req.query.table.replace(/[^a-z]/g, '') : 'filter';
+            const table = typeof req.query.table === 'string' ? req.query.table.replaceAll(/[^a-z]/g, '') : 'filter';
             const r = await IptablesService.listParsed(table || 'filter');
             res.json({ success: true, result: r });
         }));
@@ -3822,7 +3822,7 @@ export class Fail2banPlugin extends BasePlugin {
             if (!table || !chain || !rulenum) return res.json({ success: true, result: { ok: false, error: 'table, chain, rulenum requis' } });
             const snap = await IptablesService.save();
             if (!snap.ok) return res.json({ success: true, result: { ok: false, error: `Snapshot impossible: ${snap.error}` } });
-            const r = await IptablesService.deleteRule(String(table), String(chain), parseInt(String(rulenum), 10));
+            const r = await IptablesService.deleteRule(String(table), String(chain), Number.parseInt(String(rulenum), 10));
             if (!r.ok) return res.json({ success: true, result: r });
             this._startRollback(snap.output, 30);
             res.json({ success: true, result: { ...r, rollbackDeadline: this.ipt_rollbackDeadline } });

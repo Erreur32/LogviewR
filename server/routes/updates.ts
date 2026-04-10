@@ -67,13 +67,13 @@ function getReleaseNotesFromChangelog(version: string): string | undefined {
     const end = nextSection !== -1 ? nextSection : content.length;
     let section = content.slice(bodyStart, end).trim();
     // Remove technical sub-sections (#### headers and everything after until next ### or ##)
-    section = section.replace(/\n#### [\s\S]*?(?=\n### |\n## |\n#### |$)/g, '');
+    section = section.replaceAll(/\n#### [\s\S]*?(?=\n### |\n## |\n#### |$)/g, '');
     // Remove markdown sub-headers (### ), keep their content
-    section = section.replace(/^### [^\n]+\n/gm, '');
+    section = section.replaceAll(/^### [^\n]+\n/gm, '');
     // Unwrap bold markers
-    section = section.replace(/\*\*([^*]+)\*\*/g, '$1');
+    section = section.replaceAll(/\*\*([^*]+)\*\*/g, '$1');
     // Strip blockquote markers (> summary line)
-    section = section.replace(/^> /gm, '');
+    section = section.replaceAll(/^> /gm, '');
     // Collapse multiple blank lines
     section = section.replace(/\n{3,}/g, '\n\n').trim();
     if (!section) return undefined;
@@ -298,7 +298,7 @@ router.get('/check', requireAuth, asyncHandler(async (req: AuthenticatedRequest,
       } else if (tagsResponse.status === 403) {
         const rateLimitRemaining = tagsResponse.headers.get('x-ratelimit-remaining');
         const rateLimitReset = tagsResponse.headers.get('x-ratelimit-reset');
-        const resetTime = rateLimitReset ? new Date(parseInt(rateLimitReset) * 1000).toLocaleString('fr-FR') : 'unknown';
+        const resetTime = rateLimitReset ? new Date(Number.parseInt(rateLimitReset) * 1000).toLocaleString('fr-FR') : 'unknown';
         lastError = `GitHub API rate limit exceeded (remaining: ${rateLimitRemaining || '0'}). Reset at: ${resetTime}.`;
         logger.warn('Updates', lastError);
       } else if (tagsResponse.status === 404) {

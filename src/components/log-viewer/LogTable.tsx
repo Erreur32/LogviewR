@@ -287,7 +287,7 @@ export const LogTable: React.FC<LogTableProps> = ({
                 const pidValue = log.pid;
                 return pidValue !== null && pidValue !== undefined && pidValue !== '' && 
                        !(typeof pidValue === 'string' && pidValue.trim() === '') &&
-                       !isNaN(Number(pidValue));
+                       !Number.isNaN(Number(pidValue));
             });
             
             // Remove pid column if it's always empty
@@ -354,8 +354,8 @@ export const LogTable: React.FC<LogTableProps> = ({
                     try {
                         const aDate = aValue instanceof Date ? aValue : new Date(aValue as string);
                         const bDate = bValue instanceof Date ? bValue : new Date(bValue as string);
-                        if (isNaN(aDate.getTime())) return 1;
-                        if (isNaN(bDate.getTime())) return -1;
+                        if (Number.isNaN(aDate.getTime())) return 1;
+                        if (Number.isNaN(bDate.getTime())) return -1;
                         return aDate.getTime() - bDate.getTime();
                     } catch {
                         return String(aValue).localeCompare(String(bValue));
@@ -364,8 +364,8 @@ export const LogTable: React.FC<LogTableProps> = ({
                 case 'number':
                     const aNum = Number(aValue);
                     const bNum = Number(bValue);
-                    if (isNaN(aNum)) return 1;
-                    if (isNaN(bNum)) return -1;
+                    if (Number.isNaN(aNum)) return 1;
+                    if (Number.isNaN(bNum)) return -1;
                     return aNum - bNum;
                 
                 case 'ip':
@@ -521,14 +521,14 @@ export const LogTable: React.FC<LogTableProps> = ({
                     try {
                         // Try parsing ISO string or other formats
                         date = new Date(value);
-                        if (isNaN(date.getTime())) {
+                        if (Number.isNaN(date.getTime())) {
                             // Try parsing as timestamp number
                             const numValue = Number(value);
-                            if (!isNaN(numValue) && numValue > 0) {
+                            if (!Number.isNaN(numValue) && numValue > 0) {
                                 date = new Date(numValue);
                             }
                         }
-                        if (!date || isNaN(date.getTime())) {
+                        if (!date || Number.isNaN(date.getTime())) {
                             console.warn(`[LogTable] Failed to parse date for column ${column}:`, value);
                             return <span className="text-gray-300">{String(value)}</span>;
                         }
@@ -539,7 +539,7 @@ export const LogTable: React.FC<LogTableProps> = ({
                 } else if (typeof value === 'number' && value > 0) {
                     // Unix timestamp in milliseconds or seconds
                     date = new Date(value > 1000000000000 ? value : value * 1000);
-                    if (isNaN(date.getTime())) {
+                    if (Number.isNaN(date.getTime())) {
                         return <span className="text-gray-300">{String(value)}</span>;
                     }
                 } else {
@@ -633,7 +633,7 @@ export const LogTable: React.FC<LogTableProps> = ({
                 }
                 if (column === 'upstreamStatus' || column.toLowerCase() === 'upstreamstatus') {
                     const code = value === '-' || value === '' ? null : Number(value);
-                    const codeDesc = code != null && !isNaN(code)
+                    const codeDesc = code != null && !Number.isNaN(code)
                         ? (code >= 200 && code < 300 ? t('logViewer.upstreamSuccess') : code >= 400 ? t('logViewer.upstreamError') : t('logViewer.upstreamStatus'))
                         : t('logViewer.upstreamNotAvailable');
                     return (
@@ -993,7 +993,7 @@ export const LogTable: React.FC<LogTableProps> = ({
                     <select
                         value={pageSize}
                         onChange={(e) => {
-                            const newSize = parseInt(e.target.value, 10);
+                            const newSize = Number.parseInt(e.target.value, 10);
                             if (onPageSizeChange) {
                                 onPageSizeChange(newSize);
                             }
@@ -1162,7 +1162,7 @@ export const LogTable: React.FC<LogTableProps> = ({
                     <select
                         value={pageSize}
                         onChange={(e) => {
-                            const newSize = parseInt(e.target.value, 10);
+                            const newSize = Number.parseInt(e.target.value, 10);
                             if (onPageSizeChange) {
                                 onPageSizeChange(newSize);
                             }

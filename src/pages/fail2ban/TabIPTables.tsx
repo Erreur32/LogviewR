@@ -98,7 +98,7 @@ function parsePkts(s: string): number {
     if (!s) return 0;
     const m = s.match(/^([\d.]+)([KMG]?)$/i);
     if (!m) return 0;
-    const n = parseFloat(m[1]);
+    const n = Number.parseFloat(m[1]);
     const mul = { K: 1e3, M: 1e6, G: 1e9 }[m[2].toUpperCase()] ?? 1;
     return n * mul;
 }

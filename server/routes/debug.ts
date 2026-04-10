@@ -67,7 +67,7 @@ router.post('/config', requireAuth, requireAdmin, asyncHandler(async (req: Authe
  * Get application logs
  */
 router.get('/logs', requireAuth, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res) => {
-  const limit = parseInt(req.query.limit as string) || 500;
+  const limit = Number.parseInt(req.query.limit as string) || 500;
   const level = req.query.level as string | undefined;
   
   // If limit is very high (>= 10000), get all logs for performance

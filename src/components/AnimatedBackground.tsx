@@ -47,9 +47,9 @@ function getVisualKey(variant: EffectiveVariant): string | null {
 function hexToDarkHsl(hex: string, lightnessFactor: number = 0.15): string {
   const m = hex.replace(/^#/, '').match(/^([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i);
   if (!m) return 'hsl(217, 64%, 6%)';
-  const r = parseInt(m[1], 16) / 255;
-  const g = parseInt(m[2], 16) / 255;
-  const b = parseInt(m[3], 16) / 255;
+  const r = Number.parseInt(m[1], 16) / 255;
+  const g = Number.parseInt(m[2], 16) / 255;
+  const b = Number.parseInt(m[3], 16) / 255;
   const max = Math.max(r, g, b);
   const min = Math.min(r, g, b);
   let h = 0;
@@ -971,18 +971,18 @@ const PlaystationCanvas: React.FC<{
       const rgbMatch = colorStr.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
       if (rgbMatch) {
         return {
-          r: parseInt(rgbMatch[1], 10),
-          g: parseInt(rgbMatch[2], 10),
-          b: parseInt(rgbMatch[3], 10),
+          r: Number.parseInt(rgbMatch[1], 10),
+          g: Number.parseInt(rgbMatch[2], 10),
+          b: Number.parseInt(rgbMatch[3], 10),
         };
       }
       // Format hex
       const hexMatch = colorStr.match(/#([0-9a-fA-F]{6})/);
       if (hexMatch) {
         return {
-          r: parseInt(hexMatch[1].slice(0, 2), 16),
-          g: parseInt(hexMatch[1].slice(2, 4), 16),
-          b: parseInt(hexMatch[1].slice(4, 6), 16),
+          r: Number.parseInt(hexMatch[1].slice(0, 2), 16),
+          g: Number.parseInt(hexMatch[1].slice(2, 4), 16),
+          b: Number.parseInt(hexMatch[1].slice(4, 6), 16),
         };
       }
       // Fallback blanc

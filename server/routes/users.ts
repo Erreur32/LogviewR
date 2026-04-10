@@ -295,9 +295,9 @@ router.get('/', requireAuth, requireAdmin, asyncHandler(async (req: Authenticate
 
 // GET /api/users/:id - Get user by ID (admin only)
 router.get('/:id', requireAuth, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res) => {
-    const userId = parseInt(req.params.id, 10);
+    const userId = Number.parseInt(req.params.id, 10);
     
-    if (isNaN(userId)) {
+    if (Number.isNaN(userId)) {
         throw createError('Invalid user ID', 400, 'INVALID_USER_ID');
     }
 
@@ -358,9 +358,9 @@ router.post('/', requireAuth, requireAdmin, asyncHandler(async (req: Authenticat
 
 // PUT /api/users/:id - Update user (admin only, or self for non-sensitive fields)
 router.put('/:id', requireAuth, asyncHandler(async (req: AuthenticatedRequest, res) => {
-    const userId = parseInt(req.params.id, 10);
+    const userId = Number.parseInt(req.params.id, 10);
     
-    if (isNaN(userId)) {
+    if (Number.isNaN(userId)) {
         throw createError('Invalid user ID', 400, 'INVALID_USER_ID');
     }
 
@@ -428,9 +428,9 @@ router.put('/:id', requireAuth, asyncHandler(async (req: AuthenticatedRequest, r
 
 // DELETE /api/users/:id - Delete user (admin only)
 router.delete('/:id', requireAuth, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res) => {
-    const userId = parseInt(req.params.id, 10);
+    const userId = Number.parseInt(req.params.id, 10);
     
-    if (isNaN(userId)) {
+    if (Number.isNaN(userId)) {
         throw createError('Invalid user ID', 400, 'INVALID_USER_ID');
     }
 

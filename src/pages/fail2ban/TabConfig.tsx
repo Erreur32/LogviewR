@@ -947,8 +947,8 @@ export const TabConfig: React.FC<{
     };
 
     const persistDb = async () => {
-        const purgeVal = parseInt(fmPurgeage, 10);
-        if (fmPurgeage !== '' && (isNaN(purgeVal) || purgeVal < 0)) {
+        const purgeVal = Number.parseInt(fmPurgeage, 10);
+        if (fmPurgeage !== '' && (Number.isNaN(purgeVal) || purgeVal < 0)) {
             toast('dbpurgeage invalide — entrez un entier ≥ 0 (secondes)', false);
             return;
         }
@@ -1147,7 +1147,7 @@ export const TabConfig: React.FC<{
                                     <Row label="logtarget"    value={cfg.logtarget}    isLocal={!!cfg.local_values.logtarget} />
                                     <Row label="socket"       value={cfg.socket} />
                                     <Row label="dbfile"       value={cfg.dbfile} />
-                                    <Row label="dbpurgeage"   value={`${cfg.dbpurgeage}s (${Math.round(parseInt(cfg.dbpurgeage,10)/86400)} j)`} isLocal={!!cfg.local_values.dbpurgeage} />
+                                    <Row label="dbpurgeage"   value={`${cfg.dbpurgeage}s (${Math.round(Number.parseInt(cfg.dbpurgeage,10)/86400)} j)`} isLocal={!!cfg.local_values.dbpurgeage} />
                                     <Row label="dbmaxmatches" value={cfg.dbmaxmatches} isLocal={!!cfg.local_values.dbmaxmatches} />
                                     <Row label="fail2ban.local" value={
                                         cfg.local_exists
@@ -1307,9 +1307,9 @@ export const TabConfig: React.FC<{
                                             </div>
                                             <input type="number" min="0" value={fmPurgeage}
                                                 onChange={e => { const v = e.target.value; if (v === '' || /^\d+$/.test(v)) setFmPurgeage(v); }}
-                                                style={{ ...inp, borderColor: fmPurgeage !== '' && (isNaN(parseInt(fmPurgeage, 10)) || parseInt(fmPurgeage, 10) < 0) ? C.red : undefined }} placeholder="86400" />
+                                                style={{ ...inp, borderColor: fmPurgeage !== '' && (Number.isNaN(Number.parseInt(fmPurgeage, 10)) || Number.parseInt(fmPurgeage, 10) < 0) ? C.red : undefined }} placeholder="86400" />
                                             <div style={{ fontSize: '.65rem', color: C.muted, marginTop: 2 }}>
-                                                {parseInt(fmPurgeage, 10) > 0 ? `≈ ${Math.round(parseInt(fmPurgeage, 10) / 86400)} jour(s)` : parseInt(fmPurgeage, 10) === 0 ? 'Désactivé (0)' : ''}
+                                                {Number.parseInt(fmPurgeage, 10) > 0 ? `≈ ${Math.round(Number.parseInt(fmPurgeage, 10) / 86400)} jour(s)` : Number.parseInt(fmPurgeage, 10) === 0 ? 'Désactivé (0)' : ''}
                                             </div>
                                         </div>
                                         <div>

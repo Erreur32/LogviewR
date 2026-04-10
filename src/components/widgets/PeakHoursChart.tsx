@@ -45,7 +45,7 @@ export const PeakHoursChart: React.FC<PeakHoursChartProps> = ({
                 else if (s.length === 13) s += ':00:00';
                 else if (s.length === 16) s += ':00';
                 const date = new Date(s);
-                if (!isNaN(date.getTime())) hours[date.getHours()] += d.count;
+                if (!Number.isNaN(date.getTime())) hours[date.getHours()] += d.count;
             } catch { /* skip */ }
         }
         return hours;

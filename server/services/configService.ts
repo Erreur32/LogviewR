@@ -57,7 +57,7 @@ export function exportConfigToFile(): string {
             for (const [key, value] of Object.entries(dbConfig.settings)) {
                 if (value !== null && value !== undefined) {
                     // Escape special characters in INI format
-                    const escapedValue = String(value).replace(/[#;\\]/g, '\\$&');
+                    const escapedValue = String(value).replaceAll(/[#;\\]/g, '\\$&');
                     content += `${key}=${escapedValue}\n`;
                 }
             }
@@ -108,7 +108,7 @@ export function parseConfigFile(fileContent: string): {
         let value = line.slice(equalIndex + 1).trim();
         
         // Unescape special characters
-        value = value.replace(/\\([#;\\])/g, '$1');
+        value = value.replaceAll(/\\([#;\\])/g, '$1');
         
         if (!currentSection) continue;
         

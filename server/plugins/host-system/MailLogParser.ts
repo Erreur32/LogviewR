@@ -44,7 +44,7 @@ export class MailLogParser {
                     ipAddress,
                     action,
                     queueId,
-                    pid: pid ? parseInt(pid, 10) : undefined
+                    pid: pid ? Number.parseInt(pid, 10) : undefined
                 };
             }
             // If no hostname, try: "service[pid]: message"
@@ -64,7 +64,7 @@ export class MailLogParser {
                     ipAddress,
                     action,
                     queueId,
-                    pid: pid ? parseInt(pid, 10) : undefined
+                    pid: pid ? Number.parseInt(pid, 10) : undefined
                 };
             }
         }
@@ -90,7 +90,7 @@ export class MailLogParser {
                 ipAddress,
                 action,
                 queueId,
-                pid: match.pid ? parseInt(match.pid, 10) : undefined
+                pid: match.pid ? Number.parseInt(match.pid, 10) : undefined
             };
         }
 

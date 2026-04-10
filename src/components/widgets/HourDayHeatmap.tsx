@@ -47,7 +47,7 @@ export const HourDayHeatmap: React.FC<HourDayHeatmapProps> = ({
                 else if (s.length === 13) s += ':00:00';
                 else if (s.length === 16) s += ':00';
                 const date = new Date(s);
-                if (isNaN(date.getTime())) continue;
+                if (Number.isNaN(date.getTime())) continue;
                 const jsDay = date.getDay();
                 const dayIdx = jsDay === 0 ? 6 : jsDay - 1;
                 g[dayIdx][date.getHours()] += d.count;

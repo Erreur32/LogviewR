@@ -26,7 +26,7 @@ function numericStatus(entry: ParsedLogEntry): number | undefined {
     const s = entry.status;
     if (typeof s === 'number' && !Number.isNaN(s)) return s;
     if (typeof s === 'string') {
-        const n = parseInt(s, 10);
+        const n = Number.parseInt(s, 10);
         return Number.isNaN(n) ? undefined : n;
     }
     return undefined;
@@ -88,7 +88,7 @@ export class AnalysisService {
 
         // Basic timeout detection (if response time is available)
         const rt = (entry as { responseTime?: unknown }).responseTime;
-        const responseMs = typeof rt === 'number' ? rt : typeof rt === 'string' ? parseFloat(rt) : NaN;
+        const responseMs = typeof rt === 'number' ? rt : typeof rt === 'string' ? Number.parseFloat(rt) : Number.NaN;
         if (!Number.isNaN(responseMs) && responseMs > 5000) {
             return {
                 type: 'performance',

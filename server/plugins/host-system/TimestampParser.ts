@@ -27,13 +27,13 @@ export function parseTimestamp(timestamp: string): Date {
     if (iso8601Match) {
         const [, year, month, day, hour, minute, second, millisecond, timezone] = iso8601Match;
         const date = new Date(
-            parseInt(year, 10),
-            parseInt(month, 10) - 1, // Month is 0-indexed
-            parseInt(day, 10),
-            parseInt(hour, 10),
-            parseInt(minute, 10),
-            parseInt(second, 10),
-            millisecond ? parseInt(millisecond.substring(0, 3), 10) : 0
+            Number.parseInt(year, 10),
+            Number.parseInt(month, 10) - 1, // Month is 0-indexed
+            Number.parseInt(day, 10),
+            Number.parseInt(hour, 10),
+            Number.parseInt(minute, 10),
+            Number.parseInt(second, 10),
+            millisecond ? Number.parseInt(millisecond.substring(0, 3), 10) : 0
         );
         
         // Handle timezone offset
@@ -41,7 +41,7 @@ export function parseTimestamp(timestamp: string): Date {
             const offsetMatch = timezone.match(/([+-])(\d{2}):(\d{2})/);
             if (offsetMatch) {
                 const [, sign, offsetHours, offsetMinutes] = offsetMatch;
-                const offsetMs = (parseInt(offsetHours, 10) * 60 + parseInt(offsetMinutes, 10)) * 60 * 1000;
+                const offsetMs = (Number.parseInt(offsetHours, 10) * 60 + Number.parseInt(offsetMinutes, 10)) * 60 * 1000;
                 if (sign === '-') {
                     date.setTime(date.getTime() + offsetMs);
                 } else {
@@ -57,7 +57,7 @@ export function parseTimestamp(timestamp: string): Date {
     const unixTimestampMatch = timestamp.match(/^(\d+)(?:\.(\d+))?$/);
     if (unixTimestampMatch) {
         const [, seconds, milliseconds] = unixTimestampMatch;
-        const timestampMs = parseInt(seconds, 10) * 1000 + (milliseconds ? parseInt(milliseconds.substring(0, 3), 10) : 0);
+        const timestampMs = Number.parseInt(seconds, 10) * 1000 + (milliseconds ? Number.parseInt(milliseconds.substring(0, 3), 10) : 0);
         return new Date(timestampMs);
     }
 
@@ -78,10 +78,10 @@ export function parseTimestamp(timestamp: string): Date {
         const date = new Date(
             currentYear,
             monthIndex,
-            parseInt(day, 10),
-            parseInt(hour, 10),
-            parseInt(minute, 10),
-            parseInt(second, 10)
+            Number.parseInt(day, 10),
+            Number.parseInt(hour, 10),
+            Number.parseInt(minute, 10),
+            Number.parseInt(second, 10)
         );
         
         // If the parsed date is more than 6 months in the future, assume it's last year
@@ -96,7 +96,7 @@ export function parseTimestamp(timestamp: string): Date {
 
     // Fallback: try to parse as standard Date string
     const fallbackDate = new Date(timestamp);
-    if (!isNaN(fallbackDate.getTime())) {
+    if (!Number.isNaN(fallbackDate.getTime())) {
         return fallbackDate;
     }
 

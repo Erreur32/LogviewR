@@ -545,7 +545,7 @@ const DatabasePerformanceSection: React.FC = () => {
           >
             <select
               value={dbConfig.synchronous}
-              onChange={(e) => setDbConfig({ ...dbConfig, synchronous: parseInt(e.target.value) as 0 | 1 | 2 })}
+              onChange={(e) => setDbConfig({ ...dbConfig, synchronous: Number.parseInt(e.target.value) as 0 | 1 | 2 })}
               className="px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-sm text-gray-200 focus:outline-none focus:border-blue-500"
             >
               <option value="0">OFF (Rapide)</option>
@@ -562,7 +562,7 @@ const DatabasePerformanceSection: React.FC = () => {
               <input
                 type="number"
                 value={dbConfig.cacheSize}
-                onChange={(e) => setDbConfig({ ...dbConfig, cacheSize: parseInt(e.target.value) || -64000 })}
+                onChange={(e) => setDbConfig({ ...dbConfig, cacheSize: Number.parseInt(e.target.value) || -64000 })}
                 className="w-32 px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-sm text-gray-200 focus:outline-none focus:border-blue-500"
               />
               <span className="text-sm text-gray-400">
@@ -581,7 +581,7 @@ const DatabasePerformanceSection: React.FC = () => {
               max="60000"
               step="1000"
               value={dbConfig.busyTimeout}
-              onChange={(e) => setDbConfig({ ...dbConfig, busyTimeout: parseInt(e.target.value) || 5000 })}
+              onChange={(e) => setDbConfig({ ...dbConfig, busyTimeout: Number.parseInt(e.target.value) || 5000 })}
               className="w-32 px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-sm text-gray-200 focus:outline-none focus:border-blue-500"
             />
           </SettingRow>
@@ -1104,7 +1104,7 @@ const UpdateCheckSection: React.FC = () => {
                     {updateInfo.releaseNotes}
                   </p>
                   <a
-                    href={`https://github.com/erreur32/LogviewR/blob/main/CHANGELOG.md#${updateInfo.latestVersion?.replace(/\./g, '')}`}
+                    href={`https://github.com/erreur32/LogviewR/blob/main/CHANGELOG.md#${updateInfo.latestVersion?.replaceAll(/\./g, '')}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-xs text-amber-400/70 hover:text-amber-400 transition-colors mt-0.5 inline-block"
@@ -2127,7 +2127,7 @@ const DEFAULT_WEBHOOK_EVENTS = { ban: true, attempt: false, action: false };
 
 // Hex int ↔ CSS hex string helpers for Discord color pickers
 const intToHex = (n: number): string => '#' + n.toString(16).padStart(6, '0');
-const hexToInt = (h: string): number => parseInt(h.replace('#', ''), 16);
+const hexToInt = (h: string): number => Number.parseInt(h.replace('#', ''), 16);
 
 const DEFAULT_FORM = {
   name: '', url: '', token: '', chatId: '',
@@ -3449,7 +3449,7 @@ const InfoSection: React.FC = () => {
       } else if (line.startsWith('#### ')) {
         out.push(<h5 key={key++} className="text-xs font-semibold text-gray-300 mt-2 mb-0.5">{line.slice(5)}</h5>);
       } else if (/^-\s+/.test(line) || /^\*\s+/.test(line)) {
-        const text = line.replace(/^[-*]\s+/, '').replace(/\*\*([^*]+)\*\*/g, (_, t) => `\u0000${t}\u0000`);
+        const text = line.replace(/^[-*]\s+/, '').replaceAll(/\*\*([^*]+)\*\*/g, (_, t) => `\u0000${t}\u0000`);
         const parts = text.split(/\u0000/);
         out.push(
           <li key={key++} className="text-sm text-gray-300 ml-4 list-disc">
@@ -4449,7 +4449,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                               min={1}
                               max={100}
                               value={analysisConfig.maxFilesPerPlugin}
-                              onChange={(e) => setAnalysisConfig((prev) => ({ ...prev, maxFilesPerPlugin: Math.max(1, Math.min(100, parseInt(e.target.value, 10) || 1)) }))}
+                              onChange={(e) => setAnalysisConfig((prev) => ({ ...prev, maxFilesPerPlugin: Math.max(1, Math.min(100, Number.parseInt(e.target.value, 10) || 1)) }))}
                               className="w-24 px-2 py-1.5 rounded-lg bg-theme-tertiary border border-theme-border text-theme-primary text-sm"
                             />
                           </SettingRow>
@@ -4462,7 +4462,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                               onChange={(e) =>
                                 setAnalysisConfig((prev) => ({
                                   ...prev,
-                                  maxFileSizeBytes: Math.max(1, Math.min(512, parseInt(e.target.value, 10) || 1)) * 1024 * 1024
+                                  maxFileSizeBytes: Math.max(1, Math.min(512, Number.parseInt(e.target.value, 10) || 1)) * 1024 * 1024
                                 }))
                               }
                               className="w-24 px-2 py-1.5 rounded-lg bg-theme-tertiary border border-theme-border text-theme-primary text-sm"
@@ -4480,7 +4480,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                                 step={1000}
                                 value={logViewerMaxLines}
                                 onChange={(e) => {
-                                  const parsed = parseInt(e.target.value, 10) || 0;
+                                  const parsed = Number.parseInt(e.target.value, 10) || 0;
                                   const clamped = Math.max(1000, Math.min(100000, parsed));
                                   setLogViewerMaxLines(clamped);
                                 }}

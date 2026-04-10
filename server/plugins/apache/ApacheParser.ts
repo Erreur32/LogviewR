@@ -114,11 +114,11 @@ export class ApacheParser {
                 method: requestParts.method,
                 url: requestParts.url,
                 protocol: requestParts.protocol,
-                status: parseInt(status, 10),
-                size: parseInt(size, 10),
+                status: Number.parseInt(status, 10),
+                size: Number.parseInt(size, 10),
                 referer: referer && referer !== '-' ? referer : undefined,
                 userAgent: userAgent && userAgent !== '-' ? userAgent : undefined,
-                level: this.getLevelFromStatus(parseInt(status, 10)),
+                level: this.getLevelFromStatus(Number.parseInt(status, 10)),
                 message: line
             };
         }
@@ -137,15 +137,15 @@ export class ApacheParser {
                 timestamp: this.parseTimestamp(timestamp),
                 ip,
                 vhost,
-                port: parseInt(port, 10),
+                port: Number.parseInt(port, 10),
                 method: requestParts.method,
                 url: requestParts.url,
                 protocol: requestParts.protocol,
-                status: parseInt(status, 10),
-                size: parseInt(size, 10),
+                status: Number.parseInt(status, 10),
+                size: Number.parseInt(size, 10),
                 referer: referer || '-',
                 userAgent: userAgent || '-',
-                level: this.getLevelFromStatus(parseInt(status, 10)),
+                level: this.getLevelFromStatus(Number.parseInt(status, 10)),
                 message: line
             };
         }
@@ -164,15 +164,15 @@ export class ApacheParser {
                 timestamp: this.parseTimestamp(timestamp),
                 ip,
                 vhost,
-                port: parseInt(port, 10),
+                port: Number.parseInt(port, 10),
                 method: requestParts.method,
                 url: requestParts.url,
                 protocol: requestParts.protocol,
-                status: parseInt(status, 10),
-                size: parseInt(size, 10),
+                status: Number.parseInt(status, 10),
+                size: Number.parseInt(size, 10),
                 referer: '-',
                 userAgent: '-',
-                level: this.getLevelFromStatus(parseInt(status, 10)),
+                level: this.getLevelFromStatus(Number.parseInt(status, 10)),
                 message: line
             };
         }
@@ -195,11 +195,11 @@ export class ApacheParser {
                     method: requestParts.method,
                     url: requestParts.url,
                     protocol: requestParts.protocol,
-                    status: parseInt(status, 10),
-                    size: parseInt(size, 10),
+                    status: Number.parseInt(status, 10),
+                    size: Number.parseInt(size, 10),
                     referer: '-',
                     userAgent: '-',
-                    level: this.getLevelFromStatus(parseInt(status, 10)),
+                    level: this.getLevelFromStatus(Number.parseInt(status, 10)),
                     message: line
                 };
             }
@@ -221,11 +221,11 @@ export class ApacheParser {
                 method: requestParts.method,
                 url: requestParts.url,
                 protocol: requestParts.protocol,
-                status: parseInt(status, 10),
-                size: parseInt(size, 10),
+                status: Number.parseInt(status, 10),
+                size: Number.parseInt(size, 10),
                 referer: referer || '-',
                 userAgent: userAgent || '-',
-                level: this.getLevelFromStatus(parseInt(status, 10)),
+                level: this.getLevelFromStatus(Number.parseInt(status, 10)),
                 message: line
             };
         }
@@ -246,11 +246,11 @@ export class ApacheParser {
                 method: requestParts.method,
                 url: requestParts.url,
                 protocol: requestParts.protocol,
-                status: parseInt(status, 10),
-                size: parseInt(size, 10),
+                status: Number.parseInt(status, 10),
+                size: Number.parseInt(size, 10),
                 referer: '-',
                 userAgent: '-',
-                level: this.getLevelFromStatus(parseInt(status, 10)),
+                level: this.getLevelFromStatus(Number.parseInt(status, 10)),
                 message: line
             };
         }
@@ -283,11 +283,11 @@ export class ApacheParser {
                 method: requestParts.method,
                 url: requestParts.url,
                 protocol: requestParts.protocol,
-                status: parseInt(status || '0', 10),
-                size: parseInt(size || '0', 10),
+                status: Number.parseInt(status || '0', 10),
+                size: Number.parseInt(size || '0', 10),
                 referer: referer && referer !== '-' ? referer : undefined,
                 userAgent: userAgent && userAgent !== '-' ? userAgent : undefined,
-                level: this.getLevelFromStatus(parseInt(status || '0', 10)),
+                level: this.getLevelFromStatus(Number.parseInt(status || '0', 10)),
                 message: line
             };
         } catch {
@@ -358,10 +358,10 @@ export class ApacheParser {
             };
 
             if (pid) {
-                (result as any).pid = parseInt(pid, 10);
+                (result as any).pid = Number.parseInt(pid, 10);
             }
             if (tid) {
-                (result as any).tid = parseInt(tid, 10);
+                (result as any).tid = Number.parseInt(tid, 10);
             }
             if (clientIp) {
                 // Extract IP and port from "IP:port" format
@@ -369,7 +369,7 @@ export class ApacheParser {
                 if (clientMatch) {
                     result.clientIp = clientMatch[1];
                     if (clientMatch[2]) {
-                        (result as any).clientPort = parseInt(clientMatch[2], 10);
+                        (result as any).clientPort = Number.parseInt(clientMatch[2], 10);
                     }
                 } else {
                     result.clientIp = clientIp;
@@ -397,7 +397,7 @@ export class ApacheParser {
             if (clientMatch2) {
                 result.clientIp = clientMatch2[1];
                 if (clientMatch2[2]) {
-                    (result as any).clientPort = parseInt(clientMatch2[2], 10);
+                    (result as any).clientPort = Number.parseInt(clientMatch2[2], 10);
                 }
             } else {
                 result.clientIp = clientInfo;
@@ -421,10 +421,10 @@ export class ApacheParser {
             };
 
             if (pid) {
-                (result as any).pid = parseInt(pid, 10);
+                (result as any).pid = Number.parseInt(pid, 10);
             }
             if (tid) {
-                (result as any).tid = parseInt(tid, 10);
+                (result as any).tid = Number.parseInt(tid, 10);
             }
 
             return result;
@@ -534,18 +534,18 @@ export class ApacheParser {
             
             // Parse timezone offset (e.g., +0000, -0500)
             const tzSign = timezone[0] === '+' ? 1 : -1;
-            const tzHours = parseInt(timezone.slice(1, 3), 10);
-            const tzMinutes = parseInt(timezone.slice(3, 5), 10);
+            const tzHours = Number.parseInt(timezone.slice(1, 3), 10);
+            const tzMinutes = Number.parseInt(timezone.slice(3, 5), 10);
             const tzOffsetMinutes = tzSign * (tzHours * 60 + tzMinutes);
             
             // Create date in UTC, then adjust for timezone
             const date = new Date(Date.UTC(
-                parseInt(year, 10),
+                Number.parseInt(year, 10),
                 monthMap[month] ?? 0,
-                parseInt(day, 10),
-                parseInt(hour, 10),
-                parseInt(minute, 10),
-                parseInt(second, 10)
+                Number.parseInt(day, 10),
+                Number.parseInt(hour, 10),
+                Number.parseInt(minute, 10),
+                Number.parseInt(second, 10)
             ));
             
             // Adjust for timezone offset (subtract offset to get local time)
@@ -564,12 +564,12 @@ export class ApacheParser {
             };
             
             return new Date(
-                parseInt(year, 10),
+                Number.parseInt(year, 10),
                 monthMap[month] ?? 0,
-                parseInt(day, 10),
-                parseInt(hour, 10),
-                parseInt(minute, 10),
-                parseInt(second, 10)
+                Number.parseInt(day, 10),
+                Number.parseInt(hour, 10),
+                Number.parseInt(minute, 10),
+                Number.parseInt(second, 10)
             );
         }
 
@@ -583,12 +583,12 @@ export class ApacheParser {
             };
             
             return new Date(
-                parseInt(year, 10),
+                Number.parseInt(year, 10),
                 monthMap[month] ?? 0,
-                parseInt(day, 10),
-                parseInt(hour, 10),
-                parseInt(minute, 10),
-                parseInt(second, 10)
+                Number.parseInt(day, 10),
+                Number.parseInt(hour, 10),
+                Number.parseInt(minute, 10),
+                Number.parseInt(second, 10)
             );
         }
 
@@ -603,7 +603,7 @@ export class ApacheParser {
         if (size === '-' || !size) {
             return 0;
         }
-        return parseInt(size, 10) || 0;
+        return Number.parseInt(size, 10) || 0;
     }
 
     /**

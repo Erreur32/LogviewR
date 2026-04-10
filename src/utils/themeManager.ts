@@ -155,7 +155,7 @@ export const applyCustomColors = (customColors: Record<string, string>): void =>
   const root = document.documentElement;
   Object.entries(customColors).forEach(([key, value]) => {
     // Convert camelCase to kebab-case for CSS variables
-    const cssVar = `--${key.replace(/([A-Z])/g, '-$1').toLowerCase()}`;
+    const cssVar = `--${key.replaceAll(/([A-Z])/g, '-$1').toLowerCase()}`;
     root.style.setProperty(cssVar, value);
   });
 };

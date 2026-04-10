@@ -223,8 +223,8 @@ export const TabTracker: React.FC<{ onIpClick?: (ip: string) => void; onTotalCha
             let va: number | string, vb: number | string;
             switch (sortCol) {
                 case 'ip':
-                    va = a.ip.split('.').reduce((acc, n) => acc * 256 + parseInt(n, 10), 0);
-                    vb = b.ip.split('.').reduce((acc, n) => acc * 256 + parseInt(n, 10), 0);
+                    va = a.ip.split('.').reduce((acc, n) => acc * 256 + Number.parseInt(n, 10), 0);
+                    vb = b.ip.split('.').reduce((acc, n) => acc * 256 + Number.parseInt(n, 10), 0);
                     break;
                 case 'bans':     va = a.bans ?? 0;     vb = b.bans ?? 0;     break;
                 case 'unbans':   va = a.unbans ?? 0;   vb = b.unbans ?? 0;   break;

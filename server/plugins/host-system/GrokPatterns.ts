@@ -125,7 +125,7 @@ export function grokToRegex(pattern: string): RegExp {
             
             // Also handle patterns without capture names: %{PATTERN}
             const grokPatternNoName = `%{${patternName}}`;
-            const regexNoName = new RegExp(grokPatternNoName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+            const regexNoName = new RegExp(grokPatternNoName.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
             regexStr = regexStr.replace(regexNoName, basePattern);
         }
     }
@@ -134,11 +134,11 @@ export function grokToRegex(pattern: string): RegExp {
     // Replace spaces with \s+, but avoid creating \s++ (space already followed by +)
     // First, replace patterns like " +" (space followed by +) with a temporary marker
     // This handles Grok patterns like " +" which mean "one or more spaces"
-    regexStr = regexStr.replace(/\s+\+/g, '__SPACE_PLUS__');
+    regexStr = regexStr.replaceAll(/\s+\+/g, '__SPACE_PLUS__');
     // Then replace remaining spaces with \s+
-    regexStr = regexStr.replace(/\s+/g, '\\s+');
+    regexStr = regexStr.replaceAll(/\s+/g, '\\s+');
     // Finally, replace the temporary marker with \s+
-    regexStr = regexStr.replace(/__SPACE_PLUS__/g, '\\s+');
+    regexStr = regexStr.replaceAll(/__SPACE_PLUS__/g, '\\s+');
     
     // Create regex with start/end anchors
     return new RegExp(`^${regexStr}$`);

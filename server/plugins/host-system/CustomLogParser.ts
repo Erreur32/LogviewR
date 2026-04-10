@@ -118,7 +118,7 @@ export class CustomLogParser {
                 const timestamp = match[0];
                 // Try to parse as ISO 8601
                 const isoDate = new Date(timestamp);
-                if (!isNaN(isoDate.getTime())) {
+                if (!Number.isNaN(isoDate.getTime())) {
                     return isoDate;
                 }
                 // Try to parse as syslog format
@@ -192,18 +192,18 @@ export class CustomLogParser {
             const date = new Date(
                 currentYear,
                 monthIndex,
-                parseInt(day, 10),
-                parseInt(hour, 10),
-                parseInt(minute, 10),
-                parseInt(second, 10)
+                Number.parseInt(day, 10),
+                Number.parseInt(hour, 10),
+                Number.parseInt(minute, 10),
+                Number.parseInt(second, 10)
             );
             
             return date;
         }
         
         // Try Unix timestamp
-        const unixTimestamp = parseInt(timestamp, 10);
-        if (!isNaN(unixTimestamp)) {
+        const unixTimestamp = Number.parseInt(timestamp, 10);
+        if (!Number.isNaN(unixTimestamp)) {
             // If timestamp is in seconds, convert to milliseconds
             const timestampMs = unixTimestamp < 10000000000 ? unixTimestamp * 1000 : unixTimestamp;
             return new Date(timestampMs);

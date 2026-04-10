@@ -42,15 +42,15 @@ export class NpmParser {
                 url: uri,
                 protocol: scheme,
                 host,
-                status: parseInt(status, 10),
-                size: parseInt(bytes, 10),
+                status: Number.parseInt(status, 10),
+                size: Number.parseInt(bytes, 10),
                 referer: ref || '-',
                 userAgent: ua || '-',
                 cache: cache,
                 upstreamStatus: upstreamStatus,
                 gzip: gzip,
                 upstream: server,
-                level: this.getLevelFromStatus(parseInt(status, 10))
+                level: this.getLevelFromStatus(Number.parseInt(status, 10))
             };
         }
 
@@ -70,12 +70,12 @@ export class NpmParser {
                 url: uri,
                 protocol: scheme,
                 host,
-                status: parseInt(status, 10),
-                size: parseInt(bytes, 10),
+                status: Number.parseInt(status, 10),
+                size: Number.parseInt(bytes, 10),
                 referer: ref || '-',
                 userAgent: ua || '-',
                 gzip: gzip,
-                level: this.getLevelFromStatus(parseInt(status, 10))
+                level: this.getLevelFromStatus(Number.parseInt(status, 10))
             };
         }
 
@@ -101,11 +101,11 @@ export class NpmParser {
                 url,
                 protocol,
                 host,
-                status: parseInt(status, 10),
-                size: parseInt(bytes, 10),
+                status: Number.parseInt(status, 10),
+                size: Number.parseInt(bytes, 10),
                 referer: ref || '-',
                 userAgent: ua || '-',
-                level: this.getLevelFromStatus(parseInt(status, 10))
+                level: this.getLevelFromStatus(Number.parseInt(status, 10))
             };
         }
 
@@ -126,14 +126,14 @@ export class NpmParser {
                 method: requestParts.method,
                 url: requestParts.url,
                 protocol: requestParts.protocol,
-                status: parseInt(status, 10),
+                status: Number.parseInt(status, 10),
                 size: this.parseSize(size),
                 referer: referer || '-',
                 userAgent: userAgent || '-',
                 host: host || '-',
                 upstream: upstream || '-',
-                responseTime: responseTime ? parseFloat(responseTime) : undefined,
-                level: this.getLevelFromStatus(parseInt(status, 10))
+                responseTime: responseTime ? Number.parseFloat(responseTime) : undefined,
+                level: this.getLevelFromStatus(Number.parseInt(status, 10))
             };
         }
 
@@ -154,13 +154,13 @@ export class NpmParser {
                 method: requestParts.method,
                 url: requestParts.url,
                 protocol: requestParts.protocol,
-                status: parseInt(status, 10),
+                status: Number.parseInt(status, 10),
                 size: this.parseSize(size),
                 referer: referer || '-',
                 userAgent: userAgent || '-',
                 host: '-',
                 upstream: '-',
-                level: this.getLevelFromStatus(parseInt(status, 10))
+                level: this.getLevelFromStatus(Number.parseInt(status, 10))
             };
         }
 
@@ -194,8 +194,8 @@ export class NpmParser {
             return {
                 timestamp: this.parseTimestamp(timestamp),
                 level: level.toLowerCase(),
-                pid: parseInt(pid, 10),
-                tid: parseInt(tid, 10),
+                pid: Number.parseInt(pid, 10),
+                tid: Number.parseInt(tid, 10),
                 message: message.trim()
             };
         }
@@ -265,18 +265,18 @@ export class NpmParser {
             
             // Parse timezone offset (e.g., +0000, -0500)
             const tzSign = timezone[0] === '+' ? 1 : -1;
-            const tzHours = parseInt(timezone.slice(1, 3), 10);
-            const tzMinutes = parseInt(timezone.slice(3, 5), 10);
+            const tzHours = Number.parseInt(timezone.slice(1, 3), 10);
+            const tzMinutes = Number.parseInt(timezone.slice(3, 5), 10);
             const tzOffsetMinutes = tzSign * (tzHours * 60 + tzMinutes);
             
             // Create date in UTC, then adjust for timezone
             const date = new Date(Date.UTC(
-                parseInt(year, 10),
+                Number.parseInt(year, 10),
                 monthMap[month] ?? 0,
-                parseInt(day, 10),
-                parseInt(hour, 10),
-                parseInt(minute, 10),
-                parseInt(second, 10)
+                Number.parseInt(day, 10),
+                Number.parseInt(hour, 10),
+                Number.parseInt(minute, 10),
+                Number.parseInt(second, 10)
             ));
             
             // Adjust for timezone offset (subtract offset to get local time)
@@ -295,12 +295,12 @@ export class NpmParser {
             };
             
             return new Date(
-                parseInt(year, 10),
+                Number.parseInt(year, 10),
                 monthMap[month] ?? 0,
-                parseInt(day, 10),
-                parseInt(hour, 10),
-                parseInt(minute, 10),
-                parseInt(second, 10)
+                Number.parseInt(day, 10),
+                Number.parseInt(hour, 10),
+                Number.parseInt(minute, 10),
+                Number.parseInt(second, 10)
             );
         }
 
@@ -310,12 +310,12 @@ export class NpmParser {
             const [, year, month, day, hour, minute, second] = errorMatch;
             
             return new Date(
-                parseInt(year, 10),
-                parseInt(month, 10) - 1,
-                parseInt(day, 10),
-                parseInt(hour, 10),
-                parseInt(minute, 10),
-                parseInt(second, 10)
+                Number.parseInt(year, 10),
+                Number.parseInt(month, 10) - 1,
+                Number.parseInt(day, 10),
+                Number.parseInt(hour, 10),
+                Number.parseInt(minute, 10),
+                Number.parseInt(second, 10)
             );
         }
 
@@ -329,7 +329,7 @@ export class NpmParser {
         if (size === '-' || !size) {
             return 0;
         }
-        return parseInt(size, 10) || 0;
+        return Number.parseInt(size, 10) || 0;
     }
 
     /**

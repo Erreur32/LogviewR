@@ -250,7 +250,7 @@ async function parseLogrotateConfig(configPath: string): Promise<Array<{
                 } else if (trimmed.startsWith('rotate')) {
                     const rotateMatch = trimmed.match(/rotate\s+(\d+)/);
                     if (rotateMatch) {
-                        currentKeepDays = parseInt(rotateMatch[1], 10);
+                        currentKeepDays = Number.parseInt(rotateMatch[1], 10);
                     }
                 } else if (trimmed === 'compress' || trimmed.startsWith('compress')) {
                     currentCompress = true;

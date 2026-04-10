@@ -83,11 +83,11 @@ export class WebhookService {
         try {
             // Replace template variables
             let processed = template;
-            processed = processed.replace(/\{\{type\}\}/g, notification.type);
-            processed = processed.replace(/\{\{severity\}\}/g, notification.severity);
-            processed = processed.replace(/\{\{title\}\}/g, notification.title);
-            processed = processed.replace(/\{\{message\}\}/g, notification.message);
-            processed = processed.replace(/\{\{timestamp\}\}/g, notification.timestamp.toISOString());
+            processed = processed.replaceAll(/\{\{type\}\}/g, notification.type);
+            processed = processed.replaceAll(/\{\{severity\}\}/g, notification.severity);
+            processed = processed.replaceAll(/\{\{title\}\}/g, notification.title);
+            processed = processed.replaceAll(/\{\{message\}\}/g, notification.message);
+            processed = processed.replaceAll(/\{\{timestamp\}\}/g, notification.timestamp.toISOString());
             
             // Try to parse as JSON
             return JSON.parse(processed);

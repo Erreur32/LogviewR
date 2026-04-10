@@ -41,7 +41,7 @@ export function getLogEntryIp(log: Record<string, unknown>): string | null {
 function ipv4InCidr(ip: string, cidr: string): boolean {
     const parts = cidr.split('/');
     const base = parts[0].trim();
-    const prefixLen = parts.length === 2 ? parseInt(parts[1].trim(), 10) : 32;
+    const prefixLen = parts.length === 2 ? Number.parseInt(parts[1].trim(), 10) : 32;
     if (prefixLen < 0 || prefixLen > 32 || !Number.isInteger(prefixLen)) return false;
     const octets = base.split('.').map(Number);
     if (octets.length !== 4 || octets.some((n) => n < 0 || n > 255 || !Number.isInteger(n))) return false;

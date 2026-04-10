@@ -51,8 +51,8 @@ export function parseJournaldJson(line: string): ParsedLogEntry | null {
         // Extract timestamp from __REALTIME_TIMESTAMP (microseconds since epoch)
         let timestamp: Date | undefined;
         if (jsonEntry.__REALTIME_TIMESTAMP) {
-            const microseconds = parseInt(jsonEntry.__REALTIME_TIMESTAMP, 10);
-            if (!isNaN(microseconds)) {
+            const microseconds = Number.parseInt(jsonEntry.__REALTIME_TIMESTAMP, 10);
+            if (!Number.isNaN(microseconds)) {
                 timestamp = new Date(microseconds / 1000); // Convert to milliseconds
             }
         }
@@ -60,7 +60,7 @@ export function parseJournaldJson(line: string): ParsedLogEntry | null {
         // Extract level from PRIORITY (syslog priority: 0-7)
         let level = 'info';
         if (jsonEntry.PRIORITY) {
-            const priority = parseInt(jsonEntry.PRIORITY, 10);
+            const priority = Number.parseInt(jsonEntry.PRIORITY, 10);
             level = getLevelFromPriority(priority);
         }
         
@@ -76,13 +76,13 @@ export function parseJournaldJson(line: string): ParsedLogEntry | null {
         // Extract PID
         let pid: number | undefined;
         if (jsonEntry._PID) {
-            const pidValue = parseInt(jsonEntry._PID, 10);
-            if (!isNaN(pidValue)) {
+            const pidValue = Number.parseInt(jsonEntry._PID, 10);
+            if (!Number.isNaN(pidValue)) {
                 pid = pidValue;
             }
         } else if (jsonEntry.SYSLOG_PID) {
-            const pidValue = parseInt(jsonEntry.SYSLOG_PID as string, 10);
-            if (!isNaN(pidValue)) {
+            const pidValue = Number.parseInt(jsonEntry.SYSLOG_PID as string, 10);
+            if (!Number.isNaN(pidValue)) {
                 pid = pidValue;
             }
         }
@@ -133,7 +133,7 @@ export function parseJournaldJson(line: string): ParsedLogEntry | null {
         
         // Add priority if available
         if (jsonEntry.PRIORITY) {
-            entry.priority = parseInt(jsonEntry.PRIORITY, 10);
+            entry.priority = Number.parseInt(jsonEntry.PRIORITY, 10);
         }
         
         return entry;

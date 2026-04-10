@@ -29,7 +29,7 @@ router.get('/', requireAuth, requireAdmin, asyncHandler(async (req: Authenticate
     const filters: any = {};
 
     if (userId) {
-        filters.userId = parseInt(userId as string, 10);
+        filters.userId = Number.parseInt(userId as string, 10);
     }
     if (pluginId) {
         filters.pluginId = pluginId as string;
@@ -50,10 +50,10 @@ router.get('/', requireAuth, requireAdmin, asyncHandler(async (req: Authenticate
         filters.endDate = new Date(endDate as string);
     }
     if (limit) {
-        filters.limit = parseInt(limit as string, 10);
+        filters.limit = Number.parseInt(limit as string, 10);
     }
     if (offset) {
-        filters.offset = parseInt(offset as string, 10);
+        filters.offset = Number.parseInt(offset as string, 10);
     }
 
     const logs = loggingService.getLogs(filters);
@@ -85,7 +85,7 @@ router.get('/count', requireAuth, requireAdmin, asyncHandler(async (req: Authent
     const filters: any = {};
 
     if (userId) {
-        filters.userId = parseInt(userId as string, 10);
+        filters.userId = Number.parseInt(userId as string, 10);
     }
     if (pluginId) {
         filters.pluginId = pluginId as string;
@@ -117,9 +117,9 @@ router.get('/count', requireAuth, requireAdmin, asyncHandler(async (req: Authent
 // DELETE /api/logs/cleanup - Cleanup old logs (admin only)
 router.delete('/cleanup', requireAuth, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res) => {
     const { daysToKeep = '90' } = req.query;
-    const days = parseInt(daysToKeep as string, 10);
+    const days = Number.parseInt(daysToKeep as string, 10);
 
-    if (isNaN(days) || days < 1) {
+    if (Number.isNaN(days) || days < 1) {
         throw createError('daysToKeep must be a positive number', 400, 'INVALID_DAYS');
     }
 

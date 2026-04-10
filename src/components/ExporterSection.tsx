@@ -326,7 +326,7 @@ export const ExporterSection: React.FC = () => {
                                     max="65535"
                                     value={config.prometheus.port || getDefaultPort()}
                                     onChange={(e) => {
-                                        const port = parseInt(e.target.value) || getDefaultPort();
+                                        const port = Number.parseInt(e.target.value) || getDefaultPort();
                                         setConfig({
                                             ...config,
                                             prometheus: { ...config.prometheus, port }

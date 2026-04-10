@@ -412,7 +412,7 @@ export const TabBlocklists: React.FC = () => {
               <input
                 type="number" min={1000} max={5_000_000} step={1000}
                 value={newMaxelem}
-                onChange={e => setNewMaxelem(Math.max(1000, parseInt(e.target.value) || 150_000))}
+                onChange={e => setNewMaxelem(Math.max(1000, Number.parseInt(e.target.value) || 150_000))}
                 style={{ width: 110, background: '#0d1117', border: '1px solid #30363d', borderRadius: 4, padding: '.2rem .5rem', color: '#e6edf3', fontSize: '.82rem' }}
               />
             </div>

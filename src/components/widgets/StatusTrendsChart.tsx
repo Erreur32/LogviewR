@@ -57,7 +57,7 @@ export const StatusTrendsChart: React.FC<StatusTrendsChartProps> = ({
     labels,
     xAxisTicks = 6
 }) => {
-    const uid = useId().replace(/:/g, '');
+    const uid = useId().replaceAll(/:/g, '');
     const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
     const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
     const svgRef = useRef<SVGSVGElement>(null);

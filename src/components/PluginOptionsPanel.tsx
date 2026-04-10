@@ -1163,7 +1163,7 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                                 type="number"
                                                 min="1"
                                                 value={Number(formData.maxLines ?? 0)}
-                                                onChange={(e) => handleInputChange('maxLines', parseInt(e.target.value, 10) || 0, e.currentTarget)}
+                                                onChange={(e) => handleInputChange('maxLines', Number.parseInt(e.target.value, 10) || 0, e.currentTarget)}
                                                 className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                                             />
                                             <p className="text-xs text-gray-500 mt-1">
@@ -2493,7 +2493,7 @@ const Fail2banConfigPanel: React.FC<Fail2banConfigPanelProps> = ({ sqliteDbPath,
                                             const m = c.perms.match(/^(\d+)\s+uid=(\d+)\s+gid=(\d+)$/);
                                             if (!m) return <code className="text-xs text-gray-600 flex-shrink-0">{c.perms}</code>;
                                             const [, mode, uid, gid] = m;
-                                            const modeNum = parseInt(mode, 8);
+                                            const modeNum = Number.parseInt(mode, 8);
                                             const worldOk = (modeNum & 0o006) === 0o006;
                                             const groupRoot = gid === '0';
                                             const modeColor = worldOk ? '#3fb950' : groupRoot ? '#e86a65' : '#e3b341';

@@ -44,7 +44,7 @@ export class AuthLogParser {
                 ipAddress,
                 user,
                 action,
-                pid: pid ? parseInt(pid, 10) : undefined
+                pid: pid ? Number.parseInt(pid, 10) : undefined
             };
         }
 
@@ -69,7 +69,7 @@ export class AuthLogParser {
                 ipAddress,
                 user,
                 action,
-                pid: match.pid ? parseInt(match.pid, 10) : undefined
+                pid: match.pid ? Number.parseInt(match.pid, 10) : undefined
             };
         }
 
@@ -138,8 +138,8 @@ export class AuthLogParser {
             if (ip) {
                 const octets = ip.split('.');
                 if (octets.length === 4 && octets.every(oct => {
-                    const num = parseInt(oct, 10);
-                    return !isNaN(num) && num >= 0 && num <= 255;
+                    const num = Number.parseInt(oct, 10);
+                    return !Number.isNaN(num) && num >= 0 && num <= 255;
                 })) {
                     return ip;
                 }

@@ -185,11 +185,11 @@ export const Fail2banPathConfig: React.FC<Fail2banPathConfigProps> = ({
     const saveNpmConfig = async () => {
         // Validate MySQL fields before save
         if (npmDbType === 'mysql') {
-            const port = parseInt(mysql.port);
+            const port = Number.parseInt(mysql.port);
             if (!mysql.host.trim()) { setNpmCheck({ ok: false, step: 'validate', error: 'Hôte MySQL obligatoire', resolvedPath: '', domains: 0, jailMatches: 0 }); return; }
             if (!mysql.user.trim()) { setNpmCheck({ ok: false, step: 'validate', error: 'Utilisateur MySQL obligatoire', resolvedPath: '', domains: 0, jailMatches: 0 }); return; }
             if (!mysql.db.trim())   { setNpmCheck({ ok: false, step: 'validate', error: 'Nom de la base obligatoire', resolvedPath: '', domains: 0, jailMatches: 0 }); return; }
-            if (isNaN(port) || port < 1 || port > 65535) { setNpmCheck({ ok: false, step: 'validate', error: 'Port invalide — doit être entre 1 et 65535', resolvedPath: '', domains: 0, jailMatches: 0 }); return; }
+            if (Number.isNaN(port) || port < 1 || port > 65535) { setNpmCheck({ ok: false, step: 'validate', error: 'Port invalide — doit être entre 1 et 65535', resolvedPath: '', domains: 0, jailMatches: 0 }); return; }
         }
         setNpmSaving(true);
         setNpmCheck(null);
@@ -199,7 +199,7 @@ export const Fail2banPathConfig: React.FC<Fail2banPathConfigProps> = ({
             settings.npmDataPath = npmInput.trim();
             if (npmDbType === 'mysql') {
                 settings.npmMysqlHost = mysql.host.trim();
-                settings.npmMysqlPort = parseInt(mysql.port) || 3306;
+                settings.npmMysqlPort = Number.parseInt(mysql.port) || 3306;
                 settings.npmMysqlUser = mysql.user.trim();
                 settings.npmMysqlPass = mysql.pass;
                 settings.npmMysqlDb   = mysql.db.trim();
@@ -337,7 +337,7 @@ export const Fail2banPathConfig: React.FC<Fail2banPathConfigProps> = ({
                                     style={inputStyle('idle')} />
                                 <input type="text" value={mysql.port} placeholder="Port"
                                     onChange={e => setMysql(m => ({ ...m, port: e.target.value }))}
-                                    style={{ ...inputStyle(mysql.port.trim() && (isNaN(parseInt(mysql.port)) || +mysql.port < 1 || +mysql.port > 65535) ? 'error' : 'idle'), width: 70, flex: 'none' }} />
+                                    style={{ ...inputStyle(mysql.port.trim() && (Number.isNaN(Number.parseInt(mysql.port)) || +mysql.port < 1 || +mysql.port > 65535) ? 'error' : 'idle'), width: 70, flex: 'none' }} />
                             </div>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.4rem' }}>
                                 <input type="text" value={mysql.user} placeholder="Utilisateur"

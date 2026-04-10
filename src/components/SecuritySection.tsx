@@ -421,7 +421,7 @@ export const SecuritySection: React.FC<{ view?: 'protection' | 'auth' | 'network
                                         min="3"
                                         max="10"
                                         value={maxLoginAttempts}
-                                        onChange={(e) => setMaxLoginAttempts(parseInt(e.target.value) || 5)}
+                                        onChange={(e) => setMaxLoginAttempts(Number.parseInt(e.target.value) || 5)}
                                         className="w-20 px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm focus:outline-none"
                                     />
                                     <span className="text-sm text-gray-400">{t('security.attempts')}</span>
@@ -438,7 +438,7 @@ export const SecuritySection: React.FC<{ view?: 'protection' | 'auth' | 'network
                                         min="5"
                                         max="60"
                                         value={lockoutDuration}
-                                        onChange={(e) => setLockoutDuration(parseInt(e.target.value) || 15)}
+                                        onChange={(e) => setLockoutDuration(Number.parseInt(e.target.value) || 15)}
                                         className="w-20 px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm focus:outline-none"
                                     />
                                     <span className="text-sm text-gray-400">{t('security.minutes')}</span>
@@ -455,7 +455,7 @@ export const SecuritySection: React.FC<{ view?: 'protection' | 'auth' | 'network
                                         min="15"
                                         max="120"
                                         value={trackingWindow}
-                                        onChange={(e) => setTrackingWindow(parseInt(e.target.value) || 30)}
+                                        onChange={(e) => setTrackingWindow(Number.parseInt(e.target.value) || 30)}
                                         disabled
                                         className="w-20 px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm focus:outline-none opacity-50 cursor-not-allowed"
                                     />
@@ -493,7 +493,7 @@ export const SecuritySection: React.FC<{ view?: 'protection' | 'auth' | 'network
                                         min="1"
                                         max="168"
                                         value={sessionTimeoutHours}
-                                        onChange={(e) => handleSessionTimeoutChange(parseInt(e.target.value) || 168)}
+                                        onChange={(e) => handleSessionTimeoutChange(Number.parseInt(e.target.value) || 168)}
                                         className="w-20 px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm focus:outline-none"
                                     />
                                     <span className="text-sm text-gray-400">{t('security.hours')}</span>

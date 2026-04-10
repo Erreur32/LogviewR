@@ -17,7 +17,7 @@ export const config = {
   // Default port: 3000 for production (Docker), 3004 for development
   // IMPORTANT: In Docker, use PORT (container port), not SERVER_PORT (host port)
   // SERVER_PORT is only for display/logging purposes
-  port: parseInt(
+  port: Number.parseInt(
     process.env.PORT ||
     (process.env.NODE_ENV === 'production' ? '3000' : '3005'),
     10

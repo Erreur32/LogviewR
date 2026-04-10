@@ -366,7 +366,7 @@ class WebhookDispatchService {
             parse_mode: 'HTML',
         };
         if (wh.telegramSilent)         body.disable_notification    = true;
-        if (wh.telegramThreadId)       body.message_thread_id       = parseInt(wh.telegramThreadId, 10);
+        if (wh.telegramThreadId)       body.message_thread_id       = Number.parseInt(wh.telegramThreadId, 10);
         if (wh.telegramDisablePreview) body.disable_web_page_preview = true;
 
         const r = await fetch(`https://api.telegram.org/bot${wh.token}/sendMessage`, {
@@ -460,7 +460,7 @@ class WebhookDispatchService {
     // ── Template engine ───────────────────────────────────────────────────────
 
     private _renderTemplate(template: string, vars: Record<string, string>): string {
-        return template.replace(/\{\{(\w+)\}\}/g, (_, key: string) => vars[key] ?? `{{${key}}}`);
+        return template.replaceAll(/\{\{(\w+)\}\}/g, (_, key: string) => vars[key] ?? `{{${key}}}`);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

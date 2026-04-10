@@ -44,7 +44,7 @@ export const LogBadge: React.FC<LogBadgeProps> = ({ type, value, className = '' 
 
         if (type === 'httpCode' || type === 'upstreamStatus') {
             const code = Number(value);
-            if (isNaN(code) || value === '' || value === '-' || value === null) {
+            if (Number.isNaN(code) || value === '' || value === '-' || value === null) {
                 return 'default';
             }
             if (code >= 200 && code < 300) {
@@ -89,7 +89,7 @@ export const LogBadge: React.FC<LogBadgeProps> = ({ type, value, className = '' 
 
         if (type === 'size') {
             const bytes = Number(value);
-            if (isNaN(bytes) || bytes < 0) return 'default';
+            if (Number.isNaN(bytes) || bytes < 0) return 'default';
             if (bytes < 1024) return 'success';       // < 1 KB
             if (bytes < 100 * 1024) return 'info';    // < 100 KB
             if (bytes < 1024 * 1024) return 'warning'; // < 1 MB
@@ -102,7 +102,7 @@ export const LogBadge: React.FC<LogBadgeProps> = ({ type, value, className = '' 
                 return 'default';
             }
             const num = Number(value);
-            if (isNaN(num)) return 'default';
+            if (Number.isNaN(num)) return 'default';
             if (num >= 2) return 'success';  // Good compression ratio
             if (num >= 1) return 'info';
             return 'warning';
@@ -121,14 +121,14 @@ export const LogBadge: React.FC<LogBadgeProps> = ({ type, value, className = '' 
         if (type === 'responseTime' && typeof value === 'number') {
             return `${value}ms`;
         }
-        if (type === 'size' && (typeof value === 'number' || !isNaN(Number(value)))) {
+        if (type === 'size' && (typeof value === 'number' || !Number.isNaN(Number(value)))) {
             return formatSize(Number(value));
         }
         if (type === 'gzip') {
             const str = String(value).trim();
             if (str === '' || str === '-' || str === 'null' || str === 'undefined') return '-';
             const num = Number(value);
-            return isNaN(num) ? str : String(num);
+            return Number.isNaN(num) ? str : String(num);
         }
         return String(value);
     };

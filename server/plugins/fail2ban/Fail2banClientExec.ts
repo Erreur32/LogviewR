@@ -126,10 +126,10 @@ export class Fail2banClientExec {
 
         return {
             jail,
-            currentlyFailed: parseInt(parse(/Currently failed:\s*(\d+)/), 10),
-            totalFailed:     parseInt(parse(/Total failed:\s*(\d+)/),     10),
-            currentlyBanned: parseInt(parse(/Currently banned:\s*(\d+)/), 10),
-            totalBanned:     parseInt(parse(/Total banned:\s*(\d+)/),     10),
+            currentlyFailed: Number.parseInt(parse(/Currently failed:\s*(\d+)/), 10),
+            totalFailed:     Number.parseInt(parse(/Total failed:\s*(\d+)/),     10),
+            currentlyBanned: Number.parseInt(parse(/Currently banned:\s*(\d+)/), 10),
+            totalBanned:     Number.parseInt(parse(/Total banned:\s*(\d+)/),     10),
             bannedIps,
             fileList: res.output.match(/File list:\s*(.*)/)?.[1]?.trim() ?? '',
         };
@@ -166,8 +166,8 @@ export class Fail2banClientExec {
     async getJailParam(jail: string, param: string): Promise<number | undefined> {
         const res = await this.run(['get', jail, param]);
         if (!res.ok) return undefined;
-        const n = parseInt(res.output.trim(), 10);
-        return isNaN(n) ? undefined : n;
+        const n = Number.parseInt(res.output.trim(), 10);
+        return Number.isNaN(n) ? undefined : n;
     }
 
     async getVersion(): Promise<string> {
@@ -232,7 +232,7 @@ export class Fail2banClientExec {
             if (nameMatch) { current = nameMatch[1].trim(); continue; }
             const entriesMatch = line.match(/^Number of entries:\s*(\d+)/);
             if (entriesMatch && current !== null) {
-                sets.push({ name: current, entries: parseInt(entriesMatch[1], 10) });
+                sets.push({ name: current, entries: Number.parseInt(entriesMatch[1], 10) });
                 current = null;
             }
         }
@@ -253,10 +253,10 @@ export class Fail2banClientExec {
             const mEntries = line.match(/^Number of entries:\s*(\d+)/);
             if (mName)    { cur = { name: mName[1].trim() }; }
             if (mType)    { cur.type    = mType[1].trim(); }
-            if (mMaxelem) { cur.maxelem = parseInt(mMaxelem[1], 10); }
-            if (mSize)    { cur.size    = parseInt(mSize[1], 10); }
+            if (mMaxelem) { cur.maxelem = Number.parseInt(mMaxelem[1], 10); }
+            if (mSize)    { cur.size    = Number.parseInt(mSize[1], 10); }
             if (mEntries && cur.name) {
-                sets.push({ name: cur.name, type: cur.type ?? 'unknown', size: cur.size ?? 0, maxelem: cur.maxelem ?? 65536, entries: parseInt(mEntries[1], 10) });
+                sets.push({ name: cur.name, type: cur.type ?? 'unknown', size: cur.size ?? 0, maxelem: cur.maxelem ?? 65536, entries: Number.parseInt(mEntries[1], 10) });
                 cur = {};
             }
         }

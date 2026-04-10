@@ -75,10 +75,10 @@ export class ApacheLogPlugin extends BasePlugin implements LogSourcePlugin {
         // Convert glob patterns to regex
         const globToRegex = (pattern: string): RegExp => {
             let regexStr = pattern
-                .replace(/\./g, '\\.')
-                .replace(/\*\*/g, '.*')
-                .replace(/\*/g, '[^/]*')
-                .replace(/\?/g, '.');
+                .replaceAll(/\./g, '\\.')
+                .replaceAll(/\*\*/g, '.*')
+                .replaceAll(/\*/g, '[^/]*')
+                .replaceAll(/\?/g, '.');
             return new RegExp(`^${regexStr}$`);
         };
         
@@ -112,10 +112,10 @@ export class ApacheLogPlugin extends BasePlugin implements LogSourcePlugin {
             // Convert glob patterns to regex; allow optional rotation (.1, .2) and compression (.gz, .bz2, .xz) after .log
             const regexPatterns = patterns.map(p => {
                 let regexStr = p
-                    .replace(/\./g, '\\.')
-                    .replace(/\*\*/g, '.*')
-                    .replace(/\*/g, '[^/]*')
-                    .replace(/\?/g, '.');
+                    .replaceAll(/\./g, '\\.')
+                    .replaceAll(/\*\*/g, '.*')
+                    .replaceAll(/\*/g, '[^/]*')
+                    .replaceAll(/\?/g, '.');
                 if (regexStr.endsWith('\\.log')) {
                     regexStr = regexStr + '(?:\\.\\d+)?(?:\\.(?:gz|bz2|xz))?';
                 }

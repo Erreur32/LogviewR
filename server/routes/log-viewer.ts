@@ -208,7 +208,7 @@ router.post('/plugins/:pluginId/scan', async (req, res) => {
             const savedFiles = [];
             for (const file of files) {
                 const logFile = LogFileRepository.upsert({
-                    sourceId: parseInt(sourceId, 10),
+                    sourceId: Number.parseInt(sourceId, 10),
                     filePath: file.path,
                     logType: file.type,
                     enabled: true,
@@ -262,7 +262,7 @@ router.get('/files/:fileId/logs', async (req, res) => {
         const { fromLine = 0 } = req.query;
 
         // Get log file from database
-        const logFile = LogFileRepository.findById(parseInt(fileId, 10));
+        const logFile = LogFileRepository.findById(Number.parseInt(fileId, 10));
         if (!logFile) {
             return res.status(404).json({ error: `Log file not found: ${fileId}` });
         }
@@ -284,7 +284,7 @@ router.get('/files/:fileId/logs', async (req, res) => {
             filePath: logFile.filePath,
             logType: logFile.logType,
             maxLines: effectiveMaxLines,
-            fromLine: parseInt(fromLine as string, 10),
+            fromLine: Number.parseInt(fromLine as string, 10),
             readCompressed
         });
 
@@ -353,7 +353,7 @@ router.post('/sources', async (req, res) => {
 router.get('/sources/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        const source = LogSourceRepository.findById(parseInt(id, 10));
+        const source = LogSourceRepository.findById(Number.parseInt(id, 10));
         
         if (!source) {
             return res.status(404).json({ error: `Log source not found: ${id}` });
@@ -377,7 +377,7 @@ router.put('/sources/:id', async (req, res) => {
     try {
         const { id } = req.params;
         const input = req.body;
-        const source = LogSourceRepository.update(parseInt(id, 10), input);
+        const source = LogSourceRepository.update(Number.parseInt(id, 10), input);
         
         if (!source) {
             return res.status(404).json({ error: `Log source not found: ${id}` });
@@ -400,14 +400,14 @@ router.put('/sources/:id', async (req, res) => {
 router.delete('/sources/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        const deleted = LogSourceRepository.delete(parseInt(id, 10));
+        const deleted = LogSourceRepository.delete(Number.parseInt(id, 10));
         
         if (!deleted) {
             return res.status(404).json({ error: `Log source not found: ${id}` });
         }
 
         // Also delete associated log files
-        LogFileRepository.deleteBySourceId(parseInt(id, 10));
+        LogFileRepository.deleteBySourceId(Number.parseInt(id, 10));
 
         res.json({ success: true });
     } catch (error) {
@@ -428,7 +428,7 @@ router.get('/files', async (req, res) => {
         const { sourceId } = req.query;
         
         const files = sourceId 
-            ? LogFileRepository.findBySourceId(parseInt(sourceId as string, 10))
+            ? LogFileRepository.findBySourceId(Number.parseInt(sourceId as string, 10))
             : LogFileRepository.findAll();
         
         res.json({ files });
@@ -449,7 +449,7 @@ router.put('/files/:id', async (req, res) => {
     try {
         const { id } = req.params;
         const input = req.body;
-        const file = LogFileRepository.update(parseInt(id, 10), input);
+        const file = LogFileRepository.update(Number.parseInt(id, 10), input);
         
         if (!file) {
             return res.status(404).json({ error: `Log file not found: ${id}` });
@@ -472,7 +472,7 @@ router.put('/files/:id', async (req, res) => {
 router.delete('/files/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        const deleted = LogFileRepository.delete(parseInt(id, 10));
+        const deleted = LogFileRepository.delete(Number.parseInt(id, 10));
         
         if (!deleted) {
             return res.status(404).json({ error: `Log file not found: ${id}` });
@@ -533,7 +533,7 @@ router.post('/plugins/:pluginId/read-direct', async (req, res) => {
 
         // Parse log file directly
         const configuredMaxLines = getLogViewerMaxLines();
-        const requestedMaxLines = typeof maxLines === 'number' ? maxLines : parseInt(maxLines as string, 10);
+        const requestedMaxLines = typeof maxLines === 'number' ? maxLines : Number.parseInt(maxLines as string, 10);
         const effectiveMaxLines = !requestedMaxLines || requestedMaxLines <= 0
             ? configuredMaxLines
             : Math.min(configuredMaxLines, requestedMaxLines);
@@ -542,7 +542,7 @@ router.post('/plugins/:pluginId/read-direct', async (req, res) => {
             filePath,
             logType,
             maxLines: effectiveMaxLines,
-            fromLine: parseInt(fromLine as string, 10),
+            fromLine: Number.parseInt(fromLine as string, 10),
             readCompressed
         });
 
@@ -633,13 +633,13 @@ router.post('/plugins/:pluginId/read-raw', async (req, res) => {
 
         // Read raw log lines
         const configuredMaxLines = getLogViewerMaxLines();
-        const requestedMaxLines = typeof maxLines === 'number' ? maxLines : parseInt(maxLines as string, 10);
+        const requestedMaxLines = typeof maxLines === 'number' ? maxLines : Number.parseInt(maxLines as string, 10);
         const effectiveMaxLines = !requestedMaxLines || requestedMaxLines <= 0
             ? configuredMaxLines
             : Math.min(configuredMaxLines, requestedMaxLines);
         const logLines = await logReaderService.readLogFile(filePath, {
             maxLines: effectiveMaxLines,
-            fromLine: parseInt(fromLine as string, 10),
+            fromLine: Number.parseInt(fromLine as string, 10),
             encoding: 'utf8',
             readCompressed
         });
@@ -896,14 +896,14 @@ router.get('/error-summary', async (req, res) => {
 router.get('/sources/:id/stats', async (req, res) => {
     try {
         const { id } = req.params;
-        const source = LogSourceRepository.findById(parseInt(id, 10));
+        const source = LogSourceRepository.findById(Number.parseInt(id, 10));
         
         if (!source) {
             return res.status(404).json({ error: `Log source not found: ${id}` });
         }
 
         // Get all files for this source
-        const files = LogFileRepository.findBySourceId(parseInt(id, 10));
+        const files = LogFileRepository.findBySourceId(Number.parseInt(id, 10));
 
         // Get plugin
         const plugin = pluginManager.getPlugin(source.pluginId);
@@ -1055,7 +1055,7 @@ router.get('/sources/:id/stats', async (req, res) => {
 router.get('/files/:id/stats', async (req, res) => {
     try {
         const { id } = req.params;
-        const logFile = LogFileRepository.findById(parseInt(id, 10));
+        const logFile = LogFileRepository.findById(Number.parseInt(id, 10));
         
         if (!logFile) {
             return res.status(404).json({ error: `Log file not found: ${id}` });
@@ -1360,7 +1360,7 @@ function extractApacheVhost(filePath: string): string | undefined {
 router.get('/largest-files', async (req, res) => {
     try {
         const { limit = 10, quick } = req.query;
-        const maxFiles = Math.min(parseInt(String(limit), 10) || 10, 50); // Max 50 files
+        const maxFiles = Math.min(Number.parseInt(String(limit), 10) || 10, 50); // Max 50 files
 
         const allFiles: Array<{
             path: string;
@@ -1536,14 +1536,14 @@ router.get('/analytics', async (req, res) => {
         const fromDate = from && typeof from === 'string' ? new Date(from) : undefined;
         const toDate = to && typeof to === 'string' ? new Date(to) : undefined;
         const bucketVal = (bucket === 'minute' || bucket === 'hour' || bucket === 'day' ? bucket : 'hour') as 'minute' | 'hour' | 'day';
-        const limit = topLimit ? Math.min(parseInt(String(topLimit), 10) || 10, 50) : 10;
+        const limit = topLimit ? Math.min(Number.parseInt(String(topLimit), 10) || 10, 50) : 10;
         const fileScopeVal = (fileScope === 'latest' || fileScope === 'all' ? fileScope : 'all') as 'latest' | 'all';
         const includeCompressedVal = includeCompressed === 'true' || includeCompressed === '1';
 
         const result = await getAllAnalytics(
             pluginId && typeof pluginId === 'string' ? pluginId : undefined,
-            fromDate && !isNaN(fromDate.getTime()) ? fromDate : undefined,
-            toDate && !isNaN(toDate.getTime()) ? toDate : undefined,
+            fromDate && !Number.isNaN(fromDate.getTime()) ? fromDate : undefined,
+            toDate && !Number.isNaN(toDate.getTime()) ? toDate : undefined,
             { bucket: bucketVal, topLimit: limit, fileScope: fileScopeVal, includeCompressed: includeCompressedVal }
         );
 

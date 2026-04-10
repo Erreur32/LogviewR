@@ -70,7 +70,7 @@ export const LogsManagementSection: React.FC = () => {
     };
 
     const formatAction = (action: string) => {
-        return action.replace(/\./g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        return action.replaceAll(/\./g, ' ').replaceAll(/\b\w/g, l => l.toUpperCase());
     };
 
     const formatDate = (timestamp: string) => {

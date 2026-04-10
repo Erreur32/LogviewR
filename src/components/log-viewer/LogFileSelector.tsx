@@ -966,17 +966,17 @@ function getRotationNumber(filePath: string): number {
     // Handle .log.1, .log.2 patterns first
     const logMatch = filename.match(/\.log\.(\d+)(\.gz|\.bz2|\.xz)?$/);
     if (logMatch) {
-        return parseInt(logMatch[1], 10);
+        return Number.parseInt(logMatch[1], 10);
     }
     // Handle .1, .2 patterns
     const match = filename.match(/\.(\d+)(\.gz|\.bz2|\.xz)?$/);
     if (match) {
-        return parseInt(match[1], 10);
+        return Number.parseInt(match[1], 10);
     }
     // For date-based rotation (YYYYMMDD), return a large number to sort them last
     const dateMatch = filename.match(/\.(\d{8})(\.gz|\.bz2|\.xz)?$/);
     if (dateMatch) {
-        return parseInt(dateMatch[1], 10);
+        return Number.parseInt(dateMatch[1], 10);
     }
     return 0;
 }

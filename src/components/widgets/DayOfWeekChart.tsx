@@ -48,7 +48,7 @@ export const DayOfWeekChart: React.FC<DayOfWeekChartProps> = ({
                 else if (s.length === 13) s += ':00:00';
                 else if (s.length === 16) s += ':00';
                 const date = new Date(s);
-                if (!isNaN(date.getTime())) {
+                if (!Number.isNaN(date.getTime())) {
                     const jsDay = date.getDay();
                     days[jsDay === 0 ? 6 : jsDay - 1] += d.count;
                 }

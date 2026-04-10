@@ -83,11 +83,11 @@ export async function detectOS(): Promise<OSInfo> {
         // First pass: collect ID and ID_LIKE values
         for (const line of lines) {
             if (line.startsWith('ID=')) {
-                idValue = line.split('=')[1]?.replace(/^"|"$/g, '').toLowerCase().trim();
+                idValue = line.split('=')[1]?.replaceAll(/^"|"$/g, '').toLowerCase().trim();
             } else if (line.startsWith('ID_LIKE=')) {
-                idLikeValue = line.split('=')[1]?.replace(/^"|"$/g, '').toLowerCase().trim();
+                idLikeValue = line.split('=')[1]?.replaceAll(/^"|"$/g, '').toLowerCase().trim();
             } else if (line.startsWith('VERSION_ID=')) {
-                osInfo.version = line.split('=')[1]?.replace(/^"|"$/g, '');
+                osInfo.version = line.split('=')[1]?.replaceAll(/^"|"$/g, '');
             }
         }
         

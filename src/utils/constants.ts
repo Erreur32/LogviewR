@@ -175,7 +175,7 @@ export const formatBytes = (bytes: number, decimals = 2): string => {
   const k = 1024;
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(decimals)) + ' ' + sizes[i];
+  return Number.parseFloat((bytes / Math.pow(k, i)).toFixed(decimals)) + ' ' + sizes[i];
 };
 
 export const formatSpeed = (bytesPerSec: number): string => {
@@ -194,7 +194,7 @@ export const formatSpeed = (bytesPerSec: number): string => {
 
   // Use 1 decimal for values < 10, 0 decimals otherwise
   const decimals = value < 10 ? 1 : 0;
-  return parseFloat(value.toFixed(decimals)) + ' ' + sizes[i];
+  return Number.parseFloat(value.toFixed(decimals)) + ' ' + sizes[i];
 };
 
 export const formatBitrate = (bitsPerSec: number): string => {
@@ -204,7 +204,7 @@ export const formatBitrate = (bitsPerSec: number): string => {
   const i = Math.floor(Math.log(bitsPerSec) / Math.log(k));
   const value = bitsPerSec / Math.pow(k, i);
   const decimals = value < 10 ? 1 : 0;
-  return parseFloat(value.toFixed(decimals)) + ' ' + sizes[i];
+  return Number.parseFloat(value.toFixed(decimals)) + ' ' + sizes[i];
 };
 
 export const formatDuration = (seconds: number): string => {

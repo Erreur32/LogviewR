@@ -33,7 +33,7 @@ const FLAG_BASE = '/icons/country';
 
 /** Flag img tag — local SVG, for use in raw HTML strings */
 function flagImgHtml(code: string): string {
-    const c = (code || '').toLowerCase().replace(/[^a-z]/g, '');
+    const c = (code || '').toLowerCase().replaceAll(/[^a-z]/g, '');
     const src = c.length === 2 ? `${FLAG_BASE}/${c}.svg` : `${FLAG_BASE}/xx.svg`;
     const fallback = `${FLAG_BASE}/xx.svg`;
     return `<img src="${src}" width="20" height="15" style="vertical-align:middle;border-radius:2px;margin-right:.3rem" alt="${c.toUpperCase()}" onerror="this.src='${fallback}'">`;

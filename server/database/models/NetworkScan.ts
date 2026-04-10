@@ -212,8 +212,8 @@ export class NetworkScanRepository {
                 // IP sorting: proper numeric IPv4 sorting
                 // This ensures 192.168.1.1 comes before 192.168.1.100 (not lexicographically)
                 const parseIp = (ip: string): number => {
-                    const parts = ip.split('.').map(p => parseInt(p, 10));
-                    if (parts.length !== 4 || parts.some(p => isNaN(p) || p < 0 || p > 255)) {
+                    const parts = ip.split('.').map(p => Number.parseInt(p, 10));
+                    if (parts.length !== 4 || parts.some(p => Number.isNaN(p) || p < 0 || p > 255)) {
                         return 0; // Invalid IP, sort to beginning
                     }
                     // Convert IP to numeric value: 192.168.1.1 -> 192168001001

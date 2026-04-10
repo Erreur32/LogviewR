@@ -40,7 +40,7 @@ export const BarChart: React.FC<BarChartProps> = ({
 
   const values = data.slice(-300).map(d => { // Last 300 points (5 minutes)
     const val = d?.[dataKey];
-    return typeof val === 'number' && !isNaN(val) ? val : 0;
+    return typeof val === 'number' && !Number.isNaN(val) ? val : 0;
   }).filter(v => typeof v === 'number'); // Keep all numeric values including 0
   
   // If no data at all, show empty state
@@ -182,9 +182,9 @@ export const MiniBarChart: React.FC<MiniBarChartProps> = ({
   const hexToRgb = (hex: string) => {
     const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
     return result ? {
-      r: parseInt(result[1], 16),
-      g: parseInt(result[2], 16),
-      b: parseInt(result[3], 16)
+      r: Number.parseInt(result[1], 16),
+      g: Number.parseInt(result[2], 16),
+      b: Number.parseInt(result[3], 16)
     } : { r: 156, g: 163, b: 175 }; // Default gray
   };
   

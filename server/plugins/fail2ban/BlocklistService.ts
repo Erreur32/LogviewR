@@ -501,7 +501,7 @@ export class BlocklistService {
                         const [lc, la] = priv('ipset', ['list', list.ipsetName, '-t']);
                         const { stdout } = await execFileAsync(lc, la, { timeout: 10_000 });
                         const maxElemMatch = stdout.match(/Maxelem:\s*(\d+)/i);
-                        const currentMaxelem = maxElemMatch ? parseInt(maxElemMatch[1], 10) : 0;
+                        const currentMaxelem = maxElemMatch ? Number.parseInt(maxElemMatch[1], 10) : 0;
                         if (currentMaxelem < list.maxelem) {
                             logger.info('BlocklistService', `${list.name}: maxelem mismatch (${currentMaxelem} < ${list.maxelem}), recreating`);
                             const [dc, da] = priv('ipset', ['destroy', list.ipsetName]);

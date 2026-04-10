@@ -63,8 +63,8 @@ const ChartTooltip: React.FC<{ data: TooltipData; cw: number; ch: number; isHour
     const dateLabel = isHourly
         ? (() => {
             if (!date.includes(':')) return `${date}h00`;
-            const h = parseInt(date.slice(0, 2), 10);
-            const m = parseInt(date.slice(3), 10);
+            const h = Number.parseInt(date.slice(0, 2), 10);
+            const m = Number.parseInt(date.slice(3), 10);
             const endM = m + 30;
             const endH = (h + Math.floor(endM / 60)) % 24;
             const endMin = endM % 60;
@@ -263,7 +263,7 @@ const LineChart: React.FC<{
                 {isHourly
                     ? dates.map((d, i) => {
                         if (!d.endsWith(':00')) return null;
-                        const hour = parseInt(d.slice(0, 2), 10);
+                        const hour = Number.parseInt(d.slice(0, 2), 10);
                         if (hour % 2 !== 0) return null;
                         const anchor = i === 0 ? 'start' : 'middle';
                         return (
@@ -405,7 +405,7 @@ const BarChart: React.FC<{
                 {isHourly
                     ? dates.map((d, i) => {
                         if (!d.endsWith(':00')) return null;
-                        const hour = parseInt(d.slice(0, 2), 10);
+                        const hour = Number.parseInt(d.slice(0, 2), 10);
                         if (hour % 2 !== 0) return null;
                         const x = padL + i * (groupW + groupGap) + groupW / 2;
                         return (

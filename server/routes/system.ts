@@ -147,11 +147,11 @@ router.get('/security', requireAuth, asyncHandler(async (req: AuthenticatedReque
   const jwtExpiresIn = authService.getCurrentJwtExpiresIn();
   let sessionTimeoutHours = 24 * 7; // Default 7 days
   if (jwtExpiresIn.endsWith('d')) {
-    sessionTimeoutHours = parseInt(jwtExpiresIn) * 24;
+    sessionTimeoutHours = Number.parseInt(jwtExpiresIn) * 24;
   } else if (jwtExpiresIn.endsWith('h')) {
-    sessionTimeoutHours = parseInt(jwtExpiresIn);
+    sessionTimeoutHours = Number.parseInt(jwtExpiresIn);
   } else if (jwtExpiresIn.endsWith('m')) {
-    sessionTimeoutHours = Math.round(parseInt(jwtExpiresIn) / 60);
+    sessionTimeoutHours = Math.round(Number.parseInt(jwtExpiresIn) / 60);
   }
 
   res.json({
@@ -176,8 +176,8 @@ router.post('/security', requireAuth, requireAdmin, asyncHandler(async (req: Aut
   if (maxLoginAttempts !== undefined || lockoutDuration !== undefined) {
     const currentConfig = bruteForceProtection.getConfig();
     bruteForceProtection.setConfig({
-      maxAttempts: maxLoginAttempts !== undefined ? parseInt(maxLoginAttempts) : currentConfig.maxAttempts,
-      lockoutDuration: lockoutDuration !== undefined ? parseInt(lockoutDuration) : currentConfig.lockoutDuration
+      maxAttempts: maxLoginAttempts !== undefined ? Number.parseInt(maxLoginAttempts) : currentConfig.maxAttempts,
+      lockoutDuration: lockoutDuration !== undefined ? Number.parseInt(lockoutDuration) : currentConfig.lockoutDuration
     });
 
     // Notify about security settings change
@@ -192,8 +192,8 @@ router.post('/security', requireAuth, requireAdmin, asyncHandler(async (req: Aut
 
   // Update JWT expiration time (session timeout)
   if (sessionTimeoutHours !== undefined) {
-    const hours = parseInt(sessionTimeoutHours);
-    if (isNaN(hours) || hours < 1 || hours > 168) {
+    const hours = Number.parseInt(sessionTimeoutHours);
+    if (Number.isNaN(hours) || hours < 1 || hours > 168) {
       return res.status(400).json({
         success: false,
         error: { message: 'Session timeout must be between 1 and 168 hours (7 days)' }
@@ -231,11 +231,11 @@ router.post('/security', requireAuth, requireAdmin, asyncHandler(async (req: Aut
   const currentJwtExpiresIn = authService.getCurrentJwtExpiresIn();
   let currentSessionTimeoutHours = 24 * 7; // Default
   if (currentJwtExpiresIn.endsWith('d')) {
-    currentSessionTimeoutHours = parseInt(currentJwtExpiresIn) * 24;
+    currentSessionTimeoutHours = Number.parseInt(currentJwtExpiresIn) * 24;
   } else if (currentJwtExpiresIn.endsWith('h')) {
-    currentSessionTimeoutHours = parseInt(currentJwtExpiresIn);
+    currentSessionTimeoutHours = Number.parseInt(currentJwtExpiresIn);
   } else if (currentJwtExpiresIn.endsWith('m')) {
-    currentSessionTimeoutHours = Math.round(parseInt(currentJwtExpiresIn) / 60);
+    currentSessionTimeoutHours = Math.round(Number.parseInt(currentJwtExpiresIn) / 60);
   }
   
   res.json({

@@ -130,8 +130,8 @@ export function getStoredAnimationSpeed(): AnimationSpeed {
   try {
     const v = localStorage.getItem(ANIMATION_SPEED_KEY);
     if (v) {
-      const num = parseFloat(v);
-      if (!isNaN(num) && num >= MIN_SPEED && num <= MAX_SPEED) return num;
+      const num = Number.parseFloat(v);
+      if (!Number.isNaN(num) && num >= MIN_SPEED && num <= MAX_SPEED) return num;
     }
   } catch {
     // ignore
@@ -244,8 +244,8 @@ export function useBackgroundAnimation(): {
         else if (VALID_FULL_ANIMATION_IDS.includes(e.newValue as FullAnimationId)) setFullState(e.newValue as FullAnimationId);
       }
       if (e.key === ANIMATION_SPEED_KEY && e.newValue) {
-        const num = parseFloat(e.newValue);
-        if (!isNaN(num) && num >= MIN_SPEED && num <= MAX_SPEED) {
+        const num = Number.parseFloat(e.newValue);
+        if (!Number.isNaN(num) && num >= MIN_SPEED && num <= MAX_SPEED) {
           setSpeedState(num);
         }
       }

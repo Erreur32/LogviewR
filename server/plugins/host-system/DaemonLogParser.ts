@@ -41,7 +41,7 @@ export class DaemonLogParser {
                     service: serviceName || service,
                     level,
                     message: messageTrimmed || `${service}${pid ? `[${pid}]` : ''}`,
-                    pid: pid ? parseInt(pid, 10) : undefined
+                    pid: pid ? Number.parseInt(pid, 10) : undefined
                 };
             }
             // If no hostname, try: "service[pid]: message"
@@ -57,7 +57,7 @@ export class DaemonLogParser {
                     service: serviceName || service,
                     level,
                     message: messageTrimmed || `${service}${pid ? `[${pid}]` : ''}`,
-                    pid: pid ? parseInt(pid, 10) : undefined
+                    pid: pid ? Number.parseInt(pid, 10) : undefined
                 };
             }
         }
@@ -78,7 +78,7 @@ export class DaemonLogParser {
                 service: serviceName || match.program,
                 level,
                 message,
-                pid: match.pid ? parseInt(match.pid, 10) : undefined
+                pid: match.pid ? Number.parseInt(match.pid, 10) : undefined
             };
         }
 
@@ -97,7 +97,7 @@ export class DaemonLogParser {
                 service: serviceName || service,
                 level,
                 message: message.trim(),
-                pid: pid ? parseInt(pid, 10) : undefined
+                pid: pid ? Number.parseInt(pid, 10) : undefined
             };
         }
 

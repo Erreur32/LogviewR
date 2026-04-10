@@ -68,7 +68,7 @@ export function getHostnameBadgeColor(hostname: string): string {
 export function getTimestampColor(timestamp: Date | string): string {
     const date = typeof timestamp === 'string' ? new Date(timestamp) : timestamp;
     
-    if (isNaN(date.getTime())) {
+    if (Number.isNaN(date.getTime())) {
         return 'hsl(0, 0%, 35%)'; // Gray fallback
     }
     
