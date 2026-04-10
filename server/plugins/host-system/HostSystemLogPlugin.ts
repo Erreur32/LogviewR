@@ -4,7 +4,7 @@
  * Plugin for reading system logs (syslog, journald, etc.)
  */
 
-import { BasePlugin } from '../base/BasePlugin.js';
+import { BasePlugin, type ExcludeFilters } from '../base/BasePlugin.js';
 import { SyslogParser } from './SyslogParser.js';
 import { AuthLogParser } from './AuthLogParser.js';
 import { KernLogParser } from './KernLogParser.js';
@@ -69,13 +69,7 @@ export interface HostSystemPluginConfig {
     follow: boolean;
     maxLines: number;
     
-    // Exclusion filters for files and directories
-    // Patterns support glob syntax (*, ?, **) and will be matched against file/directory names
-    excludeFilters?: {
-        files?: string[];      // Patterns to exclude files (e.g., ['*.tmp', 'debug.log'])
-        directories?: string[]; // Patterns to exclude directories (e.g., ['node_modules', 'cache'])
-        paths?: string[];       // Full paths to exclude (e.g., ['/var/log/old', '/var/log/backup'])
-    };
+    excludeFilters?: ExcludeFilters;
 }
 
 export class HostSystemLogPlugin extends BasePlugin implements LogSourcePlugin {

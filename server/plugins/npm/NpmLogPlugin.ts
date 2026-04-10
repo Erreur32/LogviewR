@@ -4,7 +4,7 @@
  * Plugin for reading NPM access and error logs
  */
 
-import { BasePlugin } from '../base/BasePlugin.js';
+import { BasePlugin, type ExcludeFilters } from '../base/BasePlugin.js';
 import { NpmParser } from './NpmParser.js';
 import type { LogSourcePlugin, LogFileInfo, ParsedLogEntry } from '../base/LogSourcePluginInterface.js';
 import type { PluginStats } from '../base/PluginInterface.js';
@@ -18,11 +18,7 @@ export interface NpmPluginConfig {
     enabled: boolean;
     follow: boolean;
     maxLines: number;
-    excludeFilters?: {
-        files?: string[];
-        directories?: string[];
-        paths?: string[];
-    };
+    excludeFilters?: ExcludeFilters;
 }
 
 export class NpmLogPlugin extends BasePlugin implements LogSourcePlugin {

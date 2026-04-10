@@ -177,16 +177,10 @@ export abstract class BasePlugin implements IPlugin {
             }
         }
 
-        // Directory glob exclusions
-        if (isDirectory && excludeFilters.directories) {
-            for (const pattern of excludeFilters.directories) {
-                if (globToRegex(pattern).test(entryName)) return true;
-            }
-        }
-
-        // File glob exclusions
-        if (!isDirectory && excludeFilters.files) {
-            for (const pattern of excludeFilters.files) {
+        // Glob exclusions (directories or files depending on entry type)
+        const globPatterns = isDirectory ? excludeFilters.directories : excludeFilters.files;
+        if (globPatterns) {
+            for (const pattern of globPatterns) {
                 if (globToRegex(pattern).test(entryName)) return true;
             }
         }

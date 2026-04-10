@@ -4,7 +4,7 @@
  * Plugin for reading Nginx access and error logs
  */
 
-import { BasePlugin } from '../base/BasePlugin.js';
+import { BasePlugin, type ExcludeFilters } from '../base/BasePlugin.js';
 import { NginxParser } from './NginxParser.js';
 import type { LogSourcePlugin, LogFileInfo, ParsedLogEntry } from '../base/LogSourcePluginInterface.js';
 import type { PluginStats } from '../base/PluginInterface.js';
@@ -19,11 +19,7 @@ export interface NginxPluginConfig {
     enabled: boolean;
     follow: boolean;
     maxLines: number;
-    excludeFilters?: {
-        files?: string[];
-        directories?: string[];
-        paths?: string[];
-    };
+    excludeFilters?: ExcludeFilters;
 }
 
 export class NginxLogPlugin extends BasePlugin implements LogSourcePlugin {
