@@ -5,6 +5,26 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.39] - 2026-04-10
+
+### For users
+
+> Security hardening based on SonarCloud hotspot review — no functional changes.
+
+- **Regex DoS fix** — Apache log parser no longer uses a backtracking-vulnerable regex; replaced with linear-time string splitting.
+- **HTTPS blocklist** — BruteForceBlocker blocklist now fetched over HTTPS instead of plain HTTP.
+
+---
+
+### Technical
+
+- **`server/plugins/apache/ApacheParser.ts`** — Replaced `(.+?)\s+(\S+)$` regex in `parseRequest()` with `split(/\s+/)` to eliminate super-linear backtracking risk (SonarCloud S5852).
+- **`server/plugins/fail2ban/BlocklistService.ts`** — Upgraded `danger.rulez.sk` URLs from `http://` to `https://` (SonarCloud S5332).
+- **`server/plugins/notification/NotificationService.ts`** — Replaced `Math.random()` with `crypto.randomBytes()` for notification IDs (SonarCloud S2245).
+- **`server/services/MqttService.ts`** — Replaced `Math.random()` with `crypto.randomBytes()` for MQTT client IDs (SonarCloud S2245).
+
+---
+
 ## [0.8.38] - 2026-04-09
 
 ### For users

@@ -65,12 +65,12 @@ const LISTS: Record<string, BuiltinListDef> = {
     },
     bruteforce: {
         name: 'BruteForceBlocker',
-        url: 'http://danger.rulez.sk/projects/bruteforceblocker/blist.php',
+        url: 'https://danger.rulez.sk/projects/bruteforceblocker/blist.php',
         ipsetName: 'bruteforce',
         description: 'IPs actives en brute-force SSH/FTP — danger.rulez.sk',
         maxelem: 50000,
         direction: 'in',
-        sourceUrl: 'http://danger.rulez.sk/projects/bruteforceblocker/',
+        sourceUrl: 'https://danger.rulez.sk/projects/bruteforceblocker/',
         ipsetType: 'hash:ip',
     },
     'spamhaus-drop': {

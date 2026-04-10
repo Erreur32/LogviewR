@@ -12,6 +12,7 @@ import cron from 'node-cron';
 import { AppConfigRepository } from '../database/models/AppConfig.js';
 import { getDatabase } from '../database/connection.js';
 import { getF2banMetrics } from './metricsService.js';
+import crypto from 'node:crypto';
 import { logger } from '../utils/logger.js';
 
 // ── Config interface ────────────────────────────────────────────────────────────
@@ -129,7 +130,7 @@ class MqttService {
             this.client = this.mqttLib.connect(connectUrl, {
                 username:        config.username || undefined,
                 password:        config.password || undefined,
-                clientId:        `logviewr_${Math.random().toString(16).slice(2, 10)}`,
+                clientId:        `logviewr_${crypto.randomBytes(5).toString('hex')}`,
                 clean:           true,
                 reconnectPeriod: 10_000,
                 connectTimeout:  8_000,
@@ -221,7 +222,7 @@ class MqttService {
                 const testClient = this.mqttLib.connect(connectUrl, {
                     username:       config.username || undefined,
                     password:       config.password || undefined,
-                    clientId:       `logviewr_test_${Math.random().toString(16).slice(2, 8)}`,
+                    clientId:       `logviewr_test_${crypto.randomBytes(4).toString('hex')}`,
                     clean:          true,
                     connectTimeout: 8_000,
                     reconnectPeriod: 0,

@@ -302,43 +302,24 @@ export class ApacheParser {
      * URL may contain spaces if URL-encoded, so we need to be careful
      */
     private static parseRequest(request: string): { method: string; url: string; protocol: string } {
-        // Try standard format: "METHOD URI PROTOCOL"
-        // URI can contain spaces if URL-encoded, so we match everything between method and protocol
-        const requestMatch = request.match(/^(\S+)\s+(.+?)\s+(\S+)$/);
-        if (requestMatch) {
-            return {
-                method: requestMatch[1],
-                url: requestMatch[2],
-                protocol: requestMatch[3]
-            };
+        // Split on whitespace — O(n), no regex backtracking risk
+        const parts = request.split(/\s+/);
+
+        if (parts.length >= 3) {
+            // Standard: "METHOD URI PROTOCOL" (URI may contain encoded spaces → multiple parts)
+            const method = parts[0];
+            const protocol = parts[parts.length - 1];
+            const url = parts.slice(1, -1).join(' ');
+            return { method, url, protocol };
         }
-        
-        // Fallback: try to extract at least method and url (protocol might be missing)
-        const fallbackMatch = request.match(/^(\S+)\s+(.+)$/);
-        if (fallbackMatch) {
-            // Try to extract protocol from the end if present
-            const urlAndProtocol = fallbackMatch[2];
-            const protocolMatch = urlAndProtocol.match(/\s+(HTTP\/[\d.]+)$/);
-            if (protocolMatch) {
-                return {
-                    method: fallbackMatch[1],
-                    url: urlAndProtocol.substring(0, urlAndProtocol.length - protocolMatch[0].length).trim(),
-                    protocol: protocolMatch[1]
-                };
-            }
-            return {
-                method: fallbackMatch[1],
-                url: urlAndProtocol,
-                protocol: 'HTTP/1.1'
-            };
+
+        if (parts.length === 2) {
+            // Missing protocol
+            return { method: parts[0], url: parts[1], protocol: 'HTTP/1.1' };
         }
-        
+
         // Last resort
-        return {
-            method: 'UNKNOWN',
-            url: request,
-            protocol: 'HTTP/1.1'
-        };
+        return { method: 'UNKNOWN', url: request, protocol: 'HTTP/1.1' };
     }
 
     /**

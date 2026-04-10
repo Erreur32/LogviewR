@@ -4,6 +4,7 @@
  * Handles sending notifications via webhooks and managing in-app notifications
  */
 
+import crypto from 'node:crypto';
 import { WebhookService } from './WebhookService.js';
 
 export interface Notification {
@@ -63,7 +64,7 @@ export class NotificationService {
     async sendNotification(notification: Omit<Notification, 'id' | 'read' | 'timestamp'>): Promise<void> {
         const fullNotification: Notification = {
             ...notification,
-            id: `notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            id: `notif-${Date.now()}-${crypto.randomBytes(6).toString('hex')}`,
             timestamp: new Date(),
             read: false
         };
