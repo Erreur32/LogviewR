@@ -5,9 +5,9 @@
  * Falls back to common log files by OS if logrotate is not available
  */
 
-import * as fs from 'fs/promises';
-import * as fsSync from 'fs';
-import * as path from 'path';
+import * as fs from 'node:fs/promises';
+import * as fsSync from 'node:fs';
+import * as path from 'node:path';
 
 export interface LogRotationInfo {
     rotationSystem: 'logrotate' | 'systemd' | 'none' | 'unknown';

@@ -4,13 +4,13 @@
  * When running as non-root, uses sudo for privileged commands.
  */
 
-import { execFile } from 'child_process';
-import { promisify } from 'util';
-import * as fs from 'fs';
-import * as https from 'https';
-import * as http from 'http';
-import * as path from 'path';
-import * as os from 'os';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import * as fs from 'node:fs';
+import * as https from 'node:https';
+import * as http from 'node:http';
+import * as path from 'node:path';
+import * as os from 'node:os';
 import { logger } from '../../utils/logger.js';
 
 const execFileAsync = promisify(execFile);

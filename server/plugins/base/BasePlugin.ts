@@ -5,7 +5,7 @@
  */
 
 import type { IPlugin, PluginConfig, PluginStats } from './PluginInterface.js';
-import * as fsSync from 'fs';
+import * as fsSync from 'node:fs';
 import { logger } from '../../utils/logger.js';
 import { globToRegex } from '../../utils/globToRegex.js';
 

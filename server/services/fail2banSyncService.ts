@@ -12,7 +12,7 @@
  */
 
 import Database from 'better-sqlite3';
-import * as fs from 'fs';
+import * as fs from 'node:fs';
 import { getDatabase } from '../database/connection.js';
 import { logger } from '../utils/logger.js';
 import { webhookDispatchService } from './WebhookDispatchService.js';

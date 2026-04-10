@@ -11,7 +11,7 @@
  */
 
 import Database from 'better-sqlite3';
-import * as fs from 'fs';
+import * as fs from 'node:fs';
 
 export interface F2bBan {
     ip: string;

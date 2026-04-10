@@ -8,8 +8,8 @@ import { BasePlugin, type ExcludeFilters } from '../base/BasePlugin.js';
 import { NginxParser } from './NginxParser.js';
 import type { LogSourcePlugin, LogFileInfo, ParsedLogEntry } from '../base/LogSourcePluginInterface.js';
 import type { PluginStats } from '../base/PluginInterface.js';
-import * as fs from 'fs/promises';
-import * as path from 'path';
+import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
 import { globToRegex } from '../../utils/globToRegex.js';
 
 export interface NginxPluginConfig {

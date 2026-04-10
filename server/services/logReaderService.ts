@@ -5,12 +5,12 @@
  * Handles log rotation, compressed files, and memory-efficient reading
  */
 
-import * as fs from 'fs/promises';
-import * as fsSync from 'fs';
-import { createReadStream } from 'fs';
+import * as fs from 'node:fs/promises';
+import * as fsSync from 'node:fs';
+import { createReadStream } from 'node:fs';
 import { createInterface } from 'readline';
-import * as zlib from 'zlib';
-import * as path from 'path';
+import * as zlib from 'node:zlib';
+import * as path from 'node:path';
 import { pipeline } from 'stream/promises';
 
 export interface FileInfo {

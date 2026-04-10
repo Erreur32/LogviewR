@@ -5,7 +5,7 @@
  */
 
 import { Router } from 'express';
-import path from 'path';
+import path from 'node:path';
 import { 
     exportConfigToFile, 
     importConfigFromFile, 

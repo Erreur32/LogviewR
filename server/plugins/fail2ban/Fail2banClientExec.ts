@@ -6,9 +6,9 @@
  *   - /var/run/fail2ban/fail2ban.sock mounted and chmod 660
  */
 
-import { execFile } from 'child_process';
-import { promisify } from 'util';
-import * as fs from 'fs';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import * as fs from 'node:fs';
 
 const execFileAsync = promisify(execFile);
 

@@ -1,11 +1,11 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import path from 'path';
-import http from 'http';
-import os from 'os';
-import fsSync from 'fs';
-import { fileURLToPath } from 'url';
+import path from 'node:path';
+import http from 'node:http';
+import os from 'node:os';
+import fsSync from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { config, getPublicUrl } from './config.js';
 import { AppConfigRepository } from './database/models/AppConfig.js';
 import { errorHandler } from './middleware/errorHandler.js';

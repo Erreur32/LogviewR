@@ -8,9 +8,9 @@ import express from 'express';
 import { requireAuth, type AuthenticatedRequest } from '../middleware/authMiddleware.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { getDatabase } from '../database/connection.js';
-import { readFileSync } from 'fs';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 import { logger } from '../utils/logger.js';
 
 const __filename = fileURLToPath(import.meta.url);

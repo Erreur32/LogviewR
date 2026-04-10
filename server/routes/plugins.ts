@@ -5,8 +5,8 @@
  */
 
 import { Router } from 'express';
-import * as fs from 'fs';
-import * as path from 'path';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { pluginManager } from '../services/pluginManager.js';
 import { PluginConfigRepository } from '../database/models/PluginConfig.js';
 import { loggingService } from '../services/loggingService.js';

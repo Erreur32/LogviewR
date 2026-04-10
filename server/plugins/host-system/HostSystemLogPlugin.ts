@@ -18,9 +18,9 @@ import { logReaderService } from '../../services/logReaderService.js';
 import { detectLoggingServices, getPrimaryLoggingService, type DetectedLoggingService } from './LoggingServiceDetector.js';
 import type { LogSourcePlugin, LogFileInfo, ParsedLogEntry } from '../base/LogSourcePluginInterface.js';
 import type { PluginStats } from '../base/PluginInterface.js';
-import * as fs from 'fs/promises';
-import * as fsSync from 'fs';
-import * as path from 'path';
+import * as fs from 'node:fs/promises';
+import * as fsSync from 'node:fs';
+import * as path from 'node:path';
 import { logger } from '../../utils/logger.js';
 import { globToLogRegex } from '../../utils/globToRegex.js';
 

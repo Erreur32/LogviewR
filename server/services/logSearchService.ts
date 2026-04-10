@@ -12,8 +12,8 @@ import { getDatabase } from '../database/connection.js';
 import { logger } from '../utils/logger.js';
 import { compileSafeRegex } from '../utils/safeRegex.js';
 import type { LogSourcePlugin } from '../plugins/base/LogSourcePluginInterface.js';
-import * as path from 'path';
-import * as fsSync from 'fs';
+import * as path from 'node:path';
+import * as fsSync from 'node:fs';
 
 const LOG_SOURCE_PLUGINS = ['host-system', 'apache', 'npm', 'nginx', 'fail2ban'] as const;
 

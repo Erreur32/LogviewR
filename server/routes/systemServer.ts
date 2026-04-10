@@ -6,11 +6,11 @@
  */
 
 import express from 'express';
-import os from 'os';
-import fs from 'fs/promises';
-import fsSync from 'fs';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+import os from 'node:os';
+import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);

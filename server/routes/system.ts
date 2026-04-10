@@ -5,9 +5,9 @@ import { authService } from '../services/authService.js';
 import { bruteForceProtection } from '../services/bruteForceProtection.js';
 import { securityNotificationService } from '../services/securityNotificationService.js';
 import { AppConfigRepository } from '../database/models/AppConfig.js';
-import fsSync from 'fs';
-import path from 'path';
-import os from 'os';
+import fsSync from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
 
 const router = Router();
 

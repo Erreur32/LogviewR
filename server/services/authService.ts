@@ -8,7 +8,7 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import { UserRepository, type User, type CreateUserInput } from '../database/models/User.js';
 import { logger } from '../utils/logger.js';
-import crypto from 'crypto';
+import crypto from 'node:crypto';
 import { getDatabase } from '../database/connection.js';
 
 export interface LoginResult {

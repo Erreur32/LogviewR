@@ -11,8 +11,8 @@ import { AppConfigRepository } from '../database/models/AppConfig.js';
 import { logger } from '../utils/logger.js';
 import { getDatabase } from '../database/connection.js';
 import cron from 'node-cron';
-import * as fs from 'fs';
-import * as path from 'path';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 
 export interface RetentionConfig {
     // History retention (network_scan_history table)

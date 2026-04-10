@@ -4,10 +4,10 @@
  * When running as non-root (e.g. Docker node user), uses sudo for privileged commands.
  */
 
-import { execFile, spawn } from 'child_process';
-import { promisify } from 'util';
-import * as fs from 'fs';
-import * as path from 'path';
+import { execFile, spawn } from 'node:child_process';
+import { promisify } from 'node:util';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 
 const execFileAsync = promisify(execFile);
 const EXEC_TIMEOUT = 10_000;

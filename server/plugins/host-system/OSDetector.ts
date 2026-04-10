@@ -5,8 +5,8 @@
  * Supports: Debian, Ubuntu, Mint, CentOS, RHEL, Fedora, Arch, etc.
  */
 
-import * as fs from 'fs/promises';
-import * as path from 'path';
+import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
 
 export type OSType = 'debian' | 'ubuntu' | 'mint' | 'centos' | 'rhel' | 'fedora' | 'arch' | 'suse' | 'unknown';
 export type LogFormat = 'syslog' | 'systemd' | 'rsyslog' | 'syslog-ng';

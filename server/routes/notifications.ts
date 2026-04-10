@@ -6,7 +6,7 @@
  */
 
 import { Router } from 'express';
-import crypto from 'crypto';
+import crypto from 'node:crypto';
 import { requireAuth, requireAdmin, type AuthenticatedRequest } from '../middleware/authMiddleware.js';
 import { asyncHandler, createError } from '../middleware/errorHandler.js';
 import { autoLog } from '../middleware/loggingMiddleware.js';

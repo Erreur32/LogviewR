@@ -5,9 +5,9 @@
  */
 
 import { Router } from 'express';
-import * as fs from 'fs/promises';
-import * as fsSync from 'fs';
-import * as path from 'path';
+import * as fs from 'node:fs/promises';
+import * as fsSync from 'node:fs';
+import * as path from 'node:path';
 import { pluginManager } from '../services/pluginManager.js';
 import { logParserService } from '../services/logParserService.js';
 import { logReaderService } from '../services/logReaderService.js';

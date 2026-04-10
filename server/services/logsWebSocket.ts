@@ -6,7 +6,7 @@
 
 import { WebSocketServer, WebSocket } from 'ws';
 import type { WebSocket as WsType } from 'ws';
-import { URL } from 'url';
+import { URL } from 'node:url';
 import { logger } from '../utils/logger.js';
 import { logBuffer } from '../utils/logBuffer.js';
 import { authService } from './authService.js';

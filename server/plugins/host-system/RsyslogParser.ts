@@ -4,9 +4,9 @@
  * Parses /etc/rsyslog.conf to extract log file paths and their types
  */
 
-import * as fs from 'fs/promises';
-import * as fsSync from 'fs';
-import * as path from 'path';
+import * as fs from 'node:fs/promises';
+import * as fsSync from 'node:fs';
+import * as path from 'node:path';
 
 export interface RsyslogLogFile {
     path: string;
