@@ -11,6 +11,7 @@
 #   4. server/index.ts            — fallback appVersion
 #   5. server/routes/system.ts    — fallback appVersion
 #   6. README.md                  — badge, release link, version text
+#   7. sonar-project.properties   — sonar.projectVersion
 #
 # Commit message file (should be edited before committing):
 #   7. commit-message.txt         — used by git commit -F commit-message.txt
@@ -52,6 +53,7 @@ VERSION_TS="$REPO_ROOT/src/constants/version.ts"
 SERVER_INDEX="$REPO_ROOT/server/index.ts"
 SERVER_SYSTEM="$REPO_ROOT/server/routes/system.ts"
 ROOT_README="$REPO_ROOT/README.md"
+SONAR_PROPS="$REPO_ROOT/sonar-project.properties"
 COMMIT_MSG_FILE="$REPO_ROOT/commit-message.txt"
 
 # ── Read current version from package.json ────────────────────────────────────
@@ -188,6 +190,14 @@ else
   echo -e "  ${RED}✗${R} README.md                ${RED}(file not found)${R}"
 fi
 
+# ── 7. sonar-project.properties — projectVersion ──────────────────────────
+if [ -f "$SONAR_PROPS" ]; then
+  sedi "$SONAR_PROPS" "s/sonar\.projectVersion=.*/sonar.projectVersion=$NEW/"
+  echo -e "  ${G}✓${R} sonar-project.properties ${C}(sonar.projectVersion=$NEW)${R}"
+else
+  echo -e "  ${Y}○${R} sonar-project.properties ${Y}(not found, skipped)${R}"
+fi
+
 # ── commit-message.txt — show status ────────────────────────────────────────
 echo ""
 echo -e "  ${B}── Commit message file ──${R}"
@@ -220,6 +230,7 @@ echo -e "  ${C}  src/constants/version.ts${R}"
 echo -e "  ${C}  server/index.ts${R}"
 echo -e "  ${C}  server/routes/system.ts${R}"
 echo -e "  ${C}  README.md${R}"
+echo -e "  ${C}  sonar-project.properties${R}"
 echo -e "  ${C}  CHANGELOG.md${R}"
 echo ""
 echo -e "  ${Y}⚠${R}  Use ${B}git add -A${R} to stage ALL updated files — or the version numbers"
