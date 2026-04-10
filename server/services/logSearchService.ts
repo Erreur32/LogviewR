@@ -10,6 +10,7 @@ import { logReaderService } from './logReaderService.js';
 import { PluginConfigRepository } from '../database/models/PluginConfig.js';
 import { getDatabase } from '../database/connection.js';
 import { logger } from '../utils/logger.js';
+import { compileSafeRegex } from '../utils/safeRegex.js';
 import type { LogSourcePlugin } from '../plugins/base/LogSourcePluginInterface.js';
 import * as path from 'path';
 import * as fsSync from 'fs';
@@ -166,12 +167,8 @@ export async function searchAllLogs(options: LogSearchOptions): Promise<LogSearc
     let testFn: (line: string) => boolean;
     try {
         if (useRegex) {
-            // Reject dangerous patterns: nested quantifiers (ReDoS) and excessive length
-            if (trimmedQuery.length > 500 || /([+*])\)?[+*{]/.test(trimmedQuery)) {
-                throw new Error('Regex rejected: potential catastrophic backtracking or too long');
-            }
             const flags = caseSensitive ? '' : 'i';
-            const regex = new RegExp(trimmedQuery, flags);
+            const regex = compileSafeRegex(trimmedQuery, flags);
             testFn = (line) => regex.test(line);
         } else {
             const needle = caseSensitive ? trimmedQuery : trimmedQuery.toLowerCase();

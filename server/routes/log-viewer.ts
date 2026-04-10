@@ -16,6 +16,7 @@ import { LogFileRepository } from '../database/models/LogFile.js';
 import { PluginConfigRepository } from '../database/models/PluginConfig.js';
 import type { LogSourcePlugin } from '../plugins/base/LogSourcePluginInterface.js';
 import { logger } from '../utils/logger.js';
+import { compileSafeRegex } from '../utils/safeRegex.js';
 import { AppConfigRepository } from '../database/models/AppConfig.js';
 import { requireAuth } from '../middleware/authMiddleware.js';
 import { generateRegexFromLogLine } from '../services/regexGeneratorService.js';
@@ -1991,17 +1992,9 @@ router.put('/plugins/:pluginId/regex-config', async (req, res) => {
             return res.status(400).json({ error: 'filePath and regex are required' });
         }
 
-        // Validate regex — reject dangerous patterns before compiling
-        const regexStr = String(regex).trim();
-        if (regexStr.length > 500) {
-            return res.status(400).json({ error: 'Regex too long (max 500 chars)' });
-        }
-        // Block nested quantifiers (e.g. (a+)+, (a*)*b ) that cause catastrophic backtracking (ReDoS)
-        if (/([+*])\)?[+*{]/.test(regexStr)) {
-            return res.status(400).json({ error: 'Regex rejected: potential catastrophic backtracking' });
-        }
+        // Validate regex — reject dangerous patterns (ReDoS) before storing
         try {
-            new RegExp(regexStr);
+            compileSafeRegex(String(regex));
         } catch (err) {
             return res.status(400).json({ error: `Invalid regex: ${err instanceof Error ? err.message : String(err)}` });
         }
