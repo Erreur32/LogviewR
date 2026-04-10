@@ -22,7 +22,7 @@ import * as fs from 'fs/promises';
 import * as fsSync from 'fs';
 import * as path from 'path';
 import { logger } from '../../utils/logger.js';
-import { globToRegex, globToRegexStr } from '../../utils/globToRegex.js';
+import { globToRegexStr } from '../../utils/globToRegex.js';
 
 export interface HostSystemPluginConfig {
     // Catégorie 1 : Fichiers Système de Base
@@ -182,73 +182,23 @@ export class HostSystemLogPlugin extends BasePlugin implements LogSourcePlugin {
     }
 
     /**
-     * Check if a file or directory should be excluded based on configured filters
-     * For host-system plugin: by default, exclude all directories in basePath
-     * (since system log files are already detected, user will add subdirectories manually if needed)
+     * Host-system override: exclude all subdirectories by default
+     * (system log files are already detected; user adds subdirectories manually)
      */
     private shouldExclude(filePath: string, entryName: string, isDirectory: boolean, basePath: string): boolean {
         const config = this.config?.settings as unknown as HostSystemPluginConfig | undefined;
         const excludeFilters = config?.excludeFilters;
-        
-        // For host-system plugin: by default, exclude all directories in basePath
-        // This prevents scanning subdirectories since system log files are already detected
-        // User can manually add specific files/directories if needed
+
+        // Exclude subdirectories of basePath unless user configured explicit directory filters
         if (isDirectory) {
-            // Check if this directory is within the basePath
-            // Normalize paths to handle different separators and relative paths
-            const normalizedBasePath = path.resolve(basePath).replaceAll(/\\/g, '/');
-            const normalizedFilePath = path.resolve(filePath).replaceAll(/\\/g, '/');
-            
-            // If directory is inside basePath (but not the basePath itself) and no explicit filters are configured
-            if (normalizedFilePath.startsWith(normalizedBasePath + '/') && 
-                normalizedFilePath !== normalizedBasePath) {
-                // Only exclude if no explicit directory filters are configured
-                // This allows user to override by configuring excludeFilters
-                if (!excludeFilters || !excludeFilters.directories || excludeFilters.directories.length === 0) {
-                    // Exclude all subdirectories by default
-                    return true;
-                }
+            const normalizedBase = path.resolve(basePath).replaceAll(/\\/g, '/');
+            const normalizedPath = path.resolve(filePath).replaceAll(/\\/g, '/');
+            if (normalizedPath.startsWith(normalizedBase + '/') && normalizedPath !== normalizedBase) {
+                if (!excludeFilters?.directories?.length) return true;
             }
         }
-        
-        // If no filters configured, return false (except for directories which are excluded above)
-        if (!excludeFilters) {
-            return false;
-        }
-        
-        // Check full path exclusions
-        if (excludeFilters.paths && excludeFilters.paths.length > 0) {
-            for (const excludePath of excludeFilters.paths) {
-                // Support both exact match and prefix match
-                if (filePath === excludePath || filePath.startsWith(excludePath + '/')) {
-                    return true;
-                }
-            }
-        }
-        
-        // globToRegex imported at top of file
-        
-        // Check directory exclusions (explicit user configuration)
-        if (isDirectory && excludeFilters.directories && excludeFilters.directories.length > 0) {
-            for (const dirPattern of excludeFilters.directories) {
-                const regex = globToRegex(dirPattern);
-                if (regex.test(entryName)) {
-                    return true;
-                }
-            }
-        }
-        
-        // Check file exclusions
-        if (!isDirectory && excludeFilters.files && excludeFilters.files.length > 0) {
-            for (const filePattern of excludeFilters.files) {
-                const regex = globToRegex(filePattern);
-                if (regex.test(entryName)) {
-                    return true;
-                }
-            }
-        }
-        
-        return false;
+
+        return this.shouldExcludeByFilters(filePath, entryName, isDirectory, excludeFilters);
     }
 
     async scanLogFiles(basePath: string, patterns: string[]): Promise<LogFileInfo[]> {

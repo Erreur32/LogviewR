@@ -10,7 +10,7 @@ import type { LogSourcePlugin, LogFileInfo, ParsedLogEntry } from '../base/LogSo
 import type { PluginStats } from '../base/PluginInterface.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { globToRegex, globToRegexStr } from '../../utils/globToRegex.js';
+import { globToRegexStr } from '../../utils/globToRegex.js';
 
 export interface ApachePluginConfig {
     basePath: string;
@@ -53,49 +53,9 @@ export class ApacheLogPlugin extends BasePlugin implements LogSourcePlugin {
         }
     }
 
-    /**
-     * Check if a file or directory should be excluded based on configured filters
-     */
     private shouldExclude(filePath: string, entryName: string, isDirectory: boolean): boolean {
         const config = this.config?.settings as unknown as ApachePluginConfig | undefined;
-        const excludeFilters = config?.excludeFilters;
-        
-        if (!excludeFilters) {
-            return false;
-        }
-        
-        // Check full path exclusions
-        if (excludeFilters.paths && excludeFilters.paths.length > 0) {
-            for (const excludePath of excludeFilters.paths) {
-                if (filePath === excludePath || filePath.startsWith(excludePath + '/')) {
-                    return true;
-                }
-            }
-        }
-        
-        // globToRegex imported at top of file
-        
-        // Check directory exclusions
-        if (isDirectory && excludeFilters.directories && excludeFilters.directories.length > 0) {
-            for (const dirPattern of excludeFilters.directories) {
-                const regex = globToRegex(dirPattern);
-                if (regex.test(entryName)) {
-                    return true;
-                }
-            }
-        }
-        
-        // Check file exclusions
-        if (!isDirectory && excludeFilters.files && excludeFilters.files.length > 0) {
-            for (const filePattern of excludeFilters.files) {
-                const regex = globToRegex(filePattern);
-                if (regex.test(entryName)) {
-                    return true;
-                }
-            }
-        }
-        
-        return false;
+        return this.shouldExcludeByFilters(filePath, entryName, isDirectory, config?.excludeFilters);
     }
 
     async scanLogFiles(basePath: string, patterns: string[]): Promise<LogFileInfo[]> {

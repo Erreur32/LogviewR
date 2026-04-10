@@ -260,10 +260,8 @@ const server = http.createServer(app);
 
 // Log upgrade requests for debugging (only in verbose mode to reduce noise)
 if (process.env.DEBUG_UPGRADE === 'true') {
-server.on('upgrade', (request, socket, head) => {
-  // Sanitize URL before logging to prevent log injection (SonarCloud S5145)
-  const safeUrl = (request.url || '').replaceAll(/[\r\n]/g, '').slice(0, 200);
-  console.log('[HTTP] Upgrade request received:', safeUrl);
+server.on('upgrade', (_request, _socket, _head) => {
+  logger.debug('HTTP', 'Upgrade request received');
 });
 }
 

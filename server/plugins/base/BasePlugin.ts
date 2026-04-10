@@ -7,6 +7,14 @@
 import type { IPlugin, PluginConfig, PluginStats } from './PluginInterface.js';
 import * as fsSync from 'fs';
 import { logger } from '../../utils/logger.js';
+import { globToRegex } from '../../utils/globToRegex.js';
+
+/** Shared exclude filter shape used by all log source plugins */
+export interface ExcludeFilters {
+    files?: string[];
+    directories?: string[];
+    paths?: string[];
+}
 
 export abstract class BasePlugin implements IPlugin {
     protected id: string;
@@ -148,6 +156,42 @@ export abstract class BasePlugin implements IPlugin {
             return HOST_ROOT_PATH + filePath;
         }
         return filePath;
+    }
+
+    /**
+     * Check if a file/directory should be excluded based on configured filters.
+     * Handles path exclusions, directory glob patterns, and file glob patterns.
+     */
+    protected shouldExcludeByFilters(
+        filePath: string,
+        entryName: string,
+        isDirectory: boolean,
+        excludeFilters?: ExcludeFilters
+    ): boolean {
+        if (!excludeFilters) return false;
+
+        // Full path exclusions
+        if (excludeFilters.paths) {
+            for (const p of excludeFilters.paths) {
+                if (filePath === p || filePath.startsWith(p + '/')) return true;
+            }
+        }
+
+        // Directory glob exclusions
+        if (isDirectory && excludeFilters.directories) {
+            for (const pattern of excludeFilters.directories) {
+                if (globToRegex(pattern).test(entryName)) return true;
+            }
+        }
+
+        // File glob exclusions
+        if (!isDirectory && excludeFilters.files) {
+            for (const pattern of excludeFilters.files) {
+                if (globToRegex(pattern).test(entryName)) return true;
+            }
+        }
+
+        return false;
     }
 
     abstract getStats(): Promise<PluginStats>;
