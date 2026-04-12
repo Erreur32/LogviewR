@@ -529,7 +529,7 @@ export class ApacheParser {
         if (accessDate) return accessDate;
 
         // Apache error log format: "Mon Jan 01 12:00:00.123456 2024"
-        const errorMatch = timestamp.match(/(\w+)\s+(\w+)\s+(\d{2})\s+(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?\s+(\d{4})/);
+        const errorMatch = /(\w+)\s+(\w+)\s+(\d{2})\s+(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?\s+(\d{4})/.exec(timestamp);
         if (errorMatch) {
             const [, , month, day, hour, minute, second, year] = errorMatch;
             return new Date(
