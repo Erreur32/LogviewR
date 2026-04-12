@@ -99,13 +99,13 @@ export const BanIpModal: React.FC<BanIpModalProps> = ({ ip, onClose, onBanned })
     return createPortal(
         <div
             style={{ position: 'fixed', inset: 0, zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(0,0,0,.6)', backdropFilter: 'blur(4px)' }}
-            onClick={onClose}
+            onClick={e => { if (e.target === e.currentTarget) onClose(); }}
             onKeyDown={e => { if (e.key === 'Escape') onClose(); }}
             role="dialog"
             aria-modal="true"
             tabIndex={-1}
         >
-            <div style={card} role="document" onClick={e => e.stopPropagation()}>
+            <div style={card}>
                 {/* Header */}
                 <div style={cardH}>
                     <ShieldAlert style={{ width: 16, height: 16, color: '#e86a65' }} />

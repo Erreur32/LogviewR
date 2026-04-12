@@ -74,6 +74,9 @@ export const IpContextMenu: React.FC<IpContextMenuProps> = ({ ip, x, y, onExclud
     const top = Math.min(y, window.innerHeight - 120);
     const left = Math.min(x, window.innerWidth - 240);
 
+    const hoverIn = (e: React.MouseEvent) => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,.04)'; };
+    const hoverOut = (e: React.MouseEvent) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; };
+
     return createPortal(
         <div ref={ref} style={{ ...menuStyle, top, left }}>
             {/* IP header */}
@@ -86,8 +89,8 @@ export const IpContextMenu: React.FC<IpContextMenuProps> = ({ ip, x, y, onExclud
                 type="button"
                 style={itemStyle}
                 onClick={() => { onExclude(ip); onClose(); }}
-                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,.04)')}
-                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                onMouseEnter={hoverIn}
+                onMouseLeave={hoverOut}
             >
                 <ShieldOff size={14} style={{ color: '#e3b341' }} />
                 {t('logViewer.ipMenu.exclude')}
@@ -99,8 +102,8 @@ export const IpContextMenu: React.FC<IpContextMenuProps> = ({ ip, x, y, onExclud
                     type="button"
                     style={itemStyle}
                     onClick={() => { onBan(ip); onClose(); }}
-                    onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,.04)')}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                    onMouseEnter={hoverIn}
+                    onMouseLeave={hoverOut}
                 >
                     <ShieldAlert size={14} style={{ color: '#e86a65' }} />
                     {t('logViewer.ipMenu.ban')}
