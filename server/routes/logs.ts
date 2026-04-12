@@ -5,12 +5,21 @@
  */
 
 import { Router } from 'express';
+import expressRateLimit from 'express-rate-limit';
 import { loggingService } from '../services/loggingService.js';
 import { asyncHandler, createError } from '../middleware/errorHandler.js';
 import { requireAuth, requireAdmin, type AuthenticatedRequest } from '../middleware/authMiddleware.js';
 import { autoLog } from '../middleware/loggingMiddleware.js';
 
 const router = Router();
+
+const logsRateLimit = expressRateLimit({
+    windowMs: 60_000,
+    max: 30,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, error: { code: 'RATE_LIMITED', message: 'Too many requests' } }
+});
 
 /** Extract log filters from query params (shared between GET / and GET /count) */
 function parseLogFilters(query: Record<string, any>): Record<string, any> {
@@ -26,7 +35,7 @@ function parseLogFilters(query: Record<string, any>): Record<string, any> {
 }
 
 // GET /api/logs - Get logs with filters (admin only)
-router.get('/', requireAuth, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res) => {
+router.get('/', logsRateLimit, requireAuth, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res) => {
     const filters = parseLogFilters(req.query);
     filters.limit = Number.parseInt((req.query.limit as string) || '100', 10);
     filters.offset = Number.parseInt((req.query.offset as string) || '0', 10);
@@ -46,7 +55,7 @@ router.get('/', requireAuth, requireAdmin, asyncHandler(async (req: Authenticate
 }));
 
 // GET /api/logs/count - Get log count with filters (admin only)
-router.get('/count', requireAuth, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res) => {
+router.get('/count', logsRateLimit, requireAuth, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res) => {
     const filters = parseLogFilters(req.query);
     const count = loggingService.countLogs(filters);
 
@@ -57,7 +66,7 @@ router.get('/count', requireAuth, requireAdmin, asyncHandler(async (req: Authent
 }));
 
 // DELETE /api/logs/cleanup - Cleanup old logs (admin only)
-router.delete('/cleanup', requireAuth, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res) => {
+router.delete('/cleanup', logsRateLimit, requireAuth, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res) => {
     const { daysToKeep = '90' } = req.query;
     const days = Number.parseInt(daysToKeep as string, 10);
 
@@ -89,7 +98,7 @@ router.delete('/cleanup', requireAuth, requireAdmin, asyncHandler(async (req: Au
 }), autoLog('logs.cleanup', 'logs'));
 
 // DELETE /api/logs - Delete all logs (admin only)
-router.delete('/', requireAuth, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res) => {
+router.delete('/', logsRateLimit, requireAuth, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res) => {
     const deletedCount = loggingService.deleteAllLogs();
 
     // Log the action (before deletion, so it will be the last log)
