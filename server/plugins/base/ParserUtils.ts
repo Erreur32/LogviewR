@@ -18,6 +18,12 @@ const RE_TS_SLASH    = /(\d{4})\/(\d{2})\/(\d{2})\s+(\d{2}):(\d{2}):(\d{2})/;
 const RE_ERR_PID     = /^(\d{4}\/\d{2}\/\d{2}\s+\d{2}:\d{2}:\d{2})\s+\[(\w+)\]\s+(\d+)#(\d+):\s+(.+)$/;
 const RE_ERR_STD     = /^(\d{4}\/\d{2}\/\d{2}\s+\d{2}:\d{2}:\d{2})\s+\[(\w+)\]\s+(.+)$/;
 
+/** Build a local Date from numeric string parts (avoids repeating parseInt 6 times). */
+function toLocalDate(y: string, mon: number, d: string, h: string, min: string, s: string): Date {
+    return new Date(Number.parseInt(y, 10), mon, Number.parseInt(d, 10),
+        Number.parseInt(h, 10), Number.parseInt(min, 10), Number.parseInt(s, 10));
+}
+
 /**
  * Parse access-log timestamp: "01/Jan/2024:12:00:00 +0000" or "01/Jan/2024:12:00:00"
  * Returns undefined when the string doesn't match either format.
@@ -32,14 +38,9 @@ export function parseAccessLogTimestamp(timestamp: string): Date | undefined {
         const tzMinutes = Number.parseInt(timezone.slice(3, 5), 10);
         const tzOffsetMinutes = tzSign * (tzHours * 60 + tzMinutes);
 
-        const date = new Date(Date.UTC(
-            Number.parseInt(year, 10),
-            MONTH_MAP[month] ?? 0,
-            Number.parseInt(day, 10),
-            Number.parseInt(hour, 10),
-            Number.parseInt(minute, 10),
-            Number.parseInt(second, 10)
-        ));
+        const date = new Date(Date.UTC(Number.parseInt(year, 10), MONTH_MAP[month] ?? 0,
+            Number.parseInt(day, 10), Number.parseInt(hour, 10),
+            Number.parseInt(minute, 10), Number.parseInt(second, 10)));
         date.setUTCMinutes(date.getUTCMinutes() - tzOffsetMinutes);
         return date;
     }
@@ -48,14 +49,7 @@ export function parseAccessLogTimestamp(timestamp: string): Date | undefined {
     const noTz = RE_TS_NO_TZ.exec(timestamp);
     if (noTz) {
         const [, day, month, year, hour, minute, second] = noTz;
-        return new Date(
-            Number.parseInt(year, 10),
-            MONTH_MAP[month] ?? 0,
-            Number.parseInt(day, 10),
-            Number.parseInt(hour, 10),
-            Number.parseInt(minute, 10),
-            Number.parseInt(second, 10)
-        );
+        return toLocalDate(year, MONTH_MAP[month] ?? 0, day, hour, minute, second);
     }
 
     return undefined;
@@ -69,14 +63,7 @@ export function parseSlashTimestamp(timestamp: string): Date | undefined {
     const m = RE_TS_SLASH.exec(timestamp);
     if (!m) return undefined;
     const [, year, month, day, hour, minute, second] = m;
-    return new Date(
-        Number.parseInt(year, 10),
-        Number.parseInt(month, 10) - 1,
-        Number.parseInt(day, 10),
-        Number.parseInt(hour, 10),
-        Number.parseInt(minute, 10),
-        Number.parseInt(second, 10)
-    );
+    return toLocalDate(year, Number.parseInt(month, 10) - 1, day, hour, minute, second);
 }
 
 /**
