@@ -132,8 +132,8 @@ const COLUMN_WIDTHS: Record<string, string> = {
     component: '120px',
     module: '96px',
     // Badge columns
-    level: '56px',
-    severity: '56px',          // Alias for level (used by some parsers)
+    level: '72px',
+    severity: '72px',          // Alias for level (used by some parsers)
     method: '52px',
     action: '90px',
     // IP columns
