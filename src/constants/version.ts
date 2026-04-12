@@ -3,7 +3,7 @@
  * This file should match package.json version
  */
 
-export const APP_VERSION = '0.8.40';
+export const APP_VERSION = '0.8.41';
 export const APP_NAME = 'LogviewR';
 
 /**
