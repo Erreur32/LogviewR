@@ -783,6 +783,24 @@
     "addIpToFilterMessage": "Ajouter {{ip}} à la liste des IP exclues ? Ces lignes seront masquées par défaut dans le visualiseur.",
     "addIpToFilterConfirm": "Ajouter",
     "addIpToFilterCancel": "Annuler",
+    "ipMenu": {
+      "title": "Actions sur l'IP",
+      "exclude": "Exclure des logs",
+      "ban": "Bannir avec fail2ban",
+      "banUnavailable": "fail2ban non disponible"
+    },
+    "banModal": {
+      "title": "Bannir une IP",
+      "selectJail": "Choisir un jail",
+      "alreadyBanned": "Déjà bannie dans : {{jails}}",
+      "alreadyTag": "déjà banni",
+      "ban": "Bannir",
+      "cancel": "Annuler",
+      "success": "{{ip}} bannie dans {{jail}}",
+      "errorGeneric": "Erreur lors du ban",
+      "errorLoadJails": "Impossible de charger les jails"
+    },
+    "bannedTooltip": "Bannie dans : {{jails}}",
     "compressedFileTooltip": "Fichier compressé (.gz) ,Format gzip",
     "logFileTooltip": "Fichier de log",
     "statusSuccess": "Succès",

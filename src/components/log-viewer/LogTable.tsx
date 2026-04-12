@@ -6,7 +6,7 @@
  */
 
 import React, { useMemo, useState } from 'react';
-import { ArrowUp, ArrowDown, ArrowUpDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, FileText, Archive } from 'lucide-react';
+import { ArrowUp, ArrowDown, ArrowUpDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, FileText, Archive, ShieldAlert } from 'lucide-react';
 import type { LogEntry } from '../../types/logViewer.js';
 import type { LogFilters as LogFiltersType } from '../../types/logViewer.js';
 import { LogBadge } from './LogBadge.js';
@@ -16,6 +16,7 @@ import { truncateIPv6ForDisplay } from '../../utils/ipUtils.js';
 import { getPluginIcon, getPluginName } from '../../utils/pluginIcons.js';
 import { Tooltip } from '../ui/Tooltip.js';
 import { useTranslation } from 'react-i18next';
+import { IpContextMenu } from './IpContextMenu.js';
 
 interface SortConfig {
     column: string;
@@ -45,8 +46,14 @@ interface LogTableProps {
     ipFilterHiddenCount?: number;
     showExcludedIps?: boolean;
     onToggleIpFilter?: () => void;
-    /** When provided, clicking an IP cell opens a modal to add that IP to the excluded list */
+    /** When provided, clicking an IP cell opens a context menu (exclude / ban) */
     onAddIpToFilter?: (ip: string) => void;
+    /** When provided, "Ban with fail2ban" option appears in IP context menu */
+    onBanIp?: (ip: string) => void;
+    /** Map of currently banned IPs → jail names (for shield icon) */
+    bannedIpsMap?: Map<string, string[]>;
+    /** Whether fail2ban is available (plugin enabled) */
+    fail2banAvailable?: boolean;
 }
 
 // Helper function to format file size
@@ -274,9 +281,13 @@ export const LogTable: React.FC<LogTableProps> = ({
     ipFilterHiddenCount = 0,
     showExcludedIps = false,
     onToggleIpFilter,
-    onAddIpToFilter
+    onAddIpToFilter,
+    onBanIp,
+    bannedIpsMap,
+    fail2banAvailable = false,
 }) => {
     const { t } = useTranslation();
+    const [ipMenu, setIpMenu] = useState<{ ip: string; x: number; y: number } | null>(null);
     // Filter out columns that are always empty (like pid for daemon.log)
     const visibleColumns = useMemo(() => {
         let filteredColumns = [...columns];
@@ -575,15 +586,28 @@ export const LogTable: React.FC<LogTableProps> = ({
                 const ipValue = String(value);
                 const ipDisplay = truncateIPv6ForDisplay(ipValue);
                 const ipStyle = getIPBadgeStyle(ipValue);
+                const hasMenu = !!(onAddIpToFilter || onBanIp);
+                const bannedJails = bannedIpsMap?.get(ipValue);
                 const content = (
-                    <span
-                        className={`font-mono text-xs px-1.5 py-0.5 rounded truncate block max-w-full ${onAddIpToFilter ? 'cursor-pointer hover:ring-1 hover:ring-amber-500/50' : 'cursor-help'}`}
-                        style={ipStyle}
-                        onClick={onAddIpToFilter ? (e) => { e.stopPropagation(); onAddIpToFilter(ipValue); } : undefined}
-                        role={onAddIpToFilter ? 'button' : undefined}
-                        title={onAddIpToFilter ? t('logViewer.addIpToFilterTitle') : undefined}
-                    >
-                        {ipDisplay}
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, maxWidth: '100%' }}>
+                        <span
+                            className={`font-mono text-xs px-1.5 py-0.5 rounded truncate block ${hasMenu ? 'cursor-pointer hover:ring-1 hover:ring-amber-500/50' : 'cursor-help'}`}
+                            style={ipStyle}
+                            onClick={hasMenu ? (e) => {
+                                e.stopPropagation();
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                setIpMenu({ ip: ipValue, x: rect.left, y: rect.bottom + 4 });
+                            } : undefined}
+                            role={hasMenu ? 'button' : undefined}
+                            title={hasMenu ? t('logViewer.ipMenu.title') : undefined}
+                        >
+                            {ipDisplay}
+                        </span>
+                        {bannedJails && bannedJails.length > 0 && (
+                            <Tooltip content={t('logViewer.bannedTooltip', { jails: bannedJails.join(', ') })}>
+                                <ShieldAlert size={12} style={{ color: '#e86a65', flexShrink: 0 }} />
+                            </Tooltip>
+                        )}
                     </span>
                 );
                 return (
@@ -1224,6 +1248,19 @@ export const LogTable: React.FC<LogTableProps> = ({
                     </div>
                 </div>
             </div>
+
+            {/* IP Context Menu */}
+            {ipMenu && (
+                <IpContextMenu
+                    ip={ipMenu.ip}
+                    x={ipMenu.x}
+                    y={ipMenu.y}
+                    onExclude={(ip) => { onAddIpToFilter?.(ip); }}
+                    onBan={(ip) => { onBanIp?.(ip); }}
+                    fail2banAvailable={fail2banAvailable}
+                    onClose={() => setIpMenu(null)}
+                />
+            )}
         </div>
     );
 };

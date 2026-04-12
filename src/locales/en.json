@@ -783,6 +783,24 @@
     "addIpToFilterMessage": "Add {{ip}} to the list of excluded IPs? These lines will be hidden by default in the log viewer.",
     "addIpToFilterConfirm": "Add",
     "addIpToFilterCancel": "Cancel",
+    "ipMenu": {
+      "title": "IP actions",
+      "exclude": "Exclude from logs",
+      "ban": "Ban with fail2ban",
+      "banUnavailable": "fail2ban unavailable"
+    },
+    "banModal": {
+      "title": "Ban an IP",
+      "selectJail": "Select a jail",
+      "alreadyBanned": "Already banned in: {{jails}}",
+      "alreadyTag": "already banned",
+      "ban": "Ban",
+      "cancel": "Cancel",
+      "success": "{{ip}} banned in {{jail}}",
+      "errorGeneric": "Ban failed",
+      "errorLoadJails": "Failed to load jails"
+    },
+    "bannedTooltip": "Banned in: {{jails}}",
     "compressedFileTooltip": "Compressed file (.gz) - gzip format",
     "logFileTooltip": "Log file",
     "statusSuccess": "Success",
