@@ -137,10 +137,10 @@ const COLUMN_WIDTHS: Record<string, string> = {
     method: '52px',
     action: '90px',
     // IP columns
-    ip: '114px',
-    ipaddress: '114px',
-    clientip: '114px',
-    remoteip: '114px',
+    ip: '145px',
+    ipaddress: '145px',
+    clientip: '145px',
+    remoteip: '145px',
     // Numeric columns
     status: '48px',
     statuscode: '48px',        // Alias for status

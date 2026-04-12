@@ -22,10 +22,10 @@ export const Badge: React.FC<BadgeProps> = ({
 
   const variantClasses = {
     default: 'bg-gray-800 text-gray-400',
-    success: 'bg-green-500/10 text-green-400',
-    warning: 'bg-orange-500/10 text-orange-400',
-    error: 'bg-red-500/10 text-red-400',
-    info: 'bg-blue-500/10 text-blue-400',
+    success: 'bg-green-500/30 text-green-300',
+    warning: 'bg-orange-500/30 text-orange-200',
+    error: 'bg-red-500/30 text-red-300',
+    info: 'bg-blue-500/30 text-blue-300',
     purple: 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
   };
 

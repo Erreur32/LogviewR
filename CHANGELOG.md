@@ -5,6 +5,37 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.42] - 2026-04-12
+
+### Technical
+
+- **`src/components/log-viewer/LogTable.tsx`** — IP column widths increased from 114px to 145px (`ip`, `ipaddress`, `clientip`, `remoteip`) to accommodate ShieldAlert banned-IP icon without overflowing into the next column.
+- **`src/components/ui/Badge.tsx`** — Badge background opacity increased from 10% to 30% and text colors lightened (`text-*-400` to `text-*-300`) for better readability on dark backgrounds.
+
+---
+
+## [0.8.41] - 2026-04-12
+
+### For users
+
+> Right-click any IP in the log viewer to exclude it from results or ban it via fail2ban.
+
+- **IP context menu** — Click any IP address in log tables to open a menu with "Exclude from logs" and "Ban with fail2ban" options.
+- **Ban IP modal** — Select a jail, see if the IP is already banned, and ban directly from the log viewer.
+- **Banned IP indicator** — A red shield icon appears next to IPs currently banned by fail2ban.
+
+---
+
+### Technical
+
+- **`src/components/log-viewer/IpContextMenu.tsx`** — New dropdown component on IP cell click (Exclude / Ban).
+- **`src/components/log-viewer/BanIpModal.tsx`** — Modal with jail selector, already-banned detection, inline fail2ban palette.
+- **`src/components/log-viewer/LogTable.tsx`** — ShieldAlert icon on banned IPs, `bannedIpsMap` prop, IP cell click handler.
+- **`src/pages/LogViewerPage.tsx`** — Fetches banned IPs map from `/api/plugins/fail2ban/status` on mount.
+- **Code quality (SonarCloud)** — `ParserUtils.ts` extraction, regex backtracking elimination, rate limiting on `/api/logs` (CodeQL), a11y keyboard listeners, `node:` prefix on built-in imports.
+
+---
+
 ## [0.8.40] - 2026-04-10
 
 ### For users
