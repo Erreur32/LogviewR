@@ -11,13 +11,20 @@ export const MONTH_MAP: Record<string, number> = {
     'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11
 };
 
+// Pre-compiled regexes (avoids re-creation per call)
+const RE_TS_WITH_TZ = /(\d{2})\/(\w+)\/(\d{4}):(\d{2}):(\d{2}):(\d{2})\s+([+-]\d{4})/;
+const RE_TS_NO_TZ   = /(\d{2})\/(\w+)\/(\d{4}):(\d{2}):(\d{2}):(\d{2})/;
+const RE_TS_SLASH    = /(\d{4})\/(\d{2})\/(\d{2})\s+(\d{2}):(\d{2}):(\d{2})/;
+const RE_ERR_PID     = /^(\d{4}\/\d{2}\/\d{2}\s+\d{2}:\d{2}:\d{2})\s+\[(\w+)\]\s+(\d+)#(\d+):\s+(.+)$/;
+const RE_ERR_STD     = /^(\d{4}\/\d{2}\/\d{2}\s+\d{2}:\d{2}:\d{2})\s+\[(\w+)\]\s+(.+)$/;
+
 /**
  * Parse access-log timestamp: "01/Jan/2024:12:00:00 +0000" or "01/Jan/2024:12:00:00"
  * Returns undefined when the string doesn't match either format.
  */
 export function parseAccessLogTimestamp(timestamp: string): Date | undefined {
     // With timezone: "01/Jan/2024:12:00:00 +0000"
-    const withTz = timestamp.match(/(\d{2})\/(\w+)\/(\d{4}):(\d{2}):(\d{2}):(\d{2})\s+([+-]\d{4})/);
+    const withTz = RE_TS_WITH_TZ.exec(timestamp);
     if (withTz) {
         const [, day, month, year, hour, minute, second, timezone] = withTz;
         const tzSign = timezone[0] === '+' ? 1 : -1;
@@ -38,7 +45,7 @@ export function parseAccessLogTimestamp(timestamp: string): Date | undefined {
     }
 
     // Without timezone: "01/Jan/2024:12:00:00"
-    const noTz = timestamp.match(/(\d{2})\/(\w+)\/(\d{4}):(\d{2}):(\d{2}):(\d{2})/);
+    const noTz = RE_TS_NO_TZ.exec(timestamp);
     if (noTz) {
         const [, day, month, year, hour, minute, second] = noTz;
         return new Date(
@@ -59,7 +66,7 @@ export function parseAccessLogTimestamp(timestamp: string): Date | undefined {
  * Returns undefined when the string doesn't match.
  */
 export function parseSlashTimestamp(timestamp: string): Date | undefined {
-    const m = timestamp.match(/(\d{4})\/(\d{2})\/(\d{2})\s+(\d{2}):(\d{2}):(\d{2})/);
+    const m = RE_TS_SLASH.exec(timestamp);
     if (!m) return undefined;
     const [, year, month, day, hour, minute, second] = m;
     return new Date(
@@ -74,26 +81,20 @@ export function parseSlashTimestamp(timestamp: string): Date | undefined {
 
 /**
  * Parse HTTP request string: "METHOD URI PROTOCOL"
- * Handles URIs containing spaces and missing protocol.
+ * Uses split() instead of regex to avoid backtracking (SonarCloud S5852).
  */
 export function parseHttpRequest(request: string): { method: string; url: string; protocol: string } {
-    const parts = request.match(/^(\S+)\s+(.+?)\s+(\S+)$/);
-    if (parts) {
-        return { method: parts[1], url: parts[2], protocol: parts[3] };
+    const parts = request.split(/\s+/);
+
+    if (parts.length >= 3) {
+        const method = parts[0];
+        const protocol = parts[parts.length - 1];
+        const url = parts.slice(1, -1).join(' ');
+        return { method, url, protocol };
     }
 
-    const fallback = request.match(/^(\S+)\s+(.+)$/);
-    if (fallback) {
-        const urlAndProtocol = fallback[2];
-        const proto = urlAndProtocol.match(/\s+(HTTP\/[\d.]+)$/);
-        if (proto) {
-            return {
-                method: fallback[1],
-                url: urlAndProtocol.substring(0, urlAndProtocol.length - proto[0].length).trim(),
-                protocol: proto[1]
-            };
-        }
-        return { method: fallback[1], url: urlAndProtocol, protocol: 'HTTP/1.1' };
+    if (parts.length === 2) {
+        return { method: parts[0], url: parts[1], protocol: 'HTTP/1.1' };
     }
 
     return { method: 'UNKNOWN', url: request, protocol: 'HTTP/1.1' };
@@ -126,7 +127,7 @@ export function parseNginxErrorLine(line: string): { timestamp: Date; level: str
     if (!line || line.trim().length === 0) return null;
 
     // With PID/TID
-    const pidMatch = line.match(/^(\d{4}\/\d{2}\/\d{2}\s+\d{2}:\d{2}:\d{2})\s+\[(\w+)\]\s+(\d+)#(\d+):\s+(.+)$/);
+    const pidMatch = RE_ERR_PID.exec(line);
     if (pidMatch) {
         const [, ts, level, pid, tid, message] = pidMatch;
         return {
@@ -139,7 +140,7 @@ export function parseNginxErrorLine(line: string): { timestamp: Date; level: str
     }
 
     // Standard
-    const stdMatch = line.match(/^(\d{4}\/\d{2}\/\d{2}\s+\d{2}:\d{2}:\d{2})\s+\[(\w+)\]\s+(.+)$/);
+    const stdMatch = RE_ERR_STD.exec(line);
     if (stdMatch) {
         const [, ts, level, message] = stdMatch;
         return {

@@ -26,7 +26,7 @@ export class NpmParser {
 
         // 1. NPM standard format with cache and upstream
         const npmWithCacheRegex = /^\[([^\]]+)\]\s+(\S+)\s+(\S+)\s+(\d+)\s+-\s+(\S+)\s+(\S+)\s+(\S+)\s+"([^"]+)"\s+\[Client\s+([\d\.]+)\]\s+\[Length\s+(\d+)\]\s+\[Gzip\s+([^\]]+)\]\s+\[Sent-to\s+([^\]]+)\]\s+"([^"]*)"\s+"([^"]*)"/;
-        const npmWithCacheMatch = line.match(npmWithCacheRegex);
+        const npmWithCacheMatch = npmWithCacheRegex.exec(line);
         if (npmWithCacheMatch) {
             const [, time, cache, upstreamStatus, status, method, scheme, host, uri, ip, bytes, gzip, server, ua, ref] = npmWithCacheMatch;
             const statusNum = Number.parseInt(status, 10);
@@ -53,7 +53,7 @@ export class NpmParser {
 
         // 2. NPM standard format without cache
         const npmStandardRegex = /^\[([^\]]+)\]\s+(\d+)\s+-\s+(\S+)\s+(\S+)\s+(\S+)\s+"([^"]+)"\s+\[Client\s+([\d\.]+)\]\s+\[Length\s+(\d+)\]\s+\[Gzip\s+([^\]]+)\]\s+"([^"]*)"\s+"([^"]*)"/;
-        const npmStandardMatch = line.match(npmStandardRegex);
+        const npmStandardMatch = npmStandardRegex.exec(line);
         if (npmStandardMatch) {
             const [, time, status, method, scheme, host, uri, ip, bytes, gzip, ua, ref] = npmStandardMatch;
             const statusNum = Number.parseInt(status, 10);
@@ -78,10 +78,10 @@ export class NpmParser {
         // 3. Custom combined format
         // IP - host [time] "request" status bytes "Referer" "UA"
         const customCombinedRegex = /^([\d\.]+)\s+-\s+(\S+)\s+\[([^\]]+)\]\s+"([^"]+)"\s+(\d+)\s+(\d+)\s+"([^"]*)"\s+"([^"]*)"/;
-        const customCombinedMatch = line.match(customCombinedRegex);
+        const customCombinedMatch = customCombinedRegex.exec(line);
         if (customCombinedMatch) {
             const [, ip, host, time, request, status, bytes, ref, ua] = customCombinedMatch;
-            const requestMatch = request.match(/^(\S+)\s+(\S+)\s+(\S+)$/);
+            const requestMatch = (/^(\S+)\s+(\S+)\s+(\S+)$/).exec(request);
             const method = requestMatch ? requestMatch[1] : 'UNKNOWN';
             const url = requestMatch ? requestMatch[2] : request;
             const protocol = requestMatch ? requestMatch[3] : 'HTTP/1.1';
@@ -106,7 +106,7 @@ export class NpmParser {
         // 4. NPM extended Nginx format (existing format)
         // IP - - [timestamp] "request" status size "referer" "user-agent" "host" "upstream" "response-time"
         const npmExtendedRegex = /^(\S+)\s+-\s+-\s+\[([^\]]+)\]\s+"([^"]+)"\s+(\d+)\s+(\S+)\s+"([^"]*)"\s+"([^"]*)"(?:\s+"([^"]*)")?(?:\s+"([^"]*)")?(?:\s+"([^"]*)")?/;
-        const npmExtendedMatch = line.match(npmExtendedRegex);
+        const npmExtendedMatch = npmExtendedRegex.exec(line);
         if (npmExtendedMatch) {
             const [, ip, timestamp, request, status, size, referer, userAgent, host, upstream, responseTime] = npmExtendedMatch;
             const requestParts = parseHttpRequest(request);
@@ -133,7 +133,7 @@ export class NpmParser {
         // 5. Standard Nginx format (fallback)
         // IP - - [timestamp] "request" status size "referer" "user-agent"
         const nginxRegex = /^(\S+)\s+-\s+-\s+\[([^\]]+)\]\s+"([^"]+)"\s+(\d+)\s+(\S+)\s+"([^"]*)"\s+"([^"]*)"/;
-        const nginxMatch = line.match(nginxRegex);
+        const nginxMatch = nginxRegex.exec(line);
         if (nginxMatch) {
             const [, ip, timestamp, request, status, size, referer, userAgent] = nginxMatch;
             const requestParts = parseHttpRequest(request);

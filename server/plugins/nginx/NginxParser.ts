@@ -30,7 +30,7 @@ export class NginxParser {
         // 1. Format with upstream (extended)
         // IP - user [timestamp] "request" status bytes "referer" "user-agent" "upstream"
         const extendedRegex = /^(\S+)\s+-\s+(\S+)\s+\[([^\]]+)\]\s+"([^"]+)"\s+(\d{3})\s+(\d+)\s+"([^"]*)"\s+"([^"]*)"\s+"([^"]*)"/;
-        const extendedMatch = line.match(extendedRegex);
+        const extendedMatch = extendedRegex.exec(line);
         if (extendedMatch) {
             const [, ip, , timestamp, request, status, bytes, referer, userAgent, upstream] = extendedMatch;
             const requestParts = parseHttpRequest(request);
@@ -55,7 +55,7 @@ export class NginxParser {
         // 2. Format combined (standard)
         // IP - user [timestamp] "request" status bytes "referer" "user-agent"
         const combinedRegex = /^(\S+)\s+-\s+(\S+)\s+\[([^\]]+)\]\s+"([^"]+)"\s+(\d{3})\s+(\d+)\s+"([^"]*)"\s+"([^"]*)"/;
-        const combinedMatch = line.match(combinedRegex);
+        const combinedMatch = combinedRegex.exec(line);
         if (combinedMatch) {
             const [, ip, , timestamp, request, status, bytes, referer, userAgent] = combinedMatch;
             const requestParts = parseHttpRequest(request);
@@ -80,7 +80,7 @@ export class NginxParser {
         // 3. Format common (simpler, without referer and user-agent)
         // IP - user [timestamp] "request" status bytes
         const commonRegex = /^(\S+)\s+-\s+(\S+)\s+\[([^\]]+)\]\s+"([^"]+)"\s+(\d{3})\s+(\d+)/;
-        const commonMatch = line.match(commonRegex);
+        const commonMatch = commonRegex.exec(line);
         if (commonMatch) {
             const [, ip, , timestamp, request, status, bytes] = commonMatch;
             const requestParts = parseHttpRequest(request);
