@@ -7,6 +7,7 @@
  */
 
 import type { ParsedLogEntry } from '../base/LogSourcePluginInterface.js';
+import { parseAccessLogTimestamp, MONTH_MAP, getLevelFromStatus as sharedGetLevelFromStatus } from '../base/ParserUtils.js';
 
 // IPv4 or IPv6 pattern (supports both)
 const IP_PATTERN = '(?:[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}|[0-9a-fA-F:]+(?:::[0-9a-fA-F:]*)?)';
@@ -520,71 +521,20 @@ export class ApacheParser {
 
     /**
      * Parse timestamp string to Date with timezone support
-     * Format: "01/Jan/2024:12:00:00 +0000" or "Mon Jan 01 12:00:00.123456 2024"
+     * Delegates access-log formats to shared ParserUtils; handles Apache error format locally.
      */
     private static parseTimestamp(timestamp: string): Date {
-        // Try Apache access log format: "01/Jan/2024:12:00:00 +0000" (with timezone)
-        const accessMatch = timestamp.match(/(\d{2})\/(\w+)\/(\d{4}):(\d{2}):(\d{2}):(\d{2})\s+([+-]\d{4})/);
-        if (accessMatch) {
-            const [, day, month, year, hour, minute, second, timezone] = accessMatch;
-            const monthMap: Record<string, number> = {
-                'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5,
-                'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11
-            };
-            
-            // Parse timezone offset (e.g., +0000, -0500)
-            const tzSign = timezone[0] === '+' ? 1 : -1;
-            const tzHours = Number.parseInt(timezone.slice(1, 3), 10);
-            const tzMinutes = Number.parseInt(timezone.slice(3, 5), 10);
-            const tzOffsetMinutes = tzSign * (tzHours * 60 + tzMinutes);
-            
-            // Create date in UTC, then adjust for timezone
-            const date = new Date(Date.UTC(
-                Number.parseInt(year, 10),
-                monthMap[month] ?? 0,
-                Number.parseInt(day, 10),
-                Number.parseInt(hour, 10),
-                Number.parseInt(minute, 10),
-                Number.parseInt(second, 10)
-            ));
-            
-            // Adjust for timezone offset (subtract offset to get local time)
-            date.setUTCMinutes(date.getUTCMinutes() - tzOffsetMinutes);
-            
-            return date;
-        }
+        // Access-log formats (shared with Nginx/NPM)
+        const accessDate = parseAccessLogTimestamp(timestamp);
+        if (accessDate) return accessDate;
 
-        // Try Apache access log format without timezone: "01/Jan/2024:12:00:00"
-        const accessMatchNoTz = timestamp.match(/(\d{2})\/(\w+)\/(\d{4}):(\d{2}):(\d{2}):(\d{2})/);
-        if (accessMatchNoTz) {
-            const [, day, month, year, hour, minute, second] = accessMatchNoTz;
-            const monthMap: Record<string, number> = {
-                'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5,
-                'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11
-            };
-            
-            return new Date(
-                Number.parseInt(year, 10),
-                monthMap[month] ?? 0,
-                Number.parseInt(day, 10),
-                Number.parseInt(hour, 10),
-                Number.parseInt(minute, 10),
-                Number.parseInt(second, 10)
-            );
-        }
-
-        // Try Apache error log format: "Mon Jan 01 12:00:00.123456 2024"
+        // Apache error log format: "Mon Jan 01 12:00:00.123456 2024"
         const errorMatch = timestamp.match(/(\w+)\s+(\w+)\s+(\d{2})\s+(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?\s+(\d{4})/);
         if (errorMatch) {
             const [, , month, day, hour, minute, second, year] = errorMatch;
-            const monthMap: Record<string, number> = {
-                'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5,
-                'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11
-            };
-            
             return new Date(
                 Number.parseInt(year, 10),
-                monthMap[month] ?? 0,
+                MONTH_MAP[month] ?? 0,
                 Number.parseInt(day, 10),
                 Number.parseInt(hour, 10),
                 Number.parseInt(minute, 10),
@@ -592,27 +542,10 @@ export class ApacheParser {
             );
         }
 
-        // Fallback to current date
         return new Date();
     }
 
-    /**
-     * Parse size string to number
-     */
-    private static parseSize(size: string): number {
-        if (size === '-' || !size) {
-            return 0;
-        }
-        return Number.parseInt(size, 10) || 0;
-    }
-
-    /**
-     * Get log level from HTTP status code
-     */
     private static getLevelFromStatus(status: number): string {
-        if (status >= 500) return 'error';
-        if (status >= 400) return 'warning';
-        if (status >= 300) return 'info';
-        return 'info';
+        return sharedGetLevelFromStatus(status);
     }
 }

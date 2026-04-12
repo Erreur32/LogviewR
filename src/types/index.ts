@@ -1,6 +1,20 @@
 // Re-export all API types
 export * from './api';
 
+// Activity log entry (used by LogsManagementSection + LogsPage)
+export interface ActivityLog {
+    id: number;
+    userId?: number;
+    username?: string;
+    pluginId?: string;
+    action: string;
+    resource: string;
+    resourceId?: string;
+    level: 'info' | 'warning' | 'error';
+    timestamp: string;
+    ipAddress?: string;
+}
+
 // UI-specific types
 export interface NetworkStat {
   time: string;

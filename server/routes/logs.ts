@@ -12,49 +12,24 @@ import { autoLog } from '../middleware/loggingMiddleware.js';
 
 const router = Router();
 
+/** Extract log filters from query params (shared between GET / and GET /count) */
+function parseLogFilters(query: Record<string, any>): Record<string, any> {
+    const filters: any = {};
+    if (query.userId)    filters.userId = Number.parseInt(query.userId as string, 10);
+    if (query.pluginId)  filters.pluginId = query.pluginId as string;
+    if (query.action)    filters.action = query.action as string;
+    if (query.resource)  filters.resource = query.resource as string;
+    if (query.level)     filters.level = query.level as string;
+    if (query.startDate) filters.startDate = new Date(query.startDate as string);
+    if (query.endDate)   filters.endDate = new Date(query.endDate as string);
+    return filters;
+}
+
 // GET /api/logs - Get logs with filters (admin only)
 router.get('/', requireAuth, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res) => {
-    const {
-        userId,
-        pluginId,
-        action,
-        resource,
-        level,
-        startDate,
-        endDate,
-        limit = '100',
-        offset = '0'
-    } = req.query;
-
-    const filters: any = {};
-
-    if (userId) {
-        filters.userId = Number.parseInt(userId as string, 10);
-    }
-    if (pluginId) {
-        filters.pluginId = pluginId as string;
-    }
-    if (action) {
-        filters.action = action as string;
-    }
-    if (resource) {
-        filters.resource = resource as string;
-    }
-    if (level) {
-        filters.level = level as string;
-    }
-    if (startDate) {
-        filters.startDate = new Date(startDate as string);
-    }
-    if (endDate) {
-        filters.endDate = new Date(endDate as string);
-    }
-    if (limit) {
-        filters.limit = Number.parseInt(limit as string, 10);
-    }
-    if (offset) {
-        filters.offset = Number.parseInt(offset as string, 10);
-    }
+    const filters = parseLogFilters(req.query);
+    filters.limit = Number.parseInt((req.query.limit as string) || '100', 10);
+    filters.offset = Number.parseInt((req.query.offset as string) || '0', 10);
 
     const logs = loggingService.getLogs(filters);
     const total = loggingService.countLogs(filters);
@@ -72,40 +47,7 @@ router.get('/', requireAuth, requireAdmin, asyncHandler(async (req: Authenticate
 
 // GET /api/logs/count - Get log count with filters (admin only)
 router.get('/count', requireAuth, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res) => {
-    const {
-        userId,
-        pluginId,
-        action,
-        resource,
-        level,
-        startDate,
-        endDate
-    } = req.query;
-
-    const filters: any = {};
-
-    if (userId) {
-        filters.userId = Number.parseInt(userId as string, 10);
-    }
-    if (pluginId) {
-        filters.pluginId = pluginId as string;
-    }
-    if (action) {
-        filters.action = action as string;
-    }
-    if (resource) {
-        filters.resource = resource as string;
-    }
-    if (level) {
-        filters.level = level as string;
-    }
-    if (startDate) {
-        filters.startDate = new Date(startDate as string);
-    }
-    if (endDate) {
-        filters.endDate = new Date(endDate as string);
-    }
-
+    const filters = parseLogFilters(req.query);
     const count = loggingService.countLogs(filters);
 
     res.json({

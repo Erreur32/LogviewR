@@ -9,23 +9,11 @@ import { Filter, RefreshCw, AlertCircle, Info, AlertTriangle, Trash2, Loader2 } 
 import { api } from '../api/client';
 import { useUserAuthStore } from '../stores/userAuthStore';
 import { Section, SettingRow } from './SettingsSection';
-
-interface Log {
-    id: number;
-    userId?: number;
-    username?: string;
-    pluginId?: string;
-    action: string;
-    resource: string;
-    resourceId?: string;
-    level: 'info' | 'warning' | 'error';
-    timestamp: string;
-    ipAddress?: string;
-}
+import type { ActivityLog } from '../types';
 
 export const LogsManagementSection: React.FC = () => {
     const { user: currentUser } = useUserAuthStore();
-    const [logs, setLogs] = useState<Log[]>([]);
+    const [logs, setLogs] = useState<ActivityLog[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isDeleting, setIsDeleting] = useState(false);
     const [filter, setFilter] = useState<'all' | 'info' | 'warning' | 'error'>('all');
@@ -47,7 +35,7 @@ export const LogsManagementSection: React.FC = () => {
                 params.append('level', filter);
             }
 
-            const response = await api.get<{ logs: Log[]; total: number }>(`/api/logs?${params}`);
+            const response = await api.get<{ logs: ActivityLog[]; total: number }>(`/api/logs?${params}`);
             if (response.success && response.result) {
                 setLogs(response.result.logs);
             }

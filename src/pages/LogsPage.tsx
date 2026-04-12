@@ -9,19 +9,7 @@ import { ArrowLeft, Filter, RefreshCw, Calendar, AlertCircle, Info, AlertTriangl
 import { api } from '../api/client';
 import { useUserAuthStore } from '../stores/userAuthStore';
 import { Card } from '../components/widgets/Card';
-
-interface Log {
-    id: number;
-    userId?: number;
-    username?: string;
-    pluginId?: string;
-    action: string;
-    resource: string;
-    resourceId?: string;
-    level: 'info' | 'warning' | 'error';
-    timestamp: string;
-    ipAddress?: string;
-}
+import type { ActivityLog } from '../types';
 
 interface LogsPageProps {
     onBack: () => void;
@@ -29,7 +17,7 @@ interface LogsPageProps {
 
 export const LogsPage: React.FC<LogsPageProps> = ({ onBack }) => {
     const { user: currentUser } = useUserAuthStore();
-    const [logs, setLogs] = useState<Log[]>([]);
+    const [logs, setLogs] = useState<ActivityLog[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [filter, setFilter] = useState<'all' | 'info' | 'warning' | 'error'>('all');
     const [limit, setLimit] = useState(50);
@@ -50,7 +38,7 @@ export const LogsPage: React.FC<LogsPageProps> = ({ onBack }) => {
                 params.append('level', filter);
             }
 
-            const response = await api.get<{ logs: Log[]; total: number }>(`/api/logs?${params}`);
+            const response = await api.get<{ logs: ActivityLog[]; total: number }>(`/api/logs?${params}`);
             if (response.success && response.result) {
                 setLogs(response.result.logs);
             } else {
