@@ -1062,12 +1062,15 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
                 <div
                     className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
                     onClick={() => setAddIpModal(null)}
+                    onKeyDown={(e) => { if (e.key === 'Escape') setAddIpModal(null); }}
                     role="dialog"
                     aria-modal="true"
                     aria-labelledby="add-ip-modal-title"
+                    tabIndex={-1}
                 >
                     <div
                         className="bg-[#121212] border border-gray-700 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
+                        role="document"
                         onClick={(e) => e.stopPropagation()}
                     >
                         <div className="px-6 py-4 border-b border-gray-800 flex items-center justify-between">
