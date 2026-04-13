@@ -329,6 +329,78 @@ const JailPill: React.FC<{ jail: string }> = ({ jail }) => {
     );
 };
 
+// ── Data fetching hook ────────────────────────────────────────────────────────
+
+type BlocklistHit = { id: string; name: string; direction: string; present: boolean };
+
+function useIpLookup(ip: string, geoProp: GeoInfo | null | undefined, mode: 'fail2ban' | 'logviewer') {
+    const [history,       setHistory]       = useState<IpHistEntry[]>([]);
+    const [loading,       setLoading]       = useState(true);
+    const [fetchError,    setFetchError]    = useState(false);
+    const [geo,           setGeo]           = useState<GeoInfo | null>(geoProp ?? null);
+    const [details,       setDetails]       = useState<IpDetails | null>(null);
+    const [blocklistHits, setBlocklistHits] = useState<BlocklistHit[] | null>(null);
+    const [f2bAvailable,  setF2bAvailable]  = useState(mode === 'fail2ban');
+    const [selIpset,      setSelIpset]      = useState('');
+    const [selUnbanJail,  setSelUnbanJail]  = useState('');
+
+    useEffect(() => {
+        setHistory([]); setLoading(true); setFetchError(false); setDetails(null);
+        setBlocklistHits(null); setSelUnbanJail('');
+        if (!geoProp) setGeo(null);
+        if (mode === 'fail2ban') setF2bAvailable(true);
+
+        const ipEnc = encodeURIComponent(ip);
+
+        const lookupP = api.get<{ ok: boolean; geo: GeoInfo | null; whois: WhoisInfo | null; hostname: string | null; knownProvider: { name: string; cidr: string } | null }>(
+            `/api/ip/${ipEnc}/lookup`
+        );
+        const histP = api.get<{ ok: boolean; bans: IpHistEntry[] }>(
+            `/api/plugins/fail2ban/audit/internal?ip=${ipEnc}&limit=250`
+        ).catch(() => null);
+        const detP = api.get<{ ok: boolean } & IpDetails>(
+            `/api/plugins/fail2ban/ip/${ipEnc}`
+        ).catch(() => null);
+        const blP = api.get<{ ok: boolean; results: BlocklistHit[] }>(
+            `/api/plugins/fail2ban/blocklists/test/${ipEnc}`
+        ).catch(() => null);
+
+        Promise.all([lookupP, histP, detP, blP]).then(([lookupRes, histRes, detRes, blRes]) => {
+            if (lookupRes.success && lookupRes.result?.ok && !geoProp && lookupRes.result.geo) {
+                setGeo(lookupRes.result.geo);
+            }
+
+            const f2bOk = !!(detRes?.success && detRes.result?.ok);
+            setF2bAvailable(f2bOk);
+
+            if (histRes?.success && histRes.result?.ok) setHistory(histRes.result.bans ?? []);
+            if (blRes?.success && blRes.result?.ok) setBlocklistHits(blRes.result.results ?? []);
+
+            if (f2bOk) {
+                const r = detRes!.result;
+                setDetails({
+                    activeJails: r.activeJails ?? [], ipsets: r.ipsets ?? [], allIpsets: r.allIpsets ?? [],
+                    hostname: r.hostname ?? null, whois: r.whois ?? null, knownProvider: r.knownProvider ?? null,
+                    logEntries: r.logEntries ?? [], logFilesTotal: r.logFilesTotal ?? 0, logFilesShown: r.logFilesShown ?? 0,
+                });
+                setSelIpset(s => s || (r.allIpsets?.[0] ?? ''));
+                setSelUnbanJail(s => s || (r.activeJails?.[0] ?? ''));
+            } else {
+                setDetails({
+                    activeJails: [], ipsets: [], allIpsets: [],
+                    hostname: lookupRes.result?.hostname ?? null, whois: lookupRes.result?.whois ?? null,
+                    knownProvider: lookupRes.result?.knownProvider ?? null,
+                    logEntries: [], logFilesTotal: 0, logFilesShown: 0,
+                });
+            }
+            setLoading(false);
+        }).catch(() => { setFetchError(true); setLoading(false); });
+    }, [ip, geoProp, mode]);
+
+    return { history, loading, fetchError, geo, details, blocklistHits, f2bAvailable,
+        selIpset, setSelIpset, selUnbanJail, setSelUnbanJail, setDetails, setHistory };
+}
+
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export const IpModal: React.FC<{
@@ -339,104 +411,19 @@ export const IpModal: React.FC<{
     mode?: 'fail2ban' | 'logviewer';
 }> = ({ ip, onClose, geo: geoProp, jails: jailsProp, mode = 'fail2ban' }) => {
     const { t } = useTranslation();
-    const [history,      setHistory]      = useState<IpHistEntry[]>([]);
-    const [loading,      setLoading]      = useState(true);
-    const [fetchError,   setFetchError]   = useState(false);
-    const [geo,          setGeo]          = useState<GeoInfo | null>(geoProp ?? null);
-    const [details,      setDetails]      = useState<IpDetails | null>(null);
+    const {
+        history, loading, fetchError, geo, details, blocklistHits, f2bAvailable,
+        selIpset, setSelIpset, selUnbanJail, setSelUnbanJail, setDetails,
+    } = useIpLookup(ip, geoProp, mode);
+
     const [actionMsg,    setActionMsg]    = useState<{ ok: boolean; text: string } | null>(null);
-    const [blocklistHits, setBlocklistHits] = useState<Array<{ id: string; name: string; direction: string; present: boolean }> | null>(null);
     const [banning,      setBanning]      = useState(false);
     const [unbanning,    setUnbanning]    = useState(false);
     const [ipsetBanning, setIpsetBanning] = useState<string | null>(null);
     const [ipsetRemoving, setIpsetRemoving] = useState<string | null>(null);
-    const [selIpset,     setSelIpset]     = useState<string>('');
-    const [selUnbanJail, setSelUnbanJail] = useState<string>('');
     const [logsOpen,     setLogsOpen]     = useState(true);
     const [expandedLogs, setExpandedLogs] = useState<Set<number>>(new Set());
     const LOG_LINES_DEFAULT = 4;
-
-    const [f2bAvailable, setF2bAvailable] = useState(mode === 'fail2ban');
-
-    useEffect(() => {
-        setHistory([]); setLoading(true); setFetchError(false); setActionMsg(null); setDetails(null); setBlocklistHits(null); setLogsOpen(true); setExpandedLogs(new Set()); setUnbanning(false); setIpsetRemoving(null); setSelUnbanJail('');
-        if (!geoProp) setGeo(null);
-        if (mode === 'fail2ban') setF2bAvailable(true);
-
-        const ipEnc = encodeURIComponent(ip);
-
-        // Always fetch generic IP lookup (geo + whois + hostname + knownProvider)
-        const lookupPromise = api.get<{ ok: boolean; geo: GeoInfo | null; whois: WhoisInfo | null; hostname: string | null; knownProvider: { name: string; cidr: string } | null }>(
-            `/api/ip/${ipEnc}/lookup`
-        );
-
-        // Try fail2ban endpoints (graceful — won't block if plugin is disabled)
-        const f2bHistPromise = api.get<{ ok: boolean; bans: IpHistEntry[] }>(
-            `/api/plugins/fail2ban/audit/internal?ip=${ipEnc}&limit=250`
-        ).catch(() => null);
-
-        const f2bDetPromise = api.get<{ ok: boolean } & IpDetails>(
-            `/api/plugins/fail2ban/ip/${ipEnc}`
-        ).catch(() => null);
-
-        const f2bBlPromise = api.get<{ ok: boolean; results: Array<{ id: string; name: string; direction: string; present: boolean }> }>(
-            `/api/plugins/fail2ban/blocklists/test/${ipEnc}`
-        ).catch(() => null);
-
-        Promise.all([lookupPromise, f2bHistPromise, f2bDetPromise, f2bBlPromise])
-            .then(([lookupRes, histRes, detRes, blRes]) => {
-                // Generic lookup: geo + whois + hostname + knownProvider
-                if (lookupRes.success && lookupRes.result?.ok) {
-                    if (!geoProp && lookupRes.result.geo) setGeo(lookupRes.result.geo);
-                }
-
-                // Fail2ban data (may be null if plugin disabled)
-                const f2bOk = !!(detRes?.success && detRes.result?.ok);
-                setF2bAvailable(f2bOk);
-
-                if (histRes?.success && histRes.result?.ok) {
-                    setHistory(histRes.result.bans ?? []);
-                }
-
-                if (f2bOk) {
-                    // Fail2ban has full data — use it (includes whois, hostname, etc.)
-                    setDetails({
-                        activeJails:   detRes!.result.activeJails   ?? [],
-                        ipsets:        detRes!.result.ipsets        ?? [],
-                        allIpsets:     detRes!.result.allIpsets     ?? [],
-                        hostname:      detRes!.result.hostname      ?? null,
-                        whois:         detRes!.result.whois         ?? null,
-                        knownProvider: detRes!.result.knownProvider ?? null,
-                        logEntries:    detRes!.result.logEntries    ?? [],
-                        logFilesTotal: detRes!.result.logFilesTotal ?? 0,
-                        logFilesShown: detRes!.result.logFilesShown ?? 0,
-                    });
-                    const first = detRes!.result.allIpsets?.[0] ?? '';
-                    setSelIpset(s => s || first);
-                    const firstJail = detRes!.result.activeJails?.[0] ?? '';
-                    setSelUnbanJail(s => s || firstJail);
-                } else {
-                    // Fail2ban unavailable — use generic lookup data
-                    setDetails({
-                        activeJails: [], ipsets: [], allIpsets: [],
-                        hostname:      lookupRes.result?.hostname      ?? null,
-                        whois:         lookupRes.result?.whois         ?? null,
-                        knownProvider: lookupRes.result?.knownProvider ?? null,
-                        logEntries: [], logFilesTotal: 0, logFilesShown: 0,
-                    });
-                }
-
-                if (blRes?.success && blRes.result?.ok) {
-                    setBlocklistHits(blRes.result.results ?? []);
-                }
-
-                setLoading(false);
-            })
-            .catch(() => {
-                setFetchError(true);
-                setLoading(false);
-            });
-    }, [ip, geoProp, mode]);
 
     const jails = [...new Set([
         ...(jailsProp ?? []),

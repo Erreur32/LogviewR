@@ -74,6 +74,14 @@ export async function reverseDns(ip: string): Promise<string | null> {
 
 // ── WHOIS ─────────────────────────────────────────────────────────────────────
 
+const WHOIS_FIELDS: Array<{ key: keyof WhoisInfo; re: RegExp; extract: (line: string) => string }> = [
+    { key: 'org',     re: /^org(?:name)?:\s*(.+)/i,          extract: l => l.replace(/^org(?:name)?:\s*/i, '').trim() },
+    { key: 'country', re: /^country:\s*(.+)/i,               extract: l => l.replace(/^country:\s*/i, '').trim().toUpperCase() },
+    { key: 'asn',     re: /^(?:origin|aut-num):\s*(AS\d+)/i, extract: l => l.match(/AS\d+/i)![0] },
+    { key: 'netname', re: /^netname:\s*(.+)/i,               extract: l => l.replace(/^netname:\s*/i, '').trim() },
+    { key: 'cidr',    re: /^(?:cidr|route):\s*(.+)/i,        extract: l => l.replace(/^(?:cidr|route):\s*/i, '').trim() },
+];
+
 export async function runWhois(ip: string): Promise<WhoisInfo | null> {
     try {
         const { stdout } = await execFileAsync('whois', [ip], { timeout: 6000 });
@@ -81,11 +89,9 @@ export async function runWhois(ip: string): Promise<WhoisInfo | null> {
         for (const raw of stdout.split('\n')) {
             const line = raw.trim();
             if (!line || line.startsWith('#') || line.startsWith('%')) continue;
-            if (!info.org     && /^org(?:name)?:\s*(.+)/i.test(line))          info.org     = line.replace(/^org(?:name)?:\s*/i, '').trim();
-            if (!info.country && /^country:\s*(.+)/i.test(line))               info.country = line.replace(/^country:\s*/i, '').trim().toUpperCase();
-            if (!info.asn     && /^(?:origin|aut-num):\s*(AS\d+)/i.test(line)) info.asn     = line.match(/AS\d+/i)![0];
-            if (!info.netname && /^netname:\s*(.+)/i.test(line))               info.netname = line.replace(/^netname:\s*/i, '').trim();
-            if (!info.cidr    && /^(?:cidr|route):\s*(.+)/i.test(line))        info.cidr    = line.replace(/^(?:cidr|route):\s*/i, '').trim();
+            for (const f of WHOIS_FIELDS) {
+                if (!info[f.key] && f.re.test(line)) info[f.key] = f.extract(line);
+            }
         }
         return (info.org || info.country || info.asn || info.netname) ? info : null;
     } catch { return null; }
@@ -95,11 +101,26 @@ export async function runWhois(ip: string): Promise<WhoisInfo | null> {
 
 let knownRangesCache: Record<string, string[]> | null = null;
 
+function ipv4ToLong(ipStr: string): number | null {
+    const parts = ipStr.split('.').map(Number);
+    if (parts.length !== 4 || parts.some(p => Number.isNaN(p) || p < 0 || p > 255)) return null;
+    return ((parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3]) >>> 0;
+}
+
+function cidrContains(ipLong: number, cidr: string): boolean {
+    const [subnet, bits] = cidr.split('/');
+    const b = Number.parseInt(bits, 10);
+    if (!subnet || Number.isNaN(b) || b < 1 || b > 32) return false;
+    const subnetLong = ipv4ToLong(subnet);
+    if (subnetLong === null) return false;
+    const mask = b === 32 ? 0xFFFFFFFF : (~(0xFFFFFFFF >>> b)) >>> 0;
+    return (ipLong & mask) === (subnetLong & mask);
+}
+
 export function checkKnownProvider(ip: string): KnownProvider | null {
     if (!ip || ip.includes(':')) return null;
-    const parts = ip.split('.').map(Number);
-    if (parts.length !== 4 || parts.some(p => Number.isNaN(p) || p < 0 || p > 255)) return null;
-    const ipLong = ((parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3]) >>> 0;
+    const ipLong = ipv4ToLong(ip);
+    if (ipLong === null) return null;
 
     if (!knownRangesCache) {
         try {
@@ -111,14 +132,7 @@ export function checkKnownProvider(ip: string): KnownProvider | null {
 
     for (const [provider, cidrs] of Object.entries(knownRangesCache!)) {
         for (const cidr of cidrs) {
-            const [subnet, bits] = cidr.split('/');
-            const b = Number.parseInt(bits, 10);
-            if (!subnet || Number.isNaN(b) || b < 1 || b > 32) continue;
-            const sp = subnet.split('.').map(Number);
-            if (sp.length !== 4) continue;
-            const subnetLong = ((sp[0] << 24) | (sp[1] << 16) | (sp[2] << 8) | sp[3]) >>> 0;
-            const mask = b === 32 ? 0xFFFFFFFF : (~(0xFFFFFFFF >>> b)) >>> 0;
-            if ((ipLong & mask) === (subnetLong & mask)) return { name: provider, cidr };
+            if (cidrContains(ipLong, cidr)) return { name: provider, cidr };
         }
     }
     return null;
