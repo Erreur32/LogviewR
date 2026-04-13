@@ -792,7 +792,7 @@
     },
     "ipModal": {
       "fetchError": "Impossible de récupérer les informations pour cette IP. Vérifiez que le serveur est accessible.",
-      "footer": "Informations réseau · données géo via ip-api.com · WHOIS via registre"
+      "footer": "Informations réseau · données géo via ipwho.is · WHOIS via registre"
     },
     "banModal": {
       "title": "Bannir une IP",

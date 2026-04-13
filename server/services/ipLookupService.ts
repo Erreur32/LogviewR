@@ -138,17 +138,27 @@ export function checkKnownProvider(ip: string): KnownProvider | null {
     return null;
 }
 
-// ── Geo lookup (ip-api.com) ───────────────────────────────────────────────────
+// ── Geo lookup (ipwho.is - HTTPS, no key) ────────────────────────────────────
 
 export async function fetchGeo(ip: string): Promise<GeoInfo | null> {
     try {
         const r = await globalThis.fetch(
-            `http://ip-api.com/json/${ip}?fields=status,country,countryCode,city,org,isp,as,query`,
+            `https://ipwho.is/${ip}`,
             { signal: AbortSignal.timeout(5000) }
         );
         const data = await r.json() as Record<string, unknown>;
-        if (data.status !== 'success') return null;
-        return data as unknown as GeoInfo;
+        if (data.success !== true) return null;
+        const conn = (data.connection ?? {}) as Record<string, unknown>;
+        return {
+            status: 'success',
+            country: String(data.country ?? ''),
+            countryCode: String(data.country_code ?? ''),
+            city: String(data.city ?? ''),
+            org: String(conn.org ?? ''),
+            isp: String(conn.isp ?? ''),
+            as: conn.asn != null ? `AS${conn.asn}` : '',
+            query: String(data.ip ?? ip),
+        };
     } catch { return null; }
 }
 

@@ -340,7 +340,7 @@ export function initializeDatabase(): void {
     )`);
     database.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_f2b_ipset_snapshots_nd ON f2b_ipset_snapshots(name, date)`);
 
-    // Geo-cache for fail2ban map tab (TTL 30 days, populated on demand via ip-api.com)
+    // Geo-cache for fail2ban map tab (TTL 30 days, populated on demand via ipwho.is)
     database.exec(`CREATE TABLE IF NOT EXISTS f2b_ip_geo (
         ip          TEXT    PRIMARY KEY,
         lat         REAL    NOT NULL,

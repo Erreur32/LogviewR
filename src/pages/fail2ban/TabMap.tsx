@@ -697,7 +697,7 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker, onIpClick, refres
                             <div style={{ padding: '.65rem .75rem' }}>
                                 <div style={{ fontSize: '.7rem', color: '#8b949e', lineHeight: 1.5 }}>
                                     <strong style={{ color: '#e6edf3' }}>Pays</strong> : zoom sur l'emprise + masque les autres points.<br/>
-                                    IPs sans coordonnées résolues progressivement (limite la charge sur ip-api.com).
+                                    IPs sans coordonnées résolues progressivement (limite la charge sur ipwho.is).
                                 </div>
                             </div>
                         </aside>

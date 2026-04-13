@@ -1918,16 +1918,17 @@ export class Fail2banPlugin extends BasePlugin {
             if (cached && now - cached.ts <= TTL) {
                 return res.json({ success: true, result: { ok: true, lat: cached.lat, lng: cached.lng, country: cached.country, countryCode: cached.countryCode, region: cached.region, city: cached.city, org: cached.org } });
             }
-            // Resolve via ip-api.com (includes lat/lon/region this time)
+            // Resolve via ipwho.is (HTTPS, no key)
             try {
-                const r = await globalThis.fetch(`http://ip-api.com/json/${ip}?fields=status,country,countryCode,region,city,org,lat,lon`, { signal: AbortSignal.timeout(5000) });
+                const r = await globalThis.fetch(`https://ipwho.is/${ip}`, { signal: AbortSignal.timeout(5000) });
                 const data = await r.json() as Record<string, unknown>;
-                if (data.status === 'success' && typeof data.lat === 'number' && typeof data.lon === 'number') {
-                    const geo = { lat: data.lat, lng: data.lon as number, country: String(data.country ?? ''), countryCode: String(data.countryCode ?? ''), region: String(data.region ?? ''), city: String(data.city ?? ''), org: String(data.org ?? '') };
+                if (data.success === true && typeof data.latitude === 'number' && typeof data.longitude === 'number') {
+                    const conn = (data.connection ?? {}) as Record<string, unknown>;
+                    const geo = { lat: data.latitude as number, lng: data.longitude as number, country: String(data.country ?? ''), countryCode: String(data.country_code ?? ''), region: String(data.region ?? ''), city: String(data.city ?? ''), org: String(conn.org ?? '') };
                     appDb.prepare('INSERT OR REPLACE INTO f2b_ip_geo (ip, lat, lng, country, countryCode, region, city, org, ts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(ip, geo.lat, geo.lng, geo.country, geo.countryCode, geo.region, geo.city, geo.org, now);
                     return res.json({ success: true, result: { ok: true, ...geo } });
                 }
-                res.json({ success: true, result: { ok: false, error: String(data.message ?? 'ip-api returned non-success') } });
+                res.json({ success: true, result: { ok: false, error: String(data.message ?? 'ipwho.is returned non-success') } });
             } catch (e) {
                 res.json({ success: true, result: { ok: false, error: String(e) } });
             }
@@ -1945,12 +1946,12 @@ export class Fail2banPlugin extends BasePlugin {
                 return res.json({ success: true, result: { ok: true, lat: cached.lat, lng: cached.lng, country: cached.country, countryCode: cached.countryCode, city: cached.city } });
             }
             try {
-                const r = await globalThis.fetch('http://ip-api.com/json/?fields=status,country,countryCode,region,city,lat,lon', { signal: AbortSignal.timeout(5000) });
+                const r = await globalThis.fetch('https://ipwho.is/', { signal: AbortSignal.timeout(5000) });
                 const data = await r.json() as Record<string, unknown>;
-                if (data.status === 'success' && typeof data.lat === 'number' && typeof data.lon === 'number') {
+                if (data.success === true && typeof data.latitude === 'number' && typeof data.longitude === 'number') {
                     appDb.prepare(`INSERT OR REPLACE INTO f2b_ip_geo (ip,lat,lng,country,countryCode,region,city,org,ts) VALUES (?,?,?,?,?,?,?,?,?)`)
-                        .run(CACHE_KEY, data.lat, data.lon, data.country ?? '', data.countryCode ?? '', data.region ?? '', data.city ?? '', '', now);
-                    return res.json({ success: true, result: { ok: true, lat: data.lat, lng: data.lon, country: data.country, countryCode: data.countryCode, city: data.city } });
+                        .run(CACHE_KEY, data.latitude, data.longitude, data.country ?? '', data.country_code ?? '', data.region ?? '', data.city ?? '', '', now);
+                    return res.json({ success: true, result: { ok: true, lat: data.latitude, lng: data.longitude, country: data.country, countryCode: data.country_code, city: data.city } });
                 }
             } catch { /* fallback below */ }
             // Fallback: Paris (neutral default)
@@ -2905,15 +2906,22 @@ export class Fail2banPlugin extends BasePlugin {
             }});
         }));
 
-        // GET /geo/:ip  — géolocalisation IP via ip-api.com (proxy, no key needed)
+        // GET /geo/:ip - geolocation via ipwho.is (HTTPS, no key needed)
         router.get('/geo/:ip', requireAuth, asyncHandler(async (req, res) => {
             if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
             const ip = req.params.ip;
             if (!/^[\d:.a-fA-F]{2,45}$/.test(ip)) throw createError('Invalid IP', 400, 'BAD_PARAM');
             try {
-                const r = await globalThis.fetch(`http://ip-api.com/json/${ip}?fields=status,country,countryCode,city,org,isp,as,query`, { signal: AbortSignal.timeout(5000) });
+                const r = await globalThis.fetch(`https://ipwho.is/${ip}`, { signal: AbortSignal.timeout(5000) });
                 const data = await r.json() as Record<string, unknown>;
-                res.json({ success: true, result: { ok: data.status === 'success', geo: data } });
+                const conn = (data.connection ?? {}) as Record<string, unknown>;
+                const geo = {
+                    status: data.success === true ? 'success' : 'fail',
+                    country: data.country, countryCode: data.country_code,
+                    city: data.city, org: conn.org, isp: conn.isp,
+                    as: conn.asn != null ? `AS${conn.asn}` : '', query: data.ip,
+                };
+                res.json({ success: true, result: { ok: data.success === true, geo } });
             } catch (e) {
                 res.json({ success: true, result: { ok: false, error: String(e) } });
             }

@@ -6,9 +6,9 @@
  *
  * Runs every 60s. Inserts only new rows (dedup via f2b_rowid UNIQUE index).
  *
- * After each sync, resolves geo for new IPs via ip-api.com batch API (100/req)
- * and stores in f2b_ip_geo. This ensures the map loads instantly with no
- * progressive resolution delay.
+ * After each sync, resolves geo for new IPs via ipwho.is (HTTPS, no key).
+ * Sequential calls with delay. Results stored in f2b_ip_geo so the map
+ * loads instantly with no progressive resolution delay.
  */
 
 import Database from 'better-sqlite3';
@@ -18,8 +18,8 @@ import { logger } from '../utils/logger.js';
 import { webhookDispatchService } from './WebhookDispatchService.js';
 
 const SYNC_INTERVAL_MS = 60_000;
-const GEO_BATCH_SIZE   = 100;   // ip-api.com batch limit
-const GEO_BATCH_DELAY  = 1_500; // ms between batches (free tier: 45 req/min)
+const GEO_BATCH_SIZE   = 20;    // process IPs in chunks for progress reporting
+const GEO_REQ_DELAY    = 200;   // ms between sequential requests (fair use)
 const GEO_TTL          = 30 * 86400; // 30 days
 
 interface F2bBanRow {
@@ -48,16 +48,16 @@ function domainFromMatches(dataJson: string | null | undefined): string {
     return '';
 }
 
-interface IpApiResult {
-    query: string;
-    status: string;
+interface IpWhoIsResult {
+    ip: string;
+    success: boolean;
     country?: string;
-    countryCode?: string;
+    country_code?: string;
     region?: string;
     city?: string;
-    org?: string;
-    lat?: number;
-    lon?: number;
+    latitude?: number;
+    longitude?: number;
+    connection?: { org?: string; isp?: string; asn?: number };
 }
 
 export type SyncPhase = 'idle' | 'syncing' | 'backfilling' | 'geo' | 'done';
@@ -274,7 +274,7 @@ export class Fail2banSyncService {
 
     /**
      * Resolve geo for all IPs in f2b_events not yet in f2b_ip_geo (or with expired cache).
-     * Uses ip-api.com batch endpoint — 100 IPs per request, 1.5s between batches.
+     * Uses ipwho.is - sequential HTTPS calls with delay between each.
      * Fire & forget — errors are logged but don't block sync.
      */
     private async resolveUnknownGeo(showStatus = false): Promise<void> {
@@ -306,40 +306,33 @@ export class Fail2banSyncService {
             let resolved = 0;
             const ips = missing.map(r => r.ip);
 
-            for (let i = 0; i < ips.length; i += GEO_BATCH_SIZE) {
-                const batch = ips.slice(i, i + GEO_BATCH_SIZE);
+            for (let i = 0; i < ips.length; i++) {
                 try {
                     const res = await globalThis.fetch(
-                        'http://ip-api.com/batch?fields=status,query,country,countryCode,region,city,org,lat,lon',
-                        {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(batch.map(ip => ({ query: ip }))),
-                            signal: AbortSignal.timeout(10_000),
-                        }
+                        `https://ipwho.is/${ips[i]}`,
+                        { signal: AbortSignal.timeout(5000) }
                     );
-                    const results = await res.json() as IpApiResult[];
-                    const ts = Math.floor(Date.now() / 1000);
-                    for (const r of results) {
-                        if (r.status === 'success' && typeof r.lat === 'number') {
-                            upsert.run(r.query, r.lat, r.lon ?? 0, r.country ?? '', r.countryCode ?? '', r.region ?? '', r.city ?? '', r.org ?? '', ts);
-                            resolved++;
-                        }
+                    const r = await res.json() as IpWhoIsResult;
+                    if (r.success && typeof r.latitude === 'number') {
+                        const ts = Math.floor(Date.now() / 1000);
+                        upsert.run(r.ip ?? ips[i], r.latitude, r.longitude ?? 0, r.country ?? '', r.country_code ?? '', r.region ?? '', r.city ?? '', r.connection?.org ?? '', ts);
+                        resolved++;
                     }
                 } catch (e) {
-                    logger.warn('Fail2banGeo', `Batch ${i / GEO_BATCH_SIZE + 1} failed: ${e instanceof Error ? e.message : String(e)}`);
+                    logger.warn('Fail2banGeo', `Geo for ${ips[i]} failed: ${e instanceof Error ? e.message : String(e)}`);
                 }
 
-                if (showStatus) {
+                // Update progress every GEO_BATCH_SIZE IPs
+                if (showStatus && (i + 1) % GEO_BATCH_SIZE === 0) {
                     this.setStatus('geo', 'Résolution géolocalisation',
                         `${Math.min(resolved, missing.length)} / ${missing.length} IPs`,
-                        Math.round((Math.min(resolved, missing.length) / missing.length) * 100)
+                        Math.round((Math.min(i + 1, missing.length) / missing.length) * 100)
                     );
                 }
 
-                // Respect rate limit between batches (not needed after last batch)
-                if (i + GEO_BATCH_SIZE < ips.length) {
-                    await new Promise(r => setTimeout(r, GEO_BATCH_DELAY));
+                // Delay between requests (fair use, not needed after last)
+                if (i + 1 < ips.length) {
+                    await new Promise(resolve => setTimeout(resolve, GEO_REQ_DELAY));
                 }
             }
 

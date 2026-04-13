@@ -650,7 +650,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
             title: 'Carte mondiale',
             bodyNode: <div style={{ display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
                 <div style={{ color: C.muted }}>Distribution géographique des bans</div>
-                <div style={{ color: C.muted }}>Géoloc. ip-api.com · cache 30 jours</div>
+                <div style={{ color: C.muted }}>Géoloc. ipwho.is · cache 30 jours</div>
             </div>,
             color: 'cyan',
         },
