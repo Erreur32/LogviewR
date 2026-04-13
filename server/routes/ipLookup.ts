@@ -13,19 +13,17 @@ import { lookupIp } from '../services/ipLookupService.js';
 
 const router = Router();
 
-const ipLookupLimiter = expressRateLimit({
+/**
+ * GET /api/ip/:ip/lookup
+ * Returns geo + whois + hostname + knownProvider for any IP.
+ */
+router.get('/:ip/lookup', requireAuth, expressRateLimit({
     windowMs: 60_000,
     max: 30,
     standardHeaders: true,
     legacyHeaders: false,
     validate: { trustProxy: false },
-});
-
-/**
- * GET /api/ip/:ip/lookup
- * Returns geo + whois + hostname + knownProvider for any IP.
- */
-router.get('/:ip/lookup', requireAuth, ipLookupLimiter, asyncHandler(async (req, res) => {
+}), asyncHandler(async (req, res) => {
     const ip = String(req.params.ip);
     if (!/^[\d:.a-fA-F]{2,45}$/.test(ip)) {
         return res.json({ success: true, result: { ok: false, error: 'Invalid IP' } });
