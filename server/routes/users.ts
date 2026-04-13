@@ -15,7 +15,6 @@ import { bruteForceProtection } from '../services/bruteForceProtection.js';
 import { securityNotificationService } from '../services/securityNotificationService.js';
 import { getClientIp } from '../utils/getClientIp.js';
 import { metricsCollector } from '../services/metricsCollector.js';
-import expressRateLimit from 'express-rate-limit';
 
 const router = Router();
 
@@ -358,7 +357,7 @@ router.post('/', requireAuth, requireAdmin, asyncHandler(async (req: Authenticat
 }), autoLog('user.create', 'user'));
 
 // PUT /api/users/:id - Update user (admin only, or self for non-sensitive fields)
-router.put('/:id', expressRateLimit({ windowMs: 60_000, max: 10, standardHeaders: true, legacyHeaders: false }), requireAuth, asyncHandler(async (req: AuthenticatedRequest, res) => {
+router.put('/:id', rateLimit(10, 60_000), requireAuth, asyncHandler(async (req: AuthenticatedRequest, res) => {
     const userId = Number.parseInt(req.params.id, 10);
     
     if (Number.isNaN(userId)) {
