@@ -45,8 +45,13 @@ resume_*.txt
 
 # AI / dev session files
 commit-message.txt
+commit_message.txt
 log_npm.sh
 test-backend.sh
+dev-analytic.md
+badge-colors-preview.html
+.git-push-*.md
+.git-push-*.sh
 
 # Database files (contains sensitive data)
 data/

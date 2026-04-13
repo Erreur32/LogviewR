@@ -1,8 +1,0 @@
-release: v0.8.37 — update check error message fix
-
-## For users
-- Update check now shows "rate limit exceeded" instead of "Package not found"
-- Suggests setting GITHUB_TOKEN in .env for 5000 req/h
-
-## Technical
-- updates.ts: check x-ratelimit-remaining header on 401/403 responses
