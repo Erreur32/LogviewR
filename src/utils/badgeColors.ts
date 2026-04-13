@@ -54,30 +54,30 @@ export function getIPBadgeStyle(ip: string): React.CSSProperties {
     };
 }
 
-// ─── Username Badges ── warm tones, transparent bg + left border ─────
+// ─── Username Badges ── green tones, transparent bg + left border ────
 
 /**
  * Get consistent hue for a username.
- * Restricted to warm tones: hue 0-60 (red→yellow) + 320-360 (pink→red).
+ * Restricted to green tones: hue 90-170 (green, teal, emerald).
+ * Distinct from IP badges (170-270 blue/indigo).
  */
 function getUserHue(username: string): number {
     const hash = hashString(username.trim());
-    const segment = Math.abs(hash) % 100; // 0-99
-    return segment < 60 ? segment : 260 + segment; // 0-59 or 320-359
+    return 90 + (Math.abs(hash) % 80); // 90-170
 }
 
 /**
- * Get consistent badge color for a username (warm tones only).
+ * Get consistent badge color for a username (green tones only).
  */
 export function getUserBadgeColor(username: string): string {
     if (!username || username.trim() === '') {
         return '';
     }
-    return `hsl(${getUserHue(username)}, 70%, 55%)`;
+    return `hsl(${getUserHue(username)}, 60%, 45%)`;
 }
 
 /**
- * Get inline style for user badge — transparent bg, left border accent, warm tones.
+ * Get inline style for user badge - transparent bg, left border accent, green tones.
  */
 export function getUserBadgeStyle(username: string): React.CSSProperties {
     if (!username || username.trim() === '') {
@@ -85,9 +85,9 @@ export function getUserBadgeStyle(username: string): React.CSSProperties {
     }
     const hue = getUserHue(username);
     return {
-        backgroundColor: `hsla(${hue}, 70%, 50%, 0.15)`,
-        color: `hsl(${hue}, 70%, 75%)`,
-        borderLeft: `3px solid hsl(${hue}, 70%, 50%)`,
+        backgroundColor: `hsla(${hue}, 60%, 45%, 0.15)`,
+        color: `hsl(${hue}, 60%, 70%)`,
+        borderLeft: `3px solid hsl(${hue}, 60%, 45%)`,
         borderRadius: '4px',
         fontWeight: '600',
     };
