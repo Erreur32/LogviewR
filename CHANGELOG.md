@@ -5,6 +5,25 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.45] - 2026-04-13
+
+### For users
+
+> Badges in the log viewer are now visually distinct per column — each column type has its own color palette and shape, making logs easier to scan at a glance.
+
+- **Distinct badge styles per column** — Method (solid filled), Status (bordered, 3xx now violet), Level (8 severity shades), Response Time (teal for fast), Size (outline only), Gzip (minimal flat), Upstream (purple bordered).
+- **IP vs Username differentiation** — IP badges use cool tones (blue/cyan/indigo) with solid dark fill; Username badges use warm tones (orange/pink/amber) with left-border accent. No more identical colors.
+- **Hostname badges** — pastel tones with dashed border, visually distinct from both IP and Username.
+- **Timestamp day/night cycle** — timestamps now show a subtle dark-to-slate-blue gradient matching time of day (near-black at night, faded blue at noon), replacing the previous vivid rainbow colors.
+
+### Technical
+
+- **`src/utils/badgeColors.ts`** — rewritten: IP restricted to hue 170-270 (cool), Username to hue 0-60/320-360 (warm) with left-border style, Hostname pastel with dashed border, Timestamp uses single neutral hue (220) with lightness 11-48% day/night cycle.
+- **`src/components/log-viewer/LogBadge.tsx`** — rewritten with inline styles per type instead of shared Badge variants: solid methods, bordered status codes, teal response time, outline sizes, minimal gzip.
+- **`src/components/log-viewer/LogTable.tsx`** — cleaned unused color function imports, updated user/hostname badge classNames to match new style system.
+
+---
+
 ## [0.8.44] - 2026-04-13
 
 ### For users

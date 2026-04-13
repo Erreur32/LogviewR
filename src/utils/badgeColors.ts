@@ -1,13 +1,17 @@
 /**
  * Badge Colors Utilities
- * 
- * Functions to generate consistent colors for badges (IP, hostname, timestamp)
- * Ensures same value = same color across all logs (all plugins, all files)
+ *
+ * Consistent color generation for dynamic badges (IP, hostname, username, timestamp).
+ * Each badge type has a distinct visual identity:
+ *   - IP:        cool tones (hue 170-270), solid dark fill, rectangle
+ *   - Username:  warm tones (hue 0-60 / 320-360), transparent bg + left border accent
+ *   - Hostname:  pastel mix, transparent bg + dashed border
+ *   - Timestamp: neutral blue-gray, lightness varies with time of day (noir → slate blue)
  */
 
 /**
- * Hash function (djb2) for stable color generation
- * Same string always produces same hash
+ * Hash function (djb2) for stable color generation.
+ * Same string always produces same hash.
  */
 function hashString(str: string): number {
     let hash = 5381;
@@ -17,229 +21,162 @@ function hashString(str: string): number {
     return hash;
 }
 
+// ─── IP Badges ── cool tones, solid dark fill ────────────────────────
+
 /**
- * Get consistent badge color for an IP address
- * Same IP = same color in all logs (all plugins, all files)
- * 
- * @param ip - IP address (IPv4 or IPv6)
- * @returns HSL color string or Tailwind class
+ * Get consistent badge color for an IP address.
+ * Restricted to cool tones (hue 170-270: cyan/blue/indigo/teal).
+ * Lightness kept low (35-45%) to guarantee white text contrast.
  */
 export function getIPBadgeColor(ip: string): string {
     if (!ip || ip.trim() === '') {
-        return 'bg-gray-600/20 text-gray-400';
+        return '';
     }
-    
     const hash = hashString(ip.trim());
-    const hue = Math.abs(hash) % 360;
-    
-    // Use HSL for better color distribution
-    // Saturation 70%, Lightness 50% for good contrast
-    return `hsl(${hue}, 70%, 50%)`;
+    const hue = 170 + (Math.abs(hash) % 100);           // 170-270
+    const saturation = 55 + (Math.abs(hash >> 8) % 20);  // 55-75%
+    const lightness = 35 + (Math.abs(hash >> 16) % 10);  // 35-45%
+    return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
 }
 
 /**
- * Get consistent badge color for a hostname
- * Same hostname = same color in all logs
- * 
- * @param hostname - Hostname string
- * @returns HSL color string or Tailwind class
- */
-export function getHostnameBadgeColor(hostname: string): string {
-    if (!hostname || hostname.trim() === '') {
-        return 'bg-gray-600/20 text-gray-400';
-    }
-    
-    const hash = hashString(hostname.trim());
-    const hue = Math.abs(hash) % 360;
-    
-    // Slightly different saturation/lightness to distinguish from IP badges
-    // Saturation 65%, Lightness 55% for distinction
-    return `hsl(${hue}, 65%, 55%)`;
-}
-
-/**
- * Get color for timestamp based on time of day
- * Uses 30-minute time slots for smooth gradient, same color each day for same time
- * Optimized for better visibility: not too dark, not too light
- * 
- * @param timestamp - Date object or ISO string
- * @returns HSL color string for inline style
- */
-export function getTimestampColor(timestamp: Date | string): string {
-    const date = typeof timestamp === 'string' ? new Date(timestamp) : timestamp;
-    
-    if (Number.isNaN(date.getTime())) {
-        return 'hsl(0, 0%, 35%)'; // Gray fallback
-    }
-    
-    const hour = date.getHours();
-    const minute = date.getMinutes();
-    
-    // Use 30-minute slots (48 slots per day) for smoother gradient
-    // Same time slot = same color every day
-    const slotIndex = hour * 2 + Math.floor(minute / 30);
-    
-    // Map 48 slots (0-47) to a full color cycle (0-360°)
-    // Each slot represents ~7.5° of hue
-    const baseHue = (slotIndex * 360) / 48;
-    
-    // Create a day/night cycle with varying saturation and lightness
-    // Nuit (00h-06h, slots 0-11): Bleu/violet foncé
-    if (slotIndex >= 0 && slotIndex < 12) {
-        const progress = slotIndex / 12; // 0 to 1
-        const hue = 240 + (progress * 30); // 240° (indigo) to 270° (purple)
-        const saturation = 65 + (progress * 15); // 65% to 80%
-        const lightness = 35 + (progress * 10); // 35% to 45%
-        return `hsl(${Math.round(hue)}, ${Math.round(saturation)}%, ${Math.round(lightness)}%)`;
-    }
-    
-    // Aube (06h-09h, slots 12-17): Orange/rose
-    if (slotIndex >= 12 && slotIndex < 18) {
-        const progress = (slotIndex - 12) / 6; // 0 to 1
-        const hue = 15 + (progress * 335); // 15° (orange) to 350° (pink)
-        const saturation = 75 + (progress * 5); // 75% to 80%
-        const lightness = 45 + (progress * 10); // 45% to 55%
-        return `hsl(${Math.round(hue)}, ${Math.round(saturation)}%, ${Math.round(lightness)}%)`;
-    }
-    
-    // Jour (09h-18h, slots 18-35): Jaune/vert clair
-    if (slotIndex >= 18 && slotIndex < 36) {
-        const progress = (slotIndex - 18) / 18; // 0 to 1
-        const hue = 60 + (progress * 60); // 60° (yellow) to 120° (green)
-        const saturation = 75 - (progress * 15); // 75% to 60%
-        const lightness = 50 + (progress * 10); // 50% to 60%
-        return `hsl(${Math.round(hue)}, ${Math.round(saturation)}%, ${Math.round(lightness)}%)`;
-    }
-    
-    // Crépuscule (18h-21h, slots 36-41): Orange/rouge
-    if (slotIndex >= 36 && slotIndex < 42) {
-        const progress = (slotIndex - 36) / 6; // 0 to 1
-        const hue = 20 - (progress * 20); // 20° (orange-red) to 0° (red)
-        const saturation = 75 + (progress * 5); // 75% to 80%
-        const lightness = 45 + (progress * 5); // 45% to 50%
-        return `hsl(${Math.round(hue)}, ${Math.round(saturation)}%, ${Math.round(lightness)}%)`;
-    }
-    
-    // Soirée (21h-00h, slots 42-47): Bleu/violet
-    const progress = (slotIndex - 42) / 6; // 0 to 1
-    const hue = 220 + (progress * 20); // 220° (blue) to 240° (indigo)
-    const saturation = 65 + (progress * 5); // 65% to 70%
-    const lightness = 40 + (progress * 5); // 40% to 45%
-    return `hsl(${Math.round(hue)}, ${Math.round(saturation)}%, ${Math.round(lightness)}%)`;
-}
-
-/**
- * Calculate relative luminance of a color (for contrast calculation)
- * Returns a value between 0 (dark) and 1 (light)
- */
-function getLuminance(hsl: string): number {
-    // Extract HSL values from string like "hsl(240, 65%, 40%)"
-    const match = hsl.match(/hsl\((\d+),\s*(\d+)%,\s*(\d+)%\)/);
-    if (!match) return 0.5; // Default to medium
-    
-    const [, h, s, l] = match.map(Number);
-    // Convert HSL lightness to relative luminance
-    // Simplified: lightness percentage / 100
-    return l / 100;
-}
-
-/**
- * Get inline style for timestamp with proper contrast
- * Automatically adjusts text color based on background brightness
- */
-export function getTimestampStyle(timestamp: Date | string): React.CSSProperties {
-    const bgColor = getTimestampColor(timestamp);
-    const luminance = getLuminance(bgColor);
-    
-    // Use white text for darker backgrounds (luminance < 0.5)
-    // Use dark text for lighter backgrounds (luminance >= 0.5)
-    const textColor = luminance < 0.5 ? '#ffffff' : '#1a1a1a';
-    
-    // Add slight opacity to background for better integration, but keep it visible
-    // Use rgba with opacity or keep hsl with full opacity for better visibility
-    return {
-        backgroundColor: bgColor,
-        color: textColor,
-        fontWeight: '500', // Medium weight for better readability
-        // Remove opacity to ensure full color visibility
-        // Add subtle border for definition
-        border: `1px solid ${luminance < 0.5 ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'}`
-    };
-}
-
-/**
- * Get inline style for IP badge with proper contrast
+ * Get inline style for IP badge — rectangle, solid fill, white text.
  */
 export function getIPBadgeStyle(ip: string): React.CSSProperties {
     const bgColor = getIPBadgeColor(ip);
-    
-    // If it's HSL, use it directly
-    if (bgColor.startsWith('hsl(')) {
-        return {
-            backgroundColor: bgColor,
-            color: '#ffffff',
-            fontWeight: '500'
-        };
+    if (!bgColor) {
+        return { backgroundColor: 'rgba(107,114,128,0.15)', color: '#6e7681' };
     }
-    
-    // Otherwise return empty (use Tailwind class)
-    return {};
+    return {
+        backgroundColor: bgColor,
+        color: '#ffffff',
+        fontWeight: '500',
+    };
 }
 
+// ─── Username Badges ── warm tones, transparent bg + left border ─────
+
 /**
- * Get inline style for hostname badge with proper contrast
+ * Get consistent hue for a username.
+ * Restricted to warm tones: hue 0-60 (red→yellow) + 320-360 (pink→red).
  */
-export function getHostnameBadgeStyle(hostname: string): React.CSSProperties {
-    const bgColor = getHostnameBadgeColor(hostname);
-    
-    // If it's HSL, use it directly
-    if (bgColor.startsWith('hsl(')) {
-        return {
-            backgroundColor: bgColor,
-            color: '#ffffff',
-            fontWeight: '500'
-        };
-    }
-    
-    // Otherwise return empty (use Tailwind class)
-    return {};
+function getUserHue(username: string): number {
+    const hash = hashString(username.trim());
+    const segment = Math.abs(hash) % 100; // 0-99
+    return segment < 60 ? segment : 260 + segment; // 0-59 or 320-359
 }
 
 /**
- * Get consistent badge color for a username
- * Same username = same color in all logs (all plugins, all files)
- * 
- * @param username - Username string
- * @returns HSL color string
+ * Get consistent badge color for a username (warm tones only).
  */
 export function getUserBadgeColor(username: string): string {
     if (!username || username.trim() === '') {
-        return 'bg-gray-600/20 text-gray-400';
+        return '';
     }
-    
-    const hash = hashString(username.trim());
-    const hue = Math.abs(hash) % 360;
-    
-    // Different saturation/lightness to distinguish from IP and hostname badges
-    // Saturation 70%, Lightness 50% for good contrast and distinction
-    return `hsl(${hue}, 70%, 50%)`;
+    return `hsl(${getUserHue(username)}, 70%, 55%)`;
 }
 
 /**
- * Get inline style for user badge with proper contrast
+ * Get inline style for user badge — transparent bg, left border accent, warm tones.
  */
 export function getUserBadgeStyle(username: string): React.CSSProperties {
-    const bgColor = getUserBadgeColor(username);
-    
-    // If it's HSL, use it directly
-    if (bgColor.startsWith('hsl(')) {
-        return {
-            backgroundColor: bgColor,
-            color: '#ffffff',
-            fontWeight: '500'
-        };
+    if (!username || username.trim() === '') {
+        return { backgroundColor: 'rgba(107,114,128,0.15)', color: '#6e7681' };
     }
-    
-    // Otherwise return empty (use Tailwind class)
-    return {};
+    const hue = getUserHue(username);
+    return {
+        backgroundColor: `hsla(${hue}, 70%, 50%, 0.15)`,
+        color: `hsl(${hue}, 70%, 75%)`,
+        borderLeft: `3px solid hsl(${hue}, 70%, 50%)`,
+        borderRadius: '4px',
+        fontWeight: '600',
+    };
+}
+
+// ─── Hostname Badges ── pastel mix, dashed border ───────────────────
+
+/**
+ * Get consistent badge color for a hostname (full hue range, pastel).
+ */
+export function getHostnameBadgeColor(hostname: string): string {
+    if (!hostname || hostname.trim() === '') {
+        return '';
+    }
+    const hash = hashString(hostname.trim());
+    const hue = Math.abs(hash) % 360;
+    return `hsl(${hue}, 50%, 65%)`;
+}
+
+/**
+ * Get inline style for hostname badge — transparent bg, dashed border, pastel.
+ */
+export function getHostnameBadgeStyle(hostname: string): React.CSSProperties {
+    if (!hostname || hostname.trim() === '') {
+        return { backgroundColor: 'rgba(107,114,128,0.15)', color: '#6e7681' };
+    }
+    const hash = hashString(hostname.trim());
+    const hue = Math.abs(hash) % 360;
+    return {
+        backgroundColor: `hsla(${hue}, 50%, 55%, 0.10)`,
+        color: `hsl(${hue}, 50%, 72%)`,
+        border: `1px dashed hsla(${hue}, 50%, 55%, 0.35)`,
+        borderRadius: '6px',
+        fontWeight: '500',
+    };
+}
+
+// ─── Timestamp Badges ── neutral blue-gray, day/night cycle ─────────
+
+/**
+ * Get color for timestamp based on time of day.
+ * Night = near-black gray (hsl 220, 8%, 11%).
+ * Noon  = faded slate blue (hsl 215, 25%, 48%).
+ * Smooth symmetrical transition.
+ */
+export function getTimestampColor(timestamp: Date | string): string {
+    const date = typeof timestamp === 'string' ? new Date(timestamp) : timestamp;
+
+    if (Number.isNaN(date.getTime())) {
+        return 'hsl(220, 8%, 20%)';
+    }
+
+    const hour = date.getHours();
+    const minute = date.getMinutes();
+    // 0 at midnight, 1 at noon
+    const proximityToNoon = 1 - Math.abs(hour + minute / 60 - 12) / 12;
+
+    const hue = Math.round(220 - proximityToNoon * 5);         // 220 → 215
+    const saturation = Math.round(8 + proximityToNoon * 17);    // 8% → 25%
+    const lightness = Math.round(11 + proximityToNoon * 37);    // 11% → 48%
+
+    return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+}
+
+/**
+ * Get inline style for timestamp badge.
+ * Text color adapts to background lightness — always readable.
+ */
+export function getTimestampStyle(timestamp: Date | string): React.CSSProperties {
+    const bgColor = getTimestampColor(timestamp);
+
+    // Extract lightness from the HSL string
+    const match = bgColor.match(/hsl\((\d+),\s*(\d+)%,\s*(\d+)%\)/);
+    const lightness = match ? Number(match[3]) : 20;
+
+    let textColor: string;
+    if (lightness > 32) {
+        textColor = '#e6edf3';   // bright white — for daytime backgrounds
+    } else if (lightness > 18) {
+        textColor = '#c9d1d9';   // light gray — for dawn/dusk
+    } else if (lightness > 14) {
+        textColor = '#8b949e';   // medium gray — for evening
+    } else {
+        textColor = '#6e7681';   // dim gray — for deep night
+    }
+
+    return {
+        backgroundColor: bgColor,
+        color: textColor,
+        fontWeight: '500',
+    };
 }

@@ -11,7 +11,7 @@ import type { LogEntry } from '../../types/logViewer.js';
 import type { LogFilters as LogFiltersType } from '../../types/logViewer.js';
 import { LogBadge } from './LogBadge.js';
 import { LogFilters } from './LogFilters.js';
-import { getTimestampColor, getIPBadgeColor, getHostnameBadgeColor, getIPBadgeStyle, getHostnameBadgeStyle, getTimestampStyle, getUserBadgeColor, getUserBadgeStyle } from '../../utils/badgeColors.js';
+import { getIPBadgeStyle, getHostnameBadgeStyle, getTimestampStyle, getUserBadgeStyle } from '../../utils/badgeColors.js';
 import { truncateIPv6ForDisplay } from '../../utils/ipUtils.js';
 import { getPluginIcon, getPluginName } from '../../utils/pluginIcons.js';
 import { Tooltip } from '../ui/Tooltip.js';
@@ -457,8 +457,8 @@ export const LogTable: React.FC<LogTableProps> = ({
                     return (
                         <div className="flex flex-wrap items-center gap-1.5">
                             <Tooltip content={`Utilisateur : ${user}`}>
-                                <span 
-                                    className="px-1.5 py-0.5 rounded text-xs font-medium cursor-help"
+                                <span
+                                    className="px-1.5 py-0.5 text-xs font-medium cursor-help"
                                     style={getUserBadgeStyle(user)}
                                 >
                                     {user}
@@ -495,8 +495,8 @@ export const LogTable: React.FC<LogTableProps> = ({
                             </Tooltip>
                             {extractedUser && (
                                 <Tooltip content={`Utilisateur : ${extractedUser}`}>
-                                    <span 
-                                        className="px-1.5 py-0.5 rounded text-xs font-medium cursor-help"
+                                    <span
+                                        className="px-1.5 py-0.5 text-xs font-medium cursor-help"
                                         style={getUserBadgeStyle(extractedUser)}
                                     >
                                         {extractedUser}
@@ -739,8 +739,8 @@ export const LogTable: React.FC<LogTableProps> = ({
                         const columnLabel = column.toLowerCase() === 'vhost' ? 'Virtual Host' : 'Hostname';
                         return (
                             <Tooltip content={`${columnLabel} : ${hostnameValue}`}>
-                                <span 
-                                    className="px-1.5 py-0.5 rounded text-xs cursor-help"
+                                <span
+                                    className="px-1.5 py-0.5 text-xs cursor-help"
                                     style={hostnameStyle}
                                 >
                                     {hostnameValue}
@@ -838,8 +838,8 @@ export const LogTable: React.FC<LogTableProps> = ({
                         const userStyle = getUserBadgeStyle(userValue);
                         return (
                             <Tooltip content={`Utilisateur : ${userValue}`}>
-                                <span 
-                                    className="px-1.5 py-0.5 rounded text-xs cursor-help"
+                                <span
+                                    className="px-1.5 py-0.5 text-xs cursor-help"
                                     style={userStyle}
                                 >
                                     {userValue}
