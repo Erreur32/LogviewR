@@ -10,7 +10,7 @@
 
 <img src="LogviewR_banner.svg" alt="LogviewR" width="512" height="256" />
 
-![LogviewR](https://img.shields.io/badge/LogviewR-0.8.45-111827?style=for-the-badge)
+![LogviewR](https://img.shields.io/badge/LogviewR-0.8.46-111827?style=for-the-badge)
 ![Status](https://img.shields.io/badge/Status-DEVELOPMENT-374151?style=for-the-badge)
 ![Docker](https://img.shields.io/badge/Docker-Ready-1f2937?style=for-the-badge&logo=docker&logoColor=38bdf8)
 ![React](https://img.shields.io/badge/React-19-111827?style=for-the-badge&logo=react&logoColor=38bdf8)
@@ -45,7 +45,7 @@
 
 ## 🎯 About
 
-**LogviewR** — real-time log viewer for Apache, Nginx, NPM, system logs and Fail2ban.
+**LogviewR** - real-time log viewer for Apache, Nginx, NPM, system logs and Fail2ban.
 
 - 🚀 **Real-time** via WebSocket
 - 🔍 **Filters**: level, date, IP, HTTP method…
@@ -58,7 +58,7 @@
 ## 🔌 Plugins
 
 <details>
-<summary><strong>🖥️ Host System</strong> — Linux/Unix system logs</summary>
+<summary><strong>🖥️ Host System</strong> - Linux/Unix system logs</summary>
 
 - Syslog, auth, kernel, daemon, mail, custom logs
 - Automatic Docker environment detection
@@ -68,7 +68,7 @@
 </details>
 
 <details>
-<summary><strong>🌐 Apache</strong> — Apache HTTP Server logs</summary>
+<summary><strong>🌐 Apache</strong> - Apache HTTP Server logs</summary>
 
 - Access logs (Combined, Common, VHost) + Error logs
 - IP, timestamp, HTTP method, status code, referer, user-agent extraction
@@ -77,7 +77,7 @@
 </details>
 
 <details>
-<summary><strong>🚀 Nginx</strong> — Nginx logs</summary>
+<summary><strong>🚀 Nginx</strong> - Nginx logs</summary>
 
 - Access logs (Combined, Common, Main, Extended) + Error logs
 - Timestamp parsing with timezone handling
@@ -86,7 +86,7 @@
 </details>
 
 <details>
-<summary><strong>🔄 Nginx Proxy Manager (NPM)</strong> — NPM logs</summary>
+<summary><strong>🔄 Nginx Proxy Manager (NPM)</strong> - NPM logs</summary>
 
 - 5 supported formats with automatic detection
 - Fields: cache, upstream status, gzip ratio, subdomains
@@ -95,11 +95,11 @@
 </details>
 
 <details>
-<summary><strong>🛡️ Fail2ban</strong> — jail monitoring and banned IPs</summary>
+<summary><strong>🛡️ Fail2ban</strong> - jail monitoring and banned IPs</summary>
 
 **Tabs**: Jails · Filters · Actions · IP Tracker · Map · Ban Manager · Stats · IPTables · IPSet · NFTables · Config · Audit
 
-**Requirements:** fail2ban installed and active on the host. Host setup required — see [Installation Step 2](#-installation).
+**Requirements:** fail2ban installed and active on the host. Host setup required - see [Installation Step 2](#-installation).
 
 To verify: **Administration → Plugins → Fail2ban → Diagnostic**.
 
@@ -107,16 +107,16 @@ To verify: **Administration → Plugins → Fail2ban → Diagnostic**.
 
 **Firewall tabs in Docker (IPTables · IPSet · NFTables)**
 
-These tabs require two **cumulative** conditions — neither alone is sufficient:
+These tabs require two **cumulative** conditions - neither alone is sufficient:
 
 | Condition | Role |
 |-----------|------|
-| `network_mode: host` | Shares host network namespace — container sees host iptables/ipset/nft rules |
+| `network_mode: host` | Shares host network namespace - container sees host iptables/ipset/nft rules |
 | `cap_add: NET_ADMIN` | Linux capability required by the kernel for netfilter read/write |
 
 > ⚠️ **Three incompatibilities to know:**
-> - `network_mode: host` is **incompatible with `ports:`** — remove `ports:` and use `PORT=7500` in `environment:` instead
-> - `security_opt: no-new-privileges:true` is **incompatible with firewall tabs** — `sudo` cannot elevate with this flag, breaking iptables/ipset/nft commands
+> - `network_mode: host` is **incompatible with `ports:`** - remove `ports:` and use `PORT=7500` in `environment:` instead
+> - `security_opt: no-new-privileges:true` is **incompatible with firewall tabs** - `sudo` cannot elevate with this flag, breaking iptables/ipset/nft commands
 > - To change the listen port: set `PORT=8080` in `.env` and point your reverse proxy to `127.0.0.1:8080`
 
 `docker-compose.yml` configuration with Firewall tabs enabled:
@@ -127,14 +127,14 @@ services:
     image: ghcr.io/erreur32/logviewr:latest
     container_name: logviewr
     restart: unless-stopped
-    # no ports: — incompatible with network_mode: host
+    # no ports: - incompatible with network_mode: host
     network_mode: host
     cap_add:
       - NET_ADMIN               # required for netfilter (iptables/ipset/nft)
-    # no security_opt: no-new-privileges — incompatible with sudo (breaks firewall tabs)
+    # no security_opt: no-new-privileges - incompatible with sudo (breaks firewall tabs)
     environment:
       JWT_SECRET: ${JWT_SECRET}
-      PORT: ${PORT:-7500}       # direct listen port — change here + update reverse proxy
+      PORT: ${PORT:-7500}       # direct listen port - change here + update reverse proxy
       HOST_IP: ${HOST_IP:-}
     group_add:
       - "${ADM_GID:-4}"
@@ -145,7 +145,7 @@ services:
       - /:/host:ro          # :ro = more secure; disables Fail2ban VACUUM (see note below)
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
-      # Optional: enable Fail2ban SQLite VACUUM (long-form bind required — short-form does not override :ro)
+      # Optional: enable Fail2ban SQLite VACUUM (long-form bind required - short-form does not override :ro)
       # - type: bind
       #   source: /var/lib/fail2ban
       #   target: /host/var/lib/fail2ban
@@ -176,13 +176,13 @@ Without these options, IPTables/IPSet/NFTables tabs will show a `Permission deni
 
 ## 🚀 Installation
 
-**Step 1 — Create `.env`**
+**Step 1 - Create `.env`**
 
 ```bash
 echo "JWT_SECRET=$(openssl rand -base64 32)" > .env
 ```
 
-**Step 2 — Fail2ban host setup** *(one-time — required only if using the Fail2ban plugin)*
+**Step 2 - Fail2ban host setup** *(one-time - required only if using the Fail2ban plugin)*
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setup-fail2ban-access.sh | sudo bash
@@ -190,10 +190,10 @@ curl -fsSL https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setu
 
 > Run this **before** `docker compose up`, directly on the Docker host (not inside the container).
 > Creates the `fail2ban` group, installs a systemd drop-in to persist socket permissions across reboots, and sets SQLite read access.
-> **One-time only** — survives reboots and fail2ban restarts automatically.
+> **One-time only** - survives reboots and fail2ban restarts automatically.
 > Re-run only if you reinstall fail2ban on the host.
 
-**Step 3 — Create `docker-compose.yml`**
+**Step 3 - Create `docker-compose.yml`**
 
 Download the production file directly:
 
@@ -203,7 +203,7 @@ wget -O docker-compose.yml https://raw.githubusercontent.com/Erreur32/LogviewR/m
 
 Or copy the standard / firewall mode config from the [Configuration section](#%EF%B8%8F-configuration) below.
 
-**Step 4 — Start**
+**Step 4 - Start**
 
 ```bash
 docker compose up -d
@@ -218,7 +218,7 @@ Dashboard available at `http://your-ip:7500`
 
 | Variable | Description | Default | Required |
 |----------|-------------|---------|----------|
-| `JWT_SECRET` | Secret used to sign JWT tokens | — | ✅ Yes |
+| `JWT_SECRET` | Secret used to sign JWT tokens | - | ✅ Yes |
 | `DASHBOARD_PORT` | Dashboard port (bridge mode with `ports:`) | `7500` | No |
 | `PORT` | Direct listen port (`network_mode: host` mode) | `3000` | No |
 | `HOST_IP` | Host machine IP address | Auto-detect | No |
@@ -243,14 +243,14 @@ services:
       DASHBOARD_PORT: ${DASHBOARD_PORT:-7500}
       HOST_IP: ${HOST_IP:-}
     group_add:
-      - "${ADM_GID:-4}"           # adm group — system log read access
+      - "${ADM_GID:-4}"           # adm group - system log read access
     volumes:
       - ./data:/app/data
       - /var/run/fail2ban/fail2ban.sock:/var/run/fail2ban/fail2ban.sock
       - /:/host:ro          # :ro = more secure; disables Fail2ban VACUUM (see note below)
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
-      # Optional: enable Fail2ban SQLite VACUUM (long-form bind required — short-form does not override :ro)
+      # Optional: enable Fail2ban SQLite VACUUM (long-form bind required - short-form does not override :ro)
       # - type: bind
       #   source: /var/lib/fail2ban
       #   target: /host/var/lib/fail2ban
@@ -272,7 +272,7 @@ services:
       start_period: 40s
 ```
 
-**Firewall mode** (IPTables · IPSet · NFTables tabs enabled) — replace `ports:` with `network_mode: host`:
+**Firewall mode** (IPTables · IPSet · NFTables tabs enabled) - replace `ports:` with `network_mode: host`:
 
 ```yaml
 services:
@@ -280,7 +280,7 @@ services:
     image: ghcr.io/erreur32/logviewr:latest
     container_name: logviewr
     restart: unless-stopped
-    # ⚠️ no ports: — incompatible with network_mode: host
+    # ⚠️ no ports: - incompatible with network_mode: host
     network_mode: host
     cap_add:
       - NET_ADMIN
@@ -296,7 +296,7 @@ services:
       - /:/host:ro          # :ro = more secure; disables Fail2ban VACUUM (see note below)
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
-      # Optional: enable Fail2ban SQLite VACUUM (long-form bind required — short-form does not override :ro)
+      # Optional: enable Fail2ban SQLite VACUUM (long-form bind required - short-form does not override :ro)
       # - type: bind
       #   source: /var/lib/fail2ban
       #   target: /host/var/lib/fail2ban
@@ -317,7 +317,7 @@ services:
       start_period: 40s
 ```
 
-> **Fail2ban optional rw mounts**: The `:ro` flag prevents the container from writing to the host filesystem — recommended for security.
+> **Fail2ban optional rw mounts**: The `:ro` flag prevents the container from writing to the host filesystem - recommended for security.
 > Two features require a dedicated rw bind mount (both use the same long-form syntax with `propagation: shared`):
 >
 > | Feature | Uncomment `source:` |
@@ -325,7 +325,7 @@ services:
 > | SQLite VACUUM (Fail2ban Config tab) | `/var/lib/fail2ban` |
 > | Config file editing from the UI (`jail.local` / `fail2ban.local`) | `/etc/fail2ban` |
 >
-> A simple short-form mount (e.g. `- /etc/fail2ban:/host/etc/fail2ban`) does **not** work — Docker cannot override a `:ro` parent mount with a short-form rw entry.
+> A simple short-form mount (e.g. `- /etc/fail2ban:/host/etc/fail2ban`) does **not** work - Docker cannot override a `:ro` parent mount with a short-form rw entry.
 > The long-form syntax with `propagation: shared` is required. It takes precedence over `/:/host:ro` for that path only.
 >
 > For config file editing, also run the setup script once on the host to grant group-write access:
@@ -337,7 +337,7 @@ services:
 
 **Reverse proxy** (Nginx Proxy Manager, Caddy, Traefik…) with `network_mode: host`:
 
-The container listens directly on the host — the reverse proxy connects via `127.0.0.1`:
+The container listens directly on the host - the reverse proxy connects via `127.0.0.1`:
 
 ```
 # Nginx Proxy Manager
@@ -385,10 +385,10 @@ sudo chgrp adm /var/log/php8.0-fpm.log* && sudo chmod 640 /var/log/php8.0-fpm.lo
 
 ## 📚 Documentation
 
-- **[Parser guides](server/plugins/PARSERS_HELP.md)** — supported formats and regex
-- **[NPM Parser Help](server/plugins/npm/NPM_PARSER_HELP.md)** — NPM formats
-- **[Nginx Parser Help](server/plugins/nginx/NGINX_PARSER_HELP.md)** — Nginx formats
-- **[Host-system integration audit](Doc_Dev/AUDIT_ERROR_SUMMARY_HOST_SYSTEM.md)** — error/warning scan
+- **[Parser guides](server/plugins/PARSERS_HELP.md)** - supported formats and regex
+- **[NPM Parser Help](server/plugins/npm/NPM_PARSER_HELP.md)** - NPM formats
+- **[Nginx Parser Help](server/plugins/nginx/NGINX_PARSER_HELP.md)** - Nginx formats
+- **[Host-system integration audit](Doc_Dev/AUDIT_ERROR_SUMMARY_HOST_SYSTEM.md)** - error/warning scan
 
 ---
 

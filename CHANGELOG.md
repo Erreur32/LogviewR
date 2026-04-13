@@ -9,18 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### For users
 
-> Badges in the log viewer are now visually distinct per column — each column type has its own color palette and shape, making logs easier to scan at a glance.
+> Badges in the log viewer are now visually distinct per column - each column type has its own color palette and shape, making logs easier to scan at a glance.
 
-- **Distinct badge styles per column** — Method (solid filled), Status (bordered, 3xx now violet), Level (8 severity shades), Response Time (teal for fast), Size (outline only), Gzip (minimal flat), Upstream (purple bordered).
-- **IP vs Username differentiation** — IP badges use cool tones (blue/cyan/indigo) with solid dark fill; Username badges use warm tones (orange/pink/amber) with left-border accent. No more identical colors.
-- **Hostname badges** — pastel tones with dashed border, visually distinct from both IP and Username.
-- **Timestamp day/night cycle** — timestamps now show a subtle dark-to-slate-blue gradient matching time of day (near-black at night, faded blue at noon), replacing the previous vivid rainbow colors.
+- **Distinct badge styles per column** - Method (solid filled), Status (bordered, 3xx now violet), Level (8 severity shades), Response Time (teal for fast), Size (outline only), Gzip (minimal flat), Upstream (purple bordered).
+- **IP vs Username differentiation** - IP badges use cool tones (blue/cyan/indigo) with solid dark fill; Username badges use warm tones (orange/pink/amber) with left-border accent. No more identical colors.
+- **Hostname badges** - pastel tones with dashed border, visually distinct from both IP and Username.
+- **Timestamp day/night cycle** - timestamps now show a subtle dark-to-slate-blue gradient matching time of day (near-black at night, faded blue at noon), replacing the previous vivid rainbow colors.
 
 ### Technical
 
-- **`src/utils/badgeColors.ts`** — rewritten: IP restricted to hue 170-270 (cool), Username to hue 0-60/320-360 (warm) with left-border style, Hostname pastel with dashed border, Timestamp uses single neutral hue (220) with lightness 11-48% day/night cycle.
-- **`src/components/log-viewer/LogBadge.tsx`** — rewritten with inline styles per type instead of shared Badge variants: solid methods, bordered status codes, teal response time, outline sizes, minimal gzip.
-- **`src/components/log-viewer/LogTable.tsx`** — cleaned unused color function imports, updated user/hostname badge classNames to match new style system.
+- **`src/utils/badgeColors.ts`** - rewritten: IP restricted to hue 170-270 (cool), Username to hue 0-60/320-360 (warm) with left-border style, Hostname pastel with dashed border, Timestamp uses single neutral hue (220) with lightness 11-48% day/night cycle.
+- **`src/components/log-viewer/LogBadge.tsx`** - rewritten with inline styles per type instead of shared Badge variants: solid methods, bordered status codes, teal response time, outline sizes, minimal gzip.
+- **`src/components/log-viewer/LogTable.tsx`** - cleaned unused color function imports, updated user/hostname badge classNames to match new style system.
 
 ---
 
@@ -28,18 +28,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### For users
 
-> Click any IP in the log viewer → "Details" now shows full network information (WHOIS, geolocation, hostname, known provider) — and if fail2ban is active, also ban status, history, and actions.
+> Click any IP in the log viewer → "Details" now shows full network information (WHOIS, geolocation, hostname, known provider) - and if fail2ban is active, also ban status, history, and actions.
 
-- **IP detail modal from LogViewer** — now displays geo (country, city, flag), WHOIS (org, ASN, CIDR, netname), reverse DNS hostname, and known cloud provider detection for any IP address.
-- **Fail2ban integration in LogViewer** — when fail2ban plugin is enabled, the IP detail modal also shows ban status, jail info, timeline, actions (ban/unban), and source log activity.
-- **Fail2ban activation fix** — the plugin toggle in Settings was stuck (deadlock: test required enabled, enable required test). Now works in both Docker and dev mode.
+- **IP detail modal from LogViewer** - now displays geo (country, city, flag), WHOIS (org, ASN, CIDR, netname), reverse DNS hostname, and known cloud provider detection for any IP address.
+- **Fail2ban integration in LogViewer** - when fail2ban plugin is enabled, the IP detail modal also shows ban status, jail info, timeline, actions (ban/unban), and source log activity.
+- **Fail2ban activation fix** - the plugin toggle in Settings was stuck (deadlock: test required enabled, enable required test). Now works in both Docker and dev mode.
 
 ### Technical
 
-- **`server/services/ipLookupService.ts`** — new shared service: `runWhois`, `reverseDns`, `fetchGeo`, `checkKnownProvider`, `lookupIp` extracted from Fail2banPlugin to avoid duplication.
-- **`server/routes/ipLookup.ts`** — new route `GET /api/ip/:ip/lookup` with rate limiting, independent of fail2ban plugin.
-- **`server/plugins/fail2ban/Fail2banPlugin.ts`** — `testConnection()` no longer requires `isEnabled()`, fixing the activation deadlock; imports shared IP lookup functions; added direct DB fallback when reader not yet initialized.
-- **`src/pages/fail2ban/IpModal.tsx`** — hybrid mode: always fetches generic IP lookup, attempts fail2ban endpoints gracefully; sections auto-hide when fail2ban is unavailable.
+- **`server/services/ipLookupService.ts`** - new shared service: `runWhois`, `reverseDns`, `fetchGeo`, `checkKnownProvider`, `lookupIp` extracted from Fail2banPlugin to avoid duplication.
+- **`server/routes/ipLookup.ts`** - new route `GET /api/ip/:ip/lookup` with rate limiting, independent of fail2ban plugin.
+- **`server/plugins/fail2ban/Fail2banPlugin.ts`** - `testConnection()` no longer requires `isEnabled()`, fixing the activation deadlock; imports shared IP lookup functions; added direct DB fallback when reader not yet initialized.
+- **`src/pages/fail2ban/IpModal.tsx`** - hybrid mode: always fetches generic IP lookup, attempts fail2ban endpoints gracefully; sections auto-hide when fail2ban is unavailable.
 
 ---
 
@@ -47,7 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Technical
 
-- **`src/components/log-viewer/LogTable.tsx`** — Level/severity column widths increased from 56px to 72px to fix missing right padding on badge text.
+- **`src/components/log-viewer/LogTable.tsx`** - Level/severity column widths increased from 56px to 72px to fix missing right padding on badge text.
 
 ---
 
@@ -55,8 +55,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Technical
 
-- **`src/components/log-viewer/LogTable.tsx`** — IP column widths increased from 114px to 145px (`ip`, `ipaddress`, `clientip`, `remoteip`) to accommodate ShieldAlert banned-IP icon without overflowing into the next column.
-- **`src/components/ui/Badge.tsx`** — Badge background opacity increased from 10% to 30% and text colors lightened (`text-*-400` to `text-*-300`) for better readability on dark backgrounds.
+- **`src/components/log-viewer/LogTable.tsx`** - IP column widths increased from 114px to 145px (`ip`, `ipaddress`, `clientip`, `remoteip`) to accommodate ShieldAlert banned-IP icon without overflowing into the next column.
+- **`src/components/ui/Badge.tsx`** - Badge background opacity increased from 10% to 30% and text colors lightened (`text-*-400` to `text-*-300`) for better readability on dark backgrounds.
 
 ---
 
@@ -66,19 +66,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > Right-click any IP in the log viewer to exclude it from results or ban it via fail2ban.
 
-- **IP context menu** — Click any IP address in log tables to open a menu with "Exclude from logs" and "Ban with fail2ban" options.
-- **Ban IP modal** — Select a jail, see if the IP is already banned, and ban directly from the log viewer.
-- **Banned IP indicator** — A red shield icon appears next to IPs currently banned by fail2ban.
+- **IP context menu** - Click any IP address in log tables to open a menu with "Exclude from logs" and "Ban with fail2ban" options.
+- **Ban IP modal** - Select a jail, see if the IP is already banned, and ban directly from the log viewer.
+- **Banned IP indicator** - A red shield icon appears next to IPs currently banned by fail2ban.
 
 ---
 
 ### Technical
 
-- **`src/components/log-viewer/IpContextMenu.tsx`** — New dropdown component on IP cell click (Exclude / Ban).
-- **`src/components/log-viewer/BanIpModal.tsx`** — Modal with jail selector, already-banned detection, inline fail2ban palette.
-- **`src/components/log-viewer/LogTable.tsx`** — ShieldAlert icon on banned IPs, `bannedIpsMap` prop, IP cell click handler.
-- **`src/pages/LogViewerPage.tsx`** — Fetches banned IPs map from `/api/plugins/fail2ban/status` on mount.
-- **Code quality (SonarCloud)** — `ParserUtils.ts` extraction, regex backtracking elimination, rate limiting on `/api/logs` (CodeQL), a11y keyboard listeners, `node:` prefix on built-in imports.
+- **`src/components/log-viewer/IpContextMenu.tsx`** - New dropdown component on IP cell click (Exclude / Ban).
+- **`src/components/log-viewer/BanIpModal.tsx`** - Modal with jail selector, already-banned detection, inline fail2ban palette.
+- **`src/components/log-viewer/LogTable.tsx`** - ShieldAlert icon on banned IPs, `bannedIpsMap` prop, IP cell click handler.
+- **`src/pages/LogViewerPage.tsx`** - Fetches banned IPs map from `/api/plugins/fail2ban/status` on mount.
+- **Code quality (SonarCloud)** - `ParserUtils.ts` extraction, regex backtracking elimination, rate limiting on `/api/logs` (CodeQL), a11y keyboard listeners, `node:` prefix on built-in imports.
 
 ---
 
@@ -86,20 +86,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### For users
 
-> Code quality & security hardening — no visible changes, same features.
+> Code quality & security hardening - no visible changes, same features.
 
-- **Security audit clean** — All SonarCloud security issues resolved (was D, now A). All CodeQL alerts resolved.
-- **Reliability improvements** — 500+ code modernizations (ES2015+ methods) reducing reliability issues by 63%.
+- **Security audit clean** - All SonarCloud security issues resolved (was D, now A). All CodeQL alerts resolved.
+- **Reliability improvements** - 500+ code modernizations (ES2015+ methods) reducing reliability issues by 63%.
 
 ---
 
 ### Technical
 
-- **SonarCloud security hotspots** — Regex DoS fix in ApacheParser (split instead of backtracking regex), HTTPS for blocklist URLs, `crypto.randomBytes()` replacing `Math.random()`.
-- **CodeQL fixes** — `safe-regex2` for user-controlled regex validation, `express-rate-limit` on user routes, `globToRegex` utility with full regex escaping (replaces 8 duplicated inline implementations).
-- **ES2015+ migration** — `parseInt`→`Number.parseInt`, `parseFloat`→`Number.parseFloat`, `isNaN`→`Number.isNaN`, `.replace(/g)`→`.replaceAll(/g)` across 77 files.
-- **Code deduplication** — `shouldExcludeByFilters()` and `ExcludeFilters` type extracted to BasePlugin, `globToLogRegex()` utility for rotation-aware log matching. Net -200 lines removed from plugin files.
-- **Version script** — `sonar-project.properties` added as 7th versioned file in `update-version.sh`.
+- **SonarCloud security hotspots** - Regex DoS fix in ApacheParser (split instead of backtracking regex), HTTPS for blocklist URLs, `crypto.randomBytes()` replacing `Math.random()`.
+- **CodeQL fixes** - `safe-regex2` for user-controlled regex validation, `express-rate-limit` on user routes, `globToRegex` utility with full regex escaping (replaces 8 duplicated inline implementations).
+- **ES2015+ migration** - `parseInt`→`Number.parseInt`, `parseFloat`→`Number.parseFloat`, `isNaN`→`Number.isNaN`, `.replace(/g)`→`.replaceAll(/g)` across 77 files.
+- **Code deduplication** - `shouldExcludeByFilters()` and `ExcludeFilters` type extracted to BasePlugin, `globToLogRegex()` utility for rotation-aware log matching. Net -200 lines removed from plugin files.
+- **Version script** - `sonar-project.properties` added as 7th versioned file in `update-version.sh`.
 
 ---
 
@@ -107,19 +107,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### For users
 
-> Security hardening based on SonarCloud hotspot review — no functional changes.
+> Security hardening based on SonarCloud hotspot review - no functional changes.
 
-- **Regex DoS fix** — Apache log parser no longer uses a backtracking-vulnerable regex; replaced with linear-time string splitting.
-- **HTTPS blocklist** — BruteForceBlocker blocklist now fetched over HTTPS instead of plain HTTP.
+- **Regex DoS fix** - Apache log parser no longer uses a backtracking-vulnerable regex; replaced with linear-time string splitting.
+- **HTTPS blocklist** - BruteForceBlocker blocklist now fetched over HTTPS instead of plain HTTP.
 
 ---
 
 ### Technical
 
-- **`server/plugins/apache/ApacheParser.ts`** — Replaced `(.+?)\s+(\S+)$` regex in `parseRequest()` with `split(/\s+/)` to eliminate super-linear backtracking risk (SonarCloud S5852).
-- **`server/plugins/fail2ban/BlocklistService.ts`** — Upgraded `danger.rulez.sk` URLs from `http://` to `https://` (SonarCloud S5332).
-- **`server/plugins/notification/NotificationService.ts`** — Replaced `Math.random()` with `crypto.randomBytes()` for notification IDs (SonarCloud S2245).
-- **`server/services/MqttService.ts`** — Replaced `Math.random()` with `crypto.randomBytes()` for MQTT client IDs (SonarCloud S2245).
+- **`server/plugins/apache/ApacheParser.ts`** - Replaced `(.+?)\s+(\S+)$` regex in `parseRequest()` with `split(/\s+/)` to eliminate super-linear backtracking risk (SonarCloud S5852).
+- **`server/plugins/fail2ban/BlocklistService.ts`** - Upgraded `danger.rulez.sk` URLs from `http://` to `https://` (SonarCloud S5332).
+- **`server/plugins/notification/NotificationService.ts`** - Replaced `Math.random()` with `crypto.randomBytes()` for notification IDs (SonarCloud S2245).
+- **`server/services/MqttService.ts`** - Replaced `Math.random()` with `crypto.randomBytes()` for MQTT client IDs (SonarCloud S2245).
 
 ---
 
@@ -127,11 +127,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### For users
 
-> Navigation now uses clean URLs — bookmarkable, refreshable, and tracked by Rybbit analytics.
+> Navigation now uses clean URLs - bookmarkable, refreshable, and tracked by Rybbit analytics.
 
-- **Clean URL navigation** — Pages now use proper URLs (`/fail2ban/stats`, `/settings/security/users`, `/log/nginx?file=...`) instead of hash fragments (`#fail2ban/stats`). Refreshing the browser keeps you on the same page and tab.
-- **Rybbit analytics** — Opt-in pageview tracking via self-hosted Rybbit (Umami clone). Each page and tab is tracked individually. Disabled by default — requires `VITE_ANALYTICS_HOST` and `VITE_ANALYTICS_SITE_ID` in `.env`.
-- **Favicon** — Browser tab now shows the LogviewR icon instead of a 404.
+- **Clean URL navigation** - Pages now use proper URLs (`/fail2ban/stats`, `/settings/security/users`, `/log/nginx?file=...`) instead of hash fragments (`#fail2ban/stats`). Refreshing the browser keeps you on the same page and tab.
+- **Rybbit analytics** - Opt-in pageview tracking via self-hosted Rybbit (Umami clone). Each page and tab is tracked individually. Disabled by default - requires `VITE_ANALYTICS_HOST` and `VITE_ANALYTICS_SITE_ID` in `.env`.
+- **Favicon** - Browser tab now shows the LogviewR icon instead of a 404.
 
 ---
 
@@ -139,17 +139,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### Frontend
 
-- **React Router migration** — Replaced hash-based navigation (`window.location.hash` + `parseHashNav()`) with `react-router-dom` v7 (`BrowserRouter`, `useLocation`, `useNavigate`). `currentPage` derived from `location.pathname` via `pathToPage()` helper. All `setCurrentPage()` calls replaced with `navigate()`.
-- **`src/App.tsx`** — Removed 165 lines: `parseHashNav()`, `HashNav` type, `VALID_FAIL2BAN_TABS`, `isSafeFilePath()`, hash sync useEffects, `hashchange` listener, sessionStorage deep link stashing. Added `pageToPath()`/`pathToPage()` helpers, URL-derived state via `useMemo`.
-- **`src/pages/Fail2banPage.tsx`** — Tab derived from `useLocation().pathname.split('/')[2]` with `VALID_TABS` validation. `setTab()` wrapped in `useCallback` calling `navigate()`.
-- **`src/pages/SettingsPage.tsx`** — Tab/subtab derived from `useLocation().pathname.split('/')`. Removed hash sync useEffect and `#admin` hash check.
-- **`src/main.tsx`** — Wrapped `<App>` with `<BrowserRouter>`. Added Rybbit script tag injection (opt-in, `disableSessionReplay=true`).
-- **`src/components/widgets/LargestFilesCard.tsx`** — Converted last hash link to Router URL.
-- **`index.html`** — Added `<link rel="icon">` pointing to existing SVG favicon.
+- **React Router migration** - Replaced hash-based navigation (`window.location.hash` + `parseHashNav()`) with `react-router-dom` v7 (`BrowserRouter`, `useLocation`, `useNavigate`). `currentPage` derived from `location.pathname` via `pathToPage()` helper. All `setCurrentPage()` calls replaced with `navigate()`.
+- **`src/App.tsx`** - Removed 165 lines: `parseHashNav()`, `HashNav` type, `VALID_FAIL2BAN_TABS`, `isSafeFilePath()`, hash sync useEffects, `hashchange` listener, sessionStorage deep link stashing. Added `pageToPath()`/`pathToPage()` helpers, URL-derived state via `useMemo`.
+- **`src/pages/Fail2banPage.tsx`** - Tab derived from `useLocation().pathname.split('/')[2]` with `VALID_TABS` validation. `setTab()` wrapped in `useCallback` calling `navigate()`.
+- **`src/pages/SettingsPage.tsx`** - Tab/subtab derived from `useLocation().pathname.split('/')`. Removed hash sync useEffect and `#admin` hash check.
+- **`src/main.tsx`** - Wrapped `<App>` with `<BrowserRouter>`. Added Rybbit script tag injection (opt-in, `disableSessionReplay=true`).
+- **`src/components/widgets/LargestFilesCard.tsx`** - Converted last hash link to Router URL.
+- **`index.html`** - Added `<link rel="icon">` pointing to existing SVG favicon.
 
 #### Backend
 
-- **`server/index.ts`** — Added `https://way.myoueb.fr` to CSP `script-src` and `connect-src` for Rybbit analytics. SPA fallback already existed.
+- **`server/index.ts`** - Added `https://way.myoueb.fr` to CSP `script-src` and `connect-src` for Rybbit analytics. SPA fallback already existed.
 
 ---
 
@@ -157,13 +157,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### For users
 
-- **Update check — clearer error** — When GitHub API rate limit is hit, the error now says so instead of the misleading "Package not found". Suggests setting `GITHUB_TOKEN` in `.env` for higher limits (5000 req/h vs 60).
+- **Update check - clearer error** - When GitHub API rate limit is hit, the error now says so instead of the misleading "Package not found". Suggests setting `GITHUB_TOKEN` in `.env` for higher limits (5000 req/h vs 60).
 
 ---
 
 ### Technical
 
-- **`server/routes/updates.ts`** — Method 2 (packages API) now checks `x-ratelimit-remaining` header on 401/403 and returns a specific rate-limit message instead of generic "requires authentication".
+- **`server/routes/updates.ts`** - Method 2 (packages API) now checks `x-ratelimit-remaining` header on 401/403 and returns a specific rate-limit message instead of generic "requires authentication".
 
 ---
 
@@ -171,16 +171,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### For users
 
-- **Favicons restored** — Domain favicons (DuckDuckGo, Google) were blocked by the new CSP header added in v0.8.34. Now allowed.
+- **Favicons restored** - Domain favicons (DuckDuckGo, Google) were blocked by the new CSP header added in v0.8.34. Now allowed.
 
 ---
 
 ### Technical
 
-- **CSP fix** — Added `icons.duckduckgo.com` and `www.google.com` to `img-src` directive.
-- **OpenSSF Scorecard** — Added workflow (weekly scan), badge on both READMEs.
-- **CodeQL badge** — Fixed URL for dynamic default setup (uses workflow ID).
-- **Docker Build badge** — Added to both READMEs.
+- **CSP fix** - Added `icons.duckduckgo.com` and `www.google.com` to `img-src` directive.
+- **OpenSSF Scorecard** - Added workflow (weekly scan), badge on both READMEs.
+- **CodeQL badge** - Fixed URL for dynamic default setup (uses workflow ID).
+- **Docker Build badge** - Added to both READMEs.
 
 ---
 
@@ -188,31 +188,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### For users
 
-> Dependency cleanup and GitHub CodeQL security alerts resolved — no UI changes.
+> Dependency cleanup and GitHub CodeQL security alerts resolved - no UI changes.
 
-- **Zero vulnerabilities** — all npm audit and GitHub Dependabot/CodeQL alerts resolved.
-- **Lighter install** — removed vitest (27 packages), unused dependencies, cleaned devDependencies.
+- **Zero vulnerabilities** - all npm audit and GitHub Dependabot/CodeQL alerts resolved.
+- **Lighter install** - removed vitest (27 packages), unused dependencies, cleaned devDependencies.
 
 ---
 
 ### Technical
 
 #### Dependencies
-- **Removed vitest** — tests migrated to Node.js built-in `node:test` runner (zero dependency, 12 tests pass).
+- **Removed vitest** - tests migrated to Node.js built-in `node:test` runner (zero dependency, 12 tests pass).
 - **Removed `brace-expansion`** (unused direct dep), stale npm overrides (tough-cookie, esbuild, minimatch).
 - **Moved to devDependencies**: `concurrently`, `cross-env`, `@types/leaflet`, `@types/leaflet.markercluster`.
 - Deleted `vitest.config.ts` and test setup file.
 
 #### CodeQL fixes (30 alerts → 0)
-- **Regex injection** — added ReDoS validation (length cap, nested quantifier rejection) before all user-supplied `new RegExp()` calls in logSearchService, Fail2banPlugin, and log-viewer.
-- **Rate limiting** — added per-IP rate limiter (60 req/min) on all fail2ban plugin routes via `router.use()`, plus explicit rate limits on `GET /me` (30/min) and `GET /security-status` (10/min).
-- **ReDoS** — rewrote IPv6 regex in regexGeneratorService to avoid polynomial backtracking; added line length cap (4096) in Fail2banPlugin config parser.
-- **CORS** — DB config fallback now defaults to `false` (same-origin) instead of `true` (wildcard).
-- **URL substring** — `IpModal.tsx` bot detection uses `endsWith('.msn.com')` instead of `includes('msn.com')`.
+- **Regex injection** - added ReDoS validation (length cap, nested quantifier rejection) before all user-supplied `new RegExp()` calls in logSearchService, Fail2banPlugin, and log-viewer.
+- **Rate limiting** - added per-IP rate limiter (60 req/min) on all fail2ban plugin routes via `router.use()`, plus explicit rate limits on `GET /me` (30/min) and `GET /security-status` (10/min).
+- **ReDoS** - rewrote IPv6 regex in regexGeneratorService to avoid polynomial backtracking; added line length cap (4096) in Fail2banPlugin config parser.
+- **CORS** - DB config fallback now defaults to `false` (same-origin) instead of `true` (wildcard).
+- **URL substring** - `IpModal.tsx` bot detection uses `endsWith('.msn.com')` instead of `includes('msn.com')`.
 
 #### Other
-- **`.gitignore`** — consolidated all AI/dev tool patterns (Copilot, Gemini, Aider, Bolt, Codeium, etc.), removed duplicates.
-- **GitHub repo** — added 15 SEO topics, disabled unused Projects tab.
+- **`.gitignore`** - consolidated all AI/dev tool patterns (Copilot, Gemini, Aider, Bolt, Codeium, etc.), removed duplicates.
+- **GitHub repo** - added 15 SEO topics, disabled unused Projects tab.
 
 ---
 
@@ -220,27 +220,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### For users
 
-> Security hardening release — no UI changes, no new features.
+> Security hardening release - no UI changes, no new features.
 
-- **JWT security** — Tokens are now pinned to HS256 algorithm, preventing `alg: "none"` bypass attacks.
-- **Logout endpoint** — `POST /api/users/logout` now revokes the current token server-side (previously only cleared localStorage).
-- **Security headers** — Added HSTS (production) and Content-Security-Policy to all responses.
-- **Login rate limiting** — Login endpoint now has a 10 req/min rate limit as defense-in-depth.
-- **Webhook URL validation** — Webhook URLs are now checked against private/internal IP ranges (SSRF protection).
+- **JWT security** - Tokens are now pinned to HS256 algorithm, preventing `alg: "none"` bypass attacks.
+- **Logout endpoint** - `POST /api/users/logout` now revokes the current token server-side (previously only cleared localStorage).
+- **Security headers** - Added HSTS (production) and Content-Security-Policy to all responses.
+- **Login rate limiting** - Login endpoint now has a 10 req/min rate limit as defense-in-depth.
+- **Webhook URL validation** - Webhook URLs are now checked against private/internal IP ranges (SSRF protection).
 
 ---
 
 ### Technical
 
-#### Backend — Security fixes
+#### Backend - Security fixes
 
-- **`authService.ts`** — `jwt.verify()` now uses `{ algorithms: ['HS256'] }` to prevent algorithm confusion attacks. `jwt.sign()` also explicitly pins `algorithm: 'HS256'`. Added in-memory token blacklist with periodic cleanup (10 min interval) for logout/revocation.
-- **`users.ts`** — Added `POST /logout` route that calls `authService.revokeToken()`. Added `rateLimit(10, 60_000)` to `POST /login`.
-- **`index.ts`** — Added `Strict-Transport-Security` (production only) and `Content-Security-Policy` headers. CSP allows Leaflet tiles (`*.basemaps.cartocdn.com`, `*.tile.openstreetmap.org`), GitHub API, WebSocket, and inline styles/scripts.
-- **`system.ts`** — `GET /security-status` now requires authentication (was public, disclosed whether JWT secret was default).
-- **`log-viewer.ts`** — `validatePathSafe()` now also blocks null bytes. Added path validation to `read-direct` and `read-raw` endpoints. User-supplied regex patterns are rejected if they contain nested quantifiers (ReDoS) or exceed 500 chars.
-- **`notifications.ts`** — Added `validateWebhookUrl()` that blocks localhost, private IPs (10.x, 172.16-31.x, 192.168.x), and cloud metadata (169.254.x) for SSRF protection.
-- **`systemServer.ts`** — Quoted `HOST_ROOT_PATH` in `chroot` shell commands to prevent injection with special characters.
+- **`authService.ts`** - `jwt.verify()` now uses `{ algorithms: ['HS256'] }` to prevent algorithm confusion attacks. `jwt.sign()` also explicitly pins `algorithm: 'HS256'`. Added in-memory token blacklist with periodic cleanup (10 min interval) for logout/revocation.
+- **`users.ts`** - Added `POST /logout` route that calls `authService.revokeToken()`. Added `rateLimit(10, 60_000)` to `POST /login`.
+- **`index.ts`** - Added `Strict-Transport-Security` (production only) and `Content-Security-Policy` headers. CSP allows Leaflet tiles (`*.basemaps.cartocdn.com`, `*.tile.openstreetmap.org`), GitHub API, WebSocket, and inline styles/scripts.
+- **`system.ts`** - `GET /security-status` now requires authentication (was public, disclosed whether JWT secret was default).
+- **`log-viewer.ts`** - `validatePathSafe()` now also blocks null bytes. Added path validation to `read-direct` and `read-raw` endpoints. User-supplied regex patterns are rejected if they contain nested quantifiers (ReDoS) or exceed 500 chars.
+- **`notifications.ts`** - Added `validateWebhookUrl()` that blocks localhost, private IPs (10.x, 172.16-31.x, 192.168.x), and cloud metadata (169.254.x) for SSRF protection.
+- **`systemServer.ts`** - Quoted `HOST_ROOT_PATH` in `chroot` shell commands to prevent injection with special characters.
 
 #### Dependencies
 
@@ -248,7 +248,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### Other
 
-- **`.gitignore`** — Added `CLAUDE.md`, `resume_claude*.txt`, `data-test/`, `.planning/`; removed tracked `resume_claude_last.txt`.
+- **`.gitignore`** - Added `CLAUDE.md`, `resume_claude*.txt`, `data-test/`, `.planning/`; removed tracked `resume_claude_last.txt`.
 
 ---
 
@@ -258,15 +258,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > Removed a false version mismatch warning in the Fail2ban configuration panel.
 
-- **Fail2ban config — version check removed** — The red "Version mismatch" warning (container vs host fail2ban versions) no longer appears. The check was a false alarm: the socket protocol is compatible across 1.0.x/1.1.x versions and everything works correctly.
+- **Fail2ban config - version check removed** - The red "Version mismatch" warning (container vs host fail2ban versions) no longer appears. The check was a false alarm: the socket protocol is compatible across 1.0.x/1.1.x versions and everything works correctly.
 
 ---
 
 ### Technical
 
-#### Backend — `server/plugins/fail2ban/Fail2banPlugin.ts`
+#### Backend - `server/plugins/fail2ban/Fail2banPlugin.ts`
 
-- **Version check removed from `/check` endpoint** — Dropped the `version` entry from the `checks` object in the diagnostic route. Also removed the `versions()` call and the `versionInfo` variable from the ping block — they no longer serve any purpose.
+- **Version check removed from `/check` endpoint** - Dropped the `version` entry from the `checks` object in the diagnostic route. Also removed the `versions()` call and the `versionInfo` variable from the ping block - they no longer serve any purpose.
 
 ---
 
@@ -276,28 +276,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > Live attack map improvements: toast alerts on new bans, fixed live mode conflicts, and a cleaner IP details modal.
 
-- **Live map — toast on new ban** — When Live mode is active on the map tab, each newly detected ban triggers a notification toast in the header so you know when to look at the map, even from another tab.
-- **Live map — source buttons now always work** — Clicking "Bans actifs" or "Historique" while Live mode is on now switches the source and disables Live mode directly, without having to click Live first.
-- **Live map — accurate status bar** — The "88 IPs on map" counter is replaced by "⚡ Mode Live" and a live event counter while Live mode is active. The geo-resolution progress badge is hidden during Live mode.
-- **IP modal — Actions rapides redesigned** — Each action (Recidive, Débannir, IPSet) now has its own labelled block with full-width buttons. The IPSet select is on its own line, with Add/Remove side by side below. Feedback messages appear in a coloured banner.
-- **IP modal — Blocklist header** — When the IP is not found in any active blocklist, the message moves to the card header and the body collapses. When the IP is detected, a warning icon appears in the header.
+- **Live map - toast on new ban** - When Live mode is active on the map tab, each newly detected ban triggers a notification toast in the header so you know when to look at the map, even from another tab.
+- **Live map - source buttons now always work** - Clicking "Bans actifs" or "Historique" while Live mode is on now switches the source and disables Live mode directly, without having to click Live first.
+- **Live map - accurate status bar** - The "88 IPs on map" counter is replaced by "⚡ Mode Live" and a live event counter while Live mode is active. The geo-resolution progress badge is hidden during Live mode.
+- **IP modal - Actions rapides redesigned** - Each action (Recidive, Débannir, IPSet) now has its own labelled block with full-width buttons. The IPSet select is on its own line, with Add/Remove side by side below. Feedback messages appear in a coloured banner.
+- **IP modal - Blocklist header** - When the IP is not found in any active blocklist, the message moves to the card header and the body collapses. When the IP is detected, a warning icon appears in the header.
 
 ---
 
 ### Technical
 
-#### Frontend — `src/pages/fail2ban/TabMap.tsx`
+#### Frontend - `src/pages/fail2ban/TabMap.tsx`
 
-- **Toast on live events** — `pollLiveEvents` now calls `useNotificationStore.getState().addBan()` for each new event, reusing the existing ban toast TTL (10s).
-- **Source buttons** — Removed `pointerEvents: none` / `opacity` dimming on the source toggle when Live mode is on. Both buttons call `setLiveMode(false)` alongside `setMapSource(...)`. Active button highlight also checks `!liveMode` so neither appears selected during Live.
-- **Live mode header** — Title shows `"⚡ Mode Live"` instead of IP count. Geo-resolution progress badge conditionally hidden (`!liveMode`). New live event counter badge added.
-- **Live mode marker bleed fix** — The `points` useEffect that populates cluster markers now early-returns when `liveMode` is true, preventing ban markers from reappearing after a background refresh cycle (~10–15 s).
-- **Live loading spinner** — Fixed `transform-origin` mismatch: spinner SVG resized from 16×16 (cx=8) to 11×11 (cx=5.5) to match the existing `f2b-geo-spin` CSS `transform-origin: 5.5px 5.5px`.
+- **Toast on live events** - `pollLiveEvents` now calls `useNotificationStore.getState().addBan()` for each new event, reusing the existing ban toast TTL (10s).
+- **Source buttons** - Removed `pointerEvents: none` / `opacity` dimming on the source toggle when Live mode is on. Both buttons call `setLiveMode(false)` alongside `setMapSource(...)`. Active button highlight also checks `!liveMode` so neither appears selected during Live.
+- **Live mode header** - Title shows `"⚡ Mode Live"` instead of IP count. Geo-resolution progress badge conditionally hidden (`!liveMode`). New live event counter badge added.
+- **Live mode marker bleed fix** - The `points` useEffect that populates cluster markers now early-returns when `liveMode` is true, preventing ban markers from reappearing after a background refresh cycle (~10–15 s).
+- **Live loading spinner** - Fixed `transform-origin` mismatch: spinner SVG resized from 16×16 (cx=8) to 11×11 (cx=5.5) to match the existing `f2b-geo-spin` CSS `transform-origin: 5.5px 5.5px`.
 
-#### Frontend — `src/pages/fail2ban/IpModal.tsx`
+#### Frontend - `src/pages/fail2ban/IpModal.tsx`
 
-- **Actions rapides** — Replaced flat `label + row` layout with vertical blocks per action. Each block has an uppercase label, then full-width button(s) or `select + button` row. IPSet gets a full-width select then a two-column button row. `actionMsg` displayed in a tinted bordered banner.
-- **Blocklist card** — When no hits: body hidden, "Non présente dans les blocklists actives" moved to `cardH` as italic grey trailing text, shield icon dimmed. When hits present: `AlertTriangle` icon added to header alongside the existing hit count badge.
+- **Actions rapides** - Replaced flat `label + row` layout with vertical blocks per action. Each block has an uppercase label, then full-width button(s) or `select + button` row. IPSet gets a full-width select then a two-column button row. `actionMsg` displayed in a tinted bordered banner.
+- **Blocklist card** - When no hits: body hidden, "Non présente dans les blocklists actives" moved to `cardH` as italic grey trailing text, shield icon dimmed. When hits present: `AlertTriangle` icon added to header alongside the existing hit count badge.
 
 ## [0.8.31] - 2026-04-04
 
@@ -305,19 +305,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > The stats summary banner now shows IPs that are currently attempting connections (not yet banned) in the "En cours" section.
 
-- **Failing IPs in "En cours"** — Red monospace chips appear for each IP that has generated `Found` log entries in the last 5 minutes but has not yet been banned. Each chip shows the IP address, the jail it was found in, and a ×N attempt count. A tooltip gives the full details. If more than 6 are active, the overflow is shown as "+N autres". The list refreshes every 20 seconds.
+- **Failing IPs in "En cours"** - Red monospace chips appear for each IP that has generated `Found` log entries in the last 5 minutes but has not yet been banned. Each chip shows the IP address, the jail it was found in, and a ×N attempt count. A tooltip gives the full details. If more than 6 are active, the overflow is shown as "+N autres". The list refreshes every 20 seconds.
 
 ---
 
 ### Technical
 
-#### Backend — `server/plugins/fail2ban/Fail2banPlugin.ts`
+#### Backend - `server/plugins/fail2ban/Fail2banPlugin.ts`
 
-- **`GET /failing-ips`** — New endpoint: reads the last 2000 lines of `fail2ban.log` (via `readLogTail`), filters to entries within the past 5 minutes, parses `[<jail>] Found <ip>` lines, excludes IPs that are currently banned (cross-referenced against `f2b_events`), groups by `jail:ip`, returns sorted by most recent first. TTL cache: 15s.
+- **`GET /failing-ips`** - New endpoint: reads the last 2000 lines of `fail2ban.log` (via `readLogTail`), filters to entries within the past 5 minutes, parses `[<jail>] Found <ip>` lines, excludes IPs that are currently banned (cross-referenced against `f2b_events`), groups by `jail:ip`, returns sorted by most recent first. TTL cache: 15s.
 
-#### Frontend — `src/pages/fail2ban/TabStats.tsx`
+#### Frontend - `src/pages/fail2ban/TabStats.tsx`
 
-- **`StatsSummaryBanner`** — Added `failingIps` state + `useEffect` polling `/failing-ips` every 20s. The "En cours" row now renders up to 6 failing IP chips (red) alongside the existing jail-pressure badges. Overflow count shown as "+N autres".
+- **`StatsSummaryBanner`** - Added `failingIps` state + `useEffect` polling `/failing-ips` every 20s. The "En cours" row now renders up to 6 failing IP chips (red) alongside the existing jail-pressure badges. Overflow count shown as "+N autres".
 
 ## [0.8.30] - 2026-04-04
 
@@ -325,15 +325,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > Fix: the "Bans actifs" stat card in the État actuel panel is no longer smaller than its siblings.
 
-- **Stat card alignment** — The "Bans actifs" card had a tooltip wrapper with `display: inline-flex` that caused it to shrink relative to the other three cards (Jails actifs, Échecs en cours, Total bans). All four cards now align uniformly.
+- **Stat card alignment** - The "Bans actifs" card had a tooltip wrapper with `display: inline-flex` that caused it to shrink relative to the other three cards (Jails actifs, Échecs en cours, Total bans). All four cards now align uniformly.
 
 ---
 
 ### Technical
 
-#### Frontend — `src/pages/fail2ban/TabStats.tsx`
+#### Frontend - `src/pages/fail2ban/TabStats.tsx`
 
-- **`F2bTooltip` on Bans actifs** — Added `block` prop so the wrapper renders as `display: block` instead of `display: inline-flex`, matching plain `<div>` siblings in the `repeat(4,1fr)` grid.
+- **`F2bTooltip` on Bans actifs** - Added `block` prop so the wrapper renders as `display: block` instead of `display: inline-flex`, matching plain `<div>` siblings in the `repeat(4,1fr)` grid.
 
 ## [0.8.29] - 2026-04-04
 
@@ -341,37 +341,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > The Fail2ban map gets a live attack mode with animated arcs, a monthly bar chart is added below each heatmap, and the map no longer double-scrolls in history mode.
 
-- **Live attack mode** — A new "⚡ Live" toggle on the map activates real-time tracking. New bans are polled every 5 seconds. For each ban with a known geo location, an animated arc draws itself from the attacker's location toward your server, with an arrowhead at the tip. A double pulsing ring marks the source.
-- **Live feed panel** — When live mode is on, a dedicated left panel lists incoming bans in real time: IP, jail, city, flag, attempt count, and time since ban. The most recent entries (< 10s) are highlighted in red.
-- **Source buttons disabled in live mode** — The "Bans actifs" and "Historique" toggles and country filters are grayed out and non-clickable while live mode is on. Existing ban markers are cleared from the map; they are restored when live mode is turned off.
-- **Monthly bar chart** — Each "Bans per hour" and "Attempts per hour" heatmap card now includes a bar chart by month (Jan–Déc) below the weekly grid. Hover a bar to see the exact count and share of total. Only shown when data exists for the period.
-- **Map double-scroll fixed** — In history mode with many banned IPs, the map container no longer produces a second vertical scrollbar.
+- **Live attack mode** - A new "⚡ Live" toggle on the map activates real-time tracking. New bans are polled every 5 seconds. For each ban with a known geo location, an animated arc draws itself from the attacker's location toward your server, with an arrowhead at the tip. A double pulsing ring marks the source.
+- **Live feed panel** - When live mode is on, a dedicated left panel lists incoming bans in real time: IP, jail, city, flag, attempt count, and time since ban. The most recent entries (< 10s) are highlighted in red.
+- **Source buttons disabled in live mode** - The "Bans actifs" and "Historique" toggles and country filters are grayed out and non-clickable while live mode is on. Existing ban markers are cleared from the map; they are restored when live mode is turned off.
+- **Monthly bar chart** - Each "Bans per hour" and "Attempts per hour" heatmap card now includes a bar chart by month (Jan–Déc) below the weekly grid. Hover a bar to see the exact count and share of total. Only shown when data exists for the period.
+- **Map double-scroll fixed** - In history mode with many banned IPs, the map container no longer produces a second vertical scrollbar.
 
 ---
 
 ### Technical
 
-#### Backend — `server/plugins/fail2ban/Fail2banPlugin.ts`
+#### Backend - `server/plugins/fail2ban/Fail2banPlugin.ts`
 
-- **`GET /map/server-geo`** — Resolves the server's own public IP via `ip-api.com/json/` (no IP = caller's IP). Result cached in `f2b_ip_geo` with key `_server_geo_` for 24h. Falls back to Paris coordinates if resolution fails.
-- **`GET /map/events?since=<ts>&limit=<n>`** — Returns recent ban events from `f2b_events` since the given Unix timestamp, joined with cached geo from `f2b_ip_geo`. Only events with known geo are returned (no network calls — keeps the endpoint fast). Used by the live mode poll.
-- **Monthly heatmap data** — `/tops` now computes `heatmapMonth` and `heatmapFailedMonth` via `strftime('%m', timeofban, 'unixepoch')` GROUP BY queries. Included in both `phase=fast` and `phase=full` responses.
+- **`GET /map/server-geo`** - Resolves the server's own public IP via `ip-api.com/json/` (no IP = caller's IP). Result cached in `f2b_ip_geo` with key `_server_geo_` for 24h. Falls back to Paris coordinates if resolution fails.
+- **`GET /map/events?since=<ts>&limit=<n>`** - Returns recent ban events from `f2b_events` since the given Unix timestamp, joined with cached geo from `f2b_ip_geo`. Only events with known geo are returned (no network calls - keeps the endpoint fast). Used by the live mode poll.
+- **Monthly heatmap data** - `/tops` now computes `heatmapMonth` and `heatmapFailedMonth` via `strftime('%m', timeofban, 'unixepoch')` GROUP BY queries. Included in both `phase=fast` and `phase=full` responses.
 
-#### Frontend — `src/pages/fail2ban/TabMap.tsx`
+#### Frontend - `src/pages/fail2ban/TabMap.tsx`
 
-- **`LiveEvent` interface** — New type for live attack events with embedded geo.
-- **`liveMode` state** — Boolean toggle; when true starts polling `/map/events` every 5s via `setInterval`. Cleaned up on toggle-off (lines removed, interval cleared).
-- **`drawAttackArc()`** — Creates `L.polyline` from source to server geo with `stroke-dasharray: 8 6` and CSS `f2b-attack-fly` animation (2.2s ease-out, fades out). Adds a pulsing `L.divIcon` marker at source. Both auto-removed after 3s.
-- **`serverGeo` state** — Fetched once from `/map/server-geo` on first live activation; cached in React state for subsequent polls.
-- **CSS keyframes** — `f2b-attack-fly` (stroke-dashoffset 300→0, opacity 0→0.9→0) and `f2b-pulse-ring` (scale 1→2.5, opacity fade) injected in the existing style block.
-- **Left live panel** — 220px aside prepended to map row when `liveMode` is true. Shows scrollable event list with IP, jail, city, flag, attempts × count. Recent entries (< 10s) highlighted.
-- **Double-scroll fix** — Added `overflow: hidden` to the outer `height: calc(100vh - 165px)` container.
+- **`LiveEvent` interface** - New type for live attack events with embedded geo.
+- **`liveMode` state** - Boolean toggle; when true starts polling `/map/events` every 5s via `setInterval`. Cleaned up on toggle-off (lines removed, interval cleared).
+- **`drawAttackArc()`** - Creates `L.polyline` from source to server geo with `stroke-dasharray: 8 6` and CSS `f2b-attack-fly` animation (2.2s ease-out, fades out). Adds a pulsing `L.divIcon` marker at source. Both auto-removed after 3s.
+- **`serverGeo` state** - Fetched once from `/map/server-geo` on first live activation; cached in React state for subsequent polls.
+- **CSS keyframes** - `f2b-attack-fly` (stroke-dashoffset 300→0, opacity 0→0.9→0) and `f2b-pulse-ring` (scale 1→2.5, opacity fade) injected in the existing style block.
+- **Left live panel** - 220px aside prepended to map row when `liveMode` is true. Shows scrollable event list with IP, jail, city, flag, attempts × count. Recent entries (< 10s) highlighted.
+- **Double-scroll fix** - Added `overflow: hidden` to the outer `height: calc(100vh - 165px)` container.
 
-#### Frontend — `src/pages/fail2ban/TabStats.tsx`
+#### Frontend - `src/pages/fail2ban/TabStats.tsx`
 
-- **`TopsData`** — Added optional `heatmapMonth` and `heatmapFailedMonth` fields (`{ month: number; count: number }[]`).
-- **`HeatmapSection`** — Added `monthKey` prop (`'heatmapMonth' | 'heatmapFailedMonth'`). Monthly bar chart rendered below weekly heatmap legend: 12 columns, hover tooltip, peak month outlined, hidden when all zeros.
-- **`MONTHS_FR`** — `['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc']`
+- **`TopsData`** - Added optional `heatmapMonth` and `heatmapFailedMonth` fields (`{ month: number; count: number }[]`).
+- **`HeatmapSection`** - Added `monthKey` prop (`'heatmapMonth' | 'heatmapFailedMonth'`). Monthly bar chart rendered below weekly heatmap legend: 12 columns, hover tooltip, peak month outlined, hidden when all zeros.
+- **`MONTHS_FR`** - `['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc']`
 
 ## [0.8.28] - 2026-04-04
 
@@ -379,24 +379,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > The Fail2ban Stats tab now shows a smart summary banner at the top with a real-time security situation overview, total blocked IPs (fail2ban + IPSet), period comparison, and alerts for jails under pressure.
 
-- **Stats summary banner** — A contextual banner appears at the top of the Stats tab. It shows: current security status based on live fail2ban bans only (Calm / Normal / Moderate / High), total IPs blocked combining fail2ban and IPSet, and active jail count.
-- **IPSet framed as protection** — IPSet entries are now displayed as "X IPs blocked upstream" with a tooltip listing each set and explaining they are kernel-level filters applied before fail2ban — not a threat indicator. This prevents the banner from showing false "High activity" when blocklists are well populated.
-- **Period comparison with trends** — The banner shows bans, unique IPs, and attempts for the selected period with ▲/▼/= trend badges compared to the previous equivalent period.
-- **Jails under pressure** — Jails with `currentlyFailed > 0` are listed in orange with their attempt count. If `currentlyFailed ≥ maxretry − 1`, a "→ ban imminent" warning is shown.
-- **Attempt trend alert** — If attempts increased vs the previous period, an orange alert badge appears with the delta and a tooltip explaining possible causes (service not covered by fail2ban, `maxretry` too high).
+- **Stats summary banner** - A contextual banner appears at the top of the Stats tab. It shows: current security status based on live fail2ban bans only (Calm / Normal / Moderate / High), total IPs blocked combining fail2ban and IPSet, and active jail count.
+- **IPSet framed as protection** - IPSet entries are now displayed as "X IPs blocked upstream" with a tooltip listing each set and explaining they are kernel-level filters applied before fail2ban - not a threat indicator. This prevents the banner from showing false "High activity" when blocklists are well populated.
+- **Period comparison with trends** - The banner shows bans, unique IPs, and attempts for the selected period with ▲/▼/= trend badges compared to the previous equivalent period.
+- **Jails under pressure** - Jails with `currentlyFailed > 0` are listed in orange with their attempt count. If `currentlyFailed ≥ maxretry − 1`, a "→ ban imminent" warning is shown.
+- **Attempt trend alert** - If attempts increased vs the previous period, an orange alert badge appears with the delta and a tooltip explaining possible causes (service not covered by fail2ban, `maxretry` too high).
 
 ---
 
 ### Technical
 
-#### Frontend — `src/pages/fail2ban/TabStats.tsx`
+#### Frontend - `src/pages/fail2ban/TabStats.tsx`
 
-- **`StatsSummaryBanner`** — New component inserted between the `<h2>` title and `IpSetsSection`. Four rows: live status + protection totals; period stats with `TrendBadge`; active bans by jail + top domain; attempt pressure row.
-- **`TrendBadge`** — Reuses the existing component (line ~676) with `curr`/`prev` props for all three period metrics (bans, unique IPs, attempts).
-- **Status logic** — Based solely on `totalBanned` (fail2ban live count): 0 → Calm (green), 1–5 → Normal (blue), 6–20 → Moderate (orange), >20 → High (red). IPSet entry count no longer influences status.
-- **IPSet fetch** — Reads from `_cache['ipset:info']` first (populated by `IpSetsSection`); falls back to `/api/plugins/fail2ban/ipset/info` on cold load. No duplicate network request.
-- **`jailsUnderPressure`** — Derived from `jails.filter(j => j.currentlyFailed > 0)` sorted descending, top 4 shown.
-- **`failuresDelta`** — Computed from `summary.totalFailures − prevSummary.totalFailures`; row 4 only renders when delta > 0 or jails have active failures.
+- **`StatsSummaryBanner`** - New component inserted between the `<h2>` title and `IpSetsSection`. Four rows: live status + protection totals; period stats with `TrendBadge`; active bans by jail + top domain; attempt pressure row.
+- **`TrendBadge`** - Reuses the existing component (line ~676) with `curr`/`prev` props for all three period metrics (bans, unique IPs, attempts).
+- **Status logic** - Based solely on `totalBanned` (fail2ban live count): 0 → Calm (green), 1–5 → Normal (blue), 6–20 → Moderate (orange), >20 → High (red). IPSet entry count no longer influences status.
+- **IPSet fetch** - Reads from `_cache['ipset:info']` first (populated by `IpSetsSection`); falls back to `/api/plugins/fail2ban/ipset/info` on cold load. No duplicate network request.
+- **`jailsUnderPressure`** - Derived from `jails.filter(j => j.currentlyFailed > 0)` sorted descending, top 4 shown.
+- **`failuresDelta`** - Computed from `summary.totalFailures − prevSummary.totalFailures`; row 4 only renders when delta > 0 or jails have active failures.
 
 ## [0.8.27] - 2026-04-03
 
@@ -404,28 +404,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > The Fail2ban audit check now shows all failing components correctly, and the IPSet stats section is redesigned with shared colors across bars, pie chart, and history graph.
 
-- **Audit fix** — The status badge in the "Fail2ban — Vérifications" panel now correctly reflects all checks. Previously it could show red while all visible rows were green, because the `fail2ban-client` binary check was counted but not displayed. The client check now appears as its own row.
-- **IPSet bars — multi-column layout** — The bar list automatically switches from 1 to 2 to 3 columns (max) depending on how many sets are present (≤ 4 → 1 col, ≤ 8 → 2 cols, 9+ → 3 cols). Columns fill top-to-bottom so the largest sets are always in the first column.
-- **IPSet — consistent colors** — Each IPSet now uses the same color across the bar list, the pie chart, and the historical line graph. Previously each view assigned colors independently.
-- **IPSet pie — two-sided legend** — The pie chart legend is now split: largest sets on the left, smallest on the right, with the pie in the center. The history graph legend is sorted largest-first.
-- **IPSet — empty sets hidden from graph** — IPSets with 0 current entries are no longer shown as lines in the historical chart.
+- **Audit fix** - The status badge in the "Fail2ban - Vérifications" panel now correctly reflects all checks. Previously it could show red while all visible rows were green, because the `fail2ban-client` binary check was counted but not displayed. The client check now appears as its own row.
+- **IPSet bars - multi-column layout** - The bar list automatically switches from 1 to 2 to 3 columns (max) depending on how many sets are present (≤ 4 → 1 col, ≤ 8 → 2 cols, 9+ → 3 cols). Columns fill top-to-bottom so the largest sets are always in the first column.
+- **IPSet - consistent colors** - Each IPSet now uses the same color across the bar list, the pie chart, and the historical line graph. Previously each view assigned colors independently.
+- **IPSet pie - two-sided legend** - The pie chart legend is now split: largest sets on the left, smallest on the right, with the pie in the center. The history graph legend is sorted largest-first.
+- **IPSet - empty sets hidden from graph** - IPSets with 0 current entries are no longer shown as lines in the historical chart.
 
 ---
 
 ### Technical
 
-#### Frontend — `src/pages/fail2ban/TabAudit.tsx`
+#### Frontend - `src/pages/fail2ban/TabAudit.tsx`
 
-- **`checkF2b`** — Changed `allOk` from `Object.values(checks).every(c => c.ok)` to `res.result.ok` (uses the backend-computed field, avoiding spurious red from `version` and `dropin` keys not included in backend `allOk`).
-- **`f2bChecks`** — Added `client` entry (fail2ban-client binary check) between `daemon` and `socket`, using `FileText` icon. Title badge and visible rows are now consistent.
+- **`checkF2b`** - Changed `allOk` from `Object.values(checks).every(c => c.ok)` to `res.result.ok` (uses the backend-computed field, avoiding spurious red from `version` and `dropin` keys not included in backend `allOk`).
+- **`f2bChecks`** - Added `client` entry (fail2ban-client binary check) between `daemon` and `socket`, using `FileText` icon. Title badge and visible rows are now consistent.
 
-#### Frontend — `src/pages/fail2ban/TabStats.tsx`
+#### Frontend - `src/pages/fail2ban/TabStats.tsx`
 
-- **`IpSetsSection`** — `barSets` derived as `sets.filter(s => s.entries > 0)` for `maxEntries` calculation.
-- **Bar grid** — Replaced `flex-direction: column` (fixed width 340 px) with CSS grid (`grid-auto-flow: column`, `grid-template-rows: repeat(ceil(n/cols), auto)`). Column count: 1 / 2 / 3 based on `sets.length`. `marginTop: .5rem` added.
-- **`colorMap`** — `Record<string, string>` built from `slices` after pie computation; shared via prop to `HistChart` and used inline in bar rows. All three views now use the same color per ipset name.
-- **`HistChart`** — Added `nonEmptyNames?: Set<string>` prop: filters `ipset_names` from backend to exclude sets with 0 current entries. Added `colorMap?: Record<string, string>` prop used for both line colors and legend colors. Legend sorted by `colorMap` key order (largest → smallest).
-- **Pie layout** — Legend split into `leftSlices` (first half) and `rightSlices` (second half) with pie SVG centered between them. `alignItems: flex-start`, `marginTop: .5rem` on both legend columns, bottom padding removed from wrapper.
+- **`IpSetsSection`** - `barSets` derived as `sets.filter(s => s.entries > 0)` for `maxEntries` calculation.
+- **Bar grid** - Replaced `flex-direction: column` (fixed width 340 px) with CSS grid (`grid-auto-flow: column`, `grid-template-rows: repeat(ceil(n/cols), auto)`). Column count: 1 / 2 / 3 based on `sets.length`. `marginTop: .5rem` added.
+- **`colorMap`** - `Record<string, string>` built from `slices` after pie computation; shared via prop to `HistChart` and used inline in bar rows. All three views now use the same color per ipset name.
+- **`HistChart`** - Added `nonEmptyNames?: Set<string>` prop: filters `ipset_names` from backend to exclude sets with 0 current entries. Added `colorMap?: Record<string, string>` prop used for both line colors and legend colors. Legend sorted by `colorMap` key order (largest → smallest).
+- **Pie layout** - Legend split into `leftSlices` (first half) and `rightSlices` (second half) with pie SVG centered between them. `alignItems: flex-start`, `marginTop: .5rem` on both legend columns, bottom padding removed from wrapper.
 
 ## [0.8.23] - 2026-04-03
 
@@ -433,24 +433,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > Activating a blocklist that contains your own IP now shows a warning instead of instantly locking you out.
 
-- **Self-ban protection** — Before applying any blocklist to iptables, LogviewR checks whether your current IP is inside the list. If it is, a warning modal appears showing your IP and the list name, and the activation is blocked. You can still force-activate if you know what you are doing (e.g. you have physical or out-of-band access), but the accidental self-ban scenario is prevented by default.
+- **Self-ban protection** - Before applying any blocklist to iptables, LogviewR checks whether your current IP is inside the list. If it is, a warning modal appears showing your IP and the list name, and the activation is blocked. You can still force-activate if you know what you are doing (e.g. you have physical or out-of-band access), but the accidental self-ban scenario is prevented by default.
 
 ---
 
 ### Technical
 
-#### Backend — `server/plugins/fail2ban/BlocklistService.ts`
+#### Backend - `server/plugins/fail2ban/BlocklistService.ts`
 
-- **`enable(id, callerIp?, force?)`** — Signature extended with optional `callerIp` and `force` parameters. After the ipset is populated (refresh if needed), runs `ipset test <setname> <callerIp>`. Exit 0 (IP present) returns `{ ok: false, selfBan: true, error: "Votre IP (<ip>) est dans cette liste…" }` without touching iptables. Exit 1 (IP absent) falls through normally. `force: true` bypasses the check entirely. Return type extended with `selfBan?: boolean`.
+- **`enable(id, callerIp?, force?)`** - Signature extended with optional `callerIp` and `force` parameters. After the ipset is populated (refresh if needed), runs `ipset test <setname> <callerIp>`. Exit 0 (IP present) returns `{ ok: false, selfBan: true, error: "Votre IP (<ip>) est dans cette liste…" }` without touching iptables. Exit 1 (IP absent) falls through normally. `force: true` bypasses the check entirely. Return type extended with `selfBan?: boolean`.
 
-#### Backend — `server/plugins/fail2ban/Fail2banPlugin.ts`
+#### Backend - `server/plugins/fail2ban/Fail2banPlugin.ts`
 
-- **`POST /blocklists/toggle`** — Now accepts optional `force: boolean` in the request body. Extracts the caller IP from `req.ip ?? req.socket.remoteAddress`, strips the `::ffff:` IPv4-mapped prefix, and passes both to `enable()`.
+- **`POST /blocklists/toggle`** - Now accepts optional `force: boolean` in the request body. Extracts the caller IP from `req.ip ?? req.socket.remoteAddress`, strips the `::ffff:` IPv4-mapped prefix, and passes both to `enable()`.
 
-#### Frontend — `src/pages/fail2ban/TabBlocklists.tsx`
+#### Frontend - `src/pages/fail2ban/TabBlocklists.tsx`
 
-- **`handleToggle(id, currentEnabled, force?)`** — Intercepts `selfBan: true` in the API response: extracts the IP from the error message via regex, reverts the `updating` spinner, and opens the warning modal instead of proceeding.
-- **Self-ban warning modal** — Fixed overlay with danger border. Shows caller IP (orange) and list name. "Annuler" closes the modal; "Forcer l'activation" retries with `force: true`.
+- **`handleToggle(id, currentEnabled, force?)`** - Intercepts `selfBan: true` in the API response: extracts the IP from the error message via regex, reverts the `updating` spinner, and opens the warning modal instead of proceeding.
+- **Self-ban warning modal** - Fixed overlay with danger border. Shows caller IP (orange) and list name. "Annuler" closes the modal; "Forcer l'activation" retries with `force: true`.
 
 ## [0.8.22] - 2026-04-03
 
@@ -458,66 +458,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > The Blocklists tab gets 11 new built-in lists with direction (IN/OUT) support, a compact card layout, and a force-reset button for stuck lists. The IP modal now shows which active blocklists contain a clicked IP. The IPSet tab gains a destroy button per set and a "FULL" indicator.
 
-- **11 new built-in blocklists** — TOR Exit Nodes, BruteForceBlocker, Spamhaus DROP (CIDRs), CINS Army, Blocklist.de All, GreenSnow, Firehol Level 1 (CIDRs), Stopforumspam 7d, Russia CIDRs, China CIDRs. All disabled by default; source repository links shown on each card.
-- **IN/OUT direction support** — Each blocklist targets either INPUT (inbound, default), OUTPUT (outbound), or both chains. An ⚠ badge appears on enabled outbound lists as a reminder.
-- **Compact blocklist cards** — Cards are now a single horizontal row (toggle, name, count, age, direction badge, source link, refresh, delete) instead of tall stacked blocks. Errors appear inline below the row with a "🔄 Reset ipset" button.
-- **Force-reset button** — When a list fails to load (e.g. after a kernel ipset conflict), a "🔄 Reset ipset" button appears. It removes iptables rules, destroys the corrupted ipset, and triggers a clean rebuild from scratch.
-- **IP modal — blocklist membership** — Clicking an IP now shows a "Blocklists" card listing which active lists contain that IP (tested in O(1) via `ipset test`), with direction badge per list.
-- **IPSet tab — destroy button** — Each set in the IPSet list panel now has a trash icon to permanently destroy it from the kernel. A "⚠ PLEIN" badge appears when a set is at 100% capacity.
-- **Nav badges** — The Blocklists tab badge shows the number of active (enabled) lists. The IPSet tab badge shows the total number of kernel sets. Both update live.
-- **Fix: update notification** — The update banner now shows the git commit title (e.g. "feat: … (v0.8.21)") when the GitHub release has no description, via a fallback to the tag's commit message.
-- **Fix: ipset kernel limit guard** — Lists exceeding ~520 000 entries (hard kernel limit for hash:ip sets in most Docker environments) now fail early with a clear message instead of crashing mid-load and leaving orphaned temp sets.
-- **Fix: settings page** — Clicking "Check for updates" no longer shows a duplicate toast when an update is already available (the header banner already signals it).
+- **11 new built-in blocklists** - TOR Exit Nodes, BruteForceBlocker, Spamhaus DROP (CIDRs), CINS Army, Blocklist.de All, GreenSnow, Firehol Level 1 (CIDRs), Stopforumspam 7d, Russia CIDRs, China CIDRs. All disabled by default; source repository links shown on each card.
+- **IN/OUT direction support** - Each blocklist targets either INPUT (inbound, default), OUTPUT (outbound), or both chains. An ⚠ badge appears on enabled outbound lists as a reminder.
+- **Compact blocklist cards** - Cards are now a single horizontal row (toggle, name, count, age, direction badge, source link, refresh, delete) instead of tall stacked blocks. Errors appear inline below the row with a "🔄 Reset ipset" button.
+- **Force-reset button** - When a list fails to load (e.g. after a kernel ipset conflict), a "🔄 Reset ipset" button appears. It removes iptables rules, destroys the corrupted ipset, and triggers a clean rebuild from scratch.
+- **IP modal - blocklist membership** - Clicking an IP now shows a "Blocklists" card listing which active lists contain that IP (tested in O(1) via `ipset test`), with direction badge per list.
+- **IPSet tab - destroy button** - Each set in the IPSet list panel now has a trash icon to permanently destroy it from the kernel. A "⚠ PLEIN" badge appears when a set is at 100% capacity.
+- **Nav badges** - The Blocklists tab badge shows the number of active (enabled) lists. The IPSet tab badge shows the total number of kernel sets. Both update live.
+- **Fix: update notification** - The update banner now shows the git commit title (e.g. "feat: … (v0.8.21)") when the GitHub release has no description, via a fallback to the tag's commit message.
+- **Fix: ipset kernel limit guard** - Lists exceeding ~520 000 entries (hard kernel limit for hash:ip sets in most Docker environments) now fail early with a clear message instead of crashing mid-load and leaving orphaned temp sets.
+- **Fix: settings page** - Clicking "Check for updates" no longer shows a duplicate toast when an update is already available (the header banner already signals it).
 
 ---
 
 ### Technical
 
-#### Backend — `server/plugins/fail2ban/BlocklistService.ts`
+#### Backend - `server/plugins/fail2ban/BlocklistService.ts`
 
-- **`ListDirection` / `IpsetType` types** — `'in' | 'out' | 'both'` and `'hash:ip' | 'hash:net'`; added to `BuiltinListDef` and `CustomListDef`.
-- **`iptablesChainsFor(direction)`** — Returns `[chain, matchFlag][]` pairs: `INPUT/src` for `'in'`, `OUTPUT/dst` for `'out'`, both for `'both'`. Used by `enable()`, `disable()`, `restoreOnStartup()`, `startAutoRefresh()`.
-- **`refresh()` — explicit -new set creation** — The temp `<name>-new` set is now created explicitly via `ipset create` (with computed `hashsize` and `maxelem`) before writing the restore file. The restore file contains only `add` lines, eliminating the risk of a stale `-new` set with wrong maxelem silently absorbing entries.
-- **Dynamic `hashsize`** — Computed as the next power of 2 above `maxelem / 4`, so the kernel hash table never needs to grow past its initial allocation for expected list sizes.
-- **Kernel limit guard** — `entries.length > 520 000` throws immediately with an explicit message instead of running `ipset restore` and failing deep in the kernel.
-- **`forceReset(id)`** — Removes iptables rules, destroys main set and `-new` orphan, calls `refresh()`, then re-adds rules if the list was enabled. Exposed via `POST /blocklists/force-reset`.
-- **maxelem bumps** — CINS Army 30 K → 60 K; GreenSnow 100 K → 200 K. Bitwire IN/OUT removed (3.3 M entries exceeds kernel limit).
+- **`ListDirection` / `IpsetType` types** - `'in' | 'out' | 'both'` and `'hash:ip' | 'hash:net'`; added to `BuiltinListDef` and `CustomListDef`.
+- **`iptablesChainsFor(direction)`** - Returns `[chain, matchFlag][]` pairs: `INPUT/src` for `'in'`, `OUTPUT/dst` for `'out'`, both for `'both'`. Used by `enable()`, `disable()`, `restoreOnStartup()`, `startAutoRefresh()`.
+- **`refresh()` - explicit -new set creation** - The temp `<name>-new` set is now created explicitly via `ipset create` (with computed `hashsize` and `maxelem`) before writing the restore file. The restore file contains only `add` lines, eliminating the risk of a stale `-new` set with wrong maxelem silently absorbing entries.
+- **Dynamic `hashsize`** - Computed as the next power of 2 above `maxelem / 4`, so the kernel hash table never needs to grow past its initial allocation for expected list sizes.
+- **Kernel limit guard** - `entries.length > 520 000` throws immediately with an explicit message instead of running `ipset restore` and failing deep in the kernel.
+- **`forceReset(id)`** - Removes iptables rules, destroys main set and `-new` orphan, calls `refresh()`, then re-adds rules if the list was enabled. Exposed via `POST /blocklists/force-reset`.
+- **maxelem bumps** - CINS Army 30 K → 60 K; GreenSnow 100 K → 200 K. Bitwire IN/OUT removed (3.3 M entries exceeds kernel limit).
 
-#### Backend — `server/plugins/fail2ban/Fail2banPlugin.ts`
+#### Backend - `server/plugins/fail2ban/Fail2banPlugin.ts`
 
-- **`POST /blocklists/force-reset`** — Delegates to `blocklistService.forceReset(id)`.
-- **`DELETE /ipset/destroy/:setName`** — Sanitises set name; runs `ipset destroy`; used by the IPSet tab trash button.
-- **`GET /blocklists/test/:ip`** — Runs `ipset test <setName> <ip>` in parallel across all lists with `count > 0`; returns `{ id, name, direction, present }[]`. Used by IpModal.
+- **`POST /blocklists/force-reset`** - Delegates to `blocklistService.forceReset(id)`.
+- **`DELETE /ipset/destroy/:setName`** - Sanitises set name; runs `ipset destroy`; used by the IPSet tab trash button.
+- **`GET /blocklists/test/:ip`** - Runs `ipset test <setName> <ip>` in parallel across all lists with `count > 0`; returns `{ id, name, direction, present }[]`. Used by IpModal.
 
-#### Backend — `server/routes/updates.ts`
+#### Backend - `server/routes/updates.ts`
 
-- **Commit message fallback** — When the latest GitHub release has no body and the CHANGELOG doesn't contain the version, the tag's commit message (first line) is fetched and used as release notes.
+- **Commit message fallback** - When the latest GitHub release has no body and the CHANGELOG doesn't contain the version, the tag's commit message (first line) is fetched and used as release notes.
 
-#### Frontend — `src/pages/fail2ban/TabBlocklists.tsx`
+#### Frontend - `src/pages/fail2ban/TabBlocklists.tsx`
 
-- **Compact card layout** — Single flex row per list; error row spans full width with inline "🔄 Reset ipset" button.
-- **`handleForceReset(id)`** — Posts to `/blocklists/force-reset`, sets `updating: true` while in-flight.
-- **`newMaxelem` presets** — 65 K / 150 K / 500 K / 1 M dropdown when adding a custom list.
-- **`newDirection`** — IN / OUT / BOTH selector in the add form.
-- **Info note** — Outbound warning reworded: lists can target OUTPUT but require care.
+- **Compact card layout** - Single flex row per list; error row spans full width with inline "🔄 Reset ipset" button.
+- **`handleForceReset(id)`** - Posts to `/blocklists/force-reset`, sets `updating: true` while in-flight.
+- **`newMaxelem` presets** - 65 K / 150 K / 500 K / 1 M dropdown when adding a custom list.
+- **`newDirection`** - IN / OUT / BOTH selector in the add form.
+- **Info note** - Outbound warning reworded: lists can target OUTPUT but require care.
 
-#### Frontend — `src/pages/fail2ban/IpModal.tsx`
+#### Frontend - `src/pages/fail2ban/IpModal.tsx`
 
-- **`blocklistHits` state** — Fourth parallel fetch on IP modal open: calls `/blocklists/test/:ip`; renders a "Blocklists" card with ✓/○ per list and a direction badge.
+- **`blocklistHits` state** - Fourth parallel fetch on IP modal open: calls `/blocklists/test/:ip`; renders a "Blocklists" card with ✓/○ per list and a direction badge.
 
-#### Frontend — `src/pages/fail2ban/TabIPSet.tsx`
+#### Frontend - `src/pages/fail2ban/TabIPSet.tsx`
 
-- **Destroy button** — Trash2 icon per set; calls `DELETE /api/plugins/fail2ban/ipset/destroy/:name`; invalidates set cache and refreshes list.
-- **"⚠ PLEIN" badge** — Shown when `set.entries >= set.maxelem`.
+- **Destroy button** - Trash2 icon per set; calls `DELETE /api/plugins/fail2ban/ipset/destroy/:name`; invalidates set cache and refreshes list.
+- **"⚠ PLEIN" badge** - Shown when `set.entries >= set.maxelem`.
 
-#### Frontend — `src/pages/Fail2banPage.tsx`
+#### Frontend - `src/pages/Fail2banPage.tsx`
 
-- **`ipsetCount` state** — Fetched from `/ipset/info` on mount; used for the IPSet nav badge (purple `#bc8cff`).
-- **Blocklists badge** — Active (enabled) list count; red `#e86a65`.
+- **`ipsetCount` state** - Fetched from `/ipset/info` on mount; used for the IPSet nav badge (purple `#bc8cff`).
+- **Blocklists badge** - Active (enabled) list count; red `#e86a65`.
 
-#### Frontend — `src/pages/SettingsPage.tsx`
+#### Frontend - `src/pages/SettingsPage.tsx`
 
-- **No duplicate toast** — `handleCheckNow` no longer adds an action toast when an update is available; the header banner is sufficient.
+- **No duplicate toast** - `handleCheckNow` no longer adds an action toast when an update is available; the header banner is sufficient.
 
 ## [0.8.21] - 2026-04-02
 
@@ -525,43 +525,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > The Fail2ban blocklist manager now supports custom public lists alongside the built-in Data-Shield lists, and the IPSet tab lets you import bulk IPv4 addresses from a .txt file.
 
-- **Custom blocklists** — Add any public IPv4 blocklist by URL directly from the Blocklists tab. Each custom list has its own ipset and iptables DROP rule, and can be enabled, refreshed, or deleted independently of the built-in lists.
-- **Bulk IPSet import** — Upload a `.txt` file (one IPv4 address per line) to populate any existing ipset in one click. The interface shows how many IPs were added and how many were skipped.
-- **Fix: page reload after deployment** — After a server update, the app now automatically reloads when it detects a stale cached bundle instead of showing a blank error screen.
-- **Fix: blocklist persistence after restart** — Enabled blocklists are now automatically restored (ipset + iptables rule) when the Docker container restarts, without requiring a manual disable/re-enable cycle.
+- **Custom blocklists** - Add any public IPv4 blocklist by URL directly from the Blocklists tab. Each custom list has its own ipset and iptables DROP rule, and can be enabled, refreshed, or deleted independently of the built-in lists.
+- **Bulk IPSet import** - Upload a `.txt` file (one IPv4 address per line) to populate any existing ipset in one click. The interface shows how many IPs were added and how many were skipped.
+- **Fix: page reload after deployment** - After a server update, the app now automatically reloads when it detects a stale cached bundle instead of showing a blank error screen.
+- **Fix: blocklist persistence after restart** - Enabled blocklists are now automatically restored (ipset + iptables rule) when the Docker container restarts, without requiring a manual disable/re-enable cycle.
 
 ---
 
 ### Technical
 
-#### Backend — `server/plugins/fail2ban/BlocklistService.ts`
+#### Backend - `server/plugins/fail2ban/BlocklistService.ts`
 
-- **Dynamic list registry** — `LISTS` constant replaced by `_allLists()` helper merging built-in entries with user-defined `CustomListDef` records loaded from `data/blocklist-custom.json`.
-- **`addCustomList()`** — Validates name, URL, ipset name format (`/^[a-z0-9][a-z0-9-]*$/`), and uniqueness against both map keys and `ipsetName` values of existing lists. Creates disabled status entry; no kernel calls on add.
-- **`removeCustomList()`** — Guards against removing built-in lists; checks `_refreshInProgress` to prevent concurrent remove/refresh race; calls `disable()`, then `ipset destroy`, then removes from both maps.
-- **`restoreOnStartup()`** — Called once at boot (fire-and-forget) to re-populate ipsets and re-add iptables DROP rules for all enabled lists after a container restart.
-- **`startAutoRefresh()`** — After each successful refresh, re-adds the iptables DROP rule if it has disappeared (e.g. after `iptables -F`).
+- **Dynamic list registry** - `LISTS` constant replaced by `_allLists()` helper merging built-in entries with user-defined `CustomListDef` records loaded from `data/blocklist-custom.json`.
+- **`addCustomList()`** - Validates name, URL, ipset name format (`/^[a-z0-9][a-z0-9-]*$/`), and uniqueness against both map keys and `ipsetName` values of existing lists. Creates disabled status entry; no kernel calls on add.
+- **`removeCustomList()`** - Guards against removing built-in lists; checks `_refreshInProgress` to prevent concurrent remove/refresh race; calls `disable()`, then `ipset destroy`, then removes from both maps.
+- **`restoreOnStartup()`** - Called once at boot (fire-and-forget) to re-populate ipsets and re-add iptables DROP rules for all enabled lists after a container restart.
+- **`startAutoRefresh()`** - After each successful refresh, re-adds the iptables DROP rule if it has disappeared (e.g. after `iptables -F`).
 
-#### Backend — `server/plugins/fail2ban/Fail2banPlugin.ts`
+#### Backend - `server/plugins/fail2ban/Fail2banPlugin.ts`
 
-- **`POST /blocklists/add`** — Accepts `{ name, url, ipsetName, description?, maxelem? }`, delegates to `addCustomList()`.
-- **`DELETE /blocklists/remove/:id`** — Delegates to `removeCustomList()`; async with await.
-- **`POST /ipset/import`** — Accepts `{ set, ips[] }`; validates set existence via `ipsetEntries()`; server-side IPv4 re-validation with type guard; loops `ipsetAdd()` per IP; counts added/skipped (including duplicates)/errors; early bail if `this.client` is null.
+- **`POST /blocklists/add`** - Accepts `{ name, url, ipsetName, description?, maxelem? }`, delegates to `addCustomList()`.
+- **`DELETE /blocklists/remove/:id`** - Delegates to `removeCustomList()`; async with await.
+- **`POST /ipset/import`** - Accepts `{ set, ips[] }`; validates set existence via `ipsetEntries()`; server-side IPv4 re-validation with type guard; loops `ipsetAdd()` per IP; counts added/skipped (including duplicates)/errors; early bail if `this.client` is null.
 
-#### Frontend — `src/pages/fail2ban/TabBlocklists.tsx`
+#### Frontend - `src/pages/fail2ban/TabBlocklists.tsx`
 
-- **`ListState.builtin`** — New boolean flag; card border switches `#e86a65` (built-in) vs `#58a6ff` (custom).
-- **Add form** — Collapsible form with name, URL, ipset name (real-time uniqueness + format hint), description fields. Submit disabled when fields empty or ipset name already in use.
-- **Delete button** — Shown on custom list cards only; surfaces API error via `setGlobalError` if deletion fails.
-- **Source badge** — Shows "jsDelivr CDN" for built-in lists and "URL personnalisée" for custom lists.
+- **`ListState.builtin`** - New boolean flag; card border switches `#e86a65` (built-in) vs `#58a6ff` (custom).
+- **Add form** - Collapsible form with name, URL, ipset name (real-time uniqueness + format hint), description fields. Submit disabled when fields empty or ipset name already in use.
+- **Delete button** - Shown on custom list cards only; surfaces API error via `setGlobalError` if deletion fails.
+- **Source badge** - Shows "jsDelivr CDN" for built-in lists and "URL personnalisée" for custom lists.
 
-#### Frontend — `src/pages/fail2ban/TabIPSet.tsx`
+#### Frontend - `src/pages/fail2ban/TabIPSet.tsx`
 
-- **File import** — Hidden `<input type="file" accept=".txt">` triggered by "↑ Importer .txt" button inside `EntriesPanel`. Parses IPv4 lines client-side, posts to `/ipset/import`, shows "✓ N ajoutées" feedback. `importResult` cleared on set switch.
+- **File import** - Hidden `<input type="file" accept=".txt">` triggered by "↑ Importer .txt" button inside `EntriesPanel`. Parses IPv4 lines client-side, posts to `/ipset/import`, shows "✓ N ajoutées" feedback. `importResult` cleared on set switch.
 
-#### Frontend — `src/components/ErrorBoundary.tsx`
+#### Frontend - `src/components/ErrorBoundary.tsx`
 
-- **Chunk reload** — `componentDidCatch` detects "Failed to fetch dynamically imported module" errors and reloads once (guarded by `sessionStorage` to prevent reload loops after deployment.
+- **Chunk reload** - `componentDidCatch` detects "Failed to fetch dynamically imported module" errors and reloads once (guarded by `sessionStorage` to prevent reload loops after deployment.
 
 ## [0.8.20] - 2026-04-01
 
@@ -569,33 +569,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > The largest log files table now shows the domain name for NPM and Apache files, each path is clickable and opens the file directly in the log viewer.
 
-- **Domain in largest files table** — NPM log files now display the associated domain name (read from NPM's SQLite/MySQL database). Apache log files show the virtual host when it can be inferred from the filename (e.g. `example.com-access.log`) or the parent directory.
-- **Clickable paths** — Each file path in the table is now a link that opens the log viewer with that file pre-selected. Hover over the path for a tooltip showing the full path, plugin, type, size, last modified date, and domain.
-- **Clean navigation URLs** — Log viewer deep links now use readable URLs (`#log/nginx/var/log/nginx/access.log`) instead of percent-encoded paths (`%2Fvar%2Flog%2F...`). Old bookmarked links continue to work.
+- **Domain in largest files table** - NPM log files now display the associated domain name (read from NPM's SQLite/MySQL database). Apache log files show the virtual host when it can be inferred from the filename (e.g. `example.com-access.log`) or the parent directory.
+- **Clickable paths** - Each file path in the table is now a link that opens the log viewer with that file pre-selected. Hover over the path for a tooltip showing the full path, plugin, type, size, last modified date, and domain.
+- **Clean navigation URLs** - Log viewer deep links now use readable URLs (`#log/nginx/var/log/nginx/access.log`) instead of percent-encoded paths (`%2Fvar%2Flog%2F...`). Old bookmarked links continue to work.
 
 ---
 
 ### Technical
 
-#### Backend — `server/routes/log-viewer.ts`
+#### Backend - `server/routes/log-viewer.ts`
 
-- **`extractApacheVhost()`** — New helper: extracts virtual host from filename prefix (`example.com-access.log`) or parent directory name; skips generic names like `apache2`, `logs`, etc.
-- **NPM domain enrichment** — After scanning files, builds proxy-host ID → domain map by reading `database.sqlite`; tries 4 path candidates: inferred from file path (`../database.sqlite`), same directory, raw `fail2ban.npmDataPath`, and Docker-resolved `HOST_ROOT + npmDataPath`.
-- **Apache vhost enrichment** — Calls `extractApacheVhost()` for each Apache file after scan.
-- **Response** — `domain?: string` added to each file entry in `/api/log-viewer/largest-files`.
+- **`extractApacheVhost()`** - New helper: extracts virtual host from filename prefix (`example.com-access.log`) or parent directory name; skips generic names like `apache2`, `logs`, etc.
+- **NPM domain enrichment** - After scanning files, builds proxy-host ID → domain map by reading `database.sqlite`; tries 4 path candidates: inferred from file path (`../database.sqlite`), same directory, raw `fail2ban.npmDataPath`, and Docker-resolved `HOST_ROOT + npmDataPath`.
+- **Apache vhost enrichment** - Calls `extractApacheVhost()` for each Apache file after scan.
+- **Response** - `domain?: string` added to each file entry in `/api/log-viewer/largest-files`.
 
-#### Frontend — `src/components/widgets/LargestFilesCard.tsx`
+#### Frontend - `src/components/widgets/LargestFilesCard.tsx`
 
-- **`LargestFileEntry`** — Added `domain?: string` field.
-- **Clickable path** — Path cell replaced by `<a href="#log/{pluginId}{filePath}">` using clean URL format.
-- **Structured tooltip** — `F2bTooltip` + `TT` helpers wrap the path link; shows full path, plugin, type, size, modification date, and domain.
-- **Domain display** — Domain shown in small italic text below the path when available.
+- **`LargestFileEntry`** - Added `domain?: string` field.
+- **Clickable path** - Path cell replaced by `<a href="#log/{pluginId}{filePath}">` using clean URL format.
+- **Structured tooltip** - `F2bTooltip` + `TT` helpers wrap the path link; shows full path, plugin, type, size, modification date, and domain.
+- **Domain display** - Domain shown in small italic text below the path when available.
 
-#### Frontend — `src/App.tsx`
+#### Frontend - `src/App.tsx`
 
-- **`parseHashNav()`** — Now handles both clean (`var/log/file.log`) and legacy (`%2Fvar%2Flog%2Ffile.log`) hash formats; prepends `/` when missing.
-- **Hash sync** — Log-viewer URL hash now uses clean format `#log/{pluginId}{filePath}` (no `encodeURIComponent`).
-- **`hashchange` listener** — New `useEffect` (runs when authenticated): listens for hash navigation clicks in-session and triggers `setSelectedPluginId` + `setDefaultLogFile` + `setCurrentPage('log-viewer')`.
+- **`parseHashNav()`** - Now handles both clean (`var/log/file.log`) and legacy (`%2Fvar%2Flog%2Ffile.log`) hash formats; prepends `/` when missing.
+- **Hash sync** - Log-viewer URL hash now uses clean format `#log/{pluginId}{filePath}` (no `encodeURIComponent`).
+- **`hashchange` listener** - New `useEffect` (runs when authenticated): listens for hash navigation clicks in-session and triggers `setSelectedPluginId` + `setDefaultLogFile` + `setCurrentPage('log-viewer')`.
 
 
 
@@ -607,26 +607,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > IP Tracker table improvements: all badges visible, layout fixed, better pagination.
 
-- **Active/History toggle** — The two buttons no longer overlap when the label is long.
-- **All jail and IPSet badges visible** — Badges in the Jail(s) and IPSet(s) columns now show every entry instead of truncating after 2–3 items.
-- **Pagination at the bottom** — Page controls (‹ › and rows-per-page) now appear below the table as well, so you don't have to scroll back to the top to navigate.
-- **Per-page options simplified** — Options are now 16, 32, and All (50/100 removed).
-- **Table no longer clipped** — Selecting 32 rows or more now correctly expands the card; rows are no longer cut off by the layout.
+- **Active/History toggle** - The two buttons no longer overlap when the label is long.
+- **All jail and IPSet badges visible** - Badges in the Jail(s) and IPSet(s) columns now show every entry instead of truncating after 2–3 items.
+- **Pagination at the bottom** - Page controls (‹ › and rows-per-page) now appear below the table as well, so you don't have to scroll back to the top to navigate.
+- **Per-page options simplified** - Options are now 16, 32, and All (50/100 removed).
+- **Table no longer clipped** - Selecting 32 rows or more now correctly expands the card; rows are no longer cut off by the layout.
 
 ---
 
 ### Technical
 
-#### Frontend — `src/pages/fail2ban/TabTracker.tsx`
+#### Frontend - `src/pages/fail2ban/TabTracker.tsx`
 
-- **Active/history toggle** — Removed fixed `width: 118px` on toggle buttons; replaced with `minWidth: 0` + auto width so long labels like "Historique des bans" don't overflow.
-- **Jail(s) column** — Removed `slice(0, 3)`, `+N` overflow badge, `flexWrap: nowrap`, `overflow: hidden`, and `maxWidth: 320`. All jail badges now render with `flexWrap: wrap`. Header changed from `width: 320` to `minWidth: 180`.
-- **IPSet(s) column** — Same treatment: removed `slice(0, 2)`, `+N` badge, `flexWrap: nowrap`, `overflow: hidden`, and `maxWidth: 180`. All IPSet badges render with `flexWrap: wrap`. Header changed from `width: 180` to `minWidth: 160`.
-- **Hostname column** — Reduced to `width: 120 / maxWidth: 120` with `textOverflow: ellipsis` to give space back to IPSet/Jail columns.
-- **IP column** — Reduced from `width: 130` to `width: 110`.
-- **Bottom pagination bar** — Added a second pagination row below `</table>` (same prev/next buttons + per-page selector).
-- **Per-page options** — Array changed from `[16, 32, 50, 100]` to `[16, 32]` at both render sites (top bar and bottom bar).
-- **Flex layout fix** — Added `flexShrink: 0` to the card wrapper (`{ ...card, flexShrink: 0 }`). Root cause: the card was a flex child with default `flex-shrink: 1` inside a `flex-direction: column / overflow-y: auto` container; the flex algorithm was shrinking the card to the viewport height and `overflow: hidden` on the card clipped the remaining rows silently.
+- **Active/history toggle** - Removed fixed `width: 118px` on toggle buttons; replaced with `minWidth: 0` + auto width so long labels like "Historique des bans" don't overflow.
+- **Jail(s) column** - Removed `slice(0, 3)`, `+N` overflow badge, `flexWrap: nowrap`, `overflow: hidden`, and `maxWidth: 320`. All jail badges now render with `flexWrap: wrap`. Header changed from `width: 320` to `minWidth: 180`.
+- **IPSet(s) column** - Same treatment: removed `slice(0, 2)`, `+N` badge, `flexWrap: nowrap`, `overflow: hidden`, and `maxWidth: 180`. All IPSet badges render with `flexWrap: wrap`. Header changed from `width: 180` to `minWidth: 160`.
+- **Hostname column** - Reduced to `width: 120 / maxWidth: 120` with `textOverflow: ellipsis` to give space back to IPSet/Jail columns.
+- **IP column** - Reduced from `width: 130` to `width: 110`.
+- **Bottom pagination bar** - Added a second pagination row below `</table>` (same prev/next buttons + per-page selector).
+- **Per-page options** - Array changed from `[16, 32, 50, 100]` to `[16, 32]` at both render sites (top bar and bottom bar).
+- **Flex layout fix** - Added `flexShrink: 0` to the card wrapper (`{ ...card, flexShrink: 0 }`). Root cause: the card was a flex child with default `flex-shrink: 1` inside a `flex-direction: column / overflow-y: auto` container; the flex algorithm was shrinking the card to the viewport height and `overflow: hidden` on the card clipped the remaining rows silently.
 
 ---
 
@@ -634,7 +634,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Version numbers (header logo, tab info, server fallback) were frozen at 0.8.14 — now correctly updated to 0.8.18.
+- Version numbers (header logo, tab info, server fallback) were frozen at 0.8.14 - now correctly updated to 0.8.18.
 
 ---
 
@@ -644,26 +644,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > Deep links for settings tabs, cleaner Security page, and unified log files table.
 
-- **Settings deep links** — Each settings tab now updates the URL (`#config/general`, `#config/security/protection`, etc.). You can copy the URL and share a direct link to any tab — the recipient lands exactly on the right page after login.
-- **CORS — preset buttons** — HTTP methods (GET, POST, PUT…) and common headers (Content-Type, Authorization…) are now clickable chips. Click to add/remove. A custom input remains for non-standard values. Fields are greyed out until at least one allowed origin is configured.
-- **Security page cleanup** — Removed two inactive sections: "Sécurité réseau" (disabled checkboxes, not implemented) and "Fonctionnalités actives" (static text only).
-- **Protection fields alignment** — The three editable fields in the Attack Protection tab are now aligned to the same right column.
-- **Log files table** — The "Largest log files" table is now identical in the Dashboard and the Statistics page: colored type badges, full path (no truncation), and filter toggles (show all / hide .gz / hide .log.1).
+- **Settings deep links** - Each settings tab now updates the URL (`#config/general`, `#config/security/protection`, etc.). You can copy the URL and share a direct link to any tab - the recipient lands exactly on the right page after login.
+- **CORS - preset buttons** - HTTP methods (GET, POST, PUT…) and common headers (Content-Type, Authorization…) are now clickable chips. Click to add/remove. A custom input remains for non-standard values. Fields are greyed out until at least one allowed origin is configured.
+- **Security page cleanup** - Removed two inactive sections: "Sécurité réseau" (disabled checkboxes, not implemented) and "Fonctionnalités actives" (static text only).
+- **Protection fields alignment** - The three editable fields in the Attack Protection tab are now aligned to the same right column.
+- **Log files table** - The "Largest log files" table is now identical in the Dashboard and the Statistics page: colored type badges, full path (no truncation), and filter toggles (show all / hide .gz / hide .log.1).
 
 
 ---
 
 ### Technical
 
-#### Frontend — `src/App.tsx`
+#### Frontend - `src/App.tsx`
 
 - `HashNav` type extended with `config` variant; `parseHashNav()` handles `#config/TAB[/SUBTAB]`; stores `_hashNavConfig` in sessionStorage; passes `initialSecuritySubTab` to `SettingsPage`
 
-#### Frontend — `src/pages/SettingsPage.tsx`
+#### Frontend - `src/pages/SettingsPage.tsx`
 
 - New `initialSecuritySubTab` prop; `securitySubTab` state initialized from prop; `useEffect` calls `history.replaceState` on every tab/subtab change; hash cleared on unmount
 
-#### Frontend — `src/components/SecuritySection.tsx`
+#### Frontend - `src/components/SecuritySection.tsx`
 
 - `toggleMethod` / `toggleHeader` helpers for preset chip toggle
 - Preset chips for 7 HTTP methods and 8 common headers (blue/cyan active state, grey inactive)
@@ -671,21 +671,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed "Sécurité réseau" section (2 disabled checkboxes) and "Fonctionnalités actives" section
 - Protection fields: `w-44` on right container for column alignment; `readOnly` label moved to `description`
 
-#### Frontend — `src/components/SettingsSection.tsx`
+#### Frontend - `src/components/SettingsSection.tsx`
 
 - `SettingRow.description` prop type widened to `string | React.ReactNode`
 
-#### Frontend — `src/components/widgets/LargestFilesCard.tsx`
+#### Frontend - `src/components/widgets/LargestFilesCard.tsx`
 
 - Full rewrite: `limit` prop, `Toggle` sub-component, `showAll` / `hideGz` / `hideRotated` filters, `TypeBadge` colored inline styles, `break-all` full path, "+ N more" row when not expanded
 
-#### Frontend — `src/pages/AnalyticsPage.tsx`
+#### Frontend - `src/pages/AnalyticsPage.tsx`
 
 - Inline largest files section (~150 lines) replaced by `<LargestFilesCard limit={50} />`; related state and fetch removed
 
-#### Backend — `server/routes/updates.ts`
+#### Backend - `server/routes/updates.ts`
 
-- `updateAvailable` decoupled from `dockerReady` — update is detected as soon as `latestVersion > currentVersion`; Docker status shown separately in UI
+- `updateAvailable` decoupled from `dockerReady` - update is detected as soon as `latestVersion > currentVersion`; Docker status shown separately in UI
 - `getReleaseNotesFromChangelog`: strips `> ` blockquote markers for clean display
 
 ---
@@ -696,27 +696,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > Session expiry now shows a re-login prompt, and attempt notifications display the jail name.
 
-- **Automatic re-login on session expiry** — If your session expires while the page is open, a login modal appears automatically so you can re-authenticate without refreshing the page.
-- **Jail name in attempt notifications** — The header notification for login attempts now always shows the jail name (e.g. `sshd`, `nginx-http-auth`). The associated domain is shown alongside when available.
-- **Profile page navigation** — The LogviewR logo on the Profile page links back to the dashboard, and the User Menu highlights the active page (Profile vs Administration) correctly.
+- **Automatic re-login on session expiry** - If your session expires while the page is open, a login modal appears automatically so you can re-authenticate without refreshing the page.
+- **Jail name in attempt notifications** - The header notification for login attempts now always shows the jail name (e.g. `sshd`, `nginx-http-auth`). The associated domain is shown alongside when available.
+- **Profile page navigation** - The LogviewR logo on the Profile page links back to the dashboard, and the User Menu highlights the active page (Profile vs Administration) correctly.
 
 ---
 
 ### Technical
 
-#### Frontend — `src/api/client.ts`
+#### Frontend - `src/api/client.ts`
 
-- Dispatches `auth:session-expired` custom event on HTTP 401 or `error_code: auth_required` responses — skipped for `/api/users/login` to avoid false triggers on wrong password
+- Dispatches `auth:session-expired` custom event on HTTP 401 or `error_code: auth_required` responses - skipped for `/api/users/login` to avoid false triggers on wrong password
 
-#### Frontend — `src/App.tsx`
+#### Frontend - `src/App.tsx`
 
 - Listens for `auth:session-expired` event in the auth `useEffect` → calls `userLogout()` → sets `isAuthenticated: false` → `UserLoginModal` renders automatically
 
-#### Frontend — `src/components/layout/Header.tsx`
+#### Frontend - `src/components/layout/Header.tsx`
 
 - `NotifCard` attempt branch: added `{n.jail}` badge (always visible, yellow monospace) before the domain; domain demoted to secondary grey text
 
-#### Frontend — `src/components/layout/Header.tsx`, `src/pages/ProfilePage.tsx`
+#### Frontend - `src/components/layout/Header.tsx`, `src/pages/ProfilePage.tsx`
 
 - ProfilePage header: LogviewR logo replaces back button (same style as dashboard)
 - `UserMenu`: `activePage` prop highlights "Mon Profil" vs "Administration" depending on current page
@@ -729,63 +729,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > Active bans synchronized with fail2ban in real time, improved ban chart, enriched notifications and more compact Config UI.
 
-- **Reliable active ban counter** — The "active bans" badge in the menu and IP Tracker now shows exactly the same count as fail2ban. Unbans are detected automatically on every refresh (every 30s) and recorded in history.
-- **Grouped bar chart** — In "Bars" mode, each jail is displayed side by side (instead of stacked), sorted from highest to lowest for each day.
-- **Accurate Y-axis** — The axis maximum matches the actual peak of the visible data, with no artificial rounding.
-- **Enriched attempt notifications** — The domain associated with the IP is shown in the notification (when available), in addition to the IP and attempt count. The active jails badge and "+N attempts" text were removed to reduce clutter.
-- **Top Domains** — Counting now covers all jails combined (not per jail), which better reflects real traffic. An explanatory tooltip on the title details the calculation method and the case of Access List IP-protected domains.
-- **Fail2ban Config — collapsed cards more compact** — The Runtime, Database and Config Files cards now have the same height when collapsed, with no visible residual border.
+- **Reliable active ban counter** - The "active bans" badge in the menu and IP Tracker now shows exactly the same count as fail2ban. Unbans are detected automatically on every refresh (every 30s) and recorded in history.
+- **Grouped bar chart** - In "Bars" mode, each jail is displayed side by side (instead of stacked), sorted from highest to lowest for each day.
+- **Accurate Y-axis** - The axis maximum matches the actual peak of the visible data, with no artificial rounding.
+- **Enriched attempt notifications** - The domain associated with the IP is shown in the notification (when available), in addition to the IP and attempt count. The active jails badge and "+N attempts" text were removed to reduce clutter.
+- **Top Domains** - Counting now covers all jails combined (not per jail), which better reflects real traffic. An explanatory tooltip on the title details the calculation method and the case of Access List IP-protected domains.
+- **Fail2ban Config - collapsed cards more compact** - The Runtime, Database and Config Files cards now have the same height when collapsed, with no visible residual border.
 
 ---
 
 ### Technical
 
-#### Backend — `server/plugins/fail2ban/Fail2banPlugin.ts`
+#### Backend - `server/plugins/fail2ban/Fail2banPlugin.ts`
 
-- `_syncUnbans(liveBannedIps: Set<string>)`: new private method — compares active IPs in DB (`unban_at IS NULL`) with live fail2ban; marks absent IPs with `unban_at = now` without ever deleting historical rows
-- Called in `GET /status` route after fetching `jailsWithMeta` — synced on every 30s poll
-- All "active bans" queries migrated from `bantime=-1 OR (timeofban+bantime) > ?` to `unban_at IS NULL` (lines 910, 1172, 1876, 1914) — `now` parameter removed from these `.all()` calls
+- `_syncUnbans(liveBannedIps: Set<string>)`: new private method - compares active IPs in DB (`unban_at IS NULL`) with live fail2ban; marks absent IPs with `unban_at = now` without ever deleting historical rows
+- Called in `GET /status` route after fetching `jailsWithMeta` - synced on every 30s poll
+- All "active bans" queries migrated from `bantime=-1 OR (timeofban+bantime) > ?` to `unban_at IS NULL` (lines 910, 1172, 1876, 1914) - `now` parameter removed from these `.all()` calls
 - Top domains: replaced `jailBannedIps` (per-jail) with `allBannedIps` (union of all jails) as candidate set
 
-#### Backend — `server/database/connection.ts`
+#### Backend - `server/database/connection.ts`
 
 - Migration: `ALTER TABLE f2b_events ADD COLUMN unban_at INTEGER` (try/catch)
 - Index: `CREATE INDEX IF NOT EXISTS idx_f2b_events_unban ON f2b_events(unban_at)`
 - Backfill on startup: expired bans older than 60s (`bantime > 0`) receive `unban_at = timeofban + bantime`
 
-#### Frontend — `src/pages/fail2ban/BanHistoryChart.tsx`
+#### Frontend - `src/pages/fail2ban/BanHistoryChart.tsx`
 
-- Removed `niceMax()` — Y-axis max = raw maximum of visible values
+- Removed `niceMax()` - Y-axis max = raw maximum of visible values
 - `effectiveMax`: removed `sliceMax` floor when jails are visible
 - `BarChart`: grouped bars side by side; `sortedJails` sorted by descending value per date; proportional `groupW` / `subBarW` / `groupGap` calculation
 
-#### Frontend — `src/pages/fail2ban/TabStats.tsx`
+#### Frontend - `src/pages/fail2ban/TabStats.tsx`
 
-- `TopCard`: new prop `titleTooltip?: { bodyNode, color?, width? }` — wraps the title in an `F2bTooltip` with `help` cursor and dotted underline
+- `TopCard`: new prop `titleTooltip?: { bodyNode, color?, width? }` - wraps the title in an `F2bTooltip` with `help` cursor and dotted underline
 - `domainTitleTooltip` (360px, cyan): 4 explanatory sections (counting method, all jails, Access List domains, reading results) passed to both domain TopCards
 
-#### Frontend — `src/pages/fail2ban/TabConfig.tsx`
+#### Frontend - `src/pages/fail2ban/TabConfig.tsx`
 
-- Conditional `alignSelf` per card (`start` when collapsed and neighbor is open, `stretch` otherwise) — removes ghost space below collapsed cards
+- Conditional `alignSelf` per card (`start` when collapsed and neighbor is open, `stretch` otherwise) - removes ghost space below collapsed cards
 - Conditional `borderBottom`: `none` when card is collapsed, `1px solid #30363d` when open
 
-#### Frontend — `src/pages/Fail2banPage.tsx`
+#### Frontend - `src/pages/Fail2banPage.tsx`
 
 - Fetch `/api/plugins/fail2ban/tracker` on mount → `trackerActive` state
-- IP Tracker badge uses `trackerActive ?? totalBanned` (DB-based) — no longer `bannedIps.length` from fail2ban-client
+- IP Tracker badge uses `trackerActive ?? totalBanned` (DB-based) - no longer `bannedIps.length` from fail2ban-client
 - `jailDomainsRef`: lazy fetch `/jails/enrichment` once after first status load
 - Passes `onActiveChange={setTrackerActive}` to `TabTracker`
 
-#### Frontend — `src/pages/fail2ban/TabTracker.tsx`
+#### Frontend - `src/pages/fail2ban/TabTracker.tsx`
 
-- Prop `onActiveChange?: (n: number) => void` — called from `activeCount` useMemo to bubble the DB count up to the parent
+- Prop `onActiveChange?: (n: number) => void` - called from `activeCount` useMemo to bubble the DB count up to the parent
 
-#### Frontend — `src/components/layout/Header.tsx`
+#### Frontend - `src/components/layout/Header.tsx`
 
 - Attempt notification: removed jail badge and `{n.total} actives` text
 - Added domain badge (orange, monospace, maxWidth 160px) when `n.domain` is present
 
-#### Frontend — `src/stores/notificationStore.ts`
+#### Frontend - `src/stores/notificationStore.ts`
 
 - `AppNotification`: added `domain?: string` field
 - `addAttempt` signature extended with `domain`
@@ -798,16 +798,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > After a VACUUM or a configuration change, the UI updates immediately without needing to clear the cache.
 
-- **VACUUM dashboard.db** — The fragmentation badge disappears instantly after VACUUM, with no manual reload.
-- **Fail2ban config** — Changes to `fail2ban.local` (loglevel, logtarget, dbpurgeage…) and raw edits are reflected immediately in the UI.
+- **VACUUM dashboard.db** - The fragmentation badge disappears instantly after VACUUM, with no manual reload.
+- **Fail2ban config** - Changes to `fail2ban.local` (loglevel, logtarget, dbpurgeage…) and raw edits are reflected immediately in the UI.
 
 ---
 
 ### Technical
 
-#### Backend — `server/plugins/fail2ban/Fail2banPlugin.ts`
+#### Backend - `server/plugins/fail2ban/Fail2banPlugin.ts`
 
-- `POST /config/dashboard-vacuum`: added `_routeCache.delete('config/parsed')` after VACUUM — the fragmentation cache was kept for 60s, causing stale display
+- `POST /config/dashboard-vacuum`: added `_routeCache.delete('config/parsed')` after VACUUM - the fragmentation cache was kept for 60s, causing stale display
 - `POST /config/write`: invalidates `config/parsed` cache if at least one key was written to `fail2ban.local`
 - `POST /config/write-raw`: invalidates `config/parsed` cache after successful write of `fail2ban.local` / `jail.local`
 
@@ -819,20 +819,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > Several visual improvements in the fail2ban Configuration tab and ban statistics chart.
 
-- **Ban Statistics chart** — The Y-axis now adapts to the actual data scale: bars correctly fill the chart area, and labels show round numbers (20, 50, 100…).
-- **Fail2ban Config** — The "fail2ban ↔ dashboard.db Synchronization" card now appears first, before "Internal database (dashboard.db)".
+- **Ban Statistics chart** - The Y-axis now adapts to the actual data scale: bars correctly fill the chart area, and labels show round numbers (20, 50, 100…).
+- **Fail2ban Config** - The "fail2ban ↔ dashboard.db Synchronization" card now appears first, before "Internal database (dashboard.db)".
 
 ---
 
 ### Technical
 
-#### Frontend — `src/pages/fail2ban/BanHistoryChart.tsx`
+#### Frontend - `src/pages/fail2ban/BanHistoryChart.tsx`
 
-- `niceMax(raw)`: new function — rounds up to the next "nice" number (e.g. 13→20, 47→50, 130→200)
+- `niceMax(raw)`: new function - rounds up to the next "nice" number (e.g. 13→20, 47→50, 130→200)
 - `yTicks(max)`: for max ≤ 5, generates a tick per integer (avoids duplicates); for max > 5, 4 ticks at 25/50/75/100%
-- `effectiveMax`: fallback replaced — uses `sliceMax` (max of the visible slice) instead of global `histMax`; `niceMax()` applied to output; `Math.max(byJailMax, sliceMax)` avoids underestimation if `byJail` is incomplete
+- `effectiveMax`: fallback replaced - uses `sliceMax` (max of the visible slice) instead of global `histMax`; `niceMax()` applied to output; `Math.max(byJailMax, sliceMax)` avoids underestimation if `byJail` is incomplete
 
-#### Frontend — `src/pages/fail2ban/TabConfig.tsx`
+#### Frontend - `src/pages/fail2ban/TabConfig.tsx`
 
 - "fail2ban ↔ dashboard.db Synchronization" card moved before "Internal database (dashboard.db)" in the Application column
 
@@ -844,17 +844,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > Fix for the NPM panel in MySQL mode: the panel no longer shows the "not configured" warning when MySQL is properly configured.
 
-- **NPM MySQL integration** — The Integrations panel turns green as soon as the MySQL fields (host, user, database) are filled in, even without a log path.
+- **NPM MySQL integration** - The Integrations panel turns green as soon as the MySQL fields (host, user, database) are filled in, even without a log path.
 
 ---
 
 ### Technical
 
-#### Frontend — `src/pages/fail2ban/TabConfig.tsx`
+#### Frontend - `src/pages/fail2ban/TabConfig.tsx`
 
-- `npmMysqlOk`: removed `&& s.npmDataPath` from the detection condition — MySQL is considered configured as soon as host + user + db are present
+- `npmMysqlOk`: removed `&& s.npmDataPath` from the detection condition - MySQL is considered configured as soon as host + user + db are present
 
-#### Frontend — `src/pages/Fail2banPage.tsx`
+#### Frontend - `src/pages/Fail2banPage.tsx`
 
 - `npmMysqlConfigured`: new state, fetches `npmDbType`/`npmMysqlHost`/`npmMysqlUser`/`npmMysqlDb` on mount
 - `npmMissing`: `npmDataPath === '' && !npmMysqlConfigured` (was just `npmDataPath === ''`)
@@ -868,13 +868,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > The fail2ban menu now shows blocklist status directly in the navigation tooltip.
 
-- **Blocklists tooltip** — Hovering over the "Blocklists" tab in the menu shows each list with its status (active / inactive) and last update date.
+- **Blocklists tooltip** - Hovering over the "Blocklists" tab in the menu shows each list with its status (active / inactive) and last update date.
 
 ---
 
 ### Technical
 
-#### Frontend — `src/pages/Fail2banPage.tsx`
+#### Frontend - `src/pages/Fail2banPage.tsx`
 
 - `blocklistsStatus` state + `useEffect`: fetch `GET /api/plugins/fail2ban/blocklists/status` on mount to populate the navigation tooltip
 - `navTt.blocklists`: new entry `color: 'red'`, bodyNode with ● ○ per list, name, and duration since `lastUpdate` (format "Xh Ym ago" or "Never")
@@ -887,13 +887,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > The change summary is now displayed in the administration update panel.
 
-- **Update panel (Administration → General)** — The "Update available" section now shows the change summary (extracted from CHANGELOG) above the docker command, just like the dashboard banner.
+- **Update panel (Administration → General)** - The "Update available" section now shows the change summary (extracted from CHANGELOG) above the docker command, just like the dashboard banner.
 
 ---
 
 ### Technical
 
-#### Frontend — `src/pages/SettingsPage.tsx`
+#### Frontend - `src/pages/SettingsPage.tsx`
 
 - "Update available" block: added `{updateInfo.releaseNotes && <p>…</p>}` between the version title and docker command (`line-clamp-3`, `whitespace-pre-wrap`)
 
@@ -905,23 +905,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > Fix for NPM MySQL configuration: the log path is now correctly saved and required, making Top Domains functional in MySQL mode.
 
-- **Top Domains MySQL** — The NPM domain top worked with SQLite but returned empty with MySQL. Cause: the log path (`/data/logs/`) was not saved during MySQL configuration. The config form now shows this field in MySQL mode and saves it correctly.
-- **NPM config panel** — The Integrations panel stayed yellow even after a complete MySQL configuration. It now turns green as soon as MySQL + log path are configured.
+- **Top Domains MySQL** - The NPM domain top worked with SQLite but returned empty with MySQL. Cause: the log path (`/data/logs/`) was not saved during MySQL configuration. The config form now shows this field in MySQL mode and saves it correctly.
+- **NPM config panel** - The Integrations panel stayed yellow even after a complete MySQL configuration. It now turns green as soon as MySQL + log path are configured.
 
 ---
 
 ### Technical
 
-#### Frontend — `src/pages/fail2ban/Fail2banPathConfig.tsx`
+#### Frontend - `src/pages/fail2ban/Fail2banPathConfig.tsx`
 
 - `saveNpmConfig()`: `npmDataPath` always included in saved settings (SQLite and MySQL mode)
 - `onNpmDataPathChange` called in both modes (was only called in SQLite)
 - Load effect: restores `s.npmDataPath` from API settings in MySQL mode
 - MySQL section: added "NPM log path" field to enter the NPM root folder (`logs/` required for Top Domains)
 
-#### Frontend — `src/pages/fail2ban/TabConfig.tsx`
+#### Frontend - `src/pages/fail2ban/TabConfig.tsx`
 
-- `npmMysqlOk`: extended condition — now requires `s.npmDataPath` in addition to MySQL credentials (green badge only if config is complete)
+- `npmMysqlOk`: extended condition - now requires `s.npmDataPath` in addition to MySQL credentials (green badge only if config is complete)
 - Integrations card `borderColor`: `(npmDataPath || npmMysqlOk)` instead of `npmDataPath` alone
 
 ---
@@ -932,14 +932,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > New Blocklists tab in Fail2ban: enable malicious IPv4 lists (~100k IPs) in one click. The update banner now shows the change summary.
 
-- **IP Blocklists (Fail2ban → Firewall → Blocklists)** — New tab to enable/disable Data-Shield lists: malicious IPv4 addresses updated every 6h. Two sources available: Prod (web apps, WordPress, Nginx) and Critical (DMZ, APIs). Each enabled list injects IPs into a dedicated ipset with an iptables DROP rule on incoming traffic.
-- **Enriched update banner** — The new version notification now shows a change summary extracted from CHANGELOG.md, in addition to the version number.
+- **IP Blocklists (Fail2ban → Firewall → Blocklists)** - New tab to enable/disable Data-Shield lists: malicious IPv4 addresses updated every 6h. Two sources available: Prod (web apps, WordPress, Nginx) and Critical (DMZ, APIs). Each enabled list injects IPs into a dedicated ipset with an iptables DROP rule on incoming traffic.
+- **Enriched update banner** - The new version notification now shows a change summary extracted from CHANGELOG.md, in addition to the version number.
 
 ---
 
 ### Technical
 
-#### Backend — `server/plugins/fail2ban/BlocklistService.ts` (new)
+#### Backend - `server/plugins/fail2ban/BlocklistService.ts` (new)
 
 - Download from jsDelivr CDN with 30s timeout, redirect following, 50 MB limit
 - Atomic ipset swap via `ipset restore` + `ipset swap` (no protection interruption)
@@ -948,22 +948,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Status persisted in `data/blocklist-status.json` with crash recovery on startup
 - Auto-refresh every 6h for enabled lists via `setInterval`
 
-#### Backend — `server/plugins/fail2ban/Fail2banPlugin.ts`
+#### Backend - `server/plugins/fail2ban/Fail2banPlugin.ts`
 
 - `BlocklistService` instantiated at plugin init
 - New routes: `GET /blocklists/status`, `POST /blocklists/refresh`, `POST /blocklists/toggle`
 
-#### Backend — `server/routes/updates.ts`
+#### Backend - `server/routes/updates.ts`
 
 - Added `getReleaseNotesFromChangelog(version)`: parses local `CHANGELOG.md`, extracts the `## [x.y.z]` section, strips technical subsections (`####`), truncates to 400 chars
 - Fallback called in all 4 version fetch methods when GitHub Releases API returns empty or 404
 
-#### Frontend — `src/pages/fail2ban/TabBlocklists.tsx` (new)
+#### Frontend - `src/pages/fail2ban/TabBlocklists.tsx` (new)
 
 - Per-list cards: Active/Inactive toggle, Refresh button, IP counter, last update date, per-list error display
 - Inline styles, design system palette (security red `#e86a65`, count purple `#bc8cff`)
 
-#### Frontend — `src/pages/Fail2banPage.tsx` + `types.ts` + i18n
+#### Frontend - `src/pages/Fail2banPage.tsx` + `types.ts` + i18n
 
 - New `blocklists` tab in the Firewall group (after NFTables)
 - `TabId` extended, i18n key `fail2ban.tabs.blocklists` added in `en.json` and `fr.json`
@@ -974,7 +974,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fix
 
-- **Top Domains — critical fix**: NPM domains were never displayed (always empty) because the Stats tab was not calling the dedicated `/tops/domains` route. The route has existed since v0.8.3 but the frontend fetch was missing. Now `/tops/domains` is called in parallel with the main fetch (phase 3) and the result is merged into the tab data.
+- **Top Domains - critical fix**: NPM domains were never displayed (always empty) because the Stats tab was not calling the dedicated `/tops/domains` route. The route has existed since v0.8.3 but the frontend fetch was missing. Now `/tops/domains` is called in parallel with the main fetch (phase 3) and the result is merged into the tab data.
 
 ---
 
@@ -982,7 +982,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fix
 
-- **Update banner** — Removed the "Docker image ready" text and `docker compose` command from the new version notification. The banner now only shows the version number and release notes summary.
+- **Update banner** - Removed the "Docker image ready" text and `docker compose` command from the new version notification. The banner now only shows the version number and release notes summary.
 
 ---
 
@@ -992,27 +992,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > Enriched dashboard: full fail2ban tooltip, type badges, full paths, GoAccess branding removed.
 
-- **Fail2ban tooltip** — The fail2ban icon tooltip in the header now shows: bans since midnight, bans yesterday, unique IPs today, currently blocked IPs, all-time total, and active jails. Each section is clearly labelled.
-- **Fail2ban badge** — The red badge shows today's bans (since midnight), consistent with the fail2ban page header.
-- **Large files table** — Full path displayed (no more truncation). Type shown as a colored badge: access (green), error (red), syslog (blue), auth (orange), system (cyan), kernel (purple).
-- **GoAccess branding removed** — The Stats page and its tooltips no longer reference GoAccess; the text now describes statistics generated from web server logs.
+- **Fail2ban tooltip** - The fail2ban icon tooltip in the header now shows: bans since midnight, bans yesterday, unique IPs today, currently blocked IPs, all-time total, and active jails. Each section is clearly labelled.
+- **Fail2ban badge** - The red badge shows today's bans (since midnight), consistent with the fail2ban page header.
+- **Large files table** - Full path displayed (no more truncation). Type shown as a colored badge: access (green), error (red), syslog (blue), auth (orange), system (cyan), kernel (purple).
+- **GoAccess branding removed** - The Stats page and its tooltips no longer reference GoAccess; the text now describes statistics generated from web server logs.
 
 ---
 
 ### Technical
 
-#### Frontend — `src/components/layout/Header.tsx`
+#### Frontend - `src/components/layout/Header.tsx`
 
-- **`fetchF2bSummary`** — Third `Promise.all` fetch added: `/api/plugins/fail2ban/history?days=2` to extract yesterday's ban count.
-- **`f2bSummary`** — Extended state: `bansYesterday: number | null`, `totalAllTimeBans: number` (sum of `totalBannedSqlite` per jail), removed `expiredLast24h` (unused in tooltip).
-- **Tooltip bodyNode** — Reorganized into three sections (`Today` / `Global` / `Jails — active bans`) with uppercase muted headers.
+- **`fetchF2bSummary`** - Third `Promise.all` fetch added: `/api/plugins/fail2ban/history?days=2` to extract yesterday's ban count.
+- **`f2bSummary`** - Extended state: `bansYesterday: number | null`, `totalAllTimeBans: number` (sum of `totalBannedSqlite` per jail), removed `expiredLast24h` (unused in tooltip).
+- **Tooltip bodyNode** - Reorganized into three sections (`Today` / `Global` / `Jails - active bans`) with uppercase muted headers.
 
-#### Frontend — `src/components/widgets/LargestFilesCard.tsx`
+#### Frontend - `src/components/widgets/LargestFilesCard.tsx`
 
-- **Path column** — `truncate max-w-[280px]` → `break-all`: full path always visible.
-- **`TypeBadge`** — New component + `TYPE_STYLE` map: inline colored badge by log type.
+- **Path column** - `truncate max-w-[280px]` → `break-all`: full path always visible.
+- **`TypeBadge`** - New component + `TYPE_STYLE` map: inline colored badge by log type.
 
-#### Frontend — `src/locales/en.json` + `src/locales/fr.json`
+#### Frontend - `src/locales/en.json` + `src/locales/fr.json`
 
 - Removed "GoAccess" from `goaccessStats.subtitle` and `footer.goaccessStatsTooltip` keys.
 
@@ -1024,64 +1024,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > Statistics performance, enriched tooltips, live fail2ban badge, and NPM MySQL fixes.
 
-- **Statistics — instant period filters** — Changing the period (1d / 7d / 30d…) now shows charts in ~150ms (fast phase) then tables in ~400ms (full phase), instead of waiting 1–10s. Previous data stays visible during reload.
-- **Adaptive cache** — Long periods (30d, 90d) are cached for 10min server-side and frontend; recent data (1d) stays at 30s. A second click on the same period within 2 minutes is instant.
-- **Period prewarm** — After loading a period, other periods are silently preloaded in the background.
-- **Fail2ban badge** — The fail2ban icon in the header shows a red badge with the number of currently banned IPs, updated automatically.
-- **Fail2ban tooltip** — Hovering the fail2ban icon shows live stats: banned IPs, expired bans (24h), top jails.
-- **Enriched tooltips** — All header and footer tooltips have been rewritten in the fail2ban style: colored title, icons, structured descriptions.
-- **Footer — screen-edge icons** — On large screens, icons are now pinned to the left and right edges.
-- **Footer — badges without background** — The size/files badges in the center of the footer no longer have a colored background (border only).
-- **Update notification** — The new version banner now shows the GitHub release notes summary.
-- **NPM MySQL — clear message** — If NPM is configured in MySQL mode but `npmDataPath` (log path) is missing, an explicit message is shown instead of a silent empty result.
+- **Statistics - instant period filters** - Changing the period (1d / 7d / 30d…) now shows charts in ~150ms (fast phase) then tables in ~400ms (full phase), instead of waiting 1–10s. Previous data stays visible during reload.
+- **Adaptive cache** - Long periods (30d, 90d) are cached for 10min server-side and frontend; recent data (1d) stays at 30s. A second click on the same period within 2 minutes is instant.
+- **Period prewarm** - After loading a period, other periods are silently preloaded in the background.
+- **Fail2ban badge** - The fail2ban icon in the header shows a red badge with the number of currently banned IPs, updated automatically.
+- **Fail2ban tooltip** - Hovering the fail2ban icon shows live stats: banned IPs, expired bans (24h), top jails.
+- **Enriched tooltips** - All header and footer tooltips have been rewritten in the fail2ban style: colored title, icons, structured descriptions.
+- **Footer - screen-edge icons** - On large screens, icons are now pinned to the left and right edges.
+- **Footer - badges without background** - The size/files badges in the center of the footer no longer have a colored background (border only).
+- **Update notification** - The new version banner now shows the GitHub release notes summary.
+- **NPM MySQL - clear message** - If NPM is configured in MySQL mode but `npmDataPath` (log path) is missing, an explicit message is shown instead of a silent empty result.
 
 ---
 
 ### Technique
 
-#### Backend — `server/plugins/fail2ban/Fail2banPlugin.ts`
+#### Backend - `server/plugins/fail2ban/Fail2banPlugin.ts`
 
-- **SQLite composite index** — `idx_f2b_events_type_time ON f2b_events(event_type, timeofban)` added: eliminates full-table-scans on all `/tops` queries (×3 to ×5 speedup).
-- **`_adaptiveTtl(days)`** — New method: 30s for ≤2d, 2min for ≤7d, 10min for ≥30d. Applied on `/tops`, `/history`, `/ipset/info`, `/ipset/history`.
-- **`/tops?phase=fast`** — New parameter: returns only `summary` + `heatmaps` (~6 queries, ~150ms) by skipping slow topIps/topJails/topRecidivists queries. Separate cache key `tops:fast:{days}`.
-- **`/tops/domains`** — NPM scan extracted from `/tops` into a dedicated route. Cache STORE_LIMIT=100, sliced in response only.
-- **`/ipset/info` and `/ipset/history`** — TTL cache added (60s and adaptive).
-- **NPM MySQL + npmDataPath** — `/tops/domains` returns an explicit `warning` if MySQL is configured without `npmDataPath`.
+- **SQLite composite index** - `idx_f2b_events_type_time ON f2b_events(event_type, timeofban)` added: eliminates full-table-scans on all `/tops` queries (×3 to ×5 speedup).
+- **`_adaptiveTtl(days)`** - New method: 30s for ≤2d, 2min for ≤7d, 10min for ≥30d. Applied on `/tops`, `/history`, `/ipset/info`, `/ipset/history`.
+- **`/tops?phase=fast`** - New parameter: returns only `summary` + `heatmaps` (~6 queries, ~150ms) by skipping slow topIps/topJails/topRecidivists queries. Separate cache key `tops:fast:{days}`.
+- **`/tops/domains`** - NPM scan extracted from `/tops` into a dedicated route. Cache STORE_LIMIT=100, sliced in response only.
+- **`/ipset/info` and `/ipset/history`** - TTL cache added (60s and adaptive).
+- **NPM MySQL + npmDataPath** - `/tops/domains` returns an explicit `warning` if MySQL is configured without `npmDataPath`.
 
-#### Backend — `server/routes/updates.ts`
+#### Backend - `server/routes/updates.ts`
 
-- **Release notes** — `/api/updates/check` now fetches the body of the matching GitHub Release and returns it in `releaseNotes` (max 400 chars).
+- **Release notes** - `/api/updates/check` now fetches the body of the matching GitHub Release and returns it in `releaseNotes` (max 400 chars).
 
-#### Frontend — `src/pages/fail2ban/TabStats.tsx`
+#### Frontend - `src/pages/fail2ban/TabStats.tsx`
 
-- **`getCacheTtl(days)`** — Replaces the fixed `CACHE_TTL = 60_000`. Adaptive TTL aligned with backend.
-- **Stale data UX** — On period change, previous data stays displayed with an "updating" badge instead of a blank spinner.
-- **Progressive loading** — `fetchTops` fires `phase=fast` then `phase=full` with the same `AbortController`. Fast phase enriches partial state, full phase completes it.
-- **Prewarm** — `useEffect` triggers a silent prefetch of adjacent periods 2s after full load, with stored AbortControllers for cleanup.
-- **`topsRefreshing` + elapsed badge** — New state + `useElapsed` hook to display "updated Xs ago".
+- **`getCacheTtl(days)`** - Replaces the fixed `CACHE_TTL = 60_000`. Adaptive TTL aligned with backend.
+- **Stale data UX** - On period change, previous data stays displayed with an "updating" badge instead of a blank spinner.
+- **Progressive loading** - `fetchTops` fires `phase=fast` then `phase=full` with the same `AbortController`. Fast phase enriches partial state, full phase completes it.
+- **Prewarm** - `useEffect` triggers a silent prefetch of adjacent periods 2s after full load, with stored AbortControllers for cleanup.
+- **`topsRefreshing` + elapsed badge** - New state + `useElapsed` hook to display "updated Xs ago".
 
-#### Frontend — `src/components/layout/Header.tsx`
+#### Frontend - `src/components/layout/Header.tsx`
 
-- **Fail2ban icon** — Added to the plugin icons area (dashboard/analytics).
-- **Enlarged icons** — `w-4 h-4` → `w-6 h-6`, reduced padding.
-- **Logo** — `w-6 h-6` → `w-8 h-8`.
-- **Live badge** — Red dot top-right on the fail2ban icon with `currentlyBanned`. Fetched on mount, 30s cache.
-- **Fail2ban tooltip** — Live stats: banned IPs, 24h expired, top jails breakdown.
-- **Plugin tooltips** — Replace native `title=` with rich `<Tooltip>`.
+- **Fail2ban icon** - Added to the plugin icons area (dashboard/analytics).
+- **Enlarged icons** - `w-4 h-4` → `w-6 h-6`, reduced padding.
+- **Logo** - `w-6 h-6` → `w-8 h-8`.
+- **Live badge** - Red dot top-right on the fail2ban icon with `currentlyBanned`. Fetched on mount, 30s cache.
+- **Fail2ban tooltip** - Live stats: banned IPs, 24h expired, top jails breakdown.
+- **Plugin tooltips** - Replace native `title=` with rich `<Tooltip>`.
 
-#### Frontend — `src/components/layout/Footer.tsx`
+#### Frontend - `src/components/layout/Footer.tsx`
 
-- **Screen edge** — `max-w-[1920px] mx-auto` removed, `w-full` used.
-- **Badges without background** — `bg-*/10` removed from the 3 stats badges.
-- **Enriched tooltips** — Title + structured bodyNode on files, size, gz, timer (adaptive timer green/orange/red).
+- **Screen edge** - `max-w-[1920px] mx-auto` removed, `w-full` used.
+- **Badges without background** - `bg-*/10` removed from the 3 stats badges.
+- **Enriched tooltips** - Title + structured bodyNode on files, size, gz, timer (adaptive timer green/orange/red).
 
-#### Frontend — `src/components/ui/Tooltip.tsx`
+#### Frontend - `src/components/ui/Tooltip.tsx`
 
-- **Full rewrite** — F2bTooltip style: `#161b22` background, colored left accent border, accent title, `pre-wrap` body, arrow portal. Props: `title?`, `content?`, `bodyNode?`, `color?`, `width?`.
+- **Full rewrite** - F2bTooltip style: `#161b22` background, colored left accent border, accent title, `pre-wrap` body, arrow portal. Props: `title?`, `content?`, `bodyNode?`, `color?`, `width?`.
 
-#### Frontend — `src/stores/updateStore.ts`
+#### Frontend - `src/stores/updateStore.ts`
 
-- **`releaseNotes?`** — Field added to `UpdateInfo`.
+- **`releaseNotes?`** - Field added to `UpdateInfo`.
 
 ---
 
@@ -1091,8 +1091,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > Fix for period filter freeze in the Statistics tab, and new "Retry" button when fail2ban is unreachable.
 
-- **Period filters — no more freeze** — Changing the period (1d / 7d / 30d…) in the Statistics tab could freeze the page on instances with many jails or a large history. Data would stop refreshing even after multiple clicks. Fixed.
-- **Socket banner — "Retry" button** — When the "Source unavailable — fail2ban daemon not responding" banner appears (socket inaccessible after a fail2ban restart), a **Retry** button appears on the right. One click immediately re-runs the check after fixing permissions (`sudo chmod 660 /var/run/fail2ban/fail2ban.sock`), with no page reload.
+- **Period filters - no more freeze** - Changing the period (1d / 7d / 30d…) in the Statistics tab could freeze the page on instances with many jails or a large history. Data would stop refreshing even after multiple clicks. Fixed.
+- **Socket banner - "Retry" button** - When the "Source unavailable - fail2ban daemon not responding" banner appears (socket inaccessible after a fail2ban restart), a **Retry** button appears on the right. One click immediately re-runs the check after fixing permissions (`sudo chmod 660 /var/run/fail2ban/fail2ban.sock`), with no page reload.
 
 ---
 
@@ -1100,24 +1100,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### Bug context (for future debugging)
 
-The period filter freeze was caused by an accumulation of concurrent requests without cancellation. Each period change triggered ~6 simultaneous API requests (`/status`, `/history`, `/tops`, `/ipset/history`, `/tops?compare=1`, `/tops/prev`). The browser limits HTTP/1.1 connections to 6 per origin — beyond that, new requests are queued. Server calls use `fail2ban-client` with a 10s timeout: on a loaded instance (many jails, large SQLite), each request can take several seconds. By changing the period 2-3 times quickly, 12-18 requests accumulate and the queue stays blocked for 30s+.
+The period filter freeze was caused by an accumulation of concurrent requests without cancellation. Each period change triggered ~6 simultaneous API requests (`/status`, `/history`, `/tops`, `/ipset/history`, `/tops?compare=1`, `/tops/prev`). The browser limits HTTP/1.1 connections to 6 per origin - beyond that, new requests are queued. Server calls use `fail2ban-client` with a 10s timeout: on a loaded instance (many jails, large SQLite), each request can take several seconds. By changing the period 2-3 times quickly, 12-18 requests accumulate and the queue stays blocked for 30s+.
 
 The bug existed from the start but only manifested when the data volume / number of jails exceeded a threshold. The other Docker instance "that worked" simply had less load.
 
-#### Frontend — `src/pages/Fail2banPage.tsx`
+#### Frontend - `src/pages/Fail2banPage.tsx`
 
-- **`fetchStatusAbortRef`** — New `useRef<AbortController | null>(null)` added after `hasBootstrappedRef`. Cancels any previous wave at the start of each `fetchStatus()` call.
-- **`fetchStatus` — AbortController** — `fetchStatusAbortRef.current?.abort()` + new `AbortController ac` created at function start. Signal passed to both `api.get()` calls: `/status?days=X` and `/history?days=X` via `{ signal: ac.signal }`.
-- **`fetchStatus` — guard in `waveDone`** — `if (ac.signal.aborted) return;` added as first line of `waveDone()`. Prevents a cancelled wave from calling `setRefreshBusy(false)` and resetting `hasBootstrappedRef` / `lastRefreshed` while a new wave is in progress.
-- **"Source unavailable" banner — Retry button** — `<button onClick={fetchStatus}>Retry</button>` added to the right of the error text. Orange inline style consistent with the banner (`border: rgba(227,179,65,.4)`, `background: rgba(227,179,65,.12)`). `flex: 1` added to the text `<div>` to push the button to the right.
+- **`fetchStatusAbortRef`** - New `useRef<AbortController | null>(null)` added after `hasBootstrappedRef`. Cancels any previous wave at the start of each `fetchStatus()` call.
+- **`fetchStatus` - AbortController** - `fetchStatusAbortRef.current?.abort()` + new `AbortController ac` created at function start. Signal passed to both `api.get()` calls: `/status?days=X` and `/history?days=X` via `{ signal: ac.signal }`.
+- **`fetchStatus` - guard in `waveDone`** - `if (ac.signal.aborted) return;` added as first line of `waveDone()`. Prevents a cancelled wave from calling `setRefreshBusy(false)` and resetting `hasBootstrappedRef` / `lastRefreshed` while a new wave is in progress.
+- **"Source unavailable" banner - Retry button** - `<button onClick={fetchStatus}>Retry</button>` added to the right of the error text. Orange inline style consistent with the banner (`border: rgba(227,179,65,.4)`, `background: rgba(227,179,65,.12)`). `flex: 1` added to the text `<div>` to push the button to the right.
 
-#### Frontend — `src/pages/fail2ban/TabStats.tsx`
+#### Frontend - `src/pages/fail2ban/TabStats.tsx`
 
-- **`HistChart` extracted to module level** — Was defined as a component inside `IpSetsSection`, forcing React to unmount/remount it on every parent render (losing `hiddenLines` + `svgW` state, ResizeObserver needlessly recreated). Moved before `IpSetsSection` at module level. `IpSetHist` type alias introduced for `hist` type. Signature: `React.FC<{ hist: IpSetHist; days: number; onDaysChange: (d: number) => void }>`. Call site updated: `<HistChart hist={hist} days={days} onDaysChange={onDaysChange} />`. `hiddenLines` and `svgW` state now persistent across parent re-renders.
-- **`topsAbortRef`** — New `useRef<AbortController | null>(null)` in `TabStats`. Cancels the previous `/tops` request at the start of each `fetchTops()`.
-- **`fetchTops` — AbortController** — `topsAbortRef.current?.abort()` + new `AbortController ac`. Signal passed to `api.get('/tops?...')`. Guards added: `if (ac.signal.aborted) return;` in `.then()` and `.finally()` to prevent state updates on cancelled requests (setTopsData, setTopsLoading, dispatchTabLoaded).
-- **`useEffect([days, fetchTops])` — cleanup** — `return () => { clearInterval(id); topsAbortRef.current?.abort(); }` — abort added to cleanup to cancel in-flight requests when component unmounts or `days` changes.
-- **`IpSetsSection` — history effect AbortController** — `useEffect([days])` fetching `/ipset/history?days=X` had no cleanup. Replaced with a local `AbortController ac`: signal passed to `api.get()`, `!ac.signal.aborted` guard in `.then()`, `return () => ac.abort()` as cleanup. `IpSetHist` type used for `getCached<IpSetHist>`.
+- **`HistChart` extracted to module level** - Was defined as a component inside `IpSetsSection`, forcing React to unmount/remount it on every parent render (losing `hiddenLines` + `svgW` state, ResizeObserver needlessly recreated). Moved before `IpSetsSection` at module level. `IpSetHist` type alias introduced for `hist` type. Signature: `React.FC<{ hist: IpSetHist; days: number; onDaysChange: (d: number) => void }>`. Call site updated: `<HistChart hist={hist} days={days} onDaysChange={onDaysChange} />`. `hiddenLines` and `svgW` state now persistent across parent re-renders.
+- **`topsAbortRef`** - New `useRef<AbortController | null>(null)` in `TabStats`. Cancels the previous `/tops` request at the start of each `fetchTops()`.
+- **`fetchTops` - AbortController** - `topsAbortRef.current?.abort()` + new `AbortController ac`. Signal passed to `api.get('/tops?...')`. Guards added: `if (ac.signal.aborted) return;` in `.then()` and `.finally()` to prevent state updates on cancelled requests (setTopsData, setTopsLoading, dispatchTabLoaded).
+- **`useEffect([days, fetchTops])` - cleanup** - `return () => { clearInterval(id); topsAbortRef.current?.abort(); }` - abort added to cleanup to cancel in-flight requests when component unmounts or `days` changes.
+- **`IpSetsSection` - history effect AbortController** - `useEffect([days])` fetching `/ipset/history?days=X` had no cleanup. Replaced with a local `AbortController ac`: signal passed to `api.get()`, `!ac.signal.aborted` guard in `.then()`, `return () => ac.abort()` as cleanup. `IpSetHist` type used for `getCached<IpSetHist>`.
 
 ---
 
@@ -1127,8 +1127,8 @@ The bug existed from the start but only manifested when the data volume / number
 
 > The Fail2ban button moves to the plugins area at the bottom right of the footer, with text and colored icon. Load time now also appears when navigating to the dashboard.
 
-- **Footer — Fail2ban button** — Moved from the left navigation bar to the right plugins area. Shows the Fail2ban icon + "Fail2ban" text, with a red color when the tab is active — consistent with other plugin buttons.
-- **Load time** — The time badge was not shown when navigating to the dashboard via the header logo. Fixed.
+- **Footer - Fail2ban button** - Moved from the left navigation bar to the right plugins area. Shows the Fail2ban icon + "Fail2ban" text, with a red color when the tab is active - consistent with other plugin buttons.
+- **Load time** - The time badge was not shown when navigating to the dashboard via the header logo. Fixed.
 
 ---
 
@@ -1136,15 +1136,15 @@ The bug existed from the start but only manifested when the data volume / number
 
 #### Frontend
 
-- **`Footer.tsx`** — Fail2ban button removed from the left navigation area and added to the right plugins section (`enabledLogPlugins`); active color red (`text-red-400 / bg-red-500/15`); removed unused `Shield` import.
-- **`App.tsx`** — `handleHomeClick` and the log-viewer inline `onHomeClick` now call `handlePageChange('dashboard')` instead of `setCurrentPage` directly, which activates the `timedNavRef` timer and triggers the `tab-loaded` dispatch.
+- **`Footer.tsx`** - Fail2ban button removed from the left navigation area and added to the right plugins section (`enabledLogPlugins`); active color red (`text-red-400 / bg-red-500/15`); removed unused `Shield` import.
+- **`App.tsx`** - `handleHomeClick` and the log-viewer inline `onHomeClick` now call `handlePageChange('dashboard')` instead of `setCurrentPage` directly, which activates the `timedNavRef` timer and triggers the `tab-loaded` dispatch.
 
 ---
 
 ## [0.7.7] - 2026-03-29
 
 ### Fixed
-- **bantime / findtime validation**: regex now accepts all fail2ban time suffixes — `w`/`week`/`weeks`, `mo`/`month`/`months`, `y`/`yr`/`year`/`years` — values like `6months` or `1y` no longer trigger a false validation error
+- **bantime / findtime validation**: regex now accepts all fail2ban time suffixes - `w`/`week`/`weeks`, `mo`/`month`/`months`, `y`/`yr`/`year`/`years` - values like `6months` or `1y` no longer trigger a false validation error
 - **Config file viewer**: `jail.local` is now the default tab when opening the file editor (was `fail2ban.conf`)
 
 ---
@@ -1152,40 +1152,40 @@ The bug existed from the start but only manifested when the data volume / number
 ## [0.7.6] - 2026-03-29
 
 ### Fixed
-- **`parseJailIniFile` — multi-line values**: continuation lines (indented with whitespace) were silently dropped; the parser now detects them before trimming and appends them to the previous key's value — `ignoreip` with 20+ IPs spread across multiple lines is now fully read
-- **Syntax highlighter — continuation lines**: indented value lines in `fail2ban.conf` / `jail.local` were rendered as plain gray; they are now coloured green like regular values
+- **`parseJailIniFile` - multi-line values**: continuation lines (indented with whitespace) were silently dropped; the parser now detects them before trimming and appends them to the previous key's value - `ignoreip` with 20+ IPs spread across multiple lines is now fully read
+- **Syntax highlighter - continuation lines**: indented value lines in `fail2ban.conf` / `jail.local` were rendered as plain gray; they are now coloured green like regular values
 
 ---
 
 ## [0.7.5] - 2026-03-29
 
 ### Added
-- **Telegram webhook — bot verification**: new "Vérifier" button calls `POST /api/notifications/telegram/verify` (Telegram `getMe`) and displays the bot username inline; token and Chat ID are now validated client-side before save
-- **Discord webhook — URL validation**: URL must match `https://discord.com/api/webhooks/…` format; shown as inline field error
-- **Generic webhook — URL validation**: must start with `http://` or `https://`
-- **Webhook form — required field markers**: name field marked `*` required across all webhook types
-- **Fail2ban Config — Application section**: collapsible frame with green `✓ OK` badge when `dashboard.db` exists and fragmentation ≤ 20%; expanded by default
-- **Fail2ban Config — NPM integration badge**: green `✓ NPM SQLite` or `✓ NPM MySQL` badge in the Integrations card header when NPM is configured; auto-opens and shows warning when not configured
-- **NPM plugin — SQLite auto-detect**: "Détecter database.sqlite" button in PluginOptionsPanel probes `basePath/../database.sqlite` and neighbouring paths; shows green badge with resolved path on success
+- **Telegram webhook - bot verification**: new "Vérifier" button calls `POST /api/notifications/telegram/verify` (Telegram `getMe`) and displays the bot username inline; token and Chat ID are now validated client-side before save
+- **Discord webhook - URL validation**: URL must match `https://discord.com/api/webhooks/…` format; shown as inline field error
+- **Generic webhook - URL validation**: must start with `http://` or `https://`
+- **Webhook form - required field markers**: name field marked `*` required across all webhook types
+- **Fail2ban Config - Application section**: collapsible frame with green `✓ OK` badge when `dashboard.db` exists and fragmentation ≤ 20%; expanded by default
+- **Fail2ban Config - NPM integration badge**: green `✓ NPM SQLite` or `✓ NPM MySQL` badge in the Integrations card header when NPM is configured; auto-opens and shows warning when not configured
+- **NPM plugin - SQLite auto-detect**: "Détecter database.sqlite" button in PluginOptionsPanel probes `basePath/../database.sqlite` and neighbouring paths; shows green badge with resolved path on success
 - **`POST /api/plugins/npm/detect-db`**: new backend endpoint that resolves `database.sqlite` from a given `basePath` using three candidate paths
 - **`POST /api/notifications/telegram/verify`**: new backend endpoint proxying Telegram `getMe` to validate a bot token server-side
 
 ### Fixed
-- **JailConfigModal — ignoreip**: `addIgnoreip()` now validates IP/CIDR format before adding to whitelist; invalid entries show an error message instead of silently adding bad values
-- **TabJails — banIp** (×2 components): ban form validates IP/CIDR format before submit; button disabled and inline error shown for invalid input
-- **Fail2banPathConfig — MySQL save**: host, user, and db fields are required; port validated as integer 1–65535 before calling the API; port field border turns red for out-of-range values
-- **TabConfig — fmPurgeage**: changed from free-text to `type="number" min=0`; `persistDb()` blocks save if value is not a non-negative integer
-- **JailConfigModal — port**: `handleSave()` validates port field accepts only `22`, `http`, `80,443`, or `80:443` formats
-- **SettingsPage — publicUrl**: `handleSave()` validates URL starts with `http://` or `https://` before calling the API
-- **SettingsPage — username**: added forbidden-characters check (`[\w.\-]` only) on top of existing min-3 length check; input border turns red inline
+- **JailConfigModal - ignoreip**: `addIgnoreip()` now validates IP/CIDR format before adding to whitelist; invalid entries show an error message instead of silently adding bad values
+- **TabJails - banIp** (×2 components): ban form validates IP/CIDR format before submit; button disabled and inline error shown for invalid input
+- **Fail2banPathConfig - MySQL save**: host, user, and db fields are required; port validated as integer 1–65535 before calling the API; port field border turns red for out-of-range values
+- **TabConfig - fmPurgeage**: changed from free-text to `type="number" min=0`; `persistDb()` blocks save if value is not a non-negative integer
+- **JailConfigModal - port**: `handleSave()` validates port field accepts only `22`, `http`, `80,443`, or `80:443` formats
+- **SettingsPage - publicUrl**: `handleSave()` validates URL starts with `http://` or `https://` before calling the API
+- **SettingsPage - username**: added forbidden-characters check (`[\w.\-]` only) on top of existing min-3 length check; input border turns red inline
 
 ---
 
 ## [0.7.4] - 2026-03-29
 
 ### Added
-- **NPM — MySQL / MariaDB backend support**: Fail2ban top-domains stats now work when NPM runs with a MySQL/MariaDB database; configure via a new toggle (SQLite file / MySQL) in Fail2ban > Config tab with host, port, user, password, and database fields
-- **NPM integration — auto-check badge**: on page load the NPM integration frame automatically runs a connection check if a config is already saved; shows a green badge (domain count + source) or red error without requiring a manual click
+- **NPM - MySQL / MariaDB backend support**: Fail2ban top-domains stats now work when NPM runs with a MySQL/MariaDB database; configure via a new toggle (SQLite file / MySQL) in Fail2ban > Config tab with host, port, user, password, and database fields
+- **NPM integration - auto-check badge**: on page load the NPM integration frame automatically runs a connection check if a config is already saved; shows a green badge (domain count + source) or red error without requiring a manual click
 - **`getNpmDomainMap()` helper**: internal async helper in `Fail2banPlugin` that abstracts SQLite vs MySQL access for the `/check-npm` and `/tops` routes; MySQL mode uses `mysql2/promise` with a 5-second connect timeout
 
 ### Changed
@@ -1196,23 +1196,23 @@ The bug existed from the start but only manifested when the data volume / number
 ## [0.7.3] - 2026-03-29
 
 ### Added
-- **Plugins — test button per card**: each plugin card in Administration now has a visible `⚡ Test` button that calls the connection test and fires a toast notification (green = OK, red = error message)
-- **Plugins — activation guard**: enabling a plugin now runs `testConnection()` first; if the test fails, activation is blocked and a red toast explains why — no more silent broken activations
-- **Plugins — activation notifications**: every toggle (enable/disable) fires a toast via `notificationStore` with the result
-- **Plugins — toggle spinner**: the toggle button shows a spinner while the connection test + activation is in progress
-- **PluginOptionsPanel — save/test toasts**: saving or testing a plugin config from the options panel now also triggers a global `notificationStore` toast (in addition to the inline result)
+- **Plugins - test button per card**: each plugin card in Administration now has a visible `⚡ Test` button that calls the connection test and fires a toast notification (green = OK, red = error message)
+- **Plugins - activation guard**: enabling a plugin now runs `testConnection()` first; if the test fails, activation is blocked and a red toast explains why - no more silent broken activations
+- **Plugins - activation notifications**: every toggle (enable/disable) fires a toast via `notificationStore` with the result
+- **Plugins - toggle spinner**: the toggle button shows a spinner while the connection test + activation is in progress
+- **PluginOptionsPanel - save/test toasts**: saving or testing a plugin config from the options panel now also triggers a global `notificationStore` toast (in addition to the inline result)
 - **Webhook test in edit form**: when editing an existing webhook, a `✉ Envoyer un test` button appears in the form footer; result displayed inline + as a global toast
 - **Webhook test button in list**: the small invisible `RefreshCw` icon is replaced by a visible `⚡ Test` button with label
 - **Discord/Telegram SVG icons**: logos now appear in webhook type badges and add-buttons (`public/icons/services/telegram.svg`, `src/icons/telegram.svg`)
-- **Security > Protection — collapsible sections**: Attack Protection, Blocked IPs, and Active Features are collapsible frames (Active Features collapsed by default)
+- **Security > Protection - collapsible sections**: Attack Protection, Blocked IPs, and Active Features are collapsible frames (Active Features collapsed by default)
 - **host-system plugin enabled by default**: on first start (no DB config), the host-system log plugin is auto-enabled since system logs are always present
 
 ### Changed
-- **Fail2ban config split**: SQLite DB path is now only in Administration > Plugins (plugin options), NPM data path is only in Fail2ban > Config tab — no more duplication
-- **`Fail2banPathConfig`**: each section (SQLite / NPM) renders only when the corresponding callback is provided — clean separation of concerns
+- **Fail2ban config split**: SQLite DB path is now only in Administration > Plugins (plugin options), NPM data path is only in Fail2ban > Config tab - no more duplication
+- **`Fail2banPathConfig`**: each section (SQLite / NPM) renders only when the corresponding callback is provided - clean separation of concerns
 
 ### Fixed
-- **`Fail2banPlugin.testConnection()`**: was using `existsSync` (existence only) with OR logic — now tests socket with `R_OK|W_OK` permissions AND SQLite readability; both required; detailed warnings logged
+- **`Fail2banPlugin.testConnection()`**: was using `existsSync` (existence only) with OR logic - now tests socket with `R_OK|W_OK` permissions AND SQLite readability; both required; detailed warnings logged
 - **`NginxLogPlugin.testConnection()`**: empty catch block replaced with proper error logging (path + error code)
 - **`HostSystemLogPlugin.testConnection()`**: journald bypass (was returning `true` unconditionally when journald enabled) now actually checks journal directory accessibility
 - **`PluginsManagementSection`**: `!plugin.configured` guard now also fires a notification instead of only showing a temporary status badge
@@ -1222,32 +1222,32 @@ The bug existed from the start but only manifested when the data volume / number
 ## [0.7.2] - 2026-03-29
 
 ### Added
-- **Settings > Metrics — sub-tabs**: Prometheus, InfluxDB, and MQTT (Home Assistant) each have their own tab; MQTT is first
-- **Settings > Metrics — MQTT toggles**: all checkboxes replaced with modern slide toggles (teal theme); each tab has its own save button and unsaved-changes banner
-- **Settings > Notifications — sub-tabs**: split into "Notifications internes" and "Webhooks" tabs, each with a framed content area
-- **Settings > Notifications — Webhook event triggers**: per-webhook toggle to select which events trigger a dispatch (ban auto, tentative, action manuelle)
-- **Settings > Notifications — Webhook batching**: per-webhook batch window (0–60 min) and max-per-batch (1–50) configuration stored in `AppConfig`
-- **Webhook dispatch service** (`WebhookDispatchService`): singleton service that actually fires webhooks on ban/action events — Discord (rich embeds), Telegram (HTML), generic HTTP (JSON); supports immediate and cron-batched delivery
+- **Settings > Metrics - sub-tabs**: Prometheus, InfluxDB, and MQTT (Home Assistant) each have their own tab; MQTT is first
+- **Settings > Metrics - MQTT toggles**: all checkboxes replaced with modern slide toggles (teal theme); each tab has its own save button and unsaved-changes banner
+- **Settings > Notifications - sub-tabs**: split into "Notifications internes" and "Webhooks" tabs, each with a framed content area
+- **Settings > Notifications - Webhook event triggers**: per-webhook toggle to select which events trigger a dispatch (ban auto, tentative, action manuelle)
+- **Settings > Notifications - Webhook batching**: per-webhook batch window (0–60 min) and max-per-batch (1–50) configuration stored in `AppConfig`
+- **Webhook dispatch service** (`WebhookDispatchService`): singleton service that actually fires webhooks on ban/action events - Discord (rich embeds), Telegram (HTML), generic HTTP (JSON); supports immediate and cron-batched delivery
 - **Automatic ban webhooks**: `fail2banSyncService` dispatches a `ban` event for every new ban detected during non-initial sync
 - **Manual action webhooks**: Fail2ban ban/unban API routes dispatch an `action` event with username attribution
-- **Settings > Security — sub-tabs**: Protection, Utilisateurs, Réseau, Journaux; Auth settings moved to Utilisateurs; Network + CORS grouped under Réseau
-- **Settings > Security > Protection — collapsible sections**: Attack Protection, Blocked IPs, and Active Features are now collapsible frames (Active Features collapsed by default)
+- **Settings > Security - sub-tabs**: Protection, Utilisateurs, Réseau, Journaux; Auth settings moved to Utilisateurs; Network + CORS grouped under Réseau
+- **Settings > Security > Protection - collapsible sections**: Attack Protection, Blocked IPs, and Active Features are now collapsible frames (Active Features collapsed by default)
 - **Telegram SVG icon**: added to `public/icons/services/telegram.svg` and `src/icons/telegram.svg`; Discord and Telegram logos now appear in webhook type badges and add-buttons in the UI
 
 ### Changed
 - Webhook route (`server/routes/notifications.ts`) extended to persist `events`, `batchWindow`, `maxPerBatch` fields
-- Removed placeholder warning "Le déclenchement automatique sera actif dans une prochaine mise à jour" — webhook dispatch is now fully implemented
+- Removed placeholder warning "Le déclenchement automatique sera actif dans une prochaine mise à jour" - webhook dispatch is now fully implemented
 
 ---
 
 ## [0.7.1] - 2026-03-29
 
 ### Added
-- **Fail2ban > Backup — local snapshots**: config and DB snapshots stored in-app, auto-pruned (max 10 for config, max 5 for DB), with per-row download / restore / delete actions
-- **Fail2ban > Backup — per-row download**: IPTables and IPSet backup entries now have a download button to save files locally
-- **Fail2ban > Backup — DB export/import**: export only the 6 `f2b_*` tables as JSON; import with merge or replace mode
-- **Fail2ban > Config — integration panel**: button order fixed (Test before Save for both SQLite and NPM fields); Save buttons changed from red to blue
-- **Fail2ban > Backup — color unification**: backup/save actions = green, restore/import actions = orange, delete actions = red; section header badges keep distinct identity colors
+- **Fail2ban > Backup - local snapshots**: config and DB snapshots stored in-app, auto-pruned (max 10 for config, max 5 for DB), with per-row download / restore / delete actions
+- **Fail2ban > Backup - per-row download**: IPTables and IPSet backup entries now have a download button to save files locally
+- **Fail2ban > Backup - DB export/import**: export only the 6 `f2b_*` tables as JSON; import with merge or replace mode
+- **Fail2ban > Config - integration panel**: button order fixed (Test before Save for both SQLite and NPM fields); Save buttons changed from red to blue
+- **Fail2ban > Backup - color unification**: backup/save actions = green, restore/import actions = orange, delete actions = red; section header badges keep distinct identity colors
 
 ### Changed
 - `TabBackup` refactored into self-contained sub-components: `ConfigSnapshotPanel`, `ConfigRestorePanel`, `DbSnapshotPanel`, `DbImportPanel`, `IptBackupPanel`, `IpsetBackupPanel`
@@ -1258,14 +1258,14 @@ The bug existed from the start but only manifested when the data volume / number
 ## [0.6.9] - 2026-03-28
 
 ### Fixed
-- fix: replace `sudo bash <(curl ...)` with `curl ... | sudo bash` everywhere — process substitution fails when `/dev/fd` is unavailable (TabConfig UI, TabAudit UI, README.md, README.fr.md, docker-compose.yml, docker-compose.local.yml)
+- fix: replace `sudo bash <(curl ...)` with `curl ... | sudo bash` everywhere - process substitution fails when `/dev/fd` is unavailable (TabConfig UI, TabAudit UI, README.md, README.fr.md, docker-compose.yml, docker-compose.local.yml)
 
 ---
 
 ## [0.6.8] - 2026-03-28
 
 ### Docs
-- docs: fix VACUUM docker-compose example — short-form mount `- /var/lib/fail2ban:/host/var/lib/fail2ban` cannot override a `:ro` parent mount; correct syntax uses `type: bind` with `propagation: shared`
+- docs: fix VACUUM docker-compose example - short-form mount `- /var/lib/fail2ban:/host/var/lib/fail2ban` cannot override a `:ro` parent mount; correct syntax uses `type: bind` with `propagation: shared`
 - docs: update `docker-compose.yml`, `README.md`, `README.fr.md` with working VACUUM override and explanation
 
 ---
@@ -1273,21 +1273,21 @@ The bug existed from the start but only manifested when the data volume / number
 ## [0.6.7] - 2026-03-28
 
 ### Fixed
-- fix: `TypeError: ae.flatMap is not a function` on Fail2ban page in Docker — fallback SQLite path in `/status` route returned `jails` as a Record object instead of an array; changed to `Object.values(jailsMap)`
+- fix: `TypeError: ae.flatMap is not a function` on Fail2ban page in Docker - fallback SQLite path in `/status` route returned `jails` as a Record object instead of an array; changed to `Object.values(jailsMap)`
 
 ---
 
 ## [0.6.6] - 2026-03-28
 
 ### Fixed
-- fix: Fail2ban SQLite VACUUM fails in Docker when host filesystem is mounted `:ro` — backend now detects EROFS/SQLITE_READONLY and returns `dockerReadOnly: true`; UI shows the exact docker-compose volume override to enable VACUUM
+- fix: Fail2ban SQLite VACUUM fails in Docker when host filesystem is mounted `:ro` - backend now detects EROFS/SQLITE_READONLY and returns `dockerReadOnly: true`; UI shows the exact docker-compose volume override to enable VACUUM
 
 ### Improved
 - style: unify input field appearance across all Fail2ban tabs (`#161b22` background + 3-layer inset shadow + `borderBottom: #555`)
 - style: convert Fail2banPathConfig.tsx from Tailwind classes to inline styles matching the PHP-palette design system
 
 ### Docs
-- docs: document `:ro` vs VACUUM trade-off in `docker-compose.yml`, `README.md`, and `README.fr.md` — add commented-out rw override line for enabling VACUUM
+- docs: document `:ro` vs VACUUM trade-off in `docker-compose.yml`, `README.md`, and `README.fr.md` - add commented-out rw override line for enabling VACUUM
 
 ---
 
@@ -1295,7 +1295,7 @@ The bug existed from the start but only manifested when the data volume / number
 
 ### Performance
 - perf: add TTL route cache to Fail2banPlugin for slow endpoints (/status 8s, /history 30s, /tops 30s, /bans-today 5s, /config/parsed 60s)
-- perf: /tops always computes 100 items (STORE_LIMIT) regardless of `limit` param — deduplicates concurrent TabStats (limit=100) and BanHistoryChart (limit=1) requests via shared cache key
+- perf: /tops always computes 100 items (STORE_LIMIT) regardless of `limit` param - deduplicates concurrent TabStats (limit=100) and BanHistoryChart (limit=1) requests via shared cache key
 - perf: delay initial checkConfigWarnings() call by 4s so /config/parsed (~6s) does not compete with /status+/history during first-load wave
 
 ---
@@ -1304,35 +1304,35 @@ The bug existed from the start but only manifested when the data volume / number
 
 ### Added
 
-- **README.fr.md** — French mirror of the main README; link added at the top of `README.md`
-- **i18n: `common` namespace** — shared keys for loading, saving, error, close, cancel, hide, refresh, save, edit, delete and their variants; used across all pages
-- **i18n: `header` namespace** — all Header.tsx button titles, page titles, live/auto-refresh labels, update badge
-- **i18n: `logViewer.types` namespace** — log file type labels (auth, daemon, access, error, syslog, subdomain…) now translated instead of hardcoded
-- **i18n: `permissions` namespace** — Freebox permission labels and error messages
-- **i18n: `fail2ban` namespace** — 150+ strings across 11 files now fully translated (tabs, status, actions, labels, tooltips, placeholders, errors, periods, attack categories, time-ago, views, config, jails, tracker, map, backup, stats)
+- **README.fr.md** - French mirror of the main README; link added at the top of `README.md`
+- **i18n: `common` namespace** - shared keys for loading, saving, error, close, cancel, hide, refresh, save, edit, delete and their variants; used across all pages
+- **i18n: `header` namespace** - all Header.tsx button titles, page titles, live/auto-refresh labels, update badge
+- **i18n: `logViewer.types` namespace** - log file type labels (auth, daemon, access, error, syslog, subdomain…) now translated instead of hardcoded
+- **i18n: `permissions` namespace** - Freebox permission labels and error messages
+- **i18n: `fail2ban` namespace** - 150+ strings across 11 files now fully translated (tabs, status, actions, labels, tooltips, placeholders, errors, periods, attack categories, time-ago, views, config, jails, tracker, map, backup, stats)
 
 ### Changed
 
-- **README.md** — fully translated to English (was French/English mix); French version moved to `README.md.fr`
-- **CHANGELOG.md** — all French-language entries translated to English
-- **`Header.tsx`** — 20+ hardcoded French strings replaced with `t()` calls; `useTranslation` added
-- **`LogFileSelector.tsx`** — static `TYPE_LABELS` constant replaced with dynamic `t('logViewer.types.*')` calls
-- **`permissions.ts`** — `PERMISSION_LABELS` replaced with i18n key lookups; `getPermissionErrorMessage` and `getPermissionShortError` now accept `TFunction` parameter
-- **`PermissionBanner.tsx`** — uses `useTranslation`; hardcoded French string replaced
-- **`SettingsPage.tsx`** — error/loading messages in 4 sub-components replaced with `common.errors.*` keys
-- **`LogViewerPage.tsx`** — loading and error strings replaced with `common.*` keys
-- **Fail2ban — `Fail2banPage.tsx`** — tab labels, time-ago strings, period labels migrated to i18n
-- **Fail2ban — `TabJails.tsx`** — filter placeholders, view toggles, status labels, tooltips migrated
-- **Fail2ban — `TabStats.tsx`** — stat card labels, section titles, loading states migrated
-- **Fail2ban — `TabBackup.tsx`** — backup/import/export labels and error messages migrated
-- **Fail2ban — `TabConfig.tsx`** — config labels, error messages migrated
-- **Fail2ban — `TabMap.tsx`** — map loading, country filter labels migrated
-- **Fail2ban — `IpModal.tsx`** — attack categories, geo labels, table headers migrated
-- **Fail2ban — `TabTracker.tsx`** — DNS mode, geo, column headers migrated
-- **Fail2ban — `TabBanManager.tsx`** — placeholders and error messages migrated
-- **Fail2ban — `TabIPTables.tsx`** — chain/rule labels migrated
-- **Fail2ban — `JailConfigModal.tsx`** — error and loading strings migrated
-- **Fail2ban — `helpers.tsx`** — `StatusDot` status strings migrated
+- **README.md** - fully translated to English (was French/English mix); French version moved to `README.md.fr`
+- **CHANGELOG.md** - all French-language entries translated to English
+- **`Header.tsx`** - 20+ hardcoded French strings replaced with `t()` calls; `useTranslation` added
+- **`LogFileSelector.tsx`** - static `TYPE_LABELS` constant replaced with dynamic `t('logViewer.types.*')` calls
+- **`permissions.ts`** - `PERMISSION_LABELS` replaced with i18n key lookups; `getPermissionErrorMessage` and `getPermissionShortError` now accept `TFunction` parameter
+- **`PermissionBanner.tsx`** - uses `useTranslation`; hardcoded French string replaced
+- **`SettingsPage.tsx`** - error/loading messages in 4 sub-components replaced with `common.errors.*` keys
+- **`LogViewerPage.tsx`** - loading and error strings replaced with `common.*` keys
+- **Fail2ban - `Fail2banPage.tsx`** - tab labels, time-ago strings, period labels migrated to i18n
+- **Fail2ban - `TabJails.tsx`** - filter placeholders, view toggles, status labels, tooltips migrated
+- **Fail2ban - `TabStats.tsx`** - stat card labels, section titles, loading states migrated
+- **Fail2ban - `TabBackup.tsx`** - backup/import/export labels and error messages migrated
+- **Fail2ban - `TabConfig.tsx`** - config labels, error messages migrated
+- **Fail2ban - `TabMap.tsx`** - map loading, country filter labels migrated
+- **Fail2ban - `IpModal.tsx`** - attack categories, geo labels, table headers migrated
+- **Fail2ban - `TabTracker.tsx`** - DNS mode, geo, column headers migrated
+- **Fail2ban - `TabBanManager.tsx`** - placeholders and error messages migrated
+- **Fail2ban - `TabIPTables.tsx`** - chain/rule labels migrated
+- **Fail2ban - `JailConfigModal.tsx`** - error and loading strings migrated
+- **Fail2ban - `helpers.tsx`** - `StatusDot` status strings migrated
 
 ---
 
@@ -1340,7 +1340,7 @@ The bug existed from the start but only manifested when the data volume / number
 
 ### Fixed
 
-- **IP modal log display** — filter out `/api/plugins/fail2ban/` lines from log entries (self-generated API calls were appearing as duplicates); log file sections with no remaining lines are hidden; line count badge reflects filtered count
+- **IP modal log display** - filter out `/api/plugins/fail2ban/` lines from log entries (self-generated API calls were appearing as duplicates); log file sections with no remaining lines are hidden; line count badge reflects filtered count
 
 ---
 
@@ -1348,7 +1348,7 @@ The bug existed from the start but only manifested when the data volume / number
 
 ### Fixed
 
-- **CI: upgrade GitHub Actions to Node.js 24** — updated all actions to latest versions (`actions/checkout@v6`, `docker/*@v4`/`v6`/`v7`) to eliminate Node.js 20 deprecation warnings before the June 2026 forced migration
+- **CI: upgrade GitHub Actions to Node.js 24** - updated all actions to latest versions (`actions/checkout@v6`, `docker/*@v4`/`v6`/`v7`) to eliminate Node.js 20 deprecation warnings before the June 2026 forced migration
 
 ---
 
@@ -1356,9 +1356,9 @@ The bug existed from the start but only manifested when the data volume / number
 
 ### Fixed
 
-- **Docker build warnings** — suppressed deprecated transitive dependency warnings (`rimraf@3`, `glob@7`, `npmlog`) during `npm ci`; these come from `bcrypt` → `@mapbox/node-pre-gyp` build tools only, not runtime
-- **CI: Docker Hub login** — added Docker Hub authentication before QEMU/buildx setup to avoid anonymous pull rate limits on GitHub Actions runners
-- **Firewall tabs: `no-new-privileges` incompatibility** — `security_opt: no-new-privileges:true` prevents `sudo` from running, breaking `iptables-save`/`ipset list`/`nft`; commented out in firewall mode with clear explanation in all compose files and README
+- **Docker build warnings** - suppressed deprecated transitive dependency warnings (`rimraf@3`, `glob@7`, `npmlog`) during `npm ci`; these come from `bcrypt` → `@mapbox/node-pre-gyp` build tools only, not runtime
+- **CI: Docker Hub login** - added Docker Hub authentication before QEMU/buildx setup to avoid anonymous pull rate limits on GitHub Actions runners
+- **Firewall tabs: `no-new-privileges` incompatibility** - `security_opt: no-new-privileges:true` prevents `sudo` from running, breaking `iptables-save`/`ipset list`/`nft`; commented out in firewall mode with clear explanation in all compose files and README
 
 ---
 
@@ -1366,21 +1366,21 @@ The bug existed from the start but only manifested when the data volume / number
 
 ### Fixed
 
-- **Firewall tabs (IPTables / IPSet / NFTables) now work correctly in Docker** — `network_mode: host` is required (not just `cap_add: NET_ADMIN`) to share the host network namespace; without it the container saw its own empty namespace instead of the host rules
-- **`security_opt: no-new-privileges:true` incompatible with firewall tabs** — this flag prevents `sudo` from elevating privileges, breaking `iptables-save`, `ipset list`, and `nft` commands; must be removed when using firewall tabs
-- **JWT tokens invalidated on container restart** — JWT secret is now persisted in the SQLite `app_config` table on first start; subsequent restarts reuse the same secret instead of generating a new one
-- **WebSocket endpoints unauthenticated** — `/ws/log-viewer` and `/ws/logs` now require a valid JWT token passed as `?token=` query parameter; connections without a valid token are rejected with code 4401
-- **CORS misconfigured in production** — default changed from `true` (all origins) to `false` (same-origin only); set `CORS_ORIGIN` env var to allow a specific origin if needed
-- **Path traversal in log viewer** — user-supplied `basePath` values containing `..` are now rejected
-- **Path traversal in config import** — uploaded file paths are validated against the allowed config directory using `path.resolve()`
-- **Public endpoints unprotected** — `/api/users/check` (20 req/min) and `/api/users/register` (5 req/min) are now rate-limited per IP
+- **Firewall tabs (IPTables / IPSet / NFTables) now work correctly in Docker** - `network_mode: host` is required (not just `cap_add: NET_ADMIN`) to share the host network namespace; without it the container saw its own empty namespace instead of the host rules
+- **`security_opt: no-new-privileges:true` incompatible with firewall tabs** - this flag prevents `sudo` from elevating privileges, breaking `iptables-save`, `ipset list`, and `nft` commands; must be removed when using firewall tabs
+- **JWT tokens invalidated on container restart** - JWT secret is now persisted in the SQLite `app_config` table on first start; subsequent restarts reuse the same secret instead of generating a new one
+- **WebSocket endpoints unauthenticated** - `/ws/log-viewer` and `/ws/logs` now require a valid JWT token passed as `?token=` query parameter; connections without a valid token are rejected with code 4401
+- **CORS misconfigured in production** - default changed from `true` (all origins) to `false` (same-origin only); set `CORS_ORIGIN` env var to allow a specific origin if needed
+- **Path traversal in log viewer** - user-supplied `basePath` values containing `..` are now rejected
+- **Path traversal in config import** - uploaded file paths are validated against the allowed config directory using `path.resolve()`
+- **Public endpoints unprotected** - `/api/users/check` (20 req/min) and `/api/users/register` (5 req/min) are now rate-limited per IP
 
 ### Changed
 
-- **`docker-compose.yml`** — clarified MODE A (bridge, default) vs MODE B (host network, firewall tabs) with inline examples; documented `PORT` vs `DASHBOARD_PORT` distinction; added reverse proxy examples (NPM, Nginx, Caddy, Traefik)
-- **`docker-compose.test.yml`** — `security_opt: no-new-privileges` commented out (incompatible with firewall tabs in host network mode)
-- **README** — firewall tabs section updated with all three incompatibilities (`ports:`, `no-new-privileges`, port change workflow); reverse proxy configuration examples added
-- **Security headers** — added `X-Content-Type-Options`, `X-Frame-Options: DENY`, `X-XSS-Protection`, `Referrer-Policy`, `Permissions-Policy`; removed `X-Powered-By`
+- **`docker-compose.yml`** - clarified MODE A (bridge, default) vs MODE B (host network, firewall tabs) with inline examples; documented `PORT` vs `DASHBOARD_PORT` distinction; added reverse proxy examples (NPM, Nginx, Caddy, Traefik)
+- **`docker-compose.test.yml`** - `security_opt: no-new-privileges` commented out (incompatible with firewall tabs in host network mode)
+- **README** - firewall tabs section updated with all three incompatibilities (`ports:`, `no-new-privileges`, port change workflow); reverse proxy configuration examples added
+- **Security headers** - added `X-Content-Type-Options`, `X-Frame-Options: DENY`, `X-XSS-Protection`, `Referrer-Policy`, `Permissions-Policy`; removed `X-Powered-By`
 
 ---
 
@@ -1390,32 +1390,32 @@ The bug existed from the start but only manifested when the data volume / number
 
 > Real-time 24h chart, functional Domain column, and automatic refresh of Fail2ban events.
 
-- **Rolling 24h chart** — The chart no longer shows fixed 24-hour slots (00h–23h) but always displays the **last 24 hours** from now, with data points every 30 minutes. The X axis shows exact times (e.g. `14:00`, `15:00`…) and updates continuously.
-- **Domain column in Events** — The "Domain" column of the Events table (Jails tab) now displays the domain name of the attacked site for jails linked to Nginx Proxy Manager. Resolution uses the NPM database directly — more reliable than config files that may not exist.
-- **Automatically refreshed events** — The Fail2ban events table reloads every 30 seconds in the background (paused when the tab is hidden).
-- **Fixed double scrollbar** — The Jails page sometimes displayed two simultaneous scrollbars; this is now fixed.
+- **Rolling 24h chart** - The chart no longer shows fixed 24-hour slots (00h–23h) but always displays the **last 24 hours** from now, with data points every 30 minutes. The X axis shows exact times (e.g. `14:00`, `15:00`…) and updates continuously.
+- **Domain column in Events** - The "Domain" column of the Events table (Jails tab) now displays the domain name of the attacked site for jails linked to Nginx Proxy Manager. Resolution uses the NPM database directly - more reliable than config files that may not exist.
+- **Automatically refreshed events** - The Fail2ban events table reloads every 30 seconds in the background (paused when the tab is hidden).
+- **Fixed double scrollbar** - The Jails page sometimes displayed two simultaneous scrollbars; this is now fixed.
 
 ---
 
 ### Technical
 
-#### Backend — Fail2ban
+#### Backend - Fail2ban
 
-- **`Fail2banPlugin.ts`** — Strategy 3 domain replaced: reads `<npm_base>/database.sqlite` (`proxy_host.domain_names`) via `better-sqlite3` in read-only mode, instead of nginx `.conf` files that may not exist for deleted hosts. `better-sqlite3` import added. `_debug_domains` field removed from `/audit` response.
-- **`Fail2banSqliteReader.ts`** — `SLOT_SECS = 1800` (30 min). For `days=1`, `since` aligned to the 30-min boundary (`Math.floor(rawSince / 1800) * 1800`), slots indexed by `CAST((timeofban - since) / 1800 AS INTEGER)`, labels `HH:MM`. `slotBase` returned in response for frontend synchronization.
+- **`Fail2banPlugin.ts`** - Strategy 3 domain replaced: reads `<npm_base>/database.sqlite` (`proxy_host.domain_names`) via `better-sqlite3` in read-only mode, instead of nginx `.conf` files that may not exist for deleted hosts. `better-sqlite3` import added. `_debug_domains` field removed from `/audit` response.
+- **`Fail2banSqliteReader.ts`** - `SLOT_SECS = 1800` (30 min). For `days=1`, `since` aligned to the 30-min boundary (`Math.floor(rawSince / 1800) * 1800`), slots indexed by `CAST((timeofban - since) / 1800 AS INTEGER)`, labels `HH:MM`. `slotBase` returned in response for frontend synchronization.
 
-#### Frontend — Fail2ban
+#### Frontend - Fail2ban
 
-- **`BanHistoryChart.tsx`** — `buildHourlySlots()` replaced by `buildRollingSlots(history, slotBase)`: 48 slots of 30 min from `slotBase` to now, recalculated in real time via a 5s ticker. X labels displayed only on `:00` slots (one label per hour). Vertical "now" line removed.
-- **`Fail2banPage.tsx`** — `slotBase` state added, fed from `fetchStatus`, passed to `BanHistoryChart`.
-- **`TabJails.tsx`** — `AuditEnrichment._debug_domains` removed; debug panel removed. `fetchAudit` re-polls every 30s with `document.hidden` guard. Domain resolution via `enrichment.jail_domains[b.jail]`.
+- **`BanHistoryChart.tsx`** - `buildHourlySlots()` replaced by `buildRollingSlots(history, slotBase)`: 48 slots of 30 min from `slotBase` to now, recalculated in real time via a 5s ticker. X labels displayed only on `:00` slots (one label per hour). Vertical "now" line removed.
+- **`Fail2banPage.tsx`** - `slotBase` state added, fed from `fetchStatus`, passed to `BanHistoryChart`.
+- **`TabJails.tsx`** - `AuditEnrichment._debug_domains` removed; debug panel removed. `fetchAudit` re-polls every 30s with `document.hidden` guard. Domain resolution via `enrichment.jail_domains[b.jail]`.
 
-#### Frontend — Global
+#### Frontend - Global
 
-- **`App.tsx`** — `wrapWithBackground(content, fullscreen=true)`: `h-screen overflow-hidden` variant without `pb-20` for the Fail2ban page → removes the double scrollbar.
-- **`TabAudit.tsx`** — Simplified: the Events/Logs sub-tab switcher removed; the Audit tab now only shows `TabJailsFiles` (Events have their own nav entry).
-- **`TabBanManager.tsx`** — `FileBtn` component (styled file button hiding the native `<input type="file">`); responsive grid `minmax(min(100%,420px),1fr)`.
-- **`TabConfig.tsx`** — `local_exists` field in `GlobalConfig`; extended DB stats (`bans`, `jails`, `logs`); `resetting` state for the maintenance button.
+- **`App.tsx`** - `wrapWithBackground(content, fullscreen=true)`: `h-screen overflow-hidden` variant without `pb-20` for the Fail2ban page → removes the double scrollbar.
+- **`TabAudit.tsx`** - Simplified: the Events/Logs sub-tab switcher removed; the Audit tab now only shows `TabJailsFiles` (Events have their own nav entry).
+- **`TabBanManager.tsx`** - `FileBtn` component (styled file button hiding the native `<input type="file">`); responsive grid `minmax(min(100%,420px),1fr)`.
+- **`TabConfig.tsx`** - `local_exists` field in `GlobalConfig`; extended DB stats (`bans`, `jails`, `logs`); `resetting` state for the maintenance button.
 
 ---
 
@@ -1425,45 +1425,45 @@ The bug existed from the start but only manifested when the data volume / number
 
 > Refined Fail2ban interface: more compact header, 24h chart by hour, bantime and map fixes.
 
-- **More compact header** — The main navigation bar is slimmer; the Clock and User badges take up less space to leave more room for content.
-- **Wider Fail2ban menu** — The left sidebar of the Fail2ban plugin is slightly wider to display tooltips in full; the collapse arrow is always positioned on the right.
-- **Centered ban notifications** — Ban alerts now appear at the top center of the screen, clearly visible without obstructing navigation.
-- **24h chart: axis by hour** — In "24h" filter mode, the X axis displays all 24 hours (00h–23h) to see precisely what time bans occurred. Other periods automatically adapt the number of labels (7d → 7 labels, 1yr → ~13 labels…).
-- **Fixed chart legend** — Clicking a jail name in the legend now actually hides its curve/bar and recalculates the Y scale accordingly.
-- **Colored bantime** — The Bantime column in the Jails tab displays a color based on duration: green (< 1h), blue (1h–24h), orange (1d–30d), red (≥ 30d or permanent).
-- **Exact bantime for all jails** — Jails whose ban duration was not present in config files (e.g. `recidive`, `apache-shellshock`) now retrieve the actual value via the Fail2ban socket.
-- **Regex sections collapsed by default** — The two regex management sections in Settings are now closed on load to lighten the page; a badge shows the number of configured regexes.
-- **Map: crash on first load fixed** — The Leaflet map no longer crashes on first display in development mode (Leaflet/MarkerCluster race condition resolved).
+- **More compact header** - The main navigation bar is slimmer; the Clock and User badges take up less space to leave more room for content.
+- **Wider Fail2ban menu** - The left sidebar of the Fail2ban plugin is slightly wider to display tooltips in full; the collapse arrow is always positioned on the right.
+- **Centered ban notifications** - Ban alerts now appear at the top center of the screen, clearly visible without obstructing navigation.
+- **24h chart: axis by hour** - In "24h" filter mode, the X axis displays all 24 hours (00h–23h) to see precisely what time bans occurred. Other periods automatically adapt the number of labels (7d → 7 labels, 1yr → ~13 labels…).
+- **Fixed chart legend** - Clicking a jail name in the legend now actually hides its curve/bar and recalculates the Y scale accordingly.
+- **Colored bantime** - The Bantime column in the Jails tab displays a color based on duration: green (< 1h), blue (1h–24h), orange (1d–30d), red (≥ 30d or permanent).
+- **Exact bantime for all jails** - Jails whose ban duration was not present in config files (e.g. `recidive`, `apache-shellshock`) now retrieve the actual value via the Fail2ban socket.
+- **Regex sections collapsed by default** - The two regex management sections in Settings are now closed on load to lighten the page; a badge shows the number of configured regexes.
+- **Map: crash on first load fixed** - The Leaflet map no longer crashes on first display in development mode (Leaflet/MarkerCluster race condition resolved).
 
 ---
 
 ### Technical
 
-#### Frontend — Fail2ban
+#### Frontend - Fail2ban
 
-- **`BanHistoryChart.tsx`** — `isHourly` prop passed to `BarChart`/`LineChart` sub-components; `effectiveMax` recalculated from visible jails only (legend fix); `labelCountForDays()` adapts label count by period; `buildHourlySlots()` generates 24 slots "00"–"23" for `days=1`.
-- **`Fail2banPage.tsx`** — `granularity` state passed to `BanHistoryChart`; ban toasts recentered (`position:fixed, top:5rem, left:50%, transform:translateX(-50%)`); sidebar widened to 220px; `›`/`‹` button always aligned to the right.
-- **`TabJails.tsx`** — Colored bantime badge: `bantime < 0 || >= 2592000` → red, `>= 86400` → orange, `>= 3600` → blue, otherwise green.
-- **`TabMap.tsx`** — `loadScript()` fixed for React Strict Mode: if the `<script>` is already in the DOM, waits for the `load` event (via `_loaded` flag) instead of resolving immediately → fixes `L.markerClusterGroup is not a function`.
+- **`BanHistoryChart.tsx`** - `isHourly` prop passed to `BarChart`/`LineChart` sub-components; `effectiveMax` recalculated from visible jails only (legend fix); `labelCountForDays()` adapts label count by period; `buildHourlySlots()` generates 24 slots "00"–"23" for `days=1`.
+- **`Fail2banPage.tsx`** - `granularity` state passed to `BanHistoryChart`; ban toasts recentered (`position:fixed, top:5rem, left:50%, transform:translateX(-50%)`); sidebar widened to 220px; `›`/`‹` button always aligned to the right.
+- **`TabJails.tsx`** - Colored bantime badge: `bantime < 0 || >= 2592000` → red, `>= 86400` → orange, `>= 3600` → blue, otherwise green.
+- **`TabMap.tsx`** - `loadScript()` fixed for React Strict Mode: if the `<script>` is already in the DOM, waits for the `load` event (via `_loaded` flag) instead of resolving immediately → fixes `L.markerClusterGroup is not a function`.
 
-#### Backend — Fail2ban
+#### Backend - Fail2ban
 
-- **`Fail2banPlugin.ts`** — `parseNum()`: regex `^(-?\d+...)` handles negative bantimes (`-1` = permanent) and the `w` unit (weeks); for jails whose `bantime/findtime/maxretry` is absent from config files, `getJailParam()` is called as fallback via the socket.
-- **`Fail2banClientExec.ts`** — New method `getJailParam(jail, param)`: executes `fail2ban-client get <jail> <param>` and parses the returned numeric value.
-- **`Fail2banSqliteReader.ts`** — `getBanHistoryByJail()` and `getBanHistory()`: when `days=1`, SQL query uses `strftime('%H', timeofban, 'unixepoch')` for hourly grouping; returns `granularity: 'hour' | 'day'`.
+- **`Fail2banPlugin.ts`** - `parseNum()`: regex `^(-?\d+...)` handles negative bantimes (`-1` = permanent) and the `w` unit (weeks); for jails whose `bantime/findtime/maxretry` is absent from config files, `getJailParam()` is called as fallback via the socket.
+- **`Fail2banClientExec.ts`** - New method `getJailParam(jail, param)`: executes `fail2ban-client get <jail> <param>` and parses the returned numeric value.
+- **`Fail2banSqliteReader.ts`** - `getBanHistoryByJail()` and `getBanHistory()`: when `days=1`, SQL query uses `strftime('%H', timeofban, 'unixepoch')` for hourly grouping; returns `granularity: 'hour' | 'day'`.
 
-#### Frontend — Global
+#### Frontend - Global
 
-- **`Header.tsx`** — Reduced padding (`p-4` → `px-4 py-2`), logo `w-8 h-8` → `w-6 h-6`, plugin icons `w-5 h-5` → `w-4 h-4`.
-- **`Clock.tsx`** — Container `px-4 py-2` → `px-2.5 py-1.5`, LED dot `w-2 h-2` → `w-1.5 h-1.5`, time text `text-sm` → `text-xs`.
-- **`UserMenu.tsx`** — Button `px-3 py-2` → `px-2 py-1.5`, avatar `w-10 h-10` → `w-6 h-6`.
-- **`SettingsSection.tsx`** — `collapsible`, `defaultCollapsed`, `badge` props added to `<Section>` with chevron animation.
-- **`RegexManagementSection.tsx`** — Both sections (`customTitle`, `generatorTitle`) pass `collapsible defaultCollapsed`; counter badge on the custom section.
-- **`SettingsPage.tsx`** — Removed redundant `<Section>` wrapper around `<RegexManagementSection />`.
+- **`Header.tsx`** - Reduced padding (`p-4` → `px-4 py-2`), logo `w-8 h-8` → `w-6 h-6`, plugin icons `w-5 h-5` → `w-4 h-4`.
+- **`Clock.tsx`** - Container `px-4 py-2` → `px-2.5 py-1.5`, LED dot `w-2 h-2` → `w-1.5 h-1.5`, time text `text-sm` → `text-xs`.
+- **`UserMenu.tsx`** - Button `px-3 py-2` → `px-2 py-1.5`, avatar `w-10 h-10` → `w-6 h-6`.
+- **`SettingsSection.tsx`** - `collapsible`, `defaultCollapsed`, `badge` props added to `<Section>` with chevron animation.
+- **`RegexManagementSection.tsx`** - Both sections (`customTitle`, `generatorTitle`) pass `collapsible defaultCollapsed`; counter badge on the custom section.
+- **`SettingsPage.tsx`** - Removed redundant `<Section>` wrapper around `<RegexManagementSection />`.
 
 #### Documentation
 
-- **`README.md`** — Simplified: quick install section at the top, Fail2ban section with a single curl command, cleaned env table.
+- **`README.md`** - Simplified: quick install section at the top, Fail2ban section with a single curl command, cleaned env table.
 
 ---
 
@@ -1473,20 +1473,20 @@ The bug existed from the start but only manifested when the data volume / number
 
 > The Fail2ban plugin now works automatically in Docker, without manual group configuration.
 
-- **Automatic Fail2ban socket access** — The container now detects Fail2ban socket permissions at startup and adapts automatically. No longer need to configure `FAIL2BAN_GID` in the `.env` file: the plugin activates as soon as `setup-fail2ban-access.sh` has been run once on the host.
+- **Automatic Fail2ban socket access** - The container now detects Fail2ban socket permissions at startup and adapts automatically. No longer need to configure `FAIL2BAN_GID` in the `.env` file: the plugin activates as soon as `setup-fail2ban-access.sh` has been run once on the host.
 
 ---
 
 ### Technical
 
-#### Docker — `docker-entrypoint.sh`
+#### Docker - `docker-entrypoint.sh`
 
-- **Dynamic GID detection** — Replaces the old static `chmod 660`. On each container start: `stat -c "%g"` reads the real GID of the socket, creates the corresponding group in Alpine (`addgroup -g $SOCK_GID fail2ban`), then adds `node` to that group. Works regardless of the GID used on the host, without any environment variable.
-- **Explicit log message** — If `gid=0` (socket still `root:root`), displays a message pointing to `setup-fail2ban-access.sh`.
+- **Dynamic GID detection** - Replaces the old static `chmod 660`. On each container start: `stat -c "%g"` reads the real GID of the socket, creates the corresponding group in Alpine (`addgroup -g $SOCK_GID fail2ban`), then adds `node` to that group. Works regardless of the GID used on the host, without any environment variable.
+- **Explicit log message** - If `gid=0` (socket still `root:root`), displays a message pointing to `setup-fail2ban-access.sh`.
 
-#### Docker — `docker-compose.yml`
+#### Docker - `docker-compose.yml`
 
-- **Removal of `FAIL2BAN_GID` from `group_add`** — This `group_add` mechanism was inoperative because the `fail2ban` group does not exist in the base Alpine image (Docker silently ignores GIDs absent from `/etc/group`). The entry has been removed; the entrypoint now handles everything dynamically.
+- **Removal of `FAIL2BAN_GID` from `group_add`** - This `group_add` mechanism was inoperative because the `fail2ban` group does not exist in the base Alpine image (Docker silently ignores GIDs absent from `/etc/group`). The entry has been removed; the entrypoint now handles everything dynamically.
 
 ---
 
@@ -1496,30 +1496,30 @@ The bug existed from the start but only manifested when the data volume / number
 
 > Fail2ban plugin configuration check: clearer diagnostics and accurate status indicators.
 
-- **Fail2ban check panel** — All status indicators (socket, daemon, SQLite, drop-in) now reflect the real state correctly. The daemon was previously shown as red even when Fail2ban was running — this is fixed.
-- **Fix instructions hidden when OK** — The "See how to fix" button is now hidden for checks that pass. Only failed checks show repair instructions.
-- **Paths displayed in full** — File paths (socket, SQLite database) are now shown on their own line, never truncated.
-- **README** — Added Fail2ban plugin documentation section.
+- **Fail2ban check panel** - All status indicators (socket, daemon, SQLite, drop-in) now reflect the real state correctly. The daemon was previously shown as red even when Fail2ban was running - this is fixed.
+- **Fix instructions hidden when OK** - The "See how to fix" button is now hidden for checks that pass. Only failed checks show repair instructions.
+- **Paths displayed in full** - File paths (socket, SQLite database) are now shown on their own line, never truncated.
+- **README** - Added Fail2ban plugin documentation section.
 
 ---
 
 ### Technical
 
-#### Backend — `server/plugins/fail2ban/Fail2banPlugin.ts`
+#### Backend - `server/plugins/fail2ban/Fail2banPlugin.ts`
 
 - **Daemon check**: was using `this.client?.ping()` which is only initialized when the plugin is already enabled → always null/false before first enable. Now creates a temporary `new Fail2banClientExec()` instance so the check works before the plugin is enabled.
 - **Socket fix message**: updated to recommend `chmod 666` (instead of 660) to ensure Docker container access regardless of group. Includes drop-in file path and corrected content.
-- **Drop-in fix**: removed the spurious `fix` message that appeared when `dropin.ok=true` but socket was inaccessible — that case now only appears in `socket.fix`.
+- **Drop-in fix**: removed the spurious `fix` message that appeared when `dropin.ok=true` but socket was inaccessible - that case now only appears in `socket.fix`.
 - **SQLite path in response**: now returns `rawDbPath` (user-facing path, e.g. `/var/lib/fail2ban/fail2ban.sqlite3`) instead of the Docker-resolved internal path (`/host/var/lib/...`).
-- **Daemon fix message**: now shows a clear "cannot check — socket inaccessible" message instead of silently returning red with no explanation.
+- **Daemon fix message**: now shows a clear "cannot check - socket inaccessible" message instead of silently returning red with no explanation.
 
-#### Frontend — `src/components/PluginOptionsPanel.tsx`
+#### Frontend - `src/components/PluginOptionsPanel.tsx`
 
 - **"Voir comment corriger" hidden when `c.ok=true`**: changed `{hasFix && ...}` to `{hasFix && !c.ok && ...}`.
 - **Path display**: moved from inline truncated `max-w-[200px]` to a dedicated sub-line with `break-all` so full paths are always visible.
 - **Hardcoded helper text**: fixed `/host/var/lib/fail2ban/fail2ban.sqlite3` → `/var/lib/fail2ban/fail2ban.sqlite3`.
 
-#### Documentation — `README.md`
+#### Documentation - `README.md`
 
 - Added Fail2ban plugin entry in the Plugins section (features, tabs, requirements, configuration).
 
@@ -1531,32 +1531,32 @@ The bug existed from the start but only manifested when the data volume / number
 
 > Automatic update notifications and configurable default page on login.
 
-- **Automatic update check** — LogviewR can now check whether a new version is available and notify you directly in the UI. A dismissable banner appears at the top of the screen when an update is ready (Docker image built on GHCR), with the exact command to run. Check frequency and enable/disable are configurable in Administration → General.
-- **Configurable default page** — Choose which page opens after login: dashboard, log viewer, or the Fail2ban page with a specific tab pre-selected.
-- **Reminder — Fail2ban plugin** *(available since v0.4.0)* — If you run a server with Fail2ban, the dedicated plugin provides full monitoring: active jails, banned IPs, ban history, attack map, IP tracker, statistics, and ban management. Enable it in Administration → Plugins.
+- **Automatic update check** - LogviewR can now check whether a new version is available and notify you directly in the UI. A dismissable banner appears at the top of the screen when an update is ready (Docker image built on GHCR), with the exact command to run. Check frequency and enable/disable are configurable in Administration → General.
+- **Configurable default page** - Choose which page opens after login: dashboard, log viewer, or the Fail2ban page with a specific tab pre-selected.
+- **Reminder - Fail2ban plugin** *(available since v0.4.0)* - If you run a server with Fail2ban, the dedicated plugin provides full monitoring: active jails, banned IPs, ban history, attack map, IP tracker, statistics, and ban management. Enable it in Administration → Plugins.
 
 ---
 
 ### Technical
 
-#### Administration — Update checker
+#### Administration - Update checker
 
-- **`server/routes/updates.ts`** — New version check module: primary method via GitHub Tags API, Docker image availability verified on GHCR (anonymous Bearer token + HEAD manifest check) before reporting an update; `dockerReady: boolean` field separate from `updateAvailable`.
-- **`src/stores/updateStore.ts`** — Zustand store: `checkForUpdates`, `loadConfig`, `setConfig(enabled, frequency)`; `UpdateInfo` interface with `dockerReady` field.
-- **`src/pages/SettingsPage.tsx` — `UpdateCheckSection`** — Enable toggle + frequency selector (1h/6h/12h/24h/7d); current version / latest version / GHCR build status display; conditional `docker compose pull && docker compose up -d` command block.
-- **`src/App.tsx`** — Sticky dismissable banner (amber) shown only when `updateAvailable && dockerReady`; dismissal persisted per version in `localStorage['logviewr-dismissed-version']`; periodic polling based on configured frequency.
+- **`server/routes/updates.ts`** - New version check module: primary method via GitHub Tags API, Docker image availability verified on GHCR (anonymous Bearer token + HEAD manifest check) before reporting an update; `dockerReady: boolean` field separate from `updateAvailable`.
+- **`src/stores/updateStore.ts`** - Zustand store: `checkForUpdates`, `loadConfig`, `setConfig(enabled, frequency)`; `UpdateInfo` interface with `dockerReady` field.
+- **`src/pages/SettingsPage.tsx` - `UpdateCheckSection`** - Enable toggle + frequency selector (1h/6h/12h/24h/7d); current version / latest version / GHCR build status display; conditional `docker compose pull && docker compose up -d` command block.
+- **`src/App.tsx`** - Sticky dismissable banner (amber) shown only when `updateAvailable && dockerReady`; dismissal persisted per version in `localStorage['logviewr-dismissed-version']`; periodic polling based on configured frequency.
 
-#### Administration — General tab
+#### Administration - General tab
 
-- **Default page** — Added `fail2ban` as a startup page option with tab selector (12 tabs), conditioned on plugin being enabled.
-- **`server/routes/system.ts`** — Bug fix: `defaultPage`, `defaultPluginId`, `defaultLogFile` were never written in `PUT /api/system/general` (silent bug since initial implementation). Added `defaultFail2banTab`. Validation against `VALID_PAGES = ['dashboard', 'log-viewer', 'fail2ban']`.
-- **`src/App.tsx`** — Effective navigation to configured default page on login (fetch `GET /api/system/general` in `useEffect([isUserAuthenticated])`).
-- **DefaultPageSection flicker fix** — General tab no longer unmounts its content on tab switch (`display:none` instead of `&&`); module-level cache for fetched values; inline save indicator (12px spinner in title) with no layout shift.
+- **Default page** - Added `fail2ban` as a startup page option with tab selector (12 tabs), conditioned on plugin being enabled.
+- **`server/routes/system.ts`** - Bug fix: `defaultPage`, `defaultPluginId`, `defaultLogFile` were never written in `PUT /api/system/general` (silent bug since initial implementation). Added `defaultFail2banTab`. Validation against `VALID_PAGES = ['dashboard', 'log-viewer', 'fail2ban']`.
+- **`src/App.tsx`** - Effective navigation to configured default page on login (fetch `GET /api/system/general` in `useEffect([isUserAuthenticated])`).
+- **DefaultPageSection flicker fix** - General tab no longer unmounts its content on tab switch (`display:none` instead of `&&`); module-level cache for fetched values; inline save indicator (12px spinner in title) with no layout shift.
 
-#### Administration — UI
+#### Administration - UI
 
-- **Notifications tab → Webhooks** — Renamed in `en.json` and `fr.json`.
-- **Exporter — Removed "Log overview stats" card** — Stats block (files, .gz, active plugins, errors) removed from Exporter tab; related state and `useEffect` removed from `ExporterSection.tsx`.
+- **Notifications tab → Webhooks** - Renamed in `en.json` and `fr.json`.
+- **Exporter - Removed "Log overview stats" card** - Stats block (files, .gz, active plugins, errors) removed from Exporter tab; related state and `useEffect` removed from `ExporterSection.tsx`.
 
 #### Server log cleanup
 
@@ -1569,25 +1569,25 @@ The bug existed from the start but only manifested when the data volume / number
 
 ### Fixed
 
-- **BanHistoryChart** — Removed `overflow: hidden` on the card wrapper that was masking the SVG chart on view changes.
-- **BanHistoryChart** — Clicking the card header no longer accidentally collapses the chart; the collapse toggle is now only on the dedicated `▾/▸` button.
-- **Fail2ban — Scrolling** — Switching main tab (Fail2banPage) and switching view in TabJails (Cards/Table/Events) now automatically scrolls back to the top of the page; the chart was invisible because it was hidden above the viewport.
-- **Search bars** — Correct centering in the toolbars of TabJails, TabJailsEvents, TabFiltres, TabActions, TabTracker, TabStats (pattern `flex:1; justify-content:center`).
-- **Jails tables** — Removed `overflowX: auto` and excessive `minWidth` on the Events and Table tables to avoid unwanted horizontal scroll.
+- **BanHistoryChart** - Removed `overflow: hidden` on the card wrapper that was masking the SVG chart on view changes.
+- **BanHistoryChart** - Clicking the card header no longer accidentally collapses the chart; the collapse toggle is now only on the dedicated `▾/▸` button.
+- **Fail2ban - Scrolling** - Switching main tab (Fail2banPage) and switching view in TabJails (Cards/Table/Events) now automatically scrolls back to the top of the page; the chart was invisible because it was hidden above the viewport.
+- **Search bars** - Correct centering in the toolbars of TabJails, TabJailsEvents, TabFiltres, TabActions, TabTracker, TabStats (pattern `flex:1; justify-content:center`).
+- **Jails tables** - Removed `overflowX: auto` and excessive `minWidth` on the Events and Table tables to avoid unwanted horizontal scroll.
 
 ### Added
 
-- **Shared IpModal** (`src/pages/fail2ban/IpModal.tsx`) — New IP detail modal shared across all tabs:
+- **Shared IpModal** (`src/pages/fail2ban/IpModal.tsx`) - New IP detail modal shared across all tabs:
   - Header: IP (red monospace), recidivist badge if present in `recidive` jail, flag + city/country + organization.
   - 2-column block: Statistics (total bans, jail(s), last ban, first ban, attempts) | Whois/Network (country, organization, ASN, ISP, city).
   - **Ban in recidive** button (hidden if already a recidivist), with success/error visual feedback.
   - Scrollable history table (date, jail, duration, attempts) with sticky headers.
   - Auto-fetch geolocation if not provided by the calling context.
   - Exports: `IpModal`, `GeoInfo`, `toFlag`, `fmtBantime`.
-- **Clickable IPs — TabTracker** — Updated to use the new shared `IpModal` (local component removed); known jails passed to the modal.
-- **Clickable IPs — TabJailsEvents** — IPs in the Events table now open the detail modal.
-- **Clickable IPs — JailCard (Cards view)** — Banned IPs in the jail card table now open the detail modal.
-- **Clickable IPs — JailExpandedGrid (Table view)** — IPs in the "Bans < 5 min" and "Active banned IPs" columns open the detail modal.
+- **Clickable IPs - TabTracker** - Updated to use the new shared `IpModal` (local component removed); known jails passed to the modal.
+- **Clickable IPs - TabJailsEvents** - IPs in the Events table now open the detail modal.
+- **Clickable IPs - JailCard (Cards view)** - Banned IPs in the jail card table now open the detail modal.
+- **Clickable IPs - JailExpandedGrid (Table view)** - IPs in the "Bans < 5 min" and "Active banned IPs" columns open the detail modal.
 
 ---
 
@@ -1595,36 +1595,36 @@ The bug existed from the start but only manifested when the data volume / number
 
 ### Added
 
-#### Fail2ban Plugin — Full integration
+#### Fail2ban Plugin - Full integration
 
 New Fail2ban monitoring plugin with a complete multi-tab interface, visually aligned with the PHP reference project `fail2ban-web`.
 
 **Backend (`server/plugins/fail2ban/`)**
-- `Fail2banPlugin.ts` — Express plugin with 20+ REST routes covering status, history, jails, bans, filters, actions, tracker, map, IPTables, IPSet, NFTables, configuration, audit.
-- `Fail2banSqliteReader.ts` — Direct read of the fail2ban SQLite database (`fail2ban.sqlite3`) in read-only mode; active stats, daily history, top IPs/jails, hourly heatmap, unique IPs, expired bans.
-- `Fail2banClientExec.ts` — Execution of `fail2ban-client` commands via Unix socket (ban, unban, reload, status) and system utilities (iptables, ipset, nftables).
-- `fail2banSyncService.ts` — Periodic synchronization service SQLite → application DB.
+- `Fail2banPlugin.ts` - Express plugin with 20+ REST routes covering status, history, jails, bans, filters, actions, tracker, map, IPTables, IPSet, NFTables, configuration, audit.
+- `Fail2banSqliteReader.ts` - Direct read of the fail2ban SQLite database (`fail2ban.sqlite3`) in read-only mode; active stats, daily history, top IPs/jails, hourly heatmap, unique IPs, expired bans.
+- `Fail2banClientExec.ts` - Execution of `fail2ban-client` commands via Unix socket (ban, unban, reload, status) and system utilities (iptables, ipset, nftables).
+- `fail2banSyncService.ts` - Periodic synchronization service SQLite → application DB.
 - `f2b_ip_geo` table in application SQLite DB: IP geolocation cache with 30-day TTL.
 
 **Frontend (`src/pages/Fail2banPage.tsx` + `src/pages/fail2ban/`)**
-- **TabJails** — Table/cards/events/log files view of active jails; inline expansion with detailed config (bantime, findtime, maxretry, filter, actions, banned IPs); Active/All toggle to show configured but stopped jails (semi-transparent); integrated search filter; ban/unban/reload actions per jail.
-- **TabStats** — Global statistics: top IPs, top jails, ban/attempt heatmap by hour, jail distribution, jail summary, period summary, attack types, latest events, IPSets.
-- **TabTracker** — Table of currently banned IPs enriched with: reverse DNS resolution (with 10-min cache), IPSet membership per IP, on-demand geolocation (ip-api.com), IP detail modal with ban history.
-- **TabMap** — Leaflet map (CDN, dark CartoCDN tile) with MarkerCluster clustering; progressive geolocation; country/region filter side panel with heat-colors; IP popup with link to Tracker.
-- **TabBanManager** — Manual ban/unban interface with jail selection + IP input.
-- **TabFiltres / TabActions** — View of filters and actions configured per jail with colored badges.
-- **TabConfig** — Fail2ban configuration editor (jail.conf, jail.local, jail.d/) with visual diff and reload.
-- **TabAudit** — Real-time tail of fail2ban.log with syntax highlighting.
-- **TabNetworkRaw** — Raw IPTables / IPSet / NFTables display.
-- **TabAide** — Integrated documentation.
-- **BanHistoryChart** — Shared chart (bars or curves) displayed once for the Jails and Stats tabs; selectable period (24h, 7d, 30d, 6m, 1yr, All).
-- **Topbar chips** — Real-time badges: active jails (blue), banned (red), failures (orange), active (green).
-- **Toast notifications** — Automatic detection of new bans on each poll (every 30s) with animated toast.
-- **Refresh badge** — Exact time of last refresh + relative age in the title bar.
-- **Collapsible sidebar** — Left menu collapsible (icons only) with toggle in header and at bottom of menu.
-- **Mini stat cards** — 6 cards (Active Jails, Active Bans, Active Failures, Total cumulative bans, Unique IPs, Expired 24h) with sparklines and ↑/↓ trend indicators.
-- **Variable interpolation** — Resolution of `%(__name__)s` and `%(var)s` in filter/banaction badges of inactive jails.
-- **JailConfigModal** — Quick edit modal for bantime / findtime / maxretry parameters with slider and step buttons.
+- **TabJails** - Table/cards/events/log files view of active jails; inline expansion with detailed config (bantime, findtime, maxretry, filter, actions, banned IPs); Active/All toggle to show configured but stopped jails (semi-transparent); integrated search filter; ban/unban/reload actions per jail.
+- **TabStats** - Global statistics: top IPs, top jails, ban/attempt heatmap by hour, jail distribution, jail summary, period summary, attack types, latest events, IPSets.
+- **TabTracker** - Table of currently banned IPs enriched with: reverse DNS resolution (with 10-min cache), IPSet membership per IP, on-demand geolocation (ip-api.com), IP detail modal with ban history.
+- **TabMap** - Leaflet map (CDN, dark CartoCDN tile) with MarkerCluster clustering; progressive geolocation; country/region filter side panel with heat-colors; IP popup with link to Tracker.
+- **TabBanManager** - Manual ban/unban interface with jail selection + IP input.
+- **TabFiltres / TabActions** - View of filters and actions configured per jail with colored badges.
+- **TabConfig** - Fail2ban configuration editor (jail.conf, jail.local, jail.d/) with visual diff and reload.
+- **TabAudit** - Real-time tail of fail2ban.log with syntax highlighting.
+- **TabNetworkRaw** - Raw IPTables / IPSet / NFTables display.
+- **TabAide** - Integrated documentation.
+- **BanHistoryChart** - Shared chart (bars or curves) displayed once for the Jails and Stats tabs; selectable period (24h, 7d, 30d, 6m, 1yr, All).
+- **Topbar chips** - Real-time badges: active jails (blue), banned (red), failures (orange), active (green).
+- **Toast notifications** - Automatic detection of new bans on each poll (every 30s) with animated toast.
+- **Refresh badge** - Exact time of last refresh + relative age in the title bar.
+- **Collapsible sidebar** - Left menu collapsible (icons only) with toggle in header and at bottom of menu.
+- **Mini stat cards** - 6 cards (Active Jails, Active Bans, Active Failures, Total cumulative bans, Unique IPs, Expired 24h) with sparklines and ↑/↓ trend indicators.
+- **Variable interpolation** - Resolution of `%(__name__)s` and `%(var)s` in filter/banaction badges of inactive jails.
+- **JailConfigModal** - Quick edit modal for bantime / findtime / maxretry parameters with slider and step buttons.
 
 **Design**
 - Exact PHP palette: `bg0=#0d1117`, `bg1=#161b22`, `bg2=#21262d`, `border=#30363d`, `green=#3fb950`, `blue=#58a6ff`, `red=#e86a65`, `orange=#e3b341`, `purple=#bc8cff`, `cyan=#39c5cf`.
