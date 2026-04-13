@@ -190,6 +190,7 @@ import debugRoutes from './routes/debug.js';
 import databaseRoutes from './routes/database.js';
 import infoRoutes from './routes/info.js';
 import notificationsRoutes from './routes/notifications.js';
+import ipLookupRoutes from './routes/ipLookup.js';
 // Initialize database purge service (loads configs from database)
 import { initializePurgeService } from './services/databasePurgeService.js';
 import { mqttService } from './services/MqttService.js';
@@ -229,6 +230,7 @@ app.use('/api/updates', updatesRoutes);
 app.use('/api/debug', debugRoutes);
 app.use('/api/security', securityRoutes);
 app.use('/api/log-viewer', logViewerRoutes);
+app.use('/api/ip', ipLookupRoutes);
 
 // Health check
 app.get('/api/health', (_req, res) => {
@@ -599,7 +601,7 @@ server.listen(port, host, () => {
   };
 
   // Read app version from package.json
-  let appVersion = '0.8.43'; // Default fallback
+  let appVersion = '0.8.44'; // Default fallback
   try {
     const packageJsonPath = path.join(__dirname, '..', 'package.json');
     const packageJson = JSON.parse(fsSync.readFileSync(packageJsonPath, 'utf8'));

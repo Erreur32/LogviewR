@@ -23,7 +23,6 @@ import { Fail2banSyncService } from '../../services/fail2banSyncService.js';
 import { asyncHandler, createError } from '../../middleware/errorHandler.js';
 import { requireAuth } from '../../middleware/authMiddleware.js';
 import { getDatabase } from '../../database/connection.js';
-import * as dns from 'node:dns';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
@@ -32,6 +31,8 @@ import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { logger } from '../../utils/logger.js';
 import { webhookDispatchService } from '../../services/WebhookDispatchService.js';
+import { runWhois, reverseDns, checkKnownProvider } from '../../services/ipLookupService.js';
+import type { WhoisInfo } from '../../services/ipLookupService.js';
 import mysql from 'mysql2/promise';
 import type { AuthenticatedRequest } from '../../middleware/authMiddleware.js';
 
@@ -43,57 +44,6 @@ const SOCKET_PATH = '/var/run/fail2ban/fail2ban.sock';
 
 /** Filenames only — no path traversal (matches fail2ban.log, fail2ban.log.1, etc.) */
 const FAIL2BAN_LOG_NAME = /^fail2ban[a-zA-Z0-9._-]*\.log(\.\d+)?$/;
-
-// ── Whois + Known-provider helpers ─────────────────────────────────────────────
-
-interface WhoisInfo { org: string; country: string; asn: string; netname: string; cidr: string; }
-interface KnownProvider { name: string; cidr: string; }
-
-/** Runs system `whois <ip>` and parses key fields. Returns null on timeout/error. */
-async function runWhois(ip: string): Promise<WhoisInfo | null> {
-    try {
-        const { stdout } = await execFileAsync('whois', [ip], { timeout: 6000 });
-        const info: WhoisInfo = { org: '', country: '', asn: '', netname: '', cidr: '' };
-        for (const raw of stdout.split('\n')) {
-            const line = raw.trim();
-            if (!line || line.startsWith('#') || line.startsWith('%')) continue;
-            if (!info.org     && /^org(?:name)?:\s*(.+)/i.test(line))          info.org     = line.replace(/^org(?:name)?:\s*/i, '').trim();
-            if (!info.country && /^country:\s*(.+)/i.test(line))               info.country = line.replace(/^country:\s*/i, '').trim().toUpperCase();
-            if (!info.asn     && /^(?:origin|aut-num):\s*(AS\d+)/i.test(line)) info.asn     = line.match(/AS\d+/i)![0];
-            if (!info.netname && /^netname:\s*(.+)/i.test(line))               info.netname = line.replace(/^netname:\s*/i, '').trim();
-            if (!info.cidr    && /^(?:cidr|route):\s*(.+)/i.test(line))        info.cidr    = line.replace(/^(?:cidr|route):\s*/i, '').trim();
-        }
-        return (info.org || info.country || info.asn || info.netname) ? info : null;
-    } catch { return null; }
-}
-
-/** Checks if IPv4 belongs to a known provider range (Cloudflare, Google, AWS, Microsoft). */
-function checkKnownProvider(ip: string): KnownProvider | null {
-    // IPv6 not supported for CIDR check
-    if (!ip || ip.includes(':')) return null;
-    const parts = ip.split('.').map(Number);
-    if (parts.length !== 4 || parts.some(p => Number.isNaN(p) || p < 0 || p > 255)) return null;
-    const ipLong = ((parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3]) >>> 0;
-
-    let ranges: Record<string, string[]>;
-    try {
-        ranges = JSON.parse(fs.readFileSync(path.join(__dirname, 'known-ip-ranges.json'), 'utf8'));
-    } catch { return null; }
-
-    for (const [provider, cidrs] of Object.entries(ranges)) {
-        for (const cidr of cidrs) {
-            const [subnet, bits] = cidr.split('/');
-            const b = Number.parseInt(bits, 10);
-            if (!subnet || Number.isNaN(b) || b < 1 || b > 32) continue;
-            const sp = subnet.split('.').map(Number);
-            if (sp.length !== 4) continue;
-            const subnetLong = ((sp[0] << 24) | (sp[1] << 16) | (sp[2] << 8) | sp[3]) >>> 0;
-            const mask = b === 32 ? 0xFFFFFFFF : (~(0xFFFFFFFF >>> b)) >>> 0;
-            if ((ipLong & mask) === (subnetLong & mask)) return { name: provider, cidr };
-        }
-    }
-    return null;
-}
 
 /** Greps a log file for an IP (literal match, last N lines). Returns [] on error. */
 async function grepLogFile(resolvedPath: string, ip: string, maxLines = 30): Promise<string[]> {
@@ -432,27 +382,6 @@ async function getNpmDomainMap(
     return { idToDomain, source: 'sqlite' };
 }
 
-// ── DNS reverse-lookup cache (TTL 10 min) ─────────────────────────────────────
-const dnsCache = new Map<string, { hostname: string; ts: number }>();
-const DNS_TTL  = 10 * 60 * 1000; // 10 min
-
-async function reverseDns(ip: string): Promise<string | null> {
-    const cached = dnsCache.get(ip);
-    if (cached && Date.now() - cached.ts < DNS_TTL) return cached.hostname;
-    try {
-        const names = await Promise.race([
-            dns.promises.reverse(ip),
-            new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 2000)),
-        ]);
-        const hostname = (names as string[])[0] ?? null;
-        if (hostname) dnsCache.set(ip, { hostname, ts: Date.now() });
-        return hostname;
-    } catch {
-        dnsCache.set(ip, { hostname: '', ts: Date.now() }); // cache negative
-        return null;
-    }
-}
-
 // ── IPSet membership parser ────────────────────────────────────────────────────
 function parseIpsetMembership(raw: string): Map<string, string[]> {
     const map = new Map<string, string[]>();
@@ -584,7 +513,9 @@ export class Fail2banPlugin extends BasePlugin {
     }
 
     async testConnection(): Promise<boolean> {
-        if (!this.isEnabled()) return false;
+        // No isEnabled() guard: this must work BEFORE the plugin is enabled,
+        // otherwise the frontend toggle enters a deadlock (can't test without
+        // enabling, can't enable without testing).
 
         // Test socket with read+write permissions (not just existence)
         let socketOk = false;
@@ -599,10 +530,19 @@ export class Fail2banPlugin extends BasePlugin {
             logger.warn('Fail2ban', `testConnection: socket not found at ${SOCKET_PATH}`);
         }
 
-        // Test SQLite readability
-        const dbOk = this.reader?.isReadable() ?? false;
+        // Test SQLite readability — reader may not be initialized yet (plugin not started)
+        let dbOk = this.reader?.isReadable() ?? false;
         if (!dbOk) {
-            logger.warn('Fail2ban', 'testConnection: SQLite DB not readable');
+            // Fallback: test DB directly when reader is not yet initialized
+            const settings = this.config?.settings as unknown as { sqliteDbPath?: string } | undefined;
+            const rawDbPath = settings?.sqliteDbPath || DEFAULT_SQLITE_PATH;
+            const dbPath = this.resolveDockerPathSync(rawDbPath);
+            try {
+                fs.accessSync(dbPath, fs.constants.R_OK);
+                dbOk = true;
+            } catch {
+                logger.warn('Fail2ban', `testConnection: SQLite DB not readable at ${dbPath}`);
+            }
         }
 
         // Both are needed for full functionality — warn if only one works

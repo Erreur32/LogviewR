@@ -5,6 +5,25 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.44] - 2026-04-13
+
+### For users
+
+> Click any IP in the log viewer → "Details" now shows full network information (WHOIS, geolocation, hostname, known provider) — and if fail2ban is active, also ban status, history, and actions.
+
+- **IP detail modal from LogViewer** — now displays geo (country, city, flag), WHOIS (org, ASN, CIDR, netname), reverse DNS hostname, and known cloud provider detection for any IP address.
+- **Fail2ban integration in LogViewer** — when fail2ban plugin is enabled, the IP detail modal also shows ban status, jail info, timeline, actions (ban/unban), and source log activity.
+- **Fail2ban activation fix** — the plugin toggle in Settings was stuck (deadlock: test required enabled, enable required test). Now works in both Docker and dev mode.
+
+### Technical
+
+- **`server/services/ipLookupService.ts`** — new shared service: `runWhois`, `reverseDns`, `fetchGeo`, `checkKnownProvider`, `lookupIp` extracted from Fail2banPlugin to avoid duplication.
+- **`server/routes/ipLookup.ts`** — new route `GET /api/ip/:ip/lookup` with rate limiting, independent of fail2ban plugin.
+- **`server/plugins/fail2ban/Fail2banPlugin.ts`** — `testConnection()` no longer requires `isEnabled()`, fixing the activation deadlock; imports shared IP lookup functions; added direct DB fallback when reader not yet initialized.
+- **`src/pages/fail2ban/IpModal.tsx`** — hybrid mode: always fetches generic IP lookup, attempts fail2ban endpoints gracefully; sections auto-hide when fail2ban is unavailable.
+
+---
+
 ## [0.8.43] - 2026-04-12
 
 ### Technical

@@ -20,7 +20,7 @@ import { parseExcludedIps, isLogExcludedByIp } from '../utils/ipFilterUtils.js';
 import { Play, Square, RefreshCw, FileText, X } from 'lucide-react';
 import { AUTO_REFRESH_DEFAULT_MS, AUTO_REFRESH_STORAGE_KEY } from '../utils/constants.js';
 import type { LogFileInfo, LogViewerResponse, LogEntry, LogFilters as LogFiltersType } from '../types/logViewer.js';
-import { BanIpModal } from '../components/log-viewer/BanIpModal.js';
+import { IpModal } from './fail2ban/IpModal.js';
 
 export type LiveMode = 'off' | 'live' | 'auto';
 
@@ -87,16 +87,14 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
     const [rawLogs, setRawLogs] = useState<string[]>([]);
     const [showExcludedIps, setShowExcludedIps] = useState(false);
     const [addIpModal, setAddIpModal] = useState<string | null>(null);
-    const [banIpTarget, setBanIpTarget] = useState<string | null>(null);
+    const [detailIp, setDetailIp] = useState<string | null>(null);
     const [bannedIpsMap, setBannedIpsMap] = useState<Map<string, string[]>>(new Map());
-    const [fail2banAvailable, setFail2banAvailable] = useState(false);
 
     // Fetch fail2ban banned IPs map on mount
     const fetchBannedIps = useCallback(() => {
         api.get<{ ok: boolean; jails?: Array<{ jail: string; bannedIps: string[]; active?: boolean }> }>('/api/plugins/fail2ban/status?days=1')
             .then(res => {
                 if (res.success && res.result?.ok && res.result.jails) {
-                    setFail2banAvailable(true);
                     const map = new Map<string, string[]>();
                     for (const j of res.result.jails) {
                         if (j.active === false) continue;
@@ -109,7 +107,7 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
                     setBannedIpsMap(map);
                 }
             })
-            .catch(() => { setFail2banAvailable(false); });
+            .catch(() => { /* fail2ban not available */ });
     }, []);
 
     useEffect(() => { fetchBannedIps(); }, [fetchBannedIps]);
@@ -968,9 +966,8 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
                                                     showExcludedIps={showExcludedIps}
                                                     onToggleIpFilter={excludedIpsList.length > 0 ? () => setShowExcludedIps((v) => !v) : undefined}
                                                     onAddIpToFilter={selectedPluginId && LOG_PLUGINS_WITH_IP_FILTER.includes(selectedPluginId) ? handleAddIpToFilter : undefined}
-                                                    onBanIp={fail2banAvailable ? (ip: string) => setBanIpTarget(ip) : undefined}
+                                                    onIpDetails={(ip: string) => setDetailIp(ip)}
                                                     bannedIpsMap={bannedIpsMap}
-                                                    fail2banAvailable={fail2banAvailable}
                                                 />
                                             </div>
                                         ) : (
@@ -1048,12 +1045,12 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
                 </div>
             )}
 
-            {/* Modal: Ban IP with fail2ban */}
-            {banIpTarget && (
-                <BanIpModal
-                    ip={banIpTarget}
-                    onClose={() => setBanIpTarget(null)}
-                    onBanned={() => { fetchBannedIps(); }}
+            {/* Modal: IP details */}
+            {detailIp && (
+                <IpModal
+                    ip={detailIp}
+                    mode="logviewer"
+                    onClose={() => { setDetailIp(null); fetchBannedIps(); }}
                 />
             )}
 

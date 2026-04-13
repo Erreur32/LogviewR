@@ -2,12 +2,12 @@
  * IP Context Menu
  *
  * Dropdown menu shown on IP cell click in LogTable.
- * Options: Exclude from logs, Ban with fail2ban.
+ * Options: Exclude from logs, IP details.
  */
 
 import React, { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { ShieldOff, ShieldAlert } from 'lucide-react';
+import { ShieldOff, Search } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 interface IpContextMenuProps {
@@ -15,8 +15,7 @@ interface IpContextMenuProps {
     x: number;
     y: number;
     onExclude: (ip: string) => void;
-    onBan: (ip: string) => void;
-    fail2banAvailable: boolean;
+    onDetails: (ip: string) => void;
     onClose: () => void;
 }
 
@@ -45,13 +44,7 @@ const itemStyle: React.CSSProperties = {
     textAlign: 'left',
 };
 
-const disabledStyle: React.CSSProperties = {
-    ...itemStyle,
-    color: '#484f58',
-    cursor: 'not-allowed',
-};
-
-export const IpContextMenu: React.FC<IpContextMenuProps> = ({ ip, x, y, onExclude, onBan, fail2banAvailable, onClose }) => {
+export const IpContextMenu: React.FC<IpContextMenuProps> = ({ ip, x, y, onExclude, onDetails, onClose }) => {
     const { t } = useTranslation();
     const ref = useRef<HTMLDivElement>(null);
 
@@ -96,27 +89,17 @@ export const IpContextMenu: React.FC<IpContextMenuProps> = ({ ip, x, y, onExclud
                 {t('logViewer.ipMenu.exclude')}
             </button>
 
-            {/* Ban option */}
-            {fail2banAvailable ? (
-                <button
-                    type="button"
-                    style={itemStyle}
-                    onClick={() => { onBan(ip); onClose(); }}
-                    onMouseEnter={hoverIn}
-                    onMouseLeave={hoverOut}
-                >
-                    <ShieldAlert size={14} style={{ color: '#e86a65' }} />
-                    {t('logViewer.ipMenu.ban')}
-                </button>
-            ) : (
-                <div style={disabledStyle} title={t('logViewer.ipMenu.banUnavailable')}>
-                    <ShieldAlert size={14} style={{ color: '#484f58' }} />
-                    <span>{t('logViewer.ipMenu.ban')}</span>
-                    <span style={{ marginLeft: 'auto', fontSize: '.7rem', color: '#484f58' }}>
-                        {t('logViewer.ipMenu.banUnavailable')}
-                    </span>
-                </div>
-            )}
+            {/* Details option */}
+            <button
+                type="button"
+                style={itemStyle}
+                onClick={() => { onDetails(ip); onClose(); }}
+                onMouseEnter={hoverIn}
+                onMouseLeave={hoverOut}
+            >
+                <Search size={14} style={{ color: '#58a6ff' }} />
+                {t('logViewer.ipMenu.details')}
+            </button>
         </div>,
         document.body
     );

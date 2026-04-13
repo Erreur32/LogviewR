@@ -48,12 +48,10 @@ interface LogTableProps {
     onToggleIpFilter?: () => void;
     /** When provided, clicking an IP cell opens a context menu (exclude / ban) */
     onAddIpToFilter?: (ip: string) => void;
-    /** When provided, "Ban with fail2ban" option appears in IP context menu */
-    onBanIp?: (ip: string) => void;
+    /** When provided, "IP details" option appears in IP context menu */
+    onIpDetails?: (ip: string) => void;
     /** Map of currently banned IPs → jail names (for shield icon) */
     bannedIpsMap?: Map<string, string[]>;
-    /** Whether fail2ban is available (plugin enabled) */
-    fail2banAvailable?: boolean;
 }
 
 // Helper function to format file size
@@ -282,9 +280,8 @@ export const LogTable: React.FC<LogTableProps> = ({
     showExcludedIps = false,
     onToggleIpFilter,
     onAddIpToFilter,
-    onBanIp,
+    onIpDetails,
     bannedIpsMap,
-    fail2banAvailable = false,
 }) => {
     const { t } = useTranslation();
     const [ipMenu, setIpMenu] = useState<{ ip: string; x: number; y: number } | null>(null);
@@ -586,7 +583,7 @@ export const LogTable: React.FC<LogTableProps> = ({
                 const ipValue = String(value);
                 const ipDisplay = truncateIPv6ForDisplay(ipValue);
                 const ipStyle = getIPBadgeStyle(ipValue);
-                const hasMenu = !!(onAddIpToFilter || onBanIp);
+                const hasMenu = !!(onAddIpToFilter || onIpDetails);
                 const bannedJails = bannedIpsMap?.get(ipValue);
                 const content = (
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, maxWidth: '100%' }}>
@@ -1256,8 +1253,7 @@ export const LogTable: React.FC<LogTableProps> = ({
                     x={ipMenu.x}
                     y={ipMenu.y}
                     onExclude={(ip) => { onAddIpToFilter?.(ip); }}
-                    onBan={(ip) => { onBanIp?.(ip); }}
-                    fail2banAvailable={fail2banAvailable}
+                    onDetails={(ip) => { onIpDetails?.(ip); }}
                     onClose={() => setIpMenu(null)}
                 />
             )}

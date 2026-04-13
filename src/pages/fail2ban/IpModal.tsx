@@ -336,10 +336,12 @@ export const IpModal: React.FC<{
     onClose: () => void;
     geo?: GeoInfo | null;
     jails?: string[];
-}> = ({ ip, onClose, geo: geoProp, jails: jailsProp }) => {
+    mode?: 'fail2ban' | 'logviewer';
+}> = ({ ip, onClose, geo: geoProp, jails: jailsProp, mode = 'fail2ban' }) => {
     const { t } = useTranslation();
     const [history,      setHistory]      = useState<IpHistEntry[]>([]);
     const [loading,      setLoading]      = useState(true);
+    const [fetchError,   setFetchError]   = useState(false);
     const [geo,          setGeo]          = useState<GeoInfo | null>(geoProp ?? null);
     const [details,      setDetails]      = useState<IpDetails | null>(null);
     const [actionMsg,    setActionMsg]    = useState<{ ok: boolean; text: string } | null>(null);
@@ -354,49 +356,87 @@ export const IpModal: React.FC<{
     const [expandedLogs, setExpandedLogs] = useState<Set<number>>(new Set());
     const LOG_LINES_DEFAULT = 4;
 
-    useEffect(() => {
-        setHistory([]); setLoading(true); setActionMsg(null); setDetails(null); setBlocklistHits(null); setLogsOpen(true); setExpandedLogs(new Set()); setUnbanning(false); setIpsetRemoving(null); setSelUnbanJail('');
-        if (!geoProp) setGeo(null);
+    const [f2bAvailable, setF2bAvailable] = useState(mode === 'fail2ban');
 
-        Promise.all([
-            api.get<{ ok: boolean; bans: IpHistEntry[] }>(
-                `/api/plugins/fail2ban/audit/internal?ip=${encodeURIComponent(ip)}&limit=250`
-            ),
-            api.get<{ ok: boolean } & IpDetails>(
-                `/api/plugins/fail2ban/ip/${encodeURIComponent(ip)}`
-            ),
-            geoProp ? Promise.resolve(null) : api.get<{ ok: boolean; geo: GeoInfo }>(
-                `/api/plugins/fail2ban/geo/${encodeURIComponent(ip)}`
-            ),
-            api.get<{ ok: boolean; results: Array<{ id: string; name: string; direction: string; present: boolean }> }>(
-                `/api/plugins/fail2ban/blocklists/test/${encodeURIComponent(ip)}`
-            ),
-        ]).then(([histRes, detRes, geoRes, blRes]) => {
-            if (histRes.success && histRes.result?.ok) setHistory(histRes.result.bans ?? []);
-            if (detRes.success && detRes.result?.ok) {
-                setDetails({
-                    activeJails:   detRes.result.activeJails   ?? [],
-                    ipsets:        detRes.result.ipsets        ?? [],
-                    allIpsets:     detRes.result.allIpsets     ?? [],
-                    hostname:      detRes.result.hostname      ?? null,
-                    whois:         detRes.result.whois         ?? null,
-                    knownProvider: detRes.result.knownProvider ?? null,
-                    logEntries:    detRes.result.logEntries    ?? [],
-                    logFilesTotal: detRes.result.logFilesTotal ?? 0,
-                    logFilesShown: detRes.result.logFilesShown ?? 0,
-                });
-            }
-            if (geoRes && geoRes.success && geoRes.result?.ok) setGeo(geoRes.result.geo);
-            if (blRes && blRes.success && blRes.result?.ok) setBlocklistHits(blRes.result.results ?? []);
-            if (detRes.success && detRes.result?.ok) {
-                const first = detRes.result.allIpsets?.[0] ?? '';
-                setSelIpset(s => s || first);
-                const firstJail = detRes.result.activeJails?.[0] ?? '';
-                setSelUnbanJail(s => s || firstJail);
-            }
-            setLoading(false);
-        });
-    }, [ip, geoProp]);
+    useEffect(() => {
+        setHistory([]); setLoading(true); setFetchError(false); setActionMsg(null); setDetails(null); setBlocklistHits(null); setLogsOpen(true); setExpandedLogs(new Set()); setUnbanning(false); setIpsetRemoving(null); setSelUnbanJail('');
+        if (!geoProp) setGeo(null);
+        if (mode === 'fail2ban') setF2bAvailable(true);
+
+        const ipEnc = encodeURIComponent(ip);
+
+        // Always fetch generic IP lookup (geo + whois + hostname + knownProvider)
+        const lookupPromise = api.get<{ ok: boolean; geo: GeoInfo | null; whois: WhoisInfo | null; hostname: string | null; knownProvider: { name: string; cidr: string } | null }>(
+            `/api/ip/${ipEnc}/lookup`
+        );
+
+        // Try fail2ban endpoints (graceful — won't block if plugin is disabled)
+        const f2bHistPromise = api.get<{ ok: boolean; bans: IpHistEntry[] }>(
+            `/api/plugins/fail2ban/audit/internal?ip=${ipEnc}&limit=250`
+        ).catch(() => null);
+
+        const f2bDetPromise = api.get<{ ok: boolean } & IpDetails>(
+            `/api/plugins/fail2ban/ip/${ipEnc}`
+        ).catch(() => null);
+
+        const f2bBlPromise = api.get<{ ok: boolean; results: Array<{ id: string; name: string; direction: string; present: boolean }> }>(
+            `/api/plugins/fail2ban/blocklists/test/${ipEnc}`
+        ).catch(() => null);
+
+        Promise.all([lookupPromise, f2bHistPromise, f2bDetPromise, f2bBlPromise])
+            .then(([lookupRes, histRes, detRes, blRes]) => {
+                // Generic lookup: geo + whois + hostname + knownProvider
+                if (lookupRes.success && lookupRes.result?.ok) {
+                    if (!geoProp && lookupRes.result.geo) setGeo(lookupRes.result.geo);
+                }
+
+                // Fail2ban data (may be null if plugin disabled)
+                const f2bOk = !!(detRes?.success && detRes.result?.ok);
+                setF2bAvailable(f2bOk);
+
+                if (histRes?.success && histRes.result?.ok) {
+                    setHistory(histRes.result.bans ?? []);
+                }
+
+                if (f2bOk) {
+                    // Fail2ban has full data — use it (includes whois, hostname, etc.)
+                    setDetails({
+                        activeJails:   detRes!.result.activeJails   ?? [],
+                        ipsets:        detRes!.result.ipsets        ?? [],
+                        allIpsets:     detRes!.result.allIpsets     ?? [],
+                        hostname:      detRes!.result.hostname      ?? null,
+                        whois:         detRes!.result.whois         ?? null,
+                        knownProvider: detRes!.result.knownProvider ?? null,
+                        logEntries:    detRes!.result.logEntries    ?? [],
+                        logFilesTotal: detRes!.result.logFilesTotal ?? 0,
+                        logFilesShown: detRes!.result.logFilesShown ?? 0,
+                    });
+                    const first = detRes!.result.allIpsets?.[0] ?? '';
+                    setSelIpset(s => s || first);
+                    const firstJail = detRes!.result.activeJails?.[0] ?? '';
+                    setSelUnbanJail(s => s || firstJail);
+                } else {
+                    // Fail2ban unavailable — use generic lookup data
+                    setDetails({
+                        activeJails: [], ipsets: [], allIpsets: [],
+                        hostname:      lookupRes.result?.hostname      ?? null,
+                        whois:         lookupRes.result?.whois         ?? null,
+                        knownProvider: lookupRes.result?.knownProvider ?? null,
+                        logEntries: [], logFilesTotal: 0, logFilesShown: 0,
+                    });
+                }
+
+                if (blRes?.success && blRes.result?.ok) {
+                    setBlocklistHits(blRes.result.results ?? []);
+                }
+
+                setLoading(false);
+            })
+            .catch(() => {
+                setFetchError(true);
+                setLoading(false);
+            });
+    }, [ip, geoProp, mode]);
 
     const jails = [...new Set([
         ...(jailsProp ?? []),
@@ -528,6 +568,17 @@ export const IpModal: React.FC<{
                     </button>
                 </div>
 
+                {/* ── Error banner ── */}
+                {fetchError && !loading && !details && history.length === 0 && (
+                    <div style={{ padding: '.75rem 1rem', background: 'rgba(232,106,101,.08)',
+                        borderBottom: '1px solid rgba(232,106,101,.25)', display: 'flex', gap: '.6rem', alignItems: 'center' }}>
+                        <AlertTriangle style={{ width: 14, height: 14, color: '#e86a65', flexShrink: 0 }} />
+                        <span style={{ fontSize: '.8rem', color: '#e6edf3' }}>
+                            {t('logViewer.ipModal.fetchError')}
+                        </span>
+                    </div>
+                )}
+
                 {/* ── Known Provider / Bot banner ── */}
                 {(isKnownProvider || knownBot) && (
                     <div style={{ padding: '.6rem 1rem', background: 'rgba(88,166,255,.06)',
@@ -578,8 +629,8 @@ export const IpModal: React.FC<{
                 </div>
 
 
-                {/* ── EN COURS + HISTORIQUE (2 colonnes) ── */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', padding: '1rem 1.75rem', borderBottom: '1px solid #30363d' }}>
+                {/* ── EN COURS + HISTORIQUE (2 colonnes) — fail2ban only ── */}
+                {f2bAvailable && <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', padding: '1rem 1.75rem', borderBottom: '1px solid #30363d' }}>
 
                     {/* ── EN COURS ── */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
@@ -920,10 +971,10 @@ export const IpModal: React.FC<{
                             </div>
                         )}
                     </div>
-                </div>
+                </div>}
 
-                {/* ── Timeline bans ── */}
-                <div style={{ padding: '1rem 1.75rem 0', flexShrink: 0 }}>
+                {/* ── Timeline bans — fail2ban only ── */}
+                {f2bAvailable && <div style={{ padding: '1rem 1.75rem 0', flexShrink: 0 }}>
                     <div style={{ border: '1px solid #30363d', borderRadius: 8, overflow: 'hidden' }}>
                         <div style={{ padding: '.5rem 1rem', background: '#161b22', borderBottom: '1px solid #30363d',
                             fontSize: '.72rem', color: '#8b949e', display: 'flex', alignItems: 'center', gap: '.4rem' }}>
@@ -1004,10 +1055,10 @@ export const IpModal: React.FC<{
                             </div>
                         )}
                     </div>
-                </div>
+                </div>}
 
-                {/* ── Activité dans les logs source ── */}
-                {logEntries.length > 0 && (
+                {/* ── Activité dans les logs source — fail2ban only ── */}
+                {f2bAvailable && logEntries.length > 0 && (
                     <div style={{ padding: '1.25rem 1.75rem 1.25rem', flexShrink: 0 }}>
                     <div style={{ border: '1px solid #30363d', borderRadius: 8, overflow: 'hidden' }}>
                         <button onClick={() => setLogsOpen(o => !o)}
@@ -1120,7 +1171,9 @@ export const IpModal: React.FC<{
                 <div style={{ padding: '.4rem 1rem', borderTop: '1px solid #30363d',
                     fontSize: '.68rem', color: '#8b949e', textAlign: 'right', flexShrink: 0,
                     borderRadius: '0 0 10px 10px', background: '#161b22' }}>
-                    Historique long terme · base interne conservée au-delà du dbpurge
+                    {f2bAvailable
+                        ? 'Historique long terme · base interne conservée au-delà du dbpurge'
+                        : t('logViewer.ipModal.footer')}
                 </div>
             </div>
         </div>

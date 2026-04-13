@@ -787,7 +787,12 @@
       "title": "Actions sur l'IP",
       "exclude": "Exclure des logs",
       "ban": "Bannir avec fail2ban",
-      "banUnavailable": "fail2ban non disponible"
+      "banUnavailable": "fail2ban non disponible",
+      "details": "Détails IP"
+    },
+    "ipModal": {
+      "fetchError": "Impossible de récupérer les informations pour cette IP. Vérifiez que le serveur est accessible.",
+      "footer": "Informations réseau · données géo via ip-api.com · WHOIS via registre"
     },
     "banModal": {
       "title": "Bannir une IP",
