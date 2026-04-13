@@ -1005,37 +1005,6 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
                 </div>
             )}
 
-            {/* Info: Unreadable files warning */}
-            {selectedPluginId && availableFiles.length > 0 && (() => {
-                const unreadableFiles = availableFiles.filter(f => f.readable === false);
-                if (unreadableFiles.length > 0) {
-                    return (
-                        <div className="mb-6 p-4 bg-yellow-500/10 border border-yellow-500/50 text-yellow-400 rounded-xl">
-                            <div className="font-semibold mb-2 flex items-center gap-2">
-                                <span>⚠️</span>
-                                <span>Fichiers non accessibles</span>
-                            </div>
-                            <div className="text-sm mb-3">
-                                <span className="font-medium">{unreadableFiles.length}</span> fichier{unreadableFiles.length > 1 ? 's' : ''} ne peut{unreadableFiles.length > 1 ? 'vent' : ''} pas être lu{unreadableFiles.length > 1 ? 's' : ''} en raison de permissions insuffisantes.
-                            </div>
-                            <div className="text-xs text-yellow-300/80 space-y-1">
-                                <div className="font-medium mb-1">Solutions possibles :</div>
-                                <ul className="list-disc list-inside space-y-1 ml-2">
-                                    <li>Ajouter l'utilisateur du conteneur Docker au groupe approprié (ex: <code className="bg-yellow-500/20 px-1 rounded">adm</code> ou <code className="bg-yellow-500/20 px-1 rounded">systemd-journal</code>)</li>
-                                    <li>Modifier les permissions des fichiers de logs (ex: <code className="bg-yellow-500/20 px-1 rounded">chmod 644</code>)</li>
-                                    <li>Vérifier que le volume Docker a les bonnes permissions</li>
-                                    <li>En développement local, exécuter avec les permissions appropriées</li>
-                                </ul>
-                                <div className="mt-2 text-yellow-400/70">
-                                    Les fichiers non accessibles sont grisés dans la liste et peuvent être masqués avec le bouton "Masquer".
-                                </div>
-                            </div>
-                        </div>
-                    );
-                }
-                return null;
-            })()}
-
             {/* Empty State */}
             {!selectedPluginId && (
                 <div className="text-center p-12 bg-theme-tertiary rounded-lg border border-theme-border">
