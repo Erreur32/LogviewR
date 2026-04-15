@@ -566,7 +566,7 @@ export class Fail2banPlugin extends BasePlugin {
                 return next();
             }
             entry.count++;
-            if (entry.count > 60) { // 60 req/min per IP across all fail2ban routes
+            if (entry.count > 300) { // 300 req/min per IP across all fail2ban routes
                 res.status(429).json({ success: false, error: { code: 'RATE_LIMITED', message: 'Too many requests' } });
                 return;
             }

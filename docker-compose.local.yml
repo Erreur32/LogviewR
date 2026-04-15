@@ -15,6 +15,23 @@
 #   ADM_GID         - GID of the adm group on the host (default: 4)
 #   FAIL2BAN_GID    - GID of the fail2ban group on the host (run setup script to set)
 #   HOST_IP         - Host machine IP (optional, auto-detected if not set)
+#
+# ── Port modes ──────────────────────────────────────────────────────────────
+#
+#  MODE A — Standard (bridge network, no firewall tabs)
+#    ports:
+#      - "${DASHBOARD_PORT:-7501}:3000"
+#    environment:
+#      DASHBOARD_PORT: ${DASHBOARD_PORT:-7501}   # host port exposed by Docker
+#
+#  MODE B — Firewall tabs (IPTables / IPSet / NFTables) + reverse proxy
+#    network_mode: host                           # shares host network namespace
+#    cap_add: [NET_ADMIN]                         # required for netfilter
+#    environment:
+#      PORT: ${PORT:-7501}                        # direct listen port on host
+#    → reverse proxy target: 127.0.0.1:7501
+#    ⚠️  network_mode: host is INCOMPATIBLE with ports: — remove ports: section
+# ─────────────────────────────────────────────────────────────────────────────
 
 services:
   logviewr-local:
@@ -24,12 +41,30 @@ services:
     container_name: logviewr-local
     restart: unless-stopped
 
-    ports:
-      - "${DASHBOARD_PORT:-7501}:3000"
+    # ── MODE A — Standard (default) ──────────────────────────────────────────
+    # Direct port mapping: host port → container port 3000
+    # Comment out and use MODE B below to enable firewall tabs
+    # ports:
+    #   - "${DASHBOARD_PORT:-7501}:3000"
+
+    # ── MODE B — Firewall tabs (IPTables / IPSet / NFTables) ─────────────────
+    # Uncomment the block below AND remove the ports: section above
+    #
+    network_mode: host          # shares host network namespace (required)
+    cap_add:
+      - NET_ADMIN               # required for netfilter kernel operations
 
     environment:
+      # ── Required ────────────────────────────────────────────────────────────
       JWT_SECRET: ${JWT_SECRET}
-      DASHBOARD_PORT: ${DASHBOARD_PORT:-7501}
+
+      # ── Port (choose one based on mode) ─────────────────────────────────────
+      # MODE A — must match the host port in ports: above
+      # DASHBOARD_PORT: ${DASHBOARD_PORT:-7501}
+      # MODE B — direct listen port when using network_mode: host
+      PORT: ${PORT:-5175}
+
+      # ── Optional ─────────────────────────────────────────────────────────────
       HOST_IP: ${HOST_IP:-}
       CONFIG_FILE_PATH: ${CONFIG_FILE_PATH:-/app/config/logviewr.conf}
       HOST_ROOT_PATH: ${HOST_ROOT_PATH:-/host}
@@ -50,12 +85,32 @@ services:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
 
+      # Optional: enable Fail2ban SQLite VACUUM (rw override — requires long-form syntax)
+      # - type: bind
+      #   source: /var/lib/fail2ban
+      #   target: /host/var/lib/fail2ban
+      #   bind:
+      #     propagation: shared
+
+      # Optional: enable Fail2ban config file editing from the UI
+      # - type: bind
+      #   source: /etc/fail2ban
+      #   target: /host/etc/fail2ban
+      #   bind:
+      #     propagation: shared
+
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
+
+    # Prevent privilege escalation — safe in MODE A (bridge, no firewall tabs)
+    # ⚠️ Remove or comment out in MODE B (network_mode: host + firewall tabs)
+    #    sudo cannot run with this flag set, breaking iptables/ipset/nft commands
+    # security_opt:
+    #   - no-new-privileges:true
 
 volumes:
   logviewr_data_local:

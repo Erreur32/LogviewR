@@ -51,8 +51,11 @@ export const SyncProgressBanner: React.FC = () => {
                     if (hideTimer.current) { clearTimeout(hideTimer.current); hideTimer.current = null; }
                     setStatus(s);
                     setVisible(true);
+                    // Active sync: poll fast (2s)
+                    if (pollRef.current) clearInterval(pollRef.current);
+                    pollRef.current = setInterval(poll, 2_000);
                 } else if (visible) {
-                    // Wait for CSS bar transition to finish (0.5s) + brief pause (1.5s) before hiding
+                    // Sync just finished: hide after brief pause
                     if (!hideTimer.current) {
                         hideTimer.current = setTimeout(() => {
                             setVisible(false);
@@ -60,17 +63,21 @@ export const SyncProgressBanner: React.FC = () => {
                             hideTimer.current = null;
                         }, 2_000);
                     }
+                    // Slow down polling once idle
+                    if (pollRef.current) clearInterval(pollRef.current);
+                    pollRef.current = setInterval(poll, 30_000);
                 }
             } catch { /* ignore */ }
         };
 
         poll();
-        pollRef.current = setInterval(poll, 2_000);
+        // Start with slow polling (30s) — speeds up to 2s if sync is active
+        pollRef.current = setInterval(poll, 30_000);
         return () => {
             if (pollRef.current) clearInterval(pollRef.current);
             if (hideTimer.current) clearTimeout(hideTimer.current);
         };
-    }, [visible]);
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Sync progress to animProgress — CSS transition on the bar handles the smooth animation.
     // Previously used JS easing (prev + (target-prev)*0.3) which never actually reaches 100.

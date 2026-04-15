@@ -5,6 +5,24 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.52] - 2026-04-15
+
+### For users
+
+> Fixes rate limiting that blocked the UI after navigating between tabs, and stops the sync-status banner from polling every 2 seconds permanently.
+
+- **Fix 429 rate limit blocking UI** - rate limit increased from 60 to 300 requests/min for fail2ban routes. Navigating between tabs no longer causes "Too Many Requests" errors.
+- **Fix sync-status polling storm** - the sync progress banner now polls every 30s when idle (was 2s permanently), speeding up to 2s only during active sync.
+- **Docker local build** - `docker-compose.local.yml` now mirrors production with MODE A/B comments, `security_opt`, and optional volume mounts.
+
+### Technical
+
+- **`server/plugins/fail2ban/Fail2banPlugin.ts`** - rate limiter raised from 60 to 300 req/min per IP.
+- **`src/pages/fail2ban/SyncProgressBanner.tsx`** - adaptive polling: 30s idle, 2s during sync. Removed `visible` from useEffect deps to prevent interval re-creation loops.
+- **`docker-compose.local.yml`** - added MODE B (network_mode: host + NET_ADMIN) commented, `security_opt`, optional VACUUM/config bind mounts.
+
+---
+
 ## [0.8.51] - 2026-04-15
 
 ### For users
