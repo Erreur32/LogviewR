@@ -5,6 +5,14 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.53] - 2026-04-15
+
+### Technical
+
+- **SonarCloud cleanup (~60 issues)** - sanitize log injection in API client, replace regex with string literals in `replaceAll`, add `role`/`tabIndex`/`onKeyDown` accessibility on interactive elements, associate form labels with controls via `htmlFor`/`id`, fix identical conditional branches, fix async Promise executor in MqttService, use `Number.isFinite`/`codePointAt` over globals, add `tabIndex={-1}` on `aria-hidden` canvas elements. Files: `client.ts`, `AnimatedBackground.tsx`, `ExporterSection.tsx`, `ThemeSection.tsx`, `PluginsManagementSection.tsx`, `SettingsSection.tsx`, `Header.tsx`, `DownloadDetails.tsx`, `LogsManagementSection.tsx`, `GrokPatterns.ts`, `HostSystemLogPlugin.ts`, `WebhookService.ts`, `MqttService.ts`, `metricsService.ts`, `updates.ts`, `index.ts`, `Fail2banPlugin.ts`.
+
+---
+
 ## [0.8.52] - 2026-04-15
 
 ### For users

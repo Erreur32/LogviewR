@@ -1292,7 +1292,7 @@ export class Fail2banPlugin extends BasePlugin {
                 let found = false;
                 for (const pat of patterns) {
                     // Sanitize: replace fail2ban <HOST> placeholder with IP pattern, reject overly long patterns
-                    const jsPatStr = pat.replaceAll(/<HOST>/g, '(?:[0-9]{1,3}\\.){3}[0-9]{1,3}|[0-9a-fA-F:]{2,39}');
+                    const jsPatStr = pat.replaceAll('<HOST>', '(?:[0-9]{1,3}\\.){3}[0-9]{1,3}|[0-9a-fA-F:]{2,39}');
                     if (jsPatStr.length > 1000) continue; // skip excessively long patterns
                     try {
                         const re = new RegExp(jsPatStr);
@@ -1562,7 +1562,7 @@ export class Fail2banPlugin extends BasePlugin {
             ];
 
             // ── Pre-checks ───────────────────────────────────────────────────────
-            if (content.charCodeAt(0) === 0xFEFF)
+            if (content.codePointAt(0) === 0xFEFF)
                 warnings.push('BOM UTF-8 détecté en début de fichier — peut causer des erreurs de parsing');
             if (content.includes('\r\n'))
                 warnings.push('Fins de ligne Windows (CRLF) détectées — préférer LF Unix');
@@ -1754,7 +1754,7 @@ export class Fail2banPlugin extends BasePlugin {
             const filePath = path.join(confBase, filename);
             // Normalize line endings — CRLF from browser/editor would make fail2ban
             // read logpath as "/var/log/auth.log\r" and fail with "no log file found"
-            const normalized = content.replaceAll(/\r\n/g, '\n').replaceAll(/\r/g, '\n');
+            const normalized = content.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
             try {
                 fs.writeFileSync(filePath, normalized, 'utf8');
             } catch (e) {

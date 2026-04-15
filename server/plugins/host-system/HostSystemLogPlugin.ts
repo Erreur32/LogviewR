@@ -84,16 +84,19 @@ export class HostSystemLogPlugin extends BasePlugin implements LogSourcePlugin {
 
     constructor() {
         super('host-system', 'Host System Logs', '0.1.4');
-        // Detect OS on initialization and set default log files
-        detectOS().then(info => {
+        void this.initOsDetection();
+    }
+
+    private async initOsDetection(): Promise<void> {
+        try {
+            const info = await detectOS();
             this.osInfo = info;
             this.defaultLogFiles = getDefaultLogFiles(info.type);
             logger.debug('HostSystem', `OS detected: ${info.type} ${info.version || ''}`);
-        }).catch(err => {
+        } catch (err) {
             logger.warn('HostSystem', `Failed to detect OS: ${err instanceof Error ? err.message : String(err)}`);
-            // Fallback to Debian/Ubuntu defaults
             this.defaultLogFiles = getDefaultLogFiles('debian');
-        });
+        }
     }
 
     /**
@@ -185,8 +188,8 @@ export class HostSystemLogPlugin extends BasePlugin implements LogSourcePlugin {
 
         // Exclude subdirectories of basePath unless user configured explicit directory filters
         if (isDirectory) {
-            const normalizedBase = path.resolve(basePath).replaceAll(/\\/g, '/');
-            const normalizedPath = path.resolve(filePath).replaceAll(/\\/g, '/');
+            const normalizedBase = path.resolve(basePath).replaceAll('\\', '/');
+            const normalizedPath = path.resolve(filePath).replaceAll('\\', '/');
             if (normalizedPath.startsWith(normalizedBase + '/') && normalizedPath !== normalizedBase) {
                 if (!excludeFilters?.directories?.length) return true;
             }

@@ -205,21 +205,26 @@ class MqttService {
     // ── Connection test (ephemeral client) ────────────────────────────────────
 
     async testConnection(config: MqttConfig): Promise<{ ok: boolean; message: string }> {
-        return new Promise(async (resolve) => {
+        if (!this.mqttLib) {
+            try {
+                this.mqttLib = await import('mqtt');
+            } catch (err: unknown) {
+                const msg = err instanceof Error ? err.message : String(err);
+                return { ok: false, message: msg };
+            }
+        }
+        const mqttLib = this.mqttLib;
+        return new Promise((resolve) => {
             const timeout = setTimeout(() => {
                 resolve({ ok: false, message: 'Timeout (10s) — broker injoignable' });
             }, 10_000);
 
             try {
-                if (!this.mqttLib) {
-                    this.mqttLib = await import('mqtt');
-                }
-
                 const connectUrl = config.broker.startsWith('mqtt')
                     ? config.broker
                     : `mqtt://${config.broker}`;
 
-                const testClient = this.mqttLib.connect(connectUrl, {
+                const testClient = mqttLib.connect(connectUrl, {
                     username:       config.username || undefined,
                     password:       config.password || undefined,
                     clientId:       `logviewr_test_${crypto.randomBytes(4).toString('hex')}`,

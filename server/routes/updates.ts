@@ -75,7 +75,7 @@ function getReleaseNotesFromChangelog(version: string): string | undefined {
     // Strip blockquote markers (> summary line)
     section = section.replaceAll(/^> /gm, '');
     // Collapse multiple blank lines
-    section = section.replace(/\n{3,}/g, '\n\n').trim();
+    section = section.replaceAll(/\n{3,}/g, '\n\n').trim();
     if (!section) return undefined;
     const trimmed = section.slice(0, 400);
     return trimmed.length < section.length ? trimmed.replace(/\s+\S*$/, '') + '…' : trimmed;

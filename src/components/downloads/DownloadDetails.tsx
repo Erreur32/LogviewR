@@ -200,15 +200,15 @@ export const DownloadDetails: React.FC<DownloadDetailsProps> = ({ task, onClose 
           </div>
           <div className="flex items-center gap-4 text-xs">
             <span className="flex items-center gap-1">
-              <span className="w-3 h-3 bg-emerald-500 rounded-sm" />
+              <span className="w-3 h-3 bg-emerald-500 rounded-sm" />{' '}
               Complet
             </span>
             <span className="flex items-center gap-1">
-              <span className="w-3 h-3 bg-blue-500 rounded-sm" />
+              <span className="w-3 h-3 bg-blue-500 rounded-sm" />{' '}
               En cours ({downloadingPieces})
             </span>
             <span className="flex items-center gap-1">
-              <span className="w-3 h-3 bg-gray-600 rounded-sm" />
+              <span className="w-3 h-3 bg-gray-600 rounded-sm" />{' '}
               En attente
             </span>
           </div>

@@ -590,18 +590,18 @@ server.listen(port, host, () => {
   const visibleLength = (str: string): number => {
     // Remove ANSI escape codes
     const ansiRegex = /\x1b\[[0-9;]*m/g;
-    let cleaned = str.replace(ansiRegex, '');
+    let cleaned = str.replaceAll(ansiRegex, '');
     // Count emojis as 2 characters (they typically take 2 character positions in terminal)
     const emojiRegex = /[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu;
     const emojiMatches = cleaned.match(emojiRegex);
     const emojiCount = emojiMatches ? emojiMatches.length : 0;
     // Remove emojis from length calculation and add them back as 2 chars each
-    const withoutEmojis = cleaned.replace(emojiRegex, '');
+    const withoutEmojis = cleaned.replaceAll(emojiRegex, '');
     return withoutEmojis.length + (emojiCount * 2);
   };
 
   // Read app version from package.json
-  let appVersion = '0.8.52'; // Default fallback
+  let appVersion = '0.8.53'; // Default fallback
   try {
     const packageJsonPath = path.join(__dirname, '..', 'package.json');
     const packageJson = JSON.parse(fsSync.readFileSync(packageJsonPath, 'utf8'));

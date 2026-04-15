@@ -1,5 +1,11 @@
 import type { ApiResponse } from '../types/api';
 
+/** Sanitize external data before logging to prevent log injection */
+function sanitizeForLog(input: unknown, maxLen = 200): string {
+  const str = typeof input === 'string' ? input : String(input ?? '');
+  return str.slice(0, maxLen).replaceAll(/[\n\r\t]/g, ' ');
+}
+
 class ApiClient {
   private baseUrl: string;
 
@@ -50,7 +56,7 @@ class ApiClient {
         const text = await response.text();
         // Only log non-JSON responses in development
         if (import.meta.env.DEV) {
-          console.error(`[API] Non-JSON response from ${method} ${url}:`, text);
+          console.error(`[API] Non-JSON response from ${method} ${url}:`, sanitizeForLog(text));
         }
         return {
           success: false,
@@ -78,7 +84,7 @@ class ApiClient {
 
       // Check for deprecated API error
       if (data && !data.success && data.error_code === 'deprecated') {
-        console.warn(`[API] Deprecated API for ${method} ${endpoint}: ${data.msg}`);
+        console.warn(`[API] Deprecated API for ${method} ${endpoint}: ${sanitizeForLog(data.msg)}`);
 
         return {
           success: false,

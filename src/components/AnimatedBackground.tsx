@@ -90,7 +90,7 @@ export const AnimatedBackground: React.FC<AnimatedBackgroundProps> = ({
     return (
       <div 
         className="fixed inset-0 -z-10 animated-bg-wrapper" 
-        aria-hidden
+        aria-hidden tabIndex={-1}
         style={{ ['--animation-speed' as string]: speedMultiplier }}
       >
         <HomeAssistantParticlesCanvas 
@@ -108,7 +108,7 @@ export const AnimatedBackground: React.FC<AnimatedBackgroundProps> = ({
     return (
       <div 
         className="fixed inset-0 -z-10 animated-bg-wrapper" 
-        aria-hidden
+        aria-hidden tabIndex={-1}
         style={{ ['--animation-speed' as string]: speedMultiplier }}
       >
         <ParticleWavesCanvas 
@@ -126,7 +126,7 @@ export const AnimatedBackground: React.FC<AnimatedBackgroundProps> = ({
     return (
       <div 
         className="fixed inset-0 -z-10 animated-bg-wrapper" 
-        aria-hidden
+        aria-hidden tabIndex={-1}
         style={{ ['--animation-speed' as string]: speedMultiplier }}
       >
         <ParticulesLineCanvas 
@@ -143,7 +143,7 @@ export const AnimatedBackground: React.FC<AnimatedBackgroundProps> = ({
     return (
       <div
         className="fixed inset-0 -z-10 animated-bg-wrapper"
-        aria-hidden
+        aria-hidden tabIndex={-1}
         style={{ 
           background: 'var(--bg-primary, #0a0a0f)',
           ['--animation-speed' as string]: speedMultiplier,
@@ -173,7 +173,7 @@ export const AnimatedBackground: React.FC<AnimatedBackgroundProps> = ({
     return (
       <div 
         className="fixed inset-0 -z-10 animated-bg-wrapper" 
-        aria-hidden
+        aria-hidden tabIndex={-1}
         style={{ ['--animation-speed' as string]: cssSpeedVar }}
       >
         <CssDarkParticles 
@@ -190,7 +190,7 @@ export const AnimatedBackground: React.FC<AnimatedBackgroundProps> = ({
     return (
       <div 
         className="fixed inset-0 -z-10 animated-bg-wrapper" 
-        aria-hidden
+        aria-hidden tabIndex={-1}
         style={{ ['--animation-speed' as string]: speedMultiplier }}
       >
         <CanvasRibbons 
@@ -210,7 +210,7 @@ export const AnimatedBackground: React.FC<AnimatedBackgroundProps> = ({
     return (
       <div 
         className="fixed inset-0 -z-10 animated-bg-wrapper" 
-        aria-hidden
+        aria-hidden tabIndex={-1}
         style={{ ['--animation-speed' as string]: speedMultiplier }}
       >
         <AuroraCanvas 
@@ -232,7 +232,7 @@ export const AnimatedBackground: React.FC<AnimatedBackgroundProps> = ({
     return (
       <div 
         className="fixed inset-0 -z-10 animated-bg-wrapper" 
-        aria-hidden
+        aria-hidden tabIndex={-1}
         style={{ ['--animation-speed' as string]: speedMultiplier }}
       >
         <AuroraV2Canvas 
@@ -254,7 +254,7 @@ export const AnimatedBackground: React.FC<AnimatedBackgroundProps> = ({
     return (
       <div
         className="fixed inset-0 -z-10 animated-bg-wrapper"
-        aria-hidden
+        aria-hidden tabIndex={-1}
         style={{ ['--animation-speed' as string]: speedMultiplier }}
       >
         <BitOceanCanvas
@@ -271,7 +271,7 @@ export const AnimatedBackground: React.FC<AnimatedBackgroundProps> = ({
     return (
       <div 
         className="fixed inset-0 -z-10 animated-bg-wrapper" 
-        aria-hidden
+        aria-hidden tabIndex={-1}
         style={{ ['--animation-speed' as string]: speedMultiplier }}
       >
         <AlienBlackoutCanvas 
@@ -292,7 +292,7 @@ export const AnimatedBackground: React.FC<AnimatedBackgroundProps> = ({
     return (
       <div 
         className="fixed inset-0 -z-10 animated-bg-wrapper" 
-        aria-hidden
+        aria-hidden tabIndex={-1}
         style={{ ['--animation-speed' as string]: speedMultiplier }}
       >
         <StarsCanvas 
@@ -311,7 +311,7 @@ export const AnimatedBackground: React.FC<AnimatedBackgroundProps> = ({
     return (
       <div 
         className="fixed inset-0 -z-10 animated-bg-wrapper" 
-        aria-hidden
+        aria-hidden tabIndex={-1}
         style={{ ['--animation-speed' as string]: speedMultiplier }}
       >
         <SpaceCanvas 
@@ -331,7 +331,7 @@ export const AnimatedBackground: React.FC<AnimatedBackgroundProps> = ({
     return (
       <div 
         className="fixed inset-0 -z-10 animated-bg-wrapper" 
-        aria-hidden
+        aria-hidden tabIndex={-1}
         style={{ ['--animation-speed' as string]: speedMultiplier }}
       >
         <SidelinedCanvas 
@@ -351,7 +351,7 @@ export const AnimatedBackground: React.FC<AnimatedBackgroundProps> = ({
   return (
     <div
       className="fixed inset-0 -z-10 animated-bg-wrapper"
-      aria-hidden
+      aria-hidden tabIndex={-1}
       style={{ 
         background: 'var(--bg-primary, #0a0a0f)',
         ['--animation-speed' as string]: speedMultiplier
@@ -419,7 +419,7 @@ const ParticlesCanvas: React.FC = () => {
     <canvas
       ref={canvasRef}
       className="fixed inset-0 -z-10 w-full h-full"
-      aria-hidden
+      aria-hidden tabIndex={-1}
       style={{ background: 'var(--color-bg-primary, #0f0f0f)' }}
     />
   );
@@ -579,7 +579,7 @@ const HomeAssistantParticlesCanvas: React.FC<{
     <canvas
       ref={canvasRef}
       className="fixed inset-0 -z-10 w-full h-full"
-      aria-hidden
+      aria-hidden tabIndex={-1}
       style={{ background: 'linear-gradient(135deg, #111111 0%, #1c1c1c 100%)' }}
     />
   );
@@ -783,7 +783,7 @@ const ParticleWavesCanvas: React.FC<{
     <canvas
       ref={canvasRef}
       className="fixed inset-0 -z-10 w-full h-full"
-      aria-hidden
+      aria-hidden tabIndex={-1}
       style={{ background: '#000' }}
     />
   );
@@ -898,7 +898,7 @@ const ParticulesLineCanvas: React.FC<{
     <canvas
       ref={canvasRef}
       className="fixed inset-0 -z-10 w-full h-full"
-      aria-hidden
+      aria-hidden tabIndex={-1}
       style={{ background: 'var(--bg-primary, #0a0a12)' }}
     />
   );
@@ -1288,7 +1288,7 @@ const PlaystationCanvas: React.FC<{
     <canvas
       ref={canvasRef}
       className="fixed inset-0 -z-10 w-full h-full"
-      aria-hidden
+      aria-hidden tabIndex={-1}
       style={{ background: 'linear-gradient(to bottom, #000, #111)' }}
     />
   );
@@ -1642,7 +1642,7 @@ const CanvasRibbons: React.FC<{
     <canvas
       ref={canvasRef}
       className="fixed inset-0 -z-10 w-full h-full"
-      aria-hidden
+      aria-hidden tabIndex={-1}
       style={{ background: '#000' }}
     />
   );
@@ -1872,7 +1872,7 @@ const AuroraCanvas: React.FC<{
     <canvas
       ref={canvasRef}
       className="fixed inset-0 -z-10 w-full h-full"
-      aria-hidden
+      aria-hidden tabIndex={-1}
       style={{ background: '#000' }}
     />
   );
@@ -2107,7 +2107,7 @@ const AuroraV2Canvas: React.FC<{
     <canvas
       ref={canvasRef}
       className="fixed inset-0 -z-10 w-full h-full"
-      aria-hidden
+      aria-hidden tabIndex={-1}
       style={{ background: '#000' }}
     />
   );
@@ -2281,7 +2281,7 @@ const BitOceanCanvas: React.FC<{
     <canvas
       ref={canvasRef}
       className="fixed inset-0 -z-10 w-full h-full"
-      aria-hidden
+      aria-hidden tabIndex={-1}
       style={{ background: '#000' }}
     />
   );
@@ -2544,7 +2544,7 @@ const AlienBlackoutCanvas: React.FC<{
     <canvas
       ref={canvasRef}
       className="fixed inset-0 -z-10 w-full h-full"
-      aria-hidden
+      aria-hidden tabIndex={-1}
       style={{ background: '#000' }}
     />
   );
@@ -2715,7 +2715,7 @@ const StarsCanvas: React.FC<{
     <canvas
       ref={canvasRef}
       className="fixed inset-0 -z-10 w-full h-full"
-      aria-hidden
+      aria-hidden tabIndex={-1}
       style={{ background: '#000' }}
     />
   );
@@ -2896,7 +2896,7 @@ const SpaceCanvas: React.FC<{
     <canvas
       ref={canvasRef}
       className="fixed inset-0 -z-10 w-full h-full"
-      aria-hidden
+      aria-hidden tabIndex={-1}
       style={{ background: 'hsl(256, 100%, 5%)' }}
     />
   );
@@ -3012,7 +3012,7 @@ const SidelinedCanvas: React.FC<{
     <canvas
       ref={canvasRef}
       className="fixed inset-0 -z-10 w-full h-full"
-      aria-hidden
+      aria-hidden tabIndex={-1}
       style={{ background: '#111' }}
     />
   );

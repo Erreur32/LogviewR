@@ -618,14 +618,17 @@ export const Header: React.FC<HeaderProps> = ({
 
               {/* Plugin Switcher Menu */}
               {isPluginMenuOpen && pluginMenuPosition && createPortal(
-                <div 
+                <div
                   ref={pluginMenuRef}
                   className="fixed bg-[#1a1a1a] border border-gray-700 rounded-lg shadow-xl z-[9999] overflow-hidden min-w-[200px]"
-                  style={{ 
-                    top: `${pluginMenuPosition.top}px`, 
+                  style={{
+                    top: `${pluginMenuPosition.top}px`,
                     left: `${pluginMenuPosition.left}px`
                   }}
+                  role="button"
+                  tabIndex={0}
                   onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); } }}
                 >
                   <div className="py-1">
                     {availablePlugins.map((plugin) => {

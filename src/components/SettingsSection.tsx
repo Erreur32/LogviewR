@@ -51,7 +51,10 @@ export const Section: React.FC<{
     <div className={`bg-theme-card rounded-xl border border-theme overflow-hidden ${permissionError ? 'opacity-60' : ''}`} style={{ backdropFilter: 'var(--backdrop-blur)' }}>
       <div
         className={`flex items-center gap-3 px-4 py-3 border-b border-theme bg-theme-primary ${collapsible ? 'cursor-pointer select-none' : ''}`}
+        role={collapsible ? 'button' : undefined}
+        tabIndex={collapsible ? 0 : undefined}
         onClick={collapsible ? () => setCollapsed(c => !c) : undefined}
+        onKeyDown={collapsible ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setCollapsed(c => !c); } } : undefined}
       >
         <Icon size={18} className={iconClassName} />
         <h3 className="font-medium theme-section-title flex-1">{title}</h3>

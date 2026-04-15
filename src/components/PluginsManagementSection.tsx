@@ -270,7 +270,10 @@ export const PluginsManagementSection: React.FC = () => {
                                             ? 'bg-yellow-500/10 border-yellow-500/30 hover:border-yellow-500/50 hover:shadow-yellow-500/20'
                                             : 'bg-gray-500/10 border-gray-500/30 hover:border-gray-500/50 hover:shadow-gray-500/20'
                                 } ${expandedPluginId === plugin.id ? 'border-blue-500/50 ring-1 ring-blue-500/30' : ''}`}
+                                role="button"
+                                tabIndex={0}
                                 onClick={() => handleToggleOptions(plugin.id)}
+                                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleToggleOptions(plugin.id); } }}
                             >
                                 {/* Icon */}
                                 <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden ${
@@ -304,7 +307,7 @@ export const PluginsManagementSection: React.FC = () => {
                                 </div>
 
                                 {/* Actions */}
-                                <div className="flex items-center gap-1.5 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                                <div className="flex items-center gap-1.5 flex-shrink-0" role="button" tabIndex={0} onClick={e => e.stopPropagation()} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); } }}>
                                     {['host-system', 'apache', 'nginx', 'npm'].includes(plugin.id) && (
                                         <Tooltip content={(plugin.settings?.readCompressed as boolean) ? t('admin.pluginsSection.tooltipCompressedOn') : t('admin.pluginsSection.tooltipCompressedOff')}>
                                             <button

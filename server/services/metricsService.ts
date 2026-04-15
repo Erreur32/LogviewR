@@ -40,7 +40,7 @@ function toPrometheusNumber(value: any): number {
     
     // If value is already a number, return it
     if (typeof value === 'number') {
-        return Number.isNaN(value) || !isFinite(value) ? 0 : value;
+        return Number.isNaN(value) || !Number.isFinite(value) ? 0 : value;
     }
     
     // If value is a boolean, convert to 0 or 1
@@ -68,7 +68,7 @@ function toPrometheusNumber(value: any): number {
     
     // Try to parse as number
     const parsed = Number.parseFloat(String(value));
-    return Number.isNaN(parsed) || !isFinite(parsed) ? 0 : parsed;
+    return Number.isNaN(parsed) || !Number.isFinite(parsed) ? 0 : parsed;
 }
 
 /**
@@ -138,8 +138,8 @@ export async function generatePrometheusMetrics(): Promise<string> {
                     lines.push(`# TYPE logviewr_disk_usage gauge`);
                     
                     sys.disks.forEach((disk: any, index: number) => {
-                        const mountpoint = (disk.mountpoint || disk.mount || `/disk${index}`).replaceAll(/\\/g, '\\\\').replaceAll(/"/g, '\\"');
-                        const device = (disk.device || 'unknown').replaceAll(/\\/g, '\\\\').replaceAll(/"/g, '\\"');
+                        const mountpoint = (disk.mountpoint || disk.mount || `/disk${index}`).replaceAll('\\', '\\\\').replaceAll('"', '\\"');
+                        const device = (disk.device || 'unknown').replaceAll('\\', '\\\\').replaceAll('"', '\\"');
                         const labels = `{mountpoint="${mountpoint}",device="${device}"}`;
                         
                         const diskTotal = toPrometheusNumber(disk.total);
@@ -545,8 +545,8 @@ export async function generateInfluxDBMetrics(): Promise<string> {
                 // Disk
                 if (sys.disks && Array.isArray(sys.disks)) {
                     sys.disks.forEach((disk: any) => {
-                        const mountpoint = (disk.mountpoint || disk.mount || 'unknown').replace(/[ ,=]/g, '_');
-                        const device = (disk.device || 'unknown').replace(/[ ,=]/g, '_');
+                        const mountpoint = (disk.mountpoint || disk.mount || 'unknown').replaceAll(/[ ,=]/g, '_');
+                        const device = (disk.device || 'unknown').replaceAll(/[ ,=]/g, '_');
                         
                         const diskTotal = toPrometheusNumber(disk.total);
                         const diskUsed = toPrometheusNumber(disk.used);
@@ -591,7 +591,7 @@ export async function generateInfluxDBMetrics(): Promise<string> {
         for (const [pluginId, stats] of Object.entries(allStats)) {
             if (!stats) continue;
             
-            const pluginTag = pluginId.replace(/[ ,=]/g, '_');
+            const pluginTag = pluginId.replaceAll(/[ ,=]/g, '_');
             
             // Network stats from plugins
             if (stats.network) {
@@ -774,7 +774,7 @@ export async function generateInfluxDBMetrics(): Promise<string> {
         if (f2b) {
             lines.push(`logviewr,type=fail2ban available=1i,bans_today=${f2b.bansToday}i,unique_ips_today=${f2b.uniqueIpsToday}i,active_bans=${f2b.activeBans}i,total_bans=${f2b.totalBans}i ${timestamp}`);
             for (const j of f2b.jailCounts) {
-                const safeJail = j.jail.replace(/[,= ]/g, '_');
+                const safeJail = j.jail.replaceAll(/[,= ]/g, '_');
                 lines.push(`logviewr,type=fail2ban_jail,jail=${safeJail} bans_today=${j.count}i ${timestamp}`);
             }
         } else {

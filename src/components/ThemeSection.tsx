@@ -283,7 +283,7 @@ const CARD_OPACITY_STORAGE_KEY = 'logviewr_card_opacity';
 const VALID_THEMES_LIST: Theme[] = ['dark', 'glass', 'modern', 'nightly', 'neon', 'elegant', 'full-animation'];
 
 /** Maps animation id to i18n key (dots to underscores) */
-const animationLabelKey = (id: string): string => id.replaceAll(/\./g, '_');
+const animationLabelKey = (id: string): string => id.replaceAll('.', '_');
 
 export const ThemeSection: React.FC = () => {
     const { t } = useTranslation();
@@ -685,12 +685,10 @@ export const ThemeSection: React.FC = () => {
                                             : 'border-theme hover:border-yellow-500/50 hover:shadow-lg hover:shadow-yellow-500/10'
                                     } ${theme.id === 'modern' ? 'backdrop-blur-md' : ''}`}
                                     style={{
-                                        background: theme.id === 'glass' 
+                                        background: theme.id === 'glass'
                                             ? '#0a0a0a'
                                             : theme.id === 'modern'
                                             ? 'linear-gradient(135deg, #1a1a2e 0%, #16213e 25%, #0f3460 50%, #533483 75%, #1a1a2e 100%)'
-                                            : theme.id === 'nightly'
-                                            ? '#0f0f0f'
                                             : '#0f0f0f',
                                         backdropFilter: theme.id === 'glass' || theme.id === 'modern' ? 'blur(12px)' : 'none',
                                         color: themeColors.textPrimary
@@ -887,12 +885,10 @@ export const ThemeSection: React.FC = () => {
                                                 : 'border-theme hover:border-yellow-500/50 hover:shadow-lg hover:shadow-yellow-500/10'
                                         } ${theme.id === 'modern' ? 'backdrop-blur-md' : ''}`}
                                         style={{
-                                            background: theme.id === 'glass' 
+                                            background: theme.id === 'glass'
                                                 ? '#0a0a0a'
                                                 : theme.id === 'modern'
                                                 ? 'linear-gradient(135deg, #1a1a2e 0%, #16213e 25%, #0f3460 50%, #533483 75%, #1a1a2e 100%)'
-                                                : theme.id === 'nightly'
-                                                ? '#0f0f0f'
                                                 : '#0f0f0f',
                                             backdropFilter: theme.id === 'glass' || theme.id === 'modern' ? 'blur(12px)' : 'none',
                                             color: themeColors.textPrimary
@@ -1555,11 +1551,12 @@ export const ThemeSection: React.FC = () => {
                                 </h5>
                                 <div className="space-y-3">
                                     <div>
-                                        <label className="block text-[10px] font-medium text-theme-secondary mb-1.5">
+                                        <label htmlFor="color-bgPrimary" className="block text-[10px] font-medium text-theme-secondary mb-1.5">
                                             Arrière-plan principal
                                         </label>
                                         <div className="flex items-center gap-1.5">
                                             <input
+                                                id="color-bgPrimary"
                                                 type="color"
                                                 value={getColorValue('bgPrimary').replace(/rgba?\([^)]+\)/, '#0f0f0f')}
                                                 onChange={(e) => handleColorChange('bgPrimary', e.target.value)}
@@ -1588,11 +1585,12 @@ export const ThemeSection: React.FC = () => {
                                 </h5>
                                 <div className="space-y-3">
                                     <div>
-                                        <label className="block text-[10px] font-medium text-theme-secondary mb-1.5">
+                                        <label htmlFor="color-textPrimary" className="block text-[10px] font-medium text-theme-secondary mb-1.5">
                                             Texte principal
                                         </label>
                                         <div className="flex items-center gap-1.5">
                                             <input
+                                                id="color-textPrimary"
                                                 type="color"
                                                 value={getColorValue('textPrimary')}
                                                 onChange={(e) => handleColorChange('textPrimary', e.target.value)}
@@ -1616,11 +1614,12 @@ export const ThemeSection: React.FC = () => {
                                         </div>
                                     </div>
                                     <div>
-                                        <label className="block text-[10px] font-medium text-theme-secondary mb-1.5">
+                                        <label htmlFor="color-textSecondary" className="block text-[10px] font-medium text-theme-secondary mb-1.5">
                                             Texte secondaire
                                         </label>
                                         <div className="flex items-center gap-1.5">
                                             <input
+                                                id="color-textSecondary"
                                                 type="color"
                                                 value={getColorValue('textSecondary')}
                                                 onChange={(e) => handleColorChange('textSecondary', e.target.value)}
@@ -1654,11 +1653,12 @@ export const ThemeSection: React.FC = () => {
                                 </h5>
                                 <div className="space-y-3">
                                     <div>
-                                        <label className="block text-[10px] font-medium text-theme-secondary mb-1.5">
+                                        <label htmlFor="color-borderColor" className="block text-[10px] font-medium text-theme-secondary mb-1.5">
                                             Bordure
                                         </label>
                                         <div className="flex items-center gap-1.5">
                                             <input
+                                                id="color-borderColor"
                                                 type="color"
                                                 value={getColorValue('borderColor').replace(/rgba?\([^)]+\)/, '#333333')}
                                                 onChange={(e) => handleColorChange('borderColor', e.target.value)}
@@ -1680,11 +1680,12 @@ export const ThemeSection: React.FC = () => {
                                         </div>
                                     </div>
                                     <div>
-                                        <label className="block text-[10px] font-medium text-theme-secondary mb-1.5">
+                                        <label htmlFor="color-borderColorLight" className="block text-[10px] font-medium text-theme-secondary mb-1.5">
                                             Bordure (light)
                                         </label>
                                         <div className="flex items-center gap-1.5">
                                             <input
+                                                id="color-borderColorLight"
                                                 type="color"
                                                 value={getColorValue('borderColorLight').replace(/rgba?\([^)]+\)/, '#444444')}
                                                 onChange={(e) => handleColorChange('borderColorLight', e.target.value)}
@@ -1716,11 +1717,12 @@ export const ThemeSection: React.FC = () => {
                                 </h5>
                                 <div className="grid grid-cols-2 gap-3">
                                     <div>
-                                        <label className="block text-[10px] font-medium text-theme-secondary mb-1.5">
+                                        <label htmlFor="color-buttonBg" className="block text-[10px] font-medium text-theme-secondary mb-1.5">
                                             Fond du bouton
                                         </label>
                                         <div className="flex items-center gap-1.5">
                                             <input
+                                                id="color-buttonBg"
                                                 type="color"
                                                 value={getColorValue('buttonBg').replace(/rgba?\([^)]+\)/, '#1a1a1a')}
                                                 onChange={(e) => handleColorChange('buttonBg', e.target.value)}
@@ -1744,11 +1746,12 @@ export const ThemeSection: React.FC = () => {
                                         </div>
                                     </div>
                                     <div>
-                                        <label className="block text-[10px] font-medium text-theme-secondary mb-1.5">
+                                        <label htmlFor="color-buttonText" className="block text-[10px] font-medium text-theme-secondary mb-1.5">
                                             Texte du bouton
                                         </label>
                                         <div className="flex items-center gap-1.5">
                                             <input
+                                                id="color-buttonText"
                                                 type="color"
                                                 value={getColorValue('buttonText')}
                                                 onChange={(e) => handleColorChange('buttonText', e.target.value)}
@@ -1772,11 +1775,12 @@ export const ThemeSection: React.FC = () => {
                                         </div>
                                     </div>
                                     <div>
-                                        <label className="block text-[10px] font-medium text-theme-secondary mb-1.5">
+                                        <label htmlFor="color-buttonActiveBg" className="block text-[10px] font-medium text-theme-secondary mb-1.5">
                                             Fond du bouton (actif)
                                         </label>
                                         <div className="flex items-center gap-1.5">
                                             <input
+                                                id="color-buttonActiveBg"
                                                 type="color"
                                                 value={getColorValue('buttonActiveBg')}
                                                 onChange={(e) => handleColorChange('buttonActiveBg', e.target.value)}
@@ -1800,11 +1804,12 @@ export const ThemeSection: React.FC = () => {
                                         </div>
                                     </div>
                                     <div>
-                                        <label className="block text-[10px] font-medium text-theme-secondary mb-1.5">
+                                        <label htmlFor="color-buttonActiveText" className="block text-[10px] font-medium text-theme-secondary mb-1.5">
                                             Texte du bouton (actif)
                                         </label>
                                         <div className="flex items-center gap-1.5">
                                             <input
+                                                id="color-buttonActiveText"
                                                 type="color"
                                                 value={getColorValue('buttonActiveText')}
                                                 onChange={(e) => handleColorChange('buttonActiveText', e.target.value)}
@@ -1828,11 +1833,12 @@ export const ThemeSection: React.FC = () => {
                                         </div>
                                     </div>
                                     <div>
-                                        <label className="block text-[10px] font-medium text-theme-secondary mb-1.5">
+                                        <label htmlFor="color-buttonBorder" className="block text-[10px] font-medium text-theme-secondary mb-1.5">
                                             Bordure du bouton
                                         </label>
                                         <div className="flex items-center gap-1.5">
                                             <input
+                                                id="color-buttonBorder"
                                                 type="color"
                                                 value={getColorValue('buttonBorder').replace(/rgba?\([^)]+\)/, '#333333')}
                                                 onChange={(e) => handleColorChange('buttonBorder', e.target.value)}

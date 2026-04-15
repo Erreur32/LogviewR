@@ -138,7 +138,7 @@ export function grokToRegex(pattern: string): RegExp {
     // Then replace remaining spaces with \s+
     regexStr = regexStr.replaceAll(/\s+/g, '\\s+');
     // Finally, replace the temporary marker with \s+
-    regexStr = regexStr.replaceAll(/__SPACE_PLUS__/g, '\\s+');
+    regexStr = regexStr.replaceAll('__SPACE_PLUS__', '\\s+');
     
     // Create regex with start/end anchors
     return new RegExp(`^${regexStr}$`);
@@ -159,7 +159,7 @@ function expandCompositePatterns(pattern: string): string {
         const before = pattern;
         
         // Expand SYSLOGTIMESTAMP (preserve original name for timestamp reconstruction)
-        pattern = pattern.replace(
+        pattern = pattern.replaceAll(
             /%{SYSLOGTIMESTAMP:(\w+)}/g,
             (match, name) => {
                 changed = true;
@@ -168,7 +168,7 @@ function expandCompositePatterns(pattern: string): string {
         );
         
         // Expand IPORHOST
-        pattern = pattern.replace(
+        pattern = pattern.replaceAll(
             /%{IPORHOST:(\w+)}/g,
             (match, name) => {
                 changed = true;
@@ -177,7 +177,7 @@ function expandCompositePatterns(pattern: string): string {
         );
         
         // Expand IP
-        pattern = pattern.replace(
+        pattern = pattern.replaceAll(
             /%{IP:(\w+)}/g,
             (match, name) => {
                 changed = true;
@@ -191,7 +191,7 @@ function expandCompositePatterns(pattern: string): string {
         }
         
         // Expand PID
-        pattern = pattern.replace(
+        pattern = pattern.replaceAll(
             /%{PID:(\w+)}/g,
             (match, name) => {
                 changed = true;
@@ -200,7 +200,7 @@ function expandCompositePatterns(pattern: string): string {
         );
         
         // Expand PROGRAM
-        pattern = pattern.replace(
+        pattern = pattern.replaceAll(
             /%{PROGRAM:(\w+)}/g,
             (match, name) => {
                 changed = true;
@@ -209,7 +209,7 @@ function expandCompositePatterns(pattern: string): string {
         );
         
         // Expand USERNAME
-        pattern = pattern.replace(
+        pattern = pattern.replaceAll(
             /%{USERNAME:(\w+)}/g,
             (match, name) => {
                 changed = true;
@@ -218,7 +218,7 @@ function expandCompositePatterns(pattern: string): string {
         );
         
         // Expand PRIORITY
-        pattern = pattern.replace(
+        pattern = pattern.replaceAll(
             /%{PRIORITY:(\w+)}/g,
             (match, name) => {
                 changed = true;

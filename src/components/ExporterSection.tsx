@@ -100,15 +100,8 @@ export const ExporterSection: React.FC = () => {
         const hostname = window.location.hostname;
         const isIpAddress = /^(\d{1,3}\.){3}\d{1,3}$/.test(hostname) || /^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$/.test(hostname);
         
-        if (isIpAddress) {
-            // Use IP address with configured port
-            const url = `http://${hostname}:${configuredPort}/api/metrics/prometheus`;
-            setPrometheusUrl(url);
-        } else {
-            // Fallback: use hostname with configured port (shouldn't happen if no publicUrl)
-            const url = `http://${hostname}:${configuredPort}/api/metrics/prometheus`;
-            setPrometheusUrl(url);
-        }
+        const url = `http://${hostname}:${configuredPort}/api/metrics/prometheus`;
+        setPrometheusUrl(url);
     }, [config.prometheus.port, config.prometheus.enabled, publicUrl]);
 
     const loadConfig = async () => {
@@ -769,7 +762,9 @@ const MqttSection: React.FC = () => {
                         }`} />
                     </button>
                     <span className="text-sm text-gray-300 cursor-pointer select-none"
-                        onClick={() => setConfig(c => ({ ...c, enabled: !c.enabled }))}>
+                        role="button" tabIndex={0}
+                        onClick={() => setConfig(c => ({ ...c, enabled: !c.enabled }))}
+                        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setConfig(c => ({ ...c, enabled: !c.enabled })); } }}>
                         Activer la publication MQTT
                     </span>
                 </div>
@@ -784,8 +779,8 @@ const MqttSection: React.FC = () => {
             {/* Connection */}
             <div className="grid grid-cols-1 gap-3">
                 <div>
-                    <label className="block text-xs text-gray-400 mb-1">URL du broker</label>
-                    <input type="text" value={config.broker}
+                    <label htmlFor="mqtt-broker-url" className="block text-xs text-gray-400 mb-1">URL du broker</label>
+                    <input id="mqtt-broker-url" type="text" value={config.broker}
                         onChange={e => setConfig(c => ({ ...c, broker: e.target.value }))}
                         placeholder="mqtt://192.168.1.1:1883"
                         className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm font-mono placeholder-gray-600 focus:outline-none focus:border-cyan-500/50" />
@@ -793,16 +788,16 @@ const MqttSection: React.FC = () => {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                     <div>
-                        <label className="block text-xs text-gray-400 mb-1">Utilisateur (optionnel)</label>
-                        <input type="text" value={config.username ?? ''}
+                        <label htmlFor="mqtt-username" className="block text-xs text-gray-400 mb-1">Utilisateur (optionnel)</label>
+                        <input id="mqtt-username" type="text" value={config.username ?? ''}
                             onChange={e => setConfig(c => ({ ...c, username: e.target.value }))}
                             placeholder="user"
                             className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-600 focus:outline-none focus:border-cyan-500/50" />
                     </div>
                     <div>
-                        <label className="block text-xs text-gray-400 mb-1">Mot de passe (optionnel)</label>
+                        <label htmlFor="mqtt-password" className="block text-xs text-gray-400 mb-1">Mot de passe (optionnel)</label>
                         <div className="relative">
-                            <input type={showPass ? 'text' : 'password'} value={config.password ?? ''}
+                            <input id="mqtt-password" type={showPass ? 'text' : 'password'} value={config.password ?? ''}
                                 onChange={e => setConfig(c => ({ ...c, password: e.target.value }))}
                                 placeholder="••••••••"
                                 className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-600 focus:outline-none focus:border-cyan-500/50 pr-8" />
@@ -815,16 +810,16 @@ const MqttSection: React.FC = () => {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                     <div>
-                        <label className="block text-xs text-gray-400 mb-1">Préfixe de topic</label>
-                        <input type="text" value={config.topicPrefix}
+                        <label htmlFor="mqtt-topic-prefix" className="block text-xs text-gray-400 mb-1">Préfixe de topic</label>
+                        <input id="mqtt-topic-prefix" type="text" value={config.topicPrefix}
                             onChange={e => setConfig(c => ({ ...c, topicPrefix: e.target.value }))}
                             placeholder="logviewr"
                             className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm font-mono placeholder-gray-600 focus:outline-none focus:border-cyan-500/50" />
                         <p className="mt-1 text-xs text-gray-500">Topic état : <code className="text-gray-400">{config.topicPrefix || 'logviewr'}/sensor/bans_today/state</code></p>
                     </div>
                     <div>
-                        <label className="block text-xs text-gray-400 mb-1">Intervalle de publication</label>
-                        <select value={config.intervalMinutes}
+                        <label htmlFor="mqtt-interval" className="block text-xs text-gray-400 mb-1">Intervalle de publication</label>
+                        <select id="mqtt-interval" value={config.intervalMinutes}
                             onChange={e => setConfig(c => ({ ...c, intervalMinutes: Number(e.target.value) }))}
                             className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-cyan-500/50">
                             {INTERVAL_OPTIONS.map(o => (
@@ -860,7 +855,9 @@ const MqttSection: React.FC = () => {
                 <div className="space-y-2">
                     {STAT_LABELS.map(s => (
                         <div key={s.key} className="flex items-center justify-between gap-3 cursor-pointer group"
-                            onClick={() => setStat(s.key, !config.stats[s.key])}>
+                            role="button" tabIndex={0}
+                            onClick={() => setStat(s.key, !config.stats[s.key])}
+                            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setStat(s.key, !config.stats[s.key]); } }}>
                             <div>
                                 <span className="text-sm text-gray-300 group-hover:text-gray-100 transition-colors">{s.label}</span>
                                 <span className="text-xs text-gray-600 block">{s.desc}</span>
