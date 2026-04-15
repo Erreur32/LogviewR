@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Shield, Trash2, RotateCcw, Plus, AlertTriangle, CheckCircle, Network, Code, Table2, ChevronDown, ChevronRight, Archive } from 'lucide-react';
+import { Shield, Trash2, RotateCcw, Plus, AlertTriangle, CheckCircle, Network, Code, Table2, ChevronDown, ChevronRight, Archive, Server } from 'lucide-react';
 import { api } from '../../api/client';
 import { card, cardH, cardB, F2bTooltip } from './helpers';
+import { TabNFTables } from './TabNFTables';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -469,7 +470,7 @@ function RuleBuilder({ onAction }: { onAction: (deadline?: number) => void }) {
 
 // ── Main tab ───────────────────────────────────────────────────────────────────
 
-export const TabIPTables: React.FC = () => {
+const IPTablesContent: React.FC = () => {
     const [refreshToken, setRefreshToken] = useState(0);
     const [rollback, setRollback] = useState<RollbackStatus>({ pending: false, deadline: null });
     const [countdown, setCountdown] = useState(0);
@@ -529,6 +530,56 @@ export const TabIPTables: React.FC = () => {
                 <Archive style={{ width: 13, height: 13, color: '#39c5cf', flexShrink: 0 }} />
                 Les sauvegardes IPTables se trouvent dans l&apos;onglet <span style={{ color: '#39c5cf', fontWeight: 600, marginLeft: '.25rem' }}>Backup</span>.
             </div>
+        </div>
+    );
+};
+
+// ── Sub-tab selector ────────────────────────────────────────────────────────
+
+type FirewallSubTab = 'iptables' | 'nftables';
+
+const SUB_TABS: { id: FirewallSubTab; label: string; icon: React.FC<{ style?: React.CSSProperties }>; color: string }[] = [
+    { id: 'iptables', label: 'IPTables',  icon: Network, color: '#39c5cf' },
+    { id: 'nftables', label: 'NFTables',  icon: Server,  color: '#e3b341' },
+];
+
+export const TabIPTables: React.FC = () => {
+    const [subTab, setSubTab] = useState<FirewallSubTab>('iptables');
+
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {/* Sub-tab bar */}
+            <div style={{ display: 'flex', gap: '.35rem', borderBottom: '1px solid #30363d', paddingBottom: 0 }}>
+                {SUB_TABS.map(st => {
+                    const active = subTab === st.id;
+                    const Icon = st.icon;
+                    return (
+                        <button key={st.id} onClick={() => setSubTab(st.id)}
+                            style={{
+                                background: active ? '#21262d' : 'transparent',
+                                border: '1px solid',
+                                borderColor: active ? '#30363d #30363d transparent' : 'transparent',
+                                borderRadius: '6px 6px 0 0',
+                                padding: '.45rem .85rem',
+                                cursor: 'pointer',
+                                display: 'flex', alignItems: 'center', gap: '.35rem',
+                                color: active ? st.color : '#8b949e',
+                                fontSize: '.82rem', fontWeight: active ? 700 : 500,
+                                marginBottom: active ? '-1px' : 0,
+                                transition: 'color .15s',
+                            }}
+                            onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.color = st.color; }}
+                            onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.color = '#8b949e'; }}>
+                            <Icon style={{ width: 13, height: 13 }} />
+                            {st.label}
+                        </button>
+                    );
+                })}
+            </div>
+
+            {/* Sub-tab content */}
+            {subTab === 'iptables' && <IPTablesContent />}
+            {subTab === 'nftables' && <TabNFTables />}
         </div>
     );
 };

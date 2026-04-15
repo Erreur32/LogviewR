@@ -1225,7 +1225,8 @@
       "audit": "Audit",
       "aide": "Help",
       "firewall": "Firewall",
-      "tools": "Tools"
+      "tools": "Tools",
+      "analysis": "Analysis"
     },
     "status": {
       "active": "Active",

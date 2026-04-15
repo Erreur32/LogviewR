@@ -81,4 +81,4 @@ export interface TrackerEntry {
 
 export type TabId =
     | 'jails' | 'filtres' | 'actions' | 'tracker' | 'ban' | 'stats' | 'carte'
-    | 'iptables' | 'ipset' | 'nftables' | 'blocklists' | 'config' | 'audit' | 'aide' | 'backup';
+    | 'iptables' | 'ipset' | 'blocklists' | 'config' | 'audit' | 'aide' | 'backup';

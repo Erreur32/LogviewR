@@ -5,6 +5,29 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.48] - 2026-04-15
+
+### For users
+
+> Fail2ban navigation reorganized, NFTables merged into IPTables with sub-tabs, blocklist tab fixed, and live map attacks are now visible much longer with replay support.
+
+- **Blocklist tab fix** - clicking the Blocklists tab now correctly shows blocklists instead of jails.
+- **NFTables merged into IPTables** - the IPTables tab now has sub-tabs (IPTables / NFTables) instead of two separate top-level tabs.
+- **Navigation reorganized** - Fail2ban category now contains only core views (Jails, Filters, Actions). New "Analysis" category for Tracker, Map, Stats. Ban Manager moved to "Firewall" category alongside IPTables, IPSet, and Blocklists.
+- **Live map attack arcs last longer** - attack arcs now stay visible for 10 seconds (was 2.7s), pulsing dots for 15 seconds (was 6s), with a slower animation for better visibility.
+- **Replay attacks on map** - click any event in the live sidebar to replay its attack arc. A "Replay last attack" button appears at the top of the sidebar.
+- **Live mode pre-loads recent bans** - activating live mode immediately loads the 10 most recent bans from the database, so the list is never empty.
+
+### Technical
+
+- **`Fail2banPage.tsx`** - removed `nftables` from `NAV_GROUPS`, `VALID_TABS`, `TabId` type, and tooltip map. Added `blocklists` to `VALID_TABS`. Reorganized nav groups into 4 categories (Fail2ban, Analysis, Firewall, Tools). Removed unused `Server` icon import.
+- **`TabIPTables.tsx`** - renamed main component to `IPTablesContent`, added `TabNFTables` import and sub-tab selector with `FirewallSubTab` type.
+- **`TabMap.tsx`** - increased arc timeout (2.7s to 10s), dot timeout (6s to 15s), CSS animation (2.5s to 4s). Added `replayEvent()` with `fitBounds`. Pre-loads last 10 bans on live mode activation. Sidebar events are clickable for replay.
+- **`types.ts`** - removed `nftables` from `TabId` union.
+- **`en.json` / `fr.json`** - added `fail2ban.tabs.analysis` key.
+
+---
+
 ## [0.8.45] - 2026-04-13
 
 ### For users

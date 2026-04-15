@@ -18,7 +18,7 @@ L.Icon.Default.mergeOptions({ iconUrl, iconRetinaUrl, shadowUrl });
 import { useTranslation } from 'react-i18next';
 import { api } from '../../api/client';
 import { card, cardH, F2bTooltip } from './helpers';
-import { Map as MapIcon, SlidersHorizontal, Zap } from 'lucide-react';
+import { Map as MapIcon, SlidersHorizontal, Zap, RotateCcw } from 'lucide-react';
 import { FlagImg } from './FlagImg';
 import { useNotificationStore } from '../../stores/notificationStore';
 
@@ -102,8 +102,9 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker, onIpClick, refres
                 .f2b-geo-spin { animation: f2b-spin 1.2s linear infinite; transform-origin: 5.5px 5.5px; }
                 @keyframes f2b-attack-fly {
                     0%   { stroke-dashoffset: 1000; opacity: 0; }
-                    6%   { opacity: 0.9; }
-                    75%  { opacity: 0.8; }
+                    5%   { opacity: 0.9; }
+                    60%  { stroke-dashoffset: 0; opacity: 0.8; }
+                    85%  { opacity: 0.5; }
                     100% { stroke-dashoffset: 0; opacity: 0; }
                 }
                 @keyframes f2b-pulse-ring {
@@ -348,7 +349,7 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker, onIpClick, refres
             el.setAttribute('stroke-dashoffset', '1000');
             el.setAttribute('marker-end', 'url(#f2b-arrow)');
             el.setAttribute('fill', 'none');
-            el.style.cssText = 'stroke-dasharray:1000;stroke-dashoffset:1000;animation:f2b-attack-fly 2.5s ease-out forwards;';
+            el.style.cssText = 'stroke-dasharray:1000;stroke-dashoffset:1000;animation:f2b-attack-fly 4s ease-out forwards;';
         });
 
         // Pulsing origin dot (two rings)
@@ -382,9 +383,17 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker, onIpClick, refres
         dot.addTo(mapRef.current);
 
         attackLinesRef.current.push(line, dot);
-        setTimeout(() => { if (mapRef.current) line.remove(); attackLinesRef.current = attackLinesRef.current.filter(l => l !== line); }, 2700);
-        setTimeout(() => { if (mapRef.current) dot.remove();  attackLinesRef.current = attackLinesRef.current.filter(l => l !== dot);  }, 6000);
+        setTimeout(() => { if (mapRef.current) line.remove(); attackLinesRef.current = attackLinesRef.current.filter(l => l !== line); }, 10_000);
+        setTimeout(() => { if (mapRef.current) dot.remove();  attackLinesRef.current = attackLinesRef.current.filter(l => l !== dot);  }, 15_000);
     }, [serverGeo, ensureArrowMarker]);
+
+    const replayEvent = useCallback((e: LiveEvent) => {
+        if (!mapRef.current || !serverGeo) return;
+        // Pan to show both source and server
+        const bounds = L.latLngBounds([L.latLng(e.geo.lat, e.geo.lng), L.latLng(serverGeo.lat, serverGeo.lng)]);
+        mapRef.current.fitBounds(bounds, { padding: [50, 50], maxZoom: 6 });
+        drawAttackArc(e.geo.lat, e.geo.lng, e.geo, e.ip, e.jail);
+    }, [serverGeo, drawAttackArc]);
 
     const pollLiveEvents = useCallback(() => {
         const since = liveSinceRef.current;
@@ -430,7 +439,19 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker, onIpClick, refres
                 })
                 .catch(() => {});
         }
-        // Seed since = now − 60s to show last minute of attacks on first load
+        // Pre-load last 10 recent bans so the list is never empty on activation
+        api.get<{ ok: boolean; events: LiveEvent[]; serverTime: number }>('/api/plugins/fail2ban/map/events?since=0&limit=10')
+            .then(res => {
+                if (res.success && res.result?.ok && res.result.events.length > 0) {
+                    setLiveEvents(prev => {
+                        const existing = new Set(prev.map(e => `${e.ip}-${e.timeofban}`));
+                        const fresh = res.result.events.filter(e => !existing.has(`${e.ip}-${e.timeofban}`));
+                        return [...fresh, ...prev].slice(0, 50);
+                    });
+                }
+            })
+            .catch(() => {});
+        // Seed since = now − 60s for ongoing polling
         liveSinceRef.current = Math.floor(Date.now() / 1000) - 60;
         pollLiveEvents();
         liveIntervalRef.current = setInterval(pollLiveEvents, 5000);
@@ -584,6 +605,14 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker, onIpClick, refres
                                 <span style={{ fontSize: '.72rem', fontWeight: 700, color: '#e86a65', letterSpacing: '.04em', textTransform: 'uppercase' as const }}>Flux live</span>
                                 {serverGeo && <span style={{ marginLeft: 'auto', fontSize: '.6rem', color: '#555d69' }}>→ {serverGeo.city || serverGeo.country || '?'}</span>}
                             </div>
+                            {liveEvents.length > 0 && (
+                                <button onClick={() => replayEvent(liveEvents[0])}
+                                    style={{ margin: '.4rem .5rem', padding: '.3rem .55rem', background: 'rgba(232,106,101,.08)', border: '1px solid rgba(232,106,101,.25)', borderRadius: 5, color: '#e86a65', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '.3rem', fontSize: '.68rem', fontWeight: 600 }}
+                                    onMouseEnter={e => (e.currentTarget.style.background = 'rgba(232,106,101,.15)')}
+                                    onMouseLeave={e => (e.currentTarget.style.background = 'rgba(232,106,101,.08)')}>
+                                    <RotateCcw style={{ width: 11, height: 11 }} /> Rejouer la dernière attaque
+                                </button>
+                            )}
                             <div style={{ overflowY: 'auto', flex: 1 }}>
                                 {liveEvents.length === 0 ? (
                                     <div style={{ padding: '.75rem', fontSize: '.72rem', color: '#555d69', fontStyle: 'italic', textAlign: 'center', marginTop: '.5rem' }}>
@@ -597,10 +626,16 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker, onIpClick, refres
                                     const agoStr = ago < 60 ? `${ago}s` : ago < 3600 ? `${Math.floor(ago / 60)}m` : `${Math.floor(ago / 3600)}h`;
                                     const isRecent = ago < 10;
                                     return (
-                                        <div key={`${e.ip}-${e.timeofban}-${i}`} style={{ padding: '.35rem .65rem', borderBottom: '1px solid rgba(255,255,255,.035)', background: isRecent ? 'rgba(232,106,101,.06)' : undefined }}>
+                                        <div key={`${e.ip}-${e.timeofban}-${i}`}
+                                            onClick={() => replayEvent(e)}
+                                            title="Cliquer pour rejouer l'arc"
+                                            style={{ padding: '.35rem .65rem', borderBottom: '1px solid rgba(255,255,255,.035)', background: isRecent ? 'rgba(232,106,101,.06)' : undefined, cursor: 'pointer', transition: 'background .15s' }}
+                                            onMouseEnter={ev => (ev.currentTarget.style.background = 'rgba(232,106,101,.1)')}
+                                            onMouseLeave={ev => (ev.currentTarget.style.background = isRecent ? 'rgba(232,106,101,.06)' : '')}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '.25rem', marginBottom: '.1rem' }}>
                                                 {isRecent && <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#e86a65', flexShrink: 0, display: 'inline-block' }} />}
                                                 <span style={{ fontFamily: 'monospace', fontSize: '.68rem', color: isRecent ? '#e86a65' : '#c9d1d9', fontWeight: isRecent ? 700 : 400, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{e.ip}</span>
+                                                <RotateCcw style={{ width: 9, height: 9, color: '#555d69', flexShrink: 0 }} />
                                                 <span style={{ fontSize: '.58rem', color: '#444d56', flexShrink: 0 }}>{agoStr}</span>
                                             </div>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '.25rem', flexWrap: 'wrap' as const }}>

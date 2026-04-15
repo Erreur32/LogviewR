@@ -11,7 +11,7 @@ import {
     Shield, AlertTriangle, CheckCircle,
     Ban, Activity,
     List, Filter, Zap, Settings,
-    Network, Server, ClipboardList, HelpCircle, Database, Map as MapIcon,
+    Network, ClipboardList, HelpCircle, Database, Map as MapIcon,
     Archive,
 } from 'lucide-react';
 import { api } from '../api/client';
@@ -33,7 +33,6 @@ import { TabBackup }         from './fail2ban/TabBackup';
 import { TabNetworkRaw }     from './fail2ban/TabNetworkRaw';
 import { TabIPSet }          from './fail2ban/TabIPSet';
 import { TabIPTables }       from './fail2ban/TabIPTables';
-import { TabNFTables }       from './fail2ban/TabNFTables';
 import { TabBlocklists }     from './fail2ban/TabBlocklists';
 import { TabFileList }       from './fail2ban/TabFileList';
 import { BanHistoryChart }   from './fail2ban/BanHistoryChart';
@@ -53,9 +52,13 @@ const NAV_GROUPS = [
             { id: 'jails'   as TabId, labelKey: 'fail2ban.tabs.jails',      icon: Shield,       color: '#58a6ff' },
             { id: 'filtres' as TabId, labelKey: 'fail2ban.tabs.filters',    icon: Filter,       color: '#3fb950' },
             { id: 'actions' as TabId, labelKey: 'fail2ban.tabs.actions',    icon: Zap,          color: '#e3b341' },
+        ],
+    },
+    {
+        labelKey: 'fail2ban.tabs.analysis',
+        items: [
             { id: 'tracker' as TabId, labelKey: 'fail2ban.tabs.tracker',    icon: List,         color: '#e3b341' },
             { id: 'carte'   as TabId, labelKey: 'fail2ban.tabs.map',        icon: MapIcon,      color: '#39c5cf' },
-            { id: 'ban'     as TabId, labelKey: 'fail2ban.tabs.banManager', icon: Ban,          color: '#e86a65' },
             { id: 'stats'   as TabId, labelKey: 'fail2ban.tabs.stats',      icon: Activity,     color: '#58a6ff' },
         ],
     },
@@ -64,8 +67,8 @@ const NAV_GROUPS = [
         items: [
             { id: 'iptables' as TabId, labelKey: 'fail2ban.tabs.iptables', icon: Network,  color: '#39c5cf' },
             { id: 'ipset'    as TabId, labelKey: 'fail2ban.tabs.ipset',    icon: Database, color: '#bc8cff' },
-            { id: 'nftables'   as TabId, labelKey: 'fail2ban.tabs.nftables',   icon: Server,   color: '#e3b341' },
             { id: 'blocklists' as TabId, labelKey: 'fail2ban.tabs.blocklists', icon: Shield,   color: '#e86a65' },
+            { id: 'ban'     as TabId, labelKey: 'fail2ban.tabs.banManager', icon: Ban,          color: '#e86a65' },
         ],
     },
     {
@@ -119,7 +122,7 @@ const Sparkline: React.FC<{ data: number[]; color: string }> = ({ data, color })
 
 const VALID_TABS = new Set<TabId>([
     'jails', 'filtres', 'actions', 'tracker', 'ban', 'stats', 'carte',
-    'iptables', 'ipset', 'nftables', 'config', 'audit', 'aide', 'backup',
+    'iptables', 'ipset', 'blocklists', 'config', 'audit', 'aide', 'backup',
 ]);
 
 export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
@@ -687,14 +690,6 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
             </div>,
             color: 'purple',
         },
-        nftables: {
-            title: 'NFTables',
-            bodyNode: <div style={{ display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
-                <div style={{ color: C.muted }}>Ruleset nftables du host</div>
-                <div style={{ color: C.orange, fontSize: '.75rem' }}>Requiert NET_ADMIN + network_mode: host</div>
-            </div>,
-            color: 'orange',
-        },
         config: {
             title: 'Configuration',
             bodyNode: <div style={{ display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
@@ -1033,7 +1028,6 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                     )}
                     {tab === 'iptables' && <TabIPTables />}
                     {tab === 'ipset'    && <TabIPSet onIpClick={ip => setSelectedIp(ip)} />}
-                    {tab === 'nftables'   && <TabNFTables />}
                     {tab === 'blocklists' && <TabBlocklists />}
                     {tab === 'config'   && <TabConfig onWarningsChange={setDbFragPct} npmDataPath={npmDataPath} onNpmDataPathChange={v => {
                         setNpmDataPath(v);
