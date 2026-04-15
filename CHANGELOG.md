@@ -5,6 +5,22 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.50] - 2026-04-15
+
+### For users
+
+> Live map now shows your server position with a green pulsing marker, attack arcs stay visible longer, and replay works smoothly with animated panning.
+
+- **Server marker on live map** - green pulsing dot shows your server's location with a "Your server" popup on click.
+- **Attack arcs stay visible** - arcs now remain visible at 35% opacity after animation (were disappearing completely after 4s).
+- **Smooth replay** - clicking an event now uses animated panning (`flyToBounds`) instead of instant jump, with arc drawn after pan completes.
+
+### Technical
+
+- **`TabMap.tsx`** - added `serverMarkerRef` + `addServerMarker()` with `f2b-server-pulse` CSS animation. Changed `fitBounds` to `flyToBounds` with 1.2s duration in `replayEvent`. Attack-fly animation ends at `opacity: 0.35` instead of `0`. Server marker lifecycle tied to live mode toggle.
+
+---
+
 ## [0.8.49] - 2026-04-15
 
 ### For users

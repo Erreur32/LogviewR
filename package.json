@@ -1,7 +1,7 @@
 {
   "name": "logviewr",
   "private": true,
-  "version": "0.8.49",
+  "version": "0.8.50",
   "type": "module",
   "scripts": {
     "predev": "lsof -ti:3005 2>/dev/null | xargs -r kill -9; lsof -ti:5175 2>/dev/null | xargs -r kill -9; true",

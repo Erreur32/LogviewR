@@ -98,6 +98,7 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker, onIpClick, refres
     const liveIntervalRef                     = useRef<ReturnType<typeof setInterval> | null>(null);
     const liveSinceRef                        = useRef<number>(0);
     const attackLinesRef                      = useRef<any[]>([]);
+    const serverMarkerRef                     = useRef<any>(null);
 
     // ── Inject dark popup CSS once ─────────────────────────────────────────────
     useEffect(() => {
@@ -110,13 +111,17 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker, onIpClick, refres
                 @keyframes f2b-attack-fly {
                     0%   { stroke-dashoffset: 1000; opacity: 0; }
                     5%   { opacity: 0.9; }
-                    60%  { stroke-dashoffset: 0; opacity: 0.8; }
-                    85%  { opacity: 0.5; }
-                    100% { stroke-dashoffset: 0; opacity: 0; }
+                    50%  { stroke-dashoffset: 0; opacity: 0.8; }
+                    100% { stroke-dashoffset: 0; opacity: 0.35; }
                 }
                 @keyframes f2b-pulse-ring {
                     0%   { transform: scale(1); opacity: 0.8; }
                     100% { transform: scale(2.5); opacity: 0; }
+                }
+                @keyframes f2b-server-pulse {
+                    0%   { box-shadow: 0 0 0 0 rgba(63,185,80,.5); }
+                    70%  { box-shadow: 0 0 0 12px rgba(63,185,80,0); }
+                    100% { box-shadow: 0 0 0 0 rgba(63,185,80,0); }
                 }
                 .f2b-map-popup .leaflet-popup-content-wrapper {
                     background: #161b22; border: 1px solid #30363d;
@@ -394,12 +399,34 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker, onIpClick, refres
         setTimeout(() => { if (mapRef.current) { dot.remove(); }  attackLinesRef.current = attackLinesRef.current.filter(l => l !== dot);  }, 15_000);
     }, [serverGeo, ensureArrowMarker]);
 
+    const addServerMarker = useCallback((geo: { lat: number; lng: number; country: string; city: string }) => {
+        if (!mapRef.current || serverMarkerRef.current) return;
+        const html = `<div style="width:16px;height:16px;border-radius:50%;background:#3fb950;border:3px solid #0d1117;animation:f2b-server-pulse 2s ease-out infinite;position:relative;">
+            <div style="position:absolute;inset:-4px;border-radius:50%;border:2px solid rgba(63,185,80,.3);"></div>
+        </div>`;
+        const icon = L.divIcon({ className: '', html, iconSize: [16, 16], iconAnchor: [8, 8] });
+        const marker = L.marker([geo.lat, geo.lng], { icon, interactive: true, zIndexOffset: 1000 });
+        const popup = document.createElement('div');
+        const title = document.createElement('div');
+        title.style.cssText = 'font-size:.75rem;color:#3fb950;font-weight:700;';
+        title.textContent = '🖥 Votre serveur';
+        const loc = document.createElement('div');
+        loc.style.cssText = 'font-size:.68rem;color:#8b949e;margin-top:.15rem;';
+        loc.textContent = [geo.city, geo.country].filter(Boolean).join(', ') || '—';
+        popup.appendChild(title);
+        popup.appendChild(loc);
+        marker.bindPopup(popup, { maxWidth: 200, className: 'f2b-map-popup' });
+        marker.addTo(mapRef.current);
+        serverMarkerRef.current = marker;
+    }, []);
+
     const replayEvent = useCallback((e: LiveEvent) => {
         if (!mapRef.current || !serverGeo) return;
-        // Pan to show both source and server
+        // Smooth pan to show both source and server
         const bounds = L.latLngBounds([L.latLng(e.geo.lat, e.geo.lng), L.latLng(serverGeo.lat, serverGeo.lng)]);
-        mapRef.current.fitBounds(bounds, { padding: [50, 50], maxZoom: 6 });
-        drawAttackArc(e.geo.lat, e.geo.lng, e.geo, e.ip, e.jail);
+        mapRef.current.flyToBounds(bounds, { padding: [60, 60], maxZoom: 5, duration: 1.2 });
+        // Draw arc after a short delay so the map has panned
+        setTimeout(() => drawAttackArc(e.geo.lat, e.geo.lng, e.geo, e.ip, e.jail), 300);
     }, [serverGeo, drawAttackArc]);
 
     const pollLiveEvents = useCallback(() => {
@@ -433,6 +460,11 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker, onIpClick, refres
                 for (const [, marker] of markerByIp.current) clusterRef.current.addLayer(marker);
             }
             setLiveEvents([]);
+            // Remove server marker
+            if (serverMarkerRef.current && mapRef.current) {
+                serverMarkerRef.current.remove();
+                serverMarkerRef.current = null;
+            }
             return;
         }
         // Clear existing ban markers — live mode shows only attack arcs
@@ -445,6 +477,9 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker, onIpClick, refres
                     if (res.success && res.result?.ok) setServerGeo({ lat: res.result.lat, lng: res.result.lng, country: res.result.country ?? '', city: res.result.city ?? '' });
                 })
                 .catch(() => {});
+        } else {
+            // serverGeo already available — add server marker immediately
+            addServerMarker(serverGeo);
         }
         // Pre-load last 10 recent bans so the list is never empty on activation
         api.get<{ ok: boolean; events: LiveEvent[]; serverTime: number }>('/api/plugins/fail2ban/map/events?since=0&limit=10')
@@ -461,9 +496,12 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker, onIpClick, refres
         return () => { if (liveIntervalRef.current) clearInterval(liveIntervalRef.current); };
     }, [liveMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Re-run pollLiveEvents when serverGeo becomes available (first activation)
+    // Re-run pollLiveEvents when serverGeo becomes available (first activation) + add server marker
     useEffect(() => {
-        if (liveMode && serverGeo) pollLiveEvents();
+        if (liveMode && serverGeo) {
+            pollLiveEvents();
+            addServerMarker(serverGeo);
+        }
     }, [serverGeo]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // ── Filter handlers ────────────────────────────────────────────────────────
