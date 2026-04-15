@@ -5,6 +5,24 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.49] - 2026-04-15
+
+### For users
+
+> Security hardening: revoked JWT tokens now survive container restarts, WebSocket connections are rate-limited, and SonarCloud accessibility issues are fixed.
+
+- **JWT revocation persists across restarts** - logging out or banning a user now permanently invalidates their token, even if the container is restarted.
+- **WebSocket rate limiting** - protection against message flooding on WebSocket connections (60 msgs / 10s window).
+
+### Technical
+
+- **`server/database/connection.ts`** - added `revoked_tokens` table (token TEXT PK, expires_at INTEGER).
+- **`server/services/authService.ts`** - `revokeToken()` now persists to SQLite. Added `loadRevokedTokens()` on startup. `cleanupRevokedTokens()` cleans both memory and database.
+- **`server/services/logsWebSocket.ts`** - per-connection rate limiter (60 msgs / 10s), closes with code 4429 on exceed.
+- **`src/pages/fail2ban/TabMap.tsx`** - fixed SonarCloud issues: added `role="button"` + `tabIndex` + `onKeyDown` for accessibility, added braces to conditional statements, extracted `mergeLiveEvents()` to reduce nesting depth.
+
+---
+
 ## [0.8.48] - 2026-04-15
 
 ### For users

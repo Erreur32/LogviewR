@@ -217,6 +217,14 @@ export function initializeDatabase(): void {
         )
     `);
 
+    // Revoked JWT tokens (persisted blacklist surviving container restarts)
+    database.exec(`
+        CREATE TABLE IF NOT EXISTS revoked_tokens (
+            token TEXT PRIMARY KEY,
+            expires_at INTEGER NOT NULL
+        )
+    `);
+
     // Network scans table (for network scan plugin)
     database.exec(`
         CREATE TABLE IF NOT EXISTS network_scans (

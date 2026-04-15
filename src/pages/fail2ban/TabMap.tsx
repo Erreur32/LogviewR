@@ -49,6 +49,13 @@ function heatColor(n: number, min: number, max: number): string {
     return `hsl(${hue.toFixed(1)},${sat}%,${light}%)`;
 }
 
+/** Merge new live events into existing list, deduplicating by ip+timestamp. */
+function mergeLiveEvents(prev: LiveEvent[], incoming: LiveEvent[]): LiveEvent[] {
+    const existing = new Set(prev.map(e => `${e.ip}-${e.timeofban}`));
+    const fresh = incoming.filter(e => !existing.has(`${e.ip}-${e.timeofban}`));
+    return [...fresh, ...prev].slice(0, 50);
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 interface TabMapProps {
@@ -383,8 +390,8 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker, onIpClick, refres
         dot.addTo(mapRef.current);
 
         attackLinesRef.current.push(line, dot);
-        setTimeout(() => { if (mapRef.current) line.remove(); attackLinesRef.current = attackLinesRef.current.filter(l => l !== line); }, 10_000);
-        setTimeout(() => { if (mapRef.current) dot.remove();  attackLinesRef.current = attackLinesRef.current.filter(l => l !== dot);  }, 15_000);
+        setTimeout(() => { if (mapRef.current) { line.remove(); } attackLinesRef.current = attackLinesRef.current.filter(l => l !== line); }, 10_000);
+        setTimeout(() => { if (mapRef.current) { dot.remove(); }  attackLinesRef.current = attackLinesRef.current.filter(l => l !== dot);  }, 15_000);
     }, [serverGeo, ensureArrowMarker]);
 
     const replayEvent = useCallback((e: LiveEvent) => {
@@ -442,13 +449,9 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker, onIpClick, refres
         // Pre-load last 10 recent bans so the list is never empty on activation
         api.get<{ ok: boolean; events: LiveEvent[]; serverTime: number }>('/api/plugins/fail2ban/map/events?since=0&limit=10')
             .then(res => {
-                if (res.success && res.result?.ok && res.result.events.length > 0) {
-                    setLiveEvents(prev => {
-                        const existing = new Set(prev.map(e => `${e.ip}-${e.timeofban}`));
-                        const fresh = res.result.events.filter(e => !existing.has(`${e.ip}-${e.timeofban}`));
-                        return [...fresh, ...prev].slice(0, 50);
-                    });
-                }
+                if (!res.success || !res.result?.ok || res.result.events.length === 0) return;
+                const newEvents = res.result.events;
+                setLiveEvents(prev => mergeLiveEvents(prev, newEvents));
             })
             .catch(() => {});
         // Seed since = now − 60s for ongoing polling
@@ -627,7 +630,9 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker, onIpClick, refres
                                     const isRecent = ago < 10;
                                     return (
                                         <div key={`${e.ip}-${e.timeofban}-${i}`}
+                                            role="button" tabIndex={0}
                                             onClick={() => replayEvent(e)}
+                                            onKeyDown={ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); replayEvent(e); } }}
                                             title="Cliquer pour rejouer l'arc"
                                             style={{ padding: '.35rem .65rem', borderBottom: '1px solid rgba(255,255,255,.035)', background: isRecent ? 'rgba(232,106,101,.06)' : undefined, cursor: 'pointer', transition: 'background .15s' }}
                                             onMouseEnter={ev => (ev.currentTarget.style.background = 'rgba(232,106,101,.1)')}

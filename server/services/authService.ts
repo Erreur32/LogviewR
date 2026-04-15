@@ -51,6 +51,9 @@ export class AuthService {
         // Load JWT expiration from database, fallback to environment variable, then default
         this.jwtExpiresIn = this.getJwtExpiresIn();
 
+        // Load persisted revoked tokens from database
+        this.loadRevokedTokens();
+
         // Periodically clean up expired entries from the token blacklist (every 10 min)
         setInterval(() => this.cleanupRevokedTokens(), 10 * 60 * 1000);
     }
@@ -221,19 +224,49 @@ export class AuthService {
     }
 
     /**
-     * Revoke a token (add to blacklist until it naturally expires)
+     * Load persisted revoked tokens from database into memory on startup.
+     * Expired tokens are cleaned up immediately.
+     */
+    private loadRevokedTokens(): void {
+        try {
+            const db = getDatabase();
+            const now = Date.now();
+            // Remove expired tokens from DB
+            db.prepare('DELETE FROM revoked_tokens WHERE expires_at < ?').run(now);
+            // Load remaining into memory
+            const rows = db.prepare('SELECT token, expires_at FROM revoked_tokens').all() as { token: string; expires_at: number }[];
+            for (const row of rows) {
+                this.revokedTokens.set(row.token, row.expires_at);
+            }
+            if (rows.length > 0) {
+                logger.info('Auth', `Loaded ${rows.length} revoked token(s) from database`);
+            }
+        } catch {
+            logger.debug('Auth', 'Could not load revoked tokens from database (table may not exist yet)');
+        }
+    }
+
+    /**
+     * Revoke a token (add to blacklist until it naturally expires).
+     * Persisted in database so revocation survives container restarts.
      */
     revokeToken(token: string): void {
+        let expiry: number;
         try {
             const decoded = jwt.decode(token) as { exp?: number } | null;
-            const expiry = decoded?.exp ? decoded.exp * 1000 : Date.now() + 7 * 24 * 3600 * 1000;
-            this.revokedTokens.set(token, expiry);
+            expiry = decoded?.exp ? decoded.exp * 1000 : Date.now() + 7 * 24 * 3600 * 1000;
         } catch {
             // If token can't be decoded, blacklist with 7d TTL
-            this.revokedTokens.set(token, Date.now() + 7 * 24 * 3600 * 1000);
+            expiry = Date.now() + 7 * 24 * 3600 * 1000;
         }
-        // Cleanup expired entries periodically
-        this.cleanupRevokedTokens();
+        this.revokedTokens.set(token, expiry);
+        // Persist to database
+        try {
+            const db = getDatabase();
+            db.prepare('INSERT OR REPLACE INTO revoked_tokens (token, expires_at) VALUES (?, ?)').run(token, expiry);
+        } catch (err) {
+            logger.warn('Auth', `Failed to persist revoked token to database: ${err}`);
+        }
     }
 
     /**
@@ -244,12 +277,19 @@ export class AuthService {
     }
 
     /**
-     * Remove expired entries from the revocation list
+     * Remove expired entries from the revocation list (memory + database)
      */
     private cleanupRevokedTokens(): void {
         const now = Date.now();
         for (const [tok, expiry] of this.revokedTokens) {
             if (expiry < now) this.revokedTokens.delete(tok);
+        }
+        // Clean database too
+        try {
+            const db = getDatabase();
+            db.prepare('DELETE FROM revoked_tokens WHERE expires_at < ?').run(now);
+        } catch {
+            // DB might not be ready
         }
     }
 

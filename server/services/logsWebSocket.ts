@@ -11,7 +11,7 @@ import { logger } from '../utils/logger.js';
 import { logBuffer } from '../utils/logBuffer.js';
 import { authService } from './authService.js';
 
-type ClientWebSocket = WsType & { isAlive?: boolean };
+type ClientWebSocket = WsType & { isAlive?: boolean; msgCount?: number; msgWindowStart?: number };
 
 class LogsWebSocketService {
   private wss: WebSocketServer | null = null;
@@ -79,6 +79,25 @@ class LogsWebSocketService {
       } catch (error) {
         logger.error('LogsWS', 'Error sending initial logs:', error);
       }
+
+      // Rate limiting: max 60 messages per 10s window per client
+      const WS_RATE_LIMIT = 60;
+      const WS_RATE_WINDOW = 10_000;
+      ws.msgCount = 0;
+      ws.msgWindowStart = Date.now();
+
+      ws.on('message', () => {
+        const now = Date.now();
+        if (now - (ws.msgWindowStart ?? 0) > WS_RATE_WINDOW) {
+          ws.msgCount = 0;
+          ws.msgWindowStart = now;
+        }
+        ws.msgCount = (ws.msgCount ?? 0) + 1;
+        if (ws.msgCount > WS_RATE_LIMIT) {
+          logger.warn('LogsWS', `Rate limit exceeded for ${req.socket.remoteAddress} (${ws.msgCount} msgs in ${WS_RATE_WINDOW / 1000}s)`);
+          ws.close(4429, 'Too many messages');
+        }
+      });
 
       ws.on('pong', () => {
         ws.isAlive = true;
