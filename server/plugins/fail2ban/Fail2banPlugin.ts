@@ -1856,6 +1856,10 @@ export class Fail2banPlugin extends BasePlugin {
         router.get('/map', requireAuth, asyncHandler(async (req, res) => {
             if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
             const source = String(req.query.source ?? 'live') === 'history' ? 'history' : 'live';
+            // Cache: 30s live, 120s history (heavy SQL query with geo join)
+            const _mapCacheKey = `map:${source}`;
+            const _mapCached = this._cachePeek<unknown>(_mapCacheKey, source === 'live' ? 30_000 : 120_000);
+            if (_mapCached) return res.json({ success: true, result: _mapCached });
             const appDb = getDatabase();
             const TTL = 30 * 86400;
             const now = Math.floor(Date.now() / 1000);
@@ -1902,7 +1906,9 @@ export class Fail2banPlugin extends BasePlugin {
             const points = Array.from(ipJails.entries()).map(([ip, jails]) => ({
                 ip, jails, cached: geoCache.get(ip) ?? null,
             }));
-            res.json({ success: true, result: { ok: true, points, source, resolveDelayMs: 380, cacheTtlDays: 30 } });
+            const _mapResult = { ok: true, points, source, resolveDelayMs: 380, cacheTtlDays: 30 };
+            this._cachePut(_mapCacheKey, _mapResult);
+            res.json({ success: true, result: _mapResult });
         }));
 
         // GET /map/resolve/:ip  — geo lookup + cache in f2b_ip_geo

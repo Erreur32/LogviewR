@@ -76,7 +76,7 @@ class Semaphore {
 }
 
 /** Max concurrent fail2ban-client executions to avoid socket saturation */
-const execSemaphore = new Semaphore(3);
+const execSemaphore = new Semaphore(5);
 
 export class Fail2banClientExec {
 
