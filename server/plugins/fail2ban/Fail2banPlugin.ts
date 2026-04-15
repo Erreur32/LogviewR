@@ -757,9 +757,9 @@ export class Fail2banPlugin extends BasePlugin {
             const rawDays = Number.parseInt(String(req.query.days ?? '1'), 10);
             const days = Number.isNaN(rawDays) ? 1 : rawDays;
 
-            // TTL cache: 8s (short — live ban counts change frequently)
+            // TTL cache: 15s — prevents socket saturation from concurrent polls
             const _sCacheKey = `status:${days}`;
-            const _sCached = this._cachePeek<unknown>(_sCacheKey, 8_000);
+            const _sCached = this._cachePeek<unknown>(_sCacheKey, 15_000);
             if (_sCached) return res.json({ success: true, result: _sCached });
 
             // Jail config metadata (read-only file parse, no socket needed)

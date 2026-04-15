@@ -5,6 +5,22 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.51] - 2026-04-15
+
+### For users
+
+> Fixes fail2ban socket saturation that caused all tabs to fail after ~220 seconds, requiring a Docker restart.
+
+- **Fix fail2ban socket crash** - all fail2ban-client commands are now rate-limited to 3 concurrent executions max, preventing socket saturation from parallel polling.
+- **Status cache extended** - `/status` endpoint cache increased from 8s to 15s to reduce redundant fail2ban-client calls.
+
+### Technical
+
+- **`server/plugins/fail2ban/Fail2banClientExec.ts`** - added `Semaphore` class limiting concurrent `execFile` calls to 3. All `fail2ban-client` invocations now queue through the semaphore instead of running unbounded in parallel.
+- **`server/plugins/fail2ban/Fail2banPlugin.ts`** - `/status` route cache TTL increased from 8s to 15s.
+
+---
+
 ## [0.8.50] - 2026-04-15
 
 ### For users

@@ -59,6 +59,25 @@ export interface F2bClientResult {
     error?: string;
 }
 
+/** Simple concurrency limiter to prevent socket saturation */
+class Semaphore {
+    private queue: (() => void)[] = [];
+    private active = 0;
+    constructor(private max: number) {}
+    async acquire(): Promise<void> {
+        if (this.active < this.max) { this.active++; return; }
+        return new Promise<void>(resolve => this.queue.push(resolve));
+    }
+    release(): void {
+        this.active--;
+        const next = this.queue.shift();
+        if (next) { this.active++; next(); }
+    }
+}
+
+/** Max concurrent fail2ban-client executions to avoid socket saturation */
+const execSemaphore = new Semaphore(3);
+
 export class Fail2banClientExec {
 
     isAvailable(): boolean {
@@ -72,12 +91,15 @@ export class Fail2banClientExec {
     }
 
     private async run(args: string[]): Promise<F2bClientResult> {
+        await execSemaphore.acquire();
         try {
             const { stdout } = await execFileAsync(F2B_CLIENT, args, { timeout: EXEC_TIMEOUT });
             return { ok: true, output: stdout.trim() };
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : String(err);
             return { ok: false, output: '', error: msg };
+        } finally {
+            execSemaphore.release();
         }
     }
 
