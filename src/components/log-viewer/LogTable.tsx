@@ -1105,13 +1105,27 @@ export const LogTable: React.FC<LogTableProps> = ({
             ) : (
             <table className="w-full border-collapse table-fixed" data-log-type={logType}>
                 <colgroup>
-                    {orderedColumns.map((col) => {
-                        // Use the centralized COLUMN_WIDTHS map for all plugins and logTypes.
-                        // This guarantees consistent widths for common columns (timestamp, level, etc.)
-                        // regardless of which plugin or logType is being displayed.
-                        const width = COLUMN_WIDTHS[col.toLowerCase()] || '120px';
-                        return <col key={col} style={{ width }} />;
-                    })}
+                    {(() => {
+                        // table-fixed + w-full: if no column has width:auto, the leftover space
+                        // is distributed proportionally across ALL columns — inflating fixed-size
+                        // ones like `timestamp` on wide screens (most visible on apache access,
+                        // which has the smallest column-width sum among access logs).
+                        // Pick a single absorbing column by priority so the rest stay at their
+                        // declared widths.
+                        const cols = orderedColumns.map(c => c.toLowerCase());
+                        const absorbPriority = ['message', 'useragent', 'user-agent', 'referer', 'url', 'urlpath'];
+                        const absorbIdx = (() => {
+                            for (const candidate of absorbPriority) {
+                                const i = cols.indexOf(candidate);
+                                if (i !== -1) return i;
+                            }
+                            return cols.length - 1;
+                        })();
+                        return orderedColumns.map((col, idx) => {
+                            const width = idx === absorbIdx ? 'auto' : (COLUMN_WIDTHS[col.toLowerCase()] || '120px');
+                            return <col key={col} style={{ width }} />;
+                        });
+                    })()}
                 </colgroup>
                 <thead>
                     <tr className="bg-[#0a0a0a] border-b border-gray-800">

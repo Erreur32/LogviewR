@@ -37,7 +37,9 @@ WORKDIR /app
 # iptables   : lecture des règles pare-feu (onglet IPTables — nécessite cap_add: NET_ADMIN)
 # ipset      : lecture des sets d'IPs (onglet IPSet — nécessite cap_add: NET_ADMIN)
 # nftables   : lecture des règles nftables (onglet NFTables — nécessite cap_add: NET_ADMIN)
-RUN apk add --no-cache su-exec iptables ipset nftables sudo fail2ban
+# tzdata     : nécessaire pour que TZ=Europe/Paris (etc.) soit honoré ; sans ça Alpine ne connaît qu'UTC
+#              et les timestamps des logs (écrits en heure locale par Apache/Nginx) sont décalés
+RUN apk add --no-cache su-exec iptables ipset nftables sudo fail2ban tzdata
 # Allow the node user to run network tools as root (needed when app runs as non-root
 # but the host kernel's nf_tables backend requires UID 0 even with NET_ADMIN cap).
 RUN echo "node ALL=(root) NOPASSWD: /usr/sbin/iptables, /usr/sbin/iptables-save, /usr/sbin/iptables-restore, /usr/sbin/ipset, /usr/sbin/nft" \

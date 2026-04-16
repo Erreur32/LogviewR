@@ -175,12 +175,14 @@ export class NpmLogPlugin extends BasePlugin implements LogSourcePlugin {
             'proxy-host-*_error.log*',
             'default-host_access.log*',
             'default-host_error.log*',
-            'fallback_access.log*',
-            'fallback_error.log*',
+            // Broad fallback_* covers fallback_access, fallback_error,
+            // fallback_http_access, fallback_http_error, fallback_stream_access, ...
+            'fallback_*.log*',
             'dead-host-*_access.log*',
             'dead-host-*_error.log*',
-            'letsencrypt-requests_access.log*',
-            'letsencrypt-requests_error.log*',
+            // Broad letsencrypt* covers both letsencrypt-requests_*.log* (per-request access/error)
+            // and letsencrypt.log (+ rotated .1 .. .N — certbot operation log).
+            'letsencrypt*.log*',
             '*.access.log*',
             '*.error.log*'
         ];
@@ -210,7 +212,7 @@ export class NpmLogPlugin extends BasePlugin implements LogSourcePlugin {
      */
     private determineLogType(filePath: string): string {
         const filename = path.basename(filePath).toLowerCase();
-        
+
         // Check for 'error' first — proxy-host-*_error.log must be typed as 'error'
         if (filename.includes('error')) {
             return 'error';
@@ -218,7 +220,13 @@ export class NpmLogPlugin extends BasePlugin implements LogSourcePlugin {
         if (filename.includes('access') || filename.includes('proxy-host')) {
             return 'access';
         }
-        
+        // Certbot operation log (letsencrypt.log, .1, .2, ...): timestamp + level + message,
+        // closer to error-log shape than access. Lines that don't match any nginx error pattern
+        // fall through to raw display.
+        if (filename.startsWith('letsencrypt')) {
+            return 'error';
+        }
+
         return 'access'; // Default to access
     }
 }

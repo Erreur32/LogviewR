@@ -68,6 +68,10 @@ services:
       HOST_IP: ${HOST_IP:-}
       CONFIG_FILE_PATH: ${CONFIG_FILE_PATH:-/app/config/logviewr.conf}
       HOST_ROOT_PATH: ${HOST_ROOT_PATH:-/host}
+      # Timezone — must match the host TZ so Apache/Nginx log timestamps
+      # (written in host local time, without TZ info) are parsed correctly.
+      # Override via TZ=... in your .env if your host is not in Europe/Paris.
+      TZ: ${TZ:-Europe/Paris}
 
     # Add node user to system groups for log and fail2ban access
     group_add:

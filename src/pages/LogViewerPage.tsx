@@ -829,6 +829,56 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
         setAddIpModal(null);
     }, [addIpModal, selectedPluginId, plugins, updatePluginConfig, fetchPlugins]);
 
+    const totalRawPages = Math.max(1, Math.ceil(rawLogs.length / pageSize));
+    const goToRawPage = (newPage: number) => {
+        const clamped = Math.max(1, Math.min(totalRawPages, newPage));
+        setPage(clamped);
+        if (selectedFilePath) {
+            setTimeout(() => loadRawLogs(selectedFilePath), 100);
+        }
+    };
+    const rawPagBtn = 'px-2 py-1 rounded border border-cyan-500/40 bg-[#0f1a1f] text-cyan-300 hover:bg-cyan-500/10 hover:border-cyan-400 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-xs font-semibold';
+    const rawPagAccent = 'text-cyan-400 font-semibold';
+    const rawPaginationControls = rawLogs.length > pageSize ? (
+        <div className="flex items-center gap-1">
+            <button
+                onClick={() => goToRawPage(1)}
+                disabled={currentPage === 1}
+                className={rawPagBtn}
+                title="Première page"
+            >
+                «
+            </button>
+            <button
+                onClick={() => goToRawPage(currentPage - 1)}
+                disabled={currentPage === 1}
+                className={rawPagBtn}
+                title="Page précédente"
+            >
+                ←
+            </button>
+            <span className="px-3 py-1 text-xs text-gray-200 bg-[#1a1a1a] border border-gray-700 rounded">
+                Page <span className={rawPagAccent}>{currentPage}</span> / {totalRawPages}
+            </span>
+            <button
+                onClick={() => goToRawPage(currentPage + 1)}
+                disabled={currentPage >= totalRawPages}
+                className={rawPagBtn}
+                title="Page suivante"
+            >
+                →
+            </button>
+            <button
+                onClick={() => goToRawPage(totalRawPages)}
+                disabled={currentPage >= totalRawPages}
+                className={rawPagBtn}
+                title="Dernière page"
+            >
+                »
+            </button>
+        </div>
+    ) : null;
+
     return (
         <div className="min-h-screen bg-[#050505] p-4 md:p-6 max-w-full">
 
@@ -853,31 +903,34 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
                                                 <>
                                                     <div className="bg-[#0a0a0a] border-b border-gray-800 px-4 py-3 flex items-center justify-between flex-wrap gap-4">
                                                         <span className="text-xs text-gray-400">
-                                                            {rawLogs.length} ligne{rawLogs.length > 1 ? 's' : ''} brute{rawLogs.length > 1 ? 's' : ''} (Page {currentPage} sur {Math.ceil(rawLogs.length / pageSize)})
+                                                            {rawLogs.length} ligne{rawLogs.length > 1 ? 's' : ''} brute{rawLogs.length > 1 ? 's' : ''} (Page {currentPage} sur {totalRawPages})
                                                         </span>
-                                                        <div className="flex items-center gap-2 text-xs text-gray-400">
-                                                            <span>Lignes par page:</span>
-                                                            <select
-                                                                value={pageSize}
-                                                                onChange={(e) => {
-                                                                    const newSize = Number.parseInt(e.target.value, 10);
-                                                                    setPageSize(newSize);
-                                                                    setPage(1);
-                                                                    // Reload raw logs with new page size
-                                                                    if (selectedFilePath) {
-                                                                        setTimeout(() => {
-                                                                            loadRawLogs(selectedFilePath);
-                                                                        }, 100);
-                                                                    }
-                                                                }}
-                                                                className="px-2 py-1 bg-[#121212] border border-gray-700 rounded text-gray-300 text-xs focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                                                            >
-                                                                <option value={50}>50</option>
-                                                                <option value={100}>100</option>
-                                                                <option value={250}>250</option>
-                                                                <option value={500}>500</option>
-                                                                <option value={1000}>1000</option>
-                                                            </select>
+                                                        <div className="flex items-center gap-3 text-xs text-gray-400 flex-wrap">
+                                                            {rawPaginationControls}
+                                                            <div className="flex items-center gap-2">
+                                                                <span>Lignes par page:</span>
+                                                                <select
+                                                                    value={pageSize}
+                                                                    onChange={(e) => {
+                                                                        const newSize = Number.parseInt(e.target.value, 10);
+                                                                        setPageSize(newSize);
+                                                                        setPage(1);
+                                                                        // Reload raw logs with new page size
+                                                                        if (selectedFilePath) {
+                                                                            setTimeout(() => {
+                                                                                loadRawLogs(selectedFilePath);
+                                                                            }, 100);
+                                                                        }
+                                                                    }}
+                                                                    className="px-2 py-1 bg-[#121212] border border-gray-700 rounded text-gray-300 text-xs focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                                                                >
+                                                                    <option value={50}>50</option>
+                                                                    <option value={100}>100</option>
+                                                                    <option value={250}>250</option>
+                                                                    <option value={500}>500</option>
+                                                                    <option value={1000}>1000</option>
+                                                                </select>
+                                                            </div>
                                                         </div>
                                                     </div>
                                                     {/* Scroll area: viewport minus margin (header + padding + bars ~15rem), min 400px for small screens */}
@@ -891,46 +944,13 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
                                                             ))}
                                                         </pre>
                                                     </div>
-                                                    {/* Pagination for raw logs */}
+                                                    {/* Pagination for raw logs (bottom — high visibility) */}
                                                     {rawLogs.length > pageSize && (
-                                                        <div className="px-4 py-3 bg-[#0a0a0a] border-t border-gray-800 flex items-center justify-between flex-wrap gap-4">
-                                                            <div className="flex items-center gap-2 text-xs text-gray-400">
-                                                                <span>Page {currentPage} sur {Math.ceil(rawLogs.length / pageSize)}</span>
+                                                        <div className="px-4 py-4 bg-[#0d1518] border-t-2 border-cyan-500/40 flex items-center justify-between flex-wrap gap-4 shadow-[0_-4px_12px_-4px_rgba(34,211,238,0.15)]">
+                                                            <div className="text-xs text-gray-300">
+                                                                <span className={rawPagAccent}>{rawLogs.length}</span> lignes — page <span className={rawPagAccent}>{currentPage}</span> sur <span className={rawPagAccent}>{totalRawPages}</span>
                                                             </div>
-                                                            <div className="flex items-center gap-1">
-                                                                <button
-                                                                    onClick={() => {
-                                                                        const newPage = Math.max(1, currentPage - 1);
-                                                                        setPage(newPage);
-                                                                        if (selectedFilePath) {
-                                                                            setTimeout(() => {
-                                                                                loadRawLogs(selectedFilePath);
-                                                                            }, 100);
-                                                                        }
-                                                                    }}
-                                                                    disabled={currentPage === 1}
-                                                                    className="p-1.5 rounded border border-gray-700 bg-[#121212] text-gray-400 hover:text-gray-200 hover:bg-[#1a1a1a] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                                                    title="Page précédente"
-                                                                >
-                                                                    ←
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => {
-                                                                        const newPage = Math.min(Math.ceil(rawLogs.length / pageSize), currentPage + 1);
-                                                                        setPage(newPage);
-                                                                        if (selectedFilePath) {
-                                                                            setTimeout(() => {
-                                                                                loadRawLogs(selectedFilePath);
-                                                                            }, 100);
-                                                                        }
-                                                                    }}
-                                                                    disabled={currentPage >= Math.ceil(rawLogs.length / pageSize)}
-                                                                    className="p-1.5 rounded border border-gray-700 bg-[#121212] text-gray-400 hover:text-gray-200 hover:bg-[#1a1a1a] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                                                    title="Page suivante"
-                                                                >
-                                                                    →
-                                                                </button>
-                                                            </div>
+                                                            {rawPaginationControls}
                                                         </div>
                                                     )}
                                                 </>

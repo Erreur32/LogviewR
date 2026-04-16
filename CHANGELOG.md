@@ -5,6 +5,26 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.55] - 2026-04-16
+
+### For users
+
+- **Fix Apache/Nginx log timestamps shifted by your local TZ offset** — the container now defaults to `Europe/Paris` (was UTC); override via `TZ=...` in `.env`. Without this, `[Thu Apr 16 22:25 2026]` from Apache (written in host local time, no TZ info) was rendered as `17/04 00:25` (+2h shift, next day). Pull the new image and recreate the container to apply.
+- **Fix oversized "Time" column on access logs** — on access logs (apache/nginx/npm) the `timestamp` column was inflated on wide screens because no column absorbed the leftover space. The widest text column now absorbs it (priority `message > userAgent > referer > url > last`), keeping `timestamp` at its declared 185 px.
+- **Show all NPM log files** — `letsencrypt.log` (+ rotated `.1`…`.N`) and `fallback_http_*` / `fallback_stream_*` files were silently filtered out. Patterns broadened so they now appear in the file selector. Letsencrypt files are typed as `error` (certbot operation log).
+- **Raw view: pagination at the top + far more visible at the bottom** — added prev/next/first/last controls in the top header and restyled the bottom bar (cyan accent, shadow, brighter counter). Useful when a file has many pages — easier to jump to the end.
+
+### Technical
+
+- **`Dockerfile`** — added `tzdata` package to the runtime stage so `TZ=Europe/Paris` (etc.) is actually honored; without it Alpine knows only UTC.
+- **`docker-compose.yml` / `docker-compose.fail2ban.yml` / `docker-compose.local.yml`** — added `TZ: ${TZ:-Europe/Paris}` env var.
+- **`README.md`** — documented `TZ` in the env vars table.
+- **`src/components/log-viewer/LogTable.tsx`** — colgroup now picks one absorbing column with `width: auto` so leftover space goes to that column instead of being distributed proportionally across all (which inflated `timestamp` under `table-fixed` + `w-full`). Global fix — applies to every plugin/logType.
+- **`server/plugins/npm/NpmLogPlugin.ts`** — patterns broadened: `fallback_*.log*` (covers `_http_`, `_stream_` variants) and `letsencrypt*.log*` (covers `letsencrypt.log` + rotated). `determineLogType()` classifies `letsencrypt*` as `error`.
+- **`src/pages/LogViewerPage.tsx`** — extracted `goToRawPage` + `rawPaginationControls` (« ← page X/Y → ») reused in top header and bottom bar (no JSX duplication).
+
+---
+
 ## [0.8.54] - 2026-04-16
 
 ### For users

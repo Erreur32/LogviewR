@@ -10,7 +10,7 @@
 
 <img src="LogviewR_banner.svg" alt="LogviewR" width="512" height="256" />
 
-![LogviewR](https://img.shields.io/badge/LogviewR-0.8.54-111827?style=for-the-badge)
+![LogviewR](https://img.shields.io/badge/LogviewR-0.8.55-111827?style=for-the-badge)
 ![Status](https://img.shields.io/badge/Status-DEVELOPMENT-374151?style=for-the-badge)
 ![Docker](https://img.shields.io/badge/Docker-Ready-1f2937?style=for-the-badge&logo=docker&logoColor=38bdf8)
 ![React](https://img.shields.io/badge/React-19-111827?style=for-the-badge&logo=react&logoColor=38bdf8)
@@ -186,6 +186,7 @@ Dashboard available at `http://your-ip:7500`
 | `CONFIG_FILE_PATH` | Path to external configuration file | `/app/config/logviewr.conf` | No |
 | `ADM_GID` | GID of the `adm` group on the host (system logs) | `4` | No |
 | `HOST_ROOT_PATH` | Host root path mounted in the container | `/host` | No |
+| `TZ` | Container timezone — must match your host TZ so log timestamps (written by Apache/Nginx in host local time, without TZ info) are parsed correctly. Override if your host is not in Europe/Paris. | `Europe/Paris` | No |
 
 ### docker-compose files
 
