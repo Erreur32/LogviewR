@@ -176,7 +176,15 @@ Without these options, IPTables/IPSet/NFTables tabs will show a `Permission deni
 
 ## 🚀 Installation
 
-**Step 1 - Create `.env` and download `docker-compose.yml`**
+> **Fail2ban is optional.** LogviewR works out of the box for viewing Apache, Nginx, NPM and system logs — no extra setup needed. The Fail2ban plugin is a powerful addition that lets you fully manage fail2ban (jails, bans, IPSet lists, firewall rules) from the dashboard, but it is not required.
+
+**Step 1 - Create the application directory**
+
+```bash
+mkdir -p /home/docker/logviewr && cd /home/docker/logviewr
+```
+
+**Step 2 - Create `.env` and download `docker-compose.yml`**
 
 ```bash
 echo "JWT_SECRET=$(openssl rand -base64 32)" > .env
@@ -185,7 +193,9 @@ wget -O docker-compose.yml https://raw.githubusercontent.com/Erreur32/LogviewR/m
 
 Or copy the standard / firewall mode config from the [Configuration section](#%EF%B8%8F-configuration) below.
 
-**Step 2 - Fail2ban host setup** *(optional - only if fail2ban is installed on the host)*
+**Step 3 - *(Optional)* Fail2ban integration**
+
+> Skip this step if you just want to view logs. Come back to it later if you need fail2ban management.
 
 ```bash
 # with curl:
@@ -194,7 +204,7 @@ curl -fsSL https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setu
 wget -qO- https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setup-fail2ban-access.sh | sudo bash
 ```
 
-> Run this **before** `docker compose up`, directly on the Docker host (not inside the container).
+> Run this directly on the Docker host (not inside the container).
 > The script automatically:
 > - Creates the `fail2ban` group and sets socket/SQLite permissions
 > - Installs a systemd drop-in to persist permissions across reboots
@@ -203,9 +213,8 @@ wget -qO- https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setup
 >
 > **One-time only** — survives reboots and fail2ban restarts automatically.
 > Re-run only if you reinstall fail2ban on the host.
-> Skip this step entirely if you don't use fail2ban.
 
-**Step 3 - Start**
+**Step 4 - Start**
 
 ```bash
 docker compose up -d

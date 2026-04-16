@@ -168,7 +168,15 @@ Sans ces options, les onglets IPTables/IPSet/NFTables afficheront une erreur `Pe
 
 ## 🚀 Installation
 
-**Étape 1 — Créer `.env` et télécharger `docker-compose.yml`**
+> **Fail2ban est optionnel.** LogviewR fonctionne directement pour visualiser les logs Apache, Nginx, NPM et système — aucune configuration supplémentaire nécessaire. Le plugin Fail2ban est un plus puissant qui permet de gérer entièrement fail2ban (jails, bans, listes IPSet, règles pare-feu) depuis le dashboard, mais il n'est pas requis.
+
+**Étape 1 — Créer le répertoire de l'application**
+
+```bash
+mkdir -p /home/docker/logviewr && cd /home/docker/logviewr
+```
+
+**Étape 2 — Créer `.env` et télécharger `docker-compose.yml`**
 
 ```bash
 echo "JWT_SECRET=$(openssl rand -base64 32)" > .env
@@ -177,7 +185,9 @@ wget -O docker-compose.yml https://raw.githubusercontent.com/Erreur32/LogviewR/m
 
 Ou copier la config mode standard / pare-feu depuis la [section Configuration](#%EF%B8%8F-configuration) ci-dessous.
 
-**Étape 2 — Configuration hôte Fail2ban** *(optionnel — uniquement si fail2ban est installé sur l'hôte)*
+**Étape 3 — *(Optionnel)* Intégration Fail2ban**
+
+> Ignorez cette étape si vous voulez juste visualiser les logs. Vous pourrez y revenir plus tard si besoin.
 
 ```bash
 # avec curl :
@@ -186,7 +196,7 @@ curl -fsSL https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setu
 wget -qO- https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setup-fail2ban-access.sh | sudo bash
 ```
 
-> À exécuter **avant** `docker compose up`, directement sur l'hôte Docker (pas dans le conteneur).
+> À exécuter directement sur l'hôte Docker (pas dans le conteneur).
 > Le script configure tout automatiquement :
 > - Crée le groupe `fail2ban` et règle les permissions du socket/SQLite
 > - Installe un drop-in systemd pour persister les permissions après redémarrage
@@ -195,9 +205,8 @@ wget -qO- https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setup
 >
 > **Une seule fois** — survit aux redémarrages automatiquement.
 > À relancer uniquement si vous réinstallez fail2ban.
-> Ignorez cette étape si vous n'utilisez pas fail2ban.
 
-**Étape 3 — Démarrer**
+**Étape 4 — Démarrer**
 
 ```bash
 docker compose up -d
