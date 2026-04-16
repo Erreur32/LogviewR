@@ -176,37 +176,30 @@ Sans ces options, les onglets IPTables/IPSet/NFTables afficheront une erreur `Pe
 mkdir -p /home/docker/logviewr && cd /home/docker/logviewr
 ```
 
-**Étape 2 — Créer `.env` et télécharger `docker-compose.yml`**
+**Étape 2 — Créer `.env` et choisir le docker-compose**
 
 ```bash
 echo "JWT_SECRET=$(openssl rand -base64 32)" > .env
+```
+
+**Standard** — visualisation des logs uniquement (Apache, Nginx, NPM, système) :
+
+```bash
 wget -O docker-compose.yml https://raw.githubusercontent.com/Erreur32/LogviewR/main/docker-compose.yml
 ```
 
-Ou copier la config mode standard / pare-feu depuis la [section Configuration](#%EF%B8%8F-configuration) ci-dessous.
-
-**Étape 3 — *(Optionnel)* Intégration Fail2ban**
-
-> Ignorez cette étape si vous voulez juste visualiser les logs. Vous pourrez y revenir plus tard si besoin.
+**Fail2ban + Pare-feu** — gestion complète fail2ban + onglets IPTables/IPSet/NFTables :
 
 ```bash
-# avec curl :
+wget -O docker-compose.yml https://raw.githubusercontent.com/Erreur32/LogviewR/main/docker-compose.fail2ban.yml
+# puis lancer le script de configuration (une seule fois, règle les permissions + écrit FAIL2BAN_GID dans .env) :
 curl -fsSL https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setup-fail2ban-access.sh | sudo bash
-# ou avec wget :
-wget -qO- https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setup-fail2ban-access.sh | sudo bash
 ```
 
-> À exécuter directement sur l'hôte Docker (pas dans le conteneur).
-> Le script configure tout automatiquement :
-> - Crée le groupe `fail2ban` et règle les permissions du socket/SQLite
-> - Installe un drop-in systemd pour persister les permissions après redémarrage
-> - Écrit `FAIL2BAN_GID` dans `.env`
-> - Décommente les lignes fail2ban dans `docker-compose.yml` (montage socket + group_add)
->
-> **Une seule fois** — survit aux redémarrages automatiquement.
-> À relancer uniquement si vous réinstallez fail2ban.
+> Le script crée automatiquement le groupe `fail2ban`, règle les permissions du socket/SQLite, installe un drop-in systemd pour la persistance, et écrit `FAIL2BAN_GID` dans `.env`.
+> À lancer une seule fois sur l'hôte Docker — survit aux redémarrages automatiquement.
 
-**Étape 4 — Démarrer**
+**Étape 3 — Démarrer**
 
 ```bash
 docker compose up -d
@@ -229,93 +222,32 @@ Dashboard disponible à `http://votre-ip:7500`
 | `ADM_GID` | GID du groupe `adm` sur l'hôte (logs système) | `4` | Non |
 | `HOST_ROOT_PATH` | Chemin racine hôte monté dans le conteneur | `/host` | Non |
 
-### docker-compose.yml
+### Fichiers docker-compose
 
-**Mode standard** (sans onglets Pare-feu) :
+Deux fichiers prêts à l'emploi — téléchargez celui qui correspond à votre usage :
 
-```yaml
-services:
-  logviewr:
-    image: ghcr.io/erreur32/logviewr:latest
-    container_name: logviewr
-    restart: unless-stopped
-    ports:
-      - "${DASHBOARD_PORT:-7500}:3000"
-    environment:
-      JWT_SECRET: ${JWT_SECRET}
-      DASHBOARD_PORT: ${DASHBOARD_PORT:-7500}
-      HOST_IP: ${HOST_IP:-}
-    group_add:
-      - "${ADM_GID:-4}"           # groupe adm — lecture des logs système
-    volumes:
-      - ./data:/app/data
-      # Décommenter si fail2ban est installé sur l'hôte (lancer setup-fail2ban-access.sh d'abord) :
-      # - /var/run/fail2ban/fail2ban.sock:/var/run/fail2ban/fail2ban.sock
-      - /:/host:ro          # :ro = plus sécurisé ; désactive le VACUUM Fail2ban (voir note ci-dessous)
-      - /proc:/host/proc:ro
-      - /sys:/host/sys:ro
-      # Optionnel : activer le VACUUM SQLite Fail2ban (syntaxe longue requise — la forme courte ne peut pas overrider :ro)
-      # - type: bind
-      #   source: /var/lib/fail2ban
-      #   target: /host/var/lib/fail2ban
-      #   bind:
-      #     propagation: shared
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-```
+| Fichier | Mode | Description |
+|---------|------|-------------|
+| [`docker-compose.yml`](docker-compose.yml) | **Standard** | Visualisation des logs uniquement (Apache, Nginx, NPM, système). Réseau bridge, mapping `ports:`. |
+| [`docker-compose.fail2ban.yml`](docker-compose.fail2ban.yml) | **Fail2ban + Pare-feu** | Gestion complète fail2ban + onglets IPTables/IPSet/NFTables. `network_mode: host` + `NET_ADMIN`. Nécessite `setup-fail2ban-access.sh`. |
 
-**Mode Pare-feu** (onglets IPTables · IPSet · NFTables activés) — remplacer `ports:` par `network_mode: host` :
+Voir [Installation Étape 2](#-installation) pour les commandes de téléchargement.
 
-```yaml
-services:
-  logviewr:
-    image: ghcr.io/erreur32/logviewr:latest
-    container_name: logviewr
-    restart: unless-stopped
-    # ⚠️ no ports: — incompatible avec network_mode: host
-    network_mode: host
-    cap_add:
-      - NET_ADMIN
-    environment:
-      JWT_SECRET: ${JWT_SECRET}
-      PORT: 7500                  # port d'écoute direct (remplace le mapping ports:)
-      HOST_IP: ${HOST_IP:-}
-    group_add:
-      - "${ADM_GID:-4}"
-    volumes:
-      - ./data:/app/data
-      # Décommenter si fail2ban est installé sur l'hôte :
-      # - /var/run/fail2ban/fail2ban.sock:/var/run/fail2ban/fail2ban.sock
-      - /:/host:ro          # :ro = plus sécurisé ; désactive le VACUUM Fail2ban (voir note ci-dessous)
-      - /proc:/host/proc:ro
-      - /sys:/host/sys:ro
-      # Optionnel : activer le VACUUM SQLite Fail2ban (syntaxe longue requise — la forme courte ne peut pas overrider :ro)
-      # - type: bind
-      #   source: /var/lib/fail2ban
-      #   target: /host/var/lib/fail2ban
-      #   bind:
-      #     propagation: shared
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:7500/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-```
+> **Montages rw optionnels Fail2ban** (mode fail2ban uniquement) : le filesystem hôte est monté en `:ro` pour la sécurité.
+> Deux fonctionnalités nécessitent un montage rw dédié (à décommenter dans `docker-compose.fail2ban.yml`) :
+>
+> | Fonctionnalité | Décommenter `source:` |
+> |----------------|----------------------|
+> | VACUUM SQLite (onglet Config Fail2ban) | `/var/lib/fail2ban` |
+> | Édition des fichiers de config depuis l'UI (`jail.local` / `fail2ban.local`) | `/etc/fail2ban` |
+>
+> Les montages courts ne peuvent pas overrider un parent `:ro` — la syntaxe longue avec `propagation: shared` est obligatoire.
 
-> **VACUUM SQLite Fail2ban** : Le flag `:ro` empêche le conteneur d'écrire sur le système de fichiers hôte — recommandé pour la sécurité.
-> Cependant, il désactive la fonction de **défragmentation SQLite (VACUUM)** dans l'onglet Config de Fail2ban.
-> Pour activer le VACUUM, décommenter le bloc `type: bind` ci-dessus (`source: /var/lib/fail2ban`).
-> La forme courte (`- /var/lib/fail2ban:/host/var/lib/fail2ban`) **ne fonctionne pas** — Docker ne peut pas overrider un montage parent `:ro` avec une entrée rw en forme courte.
-> La syntaxe longue avec `propagation: shared` est obligatoire. Elle prend priorité sur `/:/host:ro` pour ce chemin uniquement.
+**Changer le port** :
+- Mode standard : `DASHBOARD_PORT=8080` dans `.env`
+- Mode fail2ban : `PORT=8080` dans `.env`, puis pointer le reverse proxy vers ce port
 
-**Changer le port** : modifier uniquement `PORT: 7500` → `PORT: 8080` (ou autre), puis pointer votre reverse proxy vers ce port.
-
-**Reverse proxy** (Nginx Proxy Manager, Caddy, Traefik…) avec `network_mode: host` :
+**Reverse proxy** (mode fail2ban — `network_mode: host`) :
 
 Le conteneur écoute directement sur le host — le reverse proxy se connecte via `127.0.0.1` :
 
@@ -336,8 +268,6 @@ location / {
 # Caddy
 reverse_proxy 127.0.0.1:7500
 ```
-
-> Le fichier complet avec tous les commentaires est dans [`docker-compose.yml`](docker-compose.yml) à la racine du projet.
 
 ### Accès aux logs système
 

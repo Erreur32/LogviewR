@@ -119,52 +119,7 @@ These tabs require two **cumulative** conditions - neither alone is sufficient:
 > - `security_opt: no-new-privileges:true` is **incompatible with firewall tabs** - `sudo` cannot elevate with this flag, breaking iptables/ipset/nft commands
 > - To change the listen port: set `PORT=8080` in `.env` and point your reverse proxy to `127.0.0.1:8080`
 
-`docker-compose.yml` configuration with Firewall tabs enabled:
-
-```yaml
-services:
-  logviewr:
-    image: ghcr.io/erreur32/logviewr:latest
-    container_name: logviewr
-    restart: unless-stopped
-    # no ports: - incompatible with network_mode: host
-    network_mode: host
-    cap_add:
-      - NET_ADMIN               # required for netfilter (iptables/ipset/nft)
-    # no security_opt: no-new-privileges - incompatible with sudo (breaks firewall tabs)
-    environment:
-      JWT_SECRET: ${JWT_SECRET}
-      PORT: ${PORT:-7500}       # direct listen port - change here + update reverse proxy
-      HOST_IP: ${HOST_IP:-}
-    group_add:
-      - "${ADM_GID:-4}"
-      - "${FAIL2BAN_GID}"        # set by setup-fail2ban-access.sh in .env
-    volumes:
-      - ./data:/app/data
-      - /var/run/fail2ban/fail2ban.sock:/var/run/fail2ban/fail2ban.sock
-      - /:/host:ro          # :ro = more secure; disables Fail2ban VACUUM (see note below)
-      - /proc:/host/proc:ro
-      - /sys:/host/sys:ro
-      # Optional: enable Fail2ban SQLite VACUUM (long-form bind required - short-form does not override :ro)
-      # - type: bind
-      #   source: /var/lib/fail2ban
-      #   target: /host/var/lib/fail2ban
-      #   bind:
-      #     propagation: shared
-      # Optional: enable Fail2ban config file editing from the UI (jail.local / fail2ban.local)
-      # Run once: curl -fsSL https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setup-fail2ban-access.sh | sudo bash
-      # - type: bind
-      #   source: /etc/fail2ban
-      #   target: /host/etc/fail2ban
-      #   bind:
-      #     propagation: shared
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:7500/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-```
+Use [`docker-compose.fail2ban.yml`](docker-compose.fail2ban.yml) — it includes `network_mode: host`, `NET_ADMIN`, and fail2ban socket/group already configured. See [Installation Step 2](#-installation).
 
 Without these options, IPTables/IPSet/NFTables tabs will show a `Permission denied` or `no new privileges` error.
 
@@ -184,37 +139,30 @@ Without these options, IPTables/IPSet/NFTables tabs will show a `Permission deni
 mkdir -p /home/docker/logviewr && cd /home/docker/logviewr
 ```
 
-**Step 2 - Create `.env` and download `docker-compose.yml`**
+**Step 2 - Create `.env` and choose your docker-compose file**
 
 ```bash
 echo "JWT_SECRET=$(openssl rand -base64 32)" > .env
+```
+
+**Standard** — log viewer only (Apache, Nginx, NPM, system logs):
+
+```bash
 wget -O docker-compose.yml https://raw.githubusercontent.com/Erreur32/LogviewR/main/docker-compose.yml
 ```
 
-Or copy the standard / firewall mode config from the [Configuration section](#%EF%B8%8F-configuration) below.
-
-**Step 3 - *(Optional)* Fail2ban integration**
-
-> Skip this step if you just want to view logs. Come back to it later if you need fail2ban management.
+**Fail2ban + Firewall** — full fail2ban management + IPTables/IPSet/NFTables tabs:
 
 ```bash
-# with curl:
+wget -O docker-compose.yml https://raw.githubusercontent.com/Erreur32/LogviewR/main/docker-compose.fail2ban.yml
+# then run the setup script (one-time, sets permissions + writes FAIL2BAN_GID to .env):
 curl -fsSL https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setup-fail2ban-access.sh | sudo bash
-# or with wget:
-wget -qO- https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setup-fail2ban-access.sh | sudo bash
 ```
 
-> Run this directly on the Docker host (not inside the container).
-> The script automatically:
-> - Creates the `fail2ban` group and sets socket/SQLite permissions
-> - Installs a systemd drop-in to persist permissions across reboots
-> - Writes `FAIL2BAN_GID` to `.env`
-> - Uncomments fail2ban lines in `docker-compose.yml` (socket mount + group_add)
->
-> **One-time only** — survives reboots and fail2ban restarts automatically.
-> Re-run only if you reinstall fail2ban on the host.
+> The setup script automatically creates the `fail2ban` group, sets socket/SQLite permissions, installs a systemd drop-in for persistence, and writes `FAIL2BAN_GID` to `.env`.
+> Run it once on the Docker host — survives reboots automatically.
 
-**Step 4 - Start**
+**Step 3 - Start**
 
 ```bash
 docker compose up -d
@@ -237,116 +185,30 @@ Dashboard available at `http://your-ip:7500`
 | `ADM_GID` | GID of the `adm` group on the host (system logs) | `4` | No |
 | `HOST_ROOT_PATH` | Host root path mounted in the container | `/host` | No |
 
-### docker-compose.yml
+### docker-compose files
 
-**Standard mode** (without Firewall tabs):
+Two ready-to-use files — download the one that matches your setup:
 
-```yaml
-services:
-  logviewr:
-    image: ghcr.io/erreur32/logviewr:latest
-    container_name: logviewr
-    restart: unless-stopped
-    ports:
-      - "${DASHBOARD_PORT:-7500}:3000"
-    environment:
-      JWT_SECRET: ${JWT_SECRET}
-      DASHBOARD_PORT: ${DASHBOARD_PORT:-7500}
-      HOST_IP: ${HOST_IP:-}
-    group_add:
-      - "${ADM_GID:-4}"           # adm group - system log read access
-    volumes:
-      - ./data:/app/data
-      # Uncomment if fail2ban is installed on the host (run setup-fail2ban-access.sh first):
-      # - /var/run/fail2ban/fail2ban.sock:/var/run/fail2ban/fail2ban.sock
-      - /:/host:ro          # :ro = more secure; disables Fail2ban VACUUM (see note below)
-      - /proc:/host/proc:ro
-      - /sys:/host/sys:ro
-      # Optional: enable Fail2ban SQLite VACUUM (long-form bind required - short-form does not override :ro)
-      # - type: bind
-      #   source: /var/lib/fail2ban
-      #   target: /host/var/lib/fail2ban
-      #   bind:
-      #     propagation: shared
-      # Optional: enable Fail2ban config file editing from the UI (jail.local / fail2ban.local)
-      # Run once: curl -fsSL https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setup-fail2ban-access.sh | sudo bash
-      # - type: bind
-      #   source: /etc/fail2ban
-      #   target: /host/etc/fail2ban
-      #   bind:
-      #     propagation: shared
+| File | Mode | What it does |
+|------|------|-------------|
+| [`docker-compose.yml`](docker-compose.yml) | **Standard** | Log viewer only (Apache, Nginx, NPM, system). Bridge network, `ports:` mapping. |
+| [`docker-compose.fail2ban.yml`](docker-compose.fail2ban.yml) | **Fail2ban + Firewall** | Full fail2ban management + IPTables/IPSet/NFTables tabs. `network_mode: host` + `NET_ADMIN`. Requires `setup-fail2ban-access.sh`. |
 
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-```
+See [Installation Step 2](#-installation) for download commands.
 
-**Firewall mode** (IPTables · IPSet · NFTables tabs enabled) - replace `ports:` with `network_mode: host`:
-
-```yaml
-services:
-  logviewr:
-    image: ghcr.io/erreur32/logviewr:latest
-    container_name: logviewr
-    restart: unless-stopped
-    # ⚠️ no ports: - incompatible with network_mode: host
-    network_mode: host
-    cap_add:
-      - NET_ADMIN
-    environment:
-      JWT_SECRET: ${JWT_SECRET}
-      PORT: 7500                  # direct listen port (replaces ports: mapping)
-      HOST_IP: ${HOST_IP:-}
-    group_add:
-      - "${ADM_GID:-4}"
-    volumes:
-      - ./data:/app/data
-      # Uncomment if fail2ban is installed on the host (run setup-fail2ban-access.sh first):
-      # - /var/run/fail2ban/fail2ban.sock:/var/run/fail2ban/fail2ban.sock
-      - /:/host:ro          # :ro = more secure; disables Fail2ban VACUUM (see note below)
-      - /proc:/host/proc:ro
-      - /sys:/host/sys:ro
-      # Optional: enable Fail2ban SQLite VACUUM (long-form bind required - short-form does not override :ro)
-      # - type: bind
-      #   source: /var/lib/fail2ban
-      #   target: /host/var/lib/fail2ban
-      #   bind:
-      #     propagation: shared
-      # Optional: enable Fail2ban config file editing from the UI (jail.local / fail2ban.local)
-      # Run once: curl -fsSL https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setup-fail2ban-access.sh | sudo bash
-      # - type: bind
-      #   source: /etc/fail2ban
-      #   target: /host/etc/fail2ban
-      #   bind:
-      #     propagation: shared
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:7500/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-```
-
-> **Fail2ban optional rw mounts**: The `:ro` flag prevents the container from writing to the host filesystem - recommended for security.
-> Two features require a dedicated rw bind mount (both use the same long-form syntax with `propagation: shared`):
+> **Fail2ban optional rw mounts** (fail2ban mode only): The host filesystem is mounted `:ro` for security.
+> Two features need a dedicated rw bind mount (uncomment in `docker-compose.fail2ban.yml`):
 >
 > | Feature | Uncomment `source:` |
 > |---------|---------------------|
 > | SQLite VACUUM (Fail2ban Config tab) | `/var/lib/fail2ban` |
 > | Config file editing from the UI (`jail.local` / `fail2ban.local`) | `/etc/fail2ban` |
 >
-> A simple short-form mount (e.g. `- /etc/fail2ban:/host/etc/fail2ban`) does **not** work - Docker cannot override a `:ro` parent mount with a short-form rw entry.
-> The long-form syntax with `propagation: shared` is required. It takes precedence over `/:/host:ro` for that path only.
->
-> For config file editing, also run the setup script once on the host to grant group-write access:
-> ```bash
-> curl -fsSL https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setup-fail2ban-access.sh | sudo bash
-> ```
+> Short-form mounts cannot override a `:ro` parent — the long-form syntax with `propagation: shared` is required.
 
-**Changing the port**: only modify `PORT: 7500` → `PORT: 8080` (or any other), then point your reverse proxy to that port.
+**Changing the port**:
+- Standard mode: set `DASHBOARD_PORT=8080` in `.env`
+- Fail2ban mode: set `PORT=8080` in `.env`, then point your reverse proxy to that port.
 
 **Reverse proxy** (Nginx Proxy Manager, Caddy, Traefik…) with `network_mode: host`:
 

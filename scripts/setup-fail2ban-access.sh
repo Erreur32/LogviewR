@@ -231,10 +231,9 @@ if $CONF_NEED_FIX; then
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-section "7. Configuration docker-compose (.env + docker-compose.yml)"
+section "7. Configuration .env (FAIL2BAN_GID)"
 
 if [[ -n "$FAIL2BAN_GID" ]]; then
-    # ── .env — write FAIL2BAN_GID ──────────────────────────────────────────
     if [[ -f "$ENV_FILE" ]]; then
         if grep -q "^FAIL2BAN_GID=" "$ENV_FILE" 2>/dev/null; then
             CURRENT_GID=$(grep "^FAIL2BAN_GID=" "$ENV_FILE" | cut -d= -f2)
@@ -264,47 +263,10 @@ if [[ -n "$FAIL2BAN_GID" ]]; then
         ERRORS=$((ERRORS+1))
     fi
 
-    # ── docker-compose.yml — uncomment fail2ban lines ──────────────────────
-    COMPOSE_FILE="docker-compose.yml"
-    if [[ -f "$COMPOSE_FILE" ]]; then
-        PATCHED=false
-
-        # Uncomment FAIL2BAN_GID group_add line
-        if grep -q '# - "\${FAIL2BAN_GID}"' "$COMPOSE_FILE" 2>/dev/null; then
-            if ! $CHECK_ONLY; then
-                sed -i 's|# - "\${FAIL2BAN_GID}"|- "\${FAIL2BAN_GID}"|' "$COMPOSE_FILE"
-                ok "docker-compose.yml : group_add FAIL2BAN_GID décommenté"
-                PATCHED=true
-            else
-                warn "docker-compose.yml : group_add FAIL2BAN_GID commenté"
-                ERRORS=$((ERRORS+1))
-            fi
-        elif grep -q '- "\${FAIL2BAN_GID}"' "$COMPOSE_FILE" 2>/dev/null; then
-            ok "docker-compose.yml : group_add FAIL2BAN_GID déjà actif"
-        fi
-
-        # Uncomment fail2ban socket mount
-        if grep -q '# - /var/run/fail2ban/fail2ban.sock' "$COMPOSE_FILE" 2>/dev/null; then
-            if ! $CHECK_ONLY; then
-                sed -i 's|# - /var/run/fail2ban/fail2ban.sock:/var/run/fail2ban/fail2ban.sock|- /var/run/fail2ban/fail2ban.sock:/var/run/fail2ban/fail2ban.sock|' "$COMPOSE_FILE"
-                ok "docker-compose.yml : montage socket fail2ban décommenté"
-                PATCHED=true
-            else
-                warn "docker-compose.yml : montage socket fail2ban commenté"
-                ERRORS=$((ERRORS+1))
-            fi
-        elif grep -q '- /var/run/fail2ban/fail2ban.sock' "$COMPOSE_FILE" 2>/dev/null; then
-            ok "docker-compose.yml : montage socket déjà actif"
-        fi
-
-        if $PATCHED; then
-            echo ""
-            info "Relancez le container pour appliquer :"
-            echo -e "    ${CYAN}docker compose up -d --force-recreate${RESET}"
-        fi
-    else
-        info "docker-compose.yml introuvable — les lignes fail2ban sont à décommenter manuellement"
-    fi
+    echo ""
+    info "Utilisez docker-compose.fail2ban.yml (FAIL2BAN_GID est lu depuis .env) :"
+    echo -e "    ${CYAN}wget -O docker-compose.yml https://raw.githubusercontent.com/Erreur32/LogviewR/main/docker-compose.fail2ban.yml${RESET}"
+    echo -e "    ${CYAN}docker compose up -d${RESET}"
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
