@@ -135,10 +135,12 @@ services:
       HOST_IP: ${HOST_IP:-}
     group_add:
       - "${ADM_GID:-4}"
-      - "${FAIL2BAN_GID:-}"
+      # Décommenter si fail2ban est installé sur l'hôte (lancer setup-fail2ban-access.sh d'abord) :
+      # - "${FAIL2BAN_GID}"
     volumes:
       - ./data:/app/data
-      - /var/run/fail2ban/fail2ban.sock:/var/run/fail2ban/fail2ban.sock
+      # Décommenter si fail2ban est installé sur l'hôte :
+      # - /var/run/fail2ban/fail2ban.sock:/var/run/fail2ban/fail2ban.sock
       - /:/host:ro          # :ro = plus sécurisé ; désactive le VACUUM Fail2ban (voir note ci-dessous)
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
@@ -166,34 +168,36 @@ Sans ces options, les onglets IPTables/IPSet/NFTables afficheront une erreur `Pe
 
 ## 🚀 Installation
 
-**Étape 1 — Créer `.env`**
+**Étape 1 — Créer `.env` et télécharger `docker-compose.yml`**
 
 ```bash
 echo "JWT_SECRET=$(openssl rand -base64 32)" > .env
-```
-
-**Étape 2 — Configuration hôte Fail2ban** *(une seule fois — requis uniquement si vous utilisez le plugin Fail2ban)*
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setup-fail2ban-access.sh | sudo bash
-```
-
-> À exécuter **avant** `docker compose up`, directement sur l'hôte Docker (pas dans le conteneur).
-> Crée le groupe `fail2ban`, installe un drop-in systemd pour persister les permissions du socket après redémarrage, et configure l'accès SQLite en lecture.
-> **Une seule fois** — survit aux redémarrages et aux redémarrages de fail2ban automatiquement.
-> À relancer uniquement si vous réinstallez fail2ban sur l'hôte.
-
-**Étape 3 — Créer `docker-compose.yml`**
-
-Télécharger le fichier de production directement :
-
-```bash
 wget -O docker-compose.yml https://raw.githubusercontent.com/Erreur32/LogviewR/main/docker-compose.yml
 ```
 
 Ou copier la config mode standard / pare-feu depuis la [section Configuration](#%EF%B8%8F-configuration) ci-dessous.
 
-**Étape 4 — Démarrer**
+**Étape 2 — Configuration hôte Fail2ban** *(optionnel — uniquement si fail2ban est installé sur l'hôte)*
+
+```bash
+# avec curl :
+curl -fsSL https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setup-fail2ban-access.sh | sudo bash
+# ou avec wget :
+wget -qO- https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setup-fail2ban-access.sh | sudo bash
+```
+
+> À exécuter **avant** `docker compose up`, directement sur l'hôte Docker (pas dans le conteneur).
+> Le script configure tout automatiquement :
+> - Crée le groupe `fail2ban` et règle les permissions du socket/SQLite
+> - Installe un drop-in systemd pour persister les permissions après redémarrage
+> - Écrit `FAIL2BAN_GID` dans `.env`
+> - Décommente les lignes fail2ban dans `docker-compose.yml` (montage socket + group_add)
+>
+> **Une seule fois** — survit aux redémarrages automatiquement.
+> À relancer uniquement si vous réinstallez fail2ban.
+> Ignorez cette étape si vous n'utilisez pas fail2ban.
+
+**Étape 3 — Démarrer**
 
 ```bash
 docker compose up -d
@@ -236,7 +240,8 @@ services:
       - "${ADM_GID:-4}"           # groupe adm — lecture des logs système
     volumes:
       - ./data:/app/data
-      - /var/run/fail2ban/fail2ban.sock:/var/run/fail2ban/fail2ban.sock
+      # Décommenter si fail2ban est installé sur l'hôte (lancer setup-fail2ban-access.sh d'abord) :
+      # - /var/run/fail2ban/fail2ban.sock:/var/run/fail2ban/fail2ban.sock
       - /:/host:ro          # :ro = plus sécurisé ; désactive le VACUUM Fail2ban (voir note ci-dessous)
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
@@ -274,7 +279,8 @@ services:
       - "${ADM_GID:-4}"
     volumes:
       - ./data:/app/data
-      - /var/run/fail2ban/fail2ban.sock:/var/run/fail2ban/fail2ban.sock
+      # Décommenter si fail2ban est installé sur l'hôte :
+      # - /var/run/fail2ban/fail2ban.sock:/var/run/fail2ban/fail2ban.sock
       - /:/host:ro          # :ro = plus sécurisé ; désactive le VACUUM Fail2ban (voir note ci-dessous)
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro

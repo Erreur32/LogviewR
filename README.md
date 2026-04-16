@@ -10,7 +10,7 @@
 
 <img src="LogviewR_banner.svg" alt="LogviewR" width="512" height="256" />
 
-![LogviewR](https://img.shields.io/badge/LogviewR-0.8.53-111827?style=for-the-badge)
+![LogviewR](https://img.shields.io/badge/LogviewR-0.8.54-111827?style=for-the-badge)
 ![Status](https://img.shields.io/badge/Status-DEVELOPMENT-374151?style=for-the-badge)
 ![Docker](https://img.shields.io/badge/Docker-Ready-1f2937?style=for-the-badge&logo=docker&logoColor=38bdf8)
 ![React](https://img.shields.io/badge/React-19-111827?style=for-the-badge&logo=react&logoColor=38bdf8)
@@ -138,7 +138,7 @@ services:
       HOST_IP: ${HOST_IP:-}
     group_add:
       - "${ADM_GID:-4}"
-      - "${FAIL2BAN_GID:-}"
+      - "${FAIL2BAN_GID}"        # set by setup-fail2ban-access.sh in .env
     volumes:
       - ./data:/app/data
       - /var/run/fail2ban/fail2ban.sock:/var/run/fail2ban/fail2ban.sock
@@ -176,34 +176,36 @@ Without these options, IPTables/IPSet/NFTables tabs will show a `Permission deni
 
 ## 🚀 Installation
 
-**Step 1 - Create `.env`**
+**Step 1 - Create `.env` and download `docker-compose.yml`**
 
 ```bash
 echo "JWT_SECRET=$(openssl rand -base64 32)" > .env
-```
-
-**Step 2 - Fail2ban host setup** *(one-time - required only if using the Fail2ban plugin)*
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setup-fail2ban-access.sh | sudo bash
-```
-
-> Run this **before** `docker compose up`, directly on the Docker host (not inside the container).
-> Creates the `fail2ban` group, installs a systemd drop-in to persist socket permissions across reboots, and sets SQLite read access.
-> **One-time only** - survives reboots and fail2ban restarts automatically.
-> Re-run only if you reinstall fail2ban on the host.
-
-**Step 3 - Create `docker-compose.yml`**
-
-Download the production file directly:
-
-```bash
 wget -O docker-compose.yml https://raw.githubusercontent.com/Erreur32/LogviewR/main/docker-compose.yml
 ```
 
 Or copy the standard / firewall mode config from the [Configuration section](#%EF%B8%8F-configuration) below.
 
-**Step 4 - Start**
+**Step 2 - Fail2ban host setup** *(optional - only if fail2ban is installed on the host)*
+
+```bash
+# with curl:
+curl -fsSL https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setup-fail2ban-access.sh | sudo bash
+# or with wget:
+wget -qO- https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setup-fail2ban-access.sh | sudo bash
+```
+
+> Run this **before** `docker compose up`, directly on the Docker host (not inside the container).
+> The script automatically:
+> - Creates the `fail2ban` group and sets socket/SQLite permissions
+> - Installs a systemd drop-in to persist permissions across reboots
+> - Writes `FAIL2BAN_GID` to `.env`
+> - Uncomments fail2ban lines in `docker-compose.yml` (socket mount + group_add)
+>
+> **One-time only** — survives reboots and fail2ban restarts automatically.
+> Re-run only if you reinstall fail2ban on the host.
+> Skip this step entirely if you don't use fail2ban.
+
+**Step 3 - Start**
 
 ```bash
 docker compose up -d
@@ -246,7 +248,8 @@ services:
       - "${ADM_GID:-4}"           # adm group - system log read access
     volumes:
       - ./data:/app/data
-      - /var/run/fail2ban/fail2ban.sock:/var/run/fail2ban/fail2ban.sock
+      # Uncomment if fail2ban is installed on the host (run setup-fail2ban-access.sh first):
+      # - /var/run/fail2ban/fail2ban.sock:/var/run/fail2ban/fail2ban.sock
       - /:/host:ro          # :ro = more secure; disables Fail2ban VACUUM (see note below)
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
@@ -292,7 +295,8 @@ services:
       - "${ADM_GID:-4}"
     volumes:
       - ./data:/app/data
-      - /var/run/fail2ban/fail2ban.sock:/var/run/fail2ban/fail2ban.sock
+      # Uncomment if fail2ban is installed on the host (run setup-fail2ban-access.sh first):
+      # - /var/run/fail2ban/fail2ban.sock:/var/run/fail2ban/fail2ban.sock
       - /:/host:ro          # :ro = more secure; disables Fail2ban VACUUM (see note below)
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro

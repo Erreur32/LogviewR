@@ -5,6 +5,22 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.54] - 2026-04-16
+
+### For users
+
+- **Fix Docker startup crash** — `docker compose up` failed with "Unable to find group" when fail2ban was not installed. The `FAIL2BAN_GID` (empty default) and fail2ban socket mount are now commented out by default.
+- **Setup script auto-configures docker-compose.yml** — `setup-fail2ban-access.sh` now writes `FAIL2BAN_GID` to `.env` and uncomments fail2ban lines in `docker-compose.yml` automatically (no manual editing needed).
+- **Renamed container** — `logviewr-dev` → `logviewr` (production name).
+
+### Technical
+
+- **`docker-compose.yml`** — `FAIL2BAN_GID` group_add and socket mount commented by default; container renamed.
+- **`scripts/setup-fail2ban-access.sh`** — section 7 rewritten: auto-patches `.env` + `docker-compose.yml`, idempotent, respects `--check` mode.
+- **`README.md` / `README.fr.md`** — installation steps reordered (`.env` + compose first, then optional fail2ban script), added wget alternative.
+
+---
+
 ## [0.8.53] - 2026-04-15
 
 ### Technical

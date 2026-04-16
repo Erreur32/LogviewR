@@ -36,7 +36,7 @@
 services:
   logviewr:
     image: ghcr.io/erreur32/logviewr:latest
-    container_name: logviewr-dev
+    container_name: logviewr
     restart: unless-stopped
 
     # ── MODE A — Standard (default) ──────────────────────────────────────────
@@ -83,7 +83,8 @@ services:
     # Add container user to host groups for file/socket access
     group_add:
       - "${ADM_GID:-4}"           # adm group (GID 4) — read /var/log files
-      - "${FAIL2BAN_GID:-}"       # fail2ban group — socket access (set by setup script)
+      # Uncomment if using Fail2ban plugin (run setup-fail2ban-access.sh first):
+      # - "${FAIL2BAN_GID}"       # fail2ban group — socket access (set by setup script)
 
     volumes:
       # Persistent data (SQLite DB + app config)
@@ -92,7 +93,8 @@ services:
       # Fail2ban Unix socket — required for ban/unban commands
       # Run the setup script once before starting (see README Step 2):
       #   curl -fsSL https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setup-fail2ban-access.sh | sudo bash
-      - /var/run/fail2ban/fail2ban.sock:/var/run/fail2ban/fail2ban.sock
+      # Uncomment if fail2ban is installed on the host:
+      # - /var/run/fail2ban/fail2ban.sock:/var/run/fail2ban/fail2ban.sock
 
       # Host filesystem (read-only) — provides access to logs, hostname, disk info
       # ⚠️  :ro is recommended (more secure — prevents container writes to host filesystem)
