@@ -25,7 +25,7 @@
 
 **Real-time log viewer for Apache, Nginx, NPM, system logs and Fail2ban**
 
-[README en Français](README.fr.md) | [Installation](#-installation) | [Plugins](#-plugins) | [Configuration](#-configuration) | [Documentation](#-documentation)
+[README en Français](README.fr.md) | [Installation](#-installation) | [Plugins](#-plugins) | [Configuration](#%EF%B8%8F-configuration) | [Reverse Proxy](#-reverse-proxy) | [Documentation](#-documentation)
 
 </div>
 
@@ -36,7 +36,9 @@
 
 - [Installation](#-installation)
 - [Plugins](#-plugins)
-- [Configuration](#-configuration)
+- [Configuration](#%EF%B8%8F-configuration)
+- [Reverse Proxy](#-reverse-proxy)
+- [System Log Access](#-system-log-access)
 - [Documentation](#-documentation)
 - [Contribution](#-contribution)
 - [License](#-license)
@@ -208,53 +210,96 @@ See [Installation Step 2](#-installation) for download commands.
 
 **Changing the port**:
 - Standard mode: set `DASHBOARD_PORT=8080` in `.env`
-- Fail2ban mode: set `PORT=8080` in `.env`, then point your reverse proxy to that port.
+- Fail2ban mode: set `PORT=8080` in `.env`, then point your reverse proxy to that port
 
-**Reverse proxy** (Nginx Proxy Manager, Caddy, Traefik…) with `network_mode: host`:
+---
 
-The container listens directly on the host - the reverse proxy connects via `127.0.0.1`:
+## 🔀 Reverse Proxy
+
+When using **fail2ban mode** (`network_mode: host`), there is no Docker port mapping — the container listens directly on the host. A reverse proxy connects via `127.0.0.1`:
+
+In **standard mode** (`ports:` mapping), a reverse proxy can connect to `127.0.0.1:7500` the same way, or you can expose the port directly without a proxy.
+
+### Nginx Proxy Manager
 
 ```
-# Nginx Proxy Manager
 Forward Hostname : 127.0.0.1
-Forward Port     : 7500        ← must match PORT=
-
-# Manual Nginx
-location / {
-    proxy_pass http://127.0.0.1:7500;
-    proxy_http_version 1.1;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection "upgrade";
-    proxy_set_header Host $host;
-}
-
-# Caddy
-reverse_proxy 127.0.0.1:7500
+Forward Port     : 7500        ← must match PORT= or DASHBOARD_PORT=
 ```
 
-> The complete file with all comments is in [`docker-compose.yml`](docker-compose.yml) at the project root.
+### Nginx (manual)
 
-### System Log Access
+```nginx
+server {
+    listen 443 ssl;
+    server_name logviewr.example.com;
 
-The **Host System** plugin requires access to files owned by `root:adm` (permissions `640`).
-The container automatically adds `node` to the `adm` group (GID 4).
+    location / {
+        proxy_pass http://127.0.0.1:7500;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
 
-If your system uses a different GID:
+### Caddy
+
+```
+logviewr.example.com {
+    reverse_proxy 127.0.0.1:7500
+}
+```
+
+### Traefik
+
+```yaml
+http:
+  routers:
+    logviewr:
+      rule: "Host(`logviewr.example.com`)"
+      service: logviewr
+  services:
+    logviewr:
+      loadBalancer:
+        servers:
+          - url: "http://127.0.0.1:7500"
+```
+
+---
+
+## 📂 System Log Access
+
+The **Host System** plugin reads log files owned by `root:adm` (permissions `640`).
+The container automatically joins the `adm` group (GID 4) via `group_add` in docker-compose.
+
+### Custom ADM GID
+
+If your system uses a different GID for the `adm` group:
+
 ```bash
 getent group adm | cut -d: -f3   # check the GID on the host
 echo "ADM_GID=your_gid" >> .env
 ```
 
-<details>
-<summary>Files with restrictive permissions (600)</summary>
+### Files with restrictive permissions (600)
 
-Some files (`/var/log/php8.0-fpm.log`, `/var/log/rkhunter.log`) are owned by `root:root 600`.
-Solution:
+Some files (`/var/log/php8.0-fpm.log`, `/var/log/rkhunter.log`) are owned by `root:root 600` and are not readable even with `adm` group membership.
+
+Fix them on the host:
+
 ```bash
 sudo chgrp adm /var/log/php8.0-fpm.log* && sudo chmod 640 /var/log/php8.0-fpm.log*
 ```
 
-</details>
+To make this persist across log rotation, add to `/etc/logrotate.d/php8.0-fpm`:
+```
+create 640 root adm
+```
 
 ---
 

@@ -22,7 +22,7 @@
 
 **Application de visualisation de logs en temps réel pour Apache, Nginx, NPM, logs système et Fail2ban**
 
-[README in English](README.md) | [Installation](#-installation) | [Plugins](#-plugins) | [Configuration](#%EF%B8%8F-configuration) | [Documentation](#-documentation)
+[README in English](README.md) | [Installation](#-installation) | [Plugins](#-plugins) | [Configuration](#%EF%B8%8F-configuration) | [Reverse Proxy](#-reverse-proxy) | [Documentation](#-documentation)
 
 </div>
 
@@ -34,6 +34,8 @@
 - [Installation](#-installation)
 - [Plugins](#-plugins)
 - [Configuration](#%EF%B8%8F-configuration)
+- [Reverse Proxy](#-reverse-proxy)
+- [Accès aux logs système](#-accès-aux-logs-système)
 - [Documentation](#-documentation)
 - [Contribution](#-contribution)
 - [Licence](#-licence)
@@ -116,47 +118,7 @@ Ces onglets nécessitent deux conditions **cumulatives** — ni l'une ni l'autre
 > - `security_opt: no-new-privileges:true` est **incompatible avec les onglets pare-feu** — `sudo` ne peut pas élever les privilèges avec cet indicateur, ce qui casse les commandes iptables/ipset/nft
 > - Pour changer le port d'écoute : définir `PORT=8080` dans `.env` et pointer le reverse proxy vers `127.0.0.1:8080`
 
-Configuration `docker-compose.yml` avec les onglets Pare-feu activés :
-
-```yaml
-services:
-  logviewr:
-    image: ghcr.io/erreur32/logviewr:latest
-    container_name: logviewr
-    restart: unless-stopped
-    # no ports: — incompatible avec network_mode: host
-    network_mode: host
-    cap_add:
-      - NET_ADMIN               # requis pour netfilter (iptables/ipset/nft)
-    # no security_opt: no-new-privileges — incompatible avec sudo (casse les onglets pare-feu)
-    environment:
-      JWT_SECRET: ${JWT_SECRET}
-      PORT: ${PORT:-7500}       # port d'écoute direct — changer ici + mettre à jour le reverse proxy
-      HOST_IP: ${HOST_IP:-}
-    group_add:
-      - "${ADM_GID:-4}"
-      # Décommenter si fail2ban est installé sur l'hôte (lancer setup-fail2ban-access.sh d'abord) :
-      # - "${FAIL2BAN_GID}"
-    volumes:
-      - ./data:/app/data
-      # Décommenter si fail2ban est installé sur l'hôte :
-      # - /var/run/fail2ban/fail2ban.sock:/var/run/fail2ban/fail2ban.sock
-      - /:/host:ro          # :ro = plus sécurisé ; désactive le VACUUM Fail2ban (voir note ci-dessous)
-      - /proc:/host/proc:ro
-      - /sys:/host/sys:ro
-      # Optionnel : activer le VACUUM SQLite Fail2ban (syntaxe longue requise — la forme courte ne peut pas overrider :ro)
-      # - type: bind
-      #   source: /var/lib/fail2ban
-      #   target: /host/var/lib/fail2ban
-      #   bind:
-      #     propagation: shared
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:7500/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-```
+Utilisez [`docker-compose.fail2ban.yml`](docker-compose.fail2ban.yml) — il inclut `network_mode: host`, `NET_ADMIN`, et le socket/groupe fail2ban déjà configurés. Voir [Installation Étape 2](#-installation).
 
 Sans ces options, les onglets IPTables/IPSet/NFTables afficheront une erreur `Permission denied` ou `no new privileges`.
 
@@ -247,49 +209,94 @@ Voir [Installation Étape 2](#-installation) pour les commandes de téléchargem
 - Mode standard : `DASHBOARD_PORT=8080` dans `.env`
 - Mode fail2ban : `PORT=8080` dans `.env`, puis pointer le reverse proxy vers ce port
 
-**Reverse proxy** (mode fail2ban — `network_mode: host`) :
+---
 
-Le conteneur écoute directement sur le host — le reverse proxy se connecte via `127.0.0.1` :
+## 🔀 Reverse Proxy
+
+En **mode fail2ban** (`network_mode: host`), il n'y a pas de mapping de port Docker — le conteneur écoute directement sur l'hôte. Le reverse proxy se connecte via `127.0.0.1`.
+
+En **mode standard** (mapping `ports:`), le reverse proxy se connecte de la même manière à `127.0.0.1:7500`, ou le port peut être exposé directement sans proxy.
+
+### Nginx Proxy Manager
 
 ```
-# Nginx Proxy Manager
 Forward Hostname : 127.0.0.1
-Forward Port     : 7500        ← doit correspondre à PORT=
-
-# Nginx manuel
-location / {
-    proxy_pass http://127.0.0.1:7500;
-    proxy_http_version 1.1;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection "upgrade";
-    proxy_set_header Host $host;
-}
-
-# Caddy
-reverse_proxy 127.0.0.1:7500
+Forward Port     : 7500        ← doit correspondre à PORT= ou DASHBOARD_PORT=
 ```
 
-### Accès aux logs système
+### Nginx (manuel)
 
-Le plugin **Host System** nécessite l'accès aux fichiers appartenant à `root:adm` (permissions `640`).
-Le conteneur ajoute automatiquement `node` au groupe `adm` (GID 4).
+```nginx
+server {
+    listen 443 ssl;
+    server_name logviewr.example.com;
 
-Si votre système utilise un GID différent :
+    location / {
+        proxy_pass http://127.0.0.1:7500;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+### Caddy
+
+```
+logviewr.example.com {
+    reverse_proxy 127.0.0.1:7500
+}
+```
+
+### Traefik
+
+```yaml
+http:
+  routers:
+    logviewr:
+      rule: "Host(`logviewr.example.com`)"
+      service: logviewr
+  services:
+    logviewr:
+      loadBalancer:
+        servers:
+          - url: "http://127.0.0.1:7500"
+```
+
+---
+
+## 📂 Accès aux logs système
+
+Le plugin **Host System** lit les fichiers de logs appartenant à `root:adm` (permissions `640`).
+Le conteneur rejoint automatiquement le groupe `adm` (GID 4) via `group_add` dans docker-compose.
+
+### GID adm personnalisé
+
+Si votre système utilise un GID différent pour le groupe `adm` :
+
 ```bash
-getent group adm | cut -d: -f3   # vérifier le GID sur le host
+getent group adm | cut -d: -f3   # vérifier le GID sur l'hôte
 echo "ADM_GID=votre_gid" >> .env
 ```
 
-<details>
-<summary>Fichiers avec permissions restrictives (600)</summary>
+### Fichiers avec permissions restrictives (600)
 
-Certains fichiers (`/var/log/php8.0-fpm.log`, `/var/log/rkhunter.log`) appartiennent à `root:root 600`.
-Solution :
+Certains fichiers (`/var/log/php8.0-fpm.log`, `/var/log/rkhunter.log`) appartiennent à `root:root 600` et ne sont pas lisibles même avec le groupe `adm`.
+
+Corriger sur l'hôte :
+
 ```bash
 sudo chgrp adm /var/log/php8.0-fpm.log* && sudo chmod 640 /var/log/php8.0-fpm.log*
 ```
 
-</details>
+Pour persister après rotation des logs, ajouter dans `/etc/logrotate.d/php8.0-fpm` :
+```
+create 640 root adm
+```
 
 ---
 
