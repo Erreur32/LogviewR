@@ -46,6 +46,44 @@ const SOCKET_PATH = '/var/run/fail2ban/fail2ban.sock';
 /** Filenames only — no path traversal (matches fail2ban.log, fail2ban.log.1, etc.) */
 const FAIL2BAN_LOG_NAME = /^fail2ban[a-zA-Z0-9._-]*\.log(\.\d+)?$/;
 
+/**
+ * Build the SQLite fallback payload for GET /status when fail2ban-client is unavailable.
+ * Aggregates active bans per jail and layers historical totals on top.
+ */
+function buildSqliteStatusFallback(
+    evDb: ReturnType<typeof getDatabase>,
+    totalsByJail: Record<string, number>,
+    days: number,
+    uniqueIpsTotal: number,
+    uniqueIpsPeriod: number,
+    expiredLast24h: number,
+    firstEventAt: number | null
+) {
+    const activeBanRows = evDb.prepare(`
+        SELECT ip, jail, timeofban, bantime, failures
+        FROM f2b_events
+        WHERE event_type='ban' AND unban_at IS NULL
+        ORDER BY timeofban DESC
+    `).all() as { ip: string; jail: string; timeofban: number; bantime: number; failures: number }[];
+
+    const jailsMap: Record<string, { jail: string; currentlyBanned: number; totalBanned: number; bannedIps: string[] }> = {};
+    for (const ban of activeBanRows) {
+        jailsMap[ban.jail] ??= { jail: ban.jail, currentlyBanned: 0, totalBanned: 0, bannedIps: [] };
+        jailsMap[ban.jail].currentlyBanned++;
+        jailsMap[ban.jail].bannedIps.push(ban.ip);
+    }
+    for (const [jail, cnt] of Object.entries(totalsByJail)) {
+        const entry = jailsMap[jail] ?? (jailsMap[jail] = { jail, currentlyBanned: 0, totalBanned: 0, bannedIps: [] });
+        entry.totalBanned = cnt;
+    }
+    const recentBans = evDb.prepare(`SELECT ip, jail, timeofban, bantime, failures FROM f2b_events WHERE event_type='ban' ORDER BY timeofban DESC LIMIT 50`).all();
+    return {
+        ok: true, source: 'sqlite' as const, days,
+        jails: Object.values(jailsMap), recentBans, totalBanned: activeBanRows.length,
+        uniqueIpsTotal, uniqueIpsPeriod, expiredLast24h, firstEventAt,
+    };
+}
+
 /** Greps a log file for an IP (literal match, last N lines). Returns [] on error. */
 async function grepLogFile(resolvedPath: string, ip: string, maxLines = 30): Promise<string[]> {
     if (!resolvedPath || !fs.existsSync(resolvedPath)) return [];
@@ -908,29 +946,7 @@ export class Fail2banPlugin extends BasePlugin {
             }
 
             // Fallback: no fail2ban-client — build jail snapshots from f2b_events
-            const activeBanRows = evDb.prepare(`
-                SELECT ip, jail, timeofban, bantime, failures
-                FROM f2b_events
-                WHERE event_type='ban' AND unban_at IS NULL
-                ORDER BY timeofban DESC
-            `).all() as { ip: string; jail: string; timeofban: number; bantime: number; failures: number }[];
-
-            const jailsMap: Record<string, { jail: string; currentlyBanned: number; totalBanned: number; bannedIps: string[] }> = {};
-            for (const ban of activeBanRows) {
-                if (!jailsMap[ban.jail]) jailsMap[ban.jail] = { jail: ban.jail, currentlyBanned: 0, totalBanned: 0, bannedIps: [] };
-                jailsMap[ban.jail].currentlyBanned++;
-                jailsMap[ban.jail].bannedIps.push(ban.ip);
-            }
-            for (const [jail, cnt] of Object.entries(totalsByJail)) {
-                if (!jailsMap[jail]) jailsMap[jail] = { jail, currentlyBanned: 0, totalBanned: cnt, bannedIps: [] };
-                else jailsMap[jail].totalBanned = cnt;
-            }
-            const recentBans = evDb.prepare(`SELECT ip, jail, timeofban, bantime, failures FROM f2b_events WHERE event_type='ban' ORDER BY timeofban DESC LIMIT 50`).all();
-            const _sFallbackResult = {
-                ok: true, source: 'sqlite', days,
-                jails: Object.values(jailsMap), recentBans, totalBanned: activeBanRows.length,
-                uniqueIpsTotal, uniqueIpsPeriod, expiredLast24h, firstEventAt,
-            };
+            const _sFallbackResult = buildSqliteStatusFallback(evDb, totalsByJail, days, uniqueIpsTotal, uniqueIpsPeriod, expiredLast24h, firstEventAt);
             this._cachePut(_sCacheKey, _sFallbackResult);
             return res.json({ success: true, result: _sFallbackResult });
         }));
@@ -1175,19 +1191,21 @@ export class Fail2banPlugin extends BasePlugin {
                 ORDER BY timeofban DESC
             `).all() as { ip: string; jail: string; timeofban: number; bantime: number }[];
 
-            // Match against safe ranges
+            // Match a single ban against the first safe range that contains it (or null)
+            function matchSafeRange(ip: string): { provider: string; cidr: string; color: string } | null {
+                for (const [provider, info] of Object.entries(safeRanges)) {
+                    for (const cidr of info.ranges) {
+                        if (ipInCidr(ip, cidr)) return { provider, cidr, color: info.color };
+                    }
+                }
+                return null;
+            }
+
             interface Hit { ip: string; jail: string; timeofban: number; bantime: number; provider: string; cidr: string; color: string }
             const hits: Hit[] = [];
             for (const ban of activeBans) {
-                for (const [provider, info] of Object.entries(safeRanges)) {
-                    for (const cidr of info.ranges) {
-                        if (ipInCidr(ban.ip, cidr)) {
-                            hits.push({ ...ban, provider, cidr, color: info.color });
-                            break; // one match per ban is enough
-                        }
-                    }
-                    if (hits.length > 0 && hits[hits.length - 1].ip === ban.ip) break; // already matched
-                }
+                const match = matchSafeRange(ban.ip);
+                if (match) hits.push({ ...ban, ...match });
             }
 
             // Metadata for providers (colors + desc) for frontend rendering
@@ -1341,25 +1359,29 @@ export class Fail2banPlugin extends BasePlugin {
             }
             const lines = log_lines.split('\n').map((l: string) => l.trim()).filter(Boolean);
             const patterns = failregex.split('\n').map((l: string) => l.trim()).filter((l: string) => l && !l.startsWith('#'));
-            const matched: { line: string; pattern: string; host?: string }[] = [];
-            const missed:  string[] = [];
-            for (const line of lines) {
-                let found = false;
+
+            // Try each pattern against a single line; returns the first hit or null.
+            function matchLine(line: string): { line: string; pattern: string; host?: string } | null {
                 for (const pat of patterns) {
                     // Sanitize: replace fail2ban <HOST> placeholder with IP pattern, reject overly long patterns
                     const jsPatStr = pat.replaceAll('<HOST>', '(?:[0-9]{1,3}\\.){3}[0-9]{1,3}|[0-9a-fA-F:]{2,39}');
-                    if (jsPatStr.length > 1000) continue; // skip excessively long patterns
+                    if (jsPatStr.length > 1000) continue;
                     try {
-                        const re = new RegExp(jsPatStr);
-                        const m = re.exec(line);
+                        const m = new RegExp(jsPatStr).exec(line);
                         if (m) {
                             const hostMatch = /(?:[0-9]{1,3}\.){3}[0-9]{1,3}|[0-9a-fA-F:]{2,39}/.exec(m[0] || line);
-                            matched.push({ line, pattern: pat, host: hostMatch?.[0] });
-                            found = true; break;
+                            return { line, pattern: pat, host: hostMatch?.[0] };
                         }
                     } catch { /* invalid regex */ }
                 }
-                if (!found) missed.push(line);
+                return null;
+            }
+
+            const matched: { line: string; pattern: string; host?: string }[] = [];
+            const missed: string[] = [];
+            for (const line of lines) {
+                const hit = matchLine(line);
+                if (hit) matched.push(hit); else missed.push(line);
             }
             res.json({ success: true, result: { ok: true, name, match_count: matched.length, total: lines.length, matched, missed } });
         }));
@@ -1919,32 +1941,13 @@ export class Fail2banPlugin extends BasePlugin {
             const TTL = 30 * 86400;
             const now = Math.floor(Date.now() / 1000);
 
-            const ipJails = new Map<string, string[]>();
-
-            if (source === 'live') {
-                // Active bans from internal f2b_events (survives fail2ban purge)
-                const liveRows = appDb.prepare(`
-                    SELECT ip, GROUP_CONCAT(DISTINCT jail) AS jails
-                    FROM f2b_events
-                    WHERE event_type='ban' AND unban_at IS NULL
-                    GROUP BY ip
-                    LIMIT 2000
-                `).all() as { ip: string; jails: string }[];
-                for (const r of liveRows) {
-                    ipJails.set(r.ip, r.jails.split(',').filter(Boolean));
-                }
-            } else {
-                // Historical: all distinct IPs from f2b_events with their jails
-                const rows = appDb.prepare(`
-                    SELECT ip, GROUP_CONCAT(DISTINCT jail) AS jails
-                    FROM f2b_events
-                    GROUP BY ip
-                    LIMIT 5000
-                `).all() as { ip: string; jails: string }[];
-                for (const r of rows) {
-                    ipJails.set(r.ip, r.jails.split(',').filter(Boolean));
-                }
-            }
+            const mapQuery = source === 'live'
+                ? `SELECT ip, GROUP_CONCAT(DISTINCT jail) AS jails FROM f2b_events WHERE event_type='ban' AND unban_at IS NULL GROUP BY ip LIMIT 2000`
+                : `SELECT ip, GROUP_CONCAT(DISTINCT jail) AS jails FROM f2b_events GROUP BY ip LIMIT 5000`;
+            const mapRows = appDb.prepare(mapQuery).all() as { ip: string; jails: string }[];
+            const ipJails = new Map<string, string[]>(
+                mapRows.map(r => [r.ip, r.jails.split(',').filter(Boolean)])
+            );
 
             // Fetch cached geo (TTL 30 days)
             const geoCache = new Map<string, { lat: number; lng: number; country: string; countryCode: string; region: string; city: string; org: string }>();

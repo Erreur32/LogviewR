@@ -1529,28 +1529,37 @@ router.get('/largest-files', async (req, res) => {
  * - fileScope: optional, 'latest' | 'all' (default: all) - latest = only most recent file per plugin
  * - includeCompressed: optional, 'true' | 'false' - include .gz/.bz2/.xz when plugin has readCompressed enabled
  */
+function parseAnalyticsQuery(query: Record<string, unknown>) {
+    const { pluginId, from, to, bucket, topLimit, fileScope, includeCompressed } = query;
+    const toValidDate = (v: unknown): Date | undefined => {
+        if (typeof v !== 'string') return undefined;
+        const d = new Date(v);
+        return Number.isNaN(d.getTime()) ? undefined : d;
+    };
+    const bucketVal = (bucket === 'minute' || bucket === 'hour' || bucket === 'day' ? bucket : 'hour') as 'minute' | 'hour' | 'day';
+    const fileScopeVal = (fileScope === 'latest' || fileScope === 'all' ? fileScope : 'all') as 'latest' | 'all';
+    return {
+        pluginId: typeof pluginId === 'string' ? pluginId : undefined,
+        fromDate: toValidDate(from),
+        toDate: toValidDate(to),
+        bucket: bucketVal,
+        topLimit: topLimit ? Math.min(Number.parseInt(String(topLimit), 10) || 10, 50) : 10,
+        fileScope: fileScopeVal,
+        includeCompressed: includeCompressed === 'true' || includeCompressed === '1',
+    };
+}
+
 router.get('/analytics', async (req, res) => {
     try {
-        const { pluginId, from, to, bucket, topLimit, fileScope, includeCompressed } = req.query;
-
-        const fromDate = from && typeof from === 'string' ? new Date(from) : undefined;
-        const toDate = to && typeof to === 'string' ? new Date(to) : undefined;
-        const bucketVal = (bucket === 'minute' || bucket === 'hour' || bucket === 'day' ? bucket : 'hour') as 'minute' | 'hour' | 'day';
-        const limit = topLimit ? Math.min(Number.parseInt(String(topLimit), 10) || 10, 50) : 10;
-        const fileScopeVal = (fileScope === 'latest' || fileScope === 'all' ? fileScope : 'all') as 'latest' | 'all';
-        const includeCompressedVal = includeCompressed === 'true' || includeCompressed === '1';
-
+        const q = parseAnalyticsQuery(req.query as Record<string, unknown>);
         const result = await getAllAnalytics(
-            pluginId && typeof pluginId === 'string' ? pluginId : undefined,
-            fromDate && !Number.isNaN(fromDate.getTime()) ? fromDate : undefined,
-            toDate && !Number.isNaN(toDate.getTime()) ? toDate : undefined,
-            { bucket: bucketVal, topLimit: limit, fileScope: fileScopeVal, includeCompressed: includeCompressedVal }
+            q.pluginId,
+            q.fromDate,
+            q.toDate,
+            { bucket: q.bucket, topLimit: q.topLimit, fileScope: q.fileScope, includeCompressed: q.includeCompressed }
         );
 
-        res.json({
-            success: true,
-            result
-        });
+        res.json({ success: true, result });
     } catch (error) {
         logger.error('LogViewer', 'Error getting analytics:', error);
         res.status(500).json({

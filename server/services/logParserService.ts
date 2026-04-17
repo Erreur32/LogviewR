@@ -119,70 +119,44 @@ export function getNginxRegexKeyForPath(filePath: string): (typeof NGINX_REGEX_K
  * @param filePath File path (will be normalized)
  * @returns Custom regex config or null if not found
  */
+/** Plugin-specific resolvers for generic regex keys (one per plugin that supports them). */
+const GENERIC_REGEX_RESOLVERS: Record<string, { resolve: (path: string) => string | null; defaultLogType: string }> = {
+    apache: { resolve: getApacheRegexKeyForPath, defaultLogType: 'access' },
+    npm:    { resolve: getNpmRegexKeyForPath,    defaultLogType: 'access' },
+    nginx:  { resolve: getNginxRegexKeyForPath,  defaultLogType: 'access' },
+};
+
+/** Build a result object from a customRegex entry, or null if the entry is missing. */
+function buildRegexResult(
+    entry: { regex: string; logType?: string } | undefined,
+    defaultLogType: string
+): { regex: string; logType: string } | null {
+    return entry ? { regex: entry.regex, logType: entry.logType || defaultLogType } : null;
+}
+
 function getCustomRegexConfig(pluginId: string, filePath: string): { regex: string; logType: string } | null {
     try {
-        // Get plugin config from database
         const dbConfig = PluginConfigRepository.findByPluginId(pluginId);
-        if (!dbConfig || !dbConfig.settings) {
-            return null;
-        }
+        if (!dbConfig?.settings) return null;
 
-        // Check for custom regex in plugin settings
-        // Format: { customRegex: { [filePath]: { regex: string, logType: string } } }
         const customRegex = (dbConfig.settings as any).customRegex;
-        if (!customRegex || typeof customRegex !== 'object') {
-            return null;
-        }
+        if (!customRegex || typeof customRegex !== 'object') return null;
 
-        // First, try to find regex for the exact file path
-        if (customRegex[filePath]) {
-            return {
-                regex: customRegex[filePath].regex,
-                logType: customRegex[filePath].logType || 'custom'
-            };
-        }
+        // Exact match first, then base file (strip rotation/compression).
+        const exact = buildRegexResult(customRegex[filePath], 'custom');
+        if (exact) return exact;
 
-        // If not found, try to find regex for the base log file (without rotation/compression)
-        // Example: access.log.1.gz -> access.log
         const baseFilePath = normalizeLogFilePath(filePath);
-        if (baseFilePath !== filePath && customRegex[baseFilePath]) {
-            return {
-                regex: customRegex[baseFilePath].regex,
-                logType: customRegex[baseFilePath].logType || 'custom'
-            };
+        if (baseFilePath !== filePath) {
+            const base = buildRegexResult(customRegex[baseFilePath], 'custom');
+            if (base) return base;
         }
 
-        // Apache: resolve by generic pattern (access.log, error.log, access_*.log)
-        if (pluginId === 'apache') {
-            const apacheKey = getApacheRegexKeyForPath(filePath);
-            if (apacheKey && customRegex[apacheKey]) {
-                return {
-                    regex: customRegex[apacheKey].regex,
-                    logType: customRegex[apacheKey].logType || 'access'
-                };
-            }
-        }
-
-        // NPM: resolve by generic pattern (proxy-host-*_access.log, etc.)
-        if (pluginId === 'npm') {
-            const npmKey = getNpmRegexKeyForPath(filePath);
-            if (npmKey && customRegex[npmKey]) {
-                return {
-                    regex: customRegex[npmKey].regex,
-                    logType: customRegex[npmKey].logType || 'access'
-                };
-            }
-        }
-
-        // Nginx: resolve by type (access.log or error.log)
-        if (pluginId === 'nginx') {
-            const nginxKey = getNginxRegexKeyForPath(filePath);
-            if (nginxKey && customRegex[nginxKey]) {
-                return {
-                    regex: customRegex[nginxKey].regex,
-                    logType: customRegex[nginxKey].logType || 'access'
-                };
-            }
+        // Plugin-specific generic pattern resolution (e.g. "access.log", "proxy-host-*_access.log").
+        const resolver = GENERIC_REGEX_RESOLVERS[pluginId];
+        if (resolver) {
+            const key = resolver.resolve(filePath);
+            if (key) return buildRegexResult(customRegex[key], resolver.defaultLogType);
         }
 
         return null;

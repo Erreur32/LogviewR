@@ -19,53 +19,51 @@ const __dirname = path.dirname(__filename);
 const configFilePath = process.env.CONFIG_FILE_PATH || 
     path.join(__dirname, '..', '..', 'config', 'logviewr.conf');
 
+function formatPluginSection(pluginId: string, dbConfig: { enabled: boolean; settings?: Record<string, unknown> } | undefined): string {
+    if (!dbConfig) {
+        return `[plugin.${pluginId}]\nenabled=false\n\n`;
+    }
+
+    let section = `[plugin.${pluginId}]\n`;
+    section += `enabled=${dbConfig.enabled ? 'true' : 'false'}\n`;
+
+    const settings = dbConfig.settings;
+    if (settings && Object.keys(settings).length > 0) {
+        for (const [key, value] of Object.entries(settings)) {
+            if (value !== null && value !== undefined) {
+                const escapedValue = String(value).replaceAll(/[#;\\]/g, '\\$&');
+                section += `${key}=${escapedValue}\n`;
+            }
+        }
+    }
+    section += '\n';
+    return section;
+}
+
 /**
  * Export configuration from database to .conf file format (INI)
  */
 export function exportConfigToFile(): string {
     const configs = PluginConfigRepository.findAll();
     const plugins = pluginManager.getAllPlugins();
-    
+
     let content = '# LogviewR Configuration File\n';
     content += '# Generated automatically - Do not edit manually if auto-sync is enabled\n';
     content += `# Generated at: ${new Date().toISOString()}\n\n`;
-    
+
     // App settings section
     content += '[app]\n';
     content += `# Application settings\n`;
     content += `timezone=${process.env.TZ || 'Europe/Paris'}\n`;
     content += `language=${process.env.LANGUAGE || 'fr'}\n`;
     content += `theme=${process.env.THEME || 'dark'}\n\n`;
-    
-    // Plugin configurations
+
     for (const plugin of plugins) {
         const pluginId = plugin.getId();
         const dbConfig = configs.find(c => c.pluginId === pluginId);
-        
-        if (!dbConfig) {
-            // Plugin not configured yet
-            content += `[plugin.${pluginId}]\n`;
-            content += `enabled=false\n\n`;
-            continue;
-        }
-        
-        content += `[plugin.${pluginId}]\n`;
-        content += `enabled=${dbConfig.enabled ? 'true' : 'false'}\n`;
-        
-        // Export settings
-        if (dbConfig.settings && Object.keys(dbConfig.settings).length > 0) {
-            for (const [key, value] of Object.entries(dbConfig.settings)) {
-                if (value !== null && value !== undefined) {
-                    // Escape special characters in INI format
-                    const escapedValue = String(value).replaceAll(/[#;\\]/g, '\\$&');
-                    content += `${key}=${escapedValue}\n`;
-                }
-            }
-        }
-        
-        content += '\n';
+        content += formatPluginSection(pluginId, dbConfig);
     }
-    
+
     return content;
 }
 

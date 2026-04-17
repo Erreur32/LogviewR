@@ -346,34 +346,42 @@ class MqttService {
         return '0 * * * *';
     }
 
-    private async _getSystemStats(): Promise<{ dbSizeMb: number; cpuUsage: number; memoryUsedMb: number }> {
-        let dbSizeMb = 0;
-        let cpuUsage = 0;
-        let memoryUsedMb = 0;
-
+    private _getDbSizeMb(): number {
         try {
-            const db        = getDatabase();
+            const db = getDatabase();
             const pageSize  = db.pragma('page_size',  { simple: true }) as number;
             const pageCount = db.pragma('page_count', { simple: true }) as number;
-            dbSizeMb = Math.round((pageSize * pageCount) / (1024 * 1024) * 10) / 10;
-        } catch { /* ignore */ }
+            return Math.round((pageSize * pageCount) / (1024 * 1024) * 10) / 10;
+        } catch { return 0; }
+    }
 
+    private static _parseCpuUsage(cpu: unknown): number {
+        if (typeof cpu === 'number') return Math.round(cpu);
+        if (cpu && typeof cpu === 'object' && typeof (cpu as { usage?: unknown }).usage === 'number') {
+            return Math.round((cpu as { usage: number }).usage);
+        }
+        return 0;
+    }
+
+    private async _fetchCpuMem(): Promise<{ cpuUsage: number; memoryUsedMb: number }> {
         try {
             const r = await fetch(`http://localhost:${process.env.PORT ?? 3003}/api/system/server`);
-            if (r.ok) {
-                const d = await r.json() as { success: boolean; result: Record<string, unknown> };
-                if (d.success && d.result) {
-                    const cpu = d.result['cpu'] as number | { usage?: number } | undefined;
-                    cpuUsage = typeof cpu === 'number' ? Math.round(cpu)
-                             : typeof cpu === 'object' && cpu !== null && typeof cpu.usage === 'number'
-                             ? Math.round(cpu.usage) : 0;
-                    const mem = d.result['memory'] as { used?: number } | undefined;
-                    memoryUsedMb = mem?.used ? Math.round(mem.used / 1024 / 1024) : 0;
-                }
-            }
-        } catch { /* ignore */ }
+            if (!r.ok) return { cpuUsage: 0, memoryUsedMb: 0 };
+            const d = await r.json() as { success: boolean; result: Record<string, unknown> };
+            if (!d.success || !d.result) return { cpuUsage: 0, memoryUsedMb: 0 };
+            const mem = d.result['memory'] as { used?: number } | undefined;
+            return {
+                cpuUsage: MqttService._parseCpuUsage(d.result['cpu']),
+                memoryUsedMb: mem?.used ? Math.round(mem.used / 1024 / 1024) : 0,
+            };
+        } catch { return { cpuUsage: 0, memoryUsedMb: 0 }; }
+    }
 
-        return { dbSizeMb, cpuUsage, memoryUsedMb };
+    private async _getSystemStats(): Promise<{ dbSizeMb: number; cpuUsage: number; memoryUsedMb: number }> {
+        return {
+            dbSizeMb: this._getDbSizeMb(),
+            ...(await this._fetchCpuMem()),
+        };
     }
 }
 

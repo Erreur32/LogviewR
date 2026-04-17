@@ -63,70 +63,60 @@ function getHostRootPath(): string {
     return process.env.HOST_ROOT_PATH || '/host';
 }
 
+/** Return true if any path exists/accessible */
+async function anyPathExists(paths: string[]): Promise<boolean> {
+    for (const p of paths) {
+        try {
+            await fs.access(p);
+            return true;
+        } catch { /* continue */ }
+    }
+    return false;
+}
+
+/** Locate the first logrotate config file/dir; returns {configPath} or null */
+async function findLogrotateConfig(configPaths: string[]): Promise<{ configPath: string } | null> {
+    for (const configPath of configPaths) {
+        let stat: Awaited<ReturnType<typeof fs.stat>>;
+        try { stat = await fs.stat(configPath); } catch { continue; }
+
+        if (stat.isFile() && configPath.endsWith('logrotate.conf')) {
+            return { configPath };
+        }
+        if (stat.isDirectory() && configPath.endsWith('logrotate.d')) {
+            // Prefer /etc/logrotate.conf alongside logrotate.d
+            const mainConfig = path.join(path.dirname(configPath), 'logrotate.conf');
+            try {
+                await fs.access(mainConfig);
+                return { configPath: mainConfig };
+            } catch {
+                return { configPath };
+            }
+        }
+    }
+    return null;
+}
+
 /**
  * Detect if logrotate is installed
  */
 async function detectLogrotate(): Promise<{ active: boolean; configPath?: string }> {
     const hostRoot = getHostRootPath();
-    
-    // Check if logrotate binary exists
-    const logrotatePaths: string[] = [];
-    
-    if (hostRoot) {
-        logrotatePaths.push(
-            path.join(hostRoot, 'usr', 'sbin', 'logrotate'),
-            path.join(hostRoot, 'sbin', 'logrotate')
-        );
-    }
-    logrotatePaths.push('/usr/sbin/logrotate', '/sbin/logrotate');
-    
-    let logrotateExists = false;
-    for (const logrotatePath of logrotatePaths) {
-        try {
-            await fs.access(logrotatePath);
-            logrotateExists = true;
-            break;
-        } catch {
-            // Continue checking
-        }
-    }
-    
-    if (!logrotateExists) {
-        return { active: false };
-    }
-    
-    // Check for logrotate configuration files
-    const configPaths: string[] = [];
-    
-    if (hostRoot) {
-        configPaths.push(
-            path.join(hostRoot, 'etc', 'logrotate.conf'),
-            path.join(hostRoot, 'etc', 'logrotate.d')
-        );
-    }
-    configPaths.push('/etc/logrotate.conf', '/etc/logrotate.d');
-    
-    for (const configPath of configPaths) {
-        try {
-            const stat = await fs.stat(configPath);
-            if (stat.isFile() && configPath.endsWith('logrotate.conf')) {
-                return { active: true, configPath };
-            } else if (stat.isDirectory() && configPath.endsWith('logrotate.d')) {
-                // Main config is usually /etc/logrotate.conf
-                const mainConfig = path.join(path.dirname(configPath), 'logrotate.conf');
-                try {
-                    await fs.access(mainConfig);
-                    return { active: true, configPath: mainConfig };
-                } catch {
-                    return { active: true, configPath: configPath };
-                }
-            }
-        } catch {
-            // Continue checking
-        }
-    }
-    
-    return { active: logrotateExists };
+
+    const logrotatePaths = [
+        ...(hostRoot ? [path.join(hostRoot, 'usr', 'sbin', 'logrotate'), path.join(hostRoot, 'sbin', 'logrotate')] : []),
+        '/usr/sbin/logrotate',
+        '/sbin/logrotate',
+    ];
+    if (!(await anyPathExists(logrotatePaths))) return { active: false };
+
+    const configPaths = [
+        ...(hostRoot ? [path.join(hostRoot, 'etc', 'logrotate.conf'), path.join(hostRoot, 'etc', 'logrotate.d')] : []),
+        '/etc/logrotate.conf',
+        '/etc/logrotate.d',
+    ];
+    const found = await findLogrotateConfig(configPaths);
+    return found ? { active: true, ...found } : { active: true };
 }
 
 /**

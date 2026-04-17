@@ -141,61 +141,33 @@ export class LogSourceRepository {
         const updates: string[] = [];
         const values: unknown[] = [];
 
-        if (input.name !== undefined) {
-            updates.push('name = ?');
-            values.push(input.name);
-        }
-        if (input.basePath !== undefined) {
-            updates.push('base_path = ?');
-            values.push(input.basePath);
-        }
-        if (input.filePatterns !== undefined) {
-            updates.push('file_patterns = ?');
-            values.push(JSON.stringify(input.filePatterns));
-        }
-        if (input.enabled !== undefined) {
-            updates.push('enabled = ?');
-            values.push(input.enabled ? 1 : 0);
-        }
-        if (input.follow !== undefined) {
-            updates.push('follow = ?');
-            values.push(input.follow ? 1 : 0);
-        }
-        if (input.maxLines !== undefined) {
-            updates.push('max_lines = ?');
-            values.push(input.maxLines);
-        }
-        if (input.filters !== undefined) {
-            updates.push('filters = ?');
-            values.push(JSON.stringify(input.filters));
-        }
-        if (input.timezone !== undefined) {
-            updates.push('timezone = ?');
-            values.push(input.timezone);
-        }
-        if (input.healthStatus !== undefined) {
-            updates.push('health_status = ?');
-            values.push(input.healthStatus);
-        }
-        if (input.lastHealthCheck !== undefined) {
-            updates.push('last_health_check = ?');
-            values.push(input.lastHealthCheck instanceof Date ? input.lastHealthCheck.toISOString() : input.lastHealthCheck);
+        // Map input field → SQL column + optional value transform
+        const fieldMap: Array<{ key: keyof UpdateLogSourceInput; column: string; transform?: (v: unknown) => unknown }> = [
+            { key: 'name', column: 'name' },
+            { key: 'basePath', column: 'base_path' },
+            { key: 'filePatterns', column: 'file_patterns', transform: v => JSON.stringify(v) },
+            { key: 'enabled', column: 'enabled', transform: v => v ? 1 : 0 },
+            { key: 'follow', column: 'follow', transform: v => v ? 1 : 0 },
+            { key: 'maxLines', column: 'max_lines' },
+            { key: 'filters', column: 'filters', transform: v => JSON.stringify(v) },
+            { key: 'timezone', column: 'timezone' },
+            { key: 'healthStatus', column: 'health_status' },
+            { key: 'lastHealthCheck', column: 'last_health_check', transform: v => v instanceof Date ? v.toISOString() : v },
+        ];
+
+        for (const { key, column, transform } of fieldMap) {
+            const v = input[key];
+            if (v === undefined) continue;
+            updates.push(`${column} = ?`);
+            values.push(transform ? transform(v) : v);
         }
 
-        if (updates.length === 0) {
-            return this.findById(id);
-        }
+        if (updates.length === 0) return this.findById(id);
 
         updates.push('updated_at = datetime(\'now\')');
         values.push(id);
 
-        const stmt = db.prepare(`
-            UPDATE log_sources 
-            SET ${updates.join(', ')}
-            WHERE id = ?
-        `);
-
-        stmt.run(...values);
+        db.prepare(`UPDATE log_sources SET ${updates.join(', ')} WHERE id = ?`).run(...values);
 
         return this.findById(id);
     }

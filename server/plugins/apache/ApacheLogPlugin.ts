@@ -54,6 +54,26 @@ export class ApacheLogPlugin extends BasePlugin implements LogSourcePlugin {
         return this.shouldExcludeByFilters(filePath, entryName, isDirectory, config?.excludeFilters);
     }
 
+    private async tryAddMatchedFile(
+        fullPath: string,
+        entryName: string,
+        regexPatterns: RegExp[],
+        results: LogFileInfo[]
+    ): Promise<void> {
+        if (!regexPatterns.some(regex => regex.test(entryName))) return;
+        try {
+            const stats = await fs.stat(fullPath);
+            results.push({
+                path: fullPath,
+                type: this.determineLogType(fullPath),
+                size: stats.size,
+                modified: stats.mtime
+            });
+        } catch {
+            // Skip files we can't access
+        }
+    }
+
     async scanLogFiles(basePath: string, patterns: string[]): Promise<LogFileInfo[]> {
         const results: LogFileInfo[] = [];
         const actualBasePath = this.resolveDockerPathSync(basePath);
@@ -63,39 +83,15 @@ export class ApacheLogPlugin extends BasePlugin implements LogSourcePlugin {
             const scanDirectory = async (dir: string): Promise<void> => {
                 try {
                     const entries = await fs.readdir(dir, { withFileTypes: true });
-                    
                     for (const entry of entries) {
                         const fullPath = path.join(dir, entry.name);
-                        
-                        // Check exclusion filters first
-                        if (this.shouldExclude(fullPath, entry.name, entry.isDirectory())) {
-                            continue;
-                        }
-                        
-                        if (entry.name === 'node_modules') {
-                            continue;
-                        }
-                        
+                        if (this.shouldExclude(fullPath, entry.name, entry.isDirectory())) continue;
+                        if (entry.name === 'node_modules') continue;
+
                         if (entry.isDirectory()) {
                             await scanDirectory(fullPath);
                         } else if (entry.isFile()) {
-                            const matches = regexPatterns.some(regex => regex.test(entry.name));
-                            
-                            if (matches) {
-                                try {
-                                    const stats = await fs.stat(fullPath);
-                                    const logType = this.determineLogType(fullPath);
-                                    
-                                    results.push({
-                                        path: fullPath,
-                                        type: logType,
-                                        size: stats.size,
-                                        modified: stats.mtime
-                                    });
-                                } catch {
-                                    // Skip files we can't access
-                                }
-                            }
+                            await this.tryAddMatchedFile(fullPath, entry.name, regexPatterns, results);
                         }
                     }
                 } catch {

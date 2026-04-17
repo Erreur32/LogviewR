@@ -162,11 +162,10 @@ export class Fail2banSyncService {
         }
 
         const isInitial = lastRowid === 0;
-        this.setStatus('syncing',
-            isInitial ? 'Import initial fail2ban' : 'Synchronisation fail2ban',
-            `${newRows.length} événement${newRows.length > 1 ? 's' : ''} à importer…`,
-            0
-        );
+        const syncPhase = isInitial ? 'Import initial fail2ban' : 'Synchronisation fail2ban';
+        const pluralize = (n: number, word: string) => `${n} ${word}${n > 1 ? 's' : ''}`;
+
+        this.setStatus('syncing', syncPhase, `${pluralize(newRows.length, 'événement')} à importer…`, 0);
 
         const insert = appDb.prepare(`
             INSERT OR IGNORE INTO f2b_events(f2b_rowid, ip, jail, event_type, timeofban, bantime, failures, domain)
@@ -184,11 +183,7 @@ export class Fail2banSyncService {
                 insert.run({ ...row, domain: domainFromMatches(row.data ?? null) });
                 if (row.rowid > maxRowid) maxRowid = row.rowid;
                 if (i % 200 === 0) {
-                    this.setStatus('syncing',
-                        isInitial ? 'Import initial fail2ban' : 'Synchronisation fail2ban',
-                        `${i + 1} / ${total} événements importés`,
-                        Math.round(((i + 1) / total) * 100)
-                    );
+                    this.setStatus('syncing', syncPhase, `${i + 1} / ${total} événements importés`, Math.round(((i + 1) / total) * 100));
                 }
             }
             updateState.run(maxRowid);
@@ -196,11 +191,8 @@ export class Fail2banSyncService {
         });
 
         const count = insertMany(newRows) as number;
-        this.setStatus('syncing',
-            isInitial ? 'Import initial fail2ban' : 'Synchronisation fail2ban',
-            `${count} événement${count > 1 ? 's' : ''} importé${count > 1 ? 's' : ''}`,
-            100
-        );
+        const importedLabel = `${pluralize(count, 'événement')} importé${count > 1 ? 's' : ''}`;
+        this.setStatus('syncing', syncPhase, importedLabel, 100);
         if (count > 0) {
             logger.info('Fail2banSync', `Synced ${count} ban(s)${isInitial ? ' (initial full import)' : ''}`);
             // Dispatch webhook notifications for new bans (skip initial import to avoid flooding)

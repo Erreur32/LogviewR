@@ -34,113 +34,58 @@ interface JournaldJsonEntry {
     [key: string]: unknown;
 }
 
+/** Parse microsecond epoch to Date, or undefined if missing/invalid */
+function parseRealtime(raw: string | undefined): Date | undefined {
+    if (!raw) return undefined;
+    const us = Number.parseInt(raw, 10);
+    return Number.isNaN(us) ? undefined : new Date(us / 1000);
+}
+
+/** Parse PID from journald entry (tries _PID then SYSLOG_PID) */
+function parsePid(j: JournaldJsonEntry): number | undefined {
+    const raw = j._PID ?? (j.SYSLOG_PID as string | undefined);
+    if (!raw) return undefined;
+    const n = Number.parseInt(raw, 10);
+    return Number.isNaN(n) ? undefined : n;
+}
+
 /**
  * Parse a journald JSON log line
- * 
+ *
  * @param line JSON string from journalctl -o json
  * @returns Parsed log entry or null if parsing fails
  */
 export function parseJournaldJson(line: string): ParsedLogEntry | null {
-    if (!line || line.trim().length === 0) {
+    if (!line || line.trim().length === 0) return null;
+
+    let jsonEntry: JournaldJsonEntry;
+    try {
+        jsonEntry = JSON.parse(line);
+    } catch {
         return null;
     }
 
-    try {
-        const jsonEntry: JournaldJsonEntry = JSON.parse(line);
-        
-        // Extract timestamp from __REALTIME_TIMESTAMP (microseconds since epoch)
-        let timestamp: Date | undefined;
-        if (jsonEntry.__REALTIME_TIMESTAMP) {
-            const microseconds = Number.parseInt(jsonEntry.__REALTIME_TIMESTAMP, 10);
-            if (!Number.isNaN(microseconds)) {
-                timestamp = new Date(microseconds / 1000); // Convert to milliseconds
-            }
-        }
-        
-        // Extract level from PRIORITY (syslog priority: 0-7)
-        let level = 'info';
-        if (jsonEntry.PRIORITY) {
-            const priority = Number.parseInt(jsonEntry.PRIORITY, 10);
-            level = getLevelFromPriority(priority);
-        }
-        
-        // Extract hostname
-        const hostname = jsonEntry._HOSTNAME || jsonEntry.HOSTNAME as string | undefined;
-        
-        // Extract service/program name
-        const service = jsonEntry._SYSTEMD_UNIT || 
-                       jsonEntry.SYSLOG_IDENTIFIER || 
-                       jsonEntry._COMM || 
-                       undefined;
-        
-        // Extract PID
-        let pid: number | undefined;
-        if (jsonEntry._PID) {
-            const pidValue = Number.parseInt(jsonEntry._PID, 10);
-            if (!Number.isNaN(pidValue)) {
-                pid = pidValue;
-            }
-        } else if (jsonEntry.SYSLOG_PID) {
-            const pidValue = Number.parseInt(jsonEntry.SYSLOG_PID as string, 10);
-            if (!Number.isNaN(pidValue)) {
-                pid = pidValue;
-            }
-        }
-        
-        // Extract message
-        const message = jsonEntry.MESSAGE as string || '';
-        
-        // Extract IP address from message if present
-        const ipAddress = extractIpAddress(message);
-        
-        // Extract user from message if present
-        const user = extractUser(message);
-        
-        // Extract action from message if present
-        const action = extractAction(message);
-        
-        // Build parsed entry
-        const entry: ParsedLogEntry = {
-            timestamp: timestamp || new Date(),
-            level,
-            message: message.trim(),
-        };
-        
-        if (hostname) {
-            entry.hostname = hostname;
-        }
-        
-        if (service) {
-            entry.service = service;
-            entry.tag = service; // For compatibility
-        }
-        
-        if (pid !== undefined) {
-            entry.pid = pid;
-        }
-        
-        if (ipAddress) {
-            entry.ipAddress = ipAddress;
-        }
-        
-        if (user) {
-            entry.user = user;
-        }
-        
-        if (action) {
-            entry.action = action;
-        }
-        
-        // Add priority if available
-        if (jsonEntry.PRIORITY) {
-            entry.priority = Number.parseInt(jsonEntry.PRIORITY, 10);
-        }
-        
-        return entry;
-    } catch (error) {
-        // Not valid JSON, return null
-        return null;
-    }
+    const priorityRaw = jsonEntry.PRIORITY ? Number.parseInt(jsonEntry.PRIORITY, 10) : undefined;
+    const message = (jsonEntry.MESSAGE as string) ?? '';
+    const hostname = jsonEntry._HOSTNAME || (jsonEntry.HOSTNAME as string | undefined);
+    const service = jsonEntry._SYSTEMD_UNIT || jsonEntry.SYSLOG_IDENTIFIER || jsonEntry._COMM;
+    const pid = parsePid(jsonEntry);
+    const ipAddress = extractIpAddress(message);
+    const user = extractUser(message);
+    const action = extractAction(message);
+
+    return {
+        timestamp: parseRealtime(jsonEntry.__REALTIME_TIMESTAMP) ?? new Date(),
+        level: priorityRaw !== undefined ? getLevelFromPriority(priorityRaw) : 'info',
+        message: message.trim(),
+        ...(hostname && { hostname }),
+        ...(service && { service, tag: service }),
+        ...(pid !== undefined && { pid }),
+        ...(ipAddress && { ipAddress }),
+        ...(user && { user }),
+        ...(action && { action }),
+        ...(priorityRaw !== undefined && { priority: priorityRaw }),
+    };
 }
 
 /**

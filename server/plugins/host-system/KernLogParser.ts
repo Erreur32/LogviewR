@@ -17,101 +17,50 @@ export class KernLogParser {
      * Format: timestamp hostname kernel: message
      * Uses Grok patterns for robust parsing
      */
+    private static buildEntry(
+        timestamp: string,
+        rawMessage: string,
+        opts: { hostname?: string; kernelTimestampOverride?: string } = {}
+    ): ParsedLogEntry {
+        const message = rawMessage.trim();
+        const ktsRaw = opts.kernelTimestampOverride ?? /\[([\d.]+)\]/.exec(message)?.[1];
+        return {
+            timestamp: parseTimestamp(timestamp),
+            hostname: opts.hostname || undefined,
+            level: this.extractLevelFromMessage(message),
+            message,
+            component: this.extractComponent(message),
+            kernelTimestamp: ktsRaw ? Number.parseFloat(ktsRaw) : undefined,
+        };
+    }
+
     static parseKernLine(line: string): ParsedLogEntry | null {
-        if (!line || line.trim().length === 0) {
-            return null;
-        }
+        if (!line || line.trim().length === 0) return null;
 
         // Try ISO8601 format first: 2026-01-03T00:16:25.101453+01:00 hostname kernel: message
-        const iso8601Match = line.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?)\s+(.+)$/);
+        const iso8601Match = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?)\s+(.+)$/.exec(line);
         if (iso8601Match) {
             const [, timestamp, rest] = iso8601Match;
-            // Extract hostname and message from rest: "hostname kernel: message" or just "kernel: message"
-            const hostnameMatch = rest.match(/^(\S+)\s+kernel:\s*(.*)$/);
-            if (hostnameMatch) {
-                const [, hostname, message] = hostnameMatch;
-                const level = this.extractLevelFromMessage(message);
-                const component = this.extractComponent(message);
-                const kernelTimestampMatch = message.match(/\[([\d.]+)\]/);
-                const kernelTimestamp = kernelTimestampMatch ? Number.parseFloat(kernelTimestampMatch[1]) : undefined;
-
-                return {
-                    timestamp: parseTimestamp(timestamp),
-                    hostname: hostname || undefined,
-                    level,
-                    message: message.trim(),
-                    component,
-                    kernelTimestamp
-                };
-            }
-            // If no hostname, try: "kernel: message"
-            const noHostnameMatch = rest.match(/^kernel:\s*(.*)$/);
-            if (noHostnameMatch) {
-                const [, message] = noHostnameMatch;
-                const level = this.extractLevelFromMessage(message);
-                const component = this.extractComponent(message);
-                const kernelTimestampMatch = message.match(/\[([\d.]+)\]/);
-                const kernelTimestamp = kernelTimestampMatch ? Number.parseFloat(kernelTimestampMatch[1]) : undefined;
-
-                return {
-                    timestamp: parseTimestamp(timestamp),
-                    level,
-                    message: message.trim(),
-                    component,
-                    kernelTimestamp
-                };
-            }
+            const withHost = /^(\S+)\s+kernel:\s*(.*)$/.exec(rest);
+            if (withHost) return this.buildEntry(timestamp, withHost[2], { hostname: withHost[1] });
+            const noHost = /^kernel:\s*(.*)$/.exec(rest);
+            if (noHost) return this.buildEntry(timestamp, noHost[1]);
         }
 
-        // Kernel log format: timestamp hostname kernel: message
-        // May include kernel timestamp: [12345.678]
-        // First try with Grok pattern
-        const basePattern = buildSyslogPattern(false);
-        const match = parseGrokPattern(line, basePattern);
-
-        if (match && match.timestamp && match.program && match.message) {
-            const message = match.message.trim();
-            const level = this.extractLevelFromMessage(message);
-            const component = this.extractComponent(message);
-            
-            // Extract kernel timestamp from message if present: [12345.678]
-            const kernelTimestampMatch = message.match(/\[([\d.]+)\]/);
-            const kernelTimestamp = kernelTimestampMatch ? Number.parseFloat(kernelTimestampMatch[1]) : undefined;
-
-            return {
-                timestamp: parseTimestamp(match.timestamp),
-                hostname: match.hostname || undefined,
-                level,
-                message,
-                component,
-                kernelTimestamp
-            };
+        // Grok syslog pattern
+        const match = parseGrokPattern(line, buildSyslogPattern(false));
+        if (match?.timestamp && match.program && match.message) {
+            return this.buildEntry(match.timestamp, match.message, { hostname: match.hostname });
         }
 
-        // Fallback: try simpler regex pattern for compatibility
-        const kernRegex = /^(\w+\s+\d+\s+\d+:\d+:\d+)\s+(\S+)\s+kernel:\s*(?:\[([\d.]+)\]\s*)?(.*)$/;
-        const regexMatch = line.match(kernRegex);
-
+        // Fallback regex (captures explicit kernel timestamp group)
+        const regexMatch = /^(\w+\s+\d+\s+\d+:\d+:\d+)\s+(\S+)\s+kernel:\s*(?:\[([\d.]+)\]\s*)?(.*)$/.exec(line);
         if (regexMatch) {
             const [, timestamp, hostname, kernelTimestamp, message] = regexMatch;
-            const level = this.extractLevelFromMessage(message);
-            const component = this.extractComponent(message);
-
-            return {
-                timestamp: parseTimestamp(timestamp),
-                hostname: hostname || undefined,
-                level,
-                message: message.trim(),
-                component,
-                kernelTimestamp: kernelTimestamp ? Number.parseFloat(kernelTimestamp) : undefined
-            };
+            return this.buildEntry(timestamp, message, { hostname, kernelTimestampOverride: kernelTimestamp });
         }
 
-        // Fallback: return as-is
-        return {
-            message: line.trim(),
-            level: 'info'
-        };
+        return { message: line.trim(), level: 'info' };
     }
 
     /**

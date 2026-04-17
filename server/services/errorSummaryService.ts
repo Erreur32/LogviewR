@@ -66,6 +66,25 @@ function countLevelFromRawLineBreakdown(line: string): { level: 'error' | 'warn'
     return null;
 }
 
+type ErrorBucketCounts = { '4xx': number; '5xx': number; '3xx': number; errorTag: number; warnTag: number };
+
+/** Aggregate error/warn line counts per bucket (status bands + tag levels). */
+function countErrorsByBucket(logLines: Array<{ line: string }>): ErrorBucketCounts {
+    const counts: ErrorBucketCounts = { '4xx': 0, '5xx': 0, '3xx': 0, errorTag: 0, warnTag: 0 };
+    for (const logLine of logLines) {
+        const r = countLevelFromRawLineBreakdown(logLine.line);
+        if (!r) continue;
+        if (r.source === '4xx' || r.source === '5xx' || r.source === '3xx') {
+            counts[r.source]++;
+        } else if (r.level === 'error') {
+            counts.errorTag++;
+        } else if (r.level === 'warn') {
+            counts.warnTag++;
+        }
+    }
+    return counts;
+}
+
 export interface UniqueErrorSample {
     message: string;
     level: string;
@@ -257,20 +276,8 @@ async function processOneFile(
 
         onProgress?.(`Comptage: ${fileName} (${logLines.length} lignes)`, { pluginId, filePath: file.path });
 
-        let count4xx = 0;
-        let count5xx = 0;
-        let count3xx = 0;
-        let countErrorTag = 0;
-        let countWarnTag = 0;
-        for (const logLine of logLines) {
-            const r = countLevelFromRawLineBreakdown(logLine.line);
-            if (!r) continue;
-            if (r.source === '4xx') count4xx++;
-            else if (r.source === '5xx') count5xx++;
-            else if (r.source === '3xx') count3xx++;
-            else if (r.source === 'tag' && r.level === 'error') countErrorTag++;
-            else if (r.source === 'tag' && r.level === 'warn') countWarnTag++;
-        }
+        const counts = countErrorsByBucket(logLines);
+        const { '4xx': count4xx, '5xx': count5xx, '3xx': count3xx, errorTag: countErrorTag, warnTag: countWarnTag } = counts;
         const errorCount = count4xx + count5xx + count3xx + countErrorTag + countWarnTag;
 
         if (errorCount === 0) {

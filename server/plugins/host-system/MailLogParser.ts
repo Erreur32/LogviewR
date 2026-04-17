@@ -17,111 +17,54 @@ export class MailLogParser {
      * Format: timestamp hostname mail: message
      * Uses Grok patterns for robust parsing
      */
+    private static buildEntry(
+        timestamp: string,
+        parts: { hostname?: string; service?: string; pid?: string; message: string }
+    ): ParsedLogEntry {
+        const message = parts.message.trim();
+        return {
+            timestamp: parseTimestamp(timestamp),
+            hostname: parts.hostname || undefined,
+            service: parts.service,
+            level: this.extractLevelFromMessage(message),
+            message,
+            ipAddress: this.extractIpAddress(message),
+            action: this.extractAction(message),
+            queueId: this.extractQueueId(message),
+            pid: parts.pid ? Number.parseInt(parts.pid, 10) : undefined,
+        };
+    }
+
     static parseMailLine(line: string): ParsedLogEntry | null {
-        if (!line || line.trim().length === 0) {
-            return null;
-        }
+        if (!line || line.trim().length === 0) return null;
 
         // Try ISO8601 format first: 2026-01-03T00:16:25.101453+01:00 hostname service: message
-        const iso8601Match = line.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?)\s+(.+)$/);
+        const iso8601Match = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?)\s+(.+)$/.exec(line);
         if (iso8601Match) {
             const [, timestamp, rest] = iso8601Match;
-            // Extract hostname, service and message: "hostname service[pid]: message" or "service[pid]: message"
-            const withHostnameMatch = rest.match(/^(\S+)\s+(\S+)(?:\[(\d+)\])?:\s*(.*)$/);
-            if (withHostnameMatch) {
-                const [, hostname, service, pid, message] = withHostnameMatch;
-                const level = this.extractLevelFromMessage(message);
-                const ipAddress = this.extractIpAddress(message);
-                const action = this.extractAction(message);
-                const queueId = this.extractQueueId(message);
-
-                return {
-                    timestamp: parseTimestamp(timestamp),
-                    hostname: hostname || undefined,
-                    service,
-                    level,
-                    message: message.trim(),
-                    ipAddress,
-                    action,
-                    queueId,
-                    pid: pid ? Number.parseInt(pid, 10) : undefined
-                };
+            const withHost = /^(\S+)\s+(\S+)(?:\[(\d+)\])?:\s*(.*)$/.exec(rest);
+            if (withHost) {
+                return this.buildEntry(timestamp, { hostname: withHost[1], service: withHost[2], pid: withHost[3], message: withHost[4] });
             }
-            // If no hostname, try: "service[pid]: message"
-            const noHostnameMatch = rest.match(/^(\S+)(?:\[(\d+)\])?:\s*(.*)$/);
-            if (noHostnameMatch) {
-                const [, service, pid, message] = noHostnameMatch;
-                const level = this.extractLevelFromMessage(message);
-                const ipAddress = this.extractIpAddress(message);
-                const action = this.extractAction(message);
-                const queueId = this.extractQueueId(message);
-
-                return {
-                    timestamp: parseTimestamp(timestamp),
-                    service,
-                    level,
-                    message: message.trim(),
-                    ipAddress,
-                    action,
-                    queueId,
-                    pid: pid ? Number.parseInt(pid, 10) : undefined
-                };
+            const noHost = /^(\S+)(?:\[(\d+)\])?:\s*(.*)$/.exec(rest);
+            if (noHost) {
+                return this.buildEntry(timestamp, { service: noHost[1], pid: noHost[2], message: noHost[3] });
             }
         }
 
-        // Mail log format: timestamp hostname service: message
-        // Use base syslog pattern
-        const basePattern = buildSyslogPattern(false);
-        const match = parseGrokPattern(line, basePattern);
-
-        if (match && match.timestamp && match.program && match.message) {
-            const message = match.message.trim();
-            const level = this.extractLevelFromMessage(message);
-            const ipAddress = this.extractIpAddress(message);
-            const action = this.extractAction(message);
-            const queueId = this.extractQueueId(message);
-
-            return {
-                timestamp: parseTimestamp(match.timestamp),
-                hostname: match.hostname || undefined,
-                service: match.program,
-                level,
-                message,
-                ipAddress,
-                action,
-                queueId,
-                pid: match.pid ? Number.parseInt(match.pid, 10) : undefined
-            };
+        // Grok syslog pattern
+        const match = parseGrokPattern(line, buildSyslogPattern(false));
+        if (match?.timestamp && match.program && match.message) {
+            return this.buildEntry(match.timestamp, { hostname: match.hostname, service: match.program, pid: match.pid, message: match.message });
         }
 
-        // Fallback: try simpler regex pattern for compatibility
-        const mailRegex = /^(\w+\s+\d+\s+\d+:\d+:\d+)\s+(\S+)\s+(\S+):\s*(.*)$/;
-        const regexMatch = line.match(mailRegex);
-
+        // Simpler fallback regex
+        const regexMatch = /^(\w+\s+\d+\s+\d+:\d+:\d+)\s+(\S+)\s+(\S+):\s*(.*)$/.exec(line);
         if (regexMatch) {
-            const [, timestamp, hostname, service, message] = regexMatch;
-            const level = this.extractLevelFromMessage(message);
-            const ipAddress = this.extractIpAddress(message);
-            const action = this.extractAction(message);
-            const queueId = this.extractQueueId(message);
-
-            return {
-                timestamp: parseTimestamp(timestamp),
-                hostname: hostname || undefined,
-                service,
-                level,
-                message: message.trim(),
-                ipAddress,
-                action,
-                queueId
-            };
+            return this.buildEntry(regexMatch[1], { hostname: regexMatch[2], service: regexMatch[3], message: regexMatch[4] });
         }
 
-        // Fallback: return as-is
-        return {
-            message: line.trim(),
-            level: 'info'
-        };
+        return { message: line.trim(), level: 'info' };
     }
 
     /**
