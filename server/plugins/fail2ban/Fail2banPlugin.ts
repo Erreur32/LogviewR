@@ -297,16 +297,22 @@ function writeIniValue(filePath: string, key: string, value: string): void {
 /**
  * Parse fail2ban.log Found lines and aggregate by jail:ip. Used by both
  * /failing-ips (last 5 min, banned IPs excluded) and /audit/attempts (configurable window).
- * fail2ban.log format: "TIMESTAMP,ms fail2ban.filter [PID]: LEVEL [JAIL] Found IP - …"
- * The PID bracket comes BEFORE the jail bracket, so .*? non-greedy skips past it.
+ * Line format (fail2ban v0.10+): "TIMESTAMP,ms fail2ban.MODULE [PID]: LEVEL [JAIL] Found IP - …"
+ *
+ * Pattern is fully deterministic — every segment is anchored (no .* / .*?):
+ *   timestamp, optional ,ms, MODULE (\S+), [PID], LEVEL (\S+), [JAIL], literal "Found", IP.
+ * No catastrophic backtracking possible; each quantifier consumes a bounded token class.
+ * Lines are length-capped before matching as a second layer of defense against malformed input.
  */
-const FOUND_RE = /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})(?:[,.]\d+)?.*?\[([^\]]+)\]\s+Found\s+([\d.:a-fA-F]+)/;
+const FOUND_RE = /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})(?:[,.]\d+)?\s+\S+\s+\[\d+\]:\s+\S+\s+\[([^\]]+)\]\s+Found\s+([\d.:a-fA-F]+)/;
+const MAX_LOG_LINE_LEN = 500;
 
 interface FoundAgg { jail: string; ip: string; count: number; lastSeen: number }
 
 function parseFoundLines(logContent: string, cutoffSeconds: number): Map<string, FoundAgg> {
     const map = new Map<string, FoundAgg>();
     for (const line of logContent.split(/\r?\n/)) {
+        if (line.length > MAX_LOG_LINE_LEN) continue; // malformed or pathological line
         const m = FOUND_RE.exec(line);
         if (!m) continue;
         const [, tsStr, jail, ip] = m;
