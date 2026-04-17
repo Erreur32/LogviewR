@@ -163,10 +163,6 @@ export default defineConfig({
       output: {
         manualChunks: (id) => {
           // Don't split React/React-DOM - keep them in main chunk to avoid issues with lazy loading
-          // Separate Recharts into vendor-charts chunk (heavy charting lib)
-          if (id.includes('recharts')) {
-            return 'vendor-charts';
-          }
           // All other node_modules in vendor (avoids circular chunks)
           if (id.includes('node_modules') && !id.includes('react') && !id.includes('react-dom')) {
             return 'vendor';

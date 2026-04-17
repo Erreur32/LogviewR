@@ -17,6 +17,7 @@ delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({ iconUrl, iconRetinaUrl, shadowUrl });
 import { useTranslation } from 'react-i18next';
 import { api } from '../../api/client';
+import { usePolling } from '../../hooks/usePolling';
 import { card, cardH, F2bTooltip } from './helpers';
 import { Map as MapIcon, SlidersHorizontal, Zap, RotateCcw } from 'lucide-react';
 import { FlagImg } from './FlagImg';
@@ -95,7 +96,6 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker, onIpClick, refres
     const [liveMode, setLiveMode]             = useState(false);
     const [serverGeo, setServerGeo]           = useState<{ lat: number; lng: number; country: string; city: string } | null>(null);
     const [liveEvents, setLiveEvents]         = useState<LiveEvent[]>([]);
-    const liveIntervalRef                     = useRef<ReturnType<typeof setInterval> | null>(null);
     const liveSinceRef                        = useRef<number>(0);
     const attackLinesRef                      = useRef<any[]>([]);
     const serverMarkerRef                     = useRef<any>(null);
@@ -450,7 +450,6 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker, onIpClick, refres
 
     useEffect(() => {
         if (!liveMode) {
-            if (liveIntervalRef.current) clearInterval(liveIntervalRef.current);
             // Clean up attack lines and restore ban markers
             attackLinesRef.current.forEach(l => { try { l.remove(); } catch { /* already removed */ } });
             attackLinesRef.current = [];
@@ -489,12 +488,12 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker, onIpClick, refres
                 setLiveEvents(prev => mergeLiveEvents(prev, newEvents));
             })
             .catch(() => {});
-        // Seed since = now − 60s for ongoing polling
+        // Seed since = now − 60s for ongoing polling, then kickstart once before usePolling takes over.
         liveSinceRef.current = Math.floor(Date.now() / 1000) - 60;
         pollLiveEvents();
-        liveIntervalRef.current = setInterval(pollLiveEvents, 5000);
-        return () => { if (liveIntervalRef.current) clearInterval(liveIntervalRef.current); };
     }, [liveMode]); // eslint-disable-line react-hooks/exhaustive-deps
+    // Recurring 5s poll — enabled only in liveMode, pauses when the tab is hidden.
+    usePolling(pollLiveEvents, { interval: 5000, enabled: liveMode, immediate: false });
 
     // Re-run pollLiveEvents when serverGeo becomes available (first activation) + add server marker
     useEffect(() => {

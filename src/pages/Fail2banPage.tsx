@@ -217,12 +217,11 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
     useEffect(() => {
         // Delay initial call by 4s so /config/parsed (integrity_check, ~6s) does not compete
         // with /status and /history during the critical first-load wave.
-        const delay = setTimeout(() => {
-            checkConfigWarnings();
-        }, 4_000);
-        const timer = setInterval(checkConfigWarnings, 5 * 60_000);
-        return () => { clearTimeout(delay); clearInterval(timer); };
+        const delay = setTimeout(checkConfigWarnings, 4_000);
+        return () => clearTimeout(delay);
     }, [checkConfigWarnings]);
+    // Recurring poll pauses when the tab is hidden (usePolling honors visibilitychange).
+    usePolling(checkConfigWarnings, { interval: 5 * 60_000, immediate: false });
 
     // Bans du jour (depuis minuit) — refresh toutes les 60s
     const fetchBansToday = useCallback(() => {
@@ -230,11 +229,8 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
             .then(res => { if (res.success && res.result?.ok) setBansToday({ count: res.result.count, uniqIps: res.result.uniqIps }); })
             .catch(() => {});
     }, []);
-    useEffect(() => {
-        fetchBansToday();
-        const t = setInterval(fetchBansToday, 60_000);
-        return () => clearInterval(t);
-    }, [fetchBansToday]);
+    // Pauses when the tab is hidden; picks back up on re-focus.
+    usePolling(fetchBansToday, { interval: 60_000, immediate: true });
 
     // Load path settings from plugin config on mount
     useEffect(() => {
@@ -305,26 +301,21 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
         });
     }, []);
 
-    // Poll every 30s — each new event gets its own toast
-    useEffect(() => {
+    // Poll every 30s — each new event gets its own toast. Pauses when tab is hidden.
+    const pollBanEvents = useCallback(() => {
         interface BanEvent { rowid: number; ip: string; jail: string; timeofban: number; bantime: number | null; failures: number | null }
         interface SinceResult { ok: boolean; events: BanEvent[]; maxRowid: number }
-
-        const poll = () => {
-            if (lastRowidRef.current < 0) return; // not bootstrapped yet
-            api.get<SinceResult>(`/api/plugins/fail2ban/events/since?rowid=${lastRowidRef.current}`).then(res => {
-                if (!res.success || !res.result?.ok) return;
-                const { events, maxRowid } = res.result;
-                lastRowidRef.current = maxRowid;
-                for (const ev of events) {
-                    addBan({ ip: ev.ip, jail: ev.jail, timeofban: ev.timeofban, failures: ev.failures });
-                }
-            });
-        };
-
-        const timer = setInterval(poll, 30_000);
-        return () => clearInterval(timer);
-    }, []);
+        if (lastRowidRef.current < 0) return; // not bootstrapped yet
+        api.get<SinceResult>(`/api/plugins/fail2ban/events/since?rowid=${lastRowidRef.current}`).then(res => {
+            if (!res.success || !res.result?.ok) return;
+            const { events, maxRowid } = res.result;
+            lastRowidRef.current = maxRowid;
+            for (const ev of events) {
+                addBan({ ip: ev.ip, jail: ev.jail, timeofban: ev.timeofban, failures: ev.failures });
+            }
+        });
+    }, [addBan]);
+    usePolling(pollBanEvents, { interval: 30_000, immediate: false });
 
     const fetchStatus = useCallback(() => {
         // Cancel any previous in-flight wave before starting a new one

@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next';
 import { card, PERIODS, F2bTooltip, TT } from './helpers';
 import type { F2bTtColor } from './helpers';
 import { api } from '../../api/client';
+import { usePolling } from '../../hooks/usePolling';
 import type { JailStatus, BanEntry } from './types';
 import { TabJailsEvents } from './TabJails';
 import { primeTopsPrevTotalFromFullFetch } from './fail2banTopsPrevFlight';
@@ -1533,17 +1534,13 @@ const StatsSummaryBanner: React.FC<{
         }
     }, []);
 
-    // Poll /failing-ips every 20s
-    useEffect(() => {
-        const fetchFailing = () => {
-            api.get<{ ok: boolean; ips: { jail: string; ip: string; count: number; lastSeen: number }[] }>('/api/plugins/fail2ban/failing-ips')
-                .then(res => { if (res.success && res.result?.ok) setFailingIps(res.result.ips); })
-                .catch(() => {});
-        };
-        fetchFailing();
-        const t = setInterval(fetchFailing, 20_000);
-        return () => clearInterval(t);
+    // Poll /failing-ips every 20s — pauses when the tab is hidden.
+    const fetchFailing = useCallback(() => {
+        api.get<{ ok: boolean; ips: { jail: string; ip: string; count: number; lastSeen: number }[] }>('/api/plugins/fail2ban/failing-ips')
+            .then(res => { if (res.success && res.result?.ok) setFailingIps(res.result.ips); })
+            .catch(() => {});
     }, []);
+    usePolling(fetchFailing, { interval: 20_000, immediate: true });
 
     const ipsetTotal    = ipsetSets.reduce((a, s) => a + s.entries, 0);
     const ipsetSetCount = ipsetSets.length;
@@ -1941,13 +1938,13 @@ export const TabStats: React.FC<TabStatsProps> = ({
             topsWasLoadingRef.current = true;
         }
         fetchTops();
-        const id = setInterval(fetchTops, 60_000);
         return () => {
-            clearInterval(id);
             topsAbortRef.current?.abort();
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [days, fetchTops]);
+    // Recurring refresh pauses when tab is hidden.
+    usePolling(fetchTops, { interval: 60_000, immediate: false });
 
     // Silently prewarm adjacent periods 2s after initial load
     useEffect(() => {
