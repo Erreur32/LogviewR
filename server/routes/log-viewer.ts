@@ -1537,9 +1537,8 @@ function parseAnalyticsQuery(query: Record<string, unknown>) {
         return Number.isNaN(d.getTime()) ? undefined : d;
     };
     const parseTopLimit = (v: unknown): number => {
-        const raw = typeof v === 'string' ? v : typeof v === 'number' ? String(v) : null;
-        if (raw === null) return 10;
-        return Math.min(Number.parseInt(raw, 10) || 10, 50);
+        if (typeof v !== 'string' && typeof v !== 'number') return 10;
+        return Math.min(Number.parseInt(String(v), 10) || 10, 50);
     };
     const bucketVal: 'minute' | 'hour' | 'day' = bucket === 'minute' || bucket === 'hour' || bucket === 'day' ? bucket : 'hour';
     const fileScopeVal: 'latest' | 'all' = fileScope === 'latest' || fileScope === 'all' ? fileScope : 'all';

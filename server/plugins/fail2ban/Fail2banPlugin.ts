@@ -101,6 +101,30 @@ function createDomainFromSourcesResolver(): (logpath: string) => string {
     }
 }
 
+/** Extract the primary domain from a proxy_host.domain_names JSON string, or null. */
+function parseNpmDomainField(raw: string): string | null {
+    try {
+        const names: string[] = JSON.parse(raw);
+        if (names.length === 0) return null;
+        return names[0].replace(/^www\./, '').toLowerCase();
+    } catch { return null; }
+}
+
+/** Read the NPM proxy_host table and return an id→domain map, or null if unreadable. */
+function readNpmProxyHostMap(dbPath: string): Record<string, string> | null {
+    try {
+        const npmDb = new Database(dbPath, { readonly: true, fileMustExist: true });
+        const rows = npmDb.prepare('SELECT id, domain_names FROM proxy_host WHERE is_deleted=0').all() as { id: number; domain_names: string }[];
+        npmDb.close();
+        const map: Record<string, string> = {};
+        for (const row of rows) {
+            const domain = parseNpmDomainField(row.domain_names);
+            if (domain) map[String(row.id)] = domain;
+        }
+        return map;
+    } catch { return null; }
+}
+
 /** Scan NPM logpaths to locate a readable proxy-host DB and build an id→domain map. */
 function buildNpmDbDomainsMap(
     allLogpaths: string[],
@@ -109,22 +133,10 @@ function buildNpmDbDomainsMap(
     for (const logpath of allLogpaths) {
         if (!/proxy-host-(\d+)[_-]/.exec(logpath)) continue;
         const logsIdx = logpath.lastIndexOf('/logs/');
-        const npmBase = logsIdx >= 0 ? logpath.slice(0, logsIdx) : null;
-        if (!npmBase) continue;
-        const dbPath = resolvePath(`${npmBase}/database.sqlite`);
-        try {
-            const npmDb = new Database(dbPath, { readonly: true, fileMustExist: true });
-            const rows = npmDb.prepare('SELECT id, domain_names FROM proxy_host WHERE is_deleted=0').all() as { id: number; domain_names: string }[];
-            npmDb.close();
-            const map: Record<string, string> = {};
-            for (const row of rows) {
-                try {
-                    const names: string[] = JSON.parse(row.domain_names);
-                    if (names.length > 0) map[String(row.id)] = names[0].replace(/^www\./, '').toLowerCase();
-                } catch { /* bad JSON */ }
-            }
-            return { npmLogsBase: `${npmBase}/logs`, npmDbDomains: map };
-        } catch { /* db not accessible */ }
+        if (logsIdx < 0) continue;
+        const npmBase = logpath.slice(0, logsIdx);
+        const map = readNpmProxyHostMap(resolvePath(`${npmBase}/database.sqlite`));
+        if (map) return { npmLogsBase: `${npmBase}/logs`, npmDbDomains: map };
         break;
     }
     return { npmLogsBase: null, npmDbDomains: {} };
