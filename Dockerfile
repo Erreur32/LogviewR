@@ -18,6 +18,13 @@ RUN NO_UPDATE_NOTIFIER=1 npm ci --loglevel=error --no-fund
 
 # Copier le code source et builder
 COPY . .
+# Analytics opt-in — VITE_* vars must be available at build time (Vite inlines them
+# into the bundle). Passed via docker build --build-arg or compose build.args.
+# Empty defaults = analytics disabled (main.tsx bails out if either is falsy).
+ARG VITE_ANALYTICS_HOST=""
+ARG VITE_ANALYTICS_SITE_ID=""
+ENV VITE_ANALYTICS_HOST=$VITE_ANALYTICS_HOST
+ENV VITE_ANALYTICS_SITE_ID=$VITE_ANALYTICS_SITE_ID
 RUN npm run build
 
 # Préparer node_modules de production (sans devDependencies mais avec binaires compilés)

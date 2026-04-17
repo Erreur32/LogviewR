@@ -78,6 +78,11 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # Analytics vars are inlined by Vite at build time; pass as build args
+          # from repo secrets. Empty when secrets aren't set → analytics stays disabled.
+          build-args: |
+            VITE_ANALYTICS_HOST=${{ secrets.VITE_ANALYTICS_HOST }}
+            VITE_ANALYTICS_SITE_ID=${{ secrets.VITE_ANALYTICS_SITE_ID }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64,linux/arm64

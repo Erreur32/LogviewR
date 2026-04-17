@@ -38,6 +38,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      # Analytics opt-in — pulled from your .env (Compose substitutes automatically).
+      # Leave VITE_ANALYTICS_* unset in .env to keep analytics disabled.
+      args:
+        VITE_ANALYTICS_HOST: ${VITE_ANALYTICS_HOST:-}
+        VITE_ANALYTICS_SITE_ID: ${VITE_ANALYTICS_SITE_ID:-}
     container_name: logviewr-local
     restart: unless-stopped
 
