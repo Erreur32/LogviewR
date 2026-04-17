@@ -1082,6 +1082,13 @@ interface AuditEnrichment {
     jail_domains:   Record<string, string>;
 }
 
+/** Pre-rendered badge per event type — avoids a nested ternary in the row renderer. */
+const EVENT_TYPE_BADGE: Record<'ban' | 'unban' | 'attempt', React.ReactNode> = {
+    ban:     <span style={{ color: '#e86a65', fontSize: '.78rem', fontWeight: 600 }}>🔨 ban</span>,
+    unban:   <span style={{ color: '#3fb950', fontSize: '.78rem', fontWeight: 600 }}>🔓 unban</span>,
+    attempt: <span style={{ color: '#e3b341', fontSize: '.78rem', fontWeight: 600 }}>⚠ tentative</span>,
+};
+
 export const TabJailsEvents: React.FC<{ onIpClick?: (ip: string) => void; days?: number }> = ({ onIpClick, days }) => {
     const { t } = useTranslation();
     const [bans, setBans]              = useState<BanEntry[]>(() => getCached<BanEntry[]>(`audit:bans:${days ?? 0}`) ?? []);
@@ -1089,7 +1096,7 @@ export const TabJailsEvents: React.FC<{ onIpClick?: (ip: string) => void; days?:
     const [loading, setLoading]        = useState(() => !getCached<BanEntry[]>(`audit:bans:${days ?? 0}`));
     const [enrichLoading, setEnrichLd] = useState(() => !getCachedTTL<AuditEnrichment>('audit:enrich', ENRICH_TTL));
     const [attempts, setAttempts]      = useState<AttemptEntry[]>(() => getCached<AttemptEntry[]>(`audit:attempts:${days ?? 1}`) ?? []);
-    const [attemptsLoading, setAttLd]  = useState(false);
+    const [attemptsLoading, setAttemptsLoading] = useState(false);
     const [search, setSearch]          = useState('');
     const [type, setType]              = useState<EvtType>('all');
     const [limit, setLimit]            = useState(25);
@@ -1157,7 +1164,7 @@ export const TabJailsEvents: React.FC<{ onIpClick?: (ip: string) => void; days?:
         const key = `audit:attempts:${days ?? 1}`;
         const cached = getCached<AttemptEntry[]>(key);
         if (cached) { setAttempts(cached); return; }
-        setAttLd(true);
+        setAttemptsLoading(true);
         api.get<{ ok: boolean; attempts: AttemptEntry[] }>(
             `/api/plugins/fail2ban/audit/attempts?days=${days ?? 1}&limit=200`
         ).then(res => {
@@ -1166,7 +1173,7 @@ export const TabJailsEvents: React.FC<{ onIpClick?: (ip: string) => void; days?:
                 setAttempts(list);
                 setCached(key, list);
             }
-            setAttLd(false);
+            setAttemptsLoading(false);
         });
     }, [days]);
 
@@ -1401,11 +1408,7 @@ export const TabJailsEvents: React.FC<{ onIpClick?: (ip: string) => void; days?:
                                     </td>
                                     {/* Type */}
                                     <td style={{ padding: '.45rem .75rem', whiteSpace: 'nowrap' }}>
-                                        {b.eventType === 'ban'
-                                            ? <span style={{ color: '#e86a65', fontSize: '.78rem', fontWeight: 600 }}>🔨 ban</span>
-                                            : b.eventType === 'unban'
-                                                ? <span style={{ color: '#3fb950', fontSize: '.78rem', fontWeight: 600 }}>🔓 unban</span>
-                                                : <span style={{ color: '#e3b341', fontSize: '.78rem', fontWeight: 600 }}>⚠ tentative</span>}
+                                        {EVENT_TYPE_BADGE[b.eventType]}
                                     </td>
                                     <td style={{ padding: '.45rem .75rem' }}>
                                         <F2bTooltip title={b.ip} bodyNode={
