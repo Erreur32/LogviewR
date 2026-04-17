@@ -43,7 +43,7 @@ function parseRealtime(raw: string | undefined): Date | undefined {
 
 /** Parse PID from journald entry (tries _PID then SYSLOG_PID) */
 function parsePid(j: JournaldJsonEntry): number | undefined {
-    const raw = j._PID ?? (j.SYSLOG_PID as string | undefined);
+    const raw = j._PID ?? j.SYSLOG_PID;
     if (!raw) return undefined;
     const n = Number.parseInt(raw, 10);
     return Number.isNaN(n) ? undefined : n;
@@ -66,7 +66,7 @@ export function parseJournaldJson(line: string): ParsedLogEntry | null {
     }
 
     const priorityRaw = jsonEntry.PRIORITY ? Number.parseInt(jsonEntry.PRIORITY, 10) : undefined;
-    const message = (jsonEntry.MESSAGE as string) ?? '';
+    const message = jsonEntry.MESSAGE ?? '';
     const hostname = jsonEntry._HOSTNAME || (jsonEntry.HOSTNAME as string | undefined);
     const service = jsonEntry._SYSTEMD_UNIT || jsonEntry.SYSLOG_IDENTIFIER || jsonEntry._COMM;
     const pid = parsePid(jsonEntry);
@@ -76,7 +76,7 @@ export function parseJournaldJson(line: string): ParsedLogEntry | null {
 
     return {
         timestamp: parseRealtime(jsonEntry.__REALTIME_TIMESTAMP) ?? new Date(),
-        level: priorityRaw !== undefined ? getLevelFromPriority(priorityRaw) : 'info',
+        level: priorityRaw === undefined ? 'info' : getLevelFromPriority(priorityRaw),
         message: message.trim(),
         ...(hostname && { hostname }),
         ...(service && { service, tag: service }),

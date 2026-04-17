@@ -1536,14 +1536,19 @@ function parseAnalyticsQuery(query: Record<string, unknown>) {
         const d = new Date(v);
         return Number.isNaN(d.getTime()) ? undefined : d;
     };
-    const bucketVal = (bucket === 'minute' || bucket === 'hour' || bucket === 'day' ? bucket : 'hour') as 'minute' | 'hour' | 'day';
-    const fileScopeVal = (fileScope === 'latest' || fileScope === 'all' ? fileScope : 'all') as 'latest' | 'all';
+    const parseTopLimit = (v: unknown): number => {
+        const raw = typeof v === 'string' ? v : typeof v === 'number' ? String(v) : null;
+        if (raw === null) return 10;
+        return Math.min(Number.parseInt(raw, 10) || 10, 50);
+    };
+    const bucketVal: 'minute' | 'hour' | 'day' = bucket === 'minute' || bucket === 'hour' || bucket === 'day' ? bucket : 'hour';
+    const fileScopeVal: 'latest' | 'all' = fileScope === 'latest' || fileScope === 'all' ? fileScope : 'all';
     return {
         pluginId: typeof pluginId === 'string' ? pluginId : undefined,
         fromDate: toValidDate(from),
         toDate: toValidDate(to),
         bucket: bucketVal,
-        topLimit: topLimit ? Math.min(Number.parseInt(String(topLimit), 10) || 10, 50) : 10,
+        topLimit: parseTopLimit(topLimit),
         fileScope: fileScopeVal,
         includeCompressed: includeCompressed === 'true' || includeCompressed === '1',
     };

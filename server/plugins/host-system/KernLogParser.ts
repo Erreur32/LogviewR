@@ -44,8 +44,9 @@ export class KernLogParser {
         // ReDoS guard (S5852): cap input before running the parsing regexes below.
         if (line.length > MAX_LINE_LENGTH) return { message: line.slice(0, MAX_LINE_LENGTH), level: 'info' };
 
-        // Try ISO8601 format first: 2026-01-03T00:16:25.101453+01:00 hostname kernel: message
-        const iso8601Match = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?)\s+(.+)$/.exec(line);
+        // Try ISO8601 format first: "2026-01-03T00:16:25.101453+01:00 hostname kernel: message".
+        // Matches any non-space token starting with "YYYY-MM-DDT" then lets parseTimestamp validate.
+        const iso8601Match = /^(\d{4}-\d{2}-\d{2}T\S+)\s+(.+)$/.exec(line);
         if (iso8601Match) {
             const [, timestamp, rest] = iso8601Match;
             const withHost = /^(\S+)\s+kernel:\s*(.*)$/.exec(rest);
