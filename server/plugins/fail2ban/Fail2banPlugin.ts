@@ -46,6 +46,121 @@ const SOCKET_PATH = '/var/run/fail2ban/fail2ban.sock';
 /** Filenames only — no path traversal (matches fail2ban.log, fail2ban.log.1, etc.) */
 const FAIL2BAN_LOG_NAME = /^fail2ban[a-zA-Z0-9._-]*\.log(\.\d+)?$/;
 
+// ── /audit handler helpers ────────────────────────────────────────────────────
+
+interface F2bAuditBan {
+    ip: string; jail: string; timeofban: number; bantime: number;
+    failures: number; domain: string; unban_at: number | null;
+}
+
+const F2B_AUDIT_COLS = `ip, jail, timeofban, bantime, failures, COALESCE(domain,'') as domain, unban_at`;
+
+/** Fetch ban rows from f2b_events with optional jail filter and time window. */
+function fetchAuditBans(
+    evDb: ReturnType<typeof getDatabase>,
+    opts: { jailFilter: string | null; allTime: boolean; since: number; limit: number }
+): F2bAuditBan[] {
+    const { jailFilter, allTime, since, limit } = opts;
+    const base = `SELECT ${F2B_AUDIT_COLS} FROM f2b_events WHERE event_type='ban'`;
+    const tail = `ORDER BY timeofban DESC LIMIT ?`;
+    if (jailFilter) {
+        return (allTime
+            ? evDb.prepare(`${base} AND jail=? ${tail}`).all(jailFilter, limit)
+            : evDb.prepare(`${base} AND jail=? AND timeofban >= ? ${tail}`).all(jailFilter, since, limit)
+        ) as F2bAuditBan[];
+    }
+    return (allTime
+        ? evDb.prepare(`${base} ${tail}`).all(limit)
+        : evDb.prepare(`${base} AND timeofban >= ? ${tail}`).all(since, limit)
+    ) as F2bAuditBan[];
+}
+
+/** Builds a logpath→domain resolver backed by LogviewR's log_sources table. */
+function createDomainFromSourcesResolver(): (logpath: string) => string {
+    try {
+        const rows = getDatabase().prepare(`
+            SELECT lf.file_path, ls.name
+            FROM log_files lf JOIN log_sources ls ON lf.source_id = ls.id
+            WHERE lf.enabled = 1
+        `).all() as { file_path: string; name: string }[];
+        const basenameMap: Record<string, string> = {};
+        const fullPathMap: Record<string, string> = {};
+        for (const r of rows) {
+            fullPathMap[r.file_path] = r.name;
+            const bn = r.file_path.replace(/.*\//, '');
+            basenameMap[bn] ??= r.name;
+        }
+        return (logpath: string): string => {
+            const name = fullPathMap[logpath] ?? basenameMap[logpath.replace(/.*\//, '')] ?? '';
+            if (!name) return '';
+            const n = name.trim();
+            return /^[a-zA-Z0-9][a-zA-Z0-9._-]+\.[a-zA-Z]{2,}/.test(n) ? n.toLowerCase() : '';
+        };
+    } catch {
+        return () => '';
+    }
+}
+
+/** Scan NPM logpaths to locate a readable proxy-host DB and build an id→domain map. */
+function buildNpmDbDomainsMap(
+    allLogpaths: string[],
+    resolvePath: (s: string) => string
+): { npmLogsBase: string | null; npmDbDomains: Record<string, string> } {
+    for (const logpath of allLogpaths) {
+        if (!/proxy-host-(\d+)[_-]/.exec(logpath)) continue;
+        const logsIdx = logpath.lastIndexOf('/logs/');
+        const npmBase = logsIdx >= 0 ? logpath.slice(0, logsIdx) : null;
+        if (!npmBase) continue;
+        const dbPath = resolvePath(`${npmBase}/database.sqlite`);
+        try {
+            const npmDb = new Database(dbPath, { readonly: true, fileMustExist: true });
+            const rows = npmDb.prepare('SELECT id, domain_names FROM proxy_host WHERE is_deleted=0').all() as { id: number; domain_names: string }[];
+            npmDb.close();
+            const map: Record<string, string> = {};
+            for (const row of rows) {
+                try {
+                    const names: string[] = JSON.parse(row.domain_names);
+                    if (names.length > 0) map[String(row.id)] = names[0].replace(/^www\./, '').toLowerCase();
+                } catch { /* bad JSON */ }
+            }
+            return { npmLogsBase: `${npmBase}/logs`, npmDbDomains: map };
+        } catch { /* db not accessible */ }
+        break;
+    }
+    return { npmLogsBase: null, npmDbDomains: {} };
+}
+
+/** Detect the server brand (nginx/apache/...) from a jail name and its logpath. */
+function detectServerFromJail(jailName: string, logpath: string): string {
+    const p = logpath.toLowerCase();
+    const j = jailName.toLowerCase();
+    const hits = [
+        { re: /nginx-proxy-manager|nginx_proxy|\/npm\//, name: 'npm' },
+        { re: /apache/, name: 'apache2' },
+        { re: /nginx/, name: 'nginx' },
+        { re: /traefik/, name: 'traefik' },
+        { re: /haproxy/, name: 'haproxy' },
+        { re: /lighttpd/, name: 'lighttpd' },
+    ];
+    for (const { re, name } of hits) { if (re.test(p)) return name; }
+    const jailAliases: Record<string, string> = { npm: 'npm', 'nginx-proxy-manager': 'npm' };
+    for (const [needle, name] of Object.entries(jailAliases)) { if (j.includes(needle)) return name; }
+    for (const { re, name } of hits.slice(1)) { if (re.test(j)) return name; }
+    return '';
+}
+
+/** Load cached countryCode for a batch of IPs (chunked to stay within SQLite's IN() arg cap). */
+function loadGeoByIp(evDb: ReturnType<typeof getDatabase>, ips: string[]): Record<string, string> {
+    const geoByIp: Record<string, string> = {};
+    for (let i = 0; i < ips.length; i += 500) {
+        const chunk = ips.slice(i, i + 500);
+        const placeholders = chunk.map(() => '?').join(',');
+        const rows = evDb.prepare(`SELECT ip, countryCode FROM f2b_ip_geo WHERE ip IN (${placeholders})`).all(...chunk) as { ip: string; countryCode: string }[];
+        for (const r of rows) geoByIp[r.ip] = r.countryCode;
+    }
+    return geoByIp;
+}
+
 /**
  * Build the SQLite fallback payload for GET /status when fail2ban-client is unavailable.
  * Aggregates active bans per jail and layers historical totals on top.
@@ -2511,19 +2626,7 @@ export class Fail2banPlugin extends BasePlugin {
             const evDb    = getDatabase();
             const allTime = daysParam <= 0;
             const since   = allTime ? 0 : Math.floor(Date.now() / 1000) - daysParam * 86400;
-            let bans: { ip: string; jail: string; timeofban: number; bantime: number; failures: number; domain: string; unban_at: number | null }[];
-            const cols = `ip, jail, timeofban, bantime, failures, COALESCE(domain,'') as domain, unban_at`;
-            if (jailFilter) {
-                bans = (allTime
-                    ? evDb.prepare(`SELECT ${cols} FROM f2b_events WHERE event_type='ban' AND jail=? ORDER BY timeofban DESC LIMIT ?`).all(jailFilter, limit)
-                    : evDb.prepare(`SELECT ${cols} FROM f2b_events WHERE event_type='ban' AND jail=? AND timeofban >= ? ORDER BY timeofban DESC LIMIT ?`).all(jailFilter, since, limit)
-                ) as typeof bans;
-            } else {
-                bans = (allTime
-                    ? evDb.prepare(`SELECT ${cols} FROM f2b_events WHERE event_type='ban' ORDER BY timeofban DESC LIMIT ?`).all(limit)
-                    : evDb.prepare(`SELECT ${cols} FROM f2b_events WHERE event_type='ban' AND timeofban >= ? ORDER BY timeofban DESC LIMIT ?`).all(since, limit)
-                ) as typeof bans;
-            }
+            const bans    = fetchAuditBans(evDb, { jailFilter, allTime, since, limit });
 
             // ── Enrichissements ──────────────────────────────────────────────
             const confBase  = this.resolveDockerPathSync('/etc/fail2ban');
@@ -2533,23 +2636,6 @@ export class Fail2banPlugin extends BasePlugin {
             const jail_actions: Record<string, string> = {};
             const jail_logs:    Record<string, string> = {};
             const jail_servers: Record<string, string> = {};
-            const detectServer = (jailName: string, logpath: string): string => {
-                const p = logpath.toLowerCase();
-                const j = jailName.toLowerCase();
-                if (p.includes('nginx-proxy-manager') || p.includes('nginx_proxy') || p.includes('/npm/')) return 'npm';
-                if (p.includes('apache'))  return 'apache2';
-                if (p.includes('nginx'))   return 'nginx';
-                if (p.includes('traefik')) return 'traefik';
-                if (p.includes('haproxy')) return 'haproxy';
-                if (p.includes('lighttpd'))return 'lighttpd';
-                if (j.includes('npm') || j.includes('nginx-proxy-manager')) return 'npm';
-                if (j.includes('apache'))  return 'apache2';
-                if (j.includes('nginx'))   return 'nginx';
-                if (j.includes('traefik')) return 'traefik';
-                if (j.includes('haproxy')) return 'haproxy';
-                if (j.includes('lighttpd'))return 'lighttpd';
-                return '';
-            };
 
             // Seed from config parsing first (cheap, synchronous)
             for (const [jailName, meta] of Object.entries(jailMeta)) {
@@ -2582,7 +2668,7 @@ export class Fail2banPlugin extends BasePlugin {
 
             // Populate jail_servers from final jail_logs
             for (const [jailName, logpath] of Object.entries(jail_logs)) {
-                const srv = detectServer(jailName, logpath);
+                const srv = detectServerFromJail(jailName, logpath);
                 if (srv) jail_servers[jailName] = srv;
             }
 
@@ -2597,61 +2683,13 @@ export class Fail2banPlugin extends BasePlugin {
             };
 
             // Strategy 2 — LogviewR sources DB
-            const domainFromSources = (() => {
-                try {
-                    const db = getDatabase();
-                    const rows = db.prepare(`
-                        SELECT lf.file_path, ls.name
-                        FROM log_files lf JOIN log_sources ls ON lf.source_id = ls.id
-                        WHERE lf.enabled = 1
-                    `).all() as { file_path: string; name: string }[];
-                    const basenameMap: Record<string, string> = {};
-                    const fullPathMap: Record<string, string> = {};
-                    for (const r of rows) {
-                        fullPathMap[r.file_path] = r.name;
-                        const bn = r.file_path.replace(/.*\//, '');
-                        if (!basenameMap[bn]) basenameMap[bn] = r.name;
-                    }
-                    return (logpath: string): string => {
-                        const name = fullPathMap[logpath] ?? basenameMap[logpath.replace(/.*\//, '')] ?? '';
-                        if (!name) return '';
-                        const n = name.trim();
-                        return /^[a-zA-Z0-9][a-zA-Z0-9._-]+\.[a-zA-Z]{2,}/.test(n) ? n.toLowerCase() : '';
-                    };
-                } catch {
-                    return (_lp: string) => '';
-                }
-            })();
+            const domainFromSources = createDomainFromSourcesResolver();
 
             // Strategy 3 — NPM SQLite: scan ALL logpaths to find npm_base, load full id→domain map
-            let npmLogsBase: string | null = null;
-            const npmDbDomains: Record<string, string> = (() => {
-                const allLogpaths = Object.values(jail_all_logpaths).flat();
-                for (const logpath of allLogpaths) {
-                    const m = logpath.match(/proxy-host-(\d+)[_-]/);
-                    if (!m) continue;
-                    const logsIdx = logpath.lastIndexOf('/logs/');
-                    const npmBase = logsIdx >= 0 ? logpath.slice(0, logsIdx) : null;
-                    if (!npmBase) continue;
-                    const dbPath = this.resolveDockerPathSync(`${npmBase}/database.sqlite`);
-                    try {
-                        const npmDb = new Database(dbPath, { readonly: true, fileMustExist: true });
-                        const rows = npmDb.prepare('SELECT id, domain_names FROM proxy_host WHERE is_deleted=0').all() as { id: number; domain_names: string }[];
-                        npmDb.close();
-                        const map: Record<string, string> = {};
-                        for (const row of rows) {
-                            try {
-                                const names: string[] = JSON.parse(row.domain_names);
-                                if (names.length > 0) map[String(row.id)] = names[0].replace(/^www\./, '').toLowerCase();
-                            } catch { /* bad JSON */ }
-                        }
-                        npmLogsBase = `${npmBase}/logs`;
-                        return map;
-                    } catch { /* db not accessible */ }
-                    break;
-                }
-                return {};
-            })();
+            const { npmLogsBase, npmDbDomains } = buildNpmDbDomainsMap(
+                Object.values(jail_all_logpaths).flat(),
+                p => this.resolveDockerPathSync(p)
+            );
 
             const domainFromNpmDb = (logpath: string): string => {
                 const m = logpath.match(/proxy-host-(\d+)[_-]/);
@@ -2675,14 +2713,7 @@ export class Fail2banPlugin extends BasePlugin {
             }
 
             // ── Geo cache — country codes for all IPs (cache only, no new API calls) ──
-            const uniqueIps = [...new Set(bans.map(b => b.ip))];
-            const geoByIp: Record<string, string> = {};
-            for (let i = 0; i < uniqueIps.length; i += 500) {
-                const chunk = uniqueIps.slice(i, i + 500);
-                const placeholders = chunk.map(() => '?').join(',');
-                const geoRows = evDb.prepare(`SELECT ip, countryCode FROM f2b_ip_geo WHERE ip IN (${placeholders})`).all(...chunk) as { ip: string; countryCode: string }[];
-                for (const r of geoRows) geoByIp[r.ip] = r.countryCode;
-            }
+            const geoByIp = loadGeoByIp(evDb, [...new Set(bans.map(b => b.ip))]);
             // Build domain→logpath reverse map for per-ban logfile resolution
             // When a ban has a specific domain, find the matching logpath in jail_all_logpaths
             const domainToLogpath: Record<string, string> = {};
