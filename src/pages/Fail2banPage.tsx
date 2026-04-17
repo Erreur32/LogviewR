@@ -185,6 +185,9 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
     const [npmMysqlConfigured, setNpmMysqlConfigured] = useState(false);
     const [blocklistsStatus, setBlocklistsStatus] = useState<{ id: string; name: string; enabled: boolean; lastUpdate: string | null; count: number }[]>([]);
     const [ipsetCount, setIpsetCount] = useState<number | null>(null);
+    // Firewall accessibility probes for the left-nav tooltips.
+    // null = not yet loaded, true = endpoint responded ok, false = inaccessible (NET_ADMIN missing, etc).
+    const [fwOk, setFwOk] = useState<{ iptables: boolean | null; ipset: boolean | null }>({ iptables: null, ipset: null });
     const { addBan, addAttempt } = useNotificationStore();
     const lastRowidRef = useRef<number>(-1); // -1 = not bootstrapped yet
     const prevFailedRef = useRef<Record<string, number>>({}); // jail → currentlyFailed snapshot
@@ -246,14 +249,21 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
             .catch(() => {});
     }, []);
 
-    // Load blocklist status + ipset count for nav badges/tooltips
+    // Load blocklist status + ipset count + iptables reachability for nav badges/tooltips
     useEffect(() => {
         api.get<{ lists: { id: string; name: string; enabled: boolean; lastUpdate: string | null; count: number }[] }>('/api/plugins/fail2ban/blocklists/status')
             .then(res => { if (res.success && res.result?.lists) setBlocklistsStatus(res.result.lists); })
             .catch(() => {});
         api.get<{ ok: boolean; sets: { name: string; entries: number }[] }>('/api/plugins/fail2ban/ipset/info')
-            .then(res => { if (res.success && res.result?.ok) setIpsetCount(res.result.sets?.length ?? 0); })
-            .catch(() => {});
+            .then(res => {
+                const ok = res.success && res.result?.ok === true;
+                setFwOk(p => ({ ...p, ipset: ok }));
+                if (ok) setIpsetCount(res.result?.sets?.length ?? 0);
+            })
+            .catch(() => setFwOk(p => ({ ...p, ipset: false })));
+        api.get<{ ok: boolean }>('/api/plugins/fail2ban/iptables')
+            .then(res => setFwOk(p => ({ ...p, iptables: res.success && res.result?.ok === true })))
+            .catch(() => setFwOk(p => ({ ...p, iptables: false })));
     }, []);
 
     // ── Tab load timer — dispatch after render (fast tabs report immediately) ──
@@ -613,6 +623,12 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
     const ttRow = (val: number | string, color: string, label: string) => (
         <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem' }}>{ttVal(val, color)}<span style={{ color: C.muted }}>{label}</span></div>
     );
+    // Tri-state access line used by both iptables and ipset nav tooltips.
+    const fwAccessLine = (ok: boolean | null): React.ReactNode => {
+        if (ok === true)  return <div style={{ color: C.green, fontSize: '.75rem' }}>✓ Accessible — NET_ADMIN + network_mode: host OK</div>;
+        if (ok === false) return <div style={{ color: C.orange, fontSize: '.75rem' }}>⚠ Inaccessible — requiert NET_ADMIN + network_mode: host</div>;
+        return <div style={{ color: C.muted, fontSize: '.75rem' }}>…vérification en cours</div>;
+    };
     const navTt: Partial<Record<TabId, { title: string; bodyNode: React.ReactNode; color: F2bTtColor }>> = {
         jails: {
             title: 'Jails fail2ban',
@@ -678,7 +694,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
             title: 'IPTables',
             bodyNode: <div style={{ display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
                 <div style={{ color: C.muted }}>Règles netfilter du host</div>
-                <div style={{ color: C.orange, fontSize: '.75rem' }}>Requiert NET_ADMIN + network_mode: host</div>
+                {fwAccessLine(fwOk.iptables)}
             </div>,
             color: 'cyan',
         },
@@ -686,7 +702,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
             title: 'IPSet',
             bodyNode: <div style={{ display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
                 <div style={{ color: C.muted }}>Sets d'IPs actifs (f2b-*, blacklist…)</div>
-                <div style={{ color: C.orange, fontSize: '.75rem' }}>Requiert NET_ADMIN + network_mode: host</div>
+                {fwAccessLine(fwOk.ipset)}
             </div>,
             color: 'purple',
         },

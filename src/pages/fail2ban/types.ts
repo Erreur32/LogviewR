@@ -65,6 +65,15 @@ export interface BanEntry {
     countryCode?: string;
     domain?: string;   // extracted from fail2ban data.matches (per-ban, more accurate than jail-level)
     logfile?: string;  // resolved log file path for this specific ban
+    unban_at?: number | null;  // unix seconds when the ban was lifted (null = still active)
+}
+
+/** Tentative (Found line from fail2ban.log) — fetched lazily only when the "tentatives" filter is active. */
+export interface AttemptEntry {
+    ip: string;
+    jail: string;
+    timeofban: number;  // timestamp of the last Found line (reused for sort consistency with bans)
+    failures: number;   // count of Found lines in the window
 }
 
 export interface TrackerEntry {

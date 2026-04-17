@@ -15,7 +15,7 @@ import { card, cardH, Badge, StatusDot, fmtSecs, fmtTs, F2bTooltip, type F2bTtCo
 import { ConfEditorModal } from './ConfEditorModal';
 import type { ConfEditorTarget } from './ConfEditorModal';
 import { JailConfigModal } from './JailConfigModal';
-import type { JailStatus, BanEntry } from './types';
+import type { JailStatus, BanEntry, AttemptEntry } from './types';
 import { DomainInitial } from './DomainInitial';
 import { FlagImg } from './FlagImg';
 
@@ -1088,6 +1088,8 @@ export const TabJailsEvents: React.FC<{ onIpClick?: (ip: string) => void; days?:
     const [enrichment, setEnrich]      = useState<AuditEnrichment>(() => getCachedTTL<AuditEnrichment>('audit:enrich', ENRICH_TTL) ?? { jail_actions: {}, jail_logs: {}, jail_servers: {}, jail_domains: {} });
     const [loading, setLoading]        = useState(() => !getCached<BanEntry[]>(`audit:bans:${days ?? 0}`));
     const [enrichLoading, setEnrichLd] = useState(() => !getCachedTTL<AuditEnrichment>('audit:enrich', ENRICH_TTL));
+    const [attempts, setAttempts]      = useState<AttemptEntry[]>(() => getCached<AttemptEntry[]>(`audit:attempts:${days ?? 1}`) ?? []);
+    const [attemptsLoading, setAttLd]  = useState(false);
     const [search, setSearch]          = useState('');
     const [type, setType]              = useState<EvtType>('all');
     const [limit, setLimit]            = useState(25);
@@ -1148,16 +1150,66 @@ export const TabJailsEvents: React.FC<{ onIpClick?: (ip: string) => void; days?:
         return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
     }, [fetchAudit]);
 
+    // Tentatives count must appear in the filter badge like bans/unbans do,
+    // so fetch attempts on mount (once per days change). After that the data sits in cache
+    // and clicking the "tentatives" filter is instant.
+    useEffect(() => {
+        const key = `audit:attempts:${days ?? 1}`;
+        const cached = getCached<AttemptEntry[]>(key);
+        if (cached) { setAttempts(cached); return; }
+        setAttLd(true);
+        api.get<{ ok: boolean; attempts: AttemptEntry[] }>(
+            `/api/plugins/fail2ban/audit/attempts?days=${days ?? 1}&limit=200`
+        ).then(res => {
+            if (res.success && res.result?.ok) {
+                const list = res.result.attempts ?? [];
+                setAttempts(list);
+                setCached(key, list);
+            }
+            setAttLd(false);
+        });
+    }, [days]);
+
     const toggleSort = (col: SortCol) => {
         if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
         else { setSortCol(col); setSortDir('desc'); }
     };
 
-    const processed = useMemo(() => {
-        let rows = [...bans];
-        if (type === 'ban')    rows = rows.filter(b => b.bantime > 0);
-        if (type === 'unban')  rows = rows.filter(b => b.bantime === 0);
-        if (type === 'failed') rows = rows.filter(b => b.failures > 0 && b.bantime === 0);
+    // Each ban in DB carries an optional unban_at (timestamp when the ban was lifted).
+    // We expand every ban into up to 2 rows: one 'ban' event at timeofban,
+    // one 'unban' event at unban_at if set. This preserves IP/jail/country/domain
+    // on both rows so filtering and enrichment still work.
+    type EventRow = BanEntry & { eventType: 'ban' | 'unban' | 'attempt'; eventTs: number };
+
+    const expandedBans = useMemo<EventRow[]>(() => {
+        const out: EventRow[] = [];
+        for (const b of bans) {
+            out.push({ ...b, eventType: 'ban', eventTs: b.timeofban });
+            if (b.unban_at) {
+                out.push({ ...b, eventType: 'unban', eventTs: b.unban_at });
+            }
+        }
+        return out;
+    }, [bans]);
+
+    const processed = useMemo<EventRow[]>(() => {
+        let rows: EventRow[];
+        if (type === 'failed') {
+            // Tentatives: lazy-fetched from fail2ban.log, synthesized as 'attempt' events.
+            rows = attempts.map(a => ({
+                ip: a.ip,
+                jail: a.jail,
+                timeofban: a.timeofban,
+                bantime: 0,
+                failures: a.failures,
+                eventType: 'attempt' as const,
+                eventTs: a.timeofban,
+            }));
+        } else {
+            rows = expandedBans;
+            if (type === 'ban')   rows = rows.filter(e => e.eventType === 'ban');
+            if (type === 'unban') rows = rows.filter(e => e.eventType === 'unban');
+        }
         if (search) rows = rows.filter(b =>
             b.ip.includes(search) || b.jail.includes(search) ||
             (enrichment.jail_domains[b.jail] ?? '').includes(search) ||
@@ -1166,9 +1218,8 @@ export const TabJailsEvents: React.FC<{ onIpClick?: (ip: string) => void; days?:
         );
         rows.sort((a, b) => {
             let va: number | string, vb: number | string;
-            const evtType = (b: { bantime: number; failures: number }) => b.bantime > 0 ? 'ban' : b.failures > 0 ? 'tentative' : 'unban';
-            if      (sortCol === 'date')     { va = a.timeofban; vb = b.timeofban; }
-            else if (sortCol === 'type')     { va = evtType(a); vb = evtType(b); }
+            if      (sortCol === 'date')     { va = a.eventTs; vb = b.eventTs; }
+            else if (sortCol === 'type')     { va = a.eventType; vb = b.eventType; }
             else if (sortCol === 'ip')       { va = a.ip; vb = b.ip; }
             else if (sortCol === 'jail')     { va = a.jail; vb = b.jail; }
             else if (sortCol === 'failures') { va = a.failures; vb = b.failures; }
@@ -1181,11 +1232,12 @@ export const TabJailsEvents: React.FC<{ onIpClick?: (ip: string) => void; days?:
             return 0;
         });
         return rows;
-    }, [bans, type, search, sortCol, sortDir, enrichment]);
+    }, [expandedBans, attempts, type, search, sortCol, sortDir, enrichment]);
 
-    const banCount   = bans.filter(b => b.bantime > 0).length;
-    const unbanCount = bans.filter(b => b.bantime === 0 && b.failures === 0).length;
-    const failCount  = bans.filter(b => b.failures > 0 && b.bantime === 0).length;
+    const banCount   = bans.length;
+    const unbanCount = bans.filter(b => b.unban_at != null).length;
+    // Attempts count is unknown until the user activates the filter (lazy-loaded).
+    const failCount  = attempts.length;
 
     const totalPages = limit > 0 ? Math.ceil(processed.length / limit) : 1;
     const safePage   = Math.min(page, Math.max(0, totalPages - 1));
@@ -1297,7 +1349,7 @@ export const TabJailsEvents: React.FC<{ onIpClick?: (ip: string) => void; days?:
                 </div>
             </div>
 
-            {loading ? (
+            {loading || (type === 'failed' && attemptsLoading && attempts.length === 0) ? (
                 <div style={{ textAlign: 'center', padding: '3rem', color: '#8b949e' }}>{t('fail2ban.status.loading')}</div>
             ) : displayed.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '3rem', color: '#8b949e' }}>
@@ -1327,8 +1379,9 @@ export const TabJailsEvents: React.FC<{ onIpClick?: (ip: string) => void; days?:
                                 const logbase = logpath.replace(/.*\//, '');
                                 const srv     = enrichment.jail_servers[b.jail] ?? '';
                                 const svcInfo = SERVICE_ICONS[srv];
-                                // Age-based timestamp color (like PHP fail2ban-web)
-                                const hoursAgo = (Date.now() / 1000 - b.timeofban) / 3600;
+                                // Age-based timestamp color (like PHP fail2ban-web).
+                                // For 'unban' rows we color by when the ban was lifted, not when it started.
+                                const hoursAgo = (Date.now() / 1000 - b.eventTs) / 3600;
                                 const [tColor, tBg, tBorder] = hoursAgo < 1
                                     ? ['#e86a65', 'rgba(232,106,101,.15)', 'rgba(232,106,101,.4)']
                                     : hoursAgo < 6
@@ -1336,7 +1389,7 @@ export const TabJailsEvents: React.FC<{ onIpClick?: (ip: string) => void; days?:
                                     : hoursAgo < 24
                                     ? ['#58a6ff', 'rgba(88,166,255,.12)',  'rgba(88,166,255,.35)']
                                     : ['#8b949e', 'rgba(139,148,158,.08)', 'rgba(139,148,158,.2)'];
-                                const ts = fmtTs(b.timeofban);
+                                const ts = fmtTs(b.eventTs);
                                 const [datePart, timePart] = ts.split(' ');
                                 return (
                                 <tr key={i} style={{ borderBottom: '1px solid #30363d' }}
@@ -1348,11 +1401,11 @@ export const TabJailsEvents: React.FC<{ onIpClick?: (ip: string) => void; days?:
                                     </td>
                                     {/* Type */}
                                     <td style={{ padding: '.45rem .75rem', whiteSpace: 'nowrap' }}>
-                                        {b.bantime > 0
+                                        {b.eventType === 'ban'
                                             ? <span style={{ color: '#e86a65', fontSize: '.78rem', fontWeight: 600 }}>🔨 ban</span>
-                                            : b.failures > 0
-                                                ? <span style={{ color: '#e3b341', fontSize: '.78rem', fontWeight: 600 }}>⚠ tentative</span>
-                                                : <span style={{ color: '#3fb950', fontSize: '.78rem', fontWeight: 600 }}>🔓 unban</span>}
+                                            : b.eventType === 'unban'
+                                                ? <span style={{ color: '#3fb950', fontSize: '.78rem', fontWeight: 600 }}>🔓 unban</span>
+                                                : <span style={{ color: '#e3b341', fontSize: '.78rem', fontWeight: 600 }}>⚠ tentative</span>}
                                     </td>
                                     <td style={{ padding: '.45rem .75rem' }}>
                                         <F2bTooltip title={b.ip} bodyNode={

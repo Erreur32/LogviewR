@@ -5,6 +5,27 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.56] - 2026-04-17
+
+### For users
+
+- **Log table layout overhaul** — columns now pack tightly on the left based on content, the last column absorbs any remaining horizontal space (no more dead gap on the right). Long cells (URL, user-agent, message…) get a cap that scales with your screen resolution (`clamp()`), and content that still overflows scrolls **inside the cell** — no text is ever cut or wrapped onto multiple lines. Denser vertical padding (`py-1.5`) and subtle zebra striping for easier scanning.
+- **Fail2ban → Jails → Events: unbans now visible** — 1551 unban events were already stored in DB but never surfaced (the API query returned only bans). Each ban with a recorded `unban_at` is now rendered as a separate `🔓 unban` row, sortable and filterable like bans.
+- **Fail2ban → Jails → Events: "tentatives" filter now works** — the regex parsing `fail2ban.log` `Found` lines was matching the PID bracket instead of the jail bracket → always 0 results. Fixed. Tentatives are fetched once on load (for the badge count) and re-used from cache when you click the filter.
+- **Fail2ban left menu: IPTables / IPSet tooltips are reactive** — orange "required NET_ADMIN" warning was shown even when access was working fine. Now probes the endpoint on mount: green "✓ Accessible" when OK, orange warning only when actually inaccessible.
+- **Fail2ban: fix orphan background jobs after disabling the plugin** — disabling the plugin in the UI left the 60s sync timer and the 6h blocklist auto-refresh running. Added a proper `stop()` that clears both.
+
+### Technical
+
+- **`src/components/log-viewer/LogTable.tsx`** — dropped the `COLUMN_WIDTHS` px-map + `colgroup` absorbing hack. Table now uses `table-auto` + `w-full`; every cell gets `width: 1px` (content-hug) via tbody td style, last column is `auto` (absorber). Long-text columns (`message`, `url`, `useragent`, `referer`, `tag`) have a `clamp(min, vw, max)` max-width on an inner wrapper div (not the td — table-layout:auto ignores max-width on td) that triggers `overflow-x: auto` when content exceeds the cap. Module-level style constants + memoized per-column wrapper style so cell render doesn't allocate a new `CSSProperties` object on every row.
+- **`server/plugins/fail2ban/Fail2banPlugin.ts`** — added `stop()` override that stops `syncService` and `blocklistService.stopAutoRefresh()`. `/audit` SELECT now returns `unban_at`. New `GET /audit/attempts?days=&limit=` endpoint that parses `fail2ban.log` Found lines (cached 30 s, bounded to 50 k lines of tail). Shared `parseFoundLines()` helper between `/audit/attempts` and `/failing-ips` (the 2 endpoints had duplicate regex + parse loops).
+- **Fix: regex in `/failing-ips` and `/audit/attempts`** — previous regex `\s+\S+\s+\[(...)\]\s+Found` captured `[PID]` (first bracket) but PID is followed by `:` not `Found`, so the match always failed. Replaced with `.*?\[(...)\]\s+Found` non-greedy to skip past the PID bracket and land on the jail bracket.
+- **`src/pages/fail2ban/TabJails.tsx`** — new `expandedBans` useMemo synthesizes `{eventType: 'ban'|'unban'}` rows from `BanEntry.unban_at`. Lazy fetch of `/audit/attempts` on mount (for the badge count); cached 30 s in the same `_cache` store as bans. Type column rendered from explicit `eventType`, no longer guessed from `bantime`/`failures`.
+- **`src/pages/Fail2banPage.tsx`** — new `fwOk` state probes `/iptables` + `/ipset/info` on mount. Extracted `fwAccessLine(ok)` helper to remove near-duplicate tooltip JSX for the iptables/ipset nav items.
+- **`src/pages/fail2ban/types.ts`** — `BanEntry.unban_at` added (nullable unix seconds). New `AttemptEntry` type for the tentatives endpoint response.
+
+---
+
 ## [0.8.55] - 2026-04-16
 
 ### For users

@@ -112,58 +112,52 @@ const getColumnDisplayName = (columnName: string): string => {
 };
 
 /**
- * Centralized column widths — single source of truth for every column across all plugins and logTypes.
- * Timestamp is sized to fit the fr-FR formatted badge "08/02/2026 13:30:06" (19 chars, mono xs)
- * without overflow, accounting for badge padding (px-1.5 = 12px) and cell padding (px-4 = 32px).
- * Minimum badge width ~149px + cell padding 32px → 181px minimum → 185px with margin.
+ * Viewport-adaptive caps for text-heavy columns. Applied on the INNER wrapper div,
+ * not on the td: table-layout:auto treats td width/max-width as hints (content can blow
+ * past them), but a div's max-width is a hard cap that also triggers overflow-x scroll.
+ * clamp(MIN, PREFERRED, MAX): preferred scales with viewport width (vw), bounded by
+ * MIN (narrow screens stay readable) and MAX (huge screens don't get absurd columns).
+ * On 1920px screen the preferred ~50% viewport kicks in → columns are generous;
+ * on 1024px they cap tighter. No cap = outer table scrolls horizontally instead.
  */
-const COLUMN_WIDTHS: Record<string, string> = {
-    // Date / time columns
-    timestamp: '185px',
-    date: '185px',
-    time: '185px',
-    // Host-system columns
-    hostname: '108px',
-    host: '108px',
-    tag: '200px',
-    service: '200px',
-    component: '120px',
-    module: '96px',
-    // Badge columns
-    level: '72px',
-    severity: '72px',          // Alias for level (used by some parsers)
-    method: '52px',
-    action: '90px',
-    // IP columns
-    ip: '145px',
-    ipaddress: '145px',
-    clientip: '145px',
-    remoteip: '145px',
-    // Numeric columns
-    status: '48px',
-    statuscode: '48px',        // Alias for status
-    httpcode: '48px',          // Alias for status
-    size: '66px',
-    pid: '52px',
-    tid: '52px',
-    port: '52px',
-    responsetime: '44px',
-    upstreamstatus: '44px',
-    cache: '38px',
-    gzip: '40px',
-    // Text / truncated columns
-    vhost: '128px',
-    protocol: '72px',
-    url: '200px',
-    urlpath: '200px',          // Alias for url
-    referer: '180px',
-    useragent: '220px',
-    'user-agent': '220px',     // Alias for useragent (hyphenated variant)
-    upstream: '100px',
-    user: '90px',
-    queueid: '100px',
-    // Flex column (takes remaining space)
-    message: 'auto',
+const COLUMN_MAX_WIDTHS: Record<string, string> = {
+    url: 'clamp(200px, 30vw, 1200px)',
+    urlpath: 'clamp(200px, 30vw, 1200px)',
+    referer: 'clamp(200px, 25vw, 1000px)',
+    useragent: 'clamp(250px, 35vw, 1400px)',
+    'user-agent': 'clamp(250px, 35vw, 1400px)',
+    message: 'clamp(400px, 50vw, 2000px)',
+    tag: 'clamp(250px, 25vw, 800px)',
+};
+
+/**
+ * td width hint. All columns hug their content via width:1px EXCEPT the last one,
+ * which is left auto so it absorbs any remaining horizontal space (cell background
+ * extends to the right edge of the container instead of leaving a dead gap).
+ * Module-level constants avoid allocating a new style object on every header/cell render.
+ */
+const TIGHT_COL_STYLE: React.CSSProperties = { width: '1px' };
+const ABSORB_COL_STYLE: React.CSSProperties = {};
+const getColumnStyle = (isLast: boolean): React.CSSProperties =>
+    isLast ? ABSORB_COL_STYLE : TIGHT_COL_STYLE;
+
+/**
+ * Inner wrapper div: nowrap everywhere, max-width + overflow-x for capped columns.
+ * Memoized per column name so we don't allocate a new CSSProperties object on every
+ * cell render (hot path: thousands of rows × all columns re-render on sort/filter).
+ */
+const NOWRAP_ONLY_STYLE: React.CSSProperties = { whiteSpace: 'nowrap' };
+const cellWrapperStyleCache = new Map<string, React.CSSProperties>();
+const getCellWrapperStyle = (col: string): React.CSSProperties => {
+    const key = col.toLowerCase();
+    const cached = cellWrapperStyleCache.get(key);
+    if (cached) return cached;
+    const maxW = COLUMN_MAX_WIDTHS[key];
+    const style: React.CSSProperties = maxW
+        ? { maxWidth: maxW, overflowX: 'auto', whiteSpace: 'nowrap' }
+        : NOWRAP_ONLY_STYLE;
+    cellWrapperStyleCache.set(key, style);
+    return style;
 };
 
 // Detect column type for sorting
@@ -222,13 +216,14 @@ interface SortableHeaderProps {
     sortConfig: SortConfig;
     onSort: (column: string) => void;
     logType?: string;
+    isLast: boolean;
 }
 
-const SortableHeader: React.FC<SortableHeaderProps> = ({ column, sortConfig, onSort, logType }) => {
+const SortableHeader: React.FC<SortableHeaderProps> = ({ column, sortConfig, onSort, logType, isLast }) => {
     const isSorted = sortConfig.column === column;
     const direction = isSorted ? sortConfig.direction : null;
     // Unified padding for all logTypes — no more special case for error logs
-    const headerPadding = 'px-4 py-3';
+    const headerPadding = 'px-4 py-2';
 
     const handleClick = () => {
         if (isSorted && sortConfig.direction === 'desc') {
@@ -246,7 +241,7 @@ const SortableHeader: React.FC<SortableHeaderProps> = ({ column, sortConfig, onS
             className={`${headerPadding} text-left text-xs font-semibold text-gray-400 uppercase tracking-wider border-r border-gray-800 last:border-r-0 cursor-pointer hover:bg-gray-800/50 select-none transition-colors ${
                 isSorted ? 'bg-gray-800/30' : ''
             }`}
-            style={{ width: 'auto' }}
+            style={getColumnStyle(isLast)}
         >
             <div className="flex items-center gap-2">
                 <span>{getColumnDisplayName(column)}</span>
@@ -455,7 +450,7 @@ export const LogTable: React.FC<LogTableProps> = ({
                 if (cronMatch) {
                     const [, user, cmdType, command] = cronMatch;
                     return (
-                        <div className="flex flex-wrap items-center gap-1.5">
+                        <div className="inline-flex items-center gap-1.5">
                             <Tooltip content={`Utilisateur : ${user}`}>
                                 <span
                                     className="px-1.5 py-0.5 text-xs font-medium cursor-help"
@@ -487,7 +482,7 @@ export const LogTable: React.FC<LogTableProps> = ({
                     const extractedUser = userMatch?.[1];
                     
                     return (
-                        <div className="flex flex-wrap items-center gap-1.5">
+                        <div className="inline-flex items-center gap-1.5">
                             <Tooltip content={`Type de service : ${serviceType}`}>
                                 <span className="px-1.5 py-0.5 rounded text-xs bg-orange-500/20 text-orange-300 font-medium cursor-help">
                                     {serviceType}
@@ -503,7 +498,7 @@ export const LogTable: React.FC<LogTableProps> = ({
                                     </span>
                                 </Tooltip>
                             )}
-                            <span className="text-gray-300 text-sm whitespace-normal break-words">{messageValue}</span>
+                            <span className="text-gray-300 text-sm">{messageValue}</span>
                         </div>
                     );
                 }
@@ -588,7 +583,7 @@ export const LogTable: React.FC<LogTableProps> = ({
                 const content = (
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, maxWidth: '100%' }}>
                         <span
-                            className={`font-mono text-xs px-1.5 py-0.5 rounded truncate block ${hasMenu ? 'cursor-pointer hover:ring-1 hover:ring-amber-500/50' : 'cursor-help'}`}
+                            className={`font-mono text-xs px-1.5 py-0.5 rounded ${hasMenu ? 'cursor-pointer hover:ring-1 hover:ring-amber-500/50' : 'cursor-help'}`}
                             style={ipStyle}
                             onClick={hasMenu ? (e) => {
                                 e.stopPropagation();
@@ -857,7 +852,7 @@ export const LogTable: React.FC<LogTableProps> = ({
                         const upstreamDisplay = truncateIPv6ForDisplay(upstreamValue);
                         return (
                             <Tooltip content={upstreamValue} wrap>
-                                <span className="cursor-help truncate block max-w-full">
+                                <span className="cursor-help">
                                     <LogBadge type="upstream" value={upstreamDisplay} />
                                 </span>
                             </Tooltip>
@@ -866,24 +861,24 @@ export const LogTable: React.FC<LogTableProps> = ({
                     return <span className="text-gray-600 italic">-</span>;
                 }
 
-                // Truncate long columns with tooltip (single line, no overlap)
+                // Long-text columns: single line, cell handles horizontal overflow
                 if (['referer', 'useragent', 'user-agent'].includes(column.toLowerCase())) {
                     const str = String(value);
                     const columnLabel = column.toLowerCase() === 'referer' ? 'Referer' : 'User-Agent';
                     return (
                         <Tooltip content={`${columnLabel} : ${str}`}>
-                            <span className="text-gray-300 cursor-help block truncate min-w-0" title={str}>
+                            <span className="text-gray-300 cursor-help" title={str}>
                                 {str}
                             </span>
                         </Tooltip>
                     );
                 }
-                
+
                 if (column === 'url' || column === 'urlPath') {
                     const str = String(value);
                     return (
                         <Tooltip content={`URL complète : ${str}`}>
-                            <span className="text-gray-300 cursor-help block truncate min-w-0" title={str}>
+                            <span className="text-gray-300 cursor-help" title={str}>
                                 {str}
                             </span>
                         </Tooltip>
@@ -1103,39 +1098,17 @@ export const LogTable: React.FC<LogTableProps> = ({
                     </div>
                 </div>
             ) : (
-            <table className="w-full border-collapse table-fixed" data-log-type={logType}>
-                <colgroup>
-                    {(() => {
-                        // table-fixed + w-full: if no column has width:auto, the leftover space
-                        // is distributed proportionally across ALL columns — inflating fixed-size
-                        // ones like `timestamp` on wide screens (most visible on apache access,
-                        // which has the smallest column-width sum among access logs).
-                        // Pick a single absorbing column by priority so the rest stay at their
-                        // declared widths.
-                        const cols = orderedColumns.map(c => c.toLowerCase());
-                        const absorbPriority = ['message', 'useragent', 'user-agent', 'referer', 'url', 'urlpath'];
-                        const absorbIdx = (() => {
-                            for (const candidate of absorbPriority) {
-                                const i = cols.indexOf(candidate);
-                                if (i !== -1) return i;
-                            }
-                            return cols.length - 1;
-                        })();
-                        return orderedColumns.map((col, idx) => {
-                            const width = idx === absorbIdx ? 'auto' : (COLUMN_WIDTHS[col.toLowerCase()] || '120px');
-                            return <col key={col} style={{ width }} />;
-                        });
-                    })()}
-                </colgroup>
+            <table className="w-full border-collapse" data-log-type={logType}>
                 <thead>
                     <tr className="bg-[#0a0a0a] border-b border-gray-800">
-                        {orderedColumns.map((col) => (
+                        {orderedColumns.map((col, idx) => (
                             <SortableHeader
                                 key={col}
                                 column={col}
                                 sortConfig={sortConfig}
                                 onSort={handleSort}
                                 logType={logType}
+                                isLast={idx === orderedColumns.length - 1}
                             />
                         ))}
                     </tr>
@@ -1147,40 +1120,33 @@ export const LogTable: React.FC<LogTableProps> = ({
                             <tr
                                 key={index}
                                 className={`transition-colors ${
-                                    isUnparsed 
-                                        ? 'bg-red-500/5 hover:bg-red-500/10 opacity-70' 
-                                        : 'hover:bg-[#1a1a1a]'
+                                    isUnparsed
+                                        ? 'bg-red-500/5 hover:bg-red-500/10 opacity-70'
+                                        : 'odd:bg-[#1a1f27] hover:bg-[#262c36]'
                                 }`}
                             >
-                                {orderedColumns.map((col) => {
+                                {orderedColumns.map((col, idx) => {
                                     // Unified padding for all logTypes
-                                    const cellPadding = 'px-4 py-3';
+                                    const cellPadding = 'px-4 py-1.5';
+                                    const isLast = idx === orderedColumns.length - 1;
                                     return (
                                     <td
                                         key={col}
                                         className={`${cellPadding} text-sm border-r border-gray-800 last:border-r-0 ${
-                                            isUnparsed 
-                                                ? 'text-gray-500 italic' 
-                                                : ''
-                                        } ${
-                                            col === 'message' || col === 'tag'
-                                                ? 'whitespace-normal break-words'
-                                                : ['referer', 'userAgent', 'user-agent', 'url', 'urlPath'].includes(col)
-                                                ? 'overflow-hidden min-w-0'
-                                                : col === 'timestamp' || col === 'date' || col === 'time'
-                                                ? 'whitespace-nowrap'
-                                                : 'whitespace-nowrap'
+                                            isUnparsed ? 'text-gray-500 italic' : ''
                                         }`}
-                                        style={['referer', 'userAgent', 'user-agent'].includes(col) ? { minWidth: 0, overflow: 'hidden' } : undefined}
+                                        style={getColumnStyle(isLast)}
                                     >
-                                        {col === 'message' && isUnparsed ? (
-                                            <span className="flex items-center gap-2">
-                                                <span className="text-xs text-red-500/70">⚠</span>
-                                                {formatCellValue(log, col)}
-                                            </span>
-                                        ) : (
-                                            formatCellValue(log, col)
-                                        )}
+                                        <div style={getCellWrapperStyle(col)}>
+                                            {col === 'message' && isUnparsed ? (
+                                                <span className="inline-flex items-center gap-2">
+                                                    <span className="text-xs text-red-500/70">⚠</span>
+                                                    {formatCellValue(log, col)}
+                                                </span>
+                                            ) : (
+                                                formatCellValue(log, col)
+                                            )}
+                                        </div>
                                     </td>
                                     );
                                 })}

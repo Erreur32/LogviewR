@@ -294,6 +294,32 @@ function writeIniValue(filePath: string, key: string, value: string): void {
     fs.writeFileSync(filePath, lines.join('\n'), 'utf8');
 }
 
+/**
+ * Parse fail2ban.log Found lines and aggregate by jail:ip. Used by both
+ * /failing-ips (last 5 min, banned IPs excluded) and /audit/attempts (configurable window).
+ * fail2ban.log format: "TIMESTAMP,ms fail2ban.filter [PID]: LEVEL [JAIL] Found IP - …"
+ * The PID bracket comes BEFORE the jail bracket, so .*? non-greedy skips past it.
+ */
+const FOUND_RE = /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})(?:[,.]\d+)?.*?\[([^\]]+)\]\s+Found\s+([\d.:a-fA-F]+)/;
+
+interface FoundAgg { jail: string; ip: string; count: number; lastSeen: number }
+
+function parseFoundLines(logContent: string, cutoffSeconds: number): Map<string, FoundAgg> {
+    const map = new Map<string, FoundAgg>();
+    for (const line of logContent.split(/\r?\n/)) {
+        const m = FOUND_RE.exec(line);
+        if (!m) continue;
+        const [, tsStr, jail, ip] = m;
+        const ts = Math.floor(new Date(tsStr.replace(' ', 'T')).getTime() / 1000);
+        if (ts < cutoffSeconds) continue;
+        const key = `${jail}:${ip}`;
+        const ex = map.get(key);
+        if (ex) { ex.count++; if (ts > ex.lastSeen) ex.lastSeen = ts; }
+        else map.set(key, { jail, ip, count: 1, lastSeen: ts });
+    }
+    return map;
+}
+
 function readLogTail(absPath: string, maxLines: number): { content: string; truncated: boolean; bytes: number } {
     const stat = fs.statSync(absPath);
     const size = stat.size;
@@ -495,6 +521,14 @@ export class Fail2banPlugin extends BasePlugin {
             logger.warn('Fail2ban', 'fail2ban-client or socket not available — actions disabled');
         }
         logger.info('Fail2ban', `Started. DB: ${dbPath} | Socket: ${SOCKET_PATH}`);
+    }
+
+    async stop(): Promise<void> {
+        this.syncService?.stop();
+        this.syncService = null;
+        this.blocklistService?.stopAutoRefresh();
+        this.blocklistService = null;
+        await super.stop();
     }
 
     async getStats(): Promise<PluginStats> {
@@ -2022,11 +2056,8 @@ export class Fail2banPlugin extends BasePlugin {
                 return res.json({ success: true, result: _empty });
             }
 
-            // Parse: "2025-01-15 12:34:56,789 fail2ban.filter ... [sshd] Found 1.2.3.4 - ..."
-            const foundRe = /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})[,.]?\d*\s+\S+\s+\[([^\]]+)\]\s+Found\s+([\d.a-f:]+)/i;
-            const failMap = new Map<string, { jail: string; ip: string; count: number; lastSeen: number }>();
-
-            // Exclude already-banned IPs
+            // Exclude already-banned IPs — this endpoint specifically surfaces
+            // attempts that haven't (yet) crossed the maxretry threshold.
             let bannedSet = new Set<string>();
             try {
                 const evDb  = getDatabase();
@@ -2037,20 +2068,9 @@ export class Fail2banPlugin extends BasePlugin {
                 bannedSet = new Set(bans.map(b => b.ip));
             } catch { /* ignore */ }
 
-            for (const line of logContent.split(/\r?\n/)) {
-                const m = foundRe.exec(line);
-                if (!m) continue;
-                const [, tsStr, jail, ip] = m;
-                const ts = Math.floor(new Date(tsStr.replace(' ', 'T')).getTime() / 1000);
-                if (ts < cutoff) continue;
-                if (bannedSet.has(ip)) continue;
-                const key = `${jail}:${ip}`;
-                const existing = failMap.get(key);
-                if (existing) { existing.count++; if (ts > existing.lastSeen) existing.lastSeen = ts; }
-                else failMap.set(key, { jail, ip, count: 1, lastSeen: ts });
-            }
-
-            const ips = [...failMap.values()].sort((a, b) => b.lastSeen - a.lastSeen || b.count - a.count);
+            const ips = [...parseFoundLines(logContent, cutoff).values()]
+                .filter(x => !bannedSet.has(x.ip))
+                .sort((a, b) => b.lastSeen - a.lastSeen || b.count - a.count);
             const _fResult = { ok: true, ips };
             this._cachePut('failing-ips', _fResult);
             res.json({ success: true, result: _fResult });
@@ -2467,16 +2487,17 @@ export class Fail2banPlugin extends BasePlugin {
             const evDb    = getDatabase();
             const allTime = daysParam <= 0;
             const since   = allTime ? 0 : Math.floor(Date.now() / 1000) - daysParam * 86400;
-            let bans: { ip: string; jail: string; timeofban: number; bantime: number; failures: number; domain: string }[];
+            let bans: { ip: string; jail: string; timeofban: number; bantime: number; failures: number; domain: string; unban_at: number | null }[];
+            const cols = `ip, jail, timeofban, bantime, failures, COALESCE(domain,'') as domain, unban_at`;
             if (jailFilter) {
                 bans = (allTime
-                    ? evDb.prepare(`SELECT ip, jail, timeofban, bantime, failures, COALESCE(domain,'') as domain FROM f2b_events WHERE event_type='ban' AND jail=? ORDER BY timeofban DESC LIMIT ?`).all(jailFilter, limit)
-                    : evDb.prepare(`SELECT ip, jail, timeofban, bantime, failures, COALESCE(domain,'') as domain FROM f2b_events WHERE event_type='ban' AND jail=? AND timeofban >= ? ORDER BY timeofban DESC LIMIT ?`).all(jailFilter, since, limit)
+                    ? evDb.prepare(`SELECT ${cols} FROM f2b_events WHERE event_type='ban' AND jail=? ORDER BY timeofban DESC LIMIT ?`).all(jailFilter, limit)
+                    : evDb.prepare(`SELECT ${cols} FROM f2b_events WHERE event_type='ban' AND jail=? AND timeofban >= ? ORDER BY timeofban DESC LIMIT ?`).all(jailFilter, since, limit)
                 ) as typeof bans;
             } else {
                 bans = (allTime
-                    ? evDb.prepare(`SELECT ip, jail, timeofban, bantime, failures, COALESCE(domain,'') as domain FROM f2b_events WHERE event_type='ban' ORDER BY timeofban DESC LIMIT ?`).all(limit)
-                    : evDb.prepare(`SELECT ip, jail, timeofban, bantime, failures, COALESCE(domain,'') as domain FROM f2b_events WHERE event_type='ban' AND timeofban >= ? ORDER BY timeofban DESC LIMIT ?`).all(since, limit)
+                    ? evDb.prepare(`SELECT ${cols} FROM f2b_events WHERE event_type='ban' ORDER BY timeofban DESC LIMIT ?`).all(limit)
+                    : evDb.prepare(`SELECT ${cols} FROM f2b_events WHERE event_type='ban' AND timeofban >= ? ORDER BY timeofban DESC LIMIT ?`).all(since, limit)
                 ) as typeof bans;
             }
 
@@ -2815,6 +2836,45 @@ export class Fail2banPlugin extends BasePlugin {
                 logFilesTotal: totalLogFiles,
                 logFilesShown: totalLogFiles,
             }});
+        }));
+
+        // GET /audit/attempts  — historique des tentatives (Found events) depuis fail2ban.log.
+        // Appelé uniquement par l'UI quand le filtre "tentatives" est activé
+        // (pas de fetch par défaut → zéro coût tant que l'utilisateur n'active pas ce filtre).
+        router.get('/audit/attempts', requireAuth, asyncHandler(async (req, res) => {
+            if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
+            const days  = Math.max(1, Math.min(Number.parseInt(String(req.query.days  ?? '1'),  10), 30));
+            const limit = Math.min(Number.parseInt(String(req.query.limit ?? '200'), 10), 500);
+
+            // TTL cache 30s — aligned with /audit polling
+            const cacheKey = `audit:attempts:${days}:${limit}`;
+            const cached = this._cachePeek<unknown>(cacheKey, 30_000);
+            if (cached) return res.json({ success: true, result: cached });
+
+            const logPath = this.resolveDockerPathSync('/var/log/fail2ban.log');
+            const cutoff  = Math.floor(Date.now() / 1000) - days * 86400;
+
+            let logContent = '';
+            try {
+                fs.accessSync(logPath, fs.constants.R_OK);
+                // 50k lines ≈ ~5 MB, enough for a few days on typical setups;
+                // older lines are rotated to fail2ban.log.1 (not read here).
+                logContent = readLogTail(logPath, 50_000).content;
+            } catch {
+                const empty = { ok: true, attempts: [] };
+                this._cachePut(cacheKey, empty);
+                return res.json({ success: true, result: empty });
+            }
+
+            // BanEntry-shaped output so the frontend can reuse the events table renderer.
+            const attempts = [...parseFoundLines(logContent, cutoff).values()]
+                .map(x => ({ jail: x.jail, ip: x.ip, failures: x.count, timeofban: x.lastSeen }))
+                .sort((a, b) => b.timeofban - a.timeofban)
+                .slice(0, limit);
+
+            const result = { ok: true, attempts };
+            this._cachePut(cacheKey, result);
+            res.json({ success: true, result });
         }));
 
         // GET /audit/internal  — historique bans depuis la DB interne (dashboard.db)
