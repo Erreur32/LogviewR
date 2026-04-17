@@ -4,7 +4,7 @@
  * Plugin for reading Apache access and error logs
  */
 
-import { BasePlugin, type ExcludeFilters } from '../base/BasePlugin.js';
+import { BasePlugin, tryAddMatchedFile, type ExcludeFilters } from '../base/BasePlugin.js';
 import { ApacheParser } from './ApacheParser.js';
 import type { LogSourcePlugin, LogFileInfo, ParsedLogEntry } from '../base/LogSourcePluginInterface.js';
 import type { PluginStats } from '../base/PluginInterface.js';
@@ -54,26 +54,6 @@ export class ApacheLogPlugin extends BasePlugin implements LogSourcePlugin {
         return this.shouldExcludeByFilters(filePath, entryName, isDirectory, config?.excludeFilters);
     }
 
-    private async tryAddMatchedFile(
-        fullPath: string,
-        entryName: string,
-        regexPatterns: RegExp[],
-        results: LogFileInfo[]
-    ): Promise<void> {
-        if (!regexPatterns.some(regex => regex.test(entryName))) return;
-        try {
-            const stats = await fs.stat(fullPath);
-            results.push({
-                path: fullPath,
-                type: this.determineLogType(fullPath),
-                size: stats.size,
-                modified: stats.mtime
-            });
-        } catch {
-            // Skip files we can't access
-        }
-    }
-
     async scanLogFiles(basePath: string, patterns: string[]): Promise<LogFileInfo[]> {
         const results: LogFileInfo[] = [];
         const actualBasePath = this.resolveDockerPathSync(basePath);
@@ -91,7 +71,7 @@ export class ApacheLogPlugin extends BasePlugin implements LogSourcePlugin {
                         if (entry.isDirectory()) {
                             await scanDirectory(fullPath);
                         } else if (entry.isFile()) {
-                            await this.tryAddMatchedFile(fullPath, entry.name, regexPatterns, results);
+                            await tryAddMatchedFile(fullPath, entry.name, regexPatterns, results, p => this.determineLogType(p));
                         }
                     }
                 } catch {

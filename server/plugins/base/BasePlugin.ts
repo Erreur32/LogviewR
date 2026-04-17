@@ -5,9 +5,37 @@
  */
 
 import type { IPlugin, PluginConfig, PluginStats } from './PluginInterface.js';
+import type { LogFileInfo } from './LogSourcePluginInterface.js';
+import * as fs from 'node:fs/promises';
 import * as fsSync from 'node:fs';
 import { logger } from '../../utils/logger.js';
 import { globToRegex } from '../../utils/globToRegex.js';
+
+/**
+ * Stat a file and push a LogFileInfo entry into `results` if its name matches
+ * any of `regexPatterns`. Swallows stat errors (unreadable files are skipped).
+ * Shared by Apache/Nginx/NPM log source plugins.
+ */
+export async function tryAddMatchedFile(
+    fullPath: string,
+    entryName: string,
+    regexPatterns: RegExp[],
+    results: LogFileInfo[],
+    determineLogType: (path: string) => string
+): Promise<void> {
+    if (!regexPatterns.some(regex => regex.test(entryName))) return;
+    try {
+        const stats = await fs.stat(fullPath);
+        results.push({
+            path: fullPath,
+            type: determineLogType(fullPath),
+            size: stats.size,
+            modified: stats.mtime,
+        });
+    } catch {
+        // Skip files we can't access
+    }
+}
 
 /** Shared exclude filter shape used by all log source plugins */
 export interface ExcludeFilters {

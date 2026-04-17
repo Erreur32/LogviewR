@@ -11,6 +11,11 @@ import type { ParsedLogEntry } from '../base/LogSourcePluginInterface.js';
 import { buildSyslogPattern, parseGrokPattern } from './GrokPatterns.js';
 import { parseTimestamp } from './TimestampParser.js';
 
+/** Upper bound on a single log line before regex parsing — prevents pathological ReDoS
+ *  input from propagating through downstream patterns. Real mail log lines are well
+ *  under this size; anything larger is returned as-is. */
+const MAX_LINE_LENGTH = 10_000;
+
 export class MailLogParser {
     /**
      * Parse a mail log line
@@ -37,6 +42,8 @@ export class MailLogParser {
 
     static parseMailLine(line: string): ParsedLogEntry | null {
         if (!line || line.trim().length === 0) return null;
+        // ReDoS guard (S5852): cap input before running the parsing regexes below.
+        if (line.length > MAX_LINE_LENGTH) return { message: line.slice(0, MAX_LINE_LENGTH), level: 'info' };
 
         // Try ISO8601 format first: 2026-01-03T00:16:25.101453+01:00 hostname service: message
         const iso8601Match = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?)\s+(.+)$/.exec(line);
