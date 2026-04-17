@@ -22,6 +22,7 @@ import { BlocklistService } from './BlocklistService.js';
 import { Fail2banSyncService } from '../../services/fail2banSyncService.js';
 import { asyncHandler, createError } from '../../middleware/errorHandler.js';
 import { requireAuth } from '../../middleware/authMiddleware.js';
+import expressRateLimit from 'express-rate-limit';
 import { getDatabase } from '../../database/connection.js';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -325,6 +326,20 @@ function parseFoundLines(logContent: string, cutoffSeconds: number): Map<string,
     }
     return map;
 }
+
+/**
+ * Shared rate limiter for expensive audit endpoints (DB scans + log parsing).
+ * 30 req/min/IP — well above legitimate UI usage (UI polls /audit every 30s and
+ * fetches /audit/attempts once per filter activation + 30s cache after that),
+ * but cuts off any authenticated-user abuse.
+ */
+const auditRateLimit = expressRateLimit({
+    windowMs: 60_000,
+    max: 30,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, error: { code: 'RATE_LIMITED', message: 'Too many requests' } },
+});
 
 function readLogTail(absPath: string, maxLines: number): { content: string; truncated: boolean; bytes: number } {
     const stat = fs.statSync(absPath);
@@ -2483,7 +2498,7 @@ export class Fail2banPlugin extends BasePlugin {
             res.json({ success: true, result: this.syncService?.getStatus() ?? { phase: 'idle', message: '', detail: '', progress: -1, updatedAt: 0 } });
         });
 
-        router.get('/audit', requireAuth, asyncHandler(async (req, res) => {
+        router.get('/audit', auditRateLimit, requireAuth, asyncHandler(async (req, res) => {
             if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
             const limit      = Math.min(Number.parseInt(String(req.query.limit ?? '200'), 10), 1000);
             const daysParam  = Number.parseInt(String(req.query.days  ?? '0'),  10);
@@ -2847,7 +2862,7 @@ export class Fail2banPlugin extends BasePlugin {
         // GET /audit/attempts  — historique des tentatives (Found events) depuis fail2ban.log.
         // Appelé uniquement par l'UI quand le filtre "tentatives" est activé
         // (pas de fetch par défaut → zéro coût tant que l'utilisateur n'active pas ce filtre).
-        router.get('/audit/attempts', requireAuth, asyncHandler(async (req, res) => {
+        router.get('/audit/attempts', auditRateLimit, requireAuth, asyncHandler(async (req, res) => {
             if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
             const days  = Math.max(1, Math.min(Number.parseInt(String(req.query.days  ?? '1'),  10), 30));
             const limit = Math.min(Number.parseInt(String(req.query.limit ?? '200'), 10), 500);
