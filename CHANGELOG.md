@@ -5,6 +5,36 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-04-18
+
+### For users
+
+- **Page rename: `Stats Logs` → `LogAnalytics`** — the URL changes from `/goaccess` to `/log-analytics`. Old bookmarks will land on the dashboard. The page no longer carries the `GoAccess` naming since it never used the external GoAccess binary (pure custom React + backend aggregator).
+- **LogAnalytics Graphs tab — 2 new fixed 12-month charts** — "Request heatmap" (calendar, GitHub-contributions style) and "Traffic by day of week" now always show the last 12 months, independent of the period selector at the top. Cells in the calendar heatmap auto-resize to fit your screen width (no more horizontal scroll). A `12 MOIS` badge flags these charts so you know they ignore the selector.
+- **Hour × Day heatmap — also fixed 12-month** (with `SEMAINE` toggle for last-7-days live view). Always filled with data if logs go back at least a year.
+- **Peak Hours chart — now works on 7d / 30d periods** — previously showed a single bar at midnight on those ranges because the timeline bucket was `day` and the chart extracted hours from day-level labels. A dedicated hour-of-day aggregation is now computed server-side.
+- **Toggle `24H LIVE` on Peak Hours and Day-of-Week charts** — instantly swap to the last-24h slice (derived from the same 12-month fetch, no extra round-trip). Badges show `LIVE 24H` / `LIVE SEMAINE` when active.
+- **HTTP Codes panel — more readable when values span orders of magnitude** — when one code (e.g. 200 with 200k hits) dwarfs others (e.g. 500 with 100 hits), bars now use a square-root scale so the small ones remain visible. Hit/visitor counts are moved outside the colored bar so they're always readable, even on tiny bars. A discreet `√` badge indicates when the adaptive scale is active.
+- **Dashboard log search — finds recent IPs again** — the search was reading the first 5000 lines of each log file; on busy sites this missed everything after ~1 hour of traffic. Now tail-reads (last N lines, scaled with the chosen period: 10k / 50k / 200k / 500k) and auto-includes rotated `.gz` files for periods > 24h. Results now also show the plugin icon and — for Apache/NPM — the matched vhost/domain.
+- **Dashboard log search — clear button (×)** inside the input, visible only when there's text.
+- **LogAnalytics plugin selector — smarter** — auto-selects the first enabled log-source plugin if the current one is disabled. The "All" label now lists actually-enabled plugins (e.g. `Tous (NPM)` instead of the hard-coded `Tous (NPM + Apache)`).
+- **Log search is ~3-5× faster on large setups** — plugins now scan in parallel and Fail2ban ban lookups go through an indexed SQL WHERE (instead of loading 50 000 rows and filtering in JS).
+
+### Technical
+
+- **URL / routing** — `pathToPage()` now matches `/log-analytics` *before* `/log` (prefix collision bug — `/log-analytics`.startsWith(`/log`) was eating it and routing to the log-viewer page).
+- **New endpoint `GET /api/log-viewer/analytics/calendar`** — returns 365-day day-bucket data + 7×24 hour-day grid + last-24h slice + last-7d hour-day grid in a single pass. Forces `includeCompressed=true` to include rotated `.gz` files. Uses `{ success, result }` envelope (with `{ ok: false, error }` on failure, not bare 500).
+- **`server/services/logAnalyticsService.ts`** — `collectParsedEntries()` now uses `logReaderService.readLastLines()` + per-line `parseLogLine()` instead of `parseLogFile({fromLine:0})` (was reading from the wrong end of the file). Per-file tail cap scales with the requested period: 10k / 50k / 200k / 500k. `getCalendarAnalytics()` aggregates `fullHourDayGrid`, `live7dHourDayGrid`, `live24hHourOfDay`, `live24hDayOfWeek` in a single loop over entries (was 7 separate passes). `computeCalendarStats` split into `summarizeBuckets` + `emptyCalendarStats` + `dayOfWeekIdx` helpers (cognitive complexity 17 → ~8).
+- **`server/services/logSearchService.ts`** — plugins run in parallel via `Promise.all`. Fail2ban literal queries use `WHERE ip LIKE ? OR jail LIKE ? LIMIT 50000` (was a full 50k scan in JS). Per-plugin config cached once per search. Extracted `buildTestFn`, `searchFail2ban`, `resolveFilesForPlugin`, `searchOneFile`, `searchLogSourcePlugin`, `resolveTargetPlugins`. New `LogSearchMatch.domain` optional field populated via the plugin's own `parseLogLine()` for Apache vhost / NPM host.
+- **`server/plugins/fail2ban/Fail2banPlugin.ts`** — regex construction in the `failregex` test endpoint now uses `compileSafeRegex()` (rejects ReDoS via `safe-regex2`) and is compiled once per pattern instead of once per line × pattern. `[0-9]` → `\d` for conciseness (CodeQL S6353).
+- **`src/pages/LogAnalyticsPage.tsx`** — renamed from `GoAccessStyleStatsPage.tsx`. `fetchAnalytics` complexity 23 → ~12 via extracted `resetAnalyticsState` helper (was duplicated across 3 branches) + module-level `resolveDateRange` + `bucketForCustomRange`. Component badges (`SectionHeading`, `SourceBadge`, `PeriodBadge`, `FixedWindowBadge`, `LiveToggle`) moved out of the parent component (no more re-creation on every render). New `useEffect` that auto-selects a valid plugin when the current one becomes disabled. `TimeRangeKey` + `BucketKey` type aliases extracted. Calendar fetch uses `api.get` with the shared envelope (was raw `fetch`).
+- **`src/components/widgets/HeatmapChart.tsx`** — `ResizeObserver` → dynamic cell size (clamp 4-14 px) so the 12-month grid fits any container width. rAF-coalesced updates + 2 px threshold to avoid re-render storms during window drag. `onMouseMove` callback chain unnested from 5 levels deep to 3 (extracted `cellFill` / `buildCellTooltip` / `renderCell` helpers).
+- **`src/components/widgets/DualBarChart.tsx`** — single-pass `useMemo` computing scale + totals + `useSqrtScale` (was recomputed on every hover). Count/visitors text rendered outside the colored bar with a minimum text-column width, so the number stays readable even at 1 px bar width.
+- **i18n** — entire `goaccessStats.*` namespace (~100 keys) renamed to `logAnalytics.*` in `fr.json` and `en.json`. `pluginAll` reduced to just `"Tous"` / `"All"` (the dynamic `(NPM + Apache)` suffix is now computed client-side from the actually-enabled plugins). Added `common.clear`.
+- **`Doc_Dev/` cleanup** — removed 24 obsolete documents (legacy ViewerLog era: Freebox / UniFi / network-scan / MAC-vendor / dated audit snapshots / cursor chat dumps / port-drift docs superseded by current ones). 13 remaining docs updated for the current project naming (viewerlog → logviewr) and ports (3003/5173 → 3005/5175).
+
+---
+
 ## [0.8.56] - 2026-04-17
 
 ### For users
