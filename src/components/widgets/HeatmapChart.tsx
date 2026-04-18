@@ -135,6 +135,44 @@ export const HeatmapChart: React.FC<HeatmapChartProps> = ({
     const svgWidth  = labelW + weeks * step + padRight;
     const svgHeight = topPad + 7 * step + 4;
 
+    const cellFill = (cell: WeekCell, ratio: number): string =>
+        cell.count === 0 ? '#1f2937' : `rgba(${cellRgb},${(0.15 + ratio * 0.85).toFixed(2)})`;
+
+    const buildCellTooltip = (cell: WeekCell, ratio: number): React.ReactNode => (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '.18rem' }}>
+            <div style={{ fontWeight: 700, color: accentColor, fontSize: '.85rem' }}>
+                {cell.date.toLocaleDateString('default', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
+            </div>
+            <div style={{ fontSize: '.78rem', color: '#e6edf3' }}>
+                {cell.count} {requestsLabel.toLowerCase()}
+            </div>
+            {cell.count > 0 && total > 0 && (
+                <div style={{ fontSize: '.7rem', color: '#6b7280' }}>
+                    {Math.round(ratio * 100)}% du maximum
+                </div>
+            )}
+            {cell.count === 0 && (
+                <div style={{ fontSize: '.7rem', color: '#6b7280' }}>Aucune activité</div>
+            )}
+        </div>
+    );
+
+    const renderCell = (cell: WeekCell, i: number) => {
+        const ratio = maxCount > 0 ? cell.count / maxCount : 0;
+        const content = buildCellTooltip(cell, ratio);
+        return (
+            <rect key={i}
+                x={labelW + cell.weekIdx * step}
+                y={topPad + cell.dayOfWeek * step}
+                width={cellSize} height={cellSize} rx={2}
+                fill={cellFill(cell, ratio)}
+                style={{ cursor: cell.count > 0 ? 'default' : undefined }}
+                onMouseMove={(e) => setTip({ x: e.clientX, y: e.clientY, content })}
+                onMouseLeave={() => setTip(null)}
+            />
+        );
+    };
+
     return (
         <div ref={containerRef}>
             <svg width={svgWidth} height={svgHeight} className="block">
@@ -154,40 +192,7 @@ export const HeatmapChart: React.FC<HeatmapChartProps> = ({
                         </text>
                     ) : null
                 )}
-                {cells.map((cell, i) => {
-                    const ratio = maxCount > 0 ? cell.count / maxCount : 0;
-                    const bg = cell.count === 0
-                        ? '#1f2937'
-                        : `rgba(${cellRgb},${(0.15 + ratio * 0.85).toFixed(2)})`;
-                    return (
-                        <rect key={i}
-                            x={labelW + cell.weekIdx * step}
-                            y={topPad + cell.dayOfWeek * step}
-                            width={cellSize} height={cellSize} rx={2}
-                            fill={bg}
-                            style={{ cursor: cell.count > 0 ? 'default' : undefined }}
-                            onMouseMove={e => setTip({ x: e.clientX, y: e.clientY, content: (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '.18rem' }}>
-                                    <div style={{ fontWeight: 700, color: accentColor, fontSize: '.85rem' }}>
-                                        {cell.date.toLocaleDateString('default', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
-                                    </div>
-                                    <div style={{ fontSize: '.78rem', color: '#e6edf3' }}>
-                                        {cell.count} {requestsLabel.toLowerCase()}
-                                    </div>
-                                    {cell.count > 0 && total > 0 && (
-                                        <div style={{ fontSize: '.7rem', color: '#6b7280' }}>
-                                            {Math.round(ratio * 100)}% du maximum
-                                        </div>
-                                    )}
-                                    {cell.count === 0 && (
-                                        <div style={{ fontSize: '.7rem', color: '#6b7280' }}>Aucune activité</div>
-                                    )}
-                                </div>
-                            )})}
-                            onMouseLeave={() => setTip(null)}
-                        />
-                    );
-                })}
+                {cells.map((cell, i) => renderCell(cell, i))}
             </svg>
 
             {/* legend */}

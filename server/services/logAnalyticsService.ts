@@ -1024,42 +1024,60 @@ function computeDayOfWeek(entries: ParsedAccessEntry[]): number[] {
     return days;
 }
 
-function computeCalendarStats(buckets: AnalyticsCalendarBucket[]): AnalyticsCalendarStats {
-    if (buckets.length === 0) {
-        return {
-            total: 0, totalVisitors: 0, avgPerDay: 0,
-            peakDayOfWeekIdx: 0, peakDayOfWeekCount: 0,
-            peakDayLabel: null, peakDayCount: 0, activeDays: 0,
-            firstDay: null, lastDay: null
-        };
-    }
+interface ActiveBucketsSummary {
+    total: number;
+    totalVisitors: number;
+    activeDays: number;
+    peakDayLabel: string | null;
+    peakDayCount: number;
+    firstDay: string | null;
+    lastDay: string | null;
+    dowCounts: number[];
+}
 
-    const dowCounts = [0, 0, 0, 0, 0, 0, 0];
-    let total = 0;
-    let activeDays = 0;
-    let peakDayLabel: string | null = null;
-    let peakDayCount = 0;
-    let firstDay: string | null = null;
-    let lastDay: string | null = null;
-    // Approximate totalVisitors as sum of daily uniques — true global uniqueness would need the raw entries.
-    let totalVisitors = 0;
+function emptyCalendarStats(): AnalyticsCalendarStats {
+    return {
+        total: 0, totalVisitors: 0, avgPerDay: 0,
+        peakDayOfWeekIdx: 0, peakDayOfWeekCount: 0,
+        peakDayLabel: null, peakDayCount: 0, activeDays: 0,
+        firstDay: null, lastDay: null
+    };
+}
 
+function dayOfWeekIdx(isoDate: string): number {
+    const d = new Date(`${isoDate}T00:00:00`);
+    return d.getDay() === 0 ? 6 : d.getDay() - 1;
+}
+
+function summarizeBuckets(buckets: AnalyticsCalendarBucket[]): ActiveBucketsSummary {
+    const summary: ActiveBucketsSummary = {
+        total: 0, totalVisitors: 0, activeDays: 0,
+        peakDayLabel: null, peakDayCount: 0,
+        firstDay: null, lastDay: null,
+        dowCounts: [0, 0, 0, 0, 0, 0, 0]
+    };
     for (const b of buckets) {
-        total += b.count;
-        totalVisitors += b.uniqueVisitors;
-        if (b.count > 0) {
-            activeDays++;
-            if (!firstDay) firstDay = b.label;
-            lastDay = b.label;
-            if (b.count > peakDayCount) {
-                peakDayCount = b.count;
-                peakDayLabel = b.label;
-            }
-            const d = new Date(`${b.label}T00:00:00`);
-            const dow = d.getDay() === 0 ? 6 : d.getDay() - 1;
-            dowCounts[dow] += b.count;
+        summary.total += b.count;
+        // Approximate: sum of daily uniques. True global uniqueness would need the raw entries.
+        summary.totalVisitors += b.uniqueVisitors;
+        if (b.count <= 0) continue;
+        summary.activeDays++;
+        if (!summary.firstDay) summary.firstDay = b.label;
+        summary.lastDay = b.label;
+        if (b.count > summary.peakDayCount) {
+            summary.peakDayCount = b.count;
+            summary.peakDayLabel = b.label;
         }
+        summary.dowCounts[dayOfWeekIdx(b.label)] += b.count;
     }
+    return summary;
+}
+
+function computeCalendarStats(buckets: AnalyticsCalendarBucket[]): AnalyticsCalendarStats {
+    if (buckets.length === 0) return emptyCalendarStats();
+
+    const s = summarizeBuckets(buckets);
+    const { total, totalVisitors, activeDays, peakDayLabel, peakDayCount, firstDay, lastDay, dowCounts } = s;
 
     let peakDayOfWeekIdx = 0;
     let peakDayOfWeekCount = 0;
@@ -1088,13 +1106,13 @@ function computeCalendarStats(buckets: AnalyticsCalendarBucket[]): AnalyticsCale
  * Build a day-bucketed calendar over the window, filling missing days with zero counts
  * so the frontend heatmap always has a contiguous grid.
  */
-function buildCalendarBuckets(entries: ParsedAccessEntry[], fromDate: Date, toDate: Date): AnalyticsCalendarBucket[] {
+function buildCalendarBuckets(entries: ParsedAccessEntry[], fromDate: Date, endDate: Date): AnalyticsCalendarBucket[] {
     const countMap = new Map<string, number>();
     const visitorsMap = new Map<string, Set<string>>();
 
     for (const e of entries) {
-        const d = e.timestamp instanceof Date ? e.timestamp : (typeof e.timestamp === 'string' ? new Date(e.timestamp) : null);
-        if (!d || Number.isNaN(d.getTime())) continue;
+        const d = toDate(e.timestamp);
+        if (!d) continue;
         const key = d.toISOString().slice(0, 10);
         countMap.set(key, (countMap.get(key) ?? 0) + 1);
         if (e.ip) {
@@ -1110,7 +1128,7 @@ function buildCalendarBuckets(entries: ParsedAccessEntry[], fromDate: Date, toDa
     const buckets: AnalyticsCalendarBucket[] = [];
     const day = new Date(fromDate);
     day.setUTCHours(0, 0, 0, 0);
-    const end = new Date(toDate);
+    const end = new Date(endDate);
     end.setUTCHours(0, 0, 0, 0);
     while (day <= end) {
         const key = day.toISOString().slice(0, 10);
@@ -1144,12 +1162,14 @@ export async function getCalendarAnalytics(
     const isLogSourceId = (id: string): id is (typeof LOG_SOURCE_PLUGINS)[number] =>
         (LOG_SOURCE_PLUGINS as readonly string[]).includes(id);
 
-    const pluginIds =
-        !pluginId || pluginId === 'all'
-            ? enabledPluginIds
-            : isLogSourceId(pluginId) && enabledPluginIds.includes(pluginId)
-              ? [pluginId]
-              : [];
+    let pluginIds: string[];
+    if (!pluginId || pluginId === 'all') {
+        pluginIds = enabledPluginIds;
+    } else if (isLogSourceId(pluginId) && enabledPluginIds.includes(pluginId)) {
+        pluginIds = [pluginId];
+    } else {
+        pluginIds = [];
+    }
 
     const { entries, filesAnalyzed } = await collectParsedEntries(
         pluginIds,

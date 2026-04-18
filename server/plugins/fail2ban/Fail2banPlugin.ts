@@ -1489,10 +1489,10 @@ export class Fail2banPlugin extends BasePlugin {
             const rawPatterns = failregex.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'));
 
             // Compile once per pattern (not per line × pattern).
-            const HOST_RE = /(?:[0-9]{1,3}\.){3}[0-9]{1,3}|[0-9a-fA-F:]{2,39}/;
+            const HOST_RE = /(?:\d{1,3}\.){3}\d{1,3}|[\da-fA-F:]{2,39}/;
             const compiled: { pattern: string; re: RegExp }[] = [];
             for (const pat of rawPatterns) {
-                const jsPatStr = pat.replaceAll('<HOST>', '(?:[0-9]{1,3}\\.){3}[0-9]{1,3}|[0-9a-fA-F:]{2,39}');
+                const jsPatStr = pat.replaceAll('<HOST>', '(?:\\d{1,3}\\.){3}\\d{1,3}|[\\da-fA-F:]{2,39}');
                 try {
                     compiled.push({ pattern: pat, re: compileSafeRegex(jsPatStr) });
                 } catch { /* invalid or unsafe regex — pattern is dropped */ }

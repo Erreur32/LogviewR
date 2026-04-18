@@ -71,6 +71,100 @@ function formatBytes(bytes: number): string {
     return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
 }
 
+type TimeRangeKey = '1h' | '24h' | '7d' | '30d' | 'custom';
+
+function bucketForCustomRange(rangeMs: number): 'minute' | 'hour' | 'day' {
+    if (rangeMs <= 2 * 60 * 60 * 1000) return 'minute';
+    if (rangeMs <= 48 * 60 * 60 * 1000) return 'hour';
+    return 'day';
+}
+
+function resolveDateRange(timeRange: TimeRangeKey, customFrom: string, customTo: string): { from: Date; to: Date; bucketHour: 'minute' | 'hour' | 'day' } {
+    const to = new Date();
+    switch (timeRange) {
+        case '1h':
+            return { from: new Date(to.getTime() - 60 * 60 * 1000), to, bucketHour: 'minute' };
+        case '24h':
+            return { from: new Date(to.getTime() - 24 * 60 * 60 * 1000), to, bucketHour: 'hour' };
+        case '7d':
+            return { from: new Date(to.getTime() - 7 * 24 * 60 * 60 * 1000), to, bucketHour: 'day' };
+        case '30d':
+            return { from: new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000), to, bucketHour: 'day' };
+        default: {
+            const from = new Date(customFrom);
+            const toCustom = new Date(customTo);
+            return { from, to: toCustom, bucketHour: bucketForCustomRange(toCustom.getTime() - from.getTime()) };
+        }
+    }
+}
+
+/** Plugin source badge (NPM/Apache/all). Module-level to avoid re-creating the component on every render. */
+const SourceBadge: React.FC<{ label: string; colorClass: string }> = ({ label, colorClass }) => (
+    <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold border ${colorClass}`}>
+        {label}
+    </span>
+);
+
+/** Current selected period badge (1h / 24h / 7j / 30j / custom). */
+const PeriodBadge: React.FC<{ label: string }> = ({ label }) => (
+    <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold border bg-sky-500/10 text-sky-400 border-sky-500/25 font-mono">
+        {label}
+    </span>
+);
+
+/** Info badge marking charts whose window is independent of the timeRange selector. */
+const FixedWindowBadge: React.FC<{ label?: string }> = ({ label = '12 mois' }) => (
+    <span
+        className="text-[.6rem] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded border border-cyan-500/40 bg-cyan-500/10 text-cyan-300"
+        title="Fenêtre d'agrégation du graphique — indépendant du sélecteur de période"
+    >
+        {label}
+    </span>
+);
+
+type LiveWindow = '24H' | 'SEMAINE';
+const LIVE_WINDOW_LONG: Record<LiveWindow, string> = { '24H': '24h', 'SEMAINE': '7 jours' };
+
+/** Toggle between the 12-month aggregate and a shorter "live" window (24h or 7d). */
+const LiveToggle: React.FC<{ live: boolean; onToggle: () => void; window: LiveWindow }> = ({ live, onToggle, window }) => {
+    const title = live
+        ? 'Revenir à la moyenne 12 mois'
+        : `Afficher les dernières ${LIVE_WINDOW_LONG[window]} (live)`;
+    const cls = live
+        ? 'border-emerald-500/50 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25'
+        : 'border-gray-600/50 bg-gray-800/40 text-gray-400 hover:text-cyan-300 hover:border-cyan-500/40';
+    return (
+        <button
+            type="button"
+            onClick={onToggle}
+            className={`text-[.6rem] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded border transition-colors ${cls}`}
+            title={title}
+        >
+            {live ? `LIVE ${window}` : window}
+        </button>
+    );
+};
+
+interface SectionHeadingProps {
+    children: React.ReactNode;
+    sourceLabel: string;
+    sourceColorClass: string;
+    periodLabel: string;
+    hidePeriod?: boolean;
+    extras?: React.ReactNode;
+}
+
+const SectionHeading: React.FC<SectionHeadingProps> = ({
+    children, sourceLabel, sourceColorClass, periodLabel, hidePeriod, extras
+}) => (
+    <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2.5">
+        <span>{children}</span>
+        <SourceBadge label={sourceLabel} colorClass={sourceColorClass} />
+        {!hidePeriod && <PeriodBadge label={periodLabel} />}
+        {extras}
+    </h3>
+);
+
 /** TopPanel - extracted to module level so state (showAll) persists across parent re-renders. */
 const TopPanel: React.FC<{
     title: string;
@@ -259,32 +353,38 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
         }
     }, [plugins, enabledLogPlugins, pluginId]);
 
+    // Centralized reset for all analytics-response-derived state.
+    // Used on empty-plugin, error responses, and exceptions to avoid drift across branches.
+    const resetAnalyticsState = useCallback(() => {
+        setOverview(null);
+        setTimeseries([]);
+        setTopUrls([]);
+        setTopIps([]);
+        setTopStatus([]);
+        setTopUserAgents([]);
+        setTopReferrers([]);
+        setTopBrowsers([]);
+        setDistMethods([]);
+        setDistStatus([]);
+        setStatusWithVisitors([]);
+        setReferringSites([]);
+        setHostWithVisitors([]);
+        setReferrerWithVisitors([]);
+        setUrlsWithExtras([]);
+        setStatusByHost([]);
+        setNotFoundUrls([]);
+        setBotVsHuman(null);
+        setResponseTimeDist(null);
+        setHourOfDay([]);
+    }, []);
+
     const fetchAnalytics = useCallback(async () => {
         const isPluginEnabled =
             pluginId === 'all'
                 ? enabledLogPlugins.length > 0
                 : enabledLogPlugins.some((p) => p.id === pluginId);
         if (!isPluginEnabled) {
-            setOverview(null);
-            setTimeseries([]);
-            setTopUrls([]);
-            setTopIps([]);
-            setTopStatus([]);
-            setTopUserAgents([]);
-            setTopReferrers([]);
-            setTopBrowsers([]);
-            setDistMethods([]);
-            setDistStatus([]);
-            setStatusWithVisitors([]);
-            setReferringSites([]);
-            setHostWithVisitors([]);
-            setReferrerWithVisitors([]);
-            setUrlsWithExtras([]);
-            setStatusByHost([]);
-            setNotFoundUrls([]);
-            setBotVsHuman(null);
-            setResponseTimeDist(null);
-            setHourOfDay([]);
+            resetAnalyticsState();
             setIsLoading(false);
             setError(null);
             return;
@@ -293,29 +393,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
         setIsLoading(true);
         setError(null);
 
-        const to = new Date();
-        let from: Date;
-        let bucketHour: 'minute' | 'hour' | 'day' = 'hour';
-
-        if (timeRange === '1h') {
-            from = new Date(to.getTime() - 60 * 60 * 1000);
-            bucketHour = 'minute';
-        } else if (timeRange === '24h') {
-            from = new Date(to.getTime() - 24 * 60 * 60 * 1000);
-            bucketHour = 'hour';
-        } else if (timeRange === '7d') {
-            from = new Date(to.getTime() - 7 * 24 * 60 * 60 * 1000);
-            bucketHour = 'day';
-        } else if (timeRange === '30d') {
-            from = new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000);
-            bucketHour = 'day';
-        } else {
-            from = new Date(customFrom);
-            const toCustom = new Date(customTo);
-            const rangeMs = toCustom.getTime() - from.getTime();
-            bucketHour = rangeMs <= 2 * 60 * 60 * 1000 ? 'minute' : rangeMs <= 48 * 60 * 60 * 1000 ? 'hour' : 'day';
-            to.setTime(toCustom.getTime());
-        }
+        const { from, to, bucketHour } = resolveDateRange(timeRange, customFrom, customTo);
 
         const fromStr = from.toISOString();
         const toStr = to.toISOString();
@@ -376,25 +454,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                 setResponseTimeDist(res.result.distribution?.responseTime ?? null);
                 setHourOfDay(Array.isArray(res.result.hourOfDay) ? res.result.hourOfDay : []);
             } else {
-                setOverview(null);
-                setTimeseries([]);
-                setTopUrls([]);
-                setTopIps([]);
-                setTopStatus([]);
-                setTopUserAgents([]);
-                setTopReferrers([]);
-                setTopBrowsers([]);
-                setDistMethods([]);
-                setDistStatus([]);
-                setStatusWithVisitors([]);
-                setReferringSites([]);
-                setHostWithVisitors([]);
-                setReferrerWithVisitors([]);
-                setUrlsWithExtras([]);
-                setStatusByHost([]);
-                setNotFoundUrls([]);
-                setBotVsHuman(null);
-                setResponseTimeDist(null);
+                resetAnalyticsState();
             }
 
             if (
@@ -406,30 +466,11 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
             }
         } catch (err) {
             setError(err instanceof Error ? err.message : t('logAnalytics.loadError'));
-            setOverview(null);
-            setTimeseries([]);
-            setTopUrls([]);
-            setTopIps([]);
-            setTopStatus([]);
-            setTopUserAgents([]);
-            setTopReferrers([]);
-            setTopBrowsers([]);
-            setDistMethods([]);
-            setDistStatus([]);
-            setStatusWithVisitors([]);
-            setReferringSites([]);
-            setHostWithVisitors([]);
-            setReferrerWithVisitors([]);
-            setUrlsWithExtras([]);
-            setStatusByHost([]);
-            setNotFoundUrls([]);
-            setBotVsHuman(null);
-            setResponseTimeDist(null);
-            setHourOfDay([]);
+            resetAnalyticsState();
         } finally {
             setIsLoading(false);
         }
-    }, [pluginId, enabledLogPlugins, timeRange, customFrom, customTo, fileScope, includeCompressed, t]);
+    }, [pluginId, enabledLogPlugins, timeRange, customFrom, customTo, fileScope, includeCompressed, t, resetAnalyticsState]);
 
     useEffect(() => {
         fetchAnalytics();
@@ -487,12 +528,6 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
         all: 'bg-sky-500/15 text-sky-400 border-sky-500/30'
     };
 
-    const SourceBadge: React.FC = () => (
-        <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold border ${pluginColorMap[pluginId] ?? 'bg-gray-500/15 text-gray-400 border-gray-500/30'}`}>
-            {getPluginLabel(pluginId)}
-        </span>
-    );
-
     const getPeriodLabel = (): string => {
         if (timeRange === 'custom') {
             if (!customFrom || !customTo) return '—';
@@ -507,46 +542,11 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
         return labels[timeRange] ?? timeRange;
     };
 
-    const PeriodBadge: React.FC = () => (
-        <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold border bg-sky-500/10 text-sky-400 border-sky-500/25 font-mono">
-            {getPeriodLabel()}
-        </span>
-    );
-
-    const SectionHeading: React.FC<{ children: React.ReactNode; extras?: React.ReactNode; hidePeriod?: boolean }> = ({ children, extras, hidePeriod }) => (
-        <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2.5">
-            <span>{children}</span>
-            <SourceBadge />
-            {!hidePeriod && <PeriodBadge />}
-            {extras}
-        </h3>
-    );
-
-    /** Info badge: signals the chart ignores the timeRange selector and always shows 12 months. */
-    const FixedWindowBadge: React.FC<{ label?: string }> = ({ label = '12 mois' }) => (
-        <span
-            className="text-[.6rem] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded border border-cyan-500/40 bg-cyan-500/10 text-cyan-300"
-            title="Fenêtre d'agrégation du graphique — indépendant du sélecteur de période"
-        >
-            {label}
-        </span>
-    );
-
-    /** Toggle between the 12-month aggregate and a shorter "live" window. */
-    const LiveToggle: React.FC<{ live: boolean; onToggle: () => void; window: '24H' | 'SEMAINE' }> = ({ live, onToggle, window }) => (
-        <button
-            type="button"
-            onClick={onToggle}
-            className={`text-[.6rem] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded border transition-colors ${
-                live
-                    ? 'border-emerald-500/50 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25'
-                    : 'border-gray-600/50 bg-gray-800/40 text-gray-400 hover:text-cyan-300 hover:border-cyan-500/40'
-            }`}
-            title={live ? 'Revenir à la moyenne 12 mois' : `Afficher les dernières ${window === '24H' ? '24h' : '7 jours'} (live)`}
-        >
-            {live ? `LIVE ${window}` : window}
-        </button>
-    );
+    // Precomputed props shared by every <SectionHeading {...headingCommon}>. Spread with {...headingCommon}.
+    const sourceLabel = getPluginLabel(pluginId);
+    const sourceColorClass = pluginColorMap[pluginId] ?? 'bg-gray-500/15 text-gray-400 border-gray-500/30';
+    const periodLabel = getPeriodLabel();
+    const headingCommon = { sourceLabel, sourceColorClass, periodLabel };
 
     /**
      * Format timeseries axis labels: no year, "h" for hour (instead of "T").
@@ -1002,7 +1002,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                         {/* Time Distribution & Unique Visitors (dual-line charts) */}
                         <div id="section-time-dist" className="grid grid-cols-1 lg:grid-cols-2 gap-6 scroll-mt-24">
                             <div className="bg-[#121212] rounded-xl border border-gray-800 p-6">
-                                <SectionHeading>{t('logAnalytics.timeDistribution')}</SectionHeading>
+                                <SectionHeading {...headingCommon}>{t('logAnalytics.timeDistribution')}</SectionHeading>
                                 {trimmedTimeseries.length > 0 ? (
                                     <DualLineChart
                                         data={trimmedTimeseries.map((b) => ({
@@ -1024,7 +1024,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                 )}
                             </div>
                             <div id="section-unique-visitors" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
-                                <SectionHeading>{t('logAnalytics.uniqueVisitorsChart')}</SectionHeading>
+                                <SectionHeading {...headingCommon}>{t('logAnalytics.uniqueVisitorsChart')}</SectionHeading>
                                 {trimmedTimeseries.length > 0 ? (
                                     <DualLineChart
                                         data={trimmedTimeseries.map((b) => ({
@@ -1060,8 +1060,8 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                             { label: 'Moy. / heure', value: Math.round(timeseriesStats.avgPerHour).toLocaleString(), color: '#22d3ee' },
                                             { label: 'Pic (jour)', value: [t('logAnalytics.monday'),t('logAnalytics.tuesday'),t('logAnalytics.wednesday'),t('logAnalytics.thursday'),t('logAnalytics.friday'),t('logAnalytics.saturday'),t('logAnalytics.sunday')][timeseriesStats.peakDayIdx] ?? '—', sub: timeseriesStats.peakDayCount.toLocaleString() + ' req.', color: '#f59e0b' },
                                             { label: 'Pic (heure)', value: `${timeseriesStats.peakHourIdx}h`, sub: timeseriesStats.peakHourCount.toLocaleString() + ' req.', color: '#a78bfa' },
-                                        ].map((stat, i) => (
-                                            <div key={i} style={{ background: '#0a0a0a', border: '1px solid #1f2937', borderRadius: 8, padding: '.5rem .6rem', textAlign: 'center' }}>
+                                        ].map((stat) => (
+                                            <div key={stat.label} style={{ background: '#0a0a0a', border: '1px solid #1f2937', borderRadius: 8, padding: '.5rem .6rem', textAlign: 'center' }}>
                                                 <div style={{ fontSize: '.6rem', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: '.25rem' }}>{stat.label}</div>
                                                 <div style={{ fontSize: '.95rem', fontWeight: 700, color: stat.color, lineHeight: 1 }}>{stat.value}</div>
                                                 {'sub' in stat && stat.sub && <div style={{ fontSize: '.6rem', color: '#6b7280', marginTop: '.2rem' }}>{stat.sub}</div>}
@@ -1075,6 +1075,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                     {/* Day of week — fixed 12-month window with optional 24H live toggle */}
                                     <div>
                                         <SectionHeading
+                                            {...headingCommon}
                                             hidePeriod
                                             extras={<>
                                                 <FixedWindowBadge label={dayOfWeekLive ? 'Live 24h' : '12 mois'} />
@@ -1103,6 +1104,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                     {/* Peak hours — default: aggregates hour-of-day over the selected period; toggle: last 24h live */}
                                     <div>
                                         <SectionHeading
+                                            {...headingCommon}
                                             extras={<LiveToggle live={peakHoursLive} onToggle={() => setPeakHoursLive((v) => !v)} window="24H" />}
                                             hidePeriod={peakHoursLive}
                                         >
@@ -1123,7 +1125,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                     </div>
                                     {/* Calendar heatmap — fixed 12-month window */}
                                     <div className="min-w-0">
-                                        <SectionHeading hidePeriod extras={<FixedWindowBadge />}>{t('logAnalytics.heatmapTitle')}</SectionHeading>
+                                        <SectionHeading {...headingCommon} hidePeriod extras={<FixedWindowBadge />}>{t('logAnalytics.heatmapTitle')}</SectionHeading>
                                         <HeatmapChart
                                             data={calendarBuckets.map((b) => ({ label: b.label, count: b.count }))}
                                             noDataText={t('logAnalytics.noData')}
@@ -1136,6 +1138,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                     {/* Hour×Day heatmap — default: 12-month average; toggle: last 7 days live */}
                                     <div>
                                         <SectionHeading
+                                            {...headingCommon}
                                             hidePeriod
                                             extras={<>
                                                 <FixedWindowBadge label={hourDayLive ? 'Live 7j' : '12 mois'} />
@@ -1167,7 +1170,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                         {/* Status Trends over time */}
                         {trimmedTimeseries.length > 0 && (
                             <div id="section-status-trends" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
-                                <SectionHeading>{t('logAnalytics.statusTrendsTitle')}</SectionHeading>
+                                <SectionHeading {...headingCommon}>{t('logAnalytics.statusTrendsTitle')}</SectionHeading>
                                 <StatusTrendsChart
                                     data={trimmedTimeseries}
                                     height={180}
@@ -1180,7 +1183,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
 
                         {/* Timeline - Requêtes dans le temps (bar/curve + date/time axis) */}
                         <div id="section-timeline" className="bg-[#121212] rounded-xl border border-gray-800 p-6 w-full scroll-mt-24">
-                            <SectionHeading>{t('logAnalytics.requestsOverTime')}</SectionHeading>
+                            <SectionHeading {...headingCommon}>{t('logAnalytics.requestsOverTime')}</SectionHeading>
                             {trimmedTimeseries.length > 0 ? (
                                 <div className="w-full min-w-0">
                                     <TimelineChart
@@ -1204,7 +1207,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                         {/* Bandwidth over time */}
                         {trimmedTimeseries.length > 0 && trimmedTimeseries.some((b) => (b.totalBytes ?? 0) > 0) && (
                             <div id="section-bandwidth" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
-                                <SectionHeading>{t('logAnalytics.bandwidthTitle')}</SectionHeading>
+                                <SectionHeading {...headingCommon}>{t('logAnalytics.bandwidthTitle')}</SectionHeading>
                                 <TimelineChart
                                     data={trimmedTimeseries.map((b) => ({ label: b.label, count: b.totalBytes ?? 0 }))}
                                     color="#a78bfa"
@@ -1227,7 +1230,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                         {/* Bot vs Human */}
                         {botVsHuman && (botVsHuman.bots > 0 || botVsHuman.humans > 0) && (
                             <div id="section-bot-detection" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
-                                <SectionHeading>{t('logAnalytics.botDetectionTitle')}</SectionHeading>
+                                <SectionHeading {...headingCommon}>{t('logAnalytics.botDetectionTitle')}</SectionHeading>
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                     <DonutChart
                                         segments={[
@@ -1258,7 +1261,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
 
                         {/* Panel 1: HTTP Codes (regrouped) */}
                         <div id="section-http-codes" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
-                            <SectionHeading>{t('logAnalytics.httpCodesPanel')}</SectionHeading>
+                            <SectionHeading {...headingCommon}>{t('logAnalytics.httpCodesPanel')}</SectionHeading>
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                 <div>
                                     {statusWithVisitors.length > 0 ? (
@@ -1312,7 +1315,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
 
                         {/* Panel 2: HTTP Methods & Codes by domain (regrouped) */}
                         <div id="section-http-methods" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
-                            <SectionHeading>{t('logAnalytics.httpMethodsAndDomainPanel')}</SectionHeading>
+                            <SectionHeading {...headingCommon}>{t('logAnalytics.httpMethodsAndDomainPanel')}</SectionHeading>
                             <DistributionChart
                                 title={t('logAnalytics.httpMethodsDistribution')}
                                 items={distMethods}
@@ -1345,7 +1348,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                         {/* Top 404 URLs */}
                         {notFoundUrls.length > 0 && (
                             <div id="section-top404" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
-                                <SectionHeading>{t('logAnalytics.top404Title')}</SectionHeading>
+                                <SectionHeading {...headingCommon}>{t('logAnalytics.top404Title')}</SectionHeading>
                                 <DualBarChart
                                     data={notFoundUrls}
                                     labelWidth={500}
@@ -1359,7 +1362,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                         {/* Response Time Distribution */}
                         {responseTimeDist && (
                             <div id="section-response-time" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
-                                <SectionHeading>{t('logAnalytics.responseTimeTitle')}</SectionHeading>
+                                <SectionHeading {...headingCommon}>{t('logAnalytics.responseTimeTitle')}</SectionHeading>
                                 <ResponseTimeChart
                                     avg={responseTimeDist.avg}
                                     p50={responseTimeDist.p50}
@@ -1381,7 +1384,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                         {/* Referring Sites & Virtual Hosts */}
                         <div id="section-referring" className="grid grid-cols-1 lg:grid-cols-2 gap-6 scroll-mt-24">
                             <div className="bg-[#121212] rounded-xl border border-gray-800 p-6">
-                                <SectionHeading>{t('logAnalytics.referringSites')}</SectionHeading>
+                                <SectionHeading {...headingCommon}>{t('logAnalytics.referringSites')}</SectionHeading>
                                 {referringSites.length > 0 ? (
                                     <DualBarChart
                                         data={referringSites}
@@ -1397,7 +1400,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                 )}
                             </div>
                             <div id="section-virtual-hosts" className="bg-[#121212] rounded-xl border border-gray-800 p-6">
-                                <SectionHeading>{t('logAnalytics.virtualHosts')}</SectionHeading>
+                                <SectionHeading {...headingCommon}>{t('logAnalytics.virtualHosts')}</SectionHeading>
                                 {hostWithVisitors.length > 0 ? (
                                     <DualBarChart
                                         data={hostWithVisitors}
@@ -1416,7 +1419,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
 
                         {/* Referrer URLs (with visitors) */}
                         <div id="section-referrer-urls" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
-                            <SectionHeading>{t('logAnalytics.referrerUrls')}</SectionHeading>
+                            <SectionHeading {...headingCommon}>{t('logAnalytics.referrerUrls')}</SectionHeading>
                             {referrerWithVisitors.length > 0 ? (
                                 <DualBarChart
                                     data={referrerWithVisitors}
@@ -1434,7 +1437,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
 
                         {/* Requested Files (URLs with extras) */}
                         <div id="section-requested-files" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
-                            <SectionHeading>{t('logAnalytics.requestedFiles')}</SectionHeading>
+                            <SectionHeading {...headingCommon}>{t('logAnalytics.requestedFiles')}</SectionHeading>
                             {urlsWithExtras.length > 0 ? (
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-sm">
@@ -1475,7 +1478,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                     maxKeyLength={80}
                                     maxVisibleWithoutScroll={5}
                                     scrollWhenCollapsed={false}
-                                    sourceBadge={<SourceBadge />}
+                                    sourceBadge={<SourceBadge label={sourceLabel} colorClass={sourceColorClass} />}
                                 />
                                 <TopPanel
                                     title={t('logAnalytics.topReferrers')}
@@ -1483,7 +1486,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                     maxKeyLength={80}
                                     maxVisibleWithoutScroll={5}
                                     scrollWhenCollapsed={false}
-                                    sourceBadge={<SourceBadge />}
+                                    sourceBadge={<SourceBadge label={sourceLabel} colorClass={sourceColorClass} />}
                                 />
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1492,14 +1495,14 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                     items={topIps}
                                     maxVisibleWithoutScroll={5}
                                     scrollWhenCollapsed={false}
-                                    sourceBadge={<SourceBadge />}
+                                    sourceBadge={<SourceBadge label={sourceLabel} colorClass={sourceColorClass} />}
                                 />
                                 <TopPanel
                                     title={t('logAnalytics.topStatus')}
                                     items={topStatus}
                                     maxVisibleWithoutScroll={5}
                                     scrollWhenCollapsed={false}
-                                    sourceBadge={<SourceBadge />}
+                                    sourceBadge={<SourceBadge label={sourceLabel} colorClass={sourceColorClass} />}
                                 />
                                 <TopPanel
                                     title={t('logAnalytics.topBrowsers')}
@@ -1507,7 +1510,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                     maxKeyLength={25}
                                     maxVisibleWithoutScroll={5}
                                     scrollWhenCollapsed={false}
-                                    sourceBadge={<SourceBadge />}
+                                    sourceBadge={<SourceBadge label={sourceLabel} colorClass={sourceColorClass} />}
                                 />
                             </div>
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -1517,7 +1520,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                     maxKeyLength={50}
                                     maxVisibleWithoutScroll={5}
                                     scrollWhenCollapsed={false}
-                                    sourceBadge={<SourceBadge />}
+                                    sourceBadge={<SourceBadge label={sourceLabel} colorClass={sourceColorClass} />}
                                 />
                             </div>
                         </div>
