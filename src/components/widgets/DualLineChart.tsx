@@ -1,5 +1,5 @@
 /**
- * DualLineChart - Pure SVG dual-line chart for GoAccess-style stats.
+ * DualLineChart - Pure SVG dual-line chart for LogAnalytics stats.
  *
  * Renders two curves: requests (hits) and unique visitors, with optional area fills.
  * Includes Y-axis labels, X-axis labels, legend with totals, and hover tooltips.

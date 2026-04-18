@@ -19,7 +19,7 @@ import { Tooltip } from '../ui/Tooltip';
 import { useTranslation } from 'react-i18next';
 import type { LogPluginStats } from '../../types/logViewer';
 
-export type PageType = 'dashboard' | 'analytics' | 'goaccess-stats' | 'settings' | 'plugins' | 'users' | 'logs' | 'log-viewer' | 'log-viewer-test' | 'fail2ban' | 'profile';
+export type PageType = 'dashboard' | 'analytics' | 'log-analytics' | 'settings' | 'plugins' | 'users' | 'logs' | 'log-viewer' | 'log-viewer-test' | 'fail2ban' | 'profile';
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
@@ -42,7 +42,7 @@ interface FooterProps {
 const allTabs: { id: PageType; label: string; icon: React.ElementType; adminOnly?: boolean }[] = [
   { id: 'dashboard', label: 'LogviewR', icon: Home },
   { id: 'analytics', label: 'Analytique', icon: BarChart2 },
-  { id: 'goaccess-stats', label: 'Stats Logs', icon: LineChart }
+  { id: 'log-analytics', label: 'Stats Logs', icon: LineChart }
 ];
 
 export const Footer: React.FC<FooterProps> = ({
@@ -195,9 +195,9 @@ export const Footer: React.FC<FooterProps> = ({
           {visibleTabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = currentPage === tab.id;
-            const iconOnly = tab.id === 'analytics' || tab.id === 'goaccess-stats' || tab.id === 'dashboard';
-            const tooltipLabel = tab.id === 'goaccess-stats'
-              ? t('footer.goaccessStatsTooltip')
+            const iconOnly = tab.id === 'analytics' || tab.id === 'log-analytics' || tab.id === 'dashboard';
+            const tooltipLabel = tab.id === 'log-analytics'
+              ? t('footer.logAnalyticsTooltip')
               : tab.id === 'analytics'
               ? t('footer.analyticsTooltip')
               : tab.label;

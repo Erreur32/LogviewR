@@ -31,6 +31,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { logger } from '../../utils/logger.js';
+import { compileSafeRegex } from '../../utils/safeRegex.js';
 import { webhookDispatchService } from '../../services/WebhookDispatchService.js';
 import { runWhois, reverseDns, checkKnownProvider } from '../../services/ipLookupService.js';
 import type { WhoisInfo } from '../../services/ipLookupService.js';
@@ -1484,25 +1485,29 @@ export class Fail2banPlugin extends BasePlugin {
             if (!failregex || !log_lines) {
                 return res.json({ success: true, result: { ok: false, error: 'failregex et log_lines requis' } });
             }
-            const lines = log_lines.split('\n').map((l: string) => l.trim()).filter(Boolean);
-            const patterns = failregex.split('\n').map((l: string) => l.trim()).filter((l: string) => l && !l.startsWith('#'));
+            const lines = log_lines.split('\n').map(l => l.trim()).filter(Boolean);
+            const rawPatterns = failregex.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'));
 
-            // Try each pattern against a single line; returns the first hit or null.
-            function matchLine(line: string): { line: string; pattern: string; host?: string } | null {
-                for (const pat of patterns) {
-                    // Sanitize: replace fail2ban <HOST> placeholder with IP pattern, reject overly long patterns
-                    const jsPatStr = pat.replaceAll('<HOST>', '(?:[0-9]{1,3}\\.){3}[0-9]{1,3}|[0-9a-fA-F:]{2,39}');
-                    if (jsPatStr.length > 1000) continue;
-                    try {
-                        const m = new RegExp(jsPatStr).exec(line);
-                        if (m) {
-                            const hostMatch = /(?:[0-9]{1,3}\.){3}[0-9]{1,3}|[0-9a-fA-F:]{2,39}/.exec(m[0] || line);
-                            return { line, pattern: pat, host: hostMatch?.[0] };
-                        }
-                    } catch { /* invalid regex */ }
+            // Compile once per pattern (not per line × pattern).
+            const HOST_RE = /(?:[0-9]{1,3}\.){3}[0-9]{1,3}|[0-9a-fA-F:]{2,39}/;
+            const compiled: { pattern: string; re: RegExp }[] = [];
+            for (const pat of rawPatterns) {
+                const jsPatStr = pat.replaceAll('<HOST>', '(?:[0-9]{1,3}\\.){3}[0-9]{1,3}|[0-9a-fA-F:]{2,39}');
+                try {
+                    compiled.push({ pattern: pat, re: compileSafeRegex(jsPatStr) });
+                } catch { /* invalid or unsafe regex — pattern is dropped */ }
+            }
+
+            const matchLine = (line: string): { line: string; pattern: string; host?: string } | null => {
+                for (const { pattern, re } of compiled) {
+                    const m = re.exec(line);
+                    if (m) {
+                        const hostMatch = HOST_RE.exec(m[0] || line);
+                        return { line, pattern, host: hostMatch?.[0] };
+                    }
                 }
                 return null;
-            }
+            };
 
             const matched: { line: string; pattern: string; host?: string }[] = [];
             const missed: string[] = [];

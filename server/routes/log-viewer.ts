@@ -22,7 +22,7 @@ import { requireAuth } from '../middleware/authMiddleware.js';
 import { generateRegexFromLogLine } from '../services/regexGeneratorService.js';
 import { APACHE_ACCESS_VHOST_COMBINED_REGEX } from '../plugins/apache/ApacheParser.js';
 import { APACHE_REGEX_KEYS, getApacheRegexKeyForPath, NPM_REGEX_KEYS, getNpmRegexKeyForPath, NGINX_REGEX_KEYS, getNginxRegexKeyForPath } from '../services/logParserService.js';
-import { getAllAnalytics } from '../services/logAnalyticsService.js';
+import { getAllAnalytics, getCalendarAnalytics } from '../services/logAnalyticsService.js';
 import { getErrorSummaryWithMeta, getErrorSummaryProgress, invalidateErrorSummaryCache, analyzeSingleFile } from '../services/errorSummaryService.js';
 import { getErrorAnalysisConfig } from '../config/errorAnalysisConfig.js';
 import { searchAllLogs } from '../services/logSearchService.js';
@@ -1518,7 +1518,7 @@ router.get('/largest-files', async (req, res) => {
 
 /**
  * GET /api/log-viewer/analytics
- * Get aggregated log analytics (overview, timeseries, top metrics) for GoAccess-style stats page.
+ * Get aggregated log analytics (overview, timeseries, top metrics) for the LogAnalytics page.
  *
  * Query params:
  * - pluginId: optional, filter by plugin (npm, apache, all) or omit for all
@@ -1569,6 +1569,29 @@ router.get('/analytics', async (req, res) => {
         res.status(500).json({
             error: 'Failed to get analytics',
             message: error instanceof Error ? error.message : String(error)
+        });
+    }
+});
+
+/**
+ * GET /api/log-viewer/analytics/calendar
+ * Calendar-heatmap data over a fixed sliding window (default 365d).
+ * Independent of the page's timeRange selector. Always forces includeCompressed=true.
+ */
+router.get('/analytics/calendar', async (req, res) => {
+    try {
+        const { pluginId, windowDays } = req.query as { pluginId?: string; windowDays?: string };
+        const parsedWindow = windowDays ? Math.max(30, Math.min(Number.parseInt(windowDays, 10) || 365, 730)) : 365;
+        const result = await getCalendarAnalytics(pluginId, parsedWindow);
+        res.json({ success: true, result });
+    } catch (error) {
+        logger.error('LogViewer', 'Error getting calendar analytics:', error);
+        res.json({
+            success: true,
+            result: {
+                ok: false,
+                error: error instanceof Error ? error.message : String(error)
+            }
         });
     }
 });

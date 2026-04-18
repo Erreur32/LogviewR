@@ -565,7 +565,7 @@
     "versionLabel": "Version {{version}}",
     "changelogNotAvailable": "Changelog non disponible."
   },
-  "goaccessStats": {
+  "logAnalytics": {
     "title": "Stats Logs",
     "subtitle": "Graphiques et statistiques générés à partir des logs des serveurs web",
     "back": "Retour",
@@ -622,7 +622,7 @@
     "txAmount": "Volume transféré",
     "method": "Méthode",
     "protocol": "Protocole",
-    "pluginAll": "Tous (NPM + Apache)",
+    "pluginAll": "Tous",
     "pluginFilterTip": "Fusionner NPM et Apache ou afficher un seul plugin",
     "statsHeaderPlugin": "Source",
     "tipTotalRequests": "Nombre total de requêtes HTTP analysées dans les logs (toutes méthodes, tous codes).",
@@ -855,7 +855,7 @@
   },
   "footer": {
     "analyticsTooltip": "Statistiques Application",
-    "goaccessStatsTooltip": "Statistiques des logs serveurs web",
+    "logAnalyticsTooltip": "Statistiques des logs serveurs web",
     "administrationTooltip": "Paramètres et administration",
     "statsReadableFilesTooltip": "Fichiers de logs accessibles en lecture – Nombre total de fichiers .log (et équivalents) détectés et lisibles par l'application, tous plugins de logs activés confondus (System, Apache, Nginx, NPM). Exclut les fichiers dont l'accès est refusé ou le format non reconnu.",
     "statsTotalSizeTooltip": "Taille totale (fichiers non compressés) – Somme de la taille sur disque de tous les fichiers de logs pris en compte, hors fichiers .gz. Correspond à l'espace utilisé par les logs « bruts » accessibles via les plugins activés.",
@@ -1151,6 +1151,7 @@
     "delete": "Supprimer",
     "test": "Tester",
     "active": "Actif",
+    "clear": "Effacer",
     "errors": {
       "loadFailed": "Erreur lors du chargement",
       "saveFailed": "Erreur lors de la sauvegarde",

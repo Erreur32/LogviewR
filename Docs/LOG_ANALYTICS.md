@@ -1,8 +1,8 @@
-# Log Analytics (GoAccess-style) – Architecture
+# LogAnalytics Page – Architecture
 
 ## Overview
 
-This document describes the architecture and data flow of the **Stats Logs** page, a full-screen log analytics dashboard inspired by [GoAccess for Nginx Proxy Manager](https://github.com/xavier-hernandez/goaccess-for-nginxproxymanager).
+This document describes the architecture and data flow of the **LogAnalytics** page, a full-screen log analytics dashboard for Nginx Proxy Manager, Apache, and Nginx access logs.
 
 ## Purpose
 
@@ -17,11 +17,11 @@ This document describes the architecture and data flow of the **Stats Logs** pag
 
 | File | Role |
 |------|------|
-| `src/pages/GoAccessStyleStatsPage.tsx` | Main page: KPI cards, timeline histogram, top panels (URLs, IPs, status, UA, referrers) |
+| `src/pages/LogAnalyticsPage.tsx` | Main page: KPI cards, timeline histogram, top panels (URLs, IPs, status, UA, referrers) |
 | `src/types/analytics.ts` | TypeScript types for overview, timeseries, top items |
-| `src/components/layout/Footer.tsx` | New "Stats Logs" button (icon-only, next to Analytique) |
-| `src/App.tsx` | Routing for `currentPage === 'goaccess-stats'` |
-| `src/components/layout/Header.tsx` | Plugin icons and document title for goaccess-stats page |
+| `src/components/layout/Footer.tsx` | "Stats Logs" button (icon-only, next to Analytique) |
+| `src/App.tsx` | Routing for `currentPage === 'log-analytics'` |
+| `src/components/layout/Header.tsx` | Plugin icons and document title for the LogAnalytics page |
 
 ### Backend
 
@@ -34,8 +34,8 @@ This document describes the architecture and data flow of the **Stats Logs** pag
 
 ```
 Footer button (Stats Logs)
-    → setCurrentPage('goaccess-stats')
-    → App.tsx renders GoAccessStyleStatsPage
+    → setCurrentPage('log-analytics')
+    → App.tsx renders LogAnalyticsPage
     → Page fetches GET /api/log-viewer/analytics?pluginId=&from=&to=&bucket=&topLimit=
     → logAnalyticsService.getAllAnalytics()
         → collectParsedEntries() for each plugin (npm, nginx, apache)
@@ -99,8 +99,8 @@ Footer button (Stats Logs)
 
 ## i18n
 
-Namespace: `goaccessStats` (fr.json, en.json)
+Namespace: `logAnalytics` (fr.json, en.json)
 
 Keys: `title`, `subtitle`, `back`, `refresh`, `loading`, `loadError`, `noData`, `allPlugins`, `totalRequests`, `uniqueVisitors`, `status4xx`, `status5xx`, `totalBytes`, `filesAnalyzed`, `requestsOverTime`, `requests`, `topUrls`, `topIps`, `topStatus`, `topUserAgents`, `topReferrers`
 
-Footer tooltip: `footer.goaccessStatsTooltip`
+Footer tooltip: `footer.logAnalyticsTooltip`

@@ -1,5 +1,5 @@
 /**
- * Types for Log Analytics (GoAccess-style stats)
+ * Types for LogAnalytics page (aggregated web server log stats)
  */
 
 export interface AnalyticsOverview {

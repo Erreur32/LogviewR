@@ -1,12 +1,12 @@
 /**
- * DualBarChart - Dual bar chart (hits + visitors) for GoAccess-style panels.
+ * DualBarChart - Dual bar chart (hits + visitors) for LogAnalytics panels.
  *
  * Renders two bars per category: one for count (hits), one for unique visitors.
  * Includes legend, axis labels, and hover tooltips.
  * Pure SVG/CSS, no external dependency.
  */
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 export interface DualBarItem {
@@ -45,13 +45,42 @@ export const DualBarChart: React.FC<DualBarChartProps> = ({
     visitorsLabel = 'Visitors',
     tableLayout = false
 }) => {
-    const maxCount = Math.max(...data.map((d) => d.count), 1);
-    const maxVisitors = Math.max(...data.map((d) => d.uniqueVisitors), 1);
-    const scaleMax = Math.max(maxCount, maxVisitors, 1);
-    const totalHits = data.reduce((s, d) => s + d.count, 0);
-    const totalVisitors = data.reduce((s, d) => s + d.uniqueVisitors, 0);
     const [hoveredKey, setHoveredKey] = useState<string | null>(null);
     const [tooltipRect, setTooltipRect] = useState<DOMRect | null>(null);
+
+    // Single-pass aggregation — hover re-renders don't rescan the dataset.
+    // Auto-switch to sqrt scale when the range is very wide (e.g. 200k hits vs 100),
+    // so the smallest non-zero bars don't collapse to 1px and vanish.
+    const { scaleMax, totalHits, totalVisitors, useSqrtScale, sqrtScaleMax } = useMemo(() => {
+        let maxC = 1;
+        let maxV = 1;
+        let sumC = 0;
+        let sumV = 0;
+        let minNonZero = Number.POSITIVE_INFINITY;
+        for (const d of data) {
+            if (d.count > maxC) maxC = d.count;
+            if (d.uniqueVisitors > maxV) maxV = d.uniqueVisitors;
+            sumC += d.count;
+            sumV += d.uniqueVisitors;
+            if (d.count > 0 && d.count < minNonZero) minNonZero = d.count;
+            if (d.uniqueVisitors > 0 && d.uniqueVisitors < minNonZero) minNonZero = d.uniqueVisitors;
+        }
+        const sMax = Math.max(maxC, maxV, 1);
+        const mnz = minNonZero === Number.POSITIVE_INFINITY ? 1 : minNonZero;
+        return {
+            scaleMax: sMax,
+            totalHits: sumC,
+            totalVisitors: sumV,
+            useSqrtScale: sMax / Math.max(mnz, 1) > 100,
+            sqrtScaleMax: Math.sqrt(sMax)
+        };
+    }, [data]);
+
+    const scalePct = (v: number): number => {
+        if (v <= 0) return 0;
+        if (useSqrtScale) return (Math.sqrt(v) / sqrtScaleMax) * 100;
+        return (v / scaleMax) * 100;
+    };
 
     const getColor = (key: string) => {
         if (colorByKey) return colorByKey(key);
@@ -82,14 +111,22 @@ export const DualBarChart: React.FC<DualBarChartProps> = ({
                 </div>
             </div>
             {/* Y-axis hint */}
-            <div className="text-[10px] text-gray-500 mb-1" title="Scale: 0 to max value">
-                0 ← → {scaleMax}
+            <div className="text-[10px] text-gray-500 mb-1 flex items-center gap-2" title="Scale: 0 to max value">
+                <span>0 ← → {scaleMax.toLocaleString()}</span>
+                {useSqrtScale && (
+                    <span
+                        className="px-1 rounded bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[9px] uppercase tracking-wider"
+                        title="Échelle √ (racine carrée) : utilisée quand l'écart max/min est très grand, pour que les petites valeurs restent visibles."
+                    >
+                        √
+                    </span>
+                )}
             </div>
             <div className={tableLayout ? 'overflow-x-auto' : ''}>
             {data.slice(0, 15).map((item, idx) => {
                 const isHovered = hoveredKey === item.key;
-                const countPct = (item.count / scaleMax) * 100;
-                const visitorsPct = (item.uniqueVisitors / scaleMax) * 100;
+                const countPct = scalePct(item.count);
+                const visitorsPct = scalePct(item.uniqueVisitors);
                 return (
                     <div
                         key={item.key}
@@ -115,43 +152,55 @@ export const DualBarChart: React.FC<DualBarChartProps> = ({
                             {item.key}
                         </span>
                         <div className={`flex gap-3 flex-1 min-w-0 ${tableLayout ? 'justify-end min-w-[120px]' : ''}`}>
-                            <div
-                                className="h-6 rounded overflow-hidden border border-gray-600/40 flex-1 min-w-0 flex items-center justify-end pr-2"
-                                style={{ minWidth: 48 }}
-                            >
+                            {/* hits: bar + external value on the right (value is always fully readable) */}
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
                                 <div
-                                    className="h-full rounded-l flex items-center justify-end pr-1 text-xs font-medium text-white/95 transition-opacity origin-left"
-                                    style={{
-                                        width: `${countPct}%`,
-                                        minWidth: item.count > 0 ? 28 : 0,
-                                        backgroundColor: getColor(item.key),
-                                        opacity: isHovered ? 1 : 0.92,
-                                        animation: 'barGrow 0.5s ease-out forwards',
-                                        animationDelay: `${idx * 40}ms`
-                                    }}
-                                    title={`${hitsLabel}: ${item.count}`}
+                                    className="h-5 rounded overflow-hidden border border-gray-700/40 flex-1 min-w-0 bg-gray-800/30"
+                                    title={`${hitsLabel}: ${item.count.toLocaleString()}`}
                                 >
-                                    {item.count > 0 ? item.count : ''}
+                                    <div
+                                        className="h-full rounded-l transition-opacity origin-left"
+                                        style={{
+                                            width: `${countPct}%`,
+                                            minWidth: item.count > 0 ? 3 : 0,
+                                            backgroundColor: getColor(item.key),
+                                            opacity: isHovered ? 1 : 0.9,
+                                            animation: 'barGrow 0.5s ease-out forwards',
+                                            animationDelay: `${idx * 40}ms`
+                                        }}
+                                    />
                                 </div>
+                                <span
+                                    className="text-xs font-medium text-white tabular-nums shrink-0 text-right"
+                                    style={{ minWidth: 56 }}
+                                >
+                                    {item.count > 0 ? item.count.toLocaleString() : '—'}
+                                </span>
                             </div>
-                            <div
-                                className="h-6 rounded overflow-hidden border border-gray-600/40 flex-1 min-w-0 flex items-center justify-end pr-2"
-                                style={{ minWidth: 48 }}
-                            >
+                            {/* visitors: same layout — bar + external value */}
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
                                 <div
-                                    className="h-full rounded-l flex items-center justify-end pr-1 text-xs font-medium text-white/95 transition-opacity origin-left"
-                                    style={{
-                                        width: `${visitorsPct}%`,
-                                        minWidth: item.uniqueVisitors > 0 ? 28 : 0,
-                                        backgroundColor: visitorsColor,
-                                        opacity: isHovered ? 1 : 0.92,
-                                        animation: 'barGrow 0.5s ease-out forwards',
-                                        animationDelay: `${idx * 40}ms`
-                                    }}
-                                    title={`${visitorsLabel}: ${item.uniqueVisitors}`}
+                                    className="h-5 rounded overflow-hidden border border-gray-700/40 flex-1 min-w-0 bg-gray-800/30"
+                                    title={`${visitorsLabel}: ${item.uniqueVisitors.toLocaleString()}`}
                                 >
-                                    {item.uniqueVisitors > 0 ? item.uniqueVisitors : ''}
+                                    <div
+                                        className="h-full rounded-l transition-opacity origin-left"
+                                        style={{
+                                            width: `${visitorsPct}%`,
+                                            minWidth: item.uniqueVisitors > 0 ? 3 : 0,
+                                            backgroundColor: visitorsColor,
+                                            opacity: isHovered ? 1 : 0.9,
+                                            animation: 'barGrow 0.5s ease-out forwards',
+                                            animationDelay: `${idx * 40}ms`
+                                        }}
+                                    />
                                 </div>
+                                <span
+                                    className="text-xs font-medium text-emerald-300 tabular-nums shrink-0 text-right"
+                                    style={{ minWidth: 48 }}
+                                >
+                                    {item.uniqueVisitors > 0 ? item.uniqueVisitors.toLocaleString() : '—'}
+                                </span>
                             </div>
                         </div>
                         {isHovered && tooltipRect && createPortal(

@@ -565,7 +565,7 @@
     "versionLabel": "Version {{version}}",
     "changelogNotAvailable": "Changelog not available."
   },
-  "goaccessStats": {
+  "logAnalytics": {
     "title": "Log Stats",
     "subtitle": "Charts and statistics generated from web server logs",
     "back": "Back",
@@ -622,7 +622,7 @@
     "txAmount": "Transferred",
     "method": "Method",
     "protocol": "Protocol",
-    "pluginAll": "All (NPM + Apache)",
+    "pluginAll": "All",
     "pluginFilterTip": "Merge NPM and Apache or show a single plugin",
     "statsHeaderPlugin": "Source",
     "tipTotalRequests": "Total number of HTTP requests analyzed in the logs (all methods, all status codes).",
@@ -855,7 +855,7 @@
   },
   "footer": {
     "analyticsTooltip": "Application Statistics",
-    "goaccessStatsTooltip": "Web server log statistics",
+    "logAnalyticsTooltip": "Web server log statistics",
     "administrationTooltip": "Settings and administration",
     "statsReadableFilesTooltip": "Readable log files – Total number of .log (and equivalent) files detected and readable by the application, across all enabled log plugins (System, Apache, Nginx, NPM). Excludes files with denied access or unrecognized format.",
     "statsTotalSizeTooltip": "Total size (uncompressed files) – Sum of on-disk size of all log files taken into account, excluding .gz files. Represents space used by « raw » logs available via enabled plugins.",
@@ -1151,6 +1151,7 @@
     "delete": "Delete",
     "test": "Test",
     "active": "Active",
+    "clear": "Clear",
     "errors": {
       "loadFailed": "Failed to load",
       "saveFailed": "Failed to save",

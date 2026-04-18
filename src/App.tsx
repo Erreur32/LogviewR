@@ -22,7 +22,7 @@ function pageToPath(page: PageType, pluginId?: string): string {
         case 'fail2ban':       return '/fail2ban';
         case 'log-viewer':     return pluginId ? `/log/${pluginId}` : '/log';
         case 'settings':       return '/settings';
-        case 'goaccess-stats': return '/goaccess';
+        case 'log-analytics': return '/log-analytics';
         case 'analytics':      return '/analytics';
         case 'plugins':        return '/plugins';
         case 'users':          return '/users';
@@ -33,25 +33,25 @@ function pageToPath(page: PageType, pluginId?: string): string {
     }
 }
 
-/** Derive PageType from URL pathname */
+/** Derive PageType from URL pathname. Order matters — specific prefixes must come before generic ones. */
 function pathToPage(pathname: string): PageType {
-    if (pathname.startsWith('/fail2ban')) return 'fail2ban';
-    if (pathname.startsWith('/log-test')) return 'log-viewer-test';
-    if (pathname.startsWith('/log'))      return 'log-viewer';
-    if (pathname.startsWith('/settings')) return 'settings';
-    if (pathname.startsWith('/goaccess')) return 'goaccess-stats';
-    if (pathname.startsWith('/analytics')) return 'analytics';
-    if (pathname.startsWith('/plugins'))  return 'plugins';
-    if (pathname.startsWith('/users'))    return 'users';
-    if (pathname.startsWith('/logs'))     return 'logs';
-    if (pathname.startsWith('/profile'))  return 'profile';
+    if (pathname.startsWith('/fail2ban'))      return 'fail2ban';
+    if (pathname.startsWith('/log-analytics')) return 'log-analytics';
+    if (pathname.startsWith('/log-test'))      return 'log-viewer-test';
+    if (pathname.startsWith('/log'))           return 'log-viewer';
+    if (pathname.startsWith('/settings'))      return 'settings';
+    if (pathname.startsWith('/analytics'))     return 'analytics';
+    if (pathname.startsWith('/plugins'))       return 'plugins';
+    if (pathname.startsWith('/users'))         return 'users';
+    if (pathname.startsWith('/logs'))          return 'logs';
+    if (pathname.startsWith('/profile'))       return 'profile';
     return 'dashboard';
 }
 
 // Lazy load pages for code splitting
 // Use default exports when available, otherwise use named exports
 const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage').then(m => ({ default: m.AnalyticsPage })));
-const GoAccessStyleStatsPage = lazy(() => import('./pages/GoAccessStyleStatsPage').then(m => ({ default: m.GoAccessStyleStatsPage })));
+const LogAnalyticsPage = lazy(() => import('./pages/LogAnalyticsPage').then(m => ({ default: m.LogAnalyticsPage })));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const PluginsPage = lazy(() => import('./pages/PluginsPage').then(m => ({ default: m.PluginsPage })));
 const UsersPage = lazy(() => import('./pages/UsersPage').then(m => ({ default: m.UsersPage })));
@@ -464,12 +464,12 @@ const App: React.FC = () => {
     </>
   );
 
-  // Render GoAccess-style stats page
-  if (currentPage === 'goaccess-stats') {
+  // Render LogAnalytics page
+  if (currentPage === 'log-analytics') {
     return wrapWithBackground(renderPageWithFooter(
       <>
         <Header
-          pageType="goaccess-stats"
+          pageType="log-analytics"
           user={user || undefined}
           onHomeClick={handleHomeClick}
           onSettingsClick={handleSettingsClick}
@@ -486,7 +486,7 @@ const App: React.FC = () => {
           }}
           updateBanner={{ show: showUpdateBanner, latestVersion: updateInfo?.latestVersion, releaseNotes: updateInfo?.releaseNotes, onDismiss: dismissBanner }}
         />
-        <GoAccessStyleStatsPage onBack={() => navigate('/')} />
+        <LogAnalyticsPage onBack={() => navigate('/')} />
       </>
     ));
   }

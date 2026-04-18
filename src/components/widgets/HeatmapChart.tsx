@@ -6,7 +6,7 @@
  * Modelled after fail2ban TabStats HeatmapSection.
  */
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 export interface HeatmapDataPoint {
@@ -90,20 +90,53 @@ export const HeatmapChart: React.FC<HeatmapChartProps> = ({
 
     const total = useMemo(() => cells.reduce((s, c) => s + c.count, 0), [cells]);
 
+    // Responsive: compute cell size from container width so the heatmap fits without horizontal scroll.
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [containerWidth, setContainerWidth] = useState(0);
+
+    useEffect(() => {
+        const el = containerRef.current;
+        if (!el) return;
+        let rafId = 0;
+        const ro = new ResizeObserver((entries) => {
+            const w = entries[0]?.contentRect.width ?? 0;
+            // rAF-coalesce bursts during window drag: only one state update per paint.
+            if (rafId) cancelAnimationFrame(rafId);
+            rafId = requestAnimationFrame(() => {
+                setContainerWidth((prev) => (Math.abs(prev - w) >= 2 ? w : prev));
+            });
+        });
+        ro.observe(el);
+        return () => {
+            if (rafId) cancelAnimationFrame(rafId);
+            ro.disconnect();
+        };
+    }, []);
+
     if (!data.length || cells.length === 0) {
-        return <div className="h-32 flex items-center justify-center text-gray-500 text-sm">{noDataText}</div>;
+        return <div ref={containerRef} className="h-32 flex items-center justify-center text-gray-500 text-sm">{noDataText}</div>;
     }
 
-    const cellSize  = 14;
-    const cellGap   = 3;
+    const labelW   = 32;
+    const topPad   = 20;
+    const padRight = 4;
+
+    // Fit weeks into the available width; clamp cell size to [4..14] to stay readable.
+    const { cellSize, cellGap } = (() => {
+        if (containerWidth <= 0 || weeks <= 0) return { cellSize: 14, cellGap: 3 };
+        const available = Math.max(0, containerWidth - labelW - padRight);
+        const stepF = available / weeks;
+        const cs = Math.max(4, Math.min(14, Math.floor(stepF * 0.82)));
+        const gap = Math.max(1, Math.min(3, Math.floor(stepF - cs)));
+        return { cellSize: cs, cellGap: gap };
+    })();
+
     const step      = cellSize + cellGap;
-    const labelW    = 32;
-    const topPad    = 20;
-    const svgWidth  = labelW + weeks * step + 4;
+    const svgWidth  = labelW + weeks * step + padRight;
     const svgHeight = topPad + 7 * step + 4;
 
     return (
-        <div className="overflow-x-auto">
+        <div ref={containerRef}>
             <svg width={svgWidth} height={svgHeight} className="block">
                 {monthLabels.map((m, i) => (
                     <text key={`month-${i}`}

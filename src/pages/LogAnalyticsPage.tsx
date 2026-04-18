@@ -1,7 +1,7 @@
 /**
- * GoAccessStyleStatsPage - LogviewR
+ * LogAnalyticsPage - LogviewR
  *
- * Full-screen log analytics page inspired by GoAccess for Nginx Proxy Manager.
+ * Full-screen log analytics page for Nginx Proxy Manager, Apache, and Nginx logs.
  * Displays: KPI cards, timeline histogram, top panels (URLs, IPs, status, UA, referrers),
  * and method/status distribution charts.
  */
@@ -23,7 +23,6 @@ import {
     Maximize2,
     Minimize2,
     Archive,
-    X,
     TrendingUp,
     Shield,
     Trophy
@@ -55,7 +54,7 @@ import type {
 import { usePluginStore } from '../stores/pluginStore';
 import { useUserAuthStore } from '../stores/userAuthStore';
 
-interface GoAccessStyleStatsPageProps {
+interface LogAnalyticsPageProps {
     onBack: () => void;
 }
 
@@ -104,8 +103,8 @@ const TopPanel: React.FC<{
                         type="button"
                         onClick={() => setShowAll((v) => !v)}
                         className="p-1 rounded hover:bg-gray-700/50 text-gray-400 hover:text-emerald-400 transition-colors shrink-0"
-                        title={showAll ? t('goaccessStats.showLimitedItems') : t('goaccessStats.showAllItems')}
-                        aria-label={showAll ? t('goaccessStats.showLimitedItems') : t('goaccessStats.showAllItems')}
+                        title={showAll ? t('logAnalytics.showLimitedItems') : t('logAnalytics.showAllItems')}
+                        aria-label={showAll ? t('logAnalytics.showLimitedItems') : t('logAnalytics.showAllItems')}
                     >
                         {showAll ? (
                             <Minimize2 size={16} />
@@ -119,7 +118,7 @@ const TopPanel: React.FC<{
                 <div className={listMaxHeight ? `${listMaxHeight} overflow-y-auto` : ''}>
                     {items.length === 0 ? (
                         <div className="px-4 py-6 text-sm text-gray-500 text-center">
-                            {t('goaccessStats.noData')}
+                            {t('logAnalytics.noData')}
                         </div>
                     ) : (
                         <ul className={twoColumns ? 'grid grid-cols-2 gap-x-6' : 'divide-y divide-gray-800/50'}>
@@ -166,9 +165,9 @@ const TopPanel: React.FC<{
                                         >
                                             <div className="font-medium text-white break-all leading-relaxed">{item.key}</div>
                                             <div className="mt-2 pt-2 border-t border-gray-600/50 flex gap-4 text-gray-300">
-                                                <span>{t('goaccessStats.hits')}: <strong className="text-white">{item.count}</strong></span>
+                                                <span>{t('logAnalytics.hits')}: <strong className="text-white">{item.count}</strong></span>
                                                 {item.percent != null && (
-                                                    <span>{t('goaccessStats.total')}: <strong className="text-emerald-400">{item.percent}%</strong></span>
+                                                    <span>{t('logAnalytics.total')}: <strong className="text-emerald-400">{item.percent}%</strong></span>
                                                 )}
                                             </div>
                                         </div>,
@@ -184,7 +183,7 @@ const TopPanel: React.FC<{
     );
 };
 
-export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ onBack }) => {
+export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) => {
     const { t, i18n } = useTranslation();
     const { plugins } = usePluginStore();
     const { token } = useUserAuthStore();
@@ -218,6 +217,20 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
     const [notFoundUrls, setNotFoundUrls] = useState<AnalyticsTopItemWithVisitors[]>([]);
     const [botVsHuman, setBotVsHuman] = useState<AnalyticsBotVsHuman | null>(null);
     const [responseTimeDist, setResponseTimeDist] = useState<AnalyticsResponseTimeDistribution | null>(null);
+    /** 24-number array: count per hour-of-day aggregated over the selected period. */
+    const [hourOfDay, setHourOfDay] = useState<number[]>([]);
+
+    /** 12-month calendar heatmap data — fetched independently from the timeRange selector. */
+    const [calendarBuckets, setCalendarBuckets] = useState<{ label: string; count: number; uniqueVisitors: number }[]>([]);
+    /** 7×24 hour-day grid aggregated over the 12-month window. Same fetch as the calendar. */
+    const [hourDayGrid, setHourDayGrid] = useState<number[][]>([]);
+    /** Last-24h "live" slice for the toggle on Peak Hours and Day-of-Week charts. */
+    const [live24h, setLive24h] = useState<{ hourOfDay: number[]; dayOfWeek: number[] } | null>(null);
+    /** Last-7d "live week" slice for the Hour×Day heatmap toggle. */
+    const [live7d, setLive7d] = useState<{ hourDayGrid: number[][] } | null>(null);
+    const [peakHoursLive, setPeakHoursLive] = useState(false);
+    const [dayOfWeekLive, setDayOfWeekLive] = useState(false);
+    const [hourDayLive, setHourDayLive] = useState(false);
 
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -231,6 +244,20 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
             ),
         [plugins]
     );
+
+    // Auto-select a valid plugin when the current one is disabled/missing.
+    // "all" stays valid as long as at least one log-source plugin is enabled.
+    useEffect(() => {
+        if (plugins.length === 0) return; // plugin store not loaded yet
+        const isCurrentValid =
+            pluginId === 'all'
+                ? enabledLogPlugins.length > 0
+                : enabledLogPlugins.some((p) => p.id === pluginId);
+        if (isCurrentValid) return;
+        if (enabledLogPlugins.length > 0) {
+            setPluginId(enabledLogPlugins.length === 1 ? enabledLogPlugins[0].id : 'all');
+        }
+    }, [plugins, enabledLogPlugins, pluginId]);
 
     const fetchAnalytics = useCallback(async () => {
         const isPluginEnabled =
@@ -257,6 +284,7 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
             setNotFoundUrls([]);
             setBotVsHuman(null);
             setResponseTimeDist(null);
+            setHourOfDay([]);
             setIsLoading(false);
             setError(null);
             return;
@@ -268,7 +296,6 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
         const to = new Date();
         let from: Date;
         let bucketHour: 'minute' | 'hour' | 'day' = 'hour';
-        let bucketDay: 'day' = 'day';
 
         if (timeRange === '1h') {
             from = new Date(to.getTime() - 60 * 60 * 1000);
@@ -300,6 +327,7 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
             const res = await api.get<{
                 overview: AnalyticsOverview;
                 timeseries: { buckets: AnalyticsTimeseriesBucket[] };
+                hourOfDay?: number[];
                 distribution?: {
                     methods: AnalyticsDistribution[];
                     status: AnalyticsDistribution[];
@@ -346,6 +374,7 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                 setNotFoundUrls(res.result.top?.notFoundUrls ?? []);
                 setBotVsHuman(res.result.distribution?.botVsHuman ?? null);
                 setResponseTimeDist(res.result.distribution?.responseTime ?? null);
+                setHourOfDay(Array.isArray(res.result.hourOfDay) ? res.result.hourOfDay : []);
             } else {
                 setOverview(null);
                 setTimeseries([]);
@@ -373,10 +402,10 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                 res.error?.code !== 'CLIENT_ERROR' &&
                 res.error?.code !== 'NETWORK_ERROR'
             ) {
-                setError(res.error?.message || t('goaccessStats.loadError'));
+                setError(res.error?.message || t('logAnalytics.loadError'));
             }
         } catch (err) {
-            setError(err instanceof Error ? err.message : t('goaccessStats.loadError'));
+            setError(err instanceof Error ? err.message : t('logAnalytics.loadError'));
             setOverview(null);
             setTimeseries([]);
             setTopUrls([]);
@@ -396,6 +425,7 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
             setNotFoundUrls([]);
             setBotVsHuman(null);
             setResponseTimeDist(null);
+            setHourOfDay([]);
         } finally {
             setIsLoading(false);
         }
@@ -405,13 +435,49 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
         fetchAnalytics();
     }, [fetchAnalytics]);
 
+    /**
+     * Calendar heatmap + day-of-week chart use a fixed 12-month sliding window,
+     * independent of the timeRange selector above. Refetched only when the plugin filter changes
+     * (or via the main refresh button).
+     */
+    const fetchCalendar = useCallback(async () => {
+        try {
+            const pluginParam = pluginId && pluginId !== 'all' ? `&pluginId=${encodeURIComponent(pluginId)}` : '';
+            const res = await api.get<{
+                buckets: { label: string; count: number; uniqueVisitors: number }[];
+                hourDayGrid: number[][];
+                live24h: { hourOfDay: number[]; dayOfWeek: number[] };
+                live7d: { hourDayGrid: number[][] };
+            }>(`/api/log-viewer/analytics/calendar?windowDays=365${pluginParam}`);
+            if (!res.success || !res.result || Array.isArray((res.result as unknown as { ok?: false }).ok)) return;
+            const r = res.result;
+            if (Array.isArray(r.buckets)) setCalendarBuckets(r.buckets);
+            if (Array.isArray(r.hourDayGrid)) setHourDayGrid(r.hourDayGrid);
+            if (r.live24h && Array.isArray(r.live24h.hourOfDay) && Array.isArray(r.live24h.dayOfWeek)) {
+                setLive24h({ hourOfDay: r.live24h.hourOfDay, dayOfWeek: r.live24h.dayOfWeek });
+            }
+            if (r.live7d && Array.isArray(r.live7d.hourDayGrid)) {
+                setLive7d({ hourDayGrid: r.live7d.hourDayGrid });
+            }
+        } catch {
+            /* silent — heatmap will just render no-data */
+        }
+    }, [pluginId]);
+
+    useEffect(() => {
+        fetchCalendar();
+    }, [fetchCalendar]);
+
 
     const getPluginLabel = (id: string): string => {
         const names: Record<string, string> = {
-            all: t('goaccessStats.pluginAll'),
             npm: 'NPM',
             apache: 'Apache'
         };
+        if (id === 'all') {
+            const activeNames = enabledLogPlugins.map((p) => names[p.id] ?? p.id).join(' + ');
+            return activeNames ? `${t('logAnalytics.pluginAll')} (${activeNames})` : t('logAnalytics.pluginAll');
+        }
         return names[id] || id;
     };
 
@@ -447,12 +513,39 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
         </span>
     );
 
-    const SectionHeading: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+    const SectionHeading: React.FC<{ children: React.ReactNode; extras?: React.ReactNode; hidePeriod?: boolean }> = ({ children, extras, hidePeriod }) => (
         <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2.5">
             <span>{children}</span>
             <SourceBadge />
-            <PeriodBadge />
+            {!hidePeriod && <PeriodBadge />}
+            {extras}
         </h3>
+    );
+
+    /** Info badge: signals the chart ignores the timeRange selector and always shows 12 months. */
+    const FixedWindowBadge: React.FC<{ label?: string }> = ({ label = '12 mois' }) => (
+        <span
+            className="text-[.6rem] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded border border-cyan-500/40 bg-cyan-500/10 text-cyan-300"
+            title="Fenêtre d'agrégation du graphique — indépendant du sélecteur de période"
+        >
+            {label}
+        </span>
+    );
+
+    /** Toggle between the 12-month aggregate and a shorter "live" window. */
+    const LiveToggle: React.FC<{ live: boolean; onToggle: () => void; window: '24H' | 'SEMAINE' }> = ({ live, onToggle, window }) => (
+        <button
+            type="button"
+            onClick={onToggle}
+            className={`text-[.6rem] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded border transition-colors ${
+                live
+                    ? 'border-emerald-500/50 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25'
+                    : 'border-gray-600/50 bg-gray-800/40 text-gray-400 hover:text-cyan-300 hover:border-cyan-500/40'
+            }`}
+            title={live ? 'Revenir à la moyenne 12 mois' : `Afficher les dernières ${window === '24H' ? '24h' : '7 jours'} (live)`}
+        >
+            {live ? `LIVE ${window}` : window}
+        </button>
     );
 
     /**
@@ -638,7 +731,7 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                 <h3 className="text-lg font-semibold text-white mb-4">{title}</h3>
                 {items.length === 0 ? (
                     <div className="h-32 flex items-center justify-center text-gray-500 text-sm">
-                        {t('goaccessStats.noData')}
+                        {t('logAnalytics.noData')}
                     </div>
                 ) : (
                     <div className="space-y-2">
@@ -676,7 +769,7 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                             <button
                                 onClick={onBack}
                                 className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
-                                aria-label={t('goaccessStats.back')}
+                                aria-label={t('logAnalytics.back')}
                             >
                                 <ChevronLeft size={24} />
                             </button>
@@ -686,10 +779,10 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                                 </div>
                                 <div>
                                     <h1 className="text-xl font-bold text-white">
-                                        {t('goaccessStats.title')}
+                                        {t('logAnalytics.title')}
                                     </h1>
                                     <p className="text-sm text-gray-500">
-                                        {t('goaccessStats.subtitle')}
+                                        {t('logAnalytics.subtitle')}
                                     </p>
                                 </div>
                             </div>
@@ -697,12 +790,12 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
 
                         <div className="flex flex-wrap items-center gap-3">
                             <div className="flex items-center gap-2">
-                                <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">{t('goaccessStats.statsHeaderPlugin')}</span>
+                                <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">{t('logAnalytics.statsHeaderPlugin')}</span>
                                 <select
                                     value={pluginId}
                                     onChange={(e) => setPluginId(e.target.value)}
                                     className="stats-header-select"
-                                    title={t('goaccessStats.pluginFilterTip')}
+                                    title={t('logAnalytics.pluginFilterTip')}
                                 >
                                     {enabledLogPlugins.length > 0 && (
                                         <option value="all">{getPluginLabel('all')}</option>
@@ -718,18 +811,18 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                             </div>
                             <div className="h-6 w-px bg-gray-700/60" aria-hidden />
                             <div className="flex items-center gap-2">
-                                <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">{t('goaccessStats.timeRange')}</span>
+                                <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">{t('logAnalytics.timeRange')}</span>
                                 <select
                                     value={timeRange}
                                     onChange={(e) => setTimeRange(e.target.value as typeof timeRange)}
                                     className="stats-header-select"
-                                    title={t('goaccessStats.timeRange')}
+                                    title={t('logAnalytics.timeRange')}
                                 >
-                                    <option value="1h">{t('goaccessStats.timeRange1h')}</option>
-                                    <option value="24h">{t('goaccessStats.timeRange24h')}</option>
-                                    <option value="7d">{t('goaccessStats.timeRange7d')}</option>
-                                    <option value="30d">{t('goaccessStats.timeRange30d')}</option>
-                                    <option value="custom">{t('goaccessStats.timeRangeCustom')}</option>
+                                    <option value="1h">{t('logAnalytics.timeRange1h')}</option>
+                                    <option value="24h">{t('logAnalytics.timeRange24h')}</option>
+                                    <option value="7d">{t('logAnalytics.timeRange7d')}</option>
+                                    <option value="30d">{t('logAnalytics.timeRange30d')}</option>
+                                    <option value="custom">{t('logAnalytics.timeRangeCustom')}</option>
                                 </select>
                             </div>
                             {timeRange === 'custom' && (
@@ -753,21 +846,21 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                                 </>
                             )}
                             <div className="flex items-center gap-2">
-                                <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">{t('goaccessStats.fileScope')}</span>
+                                <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">{t('logAnalytics.fileScope')}</span>
                                 <select
                                     value={fileScope}
                                     onChange={(e) => setFileScope(e.target.value as 'latest' | 'all')}
                                     className="stats-header-select"
-                                    title={fileScope === 'latest' ? t('goaccessStats.fileScopeLatestTip') : t('goaccessStats.fileScopeAllTip')}
+                                    title={fileScope === 'latest' ? t('logAnalytics.fileScopeLatestTip') : t('logAnalytics.fileScopeAllTip')}
                                 >
-                                    <option value="latest">{t('goaccessStats.fileScopeLatest')}</option>
-                                    <option value="all">{t('goaccessStats.fileScopeAll')}</option>
+                                    <option value="latest">{t('logAnalytics.fileScopeLatest')}</option>
+                                    <option value="all">{t('logAnalytics.fileScopeAll')}</option>
                                 </select>
                             </div>
                             <div className="h-6 w-px bg-gray-700/60" aria-hidden />
                             <label
                                 className="flex items-center gap-2.5 cursor-pointer group"
-                                title={t('goaccessStats.includeCompressedTip')}
+                                title={t('logAnalytics.includeCompressedTip')}
                             >
                                 <span className="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full bg-gray-700/80 transition-colors duration-200 ease-in-out focus-within:ring-2 focus-within:ring-emerald-500/50 focus-within:ring-offset-2 focus-within:ring-offset-[#0a0a0a] group-hover:bg-gray-600/80">
                                     <input
@@ -780,17 +873,17 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                                 </span>
                                 <span className="flex items-center gap-1.5 text-sm text-gray-300 group-hover:text-gray-200 transition-colors">
                                     <Archive size={14} className="text-gray-500 group-hover:text-emerald-500/70 transition-colors" />
-                                    {t('goaccessStats.includeCompressed')}
+                                    {t('logAnalytics.includeCompressed')}
                                 </span>
                             </label>
                             <div className="h-6 w-px bg-gray-700/60" aria-hidden />
                             <button
-                                onClick={fetchAnalytics}
+                                onClick={() => { fetchAnalytics(); fetchCalendar(); }}
                                 disabled={isLoading}
                                 className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-medium text-white shadow-lg shadow-emerald-900/20 transition-all duration-200 hover:shadow-emerald-900/30"
                             >
                                 <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''} />
-                                {t('goaccessStats.refresh')}
+                                {t('logAnalytics.refresh')}
                             </button>
                         </div>
                     </div>
@@ -807,7 +900,7 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                 {isLoading ? (
                     <div className="flex items-center justify-center py-24">
                         <RefreshCw className="w-10 h-10 text-emerald-500 animate-spin" />
-                        <span className="ml-3 text-gray-400">{t('goaccessStats.loading')}</span>
+                        <span className="ml-3 text-gray-400">{t('logAnalytics.loading')}</span>
                     </div>
                 ) : (
                     <>
@@ -817,9 +910,9 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                                 <div className="flex items-center gap-3">
                                     <h3
                                         className="text-base font-semibold text-white cursor-help"
-                                        title={t('goaccessStats.kpiModalIntro')}
+                                        title={t('logAnalytics.kpiModalIntro')}
                                     >
-                                        {t('goaccessStats.statsKpi')}
+                                        {t('logAnalytics.statsKpi')}
                                     </h3>
                                     {overview && (
                                         <button
@@ -828,12 +921,12 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                                             className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] text-gray-500 hover:text-gray-300 hover:bg-gray-800/50 transition-colors"
                                         >
                                             {statsKpiVisible ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-                                            {statsKpiVisible ? t('goaccessStats.statsKpiHide') : t('goaccessStats.statsKpiShow')}
+                                            {statsKpiVisible ? t('logAnalytics.statsKpiHide') : t('logAnalytics.statsKpiShow')}
                                         </button>
                                     )}
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <span className="text-[10px] text-gray-500 uppercase tracking-wider">{t('goaccessStats.source')}</span>
+                                    <span className="text-[10px] text-gray-500 uppercase tracking-wider">{t('logAnalytics.source')}</span>
                                     <span className={`px-2.5 py-1 rounded-md text-xs font-semibold border ${pluginColorMap[pluginId] ?? 'bg-gray-500/15 text-gray-400 border-gray-500/30'}`}>
                                         {getPluginLabel(pluginId)}
                                     </span>
@@ -859,16 +952,16 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                             <div className="px-5 py-4">
                                 <div className="flex flex-wrap gap-2">
                                     {[
-                                        { icon: <Activity size={12} className="text-emerald-400" />, label: t('goaccessStats.totalRequests'), value: (overview?.totalRequests ?? 0).toLocaleString(), color: 'text-white', tip: t('goaccessStats.tipTotalRequests') },
-                                        { icon: <Globe size={12} className="text-blue-400" />, label: t('goaccessStats.uniqueVisitors'), value: (overview?.uniqueIps ?? 0).toLocaleString(), color: 'text-blue-300', tip: t('goaccessStats.tipUniqueVisitors') },
-                                        { icon: <Activity size={12} className="text-emerald-500" />, label: t('goaccessStats.validRequests'), value: (overview?.validRequests ?? 0).toLocaleString(), color: 'text-emerald-400', tip: t('goaccessStats.tipValidRequests') },
-                                        { icon: <AlertTriangle size={12} className="text-red-400" />, label: t('goaccessStats.failedRequests'), value: (overview?.failedRequests ?? 0).toLocaleString(), color: 'text-red-400', tip: t('goaccessStats.tipFailedRequests') },
-                                        { icon: <AlertTriangle size={12} className="text-amber-400" />, label: t('goaccessStats.status4xx'), value: (overview?.status4xx ?? 0).toLocaleString(), color: 'text-amber-400', tip: t('goaccessStats.tipStatus4xx') },
-                                        { icon: <ServerCrash size={12} className="text-red-400" />, label: t('goaccessStats.status5xx'), value: (overview?.status5xx ?? 0).toLocaleString(), color: 'text-red-400', tip: t('goaccessStats.tipStatus5xx') },
-                                        { icon: <AlertTriangle size={12} className="text-amber-400" />, label: t('goaccessStats.notFound'), value: (overview?.notFound ?? 0).toLocaleString(), color: 'text-amber-300', tip: t('goaccessStats.tipNotFound') },
-                                        { icon: <FileText size={12} className="text-cyan-400" />, label: t('goaccessStats.staticFiles'), value: (overview?.staticFiles ?? 0).toLocaleString(), color: 'text-cyan-300', tip: t('goaccessStats.tipStaticFiles') },
-                                        { icon: <HardDrive size={12} className="text-purple-400" />, label: t('goaccessStats.totalBytes'), value: overview ? formatBytes(overview.totalBytes) : '0 B', color: 'text-purple-300', tip: t('goaccessStats.tipTotalBytes') },
-                                        { icon: <FileText size={12} className="text-cyan-400" />, label: t('goaccessStats.filesAnalyzed'), value: (overview?.filesAnalyzed ?? 0).toLocaleString(), color: 'text-cyan-300', tip: t('goaccessStats.tipFilesAnalyzed') },
+                                        { icon: <Activity size={12} className="text-emerald-400" />, label: t('logAnalytics.totalRequests'), value: (overview?.totalRequests ?? 0).toLocaleString(), color: 'text-white', tip: t('logAnalytics.tipTotalRequests') },
+                                        { icon: <Globe size={12} className="text-blue-400" />, label: t('logAnalytics.uniqueVisitors'), value: (overview?.uniqueIps ?? 0).toLocaleString(), color: 'text-blue-300', tip: t('logAnalytics.tipUniqueVisitors') },
+                                        { icon: <Activity size={12} className="text-emerald-500" />, label: t('logAnalytics.validRequests'), value: (overview?.validRequests ?? 0).toLocaleString(), color: 'text-emerald-400', tip: t('logAnalytics.tipValidRequests') },
+                                        { icon: <AlertTriangle size={12} className="text-red-400" />, label: t('logAnalytics.failedRequests'), value: (overview?.failedRequests ?? 0).toLocaleString(), color: 'text-red-400', tip: t('logAnalytics.tipFailedRequests') },
+                                        { icon: <AlertTriangle size={12} className="text-amber-400" />, label: t('logAnalytics.status4xx'), value: (overview?.status4xx ?? 0).toLocaleString(), color: 'text-amber-400', tip: t('logAnalytics.tipStatus4xx') },
+                                        { icon: <ServerCrash size={12} className="text-red-400" />, label: t('logAnalytics.status5xx'), value: (overview?.status5xx ?? 0).toLocaleString(), color: 'text-red-400', tip: t('logAnalytics.tipStatus5xx') },
+                                        { icon: <AlertTriangle size={12} className="text-amber-400" />, label: t('logAnalytics.notFound'), value: (overview?.notFound ?? 0).toLocaleString(), color: 'text-amber-300', tip: t('logAnalytics.tipNotFound') },
+                                        { icon: <FileText size={12} className="text-cyan-400" />, label: t('logAnalytics.staticFiles'), value: (overview?.staticFiles ?? 0).toLocaleString(), color: 'text-cyan-300', tip: t('logAnalytics.tipStaticFiles') },
+                                        { icon: <HardDrive size={12} className="text-purple-400" />, label: t('logAnalytics.totalBytes'), value: overview ? formatBytes(overview.totalBytes) : '0 B', color: 'text-purple-300', tip: t('logAnalytics.tipTotalBytes') },
+                                        { icon: <FileText size={12} className="text-cyan-400" />, label: t('logAnalytics.filesAnalyzed'), value: (overview?.filesAnalyzed ?? 0).toLocaleString(), color: 'text-cyan-300', tip: t('logAnalytics.tipFilesAnalyzed') },
                                     ].map((item, i) => (
                                         <div key={i} className="flex-1 min-w-[120px] p-2.5 rounded-lg bg-[#0a0a0a] border border-gray-800/50" title={item.tip}>
                                             <div className="flex items-center gap-1.5 text-gray-500 text-[11px] mb-1">{item.icon}{item.label}</div>
@@ -883,9 +976,9 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                         {/* Tab navigation */}
                         <div className="flex items-center gap-1 p-1 bg-[#0a0a0a] rounded-xl border border-gray-800">
                             {([
-                                { id: 'graphs' as const, icon: TrendingUp, label: t('goaccessStats.tabGraphs') },
-                                { id: 'http' as const, icon: Shield, label: t('goaccessStats.tabHttp') },
-                                { id: 'tops' as const, icon: Trophy, label: t('goaccessStats.tabTops') }
+                                { id: 'graphs' as const, icon: TrendingUp, label: t('logAnalytics.tabGraphs') },
+                                { id: 'http' as const, icon: Shield, label: t('logAnalytics.tabHttp') },
+                                { id: 'tops' as const, icon: Trophy, label: t('logAnalytics.tabTops') }
                             ]).map((tab) => (
                                 <button
                                     key={tab.id}
@@ -909,7 +1002,7 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                         {/* Time Distribution & Unique Visitors (dual-line charts) */}
                         <div id="section-time-dist" className="grid grid-cols-1 lg:grid-cols-2 gap-6 scroll-mt-24">
                             <div className="bg-[#121212] rounded-xl border border-gray-800 p-6">
-                                <SectionHeading>{t('goaccessStats.timeDistribution')}</SectionHeading>
+                                <SectionHeading>{t('logAnalytics.timeDistribution')}</SectionHeading>
                                 {trimmedTimeseries.length > 0 ? (
                                     <DualLineChart
                                         data={trimmedTimeseries.map((b) => ({
@@ -917,8 +1010,8 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                                             count: b.count,
                                             uniqueVisitors: b.uniqueVisitors ?? 0
                                         }))}
-                                        requestsLabel={t('goaccessStats.requests')}
-                                        visitorsLabel={t('goaccessStats.visitors')}
+                                        requestsLabel={t('logAnalytics.requests')}
+                                        visitorsLabel={t('logAnalytics.visitors')}
                                         height={140}
                                         formatLabel={(l) => formatTsLabel(l, getCurrentBucket())}
                                         xAxisTicks={6}
@@ -926,12 +1019,12 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                                     />
                                 ) : (
                                     <div className="h-32 flex items-center justify-center text-gray-500 text-sm">
-                                        {t('goaccessStats.noData')}
+                                        {t('logAnalytics.noData')}
                                     </div>
                                 )}
                             </div>
                             <div id="section-unique-visitors" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
-                                <SectionHeading>{t('goaccessStats.uniqueVisitorsChart')}</SectionHeading>
+                                <SectionHeading>{t('logAnalytics.uniqueVisitorsChart')}</SectionHeading>
                                 {trimmedTimeseries.length > 0 ? (
                                     <DualLineChart
                                         data={trimmedTimeseries.map((b) => ({
@@ -939,8 +1032,8 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                                             count: b.count,
                                             uniqueVisitors: b.uniqueVisitors ?? 0
                                         }))}
-                                        requestsLabel={t('goaccessStats.hits')}
-                                        visitorsLabel={t('goaccessStats.visitors')}
+                                        requestsLabel={t('logAnalytics.hits')}
+                                        visitorsLabel={t('logAnalytics.visitors')}
                                         height={140}
                                         formatLabel={(l) => formatTsLabel(l, getCurrentBucket())}
                                         xAxisTicks={6}
@@ -948,83 +1041,123 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                                     />
                                 ) : (
                                     <div className="h-32 flex items-center justify-center text-gray-500 text-sm">
-                                        {t('goaccessStats.noData')}
+                                        {t('logAnalytics.noData')}
                                     </div>
                                 )}
                             </div>
                         </div>
 
-                        {/* Day of Week + Peak Hours + Calendar Heatmap + Hour×Day Heatmap — 2×2 grid */}
+                        {/* Day of Week + Peak Hours + Calendar Heatmap + Hour×Day Heatmap */}
                         {trimmedTimeseries.length > 0 && (
-                            <div id="section-hour-day" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
-                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                    {/* Top-left: Day of week */}
-                                    <div>
-                                        <SectionHeading>{t('goaccessStats.dayOfWeekTitle')}</SectionHeading>
-                                        <DayOfWeekChart
-                                            data={timeseries.map((b) => ({ label: b.label, count: b.count }))}
-                                            noDataText={t('goaccessStats.noData')}
-                                            dayLabels={[
-                                                t('goaccessStats.monday'), t('goaccessStats.tuesday'), t('goaccessStats.wednesday'),
-                                                t('goaccessStats.thursday'), t('goaccessStats.friday'), t('goaccessStats.saturday'), t('goaccessStats.sunday')
-                                            ]}
-                                            requestsLabel={t('goaccessStats.requests')}
-                                        />
-                                    </div>
-                                    {/* Top-right: Peak hours */}
-                                    <div>
-                                        <SectionHeading>{t('goaccessStats.peakHoursTitle')}</SectionHeading>
-                                        <PeakHoursChart
-                                            data={timeseries.map((b) => ({ label: b.label, count: b.count }))}
-                                            noDataText={t('goaccessStats.noData')}
-                                            requestsLabel={t('goaccessStats.requests')}
-                                        />
-                                    </div>
-                                    {/* Bottom-left: HeatmapChart + stats tiles côte à côte */}
-                                    <div className="flex flex-col gap-3">
-                                        <SectionHeading>{t('goaccessStats.heatmapTitle')}</SectionHeading>
-                                        <div className="flex gap-3 items-center">
-                                            <div className="overflow-x-auto flex-1 min-w-0">
-                                                <HeatmapChart
-                                                    data={trimmedTimeseries.map((b) => ({ label: b.label, count: b.count }))}
-                                                    noDataText={t('goaccessStats.noData')}
-                                                    dayLabels={[
-                                                        t('goaccessStats.monday'), t('goaccessStats.tuesday'), t('goaccessStats.wednesday'),
-                                                        t('goaccessStats.thursday'), t('goaccessStats.friday'), t('goaccessStats.saturday'), t('goaccessStats.sunday')
-                                                    ]}
-                                                />
+                            <div id="section-hour-day" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24 flex flex-col gap-6">
+                                {/* Stats tiles row — 6 across at top so the heatmap below gets full width */}
+                                {timeseriesStats && (
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                                        {[
+                                            { label: t('logAnalytics.totalRequests'), value: timeseriesStats.total.toLocaleString(), color: '#10b981' },
+                                            { label: t('logAnalytics.uniqueVisitors'), value: timeseriesStats.totalVisitors.toLocaleString(), color: '#60a5fa' },
+                                            { label: 'Moy. / jour', value: Math.round(timeseriesStats.avgPerDay).toLocaleString(), color: '#34d399' },
+                                            { label: 'Moy. / heure', value: Math.round(timeseriesStats.avgPerHour).toLocaleString(), color: '#22d3ee' },
+                                            { label: 'Pic (jour)', value: [t('logAnalytics.monday'),t('logAnalytics.tuesday'),t('logAnalytics.wednesday'),t('logAnalytics.thursday'),t('logAnalytics.friday'),t('logAnalytics.saturday'),t('logAnalytics.sunday')][timeseriesStats.peakDayIdx] ?? '—', sub: timeseriesStats.peakDayCount.toLocaleString() + ' req.', color: '#f59e0b' },
+                                            { label: 'Pic (heure)', value: `${timeseriesStats.peakHourIdx}h`, sub: timeseriesStats.peakHourCount.toLocaleString() + ' req.', color: '#a78bfa' },
+                                        ].map((stat, i) => (
+                                            <div key={i} style={{ background: '#0a0a0a', border: '1px solid #1f2937', borderRadius: 8, padding: '.5rem .6rem', textAlign: 'center' }}>
+                                                <div style={{ fontSize: '.6rem', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: '.25rem' }}>{stat.label}</div>
+                                                <div style={{ fontSize: '.95rem', fontWeight: 700, color: stat.color, lineHeight: 1 }}>{stat.value}</div>
+                                                {'sub' in stat && stat.sub && <div style={{ fontSize: '.6rem', color: '#6b7280', marginTop: '.2rem' }}>{stat.sub}</div>}
                                             </div>
-                                            {timeseriesStats && (
-                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.4rem', flexShrink: 0, width: 196 }}>
-                                                    {[
-                                                        { label: t('goaccessStats.totalRequests'), value: timeseriesStats.total.toLocaleString(), color: '#10b981' },
-                                                        { label: t('goaccessStats.uniqueVisitors'), value: timeseriesStats.totalVisitors.toLocaleString(), color: '#60a5fa' },
-                                                        { label: 'Moy. / jour', value: Math.round(timeseriesStats.avgPerDay).toLocaleString(), color: '#34d399' },
-                                                        { label: 'Moy. / heure', value: Math.round(timeseriesStats.avgPerHour).toLocaleString(), color: '#22d3ee' },
-                                                        { label: 'Pic (jour)', value: [t('goaccessStats.monday'),t('goaccessStats.tuesday'),t('goaccessStats.wednesday'),t('goaccessStats.thursday'),t('goaccessStats.friday'),t('goaccessStats.saturday'),t('goaccessStats.sunday')][timeseriesStats.peakDayIdx] ?? '—', sub: timeseriesStats.peakDayCount.toLocaleString() + ' req.', color: '#f59e0b' },
-                                                        { label: 'Pic (heure)', value: `${timeseriesStats.peakHourIdx}h`, sub: timeseriesStats.peakHourCount.toLocaleString() + ' req.', color: '#a78bfa' },
-                                                    ].map((stat, i) => (
-                                                        <div key={i} style={{ background: '#0a0a0a', border: '1px solid #1f2937', borderRadius: 8, padding: '.45rem .5rem', textAlign: 'center' }}>
-                                                            <div style={{ fontSize: '.58rem', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: '.2rem' }}>{stat.label}</div>
-                                                            <div style={{ fontSize: '.9rem', fontWeight: 700, color: stat.color, lineHeight: 1 }}>{stat.value}</div>
-                                                            {'sub' in stat && stat.sub && <div style={{ fontSize: '.58rem', color: '#6b7280', marginTop: '.15rem' }}>{stat.sub}</div>}
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
+                                        ))}
                                     </div>
-                                    {/* Bottom-right: HourDayHeatmap */}
+                                )}
+
+                                {/* 2×2 grid: Day of week | Peak hours  /  Calendar heatmap | Hour×Day heatmap */}
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                    {/* Day of week — fixed 12-month window with optional 24H live toggle */}
                                     <div>
-                                        <SectionHeading>{t('goaccessStats.hourDayHeatmapTitle')}</SectionHeading>
-                                        <HourDayHeatmap
-                                            data={timeseries.map((b) => ({ label: b.label, count: b.count }))}
-                                            noDataText={t('goaccessStats.noData')}
+                                        <SectionHeading
+                                            hidePeriod
+                                            extras={<>
+                                                <FixedWindowBadge label={dayOfWeekLive ? 'Live 24h' : '12 mois'} />
+                                                <LiveToggle live={dayOfWeekLive} onToggle={() => setDayOfWeekLive((v) => !v)} window="24H" />
+                                            </>}
+                                        >
+                                            {t('logAnalytics.dayOfWeekTitle')}
+                                        </SectionHeading>
+                                        <DayOfWeekChart
+                                            data={dayOfWeekLive && live24h
+                                                // Live mode: feed 7 synthetic day entries so the chart's date parser maps each bar to a weekday.
+                                                ? live24h.dayOfWeek.map((count, dayIdx) => ({
+                                                    label: `2000-01-0${3 + dayIdx}`,
+                                                    count
+                                                }))
+                                                : calendarBuckets.map((b) => ({ label: b.label, count: b.count }))
+                                            }
+                                            noDataText={t('logAnalytics.noData')}
                                             dayLabels={[
-                                                t('goaccessStats.monday'), t('goaccessStats.tuesday'), t('goaccessStats.wednesday'),
-                                                t('goaccessStats.thursday'), t('goaccessStats.friday'), t('goaccessStats.saturday'), t('goaccessStats.sunday')
+                                                t('logAnalytics.monday'), t('logAnalytics.tuesday'), t('logAnalytics.wednesday'),
+                                                t('logAnalytics.thursday'), t('logAnalytics.friday'), t('logAnalytics.saturday'), t('logAnalytics.sunday')
                                             ]}
-                                            requestsLabel={t('goaccessStats.requests')}
+                                            requestsLabel={t('logAnalytics.requests')}
+                                        />
+                                    </div>
+                                    {/* Peak hours — default: aggregates hour-of-day over the selected period; toggle: last 24h live */}
+                                    <div>
+                                        <SectionHeading
+                                            extras={<LiveToggle live={peakHoursLive} onToggle={() => setPeakHoursLive((v) => !v)} window="24H" />}
+                                            hidePeriod={peakHoursLive}
+                                        >
+                                            {t('logAnalytics.peakHoursTitle')}
+                                        </SectionHeading>
+                                        <PeakHoursChart
+                                            data={(() => {
+                                                const src = peakHoursLive && live24h ? live24h.hourOfDay : hourOfDay;
+                                                const arr = src.length === 24 ? src : new Array(24).fill(0);
+                                                return arr.map((count, h) => ({
+                                                    label: `2000-01-01T${String(h).padStart(2, '0')}`,
+                                                    count
+                                                }));
+                                            })()}
+                                            noDataText={t('logAnalytics.noData')}
+                                            requestsLabel={t('logAnalytics.requests')}
+                                        />
+                                    </div>
+                                    {/* Calendar heatmap — fixed 12-month window */}
+                                    <div className="min-w-0">
+                                        <SectionHeading hidePeriod extras={<FixedWindowBadge />}>{t('logAnalytics.heatmapTitle')}</SectionHeading>
+                                        <HeatmapChart
+                                            data={calendarBuckets.map((b) => ({ label: b.label, count: b.count }))}
+                                            noDataText={t('logAnalytics.noData')}
+                                            dayLabels={[
+                                                t('logAnalytics.monday'), t('logAnalytics.tuesday'), t('logAnalytics.wednesday'),
+                                                t('logAnalytics.thursday'), t('logAnalytics.friday'), t('logAnalytics.saturday'), t('logAnalytics.sunday')
+                                            ]}
+                                        />
+                                    </div>
+                                    {/* Hour×Day heatmap — default: 12-month average; toggle: last 7 days live */}
+                                    <div>
+                                        <SectionHeading
+                                            hidePeriod
+                                            extras={<>
+                                                <FixedWindowBadge label={hourDayLive ? 'Live 7j' : '12 mois'} />
+                                                <LiveToggle live={hourDayLive} onToggle={() => setHourDayLive((v) => !v)} window="SEMAINE" />
+                                            </>}
+                                        >
+                                            {t('logAnalytics.hourDayHeatmapTitle')}
+                                        </SectionHeading>
+                                        <HourDayHeatmap
+                                            data={(hourDayLive && live7d ? live7d.hourDayGrid : hourDayGrid).flatMap((row, dayIdx) =>
+                                                // Jan 3-9 2000 = Mon-Sun — synthetic labels the chart's day-of-week parser will map back correctly.
+                                                (Array.isArray(row) ? row : []).map((count, hr) => ({
+                                                    label: `2000-01-0${3 + dayIdx}T${String(hr).padStart(2, '0')}`,
+                                                    count
+                                                }))
+                                            )}
+                                            noDataText={t('logAnalytics.noData')}
+                                            dayLabels={[
+                                                t('logAnalytics.monday'), t('logAnalytics.tuesday'), t('logAnalytics.wednesday'),
+                                                t('logAnalytics.thursday'), t('logAnalytics.friday'), t('logAnalytics.saturday'), t('logAnalytics.sunday')
+                                            ]}
+                                            requestsLabel={t('logAnalytics.requests')}
                                         />
                                     </div>
                                 </div>
@@ -1034,12 +1167,12 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                         {/* Status Trends over time */}
                         {trimmedTimeseries.length > 0 && (
                             <div id="section-status-trends" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
-                                <SectionHeading>{t('goaccessStats.statusTrendsTitle')}</SectionHeading>
+                                <SectionHeading>{t('logAnalytics.statusTrendsTitle')}</SectionHeading>
                                 <StatusTrendsChart
                                     data={trimmedTimeseries}
                                     height={180}
                                     formatLabel={(l) => formatTsLabel(l, getCurrentBucket())}
-                                    noDataText={t('goaccessStats.noData')}
+                                    noDataText={t('logAnalytics.noData')}
                                     xAxisTicks={6}
                                 />
                             </div>
@@ -1047,7 +1180,7 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
 
                         {/* Timeline - Requêtes dans le temps (bar/curve + date/time axis) */}
                         <div id="section-timeline" className="bg-[#121212] rounded-xl border border-gray-800 p-6 w-full scroll-mt-24">
-                            <SectionHeading>{t('goaccessStats.requestsOverTime')}</SectionHeading>
+                            <SectionHeading>{t('logAnalytics.requestsOverTime')}</SectionHeading>
                             {trimmedTimeseries.length > 0 ? (
                                 <div className="w-full min-w-0">
                                     <TimelineChart
@@ -1055,15 +1188,15 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                                         color="#10b981"
                                         height={140}
                                         formatLabel={(l) => formatTsLabel(l, getCurrentBucket())}
-                                        valueLabel={t('goaccessStats.requests')}
+                                        valueLabel={t('logAnalytics.requests')}
                                         xAxisTicks={6}
-                                        barLabel={t('goaccessStats.viewBars')}
-                                        curveLabel={t('goaccessStats.viewCurve')}
+                                        barLabel={t('logAnalytics.viewBars')}
+                                        curveLabel={t('logAnalytics.viewCurve')}
                                     />
                                 </div>
                             ) : (
                                 <div className="h-32 flex items-center justify-center text-gray-500 text-sm">
-                                    {t('goaccessStats.noData')}
+                                    {t('logAnalytics.noData')}
                                 </div>
                             )}
                         </div>
@@ -1071,7 +1204,7 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                         {/* Bandwidth over time */}
                         {trimmedTimeseries.length > 0 && trimmedTimeseries.some((b) => (b.totalBytes ?? 0) > 0) && (
                             <div id="section-bandwidth" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
-                                <SectionHeading>{t('goaccessStats.bandwidthTitle')}</SectionHeading>
+                                <SectionHeading>{t('logAnalytics.bandwidthTitle')}</SectionHeading>
                                 <TimelineChart
                                     data={trimmedTimeseries.map((b) => ({ label: b.label, count: b.totalBytes ?? 0 }))}
                                     color="#a78bfa"
@@ -1079,8 +1212,8 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                                     formatLabel={(l) => formatTsLabel(l, getCurrentBucket())}
                                     valueLabel="Bytes"
                                     xAxisTicks={6}
-                                    barLabel={t('goaccessStats.viewBars')}
-                                    curveLabel={t('goaccessStats.viewCurve')}
+                                    barLabel={t('logAnalytics.viewBars')}
+                                    curveLabel={t('logAnalytics.viewCurve')}
                                 />
                             </div>
                         )}
@@ -1094,20 +1227,20 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                         {/* Bot vs Human */}
                         {botVsHuman && (botVsHuman.bots > 0 || botVsHuman.humans > 0) && (
                             <div id="section-bot-detection" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
-                                <SectionHeading>{t('goaccessStats.botDetectionTitle')}</SectionHeading>
+                                <SectionHeading>{t('logAnalytics.botDetectionTitle')}</SectionHeading>
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                     <DonutChart
                                         segments={[
-                                            { label: t('goaccessStats.humanLabel'), value: botVsHuman.humans, color: '#059669' },
-                                            { label: t('goaccessStats.botLabel'), value: botVsHuman.bots, color: '#4b5563' }
+                                            { label: t('logAnalytics.humanLabel'), value: botVsHuman.humans, color: '#059669' },
+                                            { label: t('logAnalytics.botLabel'), value: botVsHuman.bots, color: '#4b5563' }
                                         ]}
                                         centerValue={`${botVsHuman.botPercent}%`}
-                                        centerLabel={t('goaccessStats.botLabel')}
+                                        centerLabel={t('logAnalytics.botLabel')}
                                     />
                                     {botVsHuman.topBots.length > 0 && (
                                         <div>
                                             <h4 className="text-sm font-semibold text-gray-400 mb-3">
-                                                {t('goaccessStats.topBotsTitle')}
+                                                {t('logAnalytics.topBotsTitle')}
                                             </h4>
                                             <div className="space-y-1.5 max-h-48 overflow-y-auto">
                                                 {botVsHuman.topBots.map((bot, idx) => (
@@ -1125,7 +1258,7 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
 
                         {/* Panel 1: HTTP Codes (regrouped) */}
                         <div id="section-http-codes" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
-                            <SectionHeading>{t('goaccessStats.httpCodesPanel')}</SectionHeading>
+                            <SectionHeading>{t('logAnalytics.httpCodesPanel')}</SectionHeading>
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                 <div>
                                     {statusWithVisitors.length > 0 ? (
@@ -1133,13 +1266,13 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                                             data={statusWithVisitors}
                                             colorByKey={getStatusColor}
                                             maxKeyLength={8}
-                                            hitsLabel={t('goaccessStats.hits')}
-                                            visitorsLabel={t('goaccessStats.visitors')}
+                                            hitsLabel={t('logAnalytics.hits')}
+                                            visitorsLabel={t('logAnalytics.visitors')}
                                             tableLayout
                                         />
                                     ) : (
                                         <div className="h-32 flex items-center justify-center text-gray-500 text-sm">
-                                            {t('goaccessStats.noData')}
+                                            {t('logAnalytics.noData')}
                                         </div>
                                     )}
                                 </div>
@@ -1148,9 +1281,9 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                                         <table className="w-full text-sm">
                                             <thead>
                                                 <tr className="text-gray-500 border-b border-gray-700">
-                                                    <th className="text-left py-2">{t('goaccessStats.total')}</th>
-                                                    <th className="text-right py-2">{t('goaccessStats.hits')}</th>
-                                                    <th className="text-right py-2">{t('goaccessStats.visitors')}</th>
+                                                    <th className="text-left py-2">{t('logAnalytics.total')}</th>
+                                                    <th className="text-right py-2">{t('logAnalytics.hits')}</th>
+                                                    <th className="text-right py-2">{t('logAnalytics.visitors')}</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -1169,7 +1302,7 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                             {distStatus.length > 0 && (
                                 <div className="mt-6 pt-6 border-t border-gray-800">
                                     <DistributionChart
-                                        title={t('goaccessStats.httpStatusDistribution')}
+                                        title={t('logAnalytics.httpStatusDistribution')}
                                         items={distStatus}
                                         labelMinWidth="4rem"
                                     />
@@ -1179,16 +1312,16 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
 
                         {/* Panel 2: HTTP Methods & Codes by domain (regrouped) */}
                         <div id="section-http-methods" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
-                            <SectionHeading>{t('goaccessStats.httpMethodsAndDomainPanel')}</SectionHeading>
+                            <SectionHeading>{t('logAnalytics.httpMethodsAndDomainPanel')}</SectionHeading>
                             <DistributionChart
-                                title={t('goaccessStats.httpMethodsDistribution')}
+                                title={t('logAnalytics.httpMethodsDistribution')}
                                 items={distMethods}
                                 labelMinWidth="7rem"
                             />
                             {statusByHost.length > 0 && (
                                 <div className="mt-6 pt-6 border-t border-gray-800">
                                     <h4 className="text-base font-semibold text-white mb-4">
-                                        {t('goaccessStats.statusByHost')}
+                                        {t('logAnalytics.statusByHost')}
                                     </h4>
                                     <DualBarChart
                                         data={statusByHost.map((item) => ({
@@ -1201,8 +1334,8 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                                             return getStatusColor(status);
                                         }}
                                         labelWidth={450}
-                                        hitsLabel={t('goaccessStats.hits')}
-                                        visitorsLabel={t('goaccessStats.visitors')}
+                                        hitsLabel={t('logAnalytics.hits')}
+                                        visitorsLabel={t('logAnalytics.visitors')}
                                         tableLayout
                                     />
                                 </div>
@@ -1212,12 +1345,12 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                         {/* Top 404 URLs */}
                         {notFoundUrls.length > 0 && (
                             <div id="section-top404" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
-                                <SectionHeading>{t('goaccessStats.top404Title')}</SectionHeading>
+                                <SectionHeading>{t('logAnalytics.top404Title')}</SectionHeading>
                                 <DualBarChart
                                     data={notFoundUrls}
                                     labelWidth={500}
-                                    hitsLabel={t('goaccessStats.hits')}
-                                    visitorsLabel={t('goaccessStats.visitors')}
+                                    hitsLabel={t('logAnalytics.hits')}
+                                    visitorsLabel={t('logAnalytics.visitors')}
                                     tableLayout
                                 />
                             </div>
@@ -1226,7 +1359,7 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                         {/* Response Time Distribution */}
                         {responseTimeDist && (
                             <div id="section-response-time" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
-                                <SectionHeading>{t('goaccessStats.responseTimeTitle')}</SectionHeading>
+                                <SectionHeading>{t('logAnalytics.responseTimeTitle')}</SectionHeading>
                                 <ResponseTimeChart
                                     avg={responseTimeDist.avg}
                                     p50={responseTimeDist.p50}
@@ -1234,7 +1367,7 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                                     p99={responseTimeDist.p99}
                                     max={responseTimeDist.max}
                                     buckets={responseTimeDist.buckets}
-                                    noDataText={t('goaccessStats.noData')}
+                                    noDataText={t('logAnalytics.noData')}
                                 />
                             </div>
                         )}
@@ -1248,34 +1381,34 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                         {/* Referring Sites & Virtual Hosts */}
                         <div id="section-referring" className="grid grid-cols-1 lg:grid-cols-2 gap-6 scroll-mt-24">
                             <div className="bg-[#121212] rounded-xl border border-gray-800 p-6">
-                                <SectionHeading>{t('goaccessStats.referringSites')}</SectionHeading>
+                                <SectionHeading>{t('logAnalytics.referringSites')}</SectionHeading>
                                 {referringSites.length > 0 ? (
                                     <DualBarChart
                                         data={referringSites}
                                         labelWidth={500}
-                                        hitsLabel={t('goaccessStats.hits')}
-                                        visitorsLabel={t('goaccessStats.visitors')}
+                                        hitsLabel={t('logAnalytics.hits')}
+                                        visitorsLabel={t('logAnalytics.visitors')}
                                         tableLayout
                                     />
                                 ) : (
                                     <div className="h-32 flex items-center justify-center text-gray-500 text-sm">
-                                        {t('goaccessStats.noData')}
+                                        {t('logAnalytics.noData')}
                                     </div>
                                 )}
                             </div>
                             <div id="section-virtual-hosts" className="bg-[#121212] rounded-xl border border-gray-800 p-6">
-                                <SectionHeading>{t('goaccessStats.virtualHosts')}</SectionHeading>
+                                <SectionHeading>{t('logAnalytics.virtualHosts')}</SectionHeading>
                                 {hostWithVisitors.length > 0 ? (
                                     <DualBarChart
                                         data={hostWithVisitors}
                                         labelWidth={500}
-                                        hitsLabel={t('goaccessStats.hits')}
-                                        visitorsLabel={t('goaccessStats.visitors')}
+                                        hitsLabel={t('logAnalytics.hits')}
+                                        visitorsLabel={t('logAnalytics.visitors')}
                                         tableLayout
                                     />
                                 ) : (
                                     <div className="h-32 flex items-center justify-center text-gray-500 text-sm">
-                                        {t('goaccessStats.noData')}
+                                        {t('logAnalytics.noData')}
                                     </div>
                                 )}
                             </div>
@@ -1283,36 +1416,36 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
 
                         {/* Referrer URLs (with visitors) */}
                         <div id="section-referrer-urls" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
-                            <SectionHeading>{t('goaccessStats.referrerUrls')}</SectionHeading>
+                            <SectionHeading>{t('logAnalytics.referrerUrls')}</SectionHeading>
                             {referrerWithVisitors.length > 0 ? (
                                 <DualBarChart
                                     data={referrerWithVisitors}
                                     labelWidth={600}
-                                    hitsLabel={t('goaccessStats.hits')}
-                                    visitorsLabel={t('goaccessStats.visitors')}
+                                    hitsLabel={t('logAnalytics.hits')}
+                                    visitorsLabel={t('logAnalytics.visitors')}
                                     tableLayout
                                 />
                             ) : (
                                 <div className="h-32 flex items-center justify-center text-gray-500 text-sm">
-                                    {t('goaccessStats.noData')}
+                                    {t('logAnalytics.noData')}
                                 </div>
                             )}
                         </div>
 
                         {/* Requested Files (URLs with extras) */}
                         <div id="section-requested-files" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
-                            <SectionHeading>{t('goaccessStats.requestedFiles')}</SectionHeading>
+                            <SectionHeading>{t('logAnalytics.requestedFiles')}</SectionHeading>
                             {urlsWithExtras.length > 0 ? (
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-sm">
                                         <thead>
                                             <tr className="text-gray-500 border-b border-gray-700">
-                                                <th className="text-left py-2">{t('goaccessStats.topUrls')}</th>
-                                                <th className="text-right py-2">{t('goaccessStats.hits')}</th>
-                                                <th className="text-right py-2">{t('goaccessStats.visitors')}</th>
-                                                <th className="text-right py-2">{t('goaccessStats.txAmount')}</th>
-                                                <th className="text-center py-2">{t('goaccessStats.method')}</th>
-                                                <th className="text-center py-2">{t('goaccessStats.protocol')}</th>
+                                                <th className="text-left py-2">{t('logAnalytics.topUrls')}</th>
+                                                <th className="text-right py-2">{t('logAnalytics.hits')}</th>
+                                                <th className="text-right py-2">{t('logAnalytics.visitors')}</th>
+                                                <th className="text-right py-2">{t('logAnalytics.txAmount')}</th>
+                                                <th className="text-center py-2">{t('logAnalytics.method')}</th>
+                                                <th className="text-center py-2">{t('logAnalytics.protocol')}</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -1328,7 +1461,7 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                                 </div>
                             ) : (
                                 <div className="h-32 flex items-center justify-center text-gray-500 text-sm">
-                                    {t('goaccessStats.noData')}
+                                    {t('logAnalytics.noData')}
                                 </div>
                             )}
                         </div>
@@ -1337,7 +1470,7 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                         <div id="section-top-panels" className="space-y-4 scroll-mt-24">
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                                 <TopPanel
-                                    title={t('goaccessStats.topUrls')}
+                                    title={t('logAnalytics.topUrls')}
                                     items={topUrls}
                                     maxKeyLength={80}
                                     maxVisibleWithoutScroll={5}
@@ -1345,7 +1478,7 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                                     sourceBadge={<SourceBadge />}
                                 />
                                 <TopPanel
-                                    title={t('goaccessStats.topReferrers')}
+                                    title={t('logAnalytics.topReferrers')}
                                     items={topReferrers}
                                     maxKeyLength={80}
                                     maxVisibleWithoutScroll={5}
@@ -1355,21 +1488,21 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 <TopPanel
-                                    title={t('goaccessStats.topIps')}
+                                    title={t('logAnalytics.topIps')}
                                     items={topIps}
                                     maxVisibleWithoutScroll={5}
                                     scrollWhenCollapsed={false}
                                     sourceBadge={<SourceBadge />}
                                 />
                                 <TopPanel
-                                    title={t('goaccessStats.topStatus')}
+                                    title={t('logAnalytics.topStatus')}
                                     items={topStatus}
                                     maxVisibleWithoutScroll={5}
                                     scrollWhenCollapsed={false}
                                     sourceBadge={<SourceBadge />}
                                 />
                                 <TopPanel
-                                    title={t('goaccessStats.topBrowsers')}
+                                    title={t('logAnalytics.topBrowsers')}
                                     items={topBrowsers}
                                     maxKeyLength={25}
                                     maxVisibleWithoutScroll={5}
@@ -1379,7 +1512,7 @@ export const GoAccessStyleStatsPage: React.FC<GoAccessStyleStatsPageProps> = ({ 
                             </div>
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                                 <TopPanel
-                                    title={t('goaccessStats.topUserAgents')}
+                                    title={t('logAnalytics.topUserAgents')}
                                     items={topUserAgents}
                                     maxKeyLength={50}
                                     maxVisibleWithoutScroll={5}

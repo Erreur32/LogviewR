@@ -1,20 +1,43 @@
 /**
  * Log Analytics Service
  *
- * Aggregates parsed access logs for GoAccess-style statistics.
+ * Aggregates parsed access logs for the LogAnalytics page statistics.
  * Supports: overview (KPI), timeseries (requests over time), top metrics (URLs, IPs, status, UA, referrers).
  */
 
 import { pluginManager } from './pluginManager.js';
 import { logParserService } from './logParserService.js';
+import { logReaderService } from './logReaderService.js';
 import { PluginConfigRepository } from '../database/models/PluginConfig.js';
 import type { LogSourcePlugin } from '../plugins/base/LogSourcePluginInterface.js';
 import { logger } from '../utils/logger.js';
 
 /** Web access log plugins only (NPM, Apache). Nginx excluded for now - focus on NPM first. */
 const LOG_SOURCE_PLUGINS = ['npm', 'apache'] as const;
-const MAX_LINES_PER_FILE = 5000;
 const MAX_FILES_TOTAL = 20;
+
+/**
+ * Tail-cap per file scaled to the requested period. Keeps memory bounded on short windows
+ * while allowing enough history for 7d/30d heatmaps to fill their grids.
+ */
+function tailCapForPeriod(dateFrom?: Date, dateTo?: Date): number {
+    if (!dateFrom) return 10_000;
+    const spanHours = ((dateTo?.getTime() ?? Date.now()) - dateFrom.getTime()) / 3_600_000;
+    if (spanHours <= 2) return 10_000;
+    if (spanHours <= 26) return 50_000;
+    if (spanHours <= 24 * 8) return 200_000;
+    return 500_000;
+}
+
+/**
+ * Long windows (>24h) typically need rotated .gz files to reach enough calendar days.
+ * Still gated by the plugin's own `readCompressed` setting — this only auto-enables the request.
+ */
+function shouldAutoIncludeCompressed(dateFrom?: Date, dateTo?: Date): boolean {
+    if (!dateFrom) return false;
+    const spanHours = ((dateTo?.getTime() ?? Date.now()) - dateFrom.getTime()) / 3_600_000;
+    return spanHours > 26;
+}
 
 export interface AnalyticsOverview {
     totalRequests: number;
@@ -182,21 +205,22 @@ async function collectParsedEntries(
                 .sort((a, b) => (b.modified instanceof Date ? b.modified.getTime() : 0) - (a.modified instanceof Date ? a.modified.getTime() : 0))
                 .slice(0, fileScope === 'latest' ? 1 : Math.ceil(MAX_FILES_TOTAL / pluginIds.length));
 
+            const tailCap = tailCapForPeriod(dateFrom, dateTo);
+
             for (const file of accessFiles) {
                 if (filesAnalyzed >= MAX_FILES_TOTAL) break;
 
                 try {
-                    const results = await logParserService.parseLogFile({
-                        pluginId,
-                        filePath: file.path,
-                        logType: 'access',
-                        maxLines: MAX_LINES_PER_FILE,
-                        fromLine: 0,
-                        readCompressed
+                    // Tail from the end of the file: recent entries come first, which matches
+                    // how users think of "7d of logs" (the last 7 days, not the first 5000 lines).
+                    const lines = await logReaderService.readLastLines(file.path, tailCap, {
+                        readCompressed: readCompressed && isCompressedFile(file.path)
                     });
 
-                    for (const r of results) {
-                        const p = r.parsed as ParsedAccessEntry & { isParsed?: boolean };
+                    for (const logLine of lines) {
+                        const parsed = logParserService.parseLogLine(pluginId, logLine.line, 'access', file.path);
+                        if (!parsed) continue;
+                        const p = parsed as ParsedAccessEntry;
                         if (!hasAccessFields(p)) continue;
 
                         const ts = toDate(p.timestamp);
@@ -340,6 +364,21 @@ export function computeTimeseries(
             statusGroups: statusMap.get(label) ?? { s2xx: 0, s3xx: 0, s4xx: 0, s5xx: 0 },
             totalBytes: bytesMap.get(label) ?? 0
         }));
+}
+
+/**
+ * Hour-of-day distribution (24 buckets) computed from raw entries.
+ * Independent of the timeseries bucket — needed for the Peak Hours chart when
+ * the main timeline is in day-mode (7d/30d), which otherwise collapses all counts to midnight.
+ */
+export function computeHourOfDay(entries: ParsedAccessEntry[]): number[] {
+    const hours = new Array<number>(24).fill(0);
+    for (const e of entries) {
+        const ts = toDate(e.timestamp);
+        if (!ts) continue;
+        hours[ts.getHours()]++;
+    }
+    return hours;
 }
 
 /**
@@ -828,6 +867,8 @@ export async function getAllAnalytics(
 ): Promise<{
     overview: AnalyticsOverview;
     timeseries: { buckets: AnalyticsTimeseriesBucket[] };
+    /** 24-number array: count per hour-of-day aggregated over the selected period (independent of main bucket). */
+    hourOfDay: number[];
     distribution: {
         methods: AnalyticsDistribution[];
         status: AnalyticsDistribution[];
@@ -866,13 +907,18 @@ export async function getAllAnalytics(
               ? [pluginId]
               : [];
 
+    // Auto-enable compressed reads for long windows (>26h) so rotated .gz files contribute.
+    // Still gated by each plugin's own `readCompressed` setting inside collectParsedEntries.
+    const effectiveIncludeCompressed =
+        (options?.includeCompressed ?? false) || shouldAutoIncludeCompressed(fromDate, toDate);
+
     const { entries, filesAnalyzed } = await collectParsedEntries(
         pluginIds,
         fromDate,
         toDate,
         {
             fileScope: options?.fileScope ?? 'all',
-            includeCompressed: options?.includeCompressed ?? false
+            includeCompressed: effectiveIncludeCompressed
         }
     );
     const bucket = options?.bucket ?? 'hour';
@@ -883,6 +929,7 @@ export async function getAllAnalytics(
         timeseries: {
             buckets: computeTimeseries(entries, bucket)
         },
+        hourOfDay: computeHourOfDay(entries),
         distribution: {
             methods: computeDistribution(entries, 'method'),
             status: computeDistribution(entries, 'status'),
@@ -905,5 +952,249 @@ export async function getAllAnalytics(
             statusByHost: computeStatusByHost(entries, topLimit * 2),
             notFoundUrls: computeTop404Urls(entries, topLimit)
         }
+    };
+}
+
+/** Calendar heatmap response shape: one bucket per calendar day over a fixed sliding window. */
+export interface AnalyticsCalendarBucket {
+    /** YYYY-MM-DD */
+    label: string;
+    count: number;
+    uniqueVisitors: number;
+}
+
+export interface AnalyticsCalendarStats {
+    total: number;
+    totalVisitors: number;
+    avgPerDay: number;
+    /** Peak day-of-week (0 = Monday, 6 = Sunday) and its request count. */
+    peakDayOfWeekIdx: number;
+    peakDayOfWeekCount: number;
+    /** Peak single day (ISO date) over the window. */
+    peakDayLabel: string | null;
+    peakDayCount: number;
+    /** Number of days in the window that had at least one request. */
+    activeDays: number;
+    /** Range actually covered by log data (narrower than the 365d window when logs don't go that far back). */
+    firstDay: string | null;
+    lastDay: string | null;
+}
+
+export interface AnalyticsCalendarResponse {
+    buckets: AnalyticsCalendarBucket[];
+    stats: AnalyticsCalendarStats;
+    /** 7×24 matrix (Mon→Sun × 0h→23h) aggregated over the whole window. Always filled when logs exist. */
+    hourDayGrid: number[][];
+    /** Last-24h slice: hourOfDay (24) + dayOfWeek (7) — "live" view toggle for the fixed charts. */
+    live24h: {
+        hourOfDay: number[];
+        dayOfWeek: number[];
+    };
+    /** Last-7d slice: hourDayGrid (7×24) — "live week" toggle for the Hour×Day heatmap. */
+    live7d: {
+        hourDayGrid: number[][];
+    };
+    /** Number of files scanned. Useful to detect "no rotated logs available" scenarios client-side. */
+    filesAnalyzed: number;
+    /** Window actually requested (informational). */
+    windowDays: number;
+}
+
+function computeHourDayGrid(entries: ParsedAccessEntry[]): number[][] {
+    const grid: number[][] = Array.from({ length: 7 }, () => new Array<number>(24).fill(0));
+    for (const e of entries) {
+        const ts = toDate(e.timestamp);
+        if (!ts) continue;
+        const jsDay = ts.getDay();
+        const dayIdx = jsDay === 0 ? 6 : jsDay - 1; // Monday = 0, Sunday = 6
+        grid[dayIdx][ts.getHours()]++;
+    }
+    return grid;
+}
+
+function computeDayOfWeek(entries: ParsedAccessEntry[]): number[] {
+    const days = new Array<number>(7).fill(0);
+    for (const e of entries) {
+        const ts = toDate(e.timestamp);
+        if (!ts) continue;
+        const jsDay = ts.getDay();
+        const dayIdx = jsDay === 0 ? 6 : jsDay - 1;
+        days[dayIdx]++;
+    }
+    return days;
+}
+
+function computeCalendarStats(buckets: AnalyticsCalendarBucket[]): AnalyticsCalendarStats {
+    if (buckets.length === 0) {
+        return {
+            total: 0, totalVisitors: 0, avgPerDay: 0,
+            peakDayOfWeekIdx: 0, peakDayOfWeekCount: 0,
+            peakDayLabel: null, peakDayCount: 0, activeDays: 0,
+            firstDay: null, lastDay: null
+        };
+    }
+
+    const dowCounts = [0, 0, 0, 0, 0, 0, 0];
+    let total = 0;
+    let activeDays = 0;
+    let peakDayLabel: string | null = null;
+    let peakDayCount = 0;
+    let firstDay: string | null = null;
+    let lastDay: string | null = null;
+    // Approximate totalVisitors as sum of daily uniques — true global uniqueness would need the raw entries.
+    let totalVisitors = 0;
+
+    for (const b of buckets) {
+        total += b.count;
+        totalVisitors += b.uniqueVisitors;
+        if (b.count > 0) {
+            activeDays++;
+            if (!firstDay) firstDay = b.label;
+            lastDay = b.label;
+            if (b.count > peakDayCount) {
+                peakDayCount = b.count;
+                peakDayLabel = b.label;
+            }
+            const d = new Date(`${b.label}T00:00:00`);
+            const dow = d.getDay() === 0 ? 6 : d.getDay() - 1;
+            dowCounts[dow] += b.count;
+        }
+    }
+
+    let peakDayOfWeekIdx = 0;
+    let peakDayOfWeekCount = 0;
+    for (let i = 0; i < 7; i++) {
+        if (dowCounts[i] > peakDayOfWeekCount) {
+            peakDayOfWeekCount = dowCounts[i];
+            peakDayOfWeekIdx = i;
+        }
+    }
+
+    return {
+        total,
+        totalVisitors,
+        avgPerDay: activeDays > 0 ? Math.round(total / activeDays) : 0,
+        peakDayOfWeekIdx,
+        peakDayOfWeekCount,
+        peakDayLabel,
+        peakDayCount,
+        activeDays,
+        firstDay,
+        lastDay
+    };
+}
+
+/**
+ * Build a day-bucketed calendar over the window, filling missing days with zero counts
+ * so the frontend heatmap always has a contiguous grid.
+ */
+function buildCalendarBuckets(entries: ParsedAccessEntry[], fromDate: Date, toDate: Date): AnalyticsCalendarBucket[] {
+    const countMap = new Map<string, number>();
+    const visitorsMap = new Map<string, Set<string>>();
+
+    for (const e of entries) {
+        const d = e.timestamp instanceof Date ? e.timestamp : (typeof e.timestamp === 'string' ? new Date(e.timestamp) : null);
+        if (!d || Number.isNaN(d.getTime())) continue;
+        const key = d.toISOString().slice(0, 10);
+        countMap.set(key, (countMap.get(key) ?? 0) + 1);
+        if (e.ip) {
+            let set = visitorsMap.get(key);
+            if (!set) {
+                set = new Set<string>();
+                visitorsMap.set(key, set);
+            }
+            set.add(e.ip);
+        }
+    }
+
+    const buckets: AnalyticsCalendarBucket[] = [];
+    const day = new Date(fromDate);
+    day.setUTCHours(0, 0, 0, 0);
+    const end = new Date(toDate);
+    end.setUTCHours(0, 0, 0, 0);
+    while (day <= end) {
+        const key = day.toISOString().slice(0, 10);
+        buckets.push({
+            label: key,
+            count: countMap.get(key) ?? 0,
+            uniqueVisitors: visitorsMap.get(key)?.size ?? 0
+        });
+        day.setUTCDate(day.getUTCDate() + 1);
+    }
+    return buckets;
+}
+
+/**
+ * Fetch calendar-heatmap analytics over a fixed 12-month sliding window.
+ * Independent of the page's timeRange selector: the heatmap always shows the same year-long grid
+ * so seasonal patterns remain visible regardless of what the rest of the dashboard is filtering on.
+ */
+export async function getCalendarAnalytics(
+    pluginId?: string,
+    windowDays = 365
+): Promise<AnalyticsCalendarResponse> {
+    const windowEnd = new Date();
+    const fromDate = new Date(windowEnd.getTime() - windowDays * 24 * 60 * 60 * 1000);
+
+    const enabledPluginIds = LOG_SOURCE_PLUGINS.filter((id) => {
+        const cfg = PluginConfigRepository.findByPluginId(id);
+        return cfg?.enabled === true;
+    });
+
+    const isLogSourceId = (id: string): id is (typeof LOG_SOURCE_PLUGINS)[number] =>
+        (LOG_SOURCE_PLUGINS as readonly string[]).includes(id);
+
+    const pluginIds =
+        !pluginId || pluginId === 'all'
+            ? enabledPluginIds
+            : isLogSourceId(pluginId) && enabledPluginIds.includes(pluginId)
+              ? [pluginId]
+              : [];
+
+    const { entries, filesAnalyzed } = await collectParsedEntries(
+        pluginIds,
+        fromDate,
+        windowEnd,
+        { fileScope: 'all', includeCompressed: true } // always include .gz for the calendar view
+    );
+
+    const buckets = buildCalendarBuckets(entries, fromDate, windowEnd);
+
+    // Single pass: aggregate full-window grids + live24h/live7d slices without building extra arrays.
+    const now = Date.now();
+    const live24hCutoffMs = now - 24 * 60 * 60 * 1000;
+    const live7dCutoffMs = now - 7 * 24 * 60 * 60 * 1000;
+
+    const fullHourDayGrid: number[][] = Array.from({ length: 7 }, () => new Array<number>(24).fill(0));
+    const live7dHourDayGrid: number[][] = Array.from({ length: 7 }, () => new Array<number>(24).fill(0));
+    const live24hHourOfDay = new Array<number>(24).fill(0);
+    const live24hDayOfWeek = new Array<number>(7).fill(0);
+
+    for (const e of entries) {
+        const ts = toDate(e.timestamp);
+        if (!ts) continue;
+        const tsMs = ts.getTime();
+        const jsDay = ts.getDay();
+        const dayIdx = jsDay === 0 ? 6 : jsDay - 1;
+        const hour = ts.getHours();
+
+        fullHourDayGrid[dayIdx][hour]++;
+        if (tsMs >= live7dCutoffMs) {
+            live7dHourDayGrid[dayIdx][hour]++;
+            if (tsMs >= live24hCutoffMs) {
+                live24hHourOfDay[hour]++;
+                live24hDayOfWeek[dayIdx]++;
+            }
+        }
+    }
+
+    return {
+        buckets,
+        stats: computeCalendarStats(buckets),
+        hourDayGrid: fullHourDayGrid,
+        live24h: { hourOfDay: live24hHourOfDay, dayOfWeek: live24hDayOfWeek },
+        live7d: { hourDayGrid: live7dHourDayGrid },
+        filesAnalyzed,
+        windowDays
     };
 }

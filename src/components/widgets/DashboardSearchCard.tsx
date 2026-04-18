@@ -7,10 +7,11 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Search, Filter, ExternalLink, Loader2 } from 'lucide-react';
+import { Search, Filter, ExternalLink, Loader2, Globe, X } from 'lucide-react';
 import { api } from '../../api/client';
 import { getPluginIcon } from '../../utils/pluginIcons';
 
+// KEEP IN SYNC with server/services/logSearchService.ts (LOG_SOURCE_PLUGINS)
 const LOG_SOURCE_PLUGIN_IDS = ['host-system', 'apache', 'npm', 'nginx', 'fail2ban'] as const;
 
 export interface LogSearchMatch {
@@ -20,6 +21,8 @@ export interface LogSearchMatch {
     logType: string;
     lineNumber: number;
     content: string;
+    /** Domain/vhost extracted server-side (apache vhost, npm host). */
+    domain?: string;
 }
 
 export interface LogSearchMatchCount {
@@ -163,9 +166,20 @@ export const DashboardSearchCard: React.FC<DashboardSearchCardProps> = ({ onOpen
                         onChange={(e) => setQuery(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                         placeholder={t('dashboard.searchPlaceholder')}
-                        className="flex-1 min-w-0 py-2 pr-3 bg-transparent border-0 text-theme-primary placeholder-gray-500 focus:outline-none focus:ring-0"
+                        className="flex-1 min-w-0 py-2 pr-2 bg-transparent border-0 text-theme-primary placeholder-gray-500 focus:outline-none focus:ring-0"
                         disabled={isSearching}
                     />
+                    {query && (
+                        <button
+                            type="button"
+                            onClick={() => { setQuery(''); setResult(null); setError(null); }}
+                            className="pr-3 flex items-center shrink-0 text-gray-500 hover:text-gray-300"
+                            title={t('common.clear')}
+                            aria-label={t('common.clear')}
+                        >
+                            <X size={16} />
+                        </button>
+                    )}
                 </div>
                 <div className="flex items-center gap-2">
                     <button
@@ -313,9 +327,23 @@ export const DashboardSearchCard: React.FC<DashboardSearchCardProps> = ({ onOpen
                                                             <div className="flex items-start gap-2">
                                                                 <div className="flex-1 min-w-0">
                                                                     <div className="flex items-center gap-2 flex-wrap">
+                                                                        <img
+                                                                            src={getPluginIcon(m.pluginId, m.pluginId === 'host-system' ? resolvedOsType : undefined)}
+                                                                            alt=""
+                                                                            className="w-3.5 h-3.5 opacity-80 shrink-0"
+                                                                        />
                                                                         <span className="text-xs text-gray-400 truncate" title={m.filePath}>
                                                                             {m.fileName}
                                                                         </span>
+                                                                        {m.domain && (
+                                                                            <span
+                                                                                className="flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 shrink-0"
+                                                                                title={m.domain}
+                                                                            >
+                                                                                <Globe size={10} />
+                                                                                <span className="truncate max-w-[160px]">{m.domain}</span>
+                                                                            </span>
+                                                                        )}
                                                                         <span
                                                                             className="text-xs px-1.5 py-0.5 rounded bg-theme-primary border border-theme-border shrink-0"
                                                                             title={t('dashboard.searchOccurrences', { count })}

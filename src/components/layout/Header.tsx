@@ -326,9 +326,9 @@ export const Header: React.FC<HeaderProps> = ({
   // invert=true to make white SVG visible on light browser tab backgrounds
   useFavicon(logviewrLogo, true);
   
-  // Load OS type for plugin icons (only needed for dashboard, analytics, goaccess-stats, and if not provided as prop)
+  // Load OS type for plugin icons (only needed for dashboard, analytics, log-analytics, and if not provided as prop)
   useEffect(() => {
-    if (!osTypeProp && (pageType === 'dashboard' || pageType === 'analytics' || pageType === 'goaccess-stats')) {
+    if (!osTypeProp && (pageType === 'dashboard' || pageType === 'analytics' || pageType === 'log-analytics')) {
       api.get<{ type: string }>('/api/log-viewer/os-type')
         .then(response => {
           if (response.success && response.result) {
@@ -345,7 +345,7 @@ export const Header: React.FC<HeaderProps> = ({
   useEffect(() => {
     if (pageType === 'dashboard') {
       document.title = 'LogviewR - Dashboard';
-    } else if (pageType === 'goaccess-stats') {
+    } else if (pageType === 'log-analytics') {
       document.title = 'Stats Serveurs Web - LogviewR';
     } else if (pageType === 'settings') {
       document.title = t('header.pageTitles.settings');
@@ -368,7 +368,7 @@ export const Header: React.FC<HeaderProps> = ({
   // Get active plugins for dashboard and analytics pages
   const { plugins } = usePluginStore();
   const activePlugins = useMemo(() => {
-    if (pageType !== 'dashboard' && pageType !== 'analytics' && pageType !== 'goaccess-stats') {
+    if (pageType !== 'dashboard' && pageType !== 'analytics' && pageType !== 'log-analytics') {
       return [];
     }
     return plugins.filter(p => p.enabled && (p.id === 'host-system' || p.id === 'nginx' || p.id === 'apache' || p.id === 'npm' || p.id === 'fail2ban'));
@@ -454,7 +454,7 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       {/* Active Plugins Icons - Only for Dashboard and Analytics pages */}
-      {(pageType === 'dashboard' || pageType === 'analytics' || pageType === 'goaccess-stats') && activePlugins.length > 0 && (
+      {(pageType === 'dashboard' || pageType === 'analytics' || pageType === 'log-analytics') && activePlugins.length > 0 && (
         <div className="flex items-center gap-3">
           {activePlugins
             .sort((a, b) => {
