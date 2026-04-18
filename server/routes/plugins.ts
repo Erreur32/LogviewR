@@ -66,9 +66,10 @@ function pathExistsResolved(p: string): boolean {
  * Strip trailing '/' characters without regex (avoids S5852 ReDoS alert on `\/+$`).
  * Preserves a single '/' root: '/' stays '/'.
  */
+const SLASH_CODE_POINT = 0x2f; // '/' = U+002F (ASCII)
 function stripTrailingSlashes(p: string): string {
     let end = p.length;
-    while (end > 1 && p.charCodeAt(end - 1) === 47 /* '/' */) end--;
+    while (end > 1 && p.codePointAt(end - 1) === SLASH_CODE_POINT) end--;
     return end === p.length ? p : p.slice(0, end);
 }
 
