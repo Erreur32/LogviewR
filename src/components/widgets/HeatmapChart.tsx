@@ -98,14 +98,14 @@ export const HeatmapChart: React.FC<HeatmapChartProps> = ({
         const el = containerRef.current;
         if (!el) return;
         let rafId = 0;
-        const ro = new ResizeObserver((entries) => {
-            const w = entries[0]?.contentRect.width ?? 0;
-            // rAF-coalesce bursts during window drag: only one state update per paint.
+        // Threshold update — ignore sub-2px changes to avoid re-renders during window drag.
+        const applyWidth = (w: number) => setContainerWidth((prev) => (Math.abs(prev - w) >= 2 ? w : prev));
+        const scheduleWidth = (w: number) => {
             if (rafId) cancelAnimationFrame(rafId);
-            rafId = requestAnimationFrame(() => {
-                setContainerWidth((prev) => (Math.abs(prev - w) >= 2 ? w : prev));
-            });
-        });
+            rafId = requestAnimationFrame(() => applyWidth(w));
+        };
+        const onResize = (entries: ResizeObserverEntry[]) => scheduleWidth(entries[0]?.contentRect.width ?? 0);
+        const ro = new ResizeObserver(onResize);
         ro.observe(el);
         return () => {
             if (rafId) cancelAnimationFrame(rafId);

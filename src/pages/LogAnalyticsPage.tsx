@@ -72,14 +72,15 @@ function formatBytes(bytes: number): string {
 }
 
 type TimeRangeKey = '1h' | '24h' | '7d' | '30d' | 'custom';
+type BucketKey = 'minute' | 'hour' | 'day';
 
-function bucketForCustomRange(rangeMs: number): 'minute' | 'hour' | 'day' {
+function bucketForCustomRange(rangeMs: number): BucketKey {
     if (rangeMs <= 2 * 60 * 60 * 1000) return 'minute';
     if (rangeMs <= 48 * 60 * 60 * 1000) return 'hour';
     return 'day';
 }
 
-function resolveDateRange(timeRange: TimeRangeKey, customFrom: string, customTo: string): { from: Date; to: Date; bucketHour: 'minute' | 'hour' | 'day' } {
+function resolveDateRange(timeRange: TimeRangeKey, customFrom: string, customTo: string): { from: Date; to: Date; bucketHour: BucketKey } {
     const to = new Date();
     switch (timeRange) {
         case '1h':
