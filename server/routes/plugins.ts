@@ -19,6 +19,59 @@ import type { PluginConfig } from '../plugins/base/PluginInterface.js';
 
 const router = Router();
 
+// ─── NPM path helpers (shared by /npm/detect-db, /npm/detect-layout, /npm/domain-map) ───
+
+const HOST_ROOT_PATH = process.env.HOST_ROOT_PATH || '/host';
+
+/**
+ * Detect whether the server is running inside a Docker container.
+ * Cached after first call — the answer is effectively static at runtime.
+ */
+let _isDockerCached: boolean | null = null;
+function detectDocker(): boolean {
+    if (_isDockerCached !== null) return _isDockerCached;
+    let result = false;
+    try { fs.accessSync('/.dockerenv'); result = true; } catch { /* noop */ }
+    if (!result && (process.env.DOCKER === 'true' || process.env.DOCKER_CONTAINER === 'true')) {
+        result = true;
+    }
+    if (!result) {
+        try {
+            const cgroup = fs.readFileSync('/proc/self/cgroup', 'utf8');
+            if (cgroup.includes('docker') || cgroup.includes('containerd')) result = true;
+        } catch { /* noop */ }
+    }
+    _isDockerCached = result;
+    return result;
+}
+
+/**
+ * Resolve a host path for Docker container access: prefixes absolute host paths
+ * with HOST_ROOT_PATH so the container can read them via the mount.
+ * In non-Docker mode, returns the path unchanged.
+ */
+function resolveHostPath(p: string): string {
+    if (!detectDocker()) return p;
+    if (p.startsWith(HOST_ROOT_PATH + '/') || p === HOST_ROOT_PATH) return p;
+    if (p.startsWith('/')) return HOST_ROOT_PATH + p;
+    return p;
+}
+
+/** Read-access check that resolves Docker paths first. */
+function pathExistsResolved(p: string): boolean {
+    try { fs.accessSync(resolveHostPath(p), fs.constants.R_OK); return true; } catch { return false; }
+}
+
+/**
+ * Strip trailing '/' characters without regex (avoids S5852 ReDoS alert on `\/+$`).
+ * Preserves a single '/' root: '/' stays '/'.
+ */
+function stripTrailingSlashes(p: string): string {
+    let end = p.length;
+    while (end > 1 && p.charCodeAt(end - 1) === 47 /* '/' */) end--;
+    return end === p.length ? p : p.slice(0, end);
+}
+
 // GET /api/plugins - Get all plugins with their status
 // Optimized: Lightweight connection status check without heavy API calls
 router.get('/', requireAuth, asyncHandler(async (req: AuthenticatedRequest, res) => {
@@ -326,24 +379,7 @@ router.post('/npm/detect-db', requireAuth, requireAdmin, asyncHandler(async (req
     const { basePath } = req.body as { basePath?: string };
     if (!basePath) throw createError('basePath manquant', 400, 'MISSING_PARAM');
 
-    // Resolve through Docker path mapping if applicable (same logic as BasePlugin.resolveDockerPathSync)
-    const HOST_ROOT_PATH = process.env.HOST_ROOT_PATH || '/host';
-    const isDocker = (() => {
-        try { fs.accessSync('/.dockerenv'); return true; } catch { /* noop */ }
-        if (process.env.DOCKER === 'true' || process.env.DOCKER_CONTAINER === 'true') return true;
-        try {
-            const cgroup = fs.readFileSync('/proc/self/cgroup', 'utf8');
-            return cgroup.includes('docker') || cgroup.includes('containerd');
-        } catch { return false; }
-    })();
-    const resolve = (p: string): string => {
-        if (!isDocker) return p;
-        if (p.startsWith(HOST_ROOT_PATH + '/') || p === HOST_ROOT_PATH) return p;
-        if (p.startsWith('/')) return HOST_ROOT_PATH + p;
-        return p;
-    };
-
-    const normalizedBase = basePath.replace(/\/+$/, '');
+    const normalizedBase = stripTrailingSlashes(basePath);
     const candidates: string[] = [
         path.join(normalizedBase, '..', 'database.sqlite'),       // /data/logs → /data/database.sqlite
         path.join(normalizedBase, '..', '..', 'database.sqlite'), // /data/logs/proxy → /data/database.sqlite
@@ -351,19 +387,17 @@ router.post('/npm/detect-db', requireAuth, requireAdmin, asyncHandler(async (req
     ];
 
     for (const candidate of candidates) {
-        const resolved = resolve(candidate);
-        try {
-            fs.accessSync(resolved, fs.constants.R_OK);
-            return res.json({ success: true, result: { found: true, path: candidate, resolvedPath: resolved } });
-        } catch { /* try next */ }
+        if (pathExistsResolved(candidate)) {
+            return res.json({ success: true, result: { found: true, path: candidate, resolvedPath: resolveHostPath(candidate) } });
+        }
     }
 
     // Include resolved paths in the error payload for debugging
     res.json({ success: true, result: {
         found: false,
         candidates,
-        resolved: candidates.map(c => resolve(c)),
-        isDocker,
+        resolved: candidates.map(resolveHostPath),
+        isDocker: detectDocker(),
         message: 'database.sqlite non trouvée dans les chemins candidats',
     } });
 }));
@@ -375,26 +409,7 @@ router.post('/npm/detect-layout', requireAuth, requireAdmin, asyncHandler(async 
     const { path: inputPath } = req.body as { path?: string };
     if (!inputPath) throw createError('path manquant', 400, 'MISSING_PARAM');
 
-    const HOST_ROOT_PATH = process.env.HOST_ROOT_PATH || '/host';
-    const isDocker = (() => {
-        try { fs.accessSync('/.dockerenv'); return true; } catch { /* noop */ }
-        if (process.env.DOCKER === 'true' || process.env.DOCKER_CONTAINER === 'true') return true;
-        try {
-            const cgroup = fs.readFileSync('/proc/self/cgroup', 'utf8');
-            return cgroup.includes('docker') || cgroup.includes('containerd');
-        } catch { return false; }
-    })();
-    const resolve = (p: string): string => {
-        if (!isDocker) return p;
-        if (p.startsWith(HOST_ROOT_PATH + '/') || p === HOST_ROOT_PATH) return p;
-        if (p.startsWith('/')) return HOST_ROOT_PATH + p;
-        return p;
-    };
-    const exists = (p: string): boolean => {
-        try { fs.accessSync(resolve(p), fs.constants.R_OK); return true; } catch { return false; }
-    };
-
-    const normalized = inputPath.replace(/\/+$/, '') || '/';
+    const normalized = stripTrailingSlashes(inputPath) || '/';
 
     // Candidate data paths — try the input, its child data/, and its parent
     // Standard NPM layouts:
@@ -410,17 +425,17 @@ router.post('/npm/detect-layout', requireAuth, requireAdmin, asyncHandler(async 
     for (const dataPath of dataCandidates) {
         const logsPath = path.join(dataPath, 'logs');
         const dbPath = path.join(dataPath, 'database.sqlite');
-        const dbFound = exists(dbPath);
-        const logsFound = exists(logsPath);
+        const dbFound = pathExistsResolved(dbPath);
+        const logsFound = pathExistsResolved(logsPath);
         if (dbFound && logsFound) {
             return res.json({ success: true, result: {
                 found: true,
                 dataPath, logsPath, dbPath,
-                resolvedDataPath: resolve(dataPath),
-                resolvedLogsPath: resolve(logsPath),
-                resolvedDbPath: resolve(dbPath),
+                resolvedDataPath: resolveHostPath(dataPath),
+                resolvedLogsPath: resolveHostPath(logsPath),
+                resolvedDbPath: resolveHostPath(dbPath),
                 dbFound, logsFound,
-                isDocker,
+                isDocker: detectDocker(),
             } });
         }
     }
@@ -430,8 +445,8 @@ router.post('/npm/detect-layout', requireAuth, requireAdmin, asyncHandler(async 
         dataPath: dp,
         logsPath: path.join(dp, 'logs'),
         dbPath: path.join(dp, 'database.sqlite'),
-        logsFound: exists(path.join(dp, 'logs')),
-        dbFound: exists(path.join(dp, 'database.sqlite')),
+        logsFound: pathExistsResolved(path.join(dp, 'logs')),
+        dbFound: pathExistsResolved(path.join(dp, 'database.sqlite')),
     }));
     const best = partial.find(p => p.logsFound || p.dbFound) ?? partial[0];
 
@@ -443,7 +458,7 @@ router.post('/npm/detect-layout', requireAuth, requireAdmin, asyncHandler(async 
         logsFound: best.logsFound,
         dbFound: best.dbFound,
         candidates: partial,
-        isDocker,
+        isDocker: detectDocker(),
         message: best.logsFound || best.dbFound
             ? 'Layout NPM partiel — vérifiez le chemin'
             : 'Aucun layout NPM détecté à cet emplacement',
@@ -462,23 +477,7 @@ router.get('/npm/domain-map', requireAuth, asyncHandler(async (_req: Authenticat
         return res.json({ success: true, result: { map: {}, source: 'none', reason: 'NPM basePath non configuré' } });
     }
 
-    const HOST_ROOT_PATH = process.env.HOST_ROOT_PATH || '/host';
-    const isDocker = (() => {
-        try { fs.accessSync('/.dockerenv'); return true; } catch { /* noop */ }
-        if (process.env.DOCKER === 'true' || process.env.DOCKER_CONTAINER === 'true') return true;
-        try {
-            const cgroup = fs.readFileSync('/proc/self/cgroup', 'utf8');
-            return cgroup.includes('docker') || cgroup.includes('containerd');
-        } catch { return false; }
-    })();
-    const resolve = (p: string): string => {
-        if (!isDocker) return p;
-        if (p.startsWith(HOST_ROOT_PATH + '/') || p === HOST_ROOT_PATH) return p;
-        if (p.startsWith('/')) return HOST_ROOT_PATH + p;
-        return p;
-    };
-
-    const normalizedBase = basePath.replace(/\/+$/, '');
+    const normalizedBase = stripTrailingSlashes(basePath);
     const dbCandidates = [
         path.join(normalizedBase, '..', 'database.sqlite'),
         path.join(normalizedBase, 'database.sqlite'),
@@ -486,8 +485,7 @@ router.get('/npm/domain-map', requireAuth, asyncHandler(async (_req: Authenticat
     ];
     let dbPath: string | null = null;
     for (const c of dbCandidates) {
-        const resolved = resolve(c);
-        try { fs.accessSync(resolved, fs.constants.R_OK); dbPath = resolved; break; } catch { /* next */ }
+        if (pathExistsResolved(c)) { dbPath = resolveHostPath(c); break; }
     }
 
     if (!dbPath) {
