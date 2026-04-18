@@ -278,8 +278,8 @@ const TopPanel: React.FC<{
     );
 };
 
-// TODO(sonar): cognitive complexity ≈37. Extract each tab (Graphs / HTTP / Tops)
-// into its own component when next refactoring this page.
+// Note: cognitive complexity ≈37 (Sonar threshold 15). Extracting each tab
+// (Graphs / HTTP / Tops) into its own component is the planned refactor.
 export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) => {
     const { t, i18n } = useTranslation();
     const { plugins } = usePluginStore();
