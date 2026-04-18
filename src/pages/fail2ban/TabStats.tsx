@@ -1121,8 +1121,12 @@ const TopsSection: React.FC<{ days: number; onDaysChange: (d: number) => void; o
         const byDir = new Map<string, DomainLogFile[]>();
         for (const f of files) {
             const dir = f.path.slice(0, f.path.length - f.name.length);
-            if (!byDir.has(dir)) byDir.set(dir, []);
-            byDir.get(dir)!.push(f);
+            const list = byDir.get(dir);
+            if (list) {
+                list.push(f);
+            } else {
+                byDir.set(dir, [f]);
+            }
         }
         return (
             <>

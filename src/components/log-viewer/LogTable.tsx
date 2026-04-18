@@ -150,6 +150,32 @@ const getColumnStyle = (isLast: boolean): React.CSSProperties =>
     isLast ? ABSORB_COL_STYLE : TIGHT_COL_STYLE;
 
 /**
+ * Hook: resolves the NPM proxy-host → domain mapping once for the plugin, then
+ * derives the domain for the currently selected file (or null if n/a). Kept out
+ * of the main component body to keep its cognitive complexity low.
+ */
+function useNpmDomainForFile(pluginId: string | undefined, selectedFilePath: string | undefined): string | null {
+    const [map, setMap] = useState<Record<string, string>>({});
+    useEffect(() => {
+        if (pluginId !== 'npm') return;
+        let cancelled = false;
+        api.get<{ map: Record<string, string> }>('/api/plugins/npm/domain-map')
+            .then(res => {
+                if (cancelled) return;
+                if (res.success && res.result?.map) setMap(res.result.map);
+            })
+            .catch(() => { /* non-critical */ });
+        return () => { cancelled = true; };
+    }, [pluginId]);
+    return useMemo(() => {
+        if (pluginId !== 'npm' || !selectedFilePath) return null;
+        const filename = selectedFilePath.split('/').pop() || '';
+        const m = /^proxy-host-([^_]+)_/.exec(filename);
+        return m ? (map[m[1]] ?? null) : null;
+    }, [pluginId, selectedFilePath, map]);
+}
+
+/**
  * Inner wrapper div: nowrap everywhere, max-width + overflow-x for capped columns.
  * Memoized per column name so we don't allocate a new CSSProperties object on every
  * cell render (hot path: thousands of rows × all columns re-render on sort/filter).
@@ -292,26 +318,23 @@ export const LogTable: React.FC<LogTableProps> = ({
     const { t } = useTranslation();
     const [ipMenu, setIpMenu] = useState<{ ip: string; x: number; y: number } | null>(null);
 
-    // NPM: fetch proxy-host id → domain map so we can annotate the filename
-    const [npmDomainMap, setNpmDomainMap] = useState<Record<string, string>>({});
-    useEffect(() => {
-        if (pluginId !== 'npm') return;
-        let cancelled = false;
-        api.get<{ map: Record<string, string> }>('/api/plugins/npm/domain-map')
-            .then(res => {
-                if (cancelled) return;
-                if (res.success && res.result?.map) setNpmDomainMap(res.result.map);
-            })
-            .catch(() => { /* non-critical */ });
-        return () => { cancelled = true; };
-    }, [pluginId]);
+    // NPM: proxy-host-N_*.log → primary domain (fetched once per plugin, see hook)
+    const npmDomainForFile = useNpmDomainForFile(pluginId, selectedFilePath);
 
-    const npmDomainForFile = useMemo((): string | null => {
-        if (pluginId !== 'npm' || !selectedFilePath) return null;
-        const filename = selectedFilePath.split('/').pop() || '';
-        const m = /^proxy-host-([^_]+)_/.exec(filename);
-        return m ? (npmDomainMap[m[1]] ?? null) : null;
-    }, [pluginId, selectedFilePath, npmDomainMap]);
+    // Tooltip text for the excluded-IPs amber badge. Extracted to avoid nested
+    // ternaries in the JSX (Sonar S3358) and to centralize the pluralisation.
+    const ipFilterTooltipText = useMemo((): string => {
+        const base = showExcludedIps ? t('logViewer.ipFilterTooltipHide') : t('logViewer.ipFilterTooltipShow');
+        if (ipFilterHiddenLinesCount <= 0) return base;
+        const plural = ipFilterHiddenLinesCount === 1 ? '' : 's';
+        return `${base} · ${ipFilterHiddenLinesCount} ligne${plural} masquée${plural}`;
+    }, [showExcludedIps, ipFilterHiddenLinesCount, t]);
+
+    // Badge label for the excluded-IPs button.
+    const ipFilterBadgeLabel = useMemo((): string => {
+        if (showExcludedIps) return t('logViewer.ipFilterBadgeAll');
+        return t('logViewer.ipFilterBadgeHidden', { count: ipFilterHiddenCount });
+    }, [showExcludedIps, ipFilterHiddenCount, t]);
     // Filter out columns that are always empty (like pid for daemon.log)
     const visibleColumns = useMemo(() => {
         let filteredColumns = [...columns];
@@ -1015,17 +1038,13 @@ export const LogTable: React.FC<LogTableProps> = ({
                             </Tooltip>
                         )}
                         {ipFilterHiddenCount > 0 && onToggleIpFilter && (
-                            <Tooltip content={
-                                `${showExcludedIps ? t('logViewer.ipFilterTooltipHide') : t('logViewer.ipFilterTooltipShow')}${
-                                    ipFilterHiddenLinesCount > 0 ? ` · ${ipFilterHiddenLinesCount} ligne${ipFilterHiddenLinesCount !== 1 ? 's' : ''} masquée${ipFilterHiddenLinesCount !== 1 ? 's' : ''}` : ''
-                                }`
-                            }>
+                            <Tooltip content={ipFilterTooltipText}>
                                 <button
                                     type="button"
                                     onClick={onToggleIpFilter}
                                     className="bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded border border-amber-500/30 hover:bg-amber-500/30 cursor-pointer text-xs"
                                 >
-                                    {showExcludedIps ? t('logViewer.ipFilterBadgeAll') : t('logViewer.ipFilterBadgeHidden', { count: ipFilterHiddenCount })}
+                                    {ipFilterBadgeLabel}
                                 </button>
                             </Tooltip>
                         )}

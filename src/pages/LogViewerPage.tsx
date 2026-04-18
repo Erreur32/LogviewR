@@ -848,11 +848,10 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
         const plugin = plugins.find((p) => p.id === selectedPluginId);
         if (!plugin?.settings) return;
         const current = (plugin.settings as Record<string, unknown>).excludedIps;
-        const list = Array.isArray(current)
-            ? (current as string[]).filter((x) => x !== ip)
-            : typeof current === 'string'
-                ? current.split(/[\n,;]+/).map((s) => s.trim()).filter((x) => x && x !== ip)
-                : [];
+        // Normalize existing value to an array, then drop `ip`.
+        // parseExcludedIps handles both string and array inputs.
+        const existing = parseExcludedIps(current);
+        const list = existing.filter((x) => x !== ip);
         const newSettings = { ...plugin.settings, excludedIps: list } as Record<string, unknown>;
         await updatePluginConfig(selectedPluginId, { settings: newSettings });
         await fetchPlugins();

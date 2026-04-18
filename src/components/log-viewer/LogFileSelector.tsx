@@ -158,6 +158,16 @@ export function LogFileSelector({
         return filePath.toLowerCase().endsWith('.gz');
     };
 
+    // Derive the text-color class for a file label from its state. Extracted to
+    // avoid nested ternaries in the JSX (Sonar S3358).
+    const fileLabelColorClass = (file: LogFileInfo | undefined): string => {
+        if (!file) return '';
+        if (file.size === 0) return 'text-gray-600';
+        if (isCompressedFile(file.path)) return 'text-orange-400';
+        if (isRotatedFile(file.path)) return 'text-gray-400';
+        return '';
+    };
+
     // Apply search and "only non-.gz with data" filters first, then compression filter
     const filesAfterSearchAndEmptyFilter = useMemo(() => {
         let result = files;
@@ -651,7 +661,7 @@ export function LogFileSelector({
                                                                     ) : (
                                                                         <FileText size={16} />
                                                                     )}
-                                                                    <span className={`flex-1 flex items-center gap-2 ${currentFile?.size === 0 ? 'text-gray-600' : isCompressedFile(currentFile?.path || '') ? 'text-orange-400' : isRotatedFile(currentFile?.path || '') ? 'text-gray-400' : ''}`}>
+                                                                    <span className={`flex-1 flex items-center gap-2 ${fileLabelColorClass(currentFile)}`}>
                                                                         <span>{group.baseName}</span>
                                                                         {pluginId === 'npm' && (() => {
                                                                             const dom = getNpmDomain(group.baseName);
@@ -848,7 +858,7 @@ export function LogFileSelector({
                                                                 ) : (
                                                                     <FileText size={16} />
                                                                 )}
-                                                                <span className={`flex-1 ${currentFile?.size === 0 ? 'text-gray-600' : isCompressedFile(currentFile?.path || '') ? 'text-orange-400' : isRotatedFile(currentFile?.path || '') ? 'text-gray-400' : ''}`}>{groupLabel}</span>
+                                                                <span className={`flex-1 ${fileLabelColorClass(currentFile)}`}>{groupLabel}</span>
                                                                 {isCompressedFile(currentFile?.path || '') && (
                                                                     <span className="text-xs px-1.5 py-0.5 bg-orange-500/20 text-orange-400 rounded border border-orange-500/30">
                                                                         .gz
