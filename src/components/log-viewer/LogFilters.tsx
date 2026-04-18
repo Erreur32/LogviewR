@@ -18,6 +18,8 @@ interface LogFiltersProps {
     logDateRange?: { min?: Date; max?: Date };
     pluginId?: string;
     logs?: LogEntry[]; // Logs to analyze for available filter values
+    /** Hide the search input (e.g. when rendered elsewhere like the pagination bar) */
+    hideSearch?: boolean;
 }
 
 export const LogFilters: React.FC<LogFiltersProps> = ({
@@ -25,6 +27,7 @@ export const LogFilters: React.FC<LogFiltersProps> = ({
     onFiltersChange,
     logType = 'syslog',
     className = '',
+    hideSearch = false,
     logDateRange,
     pluginId,
     logs = []
@@ -323,6 +326,7 @@ export const LogFilters: React.FC<LogFiltersProps> = ({
             {/* Single Row: Search + Date Button */}
             <div className={`flex items-center gap-3 flex-wrap ${isCompact ? 'flex-nowrap' : ''}`}>
                 {/* Search Input with clear (X) button */}
+                {!hideSearch && (
                 <div className={`relative ${isCompact ? 'w-64' : 'flex-1 min-w-[200px]'}`}>
                     <Search className={`absolute left-3 top-1/2 transform -translate-y-1/2 ${filters.search ? 'text-cyan-400' : 'text-gray-500'}`} size={18} />
                     <input
@@ -335,8 +339,8 @@ export const LogFilters: React.FC<LogFiltersProps> = ({
                         } ${
                             filters.search
                                 ? 'border-cyan-500/50 bg-cyan-500/10 ring-2 ring-cyan-400/30'
-                                : isCompact 
-                                    ? 'border-theme-border bg-theme-secondary' 
+                                : isCompact
+                                    ? 'border-theme-border bg-theme-secondary'
                                     : 'border-gray-700 bg-[#0a0a0a]'
                         }`}
                     />
@@ -354,6 +358,7 @@ export const LogFilters: React.FC<LogFiltersProps> = ({
                         </button>
                     )}
                 </div>
+                )}
 
                 {/* Date Button - Opens date picker, no automatic filter */}
                 <div className="relative date-picker-container">
@@ -576,6 +581,74 @@ export const LogFilters: React.FC<LogFiltersProps> = ({
                         Réinitialiser
                     </Button>
                 )}
+
+                {/* HTTP Filters (Code + Method) — inline with the rest of the stats row */}
+                {(pluginId === 'apache' || pluginId === 'nginx' || pluginId === 'npm') && (logType === 'access' || logType === 'error') && (
+                    <>
+                        {httpCodes.length > 0 && (
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <span className={`text-xs font-medium flex items-center gap-2 ${
+                                    filters.httpCode && filters.httpCode.length > 0 ? 'text-cyan-400' : 'text-gray-400'
+                                }`}>
+                                    {filters.httpCode && filters.httpCode.length > 0 && <Filter size={12} />}
+                                    Code HTTP{filters.httpCode && filters.httpCode.length > 0 ? ' (actif)' : ''}
+                                </span>
+                                <span className="text-gray-600">|</span>
+                                <div className="flex flex-wrap gap-1">
+                                    {httpCodeRanges.map((range) => {
+                                        const availableCodes = range.codes.filter(code => httpCodes.includes(code));
+                                        if (availableCodes.length === 0) return null;
+                                        return availableCodes.map((code) => {
+                                            const isActive = filters.httpCode?.includes(code);
+                                            return (
+                                                <button
+                                                    key={code}
+                                                    onClick={() => handleHttpCodeChange(code)}
+                                                    className={`px-2 py-0.5 rounded-md text-xs font-medium transition-colors ${
+                                                        isActive
+                                                            ? 'bg-cyan-500 text-white ring-2 ring-cyan-400/50 shadow-lg'
+                                                            : 'bg-[#0a0a0a] text-gray-400 hover:bg-[#1a1a1a] hover:text-gray-300 border border-gray-700'
+                                                    }`}
+                                                >
+                                                    {code}
+                                                </button>
+                                            );
+                                        });
+                                    })}
+                                </div>
+                            </div>
+                        )}
+                        {httpMethods.length > 0 && (
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <span className={`text-xs font-medium flex items-center gap-2 ${
+                                    filters.httpMethod && filters.httpMethod.length > 0 ? 'text-cyan-400' : 'text-gray-400'
+                                }`}>
+                                    {filters.httpMethod && filters.httpMethod.length > 0 && <Filter size={12} />}
+                                    Méthode HTTP{filters.httpMethod && filters.httpMethod.length > 0 ? ' (actif)' : ''}
+                                </span>
+                                <span className="text-gray-600">|</span>
+                                <div className="flex flex-wrap gap-1">
+                                    {httpMethods.map((method) => {
+                                        const isActive = filters.httpMethod?.includes(method);
+                                        return (
+                                            <button
+                                                key={method}
+                                                onClick={() => handleHttpMethodChange(method)}
+                                                className={`px-2 py-0.5 rounded-md text-xs font-medium transition-colors ${
+                                                    isActive
+                                                        ? 'bg-cyan-500 text-white ring-2 ring-cyan-400/50 shadow-lg'
+                                                        : 'bg-[#0a0a0a] text-gray-400 hover:bg-[#1a1a1a] hover:text-gray-300 border border-gray-700'
+                                                }`}
+                                            >
+                                                {method}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+                    </>
+                )}
             </div>
 
             {/* Expanded Filters - Advanced Options */}
@@ -640,81 +713,6 @@ export const LogFilters: React.FC<LogFiltersProps> = ({
                                 <EyeOff size={14} />
                                 Masquer les logs non parsés
                             </button>
-                        </div>
-                    )}
-
-                    {/* HTTP Filters (Code, Method, IP Source) - Only for HTTP access logs */}
-                    {(pluginId === 'apache' || pluginId === 'nginx' || pluginId === 'npm') && (logType === 'access' || logType === 'error') && (
-                        <div className="space-y-4">
-                            {/* HTTP Code Filter - Only show if codes are available */}
-                            {httpCodes.length > 0 && (
-                            <div className="flex items-center gap-2 flex-wrap">
-                                <span className={`text-xs font-medium flex items-center gap-2 ${
-                                    filters.httpCode && filters.httpCode.length > 0 ? 'text-cyan-400' : 'text-gray-400'
-                                }`}>
-                                    {filters.httpCode && filters.httpCode.length > 0 && <Filter size={12} />}
-                                    Code HTTP{filters.httpCode && filters.httpCode.length > 0 ? ' (actif)' : ''}
-                                </span>
-                                <span className="text-gray-600">|</span>
-                                <div className="flex flex-wrap gap-2">
-                                    {httpCodeRanges.map((range) => {
-                                        const availableCodes = range.codes.filter(code => httpCodes.includes(code));
-                                        if (availableCodes.length === 0) return null;
-                                        return (
-                                            <div key={range.label} className="flex flex-wrap gap-1">
-                                                {availableCodes.map((code) => {
-                                                    const isActive = filters.httpCode?.includes(code);
-                                                    return (
-                                                        <button
-                                                            key={code}
-                                                            onClick={() => handleHttpCodeChange(code)}
-                                                            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-                                                                isActive
-                                                                    ? 'bg-cyan-500 text-white ring-2 ring-cyan-400/50 shadow-lg'
-                                                                    : 'bg-[#0a0a0a] text-gray-400 hover:bg-[#1a1a1a] hover:text-gray-300 border border-gray-700'
-                                                            }`}
-                                                        >
-                                                            {code}
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                            )}
-
-                            {/* HTTP Method Filter - Only show if methods are available */}
-                            {httpMethods.length > 0 && (
-                            <div className="flex items-center gap-2 flex-wrap">
-                                <span className={`text-xs font-medium flex items-center gap-2 ${
-                                    filters.httpMethod && filters.httpMethod.length > 0 ? 'text-cyan-400' : 'text-gray-400'
-                                }`}>
-                                    {filters.httpMethod && filters.httpMethod.length > 0 && <Filter size={12} />}
-                                    Méthode HTTP{filters.httpMethod && filters.httpMethod.length > 0 ? ' (actif)' : ''}
-                                </span>
-                                <span className="text-gray-600">|</span>
-                                <div className="flex flex-wrap gap-2">
-                                    {httpMethods.map((method) => {
-                                        const isActive = filters.httpMethod?.includes(method);
-                                        return (
-                                            <button
-                                                key={method}
-                                                onClick={() => handleHttpMethodChange(method)}
-                                                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                                                    isActive
-                                                        ? 'bg-cyan-500 text-white ring-2 ring-cyan-400/50 shadow-lg'
-                                                        : 'bg-[#0a0a0a] text-gray-400 hover:bg-[#1a1a1a] hover:text-gray-300 border border-gray-700'
-                                                }`}
-                                            >
-                                                {method}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                            )}
                         </div>
                     )}
 

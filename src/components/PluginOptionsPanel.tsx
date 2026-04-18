@@ -7,7 +7,7 @@
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Settings, CheckCircle, XCircle, RefreshCw, AlertCircle, Save, Eye, EyeOff, Plus, Trash2, FileText, Code, ChevronUp, ChevronDown, RotateCw, Shield, ShieldAlert, Terminal, Database, Cpu, Layers, Network } from 'lucide-react';
+import { Settings, CheckCircle, XCircle, RefreshCw, AlertCircle, Save, Eye, EyeOff, Plus, Trash2, FileText, Code, ChevronUp, ChevronDown, RotateCw, Shield, ShieldAlert, Terminal, Database, Cpu, Layers, Network, Search } from 'lucide-react';
 import { Fail2banPathConfig } from '../pages/fail2ban/Fail2banPathConfig';
 import { usePluginStore, type Plugin } from '../stores/pluginStore';
 import { Button } from './ui/Button';
@@ -112,9 +112,22 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
     // Collapsible state for detected files with regex section (closed by default for npm, apache, nginx)
     const [isDetectedFilesExpanded, setIsDetectedFilesExpanded] = useState(false);
 
-    // NPM SQLite auto-detect
+    // NPM SQLite auto-detect (legacy, kept for backward compat if basePath is set)
     const [npmDbDetect, setNpmDbDetect] = useState<{ found: boolean; path?: string } | null>(null);
     const [npmDbDetecting, setNpmDbDetecting] = useState(false);
+
+    // NPM full-layout auto-discover (from NPM root path)
+    const [npmRootInput, setNpmRootInput] = useState('');
+    const [npmLayoutDetect, setNpmLayoutDetect] = useState<{
+        found: boolean;
+        dataPath?: string;
+        logsPath?: string;
+        dbPath?: string;
+        logsFound?: boolean;
+        dbFound?: boolean;
+        message?: string;
+    } | null>(null);
+    const [npmLayoutDetecting, setNpmLayoutDetecting] = useState(false);
 
     const plugin = plugins.find(p => p.id === pluginId);
 
@@ -590,6 +603,64 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
         finally { setNpmDbDetecting(false); }
     };
 
+    // NPM full-layout discovery from NPM root path
+    // - Detects logs/ dir and database.sqlite
+    // - Auto-fills basePath (logs dir)
+    // - Auto-updates fail2ban's npmDataPath (if fail2ban plugin is enabled)
+    // - Notifies the user to save
+    const discoverNpmLayout = async () => {
+        const root = npmRootInput.trim();
+        if (!root) return;
+        setNpmLayoutDetecting(true);
+        setNpmLayoutDetect(null);
+        try {
+            const token = localStorage.getItem('dashboard_user_token') ?? '';
+            const res = await fetch('/api/plugins/npm/detect-layout', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ path: root }),
+            });
+            const data = await res.json();
+            const result = data.result ?? null;
+            setNpmLayoutDetect(result);
+            if (result?.found && result.logsPath) {
+                // Auto-fill NPM basePath (logs dir)
+                handleInputChange('basePath', result.logsPath);
+
+                // Try to propagate npmDataPath to fail2ban plugin (if enabled)
+                let fail2banUpdated = false;
+                try {
+                    const f2bResp = await fetch('/api/plugins/fail2ban', {
+                        headers: { Authorization: `Bearer ${token}` },
+                    });
+                    const f2bData = await f2bResp.json();
+                    const f2bEnabled = !!f2bData?.result?.enabled;
+                    if (f2bEnabled && result.dataPath) {
+                        const saveResp = await fetch('/api/plugins/fail2ban/config', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                            body: JSON.stringify({ settings: { npmDataPath: result.dataPath } }),
+                        });
+                        fail2banUpdated = saveResp.ok;
+                    }
+                } catch { /* fail2ban optional */ }
+
+                addAction(
+                    fail2banUpdated
+                        ? 'NPM détecté — basePath + fail2ban.npmDataPath mis à jour. Pensez à sauvegarder la config NPM.'
+                        : 'NPM détecté — basePath mis à jour. Pensez à sauvegarder la config NPM.',
+                    true,
+                );
+            } else if (result) {
+                addAction(result.message || 'Layout NPM non détecté', false);
+            }
+        } catch {
+            setNpmLayoutDetect({ found: false, message: 'Erreur réseau' });
+            addAction('Erreur lors de la détection NPM', false);
+        }
+        finally { setNpmLayoutDetecting(false); }
+    };
+
     // Helper to auto-save exclude filters
     const autoSaveExcludeFilters = async (newFilters: typeof excludeFilters) => {
         if (autoSaveTimeoutRef.current) {
@@ -1023,7 +1094,64 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                     <Settings size={18} className="text-cyan-400 flex-shrink-0" />
                                     {t('pluginConfig.baseConfiguration')}
                                 </h4>
-                                
+
+                                {/* NPM root auto-discover */}
+                                {pluginId === 'npm' && (
+                                    <div className="rounded-lg border border-dashed border-cyan-500/30 bg-cyan-500/5 p-3">
+                                        <label htmlFor="npm-root-input" className="block text-sm font-medium text-cyan-200 mb-1">
+                                            Chemin racine NPM
+                                        </label>
+                                        <p className="text-xs text-gray-400 mb-2">
+                                            Dossier racine NPM contenant <code className="text-cyan-300">data/</code> (ex. <code className="text-cyan-300">/home/docker/nginx_proxy</code>). « Découvrir » auto-remplit le chemin des logs et la DB.
+                                        </p>
+                                        <div className="flex gap-2 flex-wrap">
+                                            <input
+                                                id="npm-root-input"
+                                                type="text"
+                                                value={npmRootInput}
+                                                onChange={(e) => setNpmRootInput(e.target.value)}
+                                                placeholder="/home/docker/nginx_proxy"
+                                                className="flex-1 min-w-[220px] px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500 text-sm"
+                                            />
+                                            <button type="button"
+                                                onClick={() => discoverNpmLayout()}
+                                                disabled={npmLayoutDetecting || !npmRootInput.trim()}
+                                                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border border-cyan-500/60 bg-cyan-500/20 text-cyan-200 hover:bg-cyan-500/30 disabled:opacity-40 transition-colors">
+                                                {npmLayoutDetecting
+                                                    ? <RefreshCw size={12} className="animate-spin" />
+                                                    : <Search size={12} />}
+                                                Découvrir
+                                            </button>
+                                        </div>
+                                        {npmLayoutDetect && (
+                                            <div className="mt-2 space-y-1 text-xs font-mono">
+                                                <div className={`flex items-center gap-1.5 ${npmLayoutDetect.logsFound ? 'text-emerald-400' : 'text-gray-500'}`}>
+                                                    {npmLayoutDetect.logsFound ? <CheckCircle size={10} /> : <XCircle size={10} />}
+                                                    <span>logs :</span>
+                                                    <code>{npmLayoutDetect.logsPath ?? '—'}</code>
+                                                </div>
+                                                <div className={`flex items-center gap-1.5 ${npmLayoutDetect.dbFound ? 'text-emerald-400' : 'text-gray-500'}`}>
+                                                    {npmLayoutDetect.dbFound ? <CheckCircle size={10} /> : <XCircle size={10} />}
+                                                    <span>DB :</span>
+                                                    <code>{npmLayoutDetect.dbPath ?? '—'}</code>
+                                                </div>
+                                                {!npmLayoutDetect.found && npmLayoutDetect.message && (
+                                                    <div className="flex items-center gap-1.5 text-amber-400 mt-1">
+                                                        <AlertCircle size={10} />
+                                                        <span className="font-sans">{npmLayoutDetect.message}</span>
+                                                    </div>
+                                                )}
+                                                {npmLayoutDetect.found && (
+                                                    <div className="flex items-center gap-1.5 text-amber-300 mt-1 font-sans">
+                                                        <AlertCircle size={10} />
+                                                        <span>N'oubliez pas de sauvegarder la config NPM.</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
                                 {/* Base Path */}
                                 <div>
                                     <label htmlFor={`base-path-${pluginId}`} className="block text-sm font-medium text-gray-300 mb-2">
@@ -1193,6 +1321,10 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                         <p className="text-xs text-gray-500 mt-1">
                                             {t('pluginConfig.excludedIpsHelp')}
                                         </p>
+                                        <div className="mt-2 flex items-start gap-2 text-xs text-cyan-300/90 bg-cyan-500/5 border border-cyan-500/20 rounded px-2.5 py-1.5">
+                                            <AlertCircle size={12} className="flex-shrink-0 mt-0.5" />
+                                            <span>{t('pluginConfig.excludedIpsSeparators')}</span>
+                                        </div>
                                     </div>
                                 )}
                             </div>

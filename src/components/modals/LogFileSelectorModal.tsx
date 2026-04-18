@@ -94,7 +94,7 @@ export const LogFileSelectorModal: React.FC<LogFileSelectorModalProps> = ({
 
     return (
         <div
-            className="fixed inset-0 z-[100] flex items-start justify-center bg-black/80 backdrop-blur-sm p-4 pt-16"
+            className="fixed inset-0 z-[100] flex items-start justify-center bg-black/90 p-4 pt-16"
             onClick={(e) => {
                 if (e.target === e.currentTarget) {
                     onClose();
@@ -106,10 +106,10 @@ export const LogFileSelectorModal: React.FC<LogFileSelectorModalProps> = ({
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Header */}
-                <div className="flex items-center justify-between p-6 border-b border-gray-800 flex-shrink-0">
+                <div className="flex items-center justify-between p-6 border-b border-gray-800 flex-shrink-0 bg-[#0f0f0f]">
                     <div className="flex items-center gap-3">
-                        <div className="p-2 bg-blue-500/20 rounded-lg">
-                            <FileText size={28} className="text-blue-400" />
+                        <div className="p-2 bg-blue-600 rounded-lg">
+                            <FileText size={28} className="text-white" />
                         </div>
                         <div>
                             <h2 className="text-2xl font-semibold text-white">
@@ -129,7 +129,7 @@ export const LogFileSelectorModal: React.FC<LogFileSelectorModalProps> = ({
 
                 {/* Search and filter options - for all log systems (machine, apache, npm, nginx) */}
                 {files.length > 0 && (
-                    <div className="px-6 py-3 border-b border-gray-800 flex flex-wrap items-center gap-4 bg-[#0a0a0a]/50">
+                    <div className="px-6 py-3 border-b border-gray-800 flex flex-wrap items-center gap-4 bg-[#0a0a0a]">
                         <div className="flex items-center gap-2 flex-1 min-w-[200px]">
                             <Search size={18} className="text-gray-500 flex-shrink-0" />
                             <input

@@ -5,6 +5,38 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.1] - 2026-04-18
+
+### For users
+
+- **NPM log viewer — domain + favicon next to filename** — in the file selector modal and in the stats bar above the log table, the active proxy-host file (`proxy-host-N_access.log`) now shows a badge with the favicon and primary domain (e.g. `st3ve.eu`). Fetched from NPM's `database.sqlite` via the new `/api/plugins/npm/domain-map` route.
+- **NPM plugin config — "NPM root path" auto-discover** — new field above basePath in the plugin config. Enter the NPM root (e.g. `/home/docker/nginx_proxy`) and click **Discover** — basePath (logs dir) is auto-filled and, if fail2ban is enabled, its `npmDataPath` is propagated too. A notification reminds you to save.
+- **Fail2ban Top Domaines tooltips — file list** — each Top Domain row now lists the `proxy-host-N_access.log` file scanned (and its companion `_error.log` if present), grouped under the NPM logs directory. Informative; the ban detection still runs on access logs only.
+- **Excluded IPs — new "Remove" action from the IP context menu** — when viewing with "Show excluded IPs" active, clicking an already-excluded IP now offers **Remove from excluded list** (no confirmation modal, instant toggle). Persisted to the plugin config in DB.
+- **Excluded IPs badge renamed and fixed** — used to show the count of *lines* hidden (duplicating the yellow `filtered` badge). Now shows the count of **unique IPs** actually hidden in the current log — e.g. `42 IP exclues`. The line count stays in the tooltip for context.
+- **Stats bar — badge reordering** — `unreadable` moved right after `valid` (before `filtered`) for cleaner visual grouping of parsing quality vs. user-applied filtering.
+- **Search input moved to pagination bar** — centered between the page-size selector and the pagination buttons. Stats bar is now tighter; HTTP Code and HTTP Method filters render inline with the rest of the stats badges instead of on a second row.
+- **HTTP filters on a single line** — `Code HTTP | 200 301 404 …` and `Méthode HTTP | GET POST HEAD` now render inline in the stats row (was two stacked rows below).
+- **NPM log cells — slim horizontal scrollbar** — long URLs / user-agents no longer inflate row height. Global 4 px scrollbar with a subtle thumb — applies to all log viewer tables.
+- **Excluded IPs config — format hint** — the textarea in Advanced Options now shows an info box listing accepted separators (newline, comma, semicolon) and supported formats (single IP, CIDR).
+- **Log file selector modal — opacity removed** — header and backdrop are now fully opaque so the modal reads cleanly over any background.
+
+### Technical
+
+- **`server/routes/plugins.ts`** — fixed the `/npm/detect-db` endpoint: used a phantom `HOST_PATH` env var that was never defined (everywhere else the project uses `HOST_ROOT_PATH`). Detection now works in Docker and in dev mode. Docker detection reused across all three NPM endpoints (`.dockerenv` / env vars / `/proc/self/cgroup`).
+- **New endpoint `POST /api/plugins/npm/detect-layout`** — accepts any anchor path (NPM root, `data/`, or `logs/`) and returns `{ dataPath, logsPath, dbPath, logsFound, dbFound }`. Admin-only, returns the same `{ success, result }` envelope.
+- **New endpoint `GET /api/plugins/npm/domain-map`** — reads NPM's `proxy_host` table (via the plugin's `basePath` → derived DB path) and returns `{ [id]: domain }`. Used by the log viewer + file selector.
+- **`server/plugins/fail2ban/Fail2banPlugin.ts` — `/tops/domains` response** — each `topDomains` entry now carries `files: { path, name, kind: 'access' | 'error' }[]` listing the logs actually scanned (access) + companion files (error).
+- **`src/components/log-viewer/LogFilters.tsx`** — new `hideSearch` prop to render the component without the search input. HTTP Code / Method filters moved from the bottom "Expanded Filters" section into the top inline row so they align with the stats badges.
+- **`src/components/log-viewer/LogTable.tsx`** — new `onRemoveIpFromFilter` + `excludedIpsSet` props. Search input rendered inline in the pagination bar. Stats bar `py-3` → `pt-0 pb-2` (removes the unwanted top margin). Cell inner-wrapper gets `className="log-cell-scroll"` for the slim scrollbar.
+- **`src/components/log-viewer/IpContextMenu.tsx`** — new `isExcluded` + `onUnexclude` props. Renders "Remove from excluded list" with a green `ShieldCheck` icon when the IP is already in the exclude list.
+- **`src/pages/LogViewerPage.tsx`** — new `handleRemoveIpFromFilter` (no confirmation modal, direct DB update). New `hiddenUniqueIpCount` (Set-based) memo used for the badge label; `hiddenByIpCount` now powers only the tooltip.
+- **`src/pages/fail2ban/DomainInitial.tsx`** — `alt={domain}` → `alt=""`. Prevents the domain text from visibly duplicating when the favicon URL fails to load (the `title=` still provides the a11y label).
+- **`src/index.css`** — new `.log-cell-scroll` utility: `scrollbar-width: thin` (Firefox) + `::-webkit-scrollbar { height: 4px }` (Chromium). Cells with `overflow-x: auto` no longer add scrollbar height to the row.
+- **i18n** — new keys in both `en.json` and `fr.json`: `excludedIpsSeparators`, `removeIpFromFilterTitle/Message/Confirm`, `ipMenu.unexclude`. `ipFilterBadgeHidden` + `ipFilterBadgeAll` rewritten to reflect unique-IP semantics (`"42 IP exclues"` instead of `"Filtrées: 42"`).
+
+---
+
 ## [0.9.0] - 2026-04-18
 
 ### For users

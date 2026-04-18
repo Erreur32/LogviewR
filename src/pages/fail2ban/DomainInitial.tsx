@@ -44,7 +44,7 @@ export const DomainInitial: React.FC<{ domain: string; size?: number }> = ({ dom
             src={src}
             width={size} height={size}
             style={{ borderRadius: 2, flexShrink: 0, display: 'inline-block', verticalAlign: 'middle' }}
-            title={domain} alt={domain} loading="lazy"
+            title={domain} alt="" loading="lazy"
             onError={() => setStage(s => (s < 2 ? (s + 1) as 1 | 2 : 2))}
         />
     );

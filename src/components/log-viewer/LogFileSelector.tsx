@@ -11,6 +11,8 @@ import { ChevronDown, ChevronRight, FileText, Folder, FolderOpen, Eye, EyeOff, L
 import type { LogFileInfo } from '../../types/logViewer.js';
 import { Tooltip } from '../ui/Tooltip.js';
 import { usePluginStore } from '../../stores/pluginStore.js';
+import { DomainInitial } from '../../pages/fail2ban/DomainInitial';
+import { api } from '../../api/client';
 
 interface GroupedFile {
     baseName: string;
@@ -117,6 +119,27 @@ export function LogFileSelector({
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
     const [showUnreadable, setShowUnreadable] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
+
+    // NPM: map proxy-host id → domain (fetched from DB via backend)
+    const [npmDomainMap, setNpmDomainMap] = useState<Record<string, string>>({});
+    useEffect(() => {
+        if (pluginId !== 'npm') return;
+        let cancelled = false;
+        api.get<{ map: Record<string, string>; source: string }>('/api/plugins/npm/domain-map')
+            .then(res => {
+                if (cancelled) return;
+                if (res.success && res.result?.map) setNpmDomainMap(res.result.map);
+            })
+            .catch(() => { /* non-critical — fall back to no domain badge */ });
+        return () => { cancelled = true; };
+    }, [pluginId]);
+
+    // Extract domain for a proxy-host-N_(access|error).log filename, or null
+    const getNpmDomain = (filename: string): string | null => {
+        const m = /^proxy-host-([^_]+)_/.exec(filename);
+        if (!m) return null;
+        return npmDomainMap[m[1]] ?? null;
+    };
     
     // Get configured files for host-system plugin
     const configuredFiles = useMemo(() => {
@@ -593,7 +616,7 @@ export function LogFileSelector({
                                                 return (
                                                     <div key={idx} className="border-t border-gray-800/50">
                                                         {/* Group Header (always visible) */}
-                                                        <div className="px-4 py-2 flex items-center justify-between gap-2">
+                                                        <div className="px-4 pt-0 pb-2 flex items-center justify-between gap-2">
                                                             <button
                                                                 data-selected-file={isSelected ? currentFile?.path : undefined}
                                                                 onClick={() => {
@@ -628,7 +651,18 @@ export function LogFileSelector({
                                                                     ) : (
                                                                         <FileText size={16} />
                                                                     )}
-                                                                    <span className={`flex-1 ${currentFile?.size === 0 ? 'text-gray-600' : isCompressedFile(currentFile?.path || '') ? 'text-orange-400' : isRotatedFile(currentFile?.path || '') ? 'text-gray-400' : ''}`}>{group.baseName}</span>
+                                                                    <span className={`flex-1 flex items-center gap-2 ${currentFile?.size === 0 ? 'text-gray-600' : isCompressedFile(currentFile?.path || '') ? 'text-orange-400' : isRotatedFile(currentFile?.path || '') ? 'text-gray-400' : ''}`}>
+                                                                        <span>{group.baseName}</span>
+                                                                        {pluginId === 'npm' && (() => {
+                                                                            const dom = getNpmDomain(group.baseName);
+                                                                            return dom ? (
+                                                                                <span className="flex items-center gap-1 text-xs text-cyan-300 bg-cyan-500/10 border border-cyan-500/30 rounded px-1.5 py-0.5">
+                                                                                    <DomainInitial domain={dom} size={12} />
+                                                                                    <span className="font-mono">{dom}</span>
+                                                                                </span>
+                                                                            ) : null;
+                                                                        })()}
+                                                                    </span>
                                                                     {isCompressedFile(currentFile?.path || '') && (
                                                                         <span className="text-xs px-1.5 py-0.5 bg-orange-500/20 text-orange-400 rounded border border-orange-500/30">
                                                                             .gz

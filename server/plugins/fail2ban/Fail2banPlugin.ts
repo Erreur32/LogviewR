@@ -2499,14 +2499,14 @@ export class Fail2banPlugin extends BasePlugin {
 
             const STORE_LIMIT = 100;
             const _tdKey = `tops:domains:${days}`;
-            const _tdCached = this._cachePeek<{ ok: boolean; topDomains: { domain: string; count: number; failures: number }[] }>(_tdKey, this._adaptiveTtl(days));
+            const _tdCached = this._cachePeek<{ ok: boolean; topDomains: { domain: string; count: number; failures: number; files?: { path: string; name: string; kind: 'access' | 'error' }[] }[] }>(_tdKey, this._adaptiveTtl(days));
             if (_tdCached) return res.json({ success: true, result: { ..._tdCached, topDomains: _tdCached.topDomains.slice(0, limit) } });
 
             const evDb   = getDatabase();
             const allTime = days <= 0;
             const since  = allTime ? 0 : Math.floor(Date.now() / 1000) - days * 86400;
 
-            const topDomains: { domain: string; count: number; failures: number }[] = [];
+            const topDomains: { domain: string; count: number; failures: number; files?: { path: string; name: string; kind: 'access' | 'error' }[] }[] = [];
             const npmSettings = this.config?.settings as unknown as Fail2banPluginConfig | undefined;
             const npmDataPath = npmSettings?.npmDataPath ?? '';
             const isMysql = npmSettings?.npmDbType === 'mysql';
@@ -2583,7 +2583,7 @@ export class Fail2banPlugin extends BasePlugin {
                     const logFiles = fs.readdirSync(logsDir)
                         .filter(f => /^proxy-host-(\d+)[_.-]/i.test(f) && /access/i.test(f));
 
-                    const domainBans: Record<string, { bans: number; failures: number }> = {};
+                    const domainBans: Record<string, { bans: number; failures: number; files: { path: string; name: string; kind: 'access' | 'error' }[] }> = {};
                     if (allBannedIps.size === 0) { /* no bans in period — skip scan */ }
                     for (const logFile of logFiles) {
                         const mf = logFile.match(/^proxy-host-(\d+)/i);
@@ -2607,17 +2607,27 @@ export class Fail2banPlugin extends BasePlugin {
                                 if (content.includes(ip)) { bans++; failures += tf; }
                             }
                             if (bans > 0) {
-                                if (!domainBans[domain]) domainBans[domain] = { bans: 0, failures: 0 };
+                                if (!domainBans[domain]) domainBans[domain] = { bans: 0, failures: 0, files: [] };
                                 domainBans[domain].bans += bans;
                                 domainBans[domain].failures += failures;
+                                domainBans[domain].files.push({ path: filePath, name: logFile, kind: 'access' });
+                                // Companion error log (not scanned, informational only)
+                                const errorName = logFile.replace(/_access\.log$/i, '_error.log');
+                                if (errorName !== logFile) {
+                                    const errorPath = path.join(logsDir, errorName);
+                                    try {
+                                        fs.accessSync(errorPath, fs.constants.R_OK);
+                                        domainBans[domain].files.push({ path: errorPath, name: errorName, kind: 'error' });
+                                    } catch { /* no companion error log */ }
+                                }
                             }
                         } catch { /* unreadable file — skip */ }
                     }
 
-                    for (const [domain, { bans, failures }] of Object.entries(domainBans)
+                    for (const [domain, { bans, failures, files }] of Object.entries(domainBans)
                             .sort((a, b) => b[1].bans - a[1].bans)
                             .slice(0, STORE_LIMIT)) {
-                        topDomains.push({ domain, count: bans, failures });
+                        topDomains.push({ domain, count: bans, failures, files });
                     }
                 } catch { /* non-critical */ }
             }

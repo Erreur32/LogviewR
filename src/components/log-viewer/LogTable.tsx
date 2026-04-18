@@ -5,8 +5,10 @@
  * Avec tri adaptatif, statistiques et formatage amélioré
  */
 
-import React, { useMemo, useState } from 'react';
-import { ArrowUp, ArrowDown, ArrowUpDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, FileText, Archive, ShieldAlert } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { ArrowUp, ArrowDown, ArrowUpDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, FileText, Archive, ShieldAlert, Search, X } from 'lucide-react';
+import { DomainInitial } from '../../pages/fail2ban/DomainInitial';
+import { api } from '../../api/client';
 import type { LogEntry } from '../../types/logViewer.js';
 import type { LogFilters as LogFiltersType } from '../../types/logViewer.js';
 import { LogBadge } from './LogBadge.js';
@@ -42,12 +44,18 @@ interface LogTableProps {
     pluginId?: string;
     selectedFilePath?: string; // Current log file path to display
     fileSize?: number; // File size in bytes
-    /** IP filter: number of lines hidden by excluded IPs; when > 0, badge is shown and click toggles visibility */
+    /** IP filter badge count: number of UNIQUE IPs currently hidden (used in label like "42 IP exclues") */
     ipFilterHiddenCount?: number;
+    /** IP filter: total number of log lines hidden (shown in tooltip for context) */
+    ipFilterHiddenLinesCount?: number;
     showExcludedIps?: boolean;
     onToggleIpFilter?: () => void;
     /** When provided, clicking an IP cell opens a context menu (exclude / ban) */
     onAddIpToFilter?: (ip: string) => void;
+    /** When provided, "Remove from excluded list" appears for already-excluded IPs */
+    onRemoveIpFromFilter?: (ip: string) => void;
+    /** Set of IPs currently in the excluded list — used to toggle menu label */
+    excludedIpsSet?: Set<string>;
     /** When provided, "IP details" option appears in IP context menu */
     onIpDetails?: (ip: string) => void;
     /** Map of currently banned IPs → jail names (for shield icon) */
@@ -272,14 +280,38 @@ export const LogTable: React.FC<LogTableProps> = ({
     selectedFilePath,
     fileSize,
     ipFilterHiddenCount = 0,
+    ipFilterHiddenLinesCount = 0,
     showExcludedIps = false,
     onToggleIpFilter,
     onAddIpToFilter,
+    onRemoveIpFromFilter,
+    excludedIpsSet,
     onIpDetails,
     bannedIpsMap,
 }) => {
     const { t } = useTranslation();
     const [ipMenu, setIpMenu] = useState<{ ip: string; x: number; y: number } | null>(null);
+
+    // NPM: fetch proxy-host id → domain map so we can annotate the filename
+    const [npmDomainMap, setNpmDomainMap] = useState<Record<string, string>>({});
+    useEffect(() => {
+        if (pluginId !== 'npm') return;
+        let cancelled = false;
+        api.get<{ map: Record<string, string> }>('/api/plugins/npm/domain-map')
+            .then(res => {
+                if (cancelled) return;
+                if (res.success && res.result?.map) setNpmDomainMap(res.result.map);
+            })
+            .catch(() => { /* non-critical */ });
+        return () => { cancelled = true; };
+    }, [pluginId]);
+
+    const npmDomainForFile = useMemo((): string | null => {
+        if (pluginId !== 'npm' || !selectedFilePath) return null;
+        const filename = selectedFilePath.split('/').pop() || '';
+        const m = /^proxy-host-([^_]+)_/.exec(filename);
+        return m ? (npmDomainMap[m[1]] ?? null) : null;
+    }, [pluginId, selectedFilePath, npmDomainMap]);
     // Filter out columns that are always empty (like pid for daemon.log)
     const visibleColumns = useMemo(() => {
         let filteredColumns = [...columns];
@@ -908,7 +940,7 @@ export const LogTable: React.FC<LogTableProps> = ({
     return (
         <div className={`overflow-x-auto ${className}`}>
             {/* Statistics bar with filters - All on same line */}
-            <div className="bg-[#0a0a0a] border-b border-gray-800 px-4 py-3">
+            <div className="bg-[#0a0a0a] border-b border-gray-800 px-4 pt-0 pb-2">
                 <div className="flex flex-wrap items-center gap-4 text-xs">
                     {/* File Name with Plugin Icon and Compression Icon */}
                     {selectedFilePath && (
@@ -931,6 +963,15 @@ export const LogTable: React.FC<LogTableProps> = ({
                                     {selectedFilePath.split('/').pop() || selectedFilePath}
                                 </span>
                             </Tooltip>
+                            {/* NPM domain badge */}
+                            {npmDomainForFile && (
+                                <Tooltip content={`Domaine NPM (proxy_host.domain_names)`}>
+                                    <span className="flex items-center gap-1 text-xs text-cyan-300 bg-cyan-500/10 border border-cyan-500/30 rounded px-1.5 py-0.5 cursor-help">
+                                        <DomainInitial domain={npmDomainForFile} size={12} />
+                                        <span className="font-mono">{npmDomainForFile}</span>
+                                    </span>
+                                </Tooltip>
+                            )}
                             {/* Compression Icon */}
                             {selectedFilePath.toLowerCase().endsWith('.gz') && (
                                 <Tooltip content={t('logViewer.compressedFileTooltip')}>
@@ -959,13 +1000,6 @@ export const LogTable: React.FC<LogTableProps> = ({
                                 {t('logViewer.validLines', { count: stats.valid })}
                             </span>
                         </Tooltip>
-                        {stats.filtered > 0 && (
-                            <Tooltip content={t('logViewer.filteredLinesTooltip')}>
-                                <span className="bg-yellow-500/20 text-yellow-300 px-1.5 py-0.5 rounded border border-yellow-500/30 cursor-help">
-                                    {t('logViewer.filteredLines', { count: stats.filtered })}
-                                </span>
-                            </Tooltip>
-                        )}
                         {stats.unreadable > 0 && (
                             <Tooltip content={t('logViewer.unreadableLinesTooltip')}>
                                 <span className="bg-red-500/20 text-red-300 px-1.5 py-0.5 rounded border border-red-500/30 cursor-help">
@@ -973,8 +1007,19 @@ export const LogTable: React.FC<LogTableProps> = ({
                                 </span>
                             </Tooltip>
                         )}
+                        {stats.filtered > 0 && (
+                            <Tooltip content={t('logViewer.filteredLinesTooltip')}>
+                                <span className="bg-yellow-500/20 text-yellow-300 px-1.5 py-0.5 rounded border border-yellow-500/30 cursor-help">
+                                    {t('logViewer.filteredLines', { count: stats.filtered })}
+                                </span>
+                            </Tooltip>
+                        )}
                         {ipFilterHiddenCount > 0 && onToggleIpFilter && (
-                            <Tooltip content={showExcludedIps ? t('logViewer.ipFilterTooltipHide') : t('logViewer.ipFilterTooltipShow')}>
+                            <Tooltip content={
+                                `${showExcludedIps ? t('logViewer.ipFilterTooltipHide') : t('logViewer.ipFilterTooltipShow')}${
+                                    ipFilterHiddenLinesCount > 0 ? ` · ${ipFilterHiddenLinesCount} ligne${ipFilterHiddenLinesCount !== 1 ? 's' : ''} masquée${ipFilterHiddenLinesCount !== 1 ? 's' : ''}` : ''
+                                }`
+                            }>
                                 <button
                                     type="button"
                                     onClick={onToggleIpFilter}
@@ -986,7 +1031,7 @@ export const LogTable: React.FC<LogTableProps> = ({
                         )}
                     </div>
                     
-                    {/* Filters - Search + Date - Only show if filters props are provided */}
+                    {/* Filters - Date + HTTP filters (Search moved to pagination bar) */}
                     {filters && onFiltersChange && (
                         <div className="flex-1 min-w-[300px]">
                             <LogFilters
@@ -997,6 +1042,7 @@ export const LogTable: React.FC<LogTableProps> = ({
                                 logDateRange={logDateRange}
                                 pluginId={pluginId}
                                 logs={logs}
+                                hideSearch
                             />
                         </div>
                     )}
@@ -1024,6 +1070,32 @@ export const LogTable: React.FC<LogTableProps> = ({
                     </select>
                     <span>{t('logViewer.linesPerPage')} / {t('logViewer.linesTotal', { count: nonEmptyLogs.length })}</span>
                 </div>
+
+                {/* Centered search input */}
+                {filters && onFiltersChange && (
+                    <div className="relative flex-1 max-w-md mx-auto min-w-[220px]">
+                        <Search className={`absolute left-3 top-1/2 transform -translate-y-1/2 ${filters.search ? 'text-cyan-400' : 'text-gray-500'}`} size={16} />
+                        <input
+                            type="text"
+                            value={filters.search ?? ''}
+                            onChange={(e) => onFiltersChange({ search: e.target.value || undefined })}
+                            placeholder="Rechercher dans les logs..."
+                            className={`w-full pl-9 py-1.5 rounded-lg border text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 text-sm ${
+                                filters.search ? 'pr-9 border-cyan-500/50 bg-cyan-500/10 ring-1 ring-cyan-400/30' : 'pr-3 border-gray-700 bg-[#121212]'
+                            }`}
+                        />
+                        {filters.search && (
+                            <button
+                                type="button"
+                                onClick={() => onFiltersChange({ search: undefined })}
+                                className="absolute right-2 top-1/2 transform -translate-y-1/2 p-1 rounded hover:bg-gray-600/50 text-gray-400 hover:text-gray-200 transition-colors"
+                                title="Effacer la recherche"
+                            >
+                                <X size={14} />
+                            </button>
+                        )}
+                    </div>
+                )}
 
                 <div className="flex items-center gap-2">
                     <span className="text-xs text-gray-400">
@@ -1137,7 +1209,7 @@ export const LogTable: React.FC<LogTableProps> = ({
                                         }`}
                                         style={getColumnStyle(isLast)}
                                     >
-                                        <div style={getCellWrapperStyle(col)}>
+                                        <div className="log-cell-scroll" style={getCellWrapperStyle(col)}>
                                             {col === 'message' && isUnparsed ? (
                                                 <span className="inline-flex items-center gap-2">
                                                     <span className="text-xs text-red-500/70">⚠</span>
@@ -1232,7 +1304,9 @@ export const LogTable: React.FC<LogTableProps> = ({
                     ip={ipMenu.ip}
                     x={ipMenu.x}
                     y={ipMenu.y}
+                    isExcluded={!!excludedIpsSet?.has(ipMenu.ip)}
                     onExclude={(ip) => { onAddIpToFilter?.(ip); }}
+                    onUnexclude={(ip) => { onRemoveIpFromFilter?.(ip); }}
                     onDetails={(ip) => { onIpDetails?.(ip); }}
                     onClose={() => setIpMenu(null)}
                 />

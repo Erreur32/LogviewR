@@ -7,14 +7,17 @@
 
 import React, { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { ShieldOff, Search } from 'lucide-react';
+import { ShieldOff, ShieldCheck, Search } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 interface IpContextMenuProps {
     ip: string;
     x: number;
     y: number;
+    /** When true, render "Remove from excluded list" instead of "Exclude from logs" */
+    isExcluded?: boolean;
     onExclude: (ip: string) => void;
+    onUnexclude?: (ip: string) => void;
     onDetails: (ip: string) => void;
     onClose: () => void;
 }
@@ -44,7 +47,7 @@ const itemStyle: React.CSSProperties = {
     textAlign: 'left',
 };
 
-export const IpContextMenu: React.FC<IpContextMenuProps> = ({ ip, x, y, onExclude, onDetails, onClose }) => {
+export const IpContextMenu: React.FC<IpContextMenuProps> = ({ ip, x, y, isExcluded = false, onExclude, onUnexclude, onDetails, onClose }) => {
     const { t } = useTranslation();
     const ref = useRef<HTMLDivElement>(null);
 
@@ -77,17 +80,30 @@ export const IpContextMenu: React.FC<IpContextMenuProps> = ({ ip, x, y, onExclud
                 <span style={{ fontFamily: 'monospace', fontSize: '.8rem', color: '#e6edf3', fontWeight: 600 }}>{ip}</span>
             </div>
 
-            {/* Exclude option */}
-            <button
-                type="button"
-                style={itemStyle}
-                onClick={() => { onExclude(ip); onClose(); }}
-                onMouseEnter={hoverIn}
-                onMouseLeave={hoverOut}
-            >
-                <ShieldOff size={14} style={{ color: '#e3b341' }} />
-                {t('logViewer.ipMenu.exclude')}
-            </button>
+            {/* Exclude / Unexclude option — label depends on current state */}
+            {isExcluded && onUnexclude ? (
+                <button
+                    type="button"
+                    style={itemStyle}
+                    onClick={() => { onUnexclude(ip); onClose(); }}
+                    onMouseEnter={hoverIn}
+                    onMouseLeave={hoverOut}
+                >
+                    <ShieldCheck size={14} style={{ color: '#3fb950' }} />
+                    {t('logViewer.ipMenu.unexclude')}
+                </button>
+            ) : (
+                <button
+                    type="button"
+                    style={itemStyle}
+                    onClick={() => { onExclude(ip); onClose(); }}
+                    onMouseEnter={hoverIn}
+                    onMouseLeave={hoverOut}
+                >
+                    <ShieldOff size={14} style={{ color: '#e3b341' }} />
+                    {t('logViewer.ipMenu.exclude')}
+                </button>
+            )}
 
             {/* Details option */}
             <button

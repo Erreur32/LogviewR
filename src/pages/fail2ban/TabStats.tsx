@@ -6,6 +6,7 @@ import { createPortal } from 'react-dom';
 import {
     Shield, Ban, AlertTriangle, ShieldOff, Database, Globe,
     TrendingUp, Lock, RotateCcw, Clock, Target, BarChart2, Gauge, List, Search, X,
+    FileText, Folder,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { card, PERIODS, F2bTooltip, TT } from './helpers';
@@ -512,13 +513,14 @@ const IpSetsSection: React.FC<{ days: number; onDaysChange: (d: number) => void 
 };
 
 // ── Tops section ──────────────────────────────────────────────────────────────
-interface TopEntry { ip?: string; jail?: string; count: number; secondary?: number }
+interface DomainLogFile { path: string; name: string; kind: 'access' | 'error' }
+interface TopEntry { ip?: string; jail?: string; count: number; secondary?: number; files?: DomainLogFile[] }
 interface TopsData {
     ok: boolean;
     topIps: { ip: string; count: number }[];
     topJails: { jail: string; count: number }[];
     topRecidivists: { ip: string; count: number }[];
-    topDomains: { domain: string; count: number; failures?: number }[];
+    topDomains: { domain: string; count: number; failures?: number; files?: DomainLogFile[] }[];
     heatmap: { hour: number; count: number }[];
     heatmapFailed: { hour: number; count: number }[];
     heatmapWeek: number[][];
@@ -1108,10 +1110,41 @@ const TopsSection: React.FC<{ days: number; onDaysChange: (d: number) => void; o
         ),
     };
 
-    const domainBanEntries: TopEntry[] = (data?.topDomains ?? []).map(e => ({ ip: e.domain, count: e.count, secondary: e.failures ?? 0 }));
+    const domainBanEntries: TopEntry[] = (data?.topDomains ?? []).map(e => ({ ip: e.domain, count: e.count, secondary: e.failures ?? 0, files: e.files }));
     const domainFailEntries: TopEntry[] = [...(data?.topDomains ?? [])]
         .sort((a, b) => (b.failures ?? 0) - (a.failures ?? 0))
-        .map(e => ({ ip: e.domain, count: e.failures ?? 0, secondary: e.count }));
+        .map(e => ({ ip: e.domain, count: e.failures ?? 0, secondary: e.count, files: e.files }));
+
+    const renderFilesSection = (files?: DomainLogFile[]): React.ReactNode => {
+        if (!files || files.length === 0) return null;
+        // Group consecutive files by directory to avoid repeating identical paths
+        const byDir = new Map<string, DomainLogFile[]>();
+        for (const f of files) {
+            const dir = f.path.slice(0, f.path.length - f.name.length);
+            if (!byDir.has(dir)) byDir.set(dir, []);
+            byDir.get(dir)!.push(f);
+        }
+        return (
+            <>
+                {TT.sep()}
+                {TT.section('Fichiers logs NPM')}
+                {[...byDir.entries()].map(([dir, list]) => (
+                    <div key={dir} style={{ marginBottom: '.25rem' }}>
+                        {list.map(f => (
+                            <div key={f.path} style={{ display: 'flex', alignItems: 'center', gap: '.4rem', fontSize: '.75rem', color: f.kind === 'access' ? '#e6edf3' : '#8b949e', fontFamily: 'monospace' }}>
+                                <FileText style={{ width: 11, height: 11, color: f.kind === 'access' ? '#39c5cf' : '#8b949e', flexShrink: 0 }} />
+                                <span>{f.name}</span>
+                            </div>
+                        ))}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', fontSize: '.7rem', color: '#8b949e', fontFamily: 'monospace', paddingLeft: '.1rem' }}>
+                            <Folder style={{ width: 11, height: 11, color: '#8b949e', flexShrink: 0 }} />
+                            <span>{dir || '/'}</span>
+                        </div>
+                    </div>
+                ))}
+            </>
+        );
+    };
 
     const domainBanTooltip = (label: string, e: TopEntry): { title: string; bodyNode: React.ReactNode; color: F2bTtColor } => ({
         title: label,
@@ -1124,6 +1157,7 @@ const TopsSection: React.FC<{ days: number; onDaysChange: (d: number) => void; o
                 {TT.section('Statistiques')}
                 {TT.row(<Ban style={{ width: 11, height: 11, color: '#e86a65', flexShrink: 0 }} />, `${e.count} ban${e.count !== 1 ? 's' : ''}`, '#e86a65')}
                 {(e.secondary ?? 0) > 0 && TT.row(<AlertTriangle style={{ width: 11, height: 11, color: '#e3b341', flexShrink: 0 }} />, `${e.secondary} tentative${(e.secondary ?? 0) !== 1 ? 's' : ''}`, '#e3b341')}
+                {renderFilesSection(e.files)}
             </div>
         ),
     });
@@ -1139,6 +1173,7 @@ const TopsSection: React.FC<{ days: number; onDaysChange: (d: number) => void; o
                 {TT.section('Statistiques')}
                 {TT.row(<AlertTriangle style={{ width: 11, height: 11, color: '#e3b341', flexShrink: 0 }} />, `${e.count} tentative${e.count !== 1 ? 's' : ''}`, '#e3b341')}
                 {(e.secondary ?? 0) > 0 && TT.row(<Ban style={{ width: 11, height: 11, color: '#e86a65', flexShrink: 0 }} />, `${e.secondary} ban${(e.secondary ?? 0) !== 1 ? 's' : ''}`, '#e86a65')}
+                {renderFilesSection(e.files)}
             </div>
         ),
     });
@@ -1901,7 +1936,7 @@ export const TabStats: React.FC<TabStatsProps> = ({
             .finally(() => {
 
         // Phase 3: domains — slow NPM log scan, runs in parallel, merges into topsData when ready
-        api.get<{ ok: boolean; topDomains: { domain: string; count: number; failures: number }[] }>(
+        api.get<{ ok: boolean; topDomains: { domain: string; count: number; failures: number; files?: DomainLogFile[] }[] }>(
             `/api/plugins/fail2ban/tops/domains?days=${days}&limit=100`, { signal: ac.signal }
         ).then(res => {
             if (ac.signal.aborted) return;

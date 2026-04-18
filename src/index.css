@@ -7,6 +7,27 @@ html, body {
   overflow-x: hidden;
 }
 
+/* Slim horizontal scrollbar inside LogTable cells — prevents cells from
+   growing in height when a scrollbar appears under long URLs/user-agents. */
+.log-cell-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+.log-cell-scroll::-webkit-scrollbar {
+  height: 4px;
+  width: 4px;
+}
+.log-cell-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.log-cell-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 2px;
+}
+.log-cell-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.35);
+}
+
 @keyframes fadeInDown {
   from {
     opacity: 0;

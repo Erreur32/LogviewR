@@ -16,7 +16,7 @@ import { LogFilters } from '../components/log-viewer/LogFilters.js';
 import { Button } from '../components/ui/Button.js';
 import { Badge } from '../components/ui/Badge.js';
 import { useLogViewerWebSocket } from '../hooks/useLogViewerWebSocket.js';
-import { parseExcludedIps, isLogExcludedByIp } from '../utils/ipFilterUtils.js';
+import { parseExcludedIps, isLogExcludedByIp, getLogEntryIp } from '../utils/ipFilterUtils.js';
 import { Play, Square, RefreshCw, FileText, X } from 'lucide-react';
 import { AUTO_REFRESH_DEFAULT_MS, AUTO_REFRESH_STORAGE_KEY } from '../utils/constants.js';
 import type { LogFileInfo, LogViewerResponse, LogEntry, LogFilters as LogFiltersType } from '../types/logViewer.js';
@@ -806,6 +806,19 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
         return logs.filter((log) => isLogExcludedByIp(log as Record<string, unknown>, excludedIpsList)).length;
     }, [logs, excludedIpsList]);
 
+    // Count of unique IPs in the current logs that match the excluded list (for the badge label)
+    const hiddenUniqueIpCount = useMemo(() => {
+        if (excludedIpsList.length === 0) return 0;
+        const seen = new Set<string>();
+        for (const log of logs) {
+            if (isLogExcludedByIp(log as Record<string, unknown>, excludedIpsList)) {
+                const ip = getLogEntryIp(log as Record<string, unknown>);
+                if (ip) seen.add(ip);
+            }
+        }
+        return seen.size;
+    }, [logs, excludedIpsList]);
+
     const handleAddIpToFilter = useCallback((ip: string) => {
         setAddIpModal(ip);
     }, []);
@@ -828,6 +841,24 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
         await fetchPlugins();
         setAddIpModal(null);
     }, [addIpModal, selectedPluginId, plugins, updatePluginConfig, fetchPlugins]);
+
+    // Remove an IP directly from the excluded list (no confirmation modal — quick toggle)
+    const handleRemoveIpFromFilter = useCallback(async (ip: string) => {
+        if (!selectedPluginId || !LOG_PLUGINS_WITH_IP_FILTER.includes(selectedPluginId)) return;
+        const plugin = plugins.find((p) => p.id === selectedPluginId);
+        if (!plugin?.settings) return;
+        const current = (plugin.settings as Record<string, unknown>).excludedIps;
+        const list = Array.isArray(current)
+            ? (current as string[]).filter((x) => x !== ip)
+            : typeof current === 'string'
+                ? current.split(/[\n,;]+/).map((s) => s.trim()).filter((x) => x && x !== ip)
+                : [];
+        const newSettings = { ...plugin.settings, excludedIps: list } as Record<string, unknown>;
+        await updatePluginConfig(selectedPluginId, { settings: newSettings });
+        await fetchPlugins();
+    }, [selectedPluginId, plugins, updatePluginConfig, fetchPlugins]);
+
+    const excludedIpsSet = useMemo(() => new Set(excludedIpsList), [excludedIpsList]);
 
     const totalRawPages = Math.max(1, Math.ceil(rawLogs.length / pageSize));
     const goToRawPage = (newPage: number) => {
@@ -982,10 +1013,13 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
                                                     logDateRange={logDateRange}
                                                     pluginId={selectedPluginId || undefined}
                                                     fileSize={selectedFileSize}
-                                                    ipFilterHiddenCount={excludedIpsList.length > 0 ? hiddenByIpCount : 0}
+                                                    ipFilterHiddenCount={excludedIpsList.length > 0 ? hiddenUniqueIpCount : 0}
+                                                    ipFilterHiddenLinesCount={excludedIpsList.length > 0 ? hiddenByIpCount : 0}
                                                     showExcludedIps={showExcludedIps}
                                                     onToggleIpFilter={excludedIpsList.length > 0 ? () => setShowExcludedIps((v) => !v) : undefined}
                                                     onAddIpToFilter={selectedPluginId && LOG_PLUGINS_WITH_IP_FILTER.includes(selectedPluginId) ? handleAddIpToFilter : undefined}
+                                                    onRemoveIpFromFilter={selectedPluginId && LOG_PLUGINS_WITH_IP_FILTER.includes(selectedPluginId) ? handleRemoveIpFromFilter : undefined}
+                                                    excludedIpsSet={excludedIpsSet}
                                                     onIpDetails={(ip: string) => setDetailIp(ip)}
                                                     bannedIpsMap={bannedIpsMap}
                                                 />

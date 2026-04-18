@@ -7,6 +7,7 @@
 import { Router } from 'express';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import Database from 'better-sqlite3';
 import { pluginManager } from '../services/pluginManager.js';
 import { PluginConfigRepository } from '../database/models/PluginConfig.js';
 import { loggingService } from '../services/loggingService.js';
@@ -325,14 +326,28 @@ router.post('/npm/detect-db', requireAuth, requireAdmin, asyncHandler(async (req
     const { basePath } = req.body as { basePath?: string };
     if (!basePath) throw createError('basePath manquant', 400, 'MISSING_PARAM');
 
-    // Resolve through Docker path mapping if applicable
-    const HOST_PATH = process.env.HOST_PATH || '';
-    const resolve = (p: string) => HOST_PATH ? path.join(HOST_PATH, p) : p;
+    // Resolve through Docker path mapping if applicable (same logic as BasePlugin.resolveDockerPathSync)
+    const HOST_ROOT_PATH = process.env.HOST_ROOT_PATH || '/host';
+    const isDocker = (() => {
+        try { fs.accessSync('/.dockerenv'); return true; } catch { /* noop */ }
+        if (process.env.DOCKER === 'true' || process.env.DOCKER_CONTAINER === 'true') return true;
+        try {
+            const cgroup = fs.readFileSync('/proc/self/cgroup', 'utf8');
+            return cgroup.includes('docker') || cgroup.includes('containerd');
+        } catch { return false; }
+    })();
+    const resolve = (p: string): string => {
+        if (!isDocker) return p;
+        if (p.startsWith(HOST_ROOT_PATH + '/') || p === HOST_ROOT_PATH) return p;
+        if (p.startsWith('/')) return HOST_ROOT_PATH + p;
+        return p;
+    };
 
+    const normalizedBase = basePath.replace(/\/+$/, '');
     const candidates: string[] = [
-        path.join(basePath, '..', 'database.sqlite'),  // /data/logs → /data/database.sqlite
-        path.join(basePath, 'database.sqlite'),          // /data      → /data/database.sqlite
-        path.join(basePath, '..', '..', 'database.sqlite'), // /data/logs/proxy → /data/database.sqlite
+        path.join(normalizedBase, '..', 'database.sqlite'),       // /data/logs → /data/database.sqlite
+        path.join(normalizedBase, '..', '..', 'database.sqlite'), // /data/logs/proxy → /data/database.sqlite
+        path.join(normalizedBase, 'database.sqlite'),             // /data (no trailing /logs) → /data/database.sqlite
     ];
 
     for (const candidate of candidates) {
@@ -343,7 +358,157 @@ router.post('/npm/detect-db', requireAuth, requireAdmin, asyncHandler(async (req
         } catch { /* try next */ }
     }
 
-    res.json({ success: true, result: { found: false, candidates, message: 'database.sqlite non trouvée dans les chemins candidats' } });
+    // Include resolved paths in the error payload for debugging
+    res.json({ success: true, result: {
+        found: false,
+        candidates,
+        resolved: candidates.map(c => resolve(c)),
+        isDocker,
+        message: 'database.sqlite non trouvée dans les chemins candidats',
+    } });
+}));
+
+// POST /api/plugins/npm/detect-layout — detect full NPM layout from any anchor path
+// Accepts NPM root (e.g. /home/docker/nginx_proxy), data dir, or logs dir.
+// Returns: { found, dataPath, logsPath, dbPath, anchor }
+router.post('/npm/detect-layout', requireAuth, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res) => {
+    const { path: inputPath } = req.body as { path?: string };
+    if (!inputPath) throw createError('path manquant', 400, 'MISSING_PARAM');
+
+    const HOST_ROOT_PATH = process.env.HOST_ROOT_PATH || '/host';
+    const isDocker = (() => {
+        try { fs.accessSync('/.dockerenv'); return true; } catch { /* noop */ }
+        if (process.env.DOCKER === 'true' || process.env.DOCKER_CONTAINER === 'true') return true;
+        try {
+            const cgroup = fs.readFileSync('/proc/self/cgroup', 'utf8');
+            return cgroup.includes('docker') || cgroup.includes('containerd');
+        } catch { return false; }
+    })();
+    const resolve = (p: string): string => {
+        if (!isDocker) return p;
+        if (p.startsWith(HOST_ROOT_PATH + '/') || p === HOST_ROOT_PATH) return p;
+        if (p.startsWith('/')) return HOST_ROOT_PATH + p;
+        return p;
+    };
+    const exists = (p: string): boolean => {
+        try { fs.accessSync(resolve(p), fs.constants.R_OK); return true; } catch { return false; }
+    };
+
+    const normalized = inputPath.replace(/\/+$/, '') || '/';
+
+    // Candidate data paths — try the input, its child data/, and its parent
+    // Standard NPM layouts:
+    //   /home/docker/nginx_proxy/            → data/ is child
+    //   /home/docker/nginx_proxy/data/       → input is data/
+    //   /home/docker/nginx_proxy/data/logs/  → data/ is parent
+    const dataCandidates: string[] = [
+        path.join(normalized, 'data'),        // input is NPM root
+        normalized,                            // input is data/
+        path.join(normalized, '..'),          // input is logs/ → parent is data/
+    ];
+
+    for (const dataPath of dataCandidates) {
+        const logsPath = path.join(dataPath, 'logs');
+        const dbPath = path.join(dataPath, 'database.sqlite');
+        const dbFound = exists(dbPath);
+        const logsFound = exists(logsPath);
+        if (dbFound && logsFound) {
+            return res.json({ success: true, result: {
+                found: true,
+                dataPath, logsPath, dbPath,
+                resolvedDataPath: resolve(dataPath),
+                resolvedLogsPath: resolve(logsPath),
+                resolvedDbPath: resolve(dbPath),
+                dbFound, logsFound,
+                isDocker,
+            } });
+        }
+    }
+
+    // Fallback: partial match — report what was found (if anything)
+    const partial = dataCandidates.map(dp => ({
+        dataPath: dp,
+        logsPath: path.join(dp, 'logs'),
+        dbPath: path.join(dp, 'database.sqlite'),
+        logsFound: exists(path.join(dp, 'logs')),
+        dbFound: exists(path.join(dp, 'database.sqlite')),
+    }));
+    const best = partial.find(p => p.logsFound || p.dbFound) ?? partial[0];
+
+    res.json({ success: true, result: {
+        found: false,
+        dataPath: best.dataPath,
+        logsPath: best.logsPath,
+        dbPath: best.dbPath,
+        logsFound: best.logsFound,
+        dbFound: best.dbFound,
+        candidates: partial,
+        isDocker,
+        message: best.logsFound || best.dbFound
+            ? 'Layout NPM partiel — vérifiez le chemin'
+            : 'Aucun layout NPM détecté à cet emplacement',
+    } });
+}));
+
+// GET /api/plugins/npm/domain-map — proxy_host id → primary domain for NPM log viewer
+// Uses NPM plugin's basePath to locate database.sqlite (basePath = /data/logs → /data/database.sqlite).
+// Returns: { map: { "1": "example.com", ... }, source: 'sqlite' | 'none' }
+router.get('/npm/domain-map', requireAuth, asyncHandler(async (_req: AuthenticatedRequest, res) => {
+    const npmPlugin = pluginManager.getPlugin('npm');
+    const cfg = npmPlugin ? PluginConfigRepository.findByPluginId('npm') : null;
+    const basePath = (cfg?.settings as { basePath?: string } | undefined)?.basePath ?? '';
+
+    if (!basePath) {
+        return res.json({ success: true, result: { map: {}, source: 'none', reason: 'NPM basePath non configuré' } });
+    }
+
+    const HOST_ROOT_PATH = process.env.HOST_ROOT_PATH || '/host';
+    const isDocker = (() => {
+        try { fs.accessSync('/.dockerenv'); return true; } catch { /* noop */ }
+        if (process.env.DOCKER === 'true' || process.env.DOCKER_CONTAINER === 'true') return true;
+        try {
+            const cgroup = fs.readFileSync('/proc/self/cgroup', 'utf8');
+            return cgroup.includes('docker') || cgroup.includes('containerd');
+        } catch { return false; }
+    })();
+    const resolve = (p: string): string => {
+        if (!isDocker) return p;
+        if (p.startsWith(HOST_ROOT_PATH + '/') || p === HOST_ROOT_PATH) return p;
+        if (p.startsWith('/')) return HOST_ROOT_PATH + p;
+        return p;
+    };
+
+    const normalizedBase = basePath.replace(/\/+$/, '');
+    const dbCandidates = [
+        path.join(normalizedBase, '..', 'database.sqlite'),
+        path.join(normalizedBase, 'database.sqlite'),
+        path.join(normalizedBase, '..', '..', 'database.sqlite'),
+    ];
+    let dbPath: string | null = null;
+    for (const c of dbCandidates) {
+        const resolved = resolve(c);
+        try { fs.accessSync(resolved, fs.constants.R_OK); dbPath = resolved; break; } catch { /* next */ }
+    }
+
+    if (!dbPath) {
+        return res.json({ success: true, result: { map: {}, source: 'none', reason: 'database.sqlite introuvable' } });
+    }
+
+    try {
+        const db = new Database(dbPath, { readonly: true, fileMustExist: true });
+        const rows = db.prepare('SELECT id, domain_names FROM proxy_host WHERE is_deleted=0').all() as { id: number; domain_names: string }[];
+        db.close();
+        const map: Record<string, string> = {};
+        for (const row of rows) {
+            try {
+                const ns: string[] = JSON.parse(row.domain_names);
+                if (ns.length) map[String(row.id)] = ns[0].replace(/^www\./, '').toLowerCase();
+            } catch { /* bad JSON — skip */ }
+        }
+        res.json({ success: true, result: { map, source: 'sqlite' } });
+    } catch (err) {
+        res.json({ success: true, result: { map: {}, source: 'none', reason: `Erreur lecture DB : ${err instanceof Error ? err.message : 'unknown'}` } });
+    }
 }));
 
 export default router;
