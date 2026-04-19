@@ -56,6 +56,7 @@ import { API_ROUTES, formatBytes } from '../utils/constants';
 import { usePluginStore } from '../stores/pluginStore';
 import { useNotificationStore, type NotifPrefs } from '../stores/notificationStore';
 import { useUserAuthStore, type User } from '../stores/userAuthStore';
+import { ChangelogBlock } from '../components/ChangelogBlock';
 import { ExporterSection } from '../components/ExporterSection';
 import { PluginsManagementSection } from '../components/PluginsManagementSection';
 import { LogsManagementSection } from '../components/LogsManagementSection';
@@ -3361,30 +3362,8 @@ interface RepoStats {
 // Info Section Component (for Administration > Info tab)
 const InfoSection: React.FC = () => {
   const { t } = useTranslation();
-  const [changelogRaw, setChangelogRaw] = useState<string | null>(null);
-  const [changelogLoading, setChangelogLoading] = useState(false);
-  const [changelogView, setChangelogView] = useState<'latest' | 'full'>('latest');
   const [repoStats, setRepoStats] = useState<RepoStats | null>(null);
   const [repoStatsLoading, setRepoStatsLoading] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    const fetchChangelog = async () => {
-      setChangelogLoading(true);
-      try {
-        const response = await api.get<{ content: string }>('/api/info/changelog');
-        if (!cancelled && response.success && response.result?.content) {
-          setChangelogRaw(response.result.content);
-        }
-      } catch {
-        if (!cancelled) setChangelogRaw(null);
-      } finally {
-        if (!cancelled) setChangelogLoading(false);
-      }
-    };
-    fetchChangelog();
-    return () => { cancelled = true; };
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -3410,60 +3389,6 @@ const InfoSection: React.FC = () => {
     fetchRepoStats();
     return () => { cancelled = true; };
   }, []);
-
-  // Parse changelog: extract version blocks ## [x.y.z] - date
-  const versionBlocks = useMemo(() => {
-    if (!changelogRaw) return [];
-    const sections: { version: string; date: string; body: string }[] = [];
-    const re = /##\s*\[([^\]]+)\]\s*-\s*(\d{4}-\d{2}-\d{2})/g;
-    let lastIndex = 0;
-    let m: RegExpExecArray | null;
-    while ((m = re.exec(changelogRaw)) !== null) {
-      if (lastIndex > 0) {
-        const prev = sections[sections.length - 1];
-        prev.body = changelogRaw.slice(lastIndex, m.index).trim();
-      }
-      sections.push({ version: m[1], date: m[2], body: '' });
-      lastIndex = m.index + m[0].length;
-    }
-    if (sections.length > 0) {
-      sections[sections.length - 1].body = changelogRaw.slice(lastIndex).trim();
-    }
-    return sections;
-  }, [changelogRaw]);
-
-  const displayContent = changelogView === 'latest' && versionBlocks.length > 0
-    ? versionBlocks[0]
-    : null;
-  const fullContent = changelogRaw ?? '';
-
-  // Simple markdown-like render: ###, **, -, list
-  const renderChangelogBlock = (body: string) => {
-    const lines = body.split(/\n/);
-    const out: React.ReactNode[] = [];
-    let key = 0;
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      if (line.startsWith('### ')) {
-        out.push(<h4 key={key++} className="text-sm font-semibold text-cyan-400 mt-3 mb-1">{line.slice(4)}</h4>);
-      } else if (line.startsWith('#### ')) {
-        out.push(<h5 key={key++} className="text-xs font-semibold text-gray-300 mt-2 mb-0.5">{line.slice(5)}</h5>);
-      } else if (/^-\s+/.test(line) || /^\*\s+/.test(line)) {
-        const text = line.replace(/^[-*]\s+/, '').replaceAll(/\*\*([^*]+)\*\*/g, (_, t) => `\u0000${t}\u0000`);
-        const parts = text.split(/\u0000/);
-        out.push(
-          <li key={key++} className="text-sm text-gray-300 ml-4 list-disc">
-            {parts.map((p, j) => (j % 2 === 1 ? <strong key={j} className="text-gray-200">{p}</strong> : p))}
-          </li>
-        );
-      } else if (line.trim() === '---') {
-        out.push(<hr key={key++} className="border-gray-600 my-2" />);
-      } else if (line.trim()) {
-        out.push(<p key={key++} className="text-sm text-gray-400 mb-1">{line}</p>);
-      }
-    }
-    return <ul className="list-none pl-0 space-y-0.5">{out}</ul>;
-  };
 
   return (
     <>
@@ -3576,56 +3501,13 @@ const InfoSection: React.FC = () => {
 
             <div className="border-t border-gray-700/50" />
 
-            {/* Changelog */}
+            {/* Changelog — shared component with version dropdown */}
             <div>
               <div className="flex items-center gap-2 mb-2">
                 <Download size={14} className="text-amber-400 shrink-0" />
                 <h4 className="text-sm font-semibold text-theme-primary">{t('info.changelog')}</h4>
-                <div className="flex gap-1.5 ml-auto">
-                  <button
-                    type="button"
-                    onClick={() => setChangelogView('latest')}
-                    className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${changelogView === 'latest' ? 'bg-cyan-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
-                  >
-                    {t('info.latestVersion')}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setChangelogView('full')}
-                    className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${changelogView === 'full' ? 'bg-cyan-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
-                  >
-                    {t('info.fullChangelog')}
-                  </button>
-                </div>
               </div>
-              {changelogLoading ? (
-                <div className="flex items-center gap-2 text-sm text-gray-400">
-                  <Loader2 size={16} className="animate-spin" />
-                  {t('info.changelogLoading')}
-                </div>
-              ) : displayContent ? (
-                <div className="rounded-lg bg-gray-900/50 border border-gray-700 p-3 text-left">
-                  <h4 className="text-sm font-bold text-cyan-400 mb-0.5">{t('info.versionLabel', { version: displayContent.version })}</h4>
-                  <p className="text-xs text-gray-500 mb-2">{displayContent.date}</p>
-                  {renderChangelogBlock(displayContent.body)}
-                </div>
-              ) : changelogView === 'full' && versionBlocks.length > 0 ? (
-                <div className="rounded-lg bg-gray-900/50 border border-gray-700 p-3 text-left max-h-80 overflow-y-auto space-y-4">
-                  {versionBlocks.map((block) => (
-                    <div key={block.version + block.date}>
-                      <h4 className="text-sm font-bold text-cyan-400 mb-0.5">{t('info.versionLabel', { version: block.version })}</h4>
-                      <p className="text-xs text-gray-500 mb-2">{block.date}</p>
-                      {renderChangelogBlock(block.body)}
-                    </div>
-                  ))}
-                </div>
-              ) : changelogView === 'full' && fullContent ? (
-                <div className="rounded-lg bg-gray-900/50 border border-gray-700 p-3 text-left max-h-80 overflow-y-auto whitespace-pre-wrap text-sm text-gray-300 font-mono">
-                  {fullContent}
-                </div>
-              ) : !changelogRaw ? (
-                <p className="text-sm text-gray-400">{t('info.changelogNotAvailable')}</p>
-              ) : null}
+              <ChangelogBlock />
             </div>
 
           </div>
@@ -4200,7 +4082,12 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 {/* Column 2 */}
                 <div className="space-y-6">
                   <Section title="Mises à jour" icon={Download} iconColor="amber">
-                    <UpdateCheckSection />
+                    <div className="space-y-4">
+                      <UpdateCheckSection />
+                      <div className="pt-3 border-t border-gray-800">
+                        <ChangelogBlock collapsible />
+                      </div>
+                    </div>
                   </Section>
                 </div>
               </div>

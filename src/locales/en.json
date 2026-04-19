@@ -563,7 +563,8 @@
     "fullChangelog": "Full changelog",
     "changelogLoading": "Loading changelog…",
     "versionLabel": "Version {{version}}",
-    "changelogNotAvailable": "Changelog not available."
+    "changelogNotAvailable": "Changelog not available.",
+    "changelogHistoryTitle": "Version history"
   },
   "logAnalytics": {
     "title": "Log Stats",

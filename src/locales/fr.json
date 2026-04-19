@@ -563,7 +563,8 @@
     "fullChangelog": "Tout le changelog",
     "changelogLoading": "Chargement du changelog…",
     "versionLabel": "Version {{version}}",
-    "changelogNotAvailable": "Changelog non disponible."
+    "changelogNotAvailable": "Changelog non disponible.",
+    "changelogHistoryTitle": "Historique des versions"
   },
   "logAnalytics": {
     "title": "Stats Logs",
