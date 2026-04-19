@@ -1,16 +1,21 @@
 # ===========================================
-# LogviewR - Docker Compose (Standard)
+# LogviewR - Docker Compose (Fail2ban + Firewall)
 # ===========================================
 #
-# Log viewer for Apache, Nginx, NPM and system logs.
-# No extra setup needed — just start and view your logs.
+# Full setup: log viewer + Fail2ban management + IPTables/IPSet/NFTables tabs.
 #
-# Usage:
-#   docker compose up -d
-#   docker compose pull && docker compose up -d   # update to latest
+# Prerequisites:
+#   1. Create .env:  echo "JWT_SECRET=$(openssl rand -base64 32)" > .env
+#   2. Run setup:    curl -fsSL https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setup-fail2ban-access.sh | sudo bash
+#      (creates fail2ban group, sets permissions, writes FAIL2BAN_GID to .env)
+#   3. Start:        docker compose up -d
 #
-# For Fail2ban + Firewall management, use docker-compose.fail2ban.yml instead:
-#   wget -O docker-compose.yml https://raw.githubusercontent.com/Erreur32/LogviewR/main/docker-compose.fail2ban.yml
+# ── Reverse proxy (required — network_mode: host exposes the port directly) ──
+#   Nginx Proxy Manager : Forward Hostname = 127.0.0.1 / Port = 7500
+#   Nginx manual        : proxy_pass http://127.0.0.1:7500;
+#   Caddy               : reverse_proxy 127.0.0.1:7500
+#   Traefik             : url = "http://127.0.0.1:7500"
+#   To change port: set PORT=8080 in .env and update reverse proxy
 #
 # ===========================================
 
@@ -20,12 +25,15 @@ services:
     container_name: logviewr
     restart: unless-stopped
 
-    ports:
-      - "${DASHBOARD_PORT:-7500}:3000"
+    # host network required for IPTables/IPSet/NFTables tabs
+    # ⚠️ incompatible with ports: — use PORT env var instead
+    network_mode: host
+    cap_add:
+      - NET_ADMIN                 # required for netfilter (iptables/ipset/nft)
 
     environment:
       JWT_SECRET: ${JWT_SECRET}
-      DASHBOARD_PORT: ${DASHBOARD_PORT:-7500}
+      PORT: ${PORT:-7500}         # direct listen port on host
       HOST_IP: ${HOST_IP:-}
       HOST_ROOT_PATH: ${HOST_ROOT_PATH:-/host}
       CONFIG_FILE_PATH: ${CONFIG_FILE_PATH:-/app/config/logviewr.conf}
@@ -37,19 +45,38 @@ services:
 
     group_add:
       - "${ADM_GID:-4}"           # adm group (GID 4) — read /var/log files
+      - "${FAIL2BAN_GID}"         # fail2ban group — set by setup script in .env
 
     volumes:
       - ./data:/app/data          # persistent data (SQLite DB + config)
-      - /:/host:ro                # host filesystem (read-only)
+
+      # Fail2ban socket — required for ban/unban commands
+      - /var/run/fail2ban/fail2ban.sock:/var/run/fail2ban/fail2ban.sock
+
+      # Host filesystem
+      - /:/host:ro
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
 
+      # Optional: enable Fail2ban SQLite VACUUM (rw override for /host/var/lib/fail2ban)
+      # - type: bind
+      #   source: /var/lib/fail2ban
+      #   target: /host/var/lib/fail2ban
+      #   bind:
+      #     propagation: shared
+
+      # Optional: enable Fail2ban config editing from the UI (jail.local / fail2ban.local)
+      # - type: bind
+      #   source: /etc/fail2ban
+      #   target: /host/etc/fail2ban
+      #   bind:
+      #     propagation: shared
+
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000/api/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:${PORT:-7500}/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
 
-    security_opt:
-      - no-new-privileges:true
+    # ⚠️ no security_opt: no-new-privileges — incompatible with sudo (breaks firewall tabs)

@@ -37,7 +37,16 @@ const TTL_BAN     = 10_000; // 10s — ban alerts, prominent enough
 const TTL_ACTION  =  5_000; //  5s — action feedback
 const TTL_ATTEMPT =  8_000; //  8s — attempt warnings
 
+// Hard cap on concurrently visible notifications (FIFO — oldest drop when exceeded).
+// Keeps the header stack readable and prevents visual overlap.
+const MAX_VISIBLE = 4;
+
 let _nextId = 1;
+
+function pushCapped(list: AppNotification[], next: AppNotification): AppNotification[] {
+  const merged = [...list, next];
+  return merged.length > MAX_VISIBLE ? merged.slice(merged.length - MAX_VISIBLE) : merged;
+}
 
 interface NotificationState {
   notifications: AppNotification[];
@@ -59,7 +68,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   addBan: (data) => {
     if (!get().prefs.ban) return 0;
     const id = _nextId++;
-    set(s => ({ notifications: [...s.notifications, { ...data, id, type: 'ban', createdAt: Date.now() }] }));
+    set(s => ({ notifications: pushCapped(s.notifications, { ...data, id, type: 'ban', createdAt: Date.now() }) }));
     setTimeout(() => get().dismiss(id), TTL_BAN);
     return id;
   },
@@ -67,7 +76,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   addAttempt: (data) => {
     if (!get().prefs.attempt) return 0;
     const id = _nextId++;
-    set(s => ({ notifications: [...s.notifications, { ...data, id, type: 'attempt', createdAt: Date.now() }] }));
+    set(s => ({ notifications: pushCapped(s.notifications, { ...data, id, type: 'attempt', createdAt: Date.now() }) }));
     setTimeout(() => get().dismiss(id), TTL_ATTEMPT);
     return id;
   },
@@ -75,7 +84,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   addAction: (message, ok) => {
     if (!get().prefs.action) return 0;
     const id = _nextId++;
-    set(s => ({ notifications: [...s.notifications, { id, type: 'action', message, ok, createdAt: Date.now() }] }));
+    set(s => ({ notifications: pushCapped(s.notifications, { id, type: 'action', message, ok, createdAt: Date.now() }) }));
     setTimeout(() => get().dismiss(id), TTL_ACTION);
     return id;
   },

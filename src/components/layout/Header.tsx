@@ -34,30 +34,47 @@ function fmtAge(ts: number): string {
   return `${Math.floor(s / 3600)}h`;
 }
 
+interface NotifFrameProps {
+  stripeColor: string;
+  borderColor: string;
+  minWidth?: number;
+  onDismiss: () => void;
+  closeTitle: string;
+  children: React.ReactNode;
+}
+
+const NotifFrame: React.FC<NotifFrameProps> = ({ stripeColor, borderColor, minWidth = 280, onDismiss, closeTitle, children }) => (
+  <div style={{
+    display: 'flex', alignItems: 'stretch',
+    background: '#161b22', border: `1px solid ${borderColor}`,
+    borderRadius: 8, overflow: 'hidden',
+    boxShadow: '0 2px 12px rgba(0,0,0,.5)',
+    animation: 'notif-slide-in .18s ease-out',
+    flexShrink: 0, minWidth, maxWidth: 480,
+  }}>
+    <div style={{ width: 3, flexShrink: 0, background: stripeColor }} />
+    {children}
+    <button onClick={onDismiss} title={closeTitle}
+      style={{ background: 'none', border: 'none', borderLeft: '1px solid #21262d', color: '#555d69', cursor: 'pointer', padding: '0 .5rem', flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+      <XIcon size={11} />
+    </button>
+  </div>
+);
+
 const NotifCard: React.FC<{ n: AppNotification; onDismiss: () => void }> = ({ n, onDismiss }) => {
   const { t } = useTranslation();
-  const isRecidive = n.type === 'ban' && n.jail === 'recidive';
-  const banColor   = isRecidive ? '#e3b341' : '#e86a65';
-  const banBorder  = isRecidive ? 'rgba(227,179,65,.45)' : 'rgba(232,106,101,.4)';
-
-  const handleBanClick = () => {
-    if (n.ip) window.dispatchEvent(new CustomEvent('open-ip-modal', { detail: { ip: n.ip } }));
-    onDismiss();
-  };
+  const closeTitle = t('common.hide');
 
   if (n.type === 'ban') {
+    const isRecidive = n.jail === 'recidive';
+    const banColor   = isRecidive ? '#e3b341' : '#e86a65';
+    const banBorder  = isRecidive ? 'rgba(227,179,65,.45)' : 'rgba(232,106,101,.4)';
+    const handleBanClick = () => {
+      if (n.ip) window.dispatchEvent(new CustomEvent('open-ip-modal', { detail: { ip: n.ip } }));
+      onDismiss();
+    };
     return (
-      <div style={{
-        display: 'flex', alignItems: 'stretch',
-        background: '#161b22', border: `1px solid ${banBorder}`,
-        borderRadius: 8, overflow: 'hidden',
-        boxShadow: '0 2px 12px rgba(0,0,0,.5)',
-        animation: 'notif-slide-in .18s ease-out',
-        flexShrink: 0,
-        minWidth: 320,
-        maxWidth: 480,
-      }}>
-        <div style={{ width: 3, flexShrink: 0, background: banColor }} />
+      <NotifFrame stripeColor={banColor} borderColor={banBorder} minWidth={320} onDismiss={onDismiss} closeTitle={closeTitle}>
         <button onClick={handleBanClick} title={t('header.seeIpDetail')}
           style={{ flex: 1, background: 'none', border: 'none', cursor: 'pointer', padding: '.45rem .6rem', textAlign: 'left', minWidth: 0, display: 'flex', alignItems: 'center', gap: '.45rem' }}>
           <Ban style={{ width: 11, height: 11, color: banColor, flexShrink: 0 }} />
@@ -70,26 +87,13 @@ const NotifCard: React.FC<{ n: AppNotification; onDismiss: () => void }> = ({ n,
             {n.timeofban ? fmtAge(n.timeofban) : ''}
           </span>
         </button>
-        <button onClick={onDismiss} title={t('common.hide')}
-          style={{ background: 'none', border: 'none', borderLeft: '1px solid #21262d', color: '#555d69', cursor: 'pointer', padding: '0 .5rem', flexShrink: 0, display: 'flex', alignItems: 'center' }}>
-          <XIcon size={11} />
-        </button>
-      </div>
+      </NotifFrame>
     );
   }
 
-  // attempt notification
   if (n.type === 'attempt') {
     return (
-      <div style={{
-        display: 'flex', alignItems: 'stretch',
-        background: '#161b22', border: '1px solid rgba(227,179,65,.4)',
-        borderRadius: 8, overflow: 'hidden',
-        boxShadow: '0 2px 12px rgba(0,0,0,.5)',
-        animation: 'notif-slide-in .18s ease-out',
-        flexShrink: 0, minWidth: 280, maxWidth: 480,
-      }}>
-        <div style={{ width: 3, flexShrink: 0, background: '#e3b341' }} />
+      <NotifFrame stripeColor="#e3b341" borderColor="rgba(227,179,65,.4)" onDismiss={onDismiss} closeTitle={closeTitle}>
         <div style={{ flex: 1, padding: '.45rem .6rem', display: 'flex', alignItems: 'center', gap: '.45rem', minWidth: 0 }}>
           <AlertTriangle style={{ width: 11, height: 11, color: '#e3b341', flexShrink: 0 }} />
           <span style={{ fontSize: '.75rem', color: '#e3b341', fontWeight: 600, flexShrink: 0 }}>
@@ -102,52 +106,51 @@ const NotifCard: React.FC<{ n: AppNotification; onDismiss: () => void }> = ({ n,
             <span style={{ fontSize: '.62rem', color: '#8b949e', flexShrink: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 140 }}>{n.domain}</span>
           )}
         </div>
-        <button onClick={onDismiss} title={t('common.hide')}
-          style={{ background: 'none', border: 'none', borderLeft: '1px solid #21262d', color: '#555d69', cursor: 'pointer', padding: '0 .5rem', flexShrink: 0, display: 'flex', alignItems: 'center' }}>
-          <XIcon size={11} />
-        </button>
-      </div>
+      </NotifFrame>
     );
   }
 
-  // action notification
   const okColor = n.ok ? '#3fb950' : '#e86a65';
-  const okBg    = n.ok ? 'rgba(63,185,80,.12)' : 'rgba(232,106,101,.12)';
-  const okBord  = n.ok ? 'rgba(63,185,80,.35)' : 'rgba(232,106,101,.35)';
+  const okBord  = n.ok ? 'rgba(63,185,80,.45)' : 'rgba(232,106,101,.45)';
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: '.45rem',
-      background: okBg, border: `1px solid ${okBord}`,
-      borderRadius: 8, padding: '.45rem .65rem',
-      boxShadow: '0 2px 12px rgba(0,0,0,.4)',
-      animation: 'notif-slide-in .18s ease-out',
-      flexShrink: 0, minWidth: 280, maxWidth: 480,
-    }}>
-      {n.ok
-        ? <CheckCircle style={{ width: 12, height: 12, color: okColor, flexShrink: 0 }} />
-        : <AlertTriangle style={{ width: 12, height: 12, color: okColor, flexShrink: 0 }} />}
-      <span style={{ fontSize: '.78rem', color: okColor, fontWeight: 500, whiteSpace: 'nowrap' }}>{n.message}</span>
-      <button onClick={onDismiss} title={t('common.hide')}
-        style={{ background: 'none', border: 'none', color: '#555d69', cursor: 'pointer', padding: 0, marginLeft: '.2rem', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-        <XIcon size={11} />
-      </button>
-    </div>
+    <NotifFrame stripeColor={okColor} borderColor={okBord} onDismiss={onDismiss} closeTitle={closeTitle}>
+      <div style={{ flex: 1, padding: '.45rem .65rem', display: 'flex', alignItems: 'center', gap: '.45rem', minWidth: 0 }}>
+        {n.ok
+          ? <CheckCircle style={{ width: 12, height: 12, color: okColor, flexShrink: 0 }} />
+          : <AlertTriangle style={{ width: 12, height: 12, color: okColor, flexShrink: 0 }} />}
+        <span style={{ fontSize: '.78rem', color: okColor, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{n.message}</span>
+      </div>
+    </NotifFrame>
   );
 };
 
 const NotificationZone: React.FC = () => {
-  const { notifications, dismiss } = useNotificationStore();
+  const { t } = useTranslation();
+  const { notifications, dismiss, dismissAll } = useNotificationStore();
   if (notifications.length === 0) return null;
   return (
     <div style={{
-      position: 'absolute', left: '50%', top: '50%',
-      transform: 'translate(-50%, -50%)',
-      display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center',
-      maxWidth: 'min(90vw, 1200px)',
-      zIndex: 45,
+      position: 'fixed', top: 60, right: 16,
+      display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6,
+      maxWidth: 'min(92vw, 520px)',
+      zIndex: 60,
       pointerEvents: 'none',
     }}>
-      {notifications.slice(-5).map(n => (
+      {notifications.length >= 2 && (
+        <button onClick={dismissAll} title={t('common.hide')}
+          style={{
+            pointerEvents: 'auto',
+            background: '#161b22', border: '1px solid #30363d',
+            borderRadius: 6, padding: '.15rem .45rem',
+            color: '#8b949e', fontSize: '.7rem', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 4,
+            boxShadow: '0 2px 8px rgba(0,0,0,.5)',
+          }}>
+          <XIcon size={10} />
+          <span>×{notifications.length}</span>
+        </button>
+      )}
+      {notifications.map(n => (
         <div key={n.id} style={{ pointerEvents: 'auto' }}>
           <NotifCard n={n} onDismiss={() => dismiss(n.id)} />
         </div>
@@ -885,9 +888,9 @@ export const Header: React.FC<HeaderProps> = ({
         )}
       </div>
 
-      {/* Centered notification zone — absolutely positioned to avoid disturbing flex layout */}
+      {/* Fixed top-right notification stack — vertical column, solid backgrounds, no overlap */}
       <NotificationZone />
-      <style>{`@keyframes notif-slide-in { from { opacity:0; transform:translateY(-6px) scale(.96); } to { opacity:1; transform:translateY(0) scale(1); } } @keyframes logo-blink { 0%,100% { opacity:1; } 50% { opacity:.35; } } .logo-update-blink { animation: logo-blink 2.8s ease-in-out infinite; }`}</style>
+      <style>{`@keyframes notif-slide-in { from { opacity:0; transform:translateX(12px) scale(.96); } to { opacity:1; transform:translateX(0) scale(1); } } @keyframes logo-blink { 0%,100% { opacity:1; } 50% { opacity:.35; } } .logo-update-blink { animation: logo-blink 2.8s ease-in-out infinite; }`}</style>
     </header>
     {updateBanner?.show && (
       <div style={{

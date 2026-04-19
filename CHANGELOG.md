@@ -5,6 +5,23 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.2] - 2026-04-19
+
+### For users
+
+- **Header notifications — solid backgrounds, no more overlap** — action/success/error toasts were translucent and could stack behind each other at the center of the header. They now render as a fixed vertical column in the top-right corner, all with solid `#161b22` backgrounds and a color-coded left stripe (green/red/orange). Ban, attempt and action notifications share the same shape.
+- **Max 4 notifications visible at once** — older notifications drop when a 5th one arrives (FIFO) so the stack stays readable under burst activity (ban floods, attempt spikes).
+- **"Dismiss all" button** — appears in the top-right corner as soon as 2 or more notifications are stacked; clears the whole column in one click.
+- **`docker-compose.yml` is now the Fail2ban + Firewall flavor by default** — the root `docker-compose.yml` ships with the full setup (Fail2ban socket mount, `network_mode: host`, `NET_ADMIN` capability) so the IPTables / IPSet / NFTables tabs and Fail2ban ban/unban commands work out of the box. Prerequisites: create `.env` with `JWT_SECRET`, then run `scripts/setup-fail2ban-access.sh` to provision the `fail2ban` group and populate `FAIL2BAN_GID`. `DASHBOARD_PORT` is renamed to `PORT` (host listen port, default 7500). Reverse-proxy snippets (NPM / Nginx / Caddy / Traefik) are included in the file header.
+
+### For developers
+
+- `NotifCard` now delegates its shell (container + stripe + close button) to a shared `NotifFrame` component — the three variants (ban/attempt/action) each contribute only their body content.
+- `notificationStore` enforces a hard cap (`MAX_VISIBLE = 4`) via a `pushCapped()` helper; `setTimeout` auto-dismiss still owns per-notification TTL.
+- `NotificationZone` moved from `position: absolute` (centered inside `<header>`) to `position: fixed; top: 60; right: 16; z-index: 60` — no longer competes with header layout.
+- Slide-in keyframe changed from `translateY(-6px)` to `translateX(12px)` to match the new right-edge origin.
+- `docker-compose.yml` drops `security_opt: no-new-privileges` (incompatible with `sudo`, required by the firewall tabs), removes the `ports:` mapping (incompatible with `network_mode: host`), adds the `fail2ban.sock` bind mount and two optional commented mounts for `/var/lib/fail2ban` (VACUUM) and `/etc/fail2ban` (config edit from the UI). Healthcheck now targets `${PORT:-7500}`.
+
 ## [0.9.1] - 2026-04-18
 
 ### For users
