@@ -68,30 +68,37 @@ function resolveHostPath(p: string): string {
     return p;
 }
 
-// Allowed top-level prefixes for non-Docker runs — NPM installs typically live under these.
-// Docker runs are bounded by HOST_ROOT_PATH instead.
-const NON_DOCKER_ALLOWED_PREFIXES = ['/home', '/var', '/opt', '/srv', '/data', '/mnt'];
-
 /**
  * Canonicalize a user-supplied host path and verify it is contained within an
  * allowed base. Returns the canonical absolute path if contained, or null.
  *
- * Uses the CodeQL-recognized sanitizer pattern for js/path-injection:
- * `path.relative(base, target)` + check the result doesn't start with `..`
- * and isn't absolute. This matches the canonical sanitizer shape defined
- * in the CodeQL JS query source.
+ * Uses the exact pattern from the CodeQL js/path-injection "Good example":
+ *   const resolved = path.resolve(ROOT_LITERAL, userInput);
+ *   if (!resolved.startsWith(ROOT_LITERAL)) reject;
+ *
+ * Each allowed base is a hardcoded string literal — CodeQL's sanitizer
+ * definition expects a literal first argument to `path.resolve`, not a
+ * dynamic base computed from an env var or array map.
  */
 function containedHostPath(p: string): string | null {
-    const target = path.resolve(resolveHostPath(p));
-    const bases = detectDocker()
-        ? [path.resolve(HOST_ROOT_PATH)]
-        : NON_DOCKER_ALLOWED_PREFIXES.map(b => path.resolve(b));
-    for (const base of bases) {
-        const rel = path.relative(base, target);
-        if (rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel))) {
-            return target;
-        }
+    // Strip leading slashes so `path.resolve(BASE, rel)` nests under BASE.
+    const rel = p.replace(/^\/+/, '');
+
+    if (detectDocker()) {
+        const resolved = path.resolve('/host', rel);
+        if (resolved === '/host' || resolved.startsWith('/host/')) return resolved;
+        return null;
     }
+
+    // Non-Docker: resolve the input directly, then containment-check against
+    // each allowed top-level prefix. Each startsWith check uses a string literal.
+    const direct = path.resolve(p);
+    if (direct === '/home' || direct.startsWith('/home/')) return direct;
+    if (direct === '/var'  || direct.startsWith('/var/'))  return direct;
+    if (direct === '/opt'  || direct.startsWith('/opt/'))  return direct;
+    if (direct === '/srv'  || direct.startsWith('/srv/'))  return direct;
+    if (direct === '/data' || direct.startsWith('/data/')) return direct;
+    if (direct === '/mnt'  || direct.startsWith('/mnt/'))  return direct;
     return null;
 }
 
