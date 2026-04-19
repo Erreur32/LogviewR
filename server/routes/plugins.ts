@@ -68,9 +68,38 @@ function resolveHostPath(p: string): string {
     return p;
 }
 
-/** Read-access check that resolves Docker paths first. */
+// Allowed top-level prefixes for non-Docker runs — NPM installs typically live under these.
+// Docker runs are bounded by HOST_ROOT_PATH instead (see check below).
+const NON_DOCKER_ALLOWED_PREFIXES = ['/home', '/var', '/opt', '/srv', '/data', '/mnt'];
+
+/**
+ * Canonicalize + containment check for a user-supplied path.
+ * Returns the resolved absolute path if allowed, or null otherwise.
+ *   - Docker: target must stay under HOST_ROOT_PATH (default `/host`).
+ *   - Non-Docker: target must start with an allowed top-level prefix.
+ *
+ * The path.resolve + startsWith pattern is the CodeQL-recognized sanitizer for
+ * js/path-injection — it also strips `..` traversal attempts before the check.
+ */
+function resolveHostPathSafe(p: string): string | null {
+    const target = path.resolve(resolveHostPath(p));
+    if (detectDocker()) {
+        const base = path.resolve(HOST_ROOT_PATH);
+        if (target !== base && !target.startsWith(base + path.sep)) return null;
+    } else {
+        const allowed = NON_DOCKER_ALLOWED_PREFIXES.some(
+            prefix => target === prefix || target.startsWith(prefix + path.sep),
+        );
+        if (!allowed) return null;
+    }
+    return target;
+}
+
+/** Read-access check using the safe (canonicalized + contained) host path. */
 function pathExistsResolved(p: string): boolean {
-    try { fs.accessSync(resolveHostPath(p), fs.constants.R_OK); return true; } catch { return false; }
+    const target = resolveHostPathSafe(p);
+    if (target === null) return false;
+    try { fs.accessSync(target, fs.constants.R_OK); return true; } catch { return false; }
 }
 
 /**
@@ -523,7 +552,9 @@ router.get('/npm/domain-map', npmRouteRateLimit, requireAuth, asyncHandler(async
     ];
     let dbPath: string | null = null;
     for (const c of dbCandidates) {
-        if (pathExistsResolved(c)) { dbPath = resolveHostPath(c); break; }
+        const safe = resolveHostPathSafe(c);
+        if (safe === null) continue;
+        try { fs.accessSync(safe, fs.constants.R_OK); dbPath = safe; break; } catch { /* not accessible */ }
     }
 
     if (!dbPath) {
