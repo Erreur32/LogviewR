@@ -5,6 +5,7 @@
  */
 
 import { Router } from 'express';
+import expressRateLimit from 'express-rate-limit';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import Database from 'better-sqlite3';
@@ -18,6 +19,16 @@ import { logger } from '../utils/logger.js';
 import type { PluginConfig } from '../plugins/base/PluginInterface.js';
 
 const router = Router();
+
+// Shared rate limiter for NPM detection + domain-map routes (read-only filesystem probes).
+// 30 req/min per IP is ample for the admin-panel flows and caps CodeQL "Missing rate limiting".
+const npmRouteRateLimit = expressRateLimit({
+    windowMs: 60_000,
+    max: 30,
+    standardHeaders: true,
+    legacyHeaders: false,
+    validate: { trustProxy: false },
+});
 
 // ─── NPM path helpers (shared by /npm/detect-db, /npm/detect-layout, /npm/domain-map) ───
 
@@ -71,6 +82,25 @@ function stripTrailingSlashes(p: string): string {
     let end = p.length;
     while (end > 1 && p.codePointAt(end - 1) === SLASH_CODE_POINT) end--;
     return end === p.length ? p : p.slice(0, end);
+}
+
+/**
+ * Validate a user-supplied filesystem path at the request boundary.
+ * Rejects non-strings, null bytes, and relative paths — required to break
+ * the CodeQL "Uncontrolled data used in path expression" taint flow before
+ * the value reaches fs.accessSync / path.join.
+ */
+function sanitizeInputPath(p: unknown): string {
+    if (typeof p !== 'string' || p.length === 0) {
+        throw createError('chemin invalide', 400, 'INVALID_PATH');
+    }
+    if (p.includes('\0')) {
+        throw createError('chemin invalide (null byte)', 400, 'INVALID_PATH');
+    }
+    if (!path.isAbsolute(p)) {
+        throw createError('chemin absolu requis', 400, 'INVALID_PATH');
+    }
+    return p;
 }
 
 // GET /api/plugins - Get all plugins with their status
@@ -376,11 +406,11 @@ router.post('/:id/test', requireAuth, requireAdmin, asyncHandler(async (req: Aut
 }), autoLog('plugin.test', 'plugin', (req) => req.params.id));
 
 // POST /api/plugins/npm/detect-db — auto-detect database.sqlite from NPM basePath
-router.post('/npm/detect-db', requireAuth, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res) => {
+router.post('/npm/detect-db', npmRouteRateLimit, requireAuth, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res) => {
     const { basePath } = req.body as { basePath?: string };
     if (!basePath) throw createError('basePath manquant', 400, 'MISSING_PARAM');
 
-    const normalizedBase = stripTrailingSlashes(basePath);
+    const normalizedBase = stripTrailingSlashes(sanitizeInputPath(basePath));
     const candidates: string[] = [
         path.join(normalizedBase, '..', 'database.sqlite'),       // /data/logs → /data/database.sqlite
         path.join(normalizedBase, '..', '..', 'database.sqlite'), // /data/logs/proxy → /data/database.sqlite
@@ -406,11 +436,11 @@ router.post('/npm/detect-db', requireAuth, requireAdmin, asyncHandler(async (req
 // POST /api/plugins/npm/detect-layout — detect full NPM layout from any anchor path
 // Accepts NPM root (e.g. /home/docker/nginx_proxy), data dir, or logs dir.
 // Returns: { found, dataPath, logsPath, dbPath, anchor }
-router.post('/npm/detect-layout', requireAuth, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res) => {
+router.post('/npm/detect-layout', npmRouteRateLimit, requireAuth, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res) => {
     const { path: inputPath } = req.body as { path?: string };
     if (!inputPath) throw createError('path manquant', 400, 'MISSING_PARAM');
 
-    const normalized = stripTrailingSlashes(inputPath) || '/';
+    const normalized = stripTrailingSlashes(sanitizeInputPath(inputPath)) || '/';
 
     // Candidate data paths — try the input, its child data/, and its parent
     // Standard NPM layouts:
@@ -469,7 +499,7 @@ router.post('/npm/detect-layout', requireAuth, requireAdmin, asyncHandler(async 
 // GET /api/plugins/npm/domain-map — proxy_host id → primary domain for NPM log viewer
 // Uses NPM plugin's basePath to locate database.sqlite (basePath = /data/logs → /data/database.sqlite).
 // Returns: { map: { "1": "example.com", ... }, source: 'sqlite' | 'none' }
-router.get('/npm/domain-map', requireAuth, asyncHandler(async (_req: AuthenticatedRequest, res) => {
+router.get('/npm/domain-map', npmRouteRateLimit, requireAuth, asyncHandler(async (_req: AuthenticatedRequest, res) => {
     const npmPlugin = pluginManager.getPlugin('npm');
     const cfg = npmPlugin ? PluginConfigRepository.findByPluginId('npm') : null;
     const basePath = (cfg?.settings as { basePath?: string } | undefined)?.basePath ?? '';
@@ -478,7 +508,14 @@ router.get('/npm/domain-map', requireAuth, asyncHandler(async (_req: Authenticat
         return res.json({ success: true, result: { map: {}, source: 'none', reason: 'NPM basePath non configuré' } });
     }
 
-    const normalizedBase = stripTrailingSlashes(basePath);
+    // basePath comes from admin-written plugin config, but re-validate defensively
+    // to break the CodeQL taint flow at this read boundary too.
+    let normalizedBase: string;
+    try {
+        normalizedBase = stripTrailingSlashes(sanitizeInputPath(basePath));
+    } catch {
+        return res.json({ success: true, result: { map: {}, source: 'none', reason: 'NPM basePath invalide' } });
+    }
     const dbCandidates = [
         path.join(normalizedBase, '..', 'database.sqlite'),
         path.join(normalizedBase, 'database.sqlite'),
