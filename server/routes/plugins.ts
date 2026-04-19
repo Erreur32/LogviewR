@@ -69,36 +69,26 @@ function resolveHostPath(p: string): string {
 }
 
 // Allowed top-level prefixes for non-Docker runs — NPM installs typically live under these.
-// Docker runs are bounded by HOST_ROOT_PATH instead (see check below).
+// Docker runs are bounded by HOST_ROOT_PATH instead.
 const NON_DOCKER_ALLOWED_PREFIXES = ['/home', '/var', '/opt', '/srv', '/data', '/mnt'];
 
 /**
- * Canonicalize + containment check for a user-supplied path.
- * Returns the resolved absolute path if allowed, or null otherwise.
- *   - Docker: target must stay under HOST_ROOT_PATH (default `/host`).
- *   - Non-Docker: target must start with an allowed top-level prefix.
- *
- * The path.resolve + startsWith pattern is the CodeQL-recognized sanitizer for
- * js/path-injection — it also strips `..` traversal attempts before the check.
+ * Read-access check on a user-supplied host path.
+ * The path.resolve + startsWith containment check is inlined (not factored
+ * into a helper) so CodeQL js/path-injection recognizes it as a sanitizer
+ * directly on the fs.accessSync call.
  */
-function resolveHostPathSafe(p: string): string | null {
+function pathExistsResolved(p: string): boolean {
     const target = path.resolve(resolveHostPath(p));
     if (detectDocker()) {
         const base = path.resolve(HOST_ROOT_PATH);
-        if (target !== base && !target.startsWith(base + path.sep)) return null;
+        if (target !== base && !target.startsWith(base + path.sep)) return false;
     } else {
         const allowed = NON_DOCKER_ALLOWED_PREFIXES.some(
             prefix => target === prefix || target.startsWith(prefix + path.sep),
         );
-        if (!allowed) return null;
+        if (!allowed) return false;
     }
-    return target;
-}
-
-/** Read-access check using the safe (canonicalized + contained) host path. */
-function pathExistsResolved(p: string): boolean {
-    const target = resolveHostPathSafe(p);
-    if (target === null) return false;
     try { fs.accessSync(target, fs.constants.R_OK); return true; } catch { return false; }
 }
 
@@ -550,11 +540,21 @@ router.get('/npm/domain-map', npmRouteRateLimit, requireAuth, asyncHandler(async
         path.join(normalizedBase, 'database.sqlite'),
         path.join(normalizedBase, '..', '..', 'database.sqlite'),
     ];
+    // Inline the canonicalize + containment check so CodeQL js/path-injection
+    // recognizes the sanitizer directly on both fs.accessSync and new Database sinks.
     let dbPath: string | null = null;
     for (const c of dbCandidates) {
-        const safe = resolveHostPathSafe(c);
-        if (safe === null) continue;
-        try { fs.accessSync(safe, fs.constants.R_OK); dbPath = safe; break; } catch { /* not accessible */ }
+        const target = path.resolve(resolveHostPath(c));
+        if (detectDocker()) {
+            const base = path.resolve(HOST_ROOT_PATH);
+            if (target !== base && !target.startsWith(base + path.sep)) continue;
+        } else {
+            const allowed = NON_DOCKER_ALLOWED_PREFIXES.some(
+                prefix => target === prefix || target.startsWith(prefix + path.sep),
+            );
+            if (!allowed) continue;
+        }
+        try { fs.accessSync(target, fs.constants.R_OK); dbPath = target; break; } catch { /* not accessible */ }
     }
 
     if (!dbPath) {
