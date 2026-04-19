@@ -5,6 +5,26 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.3] - 2026-04-19
+
+### For users
+
+- **Shared Changelog viewer with version dropdown** — the Info tab's "Latest / Full" toggle is replaced by a dropdown listing every `## [x.y.z] - date` section from `CHANGELOG.md`, with the latest version selected by default. The markdown is now rendered with color-coded syntax: H3 cyan, H4 emerald, inline `code` in a teal chip, ``` fenced blocks with a teal left border, **bold** in amber. Scrolls inside a fixed-height pane so long histories don't push the page.
+- **Changelog available under "Mises à jour"** — same component added as a collapsible sub-section under the General tab's update check (closed by default, lazy-fetched on first expand). The current release notes are one click away right next to the "Check now" button.
+
+### For developers
+
+- New `src/components/ChangelogBlock.tsx` (shared between InfoSection and UpdateCheckSection). Prop `collapsible?: boolean` toggles the clickable header + chevron. Lazy fetch on first expand. No new npm dependencies — markdown is rendered by a hand-rolled `renderLineNode()` + `renderInline()` pair.
+- Dropped ~93 lines of duplicated state / memo / markdown helper from `InfoSection`; `SettingsPage.tsx` imports the shared component in both tabs.
+- New i18n key: `info.changelogHistoryTitle` (fr / en).
+
+### Security & quality
+
+- **CodeQL js/path-injection (#339) — NPM detect routes hardened.** New `sanitizeInputPath()` rejects null bytes and non-absolute paths at the request boundary; `containedHostPath()` canonicalizes with `path.resolve` and applies a `path.relative` / `startsWith` containment check against `HOST_ROOT_PATH` in Docker or against an allowlist (`/home /var /opt /srv /data /mnt`) on the host. Both `fs.accessSync` and `new Database(...)` sinks route through the sanitizer.
+- **CodeQL missing-rate-limiting (#334, #335, #336) — fixed.** New `npmRouteRateLimit` (30 req/min/IP) on `/npm/detect-db`, `/npm/detect-layout`, and `/npm/domain-map`.
+- **SonarCloud S3776 (cognitive complexity) — fixed.** `/npm/domain-map` split into `locateNpmDatabase()` + `readDomainMap()` helpers (25 → <15). `renderBody()` in `ChangelogBlock.tsx` split into `renderLineNode()` (16 → <15).
+- **SonarCloud S7790 — fixed.** `sections[sections.length - 1]` replaced by `sections.at(-1)` in the changelog parser.
+
 ## [0.9.2] - 2026-04-19
 
 ### For users
