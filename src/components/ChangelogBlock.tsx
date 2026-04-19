@@ -13,15 +13,13 @@ function parseVersions(raw: string): VersionBlock[] {
   let match: RegExpExecArray | null;
   VERSION_HEADER_RE.lastIndex = 0;
   while ((match = VERSION_HEADER_RE.exec(raw)) !== null) {
-    if (sections.length > 0) {
-      sections[sections.length - 1].body = raw.slice(lastIndex, match.index).trim();
-    }
+    const prev = sections.at(-1);
+    if (prev) prev.body = raw.slice(lastIndex, match.index).trim();
     sections.push({ version: match[1], date: match[2], body: '' });
     lastIndex = match.index + match[0].length;
   }
-  if (sections.length > 0) {
-    sections[sections.length - 1].body = raw.slice(lastIndex).trim();
-  }
+  const last = sections.at(-1);
+  if (last) last.body = raw.slice(lastIndex).trim();
   return sections;
 }
 
@@ -52,75 +50,81 @@ function renderInline(text: string, keyBase: string): React.ReactNode[] {
   return parts;
 }
 
+// Per-line handlers — keeps renderBody under the cognitive-complexity limit.
+// Each returns the JSX node to append to the main output (or null if the line
+// belongs to an ongoing list/fence buffer, which the caller handles).
+
+function renderLineNode(line: string, key: number): React.ReactNode | null {
+  if (line.startsWith('### ')) {
+    return (
+      <h4 key={`h3-${key}`} className="text-base font-semibold text-cyan-400 mt-3 mb-1.5 border-b border-cyan-500/20 pb-0.5">
+        {renderInline(line.slice(4), `h3-${key}`)}
+      </h4>
+    );
+  }
+  if (line.startsWith('#### ')) {
+    return (
+      <h5 key={`h4-${key}`} className="text-sm font-medium text-emerald-400 mt-2 mb-1">
+        {renderInline(line.slice(5), `h4-${key}`)}
+      </h5>
+    );
+  }
+  if (line.trim() === '---') {
+    return <hr key={`hr-${key}`} className="border-gray-700 my-3" />;
+  }
+  if (line.trim()) {
+    return (
+      <p key={`p-${key}`} className="text-sm text-gray-400 my-2 leading-relaxed">
+        {renderInline(line, `p-${key}`)}
+      </p>
+    );
+  }
+  return null;
+}
+
 function renderBody(body: string): React.ReactNode {
-  const lines = body.split(/\n/);
   const out: React.ReactNode[] = [];
   let listBuffer: React.ReactNode[] = [];
-  let inFence = false;
-  let fenceBuffer: string[] = [];
+  let fenceBuffer: string[] | null = null;
   let key = 0;
 
   const flushList = () => {
     if (listBuffer.length) {
-      out.push(
-        <ul key={`ul-${key++}`} className="list-disc pl-5 my-2 space-y-0.5">{listBuffer}</ul>
-      );
+      out.push(<ul key={`ul-${key++}`} className="list-disc pl-5 my-2 space-y-0.5">{listBuffer}</ul>);
       listBuffer = [];
     }
   };
   const flushFence = () => {
-    if (fenceBuffer.length) {
+    if (fenceBuffer) {
       out.push(
         <pre key={`pre-${key++}`} className="bg-gray-900 border border-gray-700 border-l-4 border-l-teal-500 rounded-lg p-3 my-3 overflow-x-auto text-xs text-gray-200 font-mono">
           <code>{fenceBuffer.join('\n')}</code>
         </pre>
       );
-      fenceBuffer = [];
+      fenceBuffer = null;
     }
   };
 
-  for (const line of lines) {
+  for (const line of body.split(/\n/)) {
     if (line.startsWith('```')) {
-      if (inFence) { flushFence(); inFence = false; }
-      else { flushList(); inFence = true; }
+      if (fenceBuffer) flushFence();
+      else { flushList(); fenceBuffer = []; }
       continue;
     }
-    if (inFence) { fenceBuffer.push(line); continue; }
+    if (fenceBuffer) { fenceBuffer.push(line); continue; }
 
-    if (line.startsWith('### ')) {
-      flushList();
-      out.push(
-        <h4 key={`h3-${key++}`} className="text-base font-semibold text-cyan-400 mt-3 mb-1.5 border-b border-cyan-500/20 pb-0.5">
-          {renderInline(line.slice(4), `h3-${key}`)}
-        </h4>
-      );
-    } else if (line.startsWith('#### ')) {
-      flushList();
-      out.push(
-        <h5 key={`h4-${key++}`} className="text-sm font-medium text-emerald-400 mt-2 mb-1">
-          {renderInline(line.slice(5), `h4-${key}`)}
-        </h5>
-      );
-    } else if (/^[-*]\s+/.test(line)) {
-      const text = line.replace(/^[-*]\s+/, '');
+    if (/^[-*]\s+/.test(line)) {
       listBuffer.push(
         <li key={`li-${key++}`} className="text-sm text-gray-300 leading-relaxed">
-          {renderInline(text, `li-${key}`)}
+          {renderInline(line.replace(/^[-*]\s+/, ''), `li-${key}`)}
         </li>
       );
-    } else if (line.trim() === '---') {
-      flushList();
-      out.push(<hr key={`hr-${key++}`} className="border-gray-700 my-3" />);
-    } else if (line.trim()) {
-      flushList();
-      out.push(
-        <p key={`p-${key++}`} className="text-sm text-gray-400 my-2 leading-relaxed">
-          {renderInline(line, `p-${key}`)}
-        </p>
-      );
-    } else {
-      flushList();
+      continue;
     }
+
+    flushList();
+    const node = renderLineNode(line, key++);
+    if (node) out.push(node);
   }
   flushList();
   flushFence();

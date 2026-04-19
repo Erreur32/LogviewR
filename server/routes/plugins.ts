@@ -73,22 +73,32 @@ function resolveHostPath(p: string): string {
 const NON_DOCKER_ALLOWED_PREFIXES = ['/home', '/var', '/opt', '/srv', '/data', '/mnt'];
 
 /**
- * Read-access check on a user-supplied host path.
- * The path.resolve + startsWith containment check is inlined (not factored
- * into a helper) so CodeQL js/path-injection recognizes it as a sanitizer
- * directly on the fs.accessSync call.
+ * Canonicalize a user-supplied host path and verify it is contained within an
+ * allowed base. Returns the canonical absolute path if contained, or null.
+ *
+ * Uses the CodeQL-recognized sanitizer pattern for js/path-injection:
+ * `path.relative(base, target)` + check the result doesn't start with `..`
+ * and isn't absolute. This matches the canonical sanitizer shape defined
+ * in the CodeQL JS query source.
  */
-function pathExistsResolved(p: string): boolean {
+function containedHostPath(p: string): string | null {
     const target = path.resolve(resolveHostPath(p));
-    if (detectDocker()) {
-        const base = path.resolve(HOST_ROOT_PATH);
-        if (target !== base && !target.startsWith(base + path.sep)) return false;
-    } else {
-        const allowed = NON_DOCKER_ALLOWED_PREFIXES.some(
-            prefix => target === prefix || target.startsWith(prefix + path.sep),
-        );
-        if (!allowed) return false;
+    const bases = detectDocker()
+        ? [path.resolve(HOST_ROOT_PATH)]
+        : NON_DOCKER_ALLOWED_PREFIXES.map(b => path.resolve(b));
+    for (const base of bases) {
+        const rel = path.relative(base, target);
+        if (rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel))) {
+            return target;
+        }
     }
+    return null;
+}
+
+/** Read-access check using the contained host path. */
+function pathExistsResolved(p: string): boolean {
+    const target = containedHostPath(p);
+    if (target === null) return false;
     try { fs.accessSync(target, fs.constants.R_OK); return true; } catch { return false; }
 }
 
@@ -515,6 +525,41 @@ router.post('/npm/detect-layout', npmRouteRateLimit, requireAuth, requireAdmin, 
     } });
 }));
 
+/** Locate the NPM database.sqlite starting from the configured basePath. Returns null if none of the candidates is contained + readable. */
+function locateNpmDatabase(basePath: string): string | null {
+    let normalizedBase: string;
+    try { normalizedBase = stripTrailingSlashes(sanitizeInputPath(basePath)); } catch { return null; }
+    const candidates = [
+        path.join(normalizedBase, '..', 'database.sqlite'),
+        path.join(normalizedBase, 'database.sqlite'),
+        path.join(normalizedBase, '..', '..', 'database.sqlite'),
+    ];
+    for (const c of candidates) {
+        const target = containedHostPath(c);
+        if (target === null) continue;
+        try { fs.accessSync(target, fs.constants.R_OK); return target; } catch { /* try next */ }
+    }
+    return null;
+}
+
+/** Read proxy_host rows from the NPM DB and build an { id → primary domain } map. */
+function readDomainMap(dbPath: string): Record<string, string> {
+    const db = new Database(dbPath, { readonly: true, fileMustExist: true });
+    try {
+        const rows = db.prepare('SELECT id, domain_names FROM proxy_host WHERE is_deleted=0').all() as { id: number; domain_names: string }[];
+        const map: Record<string, string> = {};
+        for (const row of rows) {
+            try {
+                const names: string[] = JSON.parse(row.domain_names);
+                if (names.length) map[String(row.id)] = names[0].replace(/^www\./, '').toLowerCase();
+            } catch { /* bad JSON — skip row */ }
+        }
+        return map;
+    } finally {
+        db.close();
+    }
+}
+
 // GET /api/plugins/npm/domain-map — proxy_host id → primary domain for NPM log viewer
 // Uses NPM plugin's basePath to locate database.sqlite (basePath = /data/logs → /data/database.sqlite).
 // Returns: { map: { "1": "example.com", ... }, source: 'sqlite' | 'none' }
@@ -522,57 +567,17 @@ router.get('/npm/domain-map', npmRouteRateLimit, requireAuth, asyncHandler(async
     const npmPlugin = pluginManager.getPlugin('npm');
     const cfg = npmPlugin ? PluginConfigRepository.findByPluginId('npm') : null;
     const basePath = (cfg?.settings as { basePath?: string } | undefined)?.basePath ?? '';
-
     if (!basePath) {
         return res.json({ success: true, result: { map: {}, source: 'none', reason: 'NPM basePath non configuré' } });
     }
 
-    // basePath comes from admin-written plugin config, but re-validate defensively
-    // to break the CodeQL taint flow at this read boundary too.
-    let normalizedBase: string;
-    try {
-        normalizedBase = stripTrailingSlashes(sanitizeInputPath(basePath));
-    } catch {
-        return res.json({ success: true, result: { map: {}, source: 'none', reason: 'NPM basePath invalide' } });
-    }
-    const dbCandidates = [
-        path.join(normalizedBase, '..', 'database.sqlite'),
-        path.join(normalizedBase, 'database.sqlite'),
-        path.join(normalizedBase, '..', '..', 'database.sqlite'),
-    ];
-    // Inline the canonicalize + containment check so CodeQL js/path-injection
-    // recognizes the sanitizer directly on both fs.accessSync and new Database sinks.
-    let dbPath: string | null = null;
-    for (const c of dbCandidates) {
-        const target = path.resolve(resolveHostPath(c));
-        if (detectDocker()) {
-            const base = path.resolve(HOST_ROOT_PATH);
-            if (target !== base && !target.startsWith(base + path.sep)) continue;
-        } else {
-            const allowed = NON_DOCKER_ALLOWED_PREFIXES.some(
-                prefix => target === prefix || target.startsWith(prefix + path.sep),
-            );
-            if (!allowed) continue;
-        }
-        try { fs.accessSync(target, fs.constants.R_OK); dbPath = target; break; } catch { /* not accessible */ }
-    }
-
+    const dbPath = locateNpmDatabase(basePath);
     if (!dbPath) {
-        return res.json({ success: true, result: { map: {}, source: 'none', reason: 'database.sqlite introuvable' } });
+        return res.json({ success: true, result: { map: {}, source: 'none', reason: 'database.sqlite introuvable ou chemin invalide' } });
     }
 
     try {
-        const db = new Database(dbPath, { readonly: true, fileMustExist: true });
-        const rows = db.prepare('SELECT id, domain_names FROM proxy_host WHERE is_deleted=0').all() as { id: number; domain_names: string }[];
-        db.close();
-        const map: Record<string, string> = {};
-        for (const row of rows) {
-            try {
-                const ns: string[] = JSON.parse(row.domain_names);
-                if (ns.length) map[String(row.id)] = ns[0].replace(/^www\./, '').toLowerCase();
-            } catch { /* bad JSON — skip */ }
-        }
-        res.json({ success: true, result: { map, source: 'sqlite' } });
+        res.json({ success: true, result: { map: readDomainMap(dbPath), source: 'sqlite' } });
     } catch (err) {
         res.json({ success: true, result: { map: {}, source: 'none', reason: `Erreur lecture DB : ${err instanceof Error ? err.message : 'unknown'}` } });
     }
