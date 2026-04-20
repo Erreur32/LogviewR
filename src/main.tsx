@@ -7,6 +7,7 @@ import './i18n';
 import './index.css';
 import './styles/themes.css';
 import { initTheme } from './utils/themeManager';
+import { initChunkReloadHandler } from './utils/chunkReload';
 import { APP_NAME, APP_VERSION } from './constants/version';
 
 // Console log with colored background
@@ -63,6 +64,10 @@ if (import.meta.env.PROD) {
     originalConsoleWarn.apply(console, args);
   };
 }
+
+// Recover from stale-chunk errors after a new deploy (old tabs referencing
+// hashed filenames that no longer exist on the server).
+initChunkReloadHandler();
 
 // Initialize theme before rendering (async, but don't block rendering)
 initTheme().catch(err => console.warn('Theme initialization error:', err));

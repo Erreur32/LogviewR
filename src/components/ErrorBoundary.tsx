@@ -1,4 +1,5 @@
 import React, { Component, ErrorInfo, ReactNode, PropsWithChildren } from 'react';
+import { isChunkLoadError, reloadIfNotAttempted } from '../utils/chunkReload';
 
 interface Props extends PropsWithChildren {
     // children is now inherited from PropsWithChildren
@@ -33,16 +34,7 @@ export class ErrorBoundary extends Component<Props, State> {
     }
 
     componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-        // Chunk load error after a new deployment: old cached index.js references
-        // hashed chunk files that no longer exist on the server. Reload once.
-        const isChunkError =
-            error.message?.includes('Failed to fetch dynamically imported module') ||
-            error.message?.includes('Importing a module script failed') ||
-            error.name === 'ChunkLoadError';
-
-        if (isChunkError && !sessionStorage.getItem('chunk_reload_attempted')) {
-            sessionStorage.setItem('chunk_reload_attempted', '1');
-            window.location.reload();
+        if (isChunkLoadError(error) && reloadIfNotAttempted()) {
             return;
         }
 
