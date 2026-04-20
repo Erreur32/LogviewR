@@ -1,7 +1,4 @@
 # LogviewR - Log Viewer Application
-> [!IMPORTANT]
->  PRE-RELEASE BETA  
-
 
 <div align="center">
 
