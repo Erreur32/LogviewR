@@ -19,8 +19,10 @@ export function isChunkLoadError(error: unknown): boolean {
         if (error.name === 'ChunkLoadError') return true;
         return CHUNK_ERROR_PATTERNS.some((p) => error.message.includes(p));
     }
-    const msg = typeof error === 'string' ? error : String(error);
-    return CHUNK_ERROR_PATTERNS.some((p) => msg.includes(p));
+    if (typeof error === 'string') {
+        return CHUNK_ERROR_PATTERNS.some((p) => error.includes(p));
+    }
+    return false;
 }
 
 function readFlag(): boolean {
@@ -53,7 +55,7 @@ function clearFlag(): void {
 export function reloadIfNotAttempted(): boolean {
     if (readFlag()) return false;
     writeFlag();
-    window.location.reload();
+    globalThis.location.reload();
     return true;
 }
 
@@ -61,11 +63,11 @@ export function reloadIfNotAttempted(): boolean {
 // rejections so lazy() failures that bypass the React error boundary are
 // still recovered. Safe to call once at startup.
 export function initChunkReloadHandler(): void {
-    window.addEventListener('vite:preloadError', () => {
+    globalThis.addEventListener('vite:preloadError', () => {
         reloadIfNotAttempted();
     });
 
-    window.addEventListener('unhandledrejection', (event: PromiseRejectionEvent) => {
+    globalThis.addEventListener('unhandledrejection', (event: PromiseRejectionEvent) => {
         if (isChunkLoadError(event.reason)) {
             reloadIfNotAttempted();
         }
@@ -74,5 +76,5 @@ export function initChunkReloadHandler(): void {
     // Once the page has been stable for a short period, allow future chunk
     // errors (e.g. a later redeploy in the same long-lived tab) to trigger
     // another reload.
-    window.setTimeout(clearFlag, RESET_DELAY_MS);
+    globalThis.setTimeout(clearFlag, RESET_DELAY_MS);
 }
