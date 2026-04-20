@@ -5,6 +5,19 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.4] - 2026-04-20
+
+### For users
+
+- **Stale chunk recovery after deploy** — long-lived tabs opened before a new build would fail with `Failed to fetch dynamically imported module: .../Fail2banPage-<hash>.js` when switching tabs, because Vite regenerates hashed filenames on each rebuild. The tab now reloads itself automatically (once per session) when it detects the error, so you no longer need to press `Ctrl+Shift+R` manually after a release.
+
+### For developers
+
+- New `src/utils/chunkReload.ts` — shared helpers `isChunkLoadError(unknown)`, `reloadIfNotAttempted()`, and `initChunkReloadHandler()`.
+- `main.tsx` calls `initChunkReloadHandler()` at boot; it listens to Vite's native `vite:preloadError` event and to `unhandledrejection` so `React.lazy()` failures that don't reach the error boundary are still recovered. A one-shot 10s timer clears the session flag so a second deploy in the same tab can still trigger another reload.
+- `ErrorBoundary.componentDidCatch` now delegates to the shared helpers (removes the previously-inlined duplicate).
+- SonarCloud cleanup in the same module: `globalThis` over `window` (es2020/portability), dropped a pointless `String(error)` that would have produced `"[object Object]"` for non-Error/non-string inputs.
+
 ## [0.9.3] - 2026-04-19
 
 ### For users
