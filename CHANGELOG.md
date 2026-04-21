@@ -5,6 +5,19 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.5] - 2026-04-21
+
+### For users
+
+- **Firehol Level 1 blocklist removed** — the list silently bundled Team Cymru's `fullbogons` which includes RFC1918 private ranges (10/8, 172.16/12, 192.168/16), loopback, link-local and multicast. Applied as an iptables `INPUT -src DROP` rule, it killed LAN traffic, Docker bridge traffic (172.17/16) and loopback — effectively blacking out the host from its own network. Now gone from the built-in lists.
+- **Zero-touch upgrade** — one-shot migration runs at boot: if the list was previously enabled, the lingering iptables DROP rule and `firehol-l1` / `firehol-l1-new` ipsets are auto-removed from the host kernel. Just `docker compose pull && up -d` — no manual cleanup needed.
+
+### For developers
+
+- `server/plugins/fail2ban/BlocklistService.ts` — `firehol-l1` entry deleted from `LISTS`, replaced by an explanatory comment (same pattern used for the earlier `bitwire-in/out` removal).
+- New module-level `REMOVED_LISTS` registry (`id`, `ipsetName`, `direction`) centralizes the legacy cleanup list for future retirements.
+- New private `_migrateRemovedLists()` method — awaited first in `restoreOnStartup()`. Attempts `iptables -D <direction-chain>` + `ipset destroy <name>` and `<name>-new` per entry; silent on absent resources, `info`-logs only when cleanup actually occurs. Idempotent — safe on every boot.
+
 ## [0.9.4] - 2026-04-20
 
 ### For users

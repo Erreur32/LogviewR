@@ -113,16 +113,11 @@ const LISTS: Record<string, BuiltinListDef> = {
         sourceUrl: 'https://greensnow.co',
         ipsetType: 'hash:ip',
     },
-    'firehol-l1': {
-        name: 'Firehol Level 1',
-        url: 'https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level1.netset',
-        ipsetName: 'firehol-l1',
-        description: 'Firehol niveau 1 — agrégat des meilleures listes (CIDRs + IPs)',
-        maxelem: 30000,
-        direction: 'in',
-        sourceUrl: 'https://github.com/firehol/blocklist-ipsets',
-        ipsetType: 'hash:net',
-    },
+    // firehol-l1 removed: the list aggregates Team Cymru's "fullbogons" which
+    // contains RFC1918 (10/8, 172.16/12, 192.168/16), loopback (127/8), link-local
+    // and multicast ranges. Applied as `iptables -I INPUT -m set --match-set ... -j DROP`
+    // it kills LAN traffic, Docker bridge (172.17/16) and loopback. Re-add as a
+    // custom list only if you have RFC1918 ACCEPT rules ordered before the DROP.
     stopforumspam: {
         name: 'Stopforumspam 7j',
         url: 'https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/stopforumspam_7d.ipset',
@@ -154,6 +149,16 @@ const LISTS: Record<string, BuiltinListDef> = {
         ipsetType: 'hash:net',
     },
 };
+
+/**
+ * Lists previously shipped in LISTS that have since been removed. Kernel state
+ * (ipset + iptables rule) survives across upgrades because it lives in the host
+ * kernel — cleaned up once at startup via _migrateRemovedLists().
+ */
+const REMOVED_LISTS: Array<{ id: string; ipsetName: string; direction: ListDirection }> = [
+    // v0.9.5 — bundled RFC1918/bogons via fullbogons dropped LAN + Docker bridge traffic
+    { id: 'firehol-l1', ipsetName: 'firehol-l1', direction: 'in' },
+];
 
 /**
  * Returns [chain, matchFlag] pairs for the given direction.
@@ -735,7 +740,34 @@ export class BlocklistService {
      * Called once at startup: container restarts wipe kernel state while
      * blocklist-status.json survives, so enabled lists must be restored.
      */
+    /**
+     * One-shot migration: drops iptables rules + destroys ipsets for lists that
+     * used to exist in LISTS but have since been removed. Silent for entries
+     * that aren't present in the kernel — safe to run on every startup.
+     */
+    private async _migrateRemovedLists(): Promise<void> {
+        for (const { id, ipsetName, direction } of REMOVED_LISTS) {
+            for (const [chain, dirFlag] of iptablesChainsFor(direction)) {
+                try {
+                    const [c, a] = priv('iptables', ['-D', chain, '-m', 'set', '--match-set', ipsetName, dirFlag, '-j', 'DROP']);
+                    await execFileAsync(c, a, { timeout: 10_000 });
+                    logger.info('BlocklistService', `Migration: removed iptables ${chain} rule for retired list "${id}"`);
+                } catch { /* rule not present — nothing to clean */ }
+            }
+
+            for (const setName of [ipsetName, `${ipsetName}-new`]) {
+                try {
+                    const [c, a] = priv('ipset', ['destroy', setName]);
+                    await execFileAsync(c, a, { timeout: 10_000 });
+                    logger.info('BlocklistService', `Migration: destroyed retired ipset "${setName}"`);
+                } catch { /* set not present — nothing to clean */ }
+            }
+        }
+    }
+
     async restoreOnStartup(): Promise<void> {
+        await this._migrateRemovedLists();
+
         for (const [id, status] of this._status.entries()) {
             if (!status.enabled) continue;
             const list = this._allLists()[id];
