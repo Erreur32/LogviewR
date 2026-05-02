@@ -5,6 +5,16 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.6] - 2026-05-02
+
+### For users
+
+- **Security** — bumped `postcss` to `^8.5.10` (installed: 8.5.13) to address GHSA-qx2v-qp2m-jg93 (XSS via unescaped `</style>` sequences when stringifying CSS ASTs). PostCSS is only used at build time (Tailwind/Vite) so runtime exposure was nil, but the alert is now resolved.
+
+### For developers
+
+- `package.json` — direct `postcss` dependency moved from `^8.4.47` → `^8.5.10`. `package-lock.json` regenerated; all transitive consumers (autoprefixer, tailwindcss/postcss-*, vite) dedupe to 8.5.13.
+
 ## [0.9.5] - 2026-04-21
 
 ### For users
