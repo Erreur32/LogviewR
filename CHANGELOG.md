@@ -5,6 +5,20 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.7] - 2026-05-05
+
+### For users
+
+- **Displayed paths without `/host` prefix** — file paths shown in the Largest Files table, Error Files card, Plugin Config modal, and Host System Files manager now strip the Docker-internal `/host` prefix (e.g., `/host/home/docker/...` → `/home/docker/...`). The full `/host` path is still used internally for API calls and file access.
+- **Oversize file alerts** — the "Largest Files" card now shows a red warning badge `⚠️ X > 50 MB` in the header (visible even when collapsed) whenever files exceed the threshold. Oversized rows also get a red left border, red size text, and a warning icon.
+- **Graceful shutdown reliability** — `Ctrl+C` (SIGINT) now triggers the same graceful shutdown as SIGTERM, with a forced WAL checkpoint to flush SQLite writes to the main DB file. Reduces risk of lost plugin configuration between dev restarts.
+
+### For developers
+
+- New `displayPath()` helper in `src/utils/constants.ts` — strips `/host` prefix from displayed file paths.
+- `server/index.ts` — shutdown handler refactored into `gracefulShutdown()` covering both SIGTERM and SIGINT; calls `checkpointWAL()` + `closeDatabase()` before exit.
+- `server/services/pluginManager.ts` — checkpoints WAL after first-time plugin config creation.
+
 ## [0.9.6] - 2026-05-02
 
 ### For users

@@ -169,6 +169,9 @@ export const DEVICE_ICONS: Record<string, string> = {
   other: 'other'
 };
 
+/** Strip Docker /host prefix from displayed file paths */
+export const displayPath = (path: string): string => path.replace(/^\/host/, '');
+
 // Format helpers
 export const formatBytes = (bytes: number, decimals = 2): string => {
   if (bytes === 0) return '0 B';

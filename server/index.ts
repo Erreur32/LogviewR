@@ -14,7 +14,7 @@ import { logsWebSocket } from './services/logsWebSocket.js';
 import { logViewerWebSocket } from './services/logViewerWebSocket.js';
 
 // Database
-import { initializeDatabase, getDatabase } from './database/connection.js';
+import { initializeDatabase, getDatabase, closeDatabase, checkpointWAL } from './database/connection.js';
 import { UserRepository } from './database/models/User.js';
 import { authService } from './services/authService.js';
 
@@ -601,7 +601,7 @@ server.listen(port, host, () => {
   };
 
   // Read app version from package.json
-  let appVersion = '0.9.6'; // Default fallback
+  let appVersion = '0.9.7'; // Default fallback
   try {
     const packageJsonPath = path.join(__dirname, '..', 'package.json');
     const packageJson = JSON.parse(fsSync.readFileSync(packageJsonPath, 'utf8'));
@@ -733,18 +733,18 @@ ${colors.bright}${colors.cyan}╚${'═'.repeat(width)}${colors.reset}
 });
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
-  logger.info('Server', 'SIGTERM received, shutting down gracefully...');
+const gracefulShutdown = (signal: string) => {
+  logger.info('Server', `${signal} received, shutting down gracefully...`);
+  // Force WAL checkpoint to flush all changes to main DB file
+  checkpointWAL();
   server.close(() => {
     logger.info('Server', 'HTTP server closed');
-    // Close database connection
-    const db = getDatabase();
-    if (db) {
-      db.close();
-      logger.info('Server', 'Database connection closed');
-    }
+    closeDatabase();
+    logger.info('Server', 'Database connection closed');
     process.exit(0);
   });
-});
+};
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 export default app;

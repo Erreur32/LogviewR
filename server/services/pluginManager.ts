@@ -5,6 +5,7 @@
  */
 
 import { PluginConfigRepository } from '../database/models/PluginConfig.js';
+import { checkpointWAL } from '../database/connection.js';
 import { logger } from '../utils/logger.js';
 import type { IPlugin, PluginStats, PluginConfig } from '../plugins/base/PluginInterface.js';
 import { HostSystemLogPlugin } from '../plugins/host-system/HostSystemLogPlugin.js';
@@ -75,6 +76,7 @@ export class PluginManager {
                 enabled: defaultEnabled,
                 settings: {}
             });
+            checkpointWAL();
 
             // Initialize plugin with default config
             const defaultConfig: PluginConfig = {

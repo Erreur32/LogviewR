@@ -12,7 +12,7 @@ import { AlertTriangle, FileText, RefreshCw, ChevronDown, ChevronRight, External
 import { api } from '../../api/client';
 import { getPluginIcon } from '../../utils/pluginIcons';
 import { getErrorExplanation } from '../../utils/errorExplanations';
-import { formatBytes } from '../../utils/constants';
+import { formatBytes, displayPath } from '../../utils/constants';
 
 export interface UniqueErrorSample {
     message: string;
@@ -721,13 +721,13 @@ export const ErrorFilesCard: React.FC<ErrorFilesCardProps> = ({ onOpenFile, onNa
                                                     {files.map((f) => (
                                                         <li key={`${f.pluginId}:${f.filePath}`} className="flex flex-col gap-1 rounded border border-amber-500/10 bg-theme-primary/20 p-2">
                                                             <div className="flex items-center justify-between gap-2">
-                                                                <span className="text-sm font-medium text-amber-300/90 truncate" title={f.filePath}>
+                                                                <span className="text-sm font-medium text-amber-300/90 truncate" title={displayPath(f.filePath)}>
                                                                     {f.fileName}
                                                                 </span>
                                                                 <span className="text-amber-400/80 text-xs shrink-0">{formatBytes(f.sizeBytes)}</span>
                                                             </div>
-                                                            <p className="text-xs text-gray-500 truncate font-mono" title={f.filePath}>
-                                                                {f.filePath}
+                                                            <p className="text-xs text-gray-500 truncate font-mono" title={displayPath(f.filePath)}>
+                                                                {displayPath(f.filePath)}
                                                             </p>
                                                             <button
                                                                 type="button"

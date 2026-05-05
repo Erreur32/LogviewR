@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next';
 import { X, Settings, CheckCircle, XCircle, RefreshCw, AlertCircle, Save, Eye, EyeOff, Plus, Trash2, FileText, Code } from 'lucide-react';
 import { usePluginStore, type Plugin } from '../../stores/pluginStore';
 import { Button } from '../ui/Button';
+import { displayPath } from '../../utils/constants';
 import { api } from '../../api/client';
 import { HostSystemFilesManager } from './HostSystemFilesManager';
 
@@ -803,7 +804,7 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
                                                                         onChange={() => isAdded ? toggleLogFile(file.path) : addFromDefault({ ...file, enabled: true })}
                                                                         className="w-4 h-4 rounded border-gray-600 bg-[#1a1a1a] text-cyan-500 focus:ring-cyan-500"
                                                                     />
-                                                                    <span className="flex-1 text-xs text-gray-300">{file.path}</span>
+                                                                    <span className="flex-1 text-xs text-gray-300">{displayPath(file.path)}</span>
                                                                     <span className="text-xs text-gray-500 px-2 py-0.5 bg-gray-800 rounded">{file.type}</span>
                                                                     {!isAdded && (
                                                                         <button
@@ -838,7 +839,7 @@ export const PluginConfigModal: React.FC<PluginConfigModalProps> = ({ isOpen, on
                                                                         onChange={() => isAdded ? toggleLogFile(file.path) : addFromRsyslog({ ...file, enabled: true })}
                                                                         className="w-4 h-4 rounded border-gray-600 bg-[#1a1a1a] text-purple-500 focus:ring-purple-500"
                                                                     />
-                                                                    <span className="flex-1 text-xs text-gray-300">{file.path}</span>
+                                                                    <span className="flex-1 text-xs text-gray-300">{displayPath(file.path)}</span>
                                                                     <span className="text-xs text-gray-500 px-2 py-0.5 bg-gray-800 rounded">{file.type}</span>
                                                                     {!isAdded && (
                                                                         <button

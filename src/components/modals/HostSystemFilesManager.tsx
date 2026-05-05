@@ -12,6 +12,7 @@ import { useTranslation } from 'react-i18next';
 import { RefreshCw, CheckCircle, XCircle, Code, Wand2, FileText, AlertCircle, Trash2, Plus } from 'lucide-react';
 import { api } from '../../api/client';
 import { Button } from '../ui/Button';
+import { displayPath } from '../../utils/constants';
 
 interface SystemBaseFile {
     path: string;
@@ -282,7 +283,7 @@ export const HostSystemFilesManager: React.FC<HostSystemFilesManagerProps> = ({
                                     className="w-4 h-4 rounded border-gray-600 bg-[#1a1a1a] text-green-500 focus:ring-green-500"
                                 />
                                 <span className={`flex-1 text-xs ${file.enabled ? 'text-white' : 'text-gray-500'}`}>
-                                    {file.path}
+                                    {displayPath(file.path)}
                                 </span>
                                 <span className="text-xs text-gray-500 px-2 py-0.5 bg-gray-800 rounded">{file.type}</span>
                                 {file.validated && (
@@ -326,7 +327,7 @@ export const HostSystemFilesManager: React.FC<HostSystemFilesManagerProps> = ({
                                     className="w-4 h-4 rounded border-gray-600 bg-[#1a1a1a] text-blue-500 focus:ring-blue-500"
                                 />
                                 <span className={`flex-1 text-xs ${file.enabled ? 'text-white' : 'text-gray-500'}`}>
-                                    {file.path}
+                                    {displayPath(file.path)}
                                 </span>
                                 <span className="text-xs text-gray-500 px-2 py-0.5 bg-gray-800 rounded">{file.parserType}</span>
                                 {file.validated && (
@@ -373,7 +374,7 @@ export const HostSystemFilesManager: React.FC<HostSystemFilesManagerProps> = ({
                                         className="w-4 h-4 rounded border-gray-600 bg-[#1a1a1a] text-purple-500 focus:ring-purple-500"
                                     />
                                     <span className={`flex-1 text-xs ${file.enabled ? 'text-white' : 'text-gray-500'}`}>
-                                        {file.path}
+                                        {displayPath(file.path)}
                                     </span>
                                     <button
                                         type="button"

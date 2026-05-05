@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { HardDrive, ChevronDown, ChevronUp, RefreshCw, Archive } from 'lucide-react';
+import { HardDrive, ChevronDown, ChevronUp, RefreshCw, Archive, AlertTriangle } from 'lucide-react';
 import { api } from '../../api/client';
 import { getPluginIcon } from '../../utils/pluginIcons';
 import { Tooltip } from '../ui/Tooltip';
-import { formatBytes } from '../../utils/constants';
+import { formatBytes, displayPath } from '../../utils/constants';
 import { F2bTooltip, TT } from '../../pages/fail2ban/helpers';
 import { DomainInitial } from '../../pages/fail2ban/DomainInitial';
 
@@ -17,6 +17,8 @@ const TYPE_STYLE: Record<string, { color: string; border: string; bg: string }> 
     kernel:  { color: '#bc8cff', border: 'rgba(188,140,255,.35)', bg: 'rgba(188,140,255,.08)' },
     default: { color: '#8b949e', border: 'rgba(139,148,158,.35)', bg: 'rgba(139,148,158,.08)' },
 };
+
+const LARGE_FILE_THRESHOLD = 50 * 1024 * 1024; // 50 MB
 
 const TypeBadge: React.FC<{ type: string }> = ({ type }) => {
     const s = TYPE_STYLE[type] ?? TYPE_STYLE.default;
@@ -99,6 +101,8 @@ export const LargestFilesCard: React.FC<Props> = ({ limit = 20 }) => {
     });
 
     const displayed = showAll ? filtered : filtered.slice(0, 10);
+    const filesOverThreshold = filtered.filter(f => f.size > LARGE_FILE_THRESHOLD);
+    const thresholdLabel = formatBytes(LARGE_FILE_THRESHOLD);
 
     return (
         <section className="bg-theme-tertiary rounded-xl border border-theme-border overflow-hidden">
@@ -108,8 +112,8 @@ export const LargestFilesCard: React.FC<Props> = ({ limit = 20 }) => {
                 className="w-full flex items-center justify-between p-4 md:p-5 hover:bg-theme-secondary transition-colors"
             >
                 <div className="flex items-center gap-3">
-                    <div className="p-2 bg-orange-500/20 rounded-lg">
-                        <HardDrive size={22} className="text-orange-400" />
+                    <div className={`p-2 rounded-lg ${filesOverThreshold.length > 0 ? 'bg-red-500/20' : 'bg-orange-500/20'}`}>
+                        <HardDrive size={22} className={filesOverThreshold.length > 0 ? 'text-red-400' : 'text-orange-400'} />
                     </div>
                     <div className="text-left">
                         <h2 className="text-sm md:text-base font-semibold text-theme-primary">
@@ -117,6 +121,14 @@ export const LargestFilesCard: React.FC<Props> = ({ limit = 20 }) => {
                         </h2>
                         <p className="text-xs text-gray-500">{t('analytics.largestFilesDesc')}</p>
                     </div>
+                    {filesOverThreshold.length > 0 && (
+                        <div className="flex items-center gap-1.5 px-2.5 py-1 bg-red-500/15 border border-red-500/30 rounded-full ml-auto">
+                            <AlertTriangle size={13} className="text-red-400" />
+                            <span className="text-xs font-semibold text-red-400 whitespace-nowrap">
+                                {filesOverThreshold.length} &gt; {thresholdLabel}
+                            </span>
+                        </div>
+                    )}
                 </div>
                 {isExpanded ? <ChevronUp size={18} className="text-gray-400" /> : <ChevronDown size={18} className="text-gray-400" />}
             </button>
@@ -164,8 +176,10 @@ export const LargestFilesCard: React.FC<Props> = ({ limit = 20 }) => {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-800">
-                                        {displayed.map((file, index) => (
-                                            <tr key={`${file.pluginId}:${file.path}:${index}`} className="hover:bg-[#0f0f0f] transition-colors">
+                                        {displayed.map((file, index) => {
+                                            const isOversize = file.size > LARGE_FILE_THRESHOLD;
+                                            return (
+                                            <tr key={`${file.pluginId}:${file.path}:${index}`} className={`hover:bg-[#0f0f0f] transition-colors ${isOversize ? 'bg-red-500/5 border-l-2 border-l-red-500/40' : ''}`}>
                                                 <td className="px-4 py-3 text-sm text-gray-400 font-mono">{index + 1}</td>
                                                 <td className="px-4 py-3">
                                                     <div className="flex items-center gap-2">
@@ -189,12 +203,12 @@ export const LargestFilesCard: React.FC<Props> = ({ limit = 20 }) => {
                                                         width={360}
                                                         bodyNode={<>
                                                             {TT.section('Chemin complet')}
-                                                            {TT.info(file.path)}
+                                                            {TT.info(displayPath(file.path))}
                                                             {TT.sep()}
                                                             {TT.section('Informations')}
                                                             {TT.info(`Plugin : ${file.pluginName}`)}
                                                             {TT.info(`Type : ${file.type}`)}
-                                                            {TT.info(`Taille : ${formatBytes(file.size)}`)}
+                                                            {TT.info(`Taille : ${formatBytes(file.size)}${file.size > LARGE_FILE_THRESHOLD ? '  ⚠️ > ' + thresholdLabel : ''}`)}
                                                             {file.modified && TT.info(`Modifié : ${new Date(file.modified).toLocaleDateString('fr-FR')}`)}
                                                             {file.domain && <>{TT.sep()}{TT.section('Domaine')}{TT.row(<DomainInitial domain={file.domain} size={12} />, file.domain)}</>}
                                                         </>}
@@ -204,7 +218,7 @@ export const LargestFilesCard: React.FC<Props> = ({ limit = 20 }) => {
                                                             className="text-xs md:text-sm text-blue-400 hover:text-blue-300 font-mono break-all hover:underline"
                                                             onClick={e => e.stopPropagation()}
                                                         >
-                                                            {file.path}
+                                                            {displayPath(file.path)}
                                                         </a>
                                                     </F2bTooltip>
                                                     {file.domain && (
@@ -215,7 +229,8 @@ export const LargestFilesCard: React.FC<Props> = ({ limit = 20 }) => {
                                                     )}
                                                 </td>
                                                 <td className="px-4 py-3 text-right">
-                                                    <span className="text-sm font-semibold text-white whitespace-nowrap">
+                                                    <span className={`text-sm font-semibold whitespace-nowrap flex items-center justify-end gap-1.5 ${isOversize ? 'text-red-400' : 'text-white'}`}>
+                                                        {isOversize && <AlertTriangle size={13} className="text-red-400 shrink-0" />}
                                                         {formatBytes(file.size)}
                                                     </span>
                                                 </td>
@@ -223,7 +238,7 @@ export const LargestFilesCard: React.FC<Props> = ({ limit = 20 }) => {
                                                     <TypeBadge type={file.type} />
                                                 </td>
                                             </tr>
-                                        ))}
+                                        );})}
                                         {!showAll && filtered.length > 10 && (
                                             <tr>
                                                 <td colSpan={5} className="px-4 py-2 text-center">
