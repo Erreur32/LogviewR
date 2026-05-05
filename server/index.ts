@@ -14,7 +14,7 @@ import { logsWebSocket } from './services/logsWebSocket.js';
 import { logViewerWebSocket } from './services/logViewerWebSocket.js';
 
 // Database
-import { initializeDatabase, getDatabase, closeDatabase, checkpointWAL } from './database/connection.js';
+import { initializeDatabase, closeDatabase, checkpointWAL } from './database/connection.js';
 import { UserRepository } from './database/models/User.js';
 import { authService } from './services/authService.js';
 
