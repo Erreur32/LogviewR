@@ -8,13 +8,14 @@ import { useTranslation } from 'react-i18next';
 import {
     Shield, Ban, Unlock, RotateCcw, AlertTriangle,
     LayoutGrid, Table2, ScrollText, List, ChevronRight, ChevronDown,
-    Settings, Terminal, Clock,
+    Settings, Terminal, Clock, Plus,
 } from 'lucide-react';
 import { api } from '../../api/client';
 import { card, cardH, Badge, StatusDot, fmtSecs, fmtTs, F2bTooltip, type F2bTtColor } from './helpers';
 import { ConfEditorModal } from './ConfEditorModal';
 import type { ConfEditorTarget } from './ConfEditorModal';
 import { JailConfigModal } from './JailConfigModal';
+import { NewJailModal } from './NewJailModal';
 import type { JailStatus, BanEntry, AttemptEntry } from './types';
 import { DomainInitial } from './DomainInitial';
 import { FlagImg } from './FlagImg';
@@ -52,6 +53,7 @@ export interface TabJailsProps {
     onBan:   (jail: string, ip: string) => void;
     onReload: (jail: string) => void;
     onIpClick?: (ip: string) => void;
+    onJailCreated?: () => void;
 }
 
 type JailsViewMode = 'cards' | 'table' | 'events';
@@ -1523,12 +1525,13 @@ const viewBtnStyle = (active: boolean): React.CSSProperties => ({
 
 export const TabJails: React.FC<TabJailsProps> = ({
     jails, inactiveJails = [], statusHydrated, statusOk, statusError, actionLoading,
-    days = 1, onUnban, onBan, onReload, onIpClick,
+    days = 1, onUnban, onBan, onReload, onIpClick, onJailCreated,
 }) => {
     const { t } = useTranslation();
     const bansLabel = days <= 0 ? t('fail2ban.periods.allShort') : days === 1 ? t('fail2ban.periods.last24h') : days === 7 ? t('fail2ban.periods.last7d') : days === 30 ? t('fail2ban.periods.last30d') : days === 180 ? t('fail2ban.periods.last6m') : days === 365 ? t('fail2ban.periods.last1y') : `${days}j`;
     const [showAll, setShowAll]     = useState(false);
     const [jailFilter, setJailFilter] = useState('');
+    const [showNewJail, setShowNewJail] = useState(false);
     const containerRef = React.useRef<HTMLDivElement>(null);
     const [view, setView] = useState<JailsViewMode>(() => {
         try {
@@ -1581,13 +1584,28 @@ export const TabJails: React.FC<TabJailsProps> = ({
                         </button>
                     </div>
                 )}
+                {/* Nouveau jail */}
+                <button onClick={() => setShowNewJail(true)} title={t('fail2ban.newJail.title')}
+                    style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: '.3rem', padding: '.35rem .75rem', fontSize: '.78rem', fontWeight: 600, borderRadius: 6, background: 'rgba(63,185,80,.1)', border: '1px solid rgba(63,185,80,.3)', color: '#3fb950', cursor: 'pointer' }}
+                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(63,185,80,.18)'}
+                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'rgba(63,185,80,.1)'}>
+                    <Plus style={{ width: 13, height: 13 }} />
+                    {t('fail2ban.newJail.button')}
+                </button>
                 {/* Vue selector — à droite */}
-                <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '.1rem', background: '#161b22', border: '1px solid #30363d', borderRadius: 6, padding: '.25rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '.1rem', background: '#161b22', border: '1px solid #30363d', borderRadius: 6, padding: '.25rem' }}>
                     <button style={viewBtnStyle(view === 'table')}  onClick={() => changeView('table')}><Table2 style={{ width: 13, height: 13 }} /> {t('fail2ban.views.table')}</button>
                     <button style={viewBtnStyle(view === 'cards')}  onClick={() => changeView('cards')}><LayoutGrid style={{ width: 13, height: 13 }} /> {t('fail2ban.views.cards')}</button>
                     <button style={viewBtnStyle(view === 'events')} onClick={() => changeView('events')}><List style={{ width: 13, height: 13 }} /> {t('fail2ban.views.events')}</button>
                 </div>
             </div>
+
+            {showNewJail && (
+                <NewJailModal
+                    onClose={() => setShowNewJail(false)}
+                    onCreated={() => { setShowNewJail(false); onJailCreated?.(); }}
+                />
+            )}
 
             {/* Views */}
             {view === 'cards' && (

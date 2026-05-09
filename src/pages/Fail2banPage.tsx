@@ -1015,9 +1015,10 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                             onUnban={(jail, ip) => doAction('/api/plugins/fail2ban/unban', { jail, ip }, `unban-${jail}-${ip}`)}
                             onBan={(jail, ip)   => doAction('/api/plugins/fail2ban/ban',   { jail, ip }, `ban-${jail}-${ip}`)}
                             onReload={(jail)    => doAction('/api/plugins/fail2ban/reload', { jail },    `reload-${jail}`)}
-                            onIpClick={(ip) => setSelectedIp(ip)} />
+                            onIpClick={(ip) => setSelectedIp(ip)}
+                            onJailCreated={fetchStatus} />
                     )}
-                    {tab === 'filtres' && <TabFiltres jails={jails} />}
+                    {tab === 'filtres' && <TabFiltres jails={jails} onJailCreated={fetchStatus} />}
                     {tab === 'actions' && <TabActions jails={jails} />}
                     {tab === 'tracker' && <TabTracker onIpClick={(ip) => setSelectedIp(ip)} onTotalChange={setTrackerTotal} onActiveChange={setTrackerActive} initialFilter={trackerFilter} />}
                     {tab === 'carte'   && <TabMap onGoToTracker={ip => { setTrackerFilter(ip); setTab('tracker'); }} onIpClick={ip => setSelectedIp(ip)} refreshKey={lastRefreshed} />}

@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Download, FileText, Pencil, X, Save, CheckCircle, AlertTriangle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { Download, FileText, Pencil, X, Save, CheckCircle, AlertTriangle, Plus, Zap } from 'lucide-react';
 import { api } from '../../api/client';
 import { card, cardH } from './helpers';
+import { NewFilterModal } from './NewFilterModal';
+import { NewJailModal } from './NewJailModal';
 import type { JailStatus } from './types';
 
 const _cache: Record<string, { data: unknown; ts: number }> = {};
@@ -14,6 +17,7 @@ function setCached(key: string, data: unknown) { _cache[key] = { data, ts: Date.
 
 interface TabFiltresProps {
     jails: JailStatus[];
+    onJailCreated?: () => void;
 }
 
 interface FilterRow {
@@ -163,13 +167,16 @@ const FilterModal: React.FC<FilterModalProps> = ({ name, jailsUsingIt, onClose, 
 
 // ── Main tab ───────────────────────────────────────────────────────────────────
 
-export const TabFiltres: React.FC<TabFiltresProps> = ({ jails }) => {
+export const TabFiltres: React.FC<TabFiltresProps> = ({ jails, onJailCreated }) => {
+    const { t } = useTranslation();
     const [files, setFiles]       = useState<string[]>([]);
     const [loading, setLoading]   = useState(true);
     const [error, setError]       = useState<string | null>(null);
     const [showAll, setShowAll]   = useState(false);
     const [search, setSearch]     = useState('');
     const [modal, setModal]       = useState<string | null>(null);
+    const [showNew, setShowNew]   = useState(false);
+    const [activateFor, setActivateFor] = useState<string | null>(null);
 
     const loadFilters = () => {
         const cached = getCached<string[]>('filters:list');
@@ -231,6 +238,11 @@ export const TabFiltres: React.FC<TabFiltresProps> = ({ jails }) => {
     if (loading) return <div style={{ padding: '2rem', color: '#8b949e', fontSize: '.85rem' }}>Chargement…</div>;
     if (error)   return <div style={{ padding: '2rem', color: '#e86a65', fontSize: '.85rem' }}>{error}</div>;
 
+    const refreshList = () => {
+        delete _cache['filters:list'];
+        loadFilters();
+    };
+
     return (
         <>
             {modal && modalRow && (
@@ -239,6 +251,21 @@ export const TabFiltres: React.FC<TabFiltresProps> = ({ jails }) => {
                     jailsUsingIt={modalRow.usedByJails}
                     onClose={() => setModal(null)}
                     onSaved={() => { /* list doesn't need reload, jails/content already refreshed */ }}
+                />
+            )}
+
+            {showNew && (
+                <NewFilterModal
+                    onClose={() => setShowNew(false)}
+                    onCreated={() => { setShowNew(false); refreshList(); }}
+                />
+            )}
+
+            {activateFor && (
+                <NewJailModal
+                    prefilledFilter={activateFor}
+                    onClose={() => setActivateFor(null)}
+                    onCreated={() => { setActivateFor(null); onJailCreated?.(); }}
                 />
             )}
 
@@ -268,6 +295,15 @@ export const TabFiltres: React.FC<TabFiltresProps> = ({ jails }) => {
                         {search && <button onClick={() => setSearch('')} style={{ background: 'none', border: 'none', color: '#8b949e', cursor: 'pointer', padding: 0, lineHeight: 1 }}>✕</button>}
                     </div>
                 </div>
+
+                {/* Nouveau filtre */}
+                <button onClick={() => setShowNew(true)} title={t('fail2ban.newFilter.title')}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '.3rem', padding: '.35rem .75rem', fontSize: '.78rem', fontWeight: 600, borderRadius: 6, background: 'rgba(63,185,80,.1)', border: '1px solid rgba(63,185,80,.3)', color: '#3fb950', cursor: 'pointer' }}
+                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(63,185,80,.18)'}
+                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'rgba(63,185,80,.1)'}>
+                    <Plus style={{ width: 13, height: 13 }} />
+                    {t('fail2ban.newFilter.button')}
+                </button>
             </div>
 
             {/* Table */}
@@ -323,6 +359,13 @@ export const TabFiltres: React.FC<TabFiltresProps> = ({ jails }) => {
 
                         {/* Actions */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: '.35rem', flexShrink: 0, paddingLeft: '.5rem' }}>
+                            {row.usedByJails.length === 0 && (
+                                <button onClick={() => setActivateFor(row.name.replace(/\.(conf|local)$/, ''))}
+                                    title={t('fail2ban.newFilter.activateHint')}
+                                    style={{ display: 'flex', alignItems: 'center', gap: '.3rem', padding: '.28rem .65rem', fontSize: '.75rem', borderRadius: 5, background: 'rgba(63,185,80,.1)', border: '1px solid rgba(63,185,80,.3)', color: '#3fb950', cursor: 'pointer', whiteSpace: 'nowrap', fontWeight: 600 }}>
+                                    <Zap style={{ width: 11, height: 11 }} />{t('fail2ban.newFilter.activate')}
+                                </button>
+                            )}
                             <button onClick={() => setModal(row.name)}
                                 style={{ display: 'flex', alignItems: 'center', gap: '.3rem', padding: '.28rem .65rem', fontSize: '.75rem', borderRadius: 5, background: 'rgba(88,166,255,.08)', border: '1px solid rgba(88,166,255,.2)', color: '#58a6ff', cursor: 'pointer', whiteSpace: 'nowrap' }}>
                                 <FileText style={{ width: 11, height: 11 }} />Voir / Éditer

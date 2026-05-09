@@ -1427,6 +1427,90 @@ export class Fail2banPlugin extends BasePlugin {
             res.json({ success: true, result: await this.client.startJail(jailName) });
         }));
 
+        // POST /jails  — create a new jail in jail.d/<name>.local + reload fail2ban
+        // Strict name validation prevents path traversal; refuses overwrite of any existing jail file/section.
+        router.post('/jails', requireAuth, asyncHandler(async (req, res) => {
+            if (!this.isEnabled()) return res.json({ success: true, result: { ok: false, error: 'Plugin désactivé' } });
+            const body = req.body as {
+                name?: string; filter?: string; logpath?: string; port?: string;
+                maxretry?: number | string; findtime?: number | string; bantime?: number | string;
+                action?: string; enabled?: boolean;
+            };
+            const name = String(body.name ?? '').trim().toLowerCase();
+            if (!/^[a-z0-9_-]{1,32}$/.test(name)) {
+                return res.json({ success: true, result: { ok: false, error: 'Nom invalide (a-z, 0-9, _ et -, 1-32 car.)' } });
+            }
+            if (name === 'default' || name === 'includes') {
+                return res.json({ success: true, result: { ok: false, error: 'Nom réservé (DEFAULT/INCLUDES)' } });
+            }
+            const filter = String(body.filter ?? '').trim().replace(/\.(conf|local)$/, '');
+            const logpath = String(body.logpath ?? '').trim();
+            if (!filter)  return res.json({ success: true, result: { ok: false, error: 'Filtre requis' } });
+            if (!logpath) return res.json({ success: true, result: { ok: false, error: 'Logpath requis' } });
+            // Filter must not contain path separators (defence-in-depth alongside server-side basename use)
+            if (/[\\/]/.test(filter) || /[\\/]/.test(name)) {
+                return res.json({ success: true, result: { ok: false, error: 'Caractères interdits dans le nom ou filtre' } });
+            }
+
+            const confBase = this.resolveDockerPathSync('/etc/fail2ban');
+            // Verify filter exists on disk
+            const filterDir = path.join(confBase, 'filter.d');
+            const filterExists = fs.existsSync(path.join(filterDir, `${filter}.conf`)) ||
+                                 fs.existsSync(path.join(filterDir, `${filter}.local`));
+            if (!filterExists) {
+                return res.json({ success: true, result: { ok: false, error: `Filtre filter.d/${filter}.conf|.local introuvable` } });
+            }
+
+            // Refuse overwrite: check jail.d/<name>.{local,conf} files AND existing config sections
+            const jailDir   = path.join(confBase, 'jail.d');
+            const localPath = path.join(jailDir, `${name}.local`);
+            const confPath  = path.join(jailDir, `${name}.conf`);
+            if (fs.existsSync(localPath) || fs.existsSync(confPath)) {
+                return res.json({ success: true, result: { ok: false, error: `Le fichier jail.d/${name}.local ou .conf existe déjà` } });
+            }
+            const existingMeta = parseJailConfigs(confBase);
+            if (existingMeta[name]) {
+                return res.json({ success: true, result: { ok: false, error: `Un jail nommé "${name}" existe déjà dans la configuration` } });
+            }
+
+            // Numeric coercion + bounds (negative bantime = permanent, allowed)
+            const num = (v: number | string | undefined, def: number, min: number, max: number): number => {
+                if (v === undefined || v === '') return def;
+                const n = typeof v === 'number' ? v : Number.parseInt(String(v), 10);
+                if (!Number.isFinite(n) || n < min || n > max) return def;
+                return n;
+            };
+            const maxretry = num(body.maxretry, 5, 1, 1000);
+            const findtime = num(body.findtime, 600, 1, 31_536_000);
+            const bantime  = num(body.bantime, 3600, -1, 31_536_000);
+            const enabled  = body.enabled !== false; // default true
+
+            // Build [name] block
+            const lines: string[] = [`[${name}]`, ''];
+            lines.push(`enabled  = ${enabled ? 'true' : 'false'}`);
+            lines.push(`filter   = ${filter}`);
+            lines.push(`logpath  = ${logpath}`);
+            if (body.port && String(body.port).trim()) lines.push(`port     = ${String(body.port).trim()}`);
+            lines.push(`maxretry = ${maxretry}`);
+            lines.push(`findtime = ${findtime}`);
+            lines.push(`bantime  = ${bantime}`);
+            if (body.action && String(body.action).trim()) lines.push(`action   = ${String(body.action).trim()}`);
+
+            try {
+                if (!fs.existsSync(jailDir)) fs.mkdirSync(jailDir, { recursive: true });
+                fs.writeFileSync(localPath, lines.join('\n') + '\n', 'utf8');
+            } catch (e) {
+                return res.json({ success: true, result: { ok: false, error: `Écriture impossible : ${e instanceof Error ? e.message : String(e)}` } });
+            }
+
+            // Full reload — per-jail reload would fail since fail2ban doesn't know the new jail yet
+            let reloadResult = null;
+            if (enabled && this.client?.isAvailable()) {
+                reloadResult = await this.client.reload();
+            }
+            res.json({ success: true, result: { ok: true, jailName: name, file: localPath, reloadResult } });
+        }));
+
         // ── Read-only filesystem routes ──────────────────────────────────────
 
         // GET /filters  — liste filter.d/
@@ -1447,6 +1531,33 @@ export class Fail2banPlugin extends BasePlugin {
                 const content = fs.readFileSync(this.resolveDockerPathSync(`/etc/fail2ban/filter.d/${name}`), 'utf8');
                 res.json({ success: true, result: { ok: true, name, content } });
             } catch { throw createError(`Filter ${name} not found`, 404, 'NOT_FOUND'); }
+        }));
+
+        // POST /filters  — create a new filter file in filter.d/<name>.local
+        // Always writes .local (never overwrites shipped .conf). No reload — filter is unused until a jail references it.
+        router.post('/filters', requireAuth, asyncHandler(async (req, res) => {
+            if (!this.isEnabled()) return res.json({ success: true, result: { ok: false, error: 'Plugin désactivé' } });
+            const body = req.body as { name?: string; content?: string };
+            const baseName = String(body.name ?? '').trim().toLowerCase().replace(/\.(conf|local)$/, '');
+            if (!/^[a-z0-9_-]{1,48}$/.test(baseName)) {
+                return res.json({ success: true, result: { ok: false, error: 'Nom invalide (a-z, 0-9, _ et -, 1-48 car.)' } });
+            }
+            if (typeof body.content !== 'string' || body.content.trim() === '') {
+                return res.json({ success: true, result: { ok: false, error: 'Contenu manquant' } });
+            }
+            const dir       = this.resolveDockerPathSync('/etc/fail2ban/filter.d');
+            const localPath = path.join(dir, `${baseName}.local`);
+            const confPath  = path.join(dir, `${baseName}.conf`);
+            if (fs.existsSync(localPath) || fs.existsSync(confPath)) {
+                return res.json({ success: true, result: { ok: false, error: `filter.d/${baseName}.local ou .conf existe déjà` } });
+            }
+            try {
+                if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+                fs.writeFileSync(localPath, body.content, 'utf8');
+            } catch (e) {
+                return res.json({ success: true, result: { ok: false, error: `Écriture impossible : ${e instanceof Error ? e.message : String(e)}` } });
+            }
+            res.json({ success: true, result: { ok: true, name: `${baseName}.local`, file: localPath } });
         }));
 
         // POST /filters/:name/save  — write filter file then reload affected jails

@@ -5,6 +5,22 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.9] - 2026-05-09
+
+### For users
+
+- **Create a new fail2ban jail from the app** — Jails tab now has a green `+ Nouveau jail` button that opens a wizard: name, filter (dropdown of existing `filter.d/` files), logpath, port, maxretry, findtime, bantime, action and an "enable immediately" checkbox. The jail is written to `/etc/fail2ban/jail.d/<name>.local` and a `fail2ban-client reload` is triggered automatically.
+- **Create a new fail2ban filter from the app** — Filtres tab now has a `+ Nouveau filtre` button. Start from a blank template (`[Definition]` / `failregex` / `ignoreregex`) or duplicate an existing filter as the starting point. Always writes to `filter.d/<name>.local` (never overwrites a shipped `.conf`). No reload — the filter is dormant until a jail uses it.
+- **Activate an orphan filter in one click** — In the Filtres tab (vue "Tous"), filters that are not used by any jail now show a green `Activer` button. Clicking it opens the Jail wizard with the filter pre-selected and a sanitized jail name pre-filled — review the timings and validate.
+
+### For developers
+
+- New backend route `POST /api/plugins/fail2ban/jails` (Fail2banPlugin.ts). Strict name validation `^[a-z0-9_-]{1,32}$`, rejects `default`/`includes`, refuses overwrite if `jail.d/<name>.local|.conf` exists or the section is already parsed in the merged config. Numeric bounds for `maxretry` (1–1000), `findtime` (1–31536000), `bantime` (-1 permanent allowed, up to 31536000). Falls back to `client.reload()` (full reload) instead of per-jail reload because fail2ban does not yet know about the new jail at write time.
+- New backend route `POST /api/plugins/fail2ban/filters` (Fail2banPlugin.ts). Always writes `<name>.local` (never `.conf`) to keep shipped filters intact. Refuses if either `filter.d/<name>.local` or `filter.d/<name>.conf` already exists. Skips reload — a filter without a jail reference is inert.
+- New components `src/pages/fail2ban/NewJailModal.tsx` and `NewFilterModal.tsx` — inline styles + PHP palette, live form validation, optional `prefilledFilter` prop on `NewJailModal` so `TabFiltres` can reuse the wizard with a pre-selected filter.
+- `TabJails` and `TabFiltres` now expose an `onJailCreated?: () => void` prop wired to `fetchStatus` from `Fail2banPage` so the jail list refreshes after a successful creation.
+- New i18n sections `fail2ban.newJail.*` and `fail2ban.newFilter.*` in both `fr.json` and `en.json` (button, title, field labels, hints, validation errors, success/reload feedback).
+
 ## [0.9.8] - 2026-05-05
 
 - **SonarCloud** — removed unused `getDatabase` import in `server/index.ts` (refactored shutdown handler now uses `closeDatabase()` directly).
