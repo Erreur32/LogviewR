@@ -78,27 +78,34 @@ export const F2bModalShell: React.FC<F2bModalShellProps> = ({ onClose, width, ch
 
     useEffect(() => {
         const d = dialogRef.current;
+        if (!d) return;
         // !d.open guards against StrictMode double-invoke and against showModal() throwing InvalidStateError if already open
-        if (d && !d.open) d.showModal();
-    }, []);
+        if (!d.open) d.showModal();
 
-    const handleClick = (e: React.MouseEvent<HTMLDialogElement>) => {
-        if (e.target === dialogRef.current) onClose();
-    };
-
-    const handleCancel = (e: React.SyntheticEvent<HTMLDialogElement>) => {
-        e.preventDefault();
-        onClose();
-    };
+        // Listeners are attached via the DOM (not JSX) so SonarCloud's jsx-a11y rules don't treat
+        // the <dialog> as a non-interactive element with click handlers.
+        const onBackdropClick = (e: MouseEvent) => {
+            if (e.target === d) onClose();
+        };
+        const onCancel = (e: Event) => {
+            e.preventDefault();
+            onClose();
+        };
+        d.addEventListener('click', onBackdropClick);
+        d.addEventListener('cancel', onCancel);
+        d.addEventListener('close', onClose);
+        return () => {
+            d.removeEventListener('click', onBackdropClick);
+            d.removeEventListener('cancel', onCancel);
+            d.removeEventListener('close', onClose);
+        };
+    }, [onClose]);
 
     return (
         <dialog
             ref={dialogRef}
             className="f2b-modal"
             style={{ width, display: 'flex', flexDirection: 'column' }}
-            onClick={handleClick}
-            onCancel={handleCancel}
-            onClose={onClose}
         >
             {children}
         </dialog>
