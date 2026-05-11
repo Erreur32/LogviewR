@@ -350,6 +350,100 @@ function parseJailConfigs(confBase: string): Record<string, JailMeta> {
     return result;
 }
 
+interface JailFormBody {
+    name?: string;
+    filter?: string;
+    logpath?: string;
+    port?: string;
+    maxretry?: number | string;
+    findtime?: number | string;
+    bantime?: number | string;
+    action?: string;
+    enabled?: boolean;
+}
+
+interface JailPlan {
+    name: string;
+    filter: string;
+    logpath: string;
+    port?: string;
+    action?: string;
+    maxretry: number;
+    findtime: number;
+    bantime: number;
+    enabled: boolean;
+    localPath: string;
+    jailDir: string;
+}
+
+function clampJailInt(v: number | string | undefined, def: number, min: number, max: number): number {
+    if (v === undefined || v === '') return def;
+    const n = typeof v === 'number' ? v : Number.parseInt(String(v), 10);
+    if (!Number.isFinite(n) || n < min || n > max) return def;
+    return n;
+}
+
+/** Validate POST /jails body. Returns either a parsed plan or a user-facing error. */
+function validateJailPayload(body: JailFormBody, confBase: string): { ok: true; plan: JailPlan } | { ok: false; error: string } {
+    const name = String(body.name ?? '').trim().toLowerCase();
+    if (!/^[a-z0-9_-]{1,32}$/.test(name)) return { ok: false, error: 'Nom invalide (a-z, 0-9, _ et -, 1-32 car.)' };
+    if (name === 'default' || name === 'includes') return { ok: false, error: 'Nom réservé (DEFAULT/INCLUDES)' };
+
+    const filter = String(body.filter ?? '').trim().replace(/\.(conf|local)$/, '');
+    const logpath = String(body.logpath ?? '').trim();
+    if (!filter)  return { ok: false, error: 'Filtre requis' };
+    if (!logpath) return { ok: false, error: 'Logpath requis' };
+    if (/[\\/]/.test(filter) || /[\\/]/.test(name)) return { ok: false, error: 'Caractères interdits dans le nom ou filtre' };
+
+    const filterDir = path.join(confBase, 'filter.d');
+    const filterExists = fs.existsSync(path.join(filterDir, `${filter}.conf`)) ||
+                         fs.existsSync(path.join(filterDir, `${filter}.local`));
+    if (!filterExists) return { ok: false, error: `Filtre filter.d/${filter}.conf|.local introuvable` };
+
+    const jailDir   = path.join(confBase, 'jail.d');
+    const localPath = path.join(jailDir, `${name}.local`);
+    const confPath  = path.join(jailDir, `${name}.conf`);
+    if (fs.existsSync(localPath) || fs.existsSync(confPath)) {
+        return { ok: false, error: `Le fichier jail.d/${name}.local ou .conf existe déjà` };
+    }
+    if (parseJailConfigs(confBase)[name]) {
+        return { ok: false, error: `Un jail nommé "${name}" existe déjà dans la configuration` };
+    }
+
+    const portRaw   = String(body.port ?? '').trim();
+    const actionRaw = String(body.action ?? '').trim();
+    return {
+        ok: true,
+        plan: {
+            name, filter, logpath,
+            port:    portRaw   || undefined,
+            action:  actionRaw || undefined,
+            maxretry: clampJailInt(body.maxretry, 5, 1, 1000),
+            findtime: clampJailInt(body.findtime, 600, 1, 31_536_000),
+            bantime:  clampJailInt(body.bantime, 3600, -1, 31_536_000),
+            enabled:  body.enabled !== false,
+            localPath, jailDir,
+        },
+    };
+}
+
+/** Render the .local file content for a validated jail plan. */
+function buildJailIniBlock(plan: JailPlan): string {
+    const lines: string[] = [
+        `[${plan.name}]`,
+        '',
+        `enabled  = ${plan.enabled ? 'true' : 'false'}`,
+        `filter   = ${plan.filter}`,
+        `logpath  = ${plan.logpath}`,
+        ...(plan.port   ? [`port     = ${plan.port}`]     : []),
+        `maxretry = ${plan.maxretry}`,
+        `findtime = ${plan.findtime}`,
+        `bantime  = ${plan.bantime}`,
+        ...(plan.action ? [`action   = ${plan.action}`]   : []),
+    ];
+    return lines.join('\n') + '\n';
+}
+
 interface GlobalConfig {
     loglevel: string;
     logtarget: string;
@@ -1431,84 +1525,27 @@ export class Fail2banPlugin extends BasePlugin {
         // Strict name validation prevents path traversal; refuses overwrite of any existing jail file/section.
         router.post('/jails', requireAuth, asyncHandler(async (req, res) => {
             if (!this.isEnabled()) return res.json({ success: true, result: { ok: false, error: 'Plugin désactivé' } });
-            const body = req.body as {
-                name?: string; filter?: string; logpath?: string; port?: string;
-                maxretry?: number | string; findtime?: number | string; bantime?: number | string;
-                action?: string; enabled?: boolean;
-            };
-            const name = String(body.name ?? '').trim().toLowerCase();
-            if (!/^[a-z0-9_-]{1,32}$/.test(name)) {
-                return res.json({ success: true, result: { ok: false, error: 'Nom invalide (a-z, 0-9, _ et -, 1-32 car.)' } });
-            }
-            if (name === 'default' || name === 'includes') {
-                return res.json({ success: true, result: { ok: false, error: 'Nom réservé (DEFAULT/INCLUDES)' } });
-            }
-            const filter = String(body.filter ?? '').trim().replace(/\.(conf|local)$/, '');
-            const logpath = String(body.logpath ?? '').trim();
-            if (!filter)  return res.json({ success: true, result: { ok: false, error: 'Filtre requis' } });
-            if (!logpath) return res.json({ success: true, result: { ok: false, error: 'Logpath requis' } });
-            // Filter must not contain path separators (defence-in-depth alongside server-side basename use)
-            if (/[\\/]/.test(filter) || /[\\/]/.test(name)) {
-                return res.json({ success: true, result: { ok: false, error: 'Caractères interdits dans le nom ou filtre' } });
-            }
 
             const confBase = this.resolveDockerPathSync('/etc/fail2ban');
-            // Verify filter exists on disk
-            const filterDir = path.join(confBase, 'filter.d');
-            const filterExists = fs.existsSync(path.join(filterDir, `${filter}.conf`)) ||
-                                 fs.existsSync(path.join(filterDir, `${filter}.local`));
-            if (!filterExists) {
-                return res.json({ success: true, result: { ok: false, error: `Filtre filter.d/${filter}.conf|.local introuvable` } });
+            const validation = validateJailPayload(req.body as JailFormBody, confBase);
+            if (validation.ok === false) {
+                return res.json({ success: true, result: { ok: false, error: validation.error } });
             }
-
-            // Refuse overwrite: check jail.d/<name>.{local,conf} files AND existing config sections
-            const jailDir   = path.join(confBase, 'jail.d');
-            const localPath = path.join(jailDir, `${name}.local`);
-            const confPath  = path.join(jailDir, `${name}.conf`);
-            if (fs.existsSync(localPath) || fs.existsSync(confPath)) {
-                return res.json({ success: true, result: { ok: false, error: `Le fichier jail.d/${name}.local ou .conf existe déjà` } });
-            }
-            const existingMeta = parseJailConfigs(confBase);
-            if (existingMeta[name]) {
-                return res.json({ success: true, result: { ok: false, error: `Un jail nommé "${name}" existe déjà dans la configuration` } });
-            }
-
-            // Numeric coercion + bounds (negative bantime = permanent, allowed)
-            const num = (v: number | string | undefined, def: number, min: number, max: number): number => {
-                if (v === undefined || v === '') return def;
-                const n = typeof v === 'number' ? v : Number.parseInt(String(v), 10);
-                if (!Number.isFinite(n) || n < min || n > max) return def;
-                return n;
-            };
-            const maxretry = num(body.maxretry, 5, 1, 1000);
-            const findtime = num(body.findtime, 600, 1, 31_536_000);
-            const bantime  = num(body.bantime, 3600, -1, 31_536_000);
-            const enabled  = body.enabled !== false; // default true
-
-            // Build [name] block
-            const lines: string[] = [`[${name}]`, ''];
-            lines.push(`enabled  = ${enabled ? 'true' : 'false'}`);
-            lines.push(`filter   = ${filter}`);
-            lines.push(`logpath  = ${logpath}`);
-            if (body.port && String(body.port).trim()) lines.push(`port     = ${String(body.port).trim()}`);
-            lines.push(`maxretry = ${maxretry}`);
-            lines.push(`findtime = ${findtime}`);
-            lines.push(`bantime  = ${bantime}`);
-            if (body.action && String(body.action).trim()) lines.push(`action   = ${String(body.action).trim()}`);
+            const plan = validation.plan;
 
             try {
-                if (!fs.existsSync(jailDir)) fs.mkdirSync(jailDir, { recursive: true });
-                fs.writeFileSync(localPath, lines.join('\n') + '\n', 'utf8');
+                if (!fs.existsSync(plan.jailDir)) fs.mkdirSync(plan.jailDir, { recursive: true });
+                fs.writeFileSync(plan.localPath, buildJailIniBlock(plan), 'utf8');
             } catch (e) {
                 return res.json({ success: true, result: { ok: false, error: `Écriture impossible : ${e instanceof Error ? e.message : String(e)}` } });
             }
 
             // Full reload — per-jail reload would fail since fail2ban doesn't know the new jail yet
             let reloadResult = null;
-            if (enabled && this.client?.isAvailable()) {
+            if (plan.enabled && this.client?.isAvailable()) {
                 reloadResult = await this.client.reload();
             }
-            res.json({ success: true, result: { ok: true, jailName: name, file: localPath, reloadResult } });
+            res.json({ success: true, result: { ok: true, jailName: plan.name, file: plan.localPath, reloadResult } });
         }));
 
         // ── Read-only filesystem routes ──────────────────────────────────────

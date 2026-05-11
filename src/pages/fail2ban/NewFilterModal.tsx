@@ -35,6 +35,24 @@ failregex = ^.*your pattern with <HOST>.*$
 ignoreregex =
 `;
 
+function loadFilters(setFilters: (files: string[]) => void, setLoading: (b: boolean) => void): void {
+    api.get<{ ok: boolean; files: string[] }>('/api/plugins/fail2ban/filters')
+        .then(res => {
+            if (res.success && res.result?.ok) {
+                setFilters(res.result.files.slice().sort((a, b) => a.localeCompare(b)));
+            }
+            setLoading(false);
+        });
+}
+
+function loadFilterContent(name: string, setContent: (s: string) => void, setLoading: (b: boolean) => void): void {
+    api.get<{ ok: boolean; content: string }>(`/api/plugins/fail2ban/filters/${encodeURIComponent(name)}`)
+        .then(res => {
+            if (res.success && res.result?.ok) setContent(res.result.content);
+            setLoading(false);
+        });
+}
+
 const inputStyle: React.CSSProperties = {
     padding: '.35rem .6rem', fontSize: '.82rem', borderRadius: 5,
     background: '#0d1117', border: '1px solid #30363d',
@@ -52,6 +70,26 @@ const hintStyle: React.CSSProperties = {
     fontSize: '.7rem', color: '#6e7681', marginTop: '.2rem',
 };
 
+interface ResultBannerProps {
+    ok: boolean;
+    successText: React.ReactNode;
+    errorText?: string;
+}
+
+const ResultBanner: React.FC<ResultBannerProps> = ({ ok, successText, errorText }) => (
+    <div style={{ padding: '.5rem 1rem', fontSize: '.8rem', color: ok ? '#3fb950' : '#e86a65', background: ok ? 'rgba(63,185,80,.07)' : 'rgba(232,106,101,.07)', borderBottom: '1px solid #30363d', display: 'flex', alignItems: 'center', gap: '.4rem' }}>
+        {ok ? <CheckCircle style={{ width: 13, height: 13 }} /> : <XCircle style={{ width: 13, height: 13 }} />}
+        <span>{ok ? successText : errorText}</span>
+    </div>
+);
+
+const NameInvalidHint: React.FC<{ text: string }> = ({ text }) => (
+    <div style={{ padding: '.4rem .6rem', fontSize: '.75rem', color: '#e86a65', background: 'rgba(232,106,101,.06)', border: '1px solid rgba(232,106,101,.2)', borderRadius: 5, display: 'flex', alignItems: 'center', gap: '.35rem', marginTop: '.6rem' }}>
+        <AlertTriangle style={{ width: 12, height: 12 }} />
+        {text}
+    </div>
+);
+
 export const NewFilterModal: React.FC<NewFilterModalProps> = ({ onClose, onCreated }) => {
     const { t } = useTranslation();
     const [filters, setFilters]         = useState<string[]>([]);
@@ -67,24 +105,14 @@ export const NewFilterModal: React.FC<NewFilterModalProps> = ({ onClose, onCreat
 
     // Load existing filters for the duplicate dropdown
     useEffect(() => {
-        api.get<{ ok: boolean; files: string[] }>('/api/plugins/fail2ban/filters')
-            .then(res => {
-                if (res.success && res.result?.ok) {
-                    setFilters(res.result.files.slice().sort());
-                }
-                setFiltersLoading(false);
-            });
+        loadFilters(setFilters, setFiltersLoading);
     }, []);
 
     // When duplicate source changes, fetch its content
     useEffect(() => {
         if (!duplicateFrom) return;
         setContentLoading(true);
-        api.get<{ ok: boolean; content: string }>(`/api/plugins/fail2ban/filters/${encodeURIComponent(duplicateFrom)}`)
-            .then(res => {
-                if (res.success && res.result?.ok) setContent(res.result.content);
-                setContentLoading(false);
-            });
+        loadFilterContent(duplicateFrom, setContent, setContentLoading);
     }, [duplicateFrom]);
 
     const nameValid = /^[a-z0-9_-]{1,48}$/.test(name);
@@ -109,10 +137,17 @@ export const NewFilterModal: React.FC<NewFilterModalProps> = ({ onClose, onCreat
     };
 
     const filterOptions = useMemo(() => filters, [filters]);
+    const submitEnabled = formValid && !saving && result?.ok !== true;
 
     return (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 8950, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,.65)', backdropFilter: 'blur(3px)' }}
-             onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+        <div
+            style={{ position: 'fixed', inset: 0, zIndex: 8950, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,.65)', backdropFilter: 'blur(3px)' }}
+            onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+            onKeyDown={e => { if (e.key === 'Escape') onClose(); }}
+            role="dialog"
+            aria-modal="true"
+            tabIndex={-1}
+        >
             <div style={{ background: '#161b22', border: '1px solid #30363d', borderRadius: 10, width: 'min(680px, 96vw)', maxHeight: '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,.6)' }}>
 
                 {/* Header */}
@@ -125,14 +160,7 @@ export const NewFilterModal: React.FC<NewFilterModalProps> = ({ onClose, onCreat
                 </div>
 
                 {/* Result banner */}
-                {result && (
-                    <div style={{ padding: '.5rem 1rem', fontSize: '.8rem', color: result.ok ? '#3fb950' : '#e86a65', background: result.ok ? 'rgba(63,185,80,.07)' : 'rgba(232,106,101,.07)', borderBottom: '1px solid #30363d', display: 'flex', alignItems: 'center', gap: '.4rem' }}>
-                        {result.ok ? <CheckCircle style={{ width: 13, height: 13 }} /> : <XCircle style={{ width: 13, height: 13 }} />}
-                        {result.ok
-                            ? <span>{t('fail2ban.newFilter.created', { name: result.name })}</span>
-                            : <span>{result.error}</span>}
-                    </div>
-                )}
+                {result && <ResultBanner ok={result.ok} successText={t('fail2ban.newFilter.created', { name: result.name })} errorText={result.error} />}
 
                 {/* Body */}
                 <div style={{ flex: 1, overflowY: 'auto', padding: '1rem 1.25rem' }}>
@@ -169,12 +197,7 @@ export const NewFilterModal: React.FC<NewFilterModalProps> = ({ onClose, onCreat
                         style={{ ...inputStyle, minHeight: 240, resize: 'vertical', lineHeight: 1.55, fontSize: '.78rem', padding: '.6rem .75rem' }} />
                     <div style={hintStyle}>{t('fail2ban.newFilter.contentHint')}</div>
 
-                    {!nameValid && name && (
-                        <div style={{ padding: '.4rem .6rem', fontSize: '.75rem', color: '#e86a65', background: 'rgba(232,106,101,.06)', border: '1px solid rgba(232,106,101,.2)', borderRadius: 5, display: 'flex', alignItems: 'center', gap: '.35rem', marginTop: '.6rem' }}>
-                            <AlertTriangle style={{ width: 12, height: 12 }} />
-                            {t('fail2ban.newFilter.nameInvalid')}
-                        </div>
-                    )}
+                    {!nameValid && name && <NameInvalidHint text={t('fail2ban.newFilter.nameInvalid')} />}
                 </div>
 
                 {/* Footer */}
@@ -187,8 +210,8 @@ export const NewFilterModal: React.FC<NewFilterModalProps> = ({ onClose, onCreat
                             style={{ padding: '.35rem .85rem', fontSize: '.82rem', borderRadius: 5, background: 'transparent', border: '1px solid #30363d', color: '#8b949e', cursor: saving ? 'default' : 'pointer' }}>
                             {t('common.cancel')}
                         </button>
-                        <button onClick={submit} disabled={!formValid || saving || (result?.ok === true)}
-                            style={{ display: 'flex', alignItems: 'center', gap: '.35rem', padding: '.35rem .9rem', fontSize: '.82rem', borderRadius: 5, background: formValid && !saving && !(result?.ok) ? '#3fb950' : '#30363d', border: 'none', color: formValid && !saving && !(result?.ok) ? '#0d1117' : '#8b949e', cursor: formValid && !saving && !(result?.ok) ? 'pointer' : 'default', fontWeight: 600 }}>
+                        <button onClick={submit} disabled={!submitEnabled}
+                            style={{ display: 'flex', alignItems: 'center', gap: '.35rem', padding: '.35rem .9rem', fontSize: '.82rem', borderRadius: 5, background: submitEnabled ? '#3fb950' : '#30363d', border: 'none', color: submitEnabled ? '#0d1117' : '#8b949e', cursor: submitEnabled ? 'pointer' : 'default', fontWeight: 600 }}>
                             <Save style={{ width: 13, height: 13 }} />
                             {saving ? t('fail2ban.newFilter.saving') : t('fail2ban.newFilter.create')}
                         </button>

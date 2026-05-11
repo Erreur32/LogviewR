@@ -39,6 +39,51 @@ const hintStyle: React.CSSProperties = {
     fontSize: '.7rem', color: '#6e7681', marginTop: '.2rem',
 };
 
+interface ResultBannerProps {
+    ok: boolean;
+    successText: React.ReactNode;
+    errorText?: string;
+}
+
+const ResultBanner: React.FC<ResultBannerProps> = ({ ok, successText, errorText }) => (
+    <div style={{ padding: '.5rem 1rem', fontSize: '.8rem', color: ok ? '#3fb950' : '#e86a65', background: ok ? 'rgba(63,185,80,.07)' : 'rgba(232,106,101,.07)', borderBottom: '1px solid #30363d', display: 'flex', alignItems: 'center', gap: '.4rem' }}>
+        {ok ? <CheckCircle style={{ width: 13, height: 13 }} /> : <XCircle style={{ width: 13, height: 13 }} />}
+        <span>{ok ? successText : errorText}</span>
+    </div>
+);
+
+const NameInvalidHint: React.FC<{ text: string }> = ({ text }) => (
+    <div style={{ padding: '.4rem .6rem', fontSize: '.75rem', color: '#e86a65', background: 'rgba(232,106,101,.06)', border: '1px solid rgba(232,106,101,.2)', borderRadius: 5, display: 'flex', alignItems: 'center', gap: '.35rem', marginTop: '.5rem' }}>
+        <AlertTriangle style={{ width: 12, height: 12 }} />
+        {text}
+    </div>
+);
+
+function loadFilterBases(setFilters: (bases: string[]) => void, setLoading: (b: boolean) => void): void {
+    api.get<{ ok: boolean; files: string[] }>('/api/plugins/fail2ban/filters')
+        .then(res => {
+            if (res.success && res.result?.ok) {
+                // Strip extension and dedup (sshd.conf + sshd.local → sshd)
+                const bases = Array.from(new Set(res.result.files.map(f => f.replace(/\.(conf|local)$/, ''))))
+                    .sort((a, b) => a.localeCompare(b));
+                setFilters(bases);
+            }
+            setLoading(false);
+        });
+}
+
+function isFiniteIntAtLeast(v: string, min: number): boolean {
+    const n = Number.parseInt(v, 10);
+    return Number.isFinite(n) && n >= min;
+}
+
+function isJailFormValid(name: string, filter: string, logpath: string, maxretry: string, findtime: string, bantime: string): boolean {
+    const nameOk    = /^[a-z0-9_-]{1,32}$/.test(name) && name !== 'default' && name !== 'includes';
+    const fieldsOk  = filter !== '' && logpath.trim() !== '';
+    const numbersOk = isFiniteIntAtLeast(maxretry, 1) && isFiniteIntAtLeast(findtime, 1) && isFiniteIntAtLeast(bantime, -1);
+    return nameOk && fieldsOk && numbersOk;
+}
+
 export const NewJailModal: React.FC<NewJailModalProps> = ({ onClose, onCreated, prefilledFilter }) => {
     const { t } = useTranslation();
     const [filters, setFilters]   = useState<string[]>([]);
@@ -61,25 +106,11 @@ export const NewJailModal: React.FC<NewJailModalProps> = ({ onClose, onCreated, 
     const [result, setResult]     = useState<CreateResult | null>(null);
 
     useEffect(() => {
-        api.get<{ ok: boolean; files: string[] }>('/api/plugins/fail2ban/filters')
-            .then(res => {
-                if (res.success && res.result?.ok) {
-                    // Strip extension and dedup (sshd.conf + sshd.local → sshd)
-                    const bases = Array.from(new Set(res.result.files.map(f => f.replace(/\.(conf|local)$/, '')))).sort();
-                    setFilters(bases);
-                }
-                setFiltersLoading(false);
-            });
+        loadFilterBases(setFilters, setFiltersLoading);
     }, []);
 
-    const nameValid    = /^[a-z0-9_-]{1,32}$/.test(name) && name !== 'default' && name !== 'includes';
-    const numberValid  = (v: string, min = 0): boolean => {
-        const n = Number.parseInt(v, 10);
-        return Number.isFinite(n) && n >= min;
-    };
-    const formValid = nameValid && filter !== '' && logpath.trim() !== ''
-        && numberValid(maxretry, 1) && numberValid(findtime, 1)
-        && (Number.parseInt(bantime, 10) >= -1 && Number.isFinite(Number.parseInt(bantime, 10)));
+    const nameValid = /^[a-z0-9_-]{1,32}$/.test(name) && name !== 'default' && name !== 'includes';
+    const formValid = isJailFormValid(name, filter, logpath, maxretry, findtime, bantime);
 
     const submit = async () => {
         if (!formValid) return;
@@ -104,10 +135,20 @@ export const NewJailModal: React.FC<NewJailModalProps> = ({ onClose, onCreated, 
     };
 
     const filterOptions = useMemo(() => filters, [filters]);
+    const submitEnabled = formValid && !saving && result?.ok !== true;
+    const successText = result?.ok
+        ? `${t('fail2ban.newJail.created', { name: result.jailName })} · ${result.reloadResult?.ok ? t('fail2ban.newJail.reloadOk') : t('fail2ban.newJail.reloadSkipped')}`
+        : '';
 
     return (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 8950, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,.65)', backdropFilter: 'blur(3px)' }}
-             onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+        <div
+            style={{ position: 'fixed', inset: 0, zIndex: 8950, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,.65)', backdropFilter: 'blur(3px)' }}
+            onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+            onKeyDown={e => { if (e.key === 'Escape') onClose(); }}
+            role="dialog"
+            aria-modal="true"
+            tabIndex={-1}
+        >
             <div style={{ background: '#161b22', border: '1px solid #30363d', borderRadius: 10, width: 'min(560px, 96vw)', maxHeight: '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,.6)' }}>
 
                 {/* Header */}
@@ -120,14 +161,7 @@ export const NewJailModal: React.FC<NewJailModalProps> = ({ onClose, onCreated, 
                 </div>
 
                 {/* Result banner */}
-                {result && (
-                    <div style={{ padding: '.5rem 1rem', fontSize: '.8rem', color: result.ok ? '#3fb950' : '#e86a65', background: result.ok ? 'rgba(63,185,80,.07)' : 'rgba(232,106,101,.07)', borderBottom: '1px solid #30363d', display: 'flex', alignItems: 'center', gap: '.4rem' }}>
-                        {result.ok ? <CheckCircle style={{ width: 13, height: 13 }} /> : <XCircle style={{ width: 13, height: 13 }} />}
-                        {result.ok
-                            ? <span>{t('fail2ban.newJail.created', { name: result.jailName })} · {result.reloadResult?.ok ? t('fail2ban.newJail.reloadOk') : t('fail2ban.newJail.reloadSkipped')}</span>
-                            : <span>{result.error}</span>}
-                    </div>
-                )}
+                {result && <ResultBanner ok={result.ok} successText={successText} errorText={result.error} />}
 
                 {/* Body */}
                 <div style={{ flex: 1, overflowY: 'auto', padding: '1rem 1.25rem' }}>
@@ -198,12 +232,7 @@ export const NewJailModal: React.FC<NewJailModalProps> = ({ onClose, onCreated, 
                         <span style={{ fontSize: '.7rem', color: '#6e7681' }}>· {t('fail2ban.newJail.enabledHint')}</span>
                     </label>
 
-                    {!nameValid && name && (
-                        <div style={{ padding: '.4rem .6rem', fontSize: '.75rem', color: '#e86a65', background: 'rgba(232,106,101,.06)', border: '1px solid rgba(232,106,101,.2)', borderRadius: 5, display: 'flex', alignItems: 'center', gap: '.35rem', marginTop: '.5rem' }}>
-                            <AlertTriangle style={{ width: 12, height: 12 }} />
-                            {t('fail2ban.newJail.nameInvalid')}
-                        </div>
-                    )}
+                    {!nameValid && name && <NameInvalidHint text={t('fail2ban.newJail.nameInvalid')} />}
                 </div>
 
                 {/* Footer */}
@@ -212,8 +241,8 @@ export const NewJailModal: React.FC<NewJailModalProps> = ({ onClose, onCreated, 
                         style={{ padding: '.35rem .85rem', fontSize: '.82rem', borderRadius: 5, background: 'transparent', border: '1px solid #30363d', color: '#8b949e', cursor: saving ? 'default' : 'pointer' }}>
                         {t('common.cancel')}
                     </button>
-                    <button onClick={submit} disabled={!formValid || saving || (result?.ok === true)}
-                        style={{ display: 'flex', alignItems: 'center', gap: '.35rem', padding: '.35rem .9rem', fontSize: '.82rem', borderRadius: 5, background: formValid && !saving && !(result?.ok) ? '#3fb950' : '#30363d', border: 'none', color: formValid && !saving && !(result?.ok) ? '#0d1117' : '#8b949e', cursor: formValid && !saving && !(result?.ok) ? 'pointer' : 'default', fontWeight: 600 }}>
+                    <button onClick={submit} disabled={!submitEnabled}
+                        style={{ display: 'flex', alignItems: 'center', gap: '.35rem', padding: '.35rem .9rem', fontSize: '.82rem', borderRadius: 5, background: submitEnabled ? '#3fb950' : '#30363d', border: 'none', color: submitEnabled ? '#0d1117' : '#8b949e', cursor: submitEnabled ? 'pointer' : 'default', fontWeight: 600 }}>
                         <Save style={{ width: 13, height: 13 }} />
                         {saving ? t('fail2ban.newJail.saving') : t('fail2ban.newJail.create')}
                     </button>
