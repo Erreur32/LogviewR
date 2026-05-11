@@ -3,10 +3,14 @@
  * Backend: POST /api/plugins/fail2ban/filters.
  * Optional duplicate-from-existing: prefills the textarea but writes a fresh .local file.
  */
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { X, Save, Plus, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 import { api } from '../../api/client';
+import {
+    F2bModalShell, F2bModalHeader, F2bCancelButton, F2bSaveButton,
+    ResultBanner, NameInvalidHint,
+    inputStyle, labelStyle, hintStyle,
+} from './modalParts';
 
 interface NewFilterModalProps {
     onClose: () => void;
@@ -52,43 +56,6 @@ function loadFilterContent(name: string, setContent: (s: string) => void, setLoa
             setLoading(false);
         });
 }
-
-const inputStyle: React.CSSProperties = {
-    padding: '.35rem .6rem', fontSize: '.82rem', borderRadius: 5,
-    background: '#0d1117', border: '1px solid #30363d',
-    color: '#e6edf3', outline: 'none', fontFamily: 'monospace',
-    width: '100%',
-};
-
-const labelStyle: React.CSSProperties = {
-    fontSize: '.72rem', fontWeight: 700, color: '#8b949e',
-    textTransform: 'uppercase', letterSpacing: '.05em',
-    display: 'block', marginBottom: '.3rem',
-};
-
-const hintStyle: React.CSSProperties = {
-    fontSize: '.7rem', color: '#6e7681', marginTop: '.2rem',
-};
-
-interface ResultBannerProps {
-    ok: boolean;
-    successText: React.ReactNode;
-    errorText?: string;
-}
-
-const ResultBanner: React.FC<ResultBannerProps> = ({ ok, successText, errorText }) => (
-    <div style={{ padding: '.5rem 1rem', fontSize: '.8rem', color: ok ? '#3fb950' : '#e86a65', background: ok ? 'rgba(63,185,80,.07)' : 'rgba(232,106,101,.07)', borderBottom: '1px solid #30363d', display: 'flex', alignItems: 'center', gap: '.4rem' }}>
-        {ok ? <CheckCircle style={{ width: 13, height: 13 }} /> : <XCircle style={{ width: 13, height: 13 }} />}
-        <span>{ok ? successText : errorText}</span>
-    </div>
-);
-
-const NameInvalidHint: React.FC<{ text: string }> = ({ text }) => (
-    <div style={{ padding: '.4rem .6rem', fontSize: '.75rem', color: '#e86a65', background: 'rgba(232,106,101,.06)', border: '1px solid rgba(232,106,101,.2)', borderRadius: 5, display: 'flex', alignItems: 'center', gap: '.35rem', marginTop: '.6rem' }}>
-        <AlertTriangle style={{ width: 12, height: 12 }} />
-        {text}
-    </div>
-);
 
 export const NewFilterModal: React.FC<NewFilterModalProps> = ({ onClose, onCreated }) => {
     const { t } = useTranslation();
@@ -136,88 +103,62 @@ export const NewFilterModal: React.FC<NewFilterModalProps> = ({ onClose, onCreat
         setContent(BLANK_TEMPLATE);
     };
 
-    const filterOptions = useMemo(() => filters, [filters]);
     const submitEnabled = formValid && !saving && result?.ok !== true;
 
     return (
-        <div
-            style={{ position: 'fixed', inset: 0, zIndex: 8950, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,.65)', backdropFilter: 'blur(3px)' }}
-            onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-            onKeyDown={e => { if (e.key === 'Escape') onClose(); }}
-            role="dialog"
-            aria-modal="true"
-            tabIndex={-1}
-        >
-            <div style={{ background: '#161b22', border: '1px solid #30363d', borderRadius: 10, width: 'min(680px, 96vw)', maxHeight: '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,.6)' }}>
+        <F2bModalShell onClose={onClose} width="min(680px, 96vw)">
+            <F2bModalHeader title={t('fail2ban.newFilter.title')} onClose={onClose} />
 
-                {/* Header */}
-                <div style={{ background: '#21262d', padding: '.65rem 1rem', borderBottom: '1px solid #30363d', display: 'flex', alignItems: 'center', gap: '.5rem' }}>
-                    <Plus style={{ width: 14, height: 14, color: '#3fb950' }} />
-                    <span style={{ fontWeight: 700, fontSize: '.95rem', flex: 1 }}>{t('fail2ban.newFilter.title')}</span>
-                    <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#8b949e', cursor: 'pointer', padding: '.2rem', display: 'flex' }}>
-                        <X style={{ width: 16, height: 16 }} />
-                    </button>
+            {result && <ResultBanner ok={result.ok} successText={t('fail2ban.newFilter.created', { name: result.name })} errorText={result.error} />}
+
+            {/* Body */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '1rem 1.25rem' }}>
+
+                {/* Name + duplicate-from row */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.7rem', marginBottom: '.85rem' }}>
+                    <div>
+                        <label style={labelStyle}>{t('fail2ban.newFilter.name')}</label>
+                        <input value={name} onChange={e => setName(e.target.value.toLowerCase())} placeholder="my-filter"
+                            style={{ ...inputStyle, borderColor: name && !nameValid ? '#e86a65' : '#30363d' }} autoFocus />
+                        <div style={hintStyle}>{t('fail2ban.newFilter.nameHint')}</div>
+                    </div>
+                    <div>
+                        <label style={labelStyle}>{t('fail2ban.newFilter.duplicateFrom')} <span style={{ fontWeight: 400, textTransform: 'none', color: '#6e7681' }}>· {t('fail2ban.newJail.optional')}</span></label>
+                        <select value={duplicateFrom} onChange={e => setDuplicateFrom(e.target.value)}
+                            style={{ ...inputStyle, padding: '.32rem .5rem' }} disabled={filtersLoading}>
+                            <option value="">{t('fail2ban.newFilter.blankTemplate')}</option>
+                            {filters.map(f => <option key={f} value={f}>{f}</option>)}
+                        </select>
+                        <div style={hintStyle}>{t('fail2ban.newFilter.duplicateHint')}</div>
+                    </div>
                 </div>
 
-                {/* Result banner */}
-                {result && <ResultBanner ok={result.ok} successText={t('fail2ban.newFilter.created', { name: result.name })} errorText={result.error} />}
-
-                {/* Body */}
-                <div style={{ flex: 1, overflowY: 'auto', padding: '1rem 1.25rem' }}>
-
-                    {/* Name + duplicate-from row */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.7rem', marginBottom: '.85rem' }}>
-                        <div>
-                            <label style={labelStyle}>{t('fail2ban.newFilter.name')}</label>
-                            <input value={name} onChange={e => setName(e.target.value.toLowerCase())} placeholder="my-filter"
-                                style={{ ...inputStyle, borderColor: name && !nameValid ? '#e86a65' : '#30363d' }} autoFocus />
-                            <div style={hintStyle}>{t('fail2ban.newFilter.nameHint')}</div>
-                        </div>
-                        <div>
-                            <label style={labelStyle}>{t('fail2ban.newFilter.duplicateFrom')} <span style={{ fontWeight: 400, textTransform: 'none', color: '#6e7681' }}>· {t('fail2ban.newJail.optional')}</span></label>
-                            <select value={duplicateFrom} onChange={e => setDuplicateFrom(e.target.value)}
-                                style={{ ...inputStyle, padding: '.32rem .5rem' }} disabled={filtersLoading}>
-                                <option value="">{t('fail2ban.newFilter.blankTemplate')}</option>
-                                {filterOptions.map(f => <option key={f} value={f}>{f}</option>)}
-                            </select>
-                            <div style={hintStyle}>{t('fail2ban.newFilter.duplicateHint')}</div>
-                        </div>
-                    </div>
-
-                    {/* Content */}
-                    <div style={{ marginBottom: '.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <label style={{ ...labelStyle, marginBottom: 0 }}>{t('fail2ban.newFilter.content')}</label>
-                        {duplicateFrom && (
-                            <button onClick={resetToBlank} style={{ fontSize: '.7rem', background: 'transparent', border: '1px solid #30363d', color: '#8b949e', borderRadius: 4, padding: '.15rem .5rem', cursor: 'pointer' }}>
-                                {t('fail2ban.newFilter.resetBlank')}
-                            </button>
-                        )}
-                    </div>
-                    <textarea value={content} onChange={e => setContent(e.target.value)} disabled={contentLoading}
-                        style={{ ...inputStyle, minHeight: 240, resize: 'vertical', lineHeight: 1.55, fontSize: '.78rem', padding: '.6rem .75rem' }} />
-                    <div style={hintStyle}>{t('fail2ban.newFilter.contentHint')}</div>
-
-                    {!nameValid && name && <NameInvalidHint text={t('fail2ban.newFilter.nameInvalid')} />}
+                {/* Content */}
+                <div style={{ marginBottom: '.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <label style={{ ...labelStyle, marginBottom: 0 }}>{t('fail2ban.newFilter.content')}</label>
+                    {duplicateFrom && (
+                        <button onClick={resetToBlank} style={{ fontSize: '.7rem', background: 'transparent', border: '1px solid #30363d', color: '#8b949e', borderRadius: 4, padding: '.15rem .5rem', cursor: 'pointer' }}>
+                            {t('fail2ban.newFilter.resetBlank')}
+                        </button>
+                    )}
                 </div>
+                <textarea value={content} onChange={e => setContent(e.target.value)} disabled={contentLoading}
+                    style={{ ...inputStyle, minHeight: 240, resize: 'vertical', lineHeight: 1.55, fontSize: '.78rem', padding: '.6rem .75rem' }} />
+                <div style={hintStyle}>{t('fail2ban.newFilter.contentHint')}</div>
 
-                {/* Footer */}
-                <div style={{ padding: '.65rem 1rem', borderTop: '1px solid #30363d', display: 'flex', gap: '.5rem', justifyContent: 'space-between', alignItems: 'center', background: '#0d1117' }}>
-                    <span style={{ fontSize: '.7rem', color: '#6e7681', fontFamily: 'monospace' }}>
-                        → filter.d/{nameValid ? name : '<name>'}.local
-                    </span>
-                    <div style={{ display: 'flex', gap: '.5rem' }}>
-                        <button onClick={onClose} disabled={saving}
-                            style={{ padding: '.35rem .85rem', fontSize: '.82rem', borderRadius: 5, background: 'transparent', border: '1px solid #30363d', color: '#8b949e', cursor: saving ? 'default' : 'pointer' }}>
-                            {t('common.cancel')}
-                        </button>
-                        <button onClick={submit} disabled={!submitEnabled}
-                            style={{ display: 'flex', alignItems: 'center', gap: '.35rem', padding: '.35rem .9rem', fontSize: '.82rem', borderRadius: 5, background: submitEnabled ? '#3fb950' : '#30363d', border: 'none', color: submitEnabled ? '#0d1117' : '#8b949e', cursor: submitEnabled ? 'pointer' : 'default', fontWeight: 600 }}>
-                            <Save style={{ width: 13, height: 13 }} />
-                            {saving ? t('fail2ban.newFilter.saving') : t('fail2ban.newFilter.create')}
-                        </button>
-                    </div>
+                {!nameValid && name && <NameInvalidHint text={t('fail2ban.newFilter.nameInvalid')} />}
+            </div>
+
+            <div style={{ padding: '.65rem 1rem', borderTop: '1px solid #30363d', display: 'flex', gap: '.5rem', justifyContent: 'space-between', alignItems: 'center', background: '#0d1117' }}>
+                <span style={{ fontSize: '.7rem', color: '#6e7681', fontFamily: 'monospace' }}>
+                    → filter.d/{nameValid ? name : '<name>'}.local
+                </span>
+                <div style={{ display: 'flex', gap: '.5rem' }}>
+                    <F2bCancelButton onClick={onClose} disabled={saving} label={t('common.cancel')} />
+                    <F2bSaveButton onClick={submit} enabled={submitEnabled}
+                        label={saving ? t('fail2ban.newFilter.saving') : t('fail2ban.newFilter.create')} />
                 </div>
             </div>
-        </div>
+        </F2bModalShell>
     );
 };

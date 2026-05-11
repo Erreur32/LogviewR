@@ -96,3 +96,19 @@ html, body {
   }
 }
 
+/* Fail2ban modals: native <dialog> backdrop styled to match the GH-dark theme */
+dialog.f2b-modal::backdrop {
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(3px);
+}
+dialog.f2b-modal {
+  padding: 0;
+  border: 1px solid #30363d;
+  border-radius: 10px;
+  background: #161b22;
+  color: #e6edf3;
+  max-height: 92vh;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+}
+
