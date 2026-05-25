@@ -5,7 +5,19 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.9.10] - 2026-05-11
+## [0.9.11] - 2026-05-25
+
+### For users
+
+- **Security hardening on fail2ban creation endpoints.** The `POST /jails` and `POST /filters` routes are now rate-limited to 10 requests per minute per IP, on top of authentication. Legitimate use (single jail/filter creation from the UI) is unaffected.
+- **Vulnerability fixes via dependency bumps.** `qs` 6.14.2 to 6.15.2 (fixes a remotely triggerable DoS in `qs.stringify`, GHSA-q8mj-m7cp-5q26). `ws` 8.20.0 to 8.21.0 (fixes uninitialized memory disclosure, GHSA-58qx-3vcg-4xpx). `npm audit` is now clean.
+
+### For developers
+
+- **Rate limiting (CodeQL alerts #343 to #346 closed).** New `writeRateLimit` middleware in `server/plugins/fail2ban/Fail2banPlugin.ts` (`expressRateLimit`, 60s window, max 10 requests). Applied to `POST /jails` (line 1540) and `POST /filters` (line 1589). Pattern mirrors the existing `auditRateLimit` (30/min) used on audit endpoints. Defense in depth: these routes were already behind `requireAuth`, so rate-limit blocks abuse from authenticated callers.
+- **Dependency-only lockfile bumps (Dependabot alert #22 closed).** `package-lock.json` regenerated via `npm audit fix --package-lock-only --ignore-scripts`. `package.json` direct dependencies untouched; both bumps are transitive (qs is pulled by express/body-parser, ws by other deps). No code change required.
+
+
 
 ### For developers
 

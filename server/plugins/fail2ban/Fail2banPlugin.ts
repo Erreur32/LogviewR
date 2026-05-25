@@ -601,6 +601,20 @@ const auditRateLimit = expressRateLimit({
     message: { success: false, error: { code: 'RATE_LIMITED', message: 'Too many requests' } },
 });
 
+/**
+ * Stricter rate limiter for write endpoints that touch the filesystem
+ * (jail/filter file creation) and may trigger a fail2ban reload.
+ * 10 req/min/IP — comfortably above any legitimate UI action, but blocks
+ * authenticated-user abuse that could spam writes or reload loops.
+ */
+const writeRateLimit = expressRateLimit({
+    windowMs: 60_000,
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, error: { code: 'RATE_LIMITED', message: 'Too many requests' } },
+});
+
 function readLogTail(absPath: string, maxLines: number): { content: string; truncated: boolean; bytes: number } {
     const stat = fs.statSync(absPath);
     const size = stat.size;
@@ -1523,7 +1537,7 @@ export class Fail2banPlugin extends BasePlugin {
 
         // POST /jails  — create a new jail in jail.d/<name>.local + reload fail2ban
         // Strict name validation prevents path traversal; refuses overwrite of any existing jail file/section.
-        router.post('/jails', requireAuth, asyncHandler(async (req, res) => {
+        router.post('/jails', writeRateLimit, requireAuth, asyncHandler(async (req, res) => {
             if (!this.isEnabled()) return res.json({ success: true, result: { ok: false, error: 'Plugin désactivé' } });
 
             const confBase = this.resolveDockerPathSync('/etc/fail2ban');
@@ -1572,7 +1586,7 @@ export class Fail2banPlugin extends BasePlugin {
 
         // POST /filters  — create a new filter file in filter.d/<name>.local
         // Always writes .local (never overwrites shipped .conf). No reload — filter is unused until a jail references it.
-        router.post('/filters', requireAuth, asyncHandler(async (req, res) => {
+        router.post('/filters', writeRateLimit, requireAuth, asyncHandler(async (req, res) => {
             if (!this.isEnabled()) return res.json({ success: true, result: { ok: false, error: 'Plugin désactivé' } });
             const body = req.body as { name?: string; content?: string };
             const baseName = String(body.name ?? '').trim().toLowerCase().replace(/\.(conf|local)$/, '');
