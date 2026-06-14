@@ -5,6 +5,19 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.12] - 2026-06-14
+
+### For users
+
+- **Security dependency bumps (5 Dependabot alerts closed).** Fixes a critical command-injection vector in `shell-quote`, two high-severity React Router issues (a turbo-stream deserialization RCE and a `__manifest` DoS) plus a medium open-redirect, and a low-severity esbuild dev-server file read. No behavioral change to the app.
+
+### For developers
+
+- **react-router-dom `^7.14.0` to `^7.16.0`** (resolves to 7.17.0) — closes Dependabot alerts #23 (high, turbo-stream RCE, GHSA via `<7.14.2`), #25 (high, `__manifest` DoS, `<7.15.0`) and #24 (medium, protocol-relative open redirect, `<7.14.1`). Supersedes Dependabot PR #16, which only covered react-router and missed the critical `shell-quote`.
+- **`shell-quote` override `>=1.8.4`** — closes alert #26 (CRITICAL, `quote()` newline escaping). Transitive via `concurrently@9.2.1`; pinned through `overrides` to mirror the existing `tar`/`ip-address` entries rather than forcing a `concurrently` major bump.
+- **tsx `^4.21.0` to `^4.22.4`** — pulls `esbuild` 0.27.3 to 0.28.1, closing alert #27 (low, Windows dev-server arbitrary file read, `>=0.27.3 <0.28.1`). vite keeps its own esbuild 0.25.12 (out of that alert's range).
+- **Known residual:** `npm audit` still flags vite's bundled `esbuild` 0.25.12 under GHSA-gv7w-rqvm-qjhr (Deno-only `NPM_CONFIG_REGISTRY` vector). Not a Dependabot alert for this repo, dev/build-only and not exploitable here; left untouched to avoid forcing a vite 6 incompatibility. Revisit when bumping vite.
+
 ## [0.9.11] - 2026-05-25
 
 ### For users
@@ -16,8 +29,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Rate limiting (CodeQL alerts #343 to #346 closed).** New `writeRateLimit` middleware in `server/plugins/fail2ban/Fail2banPlugin.ts` (`expressRateLimit`, 60s window, max 10 requests). Applied to `POST /jails` (line 1540) and `POST /filters` (line 1589). Pattern mirrors the existing `auditRateLimit` (30/min) used on audit endpoints. Defense in depth: these routes were already behind `requireAuth`, so rate-limit blocks abuse from authenticated callers.
 - **Dependency-only lockfile bumps (Dependabot alert #22 closed).** `package-lock.json` regenerated via `npm audit fix --package-lock-only --ignore-scripts`. `package.json` direct dependencies untouched; both bumps are transitive (qs is pulled by express/body-parser, ws by other deps). No code change required.
-
-
 
 ### For developers
 
@@ -68,7 +79,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### For developers
 
-- `package.json` — direct `postcss` dependency moved from `^8.4.47` → `^8.5.10`. `package-lock.json` regenerated; all transitive consumers (autoprefixer, tailwindcss/postcss-*, vite) dedupe to 8.5.13.
+- `package.json` — direct `postcss` dependency moved from `^8.4.47` → `^8.5.10`. `package-lock.json` regenerated; all transitive consumers (autoprefixer, tailwindcss/postcss-\*, vite) dedupe to 8.5.13.
 
 ## [0.9.5] - 2026-04-21
 
@@ -141,7 +152,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **NPM plugin config — "NPM root path" auto-discover** — new field above basePath in the plugin config. Enter the NPM root (e.g. `/home/docker/nginx_proxy`) and click **Discover** — basePath (logs dir) is auto-filled and, if fail2ban is enabled, its `npmDataPath` is propagated too. A notification reminds you to save.
 - **Fail2ban Top Domaines tooltips — file list** — each Top Domain row now lists the `proxy-host-N_access.log` file scanned (and its companion `_error.log` if present), grouped under the NPM logs directory. Informative; the ban detection still runs on access logs only.
 - **Excluded IPs — new "Remove" action from the IP context menu** — when viewing with "Show excluded IPs" active, clicking an already-excluded IP now offers **Remove from excluded list** (no confirmation modal, instant toggle). Persisted to the plugin config in DB.
-- **Excluded IPs badge renamed and fixed** — used to show the count of *lines* hidden (duplicating the yellow `filtered` badge). Now shows the count of **unique IPs** actually hidden in the current log — e.g. `42 IP exclues`. The line count stays in the tooltip for context.
+- **Excluded IPs badge renamed and fixed** — used to show the count of _lines_ hidden (duplicating the yellow `filtered` badge). Now shows the count of **unique IPs** actually hidden in the current log — e.g. `42 IP exclues`. The line count stays in the tooltip for context.
 - **Stats bar — badge reordering** — `unreadable` moved right after `valid` (before `filtered`) for cleaner visual grouping of parsing quality vs. user-applied filtering.
 - **Search input moved to pagination bar** — centered between the page-size selector and the pagination buttons. Stats bar is now tighter; HTTP Code and HTTP Method filters render inline with the rest of the stats badges instead of on a second row.
 - **HTTP filters on a single line** — `Code HTTP | 200 301 404 …` and `Méthode HTTP | GET POST HEAD` now render inline in the stats row (was two stacked rows below).
@@ -182,7 +193,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Technical
 
-- **URL / routing** — `pathToPage()` now matches `/log-analytics` *before* `/log` (prefix collision bug — `/log-analytics`.startsWith(`/log`) was eating it and routing to the log-viewer page).
+- **URL / routing** — `pathToPage()` now matches `/log-analytics` _before_ `/log` (prefix collision bug — `/log-analytics`.startsWith(`/log`) was eating it and routing to the log-viewer page).
 - **New endpoint `GET /api/log-viewer/analytics/calendar`** — returns 365-day day-bucket data + 7×24 hour-day grid + last-24h slice + last-7d hour-day grid in a single pass. Forces `includeCompressed=true` to include rotated `.gz` files. Uses `{ success, result }` envelope (with `{ ok: false, error }` on failure, not bare 500).
 - **`server/services/logAnalyticsService.ts`** — `collectParsedEntries()` now uses `logReaderService.readLastLines()` + per-line `parseLogLine()` instead of `parseLogFile({fromLine:0})` (was reading from the wrong end of the file). Per-file tail cap scales with the requested period: 10k / 50k / 200k / 500k. `getCalendarAnalytics()` aggregates `fullHourDayGrid`, `live7dHourDayGrid`, `live24hHourOfDay`, `live24hDayOfWeek` in a single loop over entries (was 7 separate passes). `computeCalendarStats` split into `summarizeBuckets` + `emptyCalendarStats` + `dayOfWeekIdx` helpers (cognitive complexity 17 → ~8).
 - **`server/services/logSearchService.ts`** — plugins run in parallel via `Promise.all`. Fail2ban literal queries use `WHERE ip LIKE ? OR jail LIKE ? LIMIT 50000` (was a full 50k scan in JS). Per-plugin config cached once per search. Extracted `buildTestFn`, `searchFail2ban`, `resolveFilesForPlugin`, `searchOneFile`, `searchLogSourcePlugin`, `resolveTargetPlugins`. New `LogSearchMatch.domain` optional field populated via the plugin's own `parseLogLine()` for Apache vhost / NPM host.
@@ -544,12 +555,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Technical
 
 #### Dependencies
+
 - **Removed vitest** - tests migrated to Node.js built-in `node:test` runner (zero dependency, 12 tests pass).
 - **Removed `brace-expansion`** (unused direct dep), stale npm overrides (tough-cookie, esbuild, minimatch).
 - **Moved to devDependencies**: `concurrently`, `cross-env`, `@types/leaflet`, `@types/leaflet.markercluster`.
 - Deleted `vitest.config.ts` and test setup file.
 
 #### CodeQL fixes (30 alerts → 0)
+
 - **Regex injection** - added ReDoS validation (length cap, nested quantifier rejection) before all user-supplied `new RegExp()` calls in logSearchService, Fail2banPlugin, and log-viewer.
 - **Rate limiting** - added per-IP rate limiter (60 req/min) on all fail2ban plugin routes via `router.use()`, plus explicit rate limits on `GET /me` (30/min) and `GET /security-status` (10/min).
 - **ReDoS** - rewrote IPv6 regex in regexGeneratorService to avoid polynomial backtracking; added line length cap (4096) in Fail2banPlugin config parser.
@@ -557,6 +570,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **URL substring** - `IpModal.tsx` bot detection uses `endsWith('.msn.com')` instead of `includes('msn.com')`.
 
 #### Other
+
 - **`.gitignore`** - consolidated all AI/dev tool patterns (Copilot, Gemini, Aider, Bolt, Codeium, etc.), removed duplicates.
 - **GitHub repo** - added 15 SEO topics, disabled unused Projects tab.
 
@@ -943,8 +957,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Hash sync** - Log-viewer URL hash now uses clean format `#log/{pluginId}{filePath}` (no `encodeURIComponent`).
 - **`hashchange` listener** - New `useEffect` (runs when authenticated): listens for hash navigation clicks in-session and triggers `setSelectedPluginId` + `setDefaultLogFile` + `setCurrentPage('log-viewer')`.
 
-
-
 ---
 
 ## [0.8.19] - 2026-04-01
@@ -995,7 +1007,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Security page cleanup** - Removed two inactive sections: "Sécurité réseau" (disabled checkboxes, not implemented) and "Fonctionnalités actives" (static text only).
 - **Protection fields alignment** - The three editable fields in the Attack Protection tab are now aligned to the same right column.
 - **Log files table** - The "Largest log files" table is now identical in the Dashboard and the Statistics page: colored type badges, full path (no truncation), and filter toggles (show all / hide .gz / hide .log.1).
-
 
 ---
 
@@ -1490,6 +1501,7 @@ The bug existed from the start but only manifested when the data volume / number
 ## [0.7.7] - 2026-03-29
 
 ### Fixed
+
 - **bantime / findtime validation**: regex now accepts all fail2ban time suffixes - `w`/`week`/`weeks`, `mo`/`month`/`months`, `y`/`yr`/`year`/`years` - values like `6months` or `1y` no longer trigger a false validation error
 - **Config file viewer**: `jail.local` is now the default tab when opening the file editor (was `fail2ban.conf`)
 
@@ -1498,6 +1510,7 @@ The bug existed from the start but only manifested when the data volume / number
 ## [0.7.6] - 2026-03-29
 
 ### Fixed
+
 - **`parseJailIniFile` - multi-line values**: continuation lines (indented with whitespace) were silently dropped; the parser now detects them before trimming and appends them to the previous key's value - `ignoreip` with 20+ IPs spread across multiple lines is now fully read
 - **Syntax highlighter - continuation lines**: indented value lines in `fail2ban.conf` / `jail.local` were rendered as plain gray; they are now coloured green like regular values
 
@@ -1506,6 +1519,7 @@ The bug existed from the start but only manifested when the data volume / number
 ## [0.7.5] - 2026-03-29
 
 ### Added
+
 - **Telegram webhook - bot verification**: new "Vérifier" button calls `POST /api/notifications/telegram/verify` (Telegram `getMe`) and displays the bot username inline; token and Chat ID are now validated client-side before save
 - **Discord webhook - URL validation**: URL must match `https://discord.com/api/webhooks/…` format; shown as inline field error
 - **Generic webhook - URL validation**: must start with `http://` or `https://`
@@ -1517,6 +1531,7 @@ The bug existed from the start but only manifested when the data volume / number
 - **`POST /api/notifications/telegram/verify`**: new backend endpoint proxying Telegram `getMe` to validate a bot token server-side
 
 ### Fixed
+
 - **JailConfigModal - ignoreip**: `addIgnoreip()` now validates IP/CIDR format before adding to whitelist; invalid entries show an error message instead of silently adding bad values
 - **TabJails - banIp** (×2 components): ban form validates IP/CIDR format before submit; button disabled and inline error shown for invalid input
 - **Fail2banPathConfig - MySQL save**: host, user, and db fields are required; port validated as integer 1–65535 before calling the API; port field border turns red for out-of-range values
@@ -1530,11 +1545,13 @@ The bug existed from the start but only manifested when the data volume / number
 ## [0.7.4] - 2026-03-29
 
 ### Added
+
 - **NPM - MySQL / MariaDB backend support**: Fail2ban top-domains stats now work when NPM runs with a MySQL/MariaDB database; configure via a new toggle (SQLite file / MySQL) in Fail2ban > Config tab with host, port, user, password, and database fields
 - **NPM integration - auto-check badge**: on page load the NPM integration frame automatically runs a connection check if a config is already saved; shows a green badge (domain count + source) or red error without requiring a manual click
 - **`getNpmDomainMap()` helper**: internal async helper in `Fail2banPlugin` that abstracts SQLite vs MySQL access for the `/check-npm` and `/tops` routes; MySQL mode uses `mysql2/promise` with a 5-second connect timeout
 
 ### Changed
+
 - **NPM config path**: SQLite path (`npmDataPath`) and MySQL credentials stored together under `npmDbType` selector; both saved via `POST /api/plugins/fail2ban/config` in a single settings object
 
 ---
@@ -1542,6 +1559,7 @@ The bug existed from the start but only manifested when the data volume / number
 ## [0.7.3] - 2026-03-29
 
 ### Added
+
 - **Plugins - test button per card**: each plugin card in Administration now has a visible `⚡ Test` button that calls the connection test and fires a toast notification (green = OK, red = error message)
 - **Plugins - activation guard**: enabling a plugin now runs `testConnection()` first; if the test fails, activation is blocked and a red toast explains why - no more silent broken activations
 - **Plugins - activation notifications**: every toggle (enable/disable) fires a toast via `notificationStore` with the result
@@ -1554,10 +1572,12 @@ The bug existed from the start but only manifested when the data volume / number
 - **host-system plugin enabled by default**: on first start (no DB config), the host-system log plugin is auto-enabled since system logs are always present
 
 ### Changed
+
 - **Fail2ban config split**: SQLite DB path is now only in Administration > Plugins (plugin options), NPM data path is only in Fail2ban > Config tab - no more duplication
 - **`Fail2banPathConfig`**: each section (SQLite / NPM) renders only when the corresponding callback is provided - clean separation of concerns
 
 ### Fixed
+
 - **`Fail2banPlugin.testConnection()`**: was using `existsSync` (existence only) with OR logic - now tests socket with `R_OK|W_OK` permissions AND SQLite readability; both required; detailed warnings logged
 - **`NginxLogPlugin.testConnection()`**: empty catch block replaced with proper error logging (path + error code)
 - **`HostSystemLogPlugin.testConnection()`**: journald bypass (was returning `true` unconditionally when journald enabled) now actually checks journal directory accessibility
@@ -1568,6 +1588,7 @@ The bug existed from the start but only manifested when the data volume / number
 ## [0.7.2] - 2026-03-29
 
 ### Added
+
 - **Settings > Metrics - sub-tabs**: Prometheus, InfluxDB, and MQTT (Home Assistant) each have their own tab; MQTT is first
 - **Settings > Metrics - MQTT toggles**: all checkboxes replaced with modern slide toggles (teal theme); each tab has its own save button and unsaved-changes banner
 - **Settings > Notifications - sub-tabs**: split into "Notifications internes" and "Webhooks" tabs, each with a framed content area
@@ -1581,6 +1602,7 @@ The bug existed from the start but only manifested when the data volume / number
 - **Telegram SVG icon**: added to `public/icons/services/telegram.svg` and `src/icons/telegram.svg`; Discord and Telegram logos now appear in webhook type badges and add-buttons in the UI
 
 ### Changed
+
 - Webhook route (`server/routes/notifications.ts`) extended to persist `events`, `batchWindow`, `maxPerBatch` fields
 - Removed placeholder warning "Le déclenchement automatique sera actif dans une prochaine mise à jour" - webhook dispatch is now fully implemented
 
@@ -1589,6 +1611,7 @@ The bug existed from the start but only manifested when the data volume / number
 ## [0.7.1] - 2026-03-29
 
 ### Added
+
 - **Fail2ban > Backup - local snapshots**: config and DB snapshots stored in-app, auto-pruned (max 10 for config, max 5 for DB), with per-row download / restore / delete actions
 - **Fail2ban > Backup - per-row download**: IPTables and IPSet backup entries now have a download button to save files locally
 - **Fail2ban > Backup - DB export/import**: export only the 6 `f2b_*` tables as JSON; import with merge or replace mode
@@ -1596,6 +1619,7 @@ The bug existed from the start but only manifested when the data volume / number
 - **Fail2ban > Backup - color unification**: backup/save actions = green, restore/import actions = orange, delete actions = red; section header badges keep distinct identity colors
 
 ### Changed
+
 - `TabBackup` refactored into self-contained sub-components: `ConfigSnapshotPanel`, `ConfigRestorePanel`, `DbSnapshotPanel`, `DbImportPanel`, `IptBackupPanel`, `IpsetBackupPanel`
 - All backup section grids use `alignItems: stretch` with sticky action buttons at card bottom
 
@@ -1604,6 +1628,7 @@ The bug existed from the start but only manifested when the data volume / number
 ## [0.6.9] - 2026-03-28
 
 ### Fixed
+
 - fix: replace `sudo bash <(curl ...)` with `curl ... | sudo bash` everywhere - process substitution fails when `/dev/fd` is unavailable (TabConfig UI, TabAudit UI, README.md, README.fr.md, docker-compose.yml, docker-compose.local.yml)
 
 ---
@@ -1611,6 +1636,7 @@ The bug existed from the start but only manifested when the data volume / number
 ## [0.6.8] - 2026-03-28
 
 ### Docs
+
 - docs: fix VACUUM docker-compose example - short-form mount `- /var/lib/fail2ban:/host/var/lib/fail2ban` cannot override a `:ro` parent mount; correct syntax uses `type: bind` with `propagation: shared`
 - docs: update `docker-compose.yml`, `README.md`, `README.fr.md` with working VACUUM override and explanation
 
@@ -1619,6 +1645,7 @@ The bug existed from the start but only manifested when the data volume / number
 ## [0.6.7] - 2026-03-28
 
 ### Fixed
+
 - fix: `TypeError: ae.flatMap is not a function` on Fail2ban page in Docker - fallback SQLite path in `/status` route returned `jails` as a Record object instead of an array; changed to `Object.values(jailsMap)`
 
 ---
@@ -1626,13 +1653,16 @@ The bug existed from the start but only manifested when the data volume / number
 ## [0.6.6] - 2026-03-28
 
 ### Fixed
+
 - fix: Fail2ban SQLite VACUUM fails in Docker when host filesystem is mounted `:ro` - backend now detects EROFS/SQLITE_READONLY and returns `dockerReadOnly: true`; UI shows the exact docker-compose volume override to enable VACUUM
 
 ### Improved
+
 - style: unify input field appearance across all Fail2ban tabs (`#161b22` background + 3-layer inset shadow + `borderBottom: #555`)
 - style: convert Fail2banPathConfig.tsx from Tailwind classes to inline styles matching the PHP-palette design system
 
 ### Docs
+
 - docs: document `:ro` vs VACUUM trade-off in `docker-compose.yml`, `README.md`, and `README.fr.md` - add commented-out rw override line for enabling VACUUM
 
 ---
@@ -1640,6 +1670,7 @@ The bug existed from the start but only manifested when the data volume / number
 ## [0.6.5] - 2026-03-28
 
 ### Performance
+
 - perf: add TTL route cache to Fail2banPlugin for slow endpoints (/status 8s, /history 30s, /tops 30s, /bans-today 5s, /config/parsed 60s)
 - perf: /tops always computes 100 items (STORE_LIMIT) regardless of `limit` param - deduplicates concurrent TabStats (limit=100) and BanHistoryChart (limit=1) requests via shared cache key
 - perf: delay initial checkConfigWarnings() call by 4s so /config/parsed (~6s) does not compete with /status+/history during first-load wave
@@ -1879,7 +1910,7 @@ The bug existed from the start but only manifested when the data volume / number
 
 - **Automatic update check** - LogviewR can now check whether a new version is available and notify you directly in the UI. A dismissable banner appears at the top of the screen when an update is ready (Docker image built on GHCR), with the exact command to run. Check frequency and enable/disable are configurable in Administration → General.
 - **Configurable default page** - Choose which page opens after login: dashboard, log viewer, or the Fail2ban page with a specific tab pre-selected.
-- **Reminder - Fail2ban plugin** *(available since v0.4.0)* - If you run a server with Fail2ban, the dedicated plugin provides full monitoring: active jails, banned IPs, ban history, attack map, IP tracker, statistics, and ban management. Enable it in Administration → Plugins.
+- **Reminder - Fail2ban plugin** _(available since v0.4.0)_ - If you run a server with Fail2ban, the dedicated plugin provides full monitoring: active jails, banned IPs, ban history, attack map, IP tracker, statistics, and ban management. Enable it in Administration → Plugins.
 
 ---
 
@@ -1946,6 +1977,7 @@ The bug existed from the start but only manifested when the data volume / number
 New Fail2ban monitoring plugin with a complete multi-tab interface, visually aligned with the PHP reference project `fail2ban-web`.
 
 **Backend (`server/plugins/fail2ban/`)**
+
 - `Fail2banPlugin.ts` - Express plugin with 20+ REST routes covering status, history, jails, bans, filters, actions, tracker, map, IPTables, IPSet, NFTables, configuration, audit.
 - `Fail2banSqliteReader.ts` - Direct read of the fail2ban SQLite database (`fail2ban.sqlite3`) in read-only mode; active stats, daily history, top IPs/jails, hourly heatmap, unique IPs, expired bans.
 - `Fail2banClientExec.ts` - Execution of `fail2ban-client` commands via Unix socket (ban, unban, reload, status) and system utilities (iptables, ipset, nftables).
@@ -1953,6 +1985,7 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
 - `f2b_ip_geo` table in application SQLite DB: IP geolocation cache with 30-day TTL.
 
 **Frontend (`src/pages/Fail2banPage.tsx` + `src/pages/fail2ban/`)**
+
 - **TabJails** - Table/cards/events/log files view of active jails; inline expansion with detailed config (bantime, findtime, maxretry, filter, actions, banned IPs); Active/All toggle to show configured but stopped jails (semi-transparent); integrated search filter; ban/unban/reload actions per jail.
 - **TabStats** - Global statistics: top IPs, top jails, ban/attempt heatmap by hour, jail distribution, jail summary, period summary, attack types, latest events, IPSets.
 - **TabTracker** - Table of currently banned IPs enriched with: reverse DNS resolution (with 10-min cache), IPSet membership per IP, on-demand geolocation (ip-api.com), IP detail modal with ban history.
@@ -1973,11 +2006,13 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
 - **JailConfigModal** - Quick edit modal for bantime / findtime / maxretry parameters with slider and step buttons.
 
 **Design**
+
 - Exact PHP palette: `bg0=#0d1117`, `bg1=#161b22`, `bg2=#21262d`, `border=#30363d`, `green=#3fb950`, `blue=#58a6ff`, `red=#e86a65`, `orange=#e3b341`, `purple=#bc8cff`, `cyan=#39c5cf`.
 - PHP-style pills `.jdp-pill` (`border-radius: 6px`) in the expanded jail view.
 - PHP-style chips `.chip` (`border-radius: 20px`, transparent background) in the topbar.
 
 **Infrastructure**
+
 - Unix socket `/var/run/fail2ban/fail2ban.sock` mounted RW in docker-compose.
 - `docker-entrypoint.sh`: automatic `chmod 660` on socket at startup.
 - Fail2ban SVG icon (`src/icons/fail2ban.svg`).
@@ -1989,6 +2024,7 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
 ### Added
 
 #### Log Viewer – IP Filter (Apache, NPM, Nginx)
+
 - **IPs or ranges to hide**: Option in plugin configuration (Settings > Plugins and config modal) to define IPs or CIDRs to exclude from display (one per line or separated by comma/semicolon).
 - **Hidden by default**: Lines whose IP (columns ip, ipaddress, clientip, remoteip) matches the list are hidden; click the "Filtered: N" badge to show or hide these lines.
 - **Badge in stats bar**: "Filtered: {{count}}" badge (or "Filtered: {{count}}") next to total/valid/filtered/unreadable indicators; the number indicates how many lines are currently hidden by the IP filter (0 when everything is shown).
@@ -1996,6 +2032,7 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
 - **Utility**: `src/utils/ipFilterUtils.ts` (parseExcludedIps, isIpInExcludedList, isLogExcludedByIp, IPv4 and CIDR support).
 
 #### Translations (i18n)
+
 - Keys `excludedIpsLabel`, `excludedIpsPlaceholder`, `excludedIpsHelp` (pluginConfig); `ipFilterBadgeHidden`, `ipFilterBadgeAll`, `ipFilterTooltipShow`/`Hide`, `addIpToFilterTitle`/`Message`/`Confirm`/`Cancel` (logViewer).
 
 ---
@@ -2013,6 +2050,7 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
 ### Added
 
 #### Log Stats – New charts and visualizations
+
 - **Monthly heatmap**: `HeatmapChart` component (GitHub contributions style) to visualize request density by day over the month, displayed at day granularity.
 - **Peak Hours**: `PeakHoursChart` component – request distribution by hour of day (bars, hour/minute granularity only).
 - **Traffic by Day of Week**: `DayOfWeekChart` component – traffic distribution by day of the week.
@@ -2024,14 +2062,17 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
 - **Response Time Distribution**: `ResponseTimeChart` component (avg, p50, p95, p99, max, buckets) + `computeResponseTimeDistribution` on backend.
 
 #### Log Stats – Organization by tabs
+
 - **Charts / HTTP / Top & Rankings tabs**: Tab navigation (TrendingUp, Shield, Trophy icons) to group content by category.
 - **Floating navigation menu**: Updated dynamically based on active tab.
 
 #### Log Stats – Source indicator
+
 - **Source badge per section**: Each chart, table and TopPanel displays a colored badge indicating the data source (Apache = red, NPM = green, All = blue).
 - **`SourceBadge` and `SectionHeading` components**: Reusable components to standardize source badge display across all sections.
 
 #### Backend – Analytics enrichment
+
 - **`statusGroups` per bucket**: `computeTimeseries` aggregates HTTP codes (s2xx, s3xx, s4xx, s5xx) per time slot.
 - **`totalBytes` per bucket**: Cumulated bandwidth per bucket in timeseries.
 - **`computeTop404Urls`**: Aggregation of URLs returning a 404 code.
@@ -2042,22 +2083,26 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
 ### Changed
 
 #### Log Stats – Unified KPIs
+
 - **Single KPI block**: Merged two KPI sections into a single block with source badge, colored date range (blue/amber), and hide/show button integrated in the header.
 - **KPI tooltip**: The "Stats KPI" title shows an explanation of what KPIs are on hover (text from `kpiModalIntro`).
 - **Removed "Understanding the numbers" modal** and the expandable help section (state, localStorage, API).
 
 #### Log Stats – Section grouping
+
 - **HTTP Codes + Methods**: The 3 old HTTP sections consolidated into 2 panels (HTTP Codes with table + distribution, Methods + Codes by domain).
 - **Day of Week + Hour/Day Heatmap**: Grouped in the same frame (2-column grid).
 - **Colored dates**: The dates in the range (KPI bar) are sky blue (start) and amber (end).
 
 #### Log Stats – Improved HTTP Status Trends
+
 - **Modern colors**: 2xx emerald green, 3xx bright blue, 4xx amber, 5xx bright red with vertical gradients.
 - **Spline curves**: Monotone cubic interpolation instead of straight lines.
 - **Time and value axes**: X axis with formatted labels (6 ticks), Y axis with scale (K/M), horizontal and vertical grid.
 - **Enriched tooltip**: Time in blue, total, value per code + percentage, white dot and dashed line on hover.
 
 #### Translations (i18n)
+
 - Added all keys for new charts, tabs, days of the week, bot/human metrics, response times, navigation, and source.
 
 ---
@@ -2067,6 +2112,7 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
 ### Added
 
 #### Dashboard – Global search
+
 - **Active plugin filters**: Filter buttons only show plugins enabled in the application.
 - **Results by category**: Grouped display by plugin (Host System, Apache, NPM, Nginx).
 - **Declared host-system paths**: Uses configured files (systemBaseFiles, autoDetectedFiles, customFiles) in addition to scanning, aligned with the Log Viewer.
@@ -2077,16 +2123,19 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
 ### Changed
 
 #### Dashboard – Global search
+
 - **Occurrence badges**: Only the number is colored (green ≤3, orange ≤10, red >10), the rest of the badge remains neutral.
 - **Explicit plugin search**: When one or more plugins are selected, the search runs even if the plugin is disabled in config.
 
 #### Build
+
 - **Vite chunks**: Removed `vendor-icons` and `vendor-state` chunks to eliminate "Circular chunk" warnings (merged into `vendor`).
 - **Dependencies**: `npm audit fix` – fix minimatch and rollup vulnerabilities (0 vulnerabilities).
 
 ### Fixed
 
 #### Dashboard – Global search
+
 - **includeCompressed**: Missing variable in the search service options destructuring.
 
 ---
@@ -2096,11 +2145,13 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
 ### Changed
 
 #### Dashboard – Analysis / Error logs card
+
 - **Collapsed by default**: only the header line visible (title + error count); click to expand.
 - **Scan results**: folding removed, results always shown when the card is expanded.
 - **Unanalyzed files (too large)**: folding kept.
 
 #### Log Viewer – IPv6 in tables
+
 - **IPv6 truncation**: "start…end" display to fit in cells (e.g. `2001:0db8:85…0370:7334`).
 - **Tooltip**: Full IP on hover (columns ip, ipaddress, clientip, remoteip, upstream).
 - **Utility**: `src/utils/ipUtils.ts` (isIPv6, truncateIPv6ForDisplay).
@@ -2112,6 +2163,7 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
 ### Added
 
 #### Dashboard – Global search
+
 - **Search frame**: New "Search" block at the top of the dashboard to search across all active plugin logs.
 - **Plugin filters**: Buttons to limit the search to specific plugins (Host System, Apache, NPM, Nginx) or all.
 - **Options**: Case sensitive, regular expression (regex).
@@ -2122,12 +2174,14 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
 ### Changed
 
 #### Administration – Tab reorganization
+
 - **Regex tab**: moved into the Plugins tab as a separate category (section "Regex").
 - **Debug tab**: moved into the Info tab as a separate category (sections App Logs, Log Levels, Diagnostics).
 - **New tab order**: General, Plugins, Analysis, Notification, Theme, Security, Exporter, Database, Info.
 - **Redirect**: old URLs/links to `adminTab=regex` or `adminTab=debug` automatically redirect to Plugins or Info.
 
 #### Dashboard – Unanalyzed files (too large)
+
 - **Enriched display**: Plugin (Host System, Apache, NPM, Nginx), size, full path; grouping by distinct plugin category.
 - **Analyze button**: Success/error notification; "Analyzing…" indication during execution; explanatory tooltip; automatic expansion of results; file removed from the list once analyzed.
 
@@ -2149,32 +2203,39 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
 ### Added
 
 #### Analysis / Error logs – System log integration (host-system)
+
 - **Include host-system in scan**: host-system plugin files (syslog, auth.log, kern.log, daemon.log, mail.log, etc.) are scanned when the plugin is checked in Settings > Analysis. See [Doc_Dev/AUDIT_ERROR_SUMMARY_HOST_SYSTEM.md](Doc_Dev/AUDIT_ERROR_SUMMARY_HOST_SYSTEM.md).
 - **Error/warn search for system logs**: Detection extended to syslog/journald formats (whole words `error`, `err`, `warn`, `warning`) in addition to `[error]`/`[warn]` tags (Apache/Nginx/NPM).
 
 #### Analysis / Error logs – Access files and HTTP codes
+
 - **Access files included**: For Apache, Nginx and NPM, access files (in addition to error files) are scanned; 3xx, 4xx, 5xx HTTP code counts.
 - **4xx/5xx and error/warn badges**: Per plugin column (Apache/Nginx/NPM: 4xx, 5xx; NPM/Nginx/Host: error, warn). On clicking a file, details "Breakdown for this file" (4xx, 5xx, 3xx, error, warn).
 
 #### Analysis / Error logs – UX and rescan
+
 - **Results per plugin in columns**: Grid display (host-system, apache, npm, nginx) with collapsible "Scan results" section (collapsed by default).
 - **Plugin order**: System, Apache, NPM, Nginx (results and Settings > Analysis options).
 - **Explicit rescan**: `POST /api/log-viewer/error-summary/invalidate`; the card's Refresh button invalidates the cache and restarts a scan. Message after saving Analysis inviting to refresh the card.
 
 #### Settings > Analysis
+
 - **Explanatory text**: "Current search" (error + access files, [error]/[warn] and 3xx/4xx/5xx); description under "Security check". Two-column layout (Error summary | Security check).
 - **Plugins to include**: Plugin icons (host-system, apache, npm, nginx) next to toggles. Note on Apache/Nginx (plugin enabled + path containing error logs).
 
 #### Administration
+
 - **User management**: Frame moved from General tab to Security tab (displayed first, admin only).
 - **Security**: "Blocked IPs and accounts" and "CORS configuration" sections displayed in two columns (grid `lg:grid-cols-2`).
 
 #### Documentation
+
 - **Audits**: [Doc_Dev/AUDIT_ERROR_SUMMARY_HOST_SYSTEM.md](Doc_Dev/AUDIT_ERROR_SUMMARY_HOST_SYSTEM.md), [Doc_Dev/AUDIT_ADMIN_OPTIONS.md](Doc_Dev/AUDIT_ADMIN_OPTIONS.md). README: Analysis / Error logs section, host-system audit link; Documentation > Audits and design.
 
 ### Changed
 
 #### Analysis / Error logs
+
 - **Backend**: Per-file counts with detail `count4xx`, `count5xx`, `count3xx`, `countErrorTag`, `countWarnTag`; `countLevelFromRawLineBreakdown()` for tags and HTTP codes.
 
 ---
@@ -2184,15 +2245,18 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
 ### Fixed
 
 #### Log Viewer – Large files
+
 - **Stack overflow on large files**: with logs of 45 MB or more, the date range calculation (`logDateRange`) caused "Maximum call stack size exceeded" due to `Math.min(...timestamps)`. Replaced by a `for` loop to avoid stack overflow.
 
 ### Added
 
 #### Log Viewer – Default file on first use
+
 - **Automatic selection**: for NPM, Nginx and Apache, a default access log file is selected when the user opens the viewer for the first time (without a last file or custom setting).
 - **Priority by plugin**: NPM → `default-host_access.log` or first `proxy-host-*_access.log`; Nginx/Apache → `access.log`.
 
 #### File selector – "Hide empty" option
+
 - **"Hide empty" toggle**: replaces the "Hide empty files" checkbox with a modern toggle (Log Stats style).
 - **Default value**: enabled by default (hides .gz files and 0-byte files).
 - **Persistence**: user preference saved in `localStorage` (`logviewr_hide_empty_files`).
@@ -2200,6 +2264,7 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
 ### Changed
 
 #### Log Viewer – UX
+
 - **Shortened label**: "Sans vides" (FR) / "Hide empty" (EN) instead of "Masquer fichiers vides".
 
 ---
@@ -2209,12 +2274,14 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
 ### Added
 
 #### Log Stats – Stats KPI and explanatory modal
+
 - **"What is a KPI?" modal**: Info button next to the Stats KPI title opens an explanatory modal (definition, HTTP log context, use cases). Closed by clicking outside, Escape key or Close button.
 - **Translations**: `kpiModalTitle`, `kpiModalIntro`, `kpiModalLogs`, `kpiModalUse`, `kpiModalClose` (fr/en).
 
 ### Changed
 
 #### Log Stats – Display and UX
+
 - **Improved Stats KPI**: each indicator in a card with border, icons (Activity, Globe, AlertTriangle, FileText, HardDrive), 2/3/5-column grid based on screen, values in `text-lg`.
 - **Requests over time**: default display in **curve** mode instead of bars (TimelineChart).
 
@@ -2225,6 +2292,7 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
 ### Added
 
 #### Log Stats – Tooltips and panels
+
 - **Portal tooltips**: all tooltips (Top URLs, Top Referrers, Top IPs, Top HTTP codes, Top Browsers, Top User-Agents, Referrer URLs, HTTP Status Codes, Requested Files) are rendered via `createPortal` in `document.body` to avoid any masking by overflow or z-index.
 - **Always-visible tooltips**: z-index 99999, fixed position, opaque background (`rgb(17, 24, 39)`) to avoid transparency imposed by the theme (`themes.css` replaces `bg-gray-900` with `var(--bg-tertiary)`).
 - **View toggle button**: Maximize2/Minimize2 icon in each Top panel to display 5 results or the full list.
@@ -2233,6 +2301,7 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
 ### Changed
 
 #### Log Stats – Layout and display
+
 - **HTTP Status / Methods distribution**: thinner bars (`h-3`), count and percentage on a single line (`whitespace-nowrap`), bar alignment with fixed count column (`min-w-[5.5rem] text-right`), adapted label (4rem for codes, 7rem for methods).
 - **Top panels**: Top URLs and Top Referrers on the first row (2 columns); Top IPs, Top Status, Top Browsers on the second row; Top User-Agents on a dedicated row (same width as Top Referrers).
 - **Default TopPanel**: display of 5 results without scroll; click the icon to show all.
@@ -2246,6 +2315,7 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
 ### Added
 
 #### Log Stats (GoAccess style)
+
 - **Full-screen page**: Graphical log statistics (KPI, Stats KPI, timeline, Time Distribution, Unique Visitors, HTTP Status Codes, Referring Sites, Virtual Hosts, Referrer URLs, Requested Files, top panels), inspired by [GoAccess for Nginx Proxy Manager](https://github.com/xavier-hernandez/goaccess-for-nginxproxymanager).
 - **Footer button**: Access to Log Stats page next to Analytics.
 - **Analytics API**: Endpoint `GET /api/log-viewer/analytics` with `pluginId`, `from`, `to`, `bucket`, `topLimit`, `fileScope`, `includeCompressed`.
@@ -2269,32 +2339,40 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
 ### Fixed
 
 #### Header – Log selector icon flickering
+
 - **Hover flicker**: buttons (Files, History, Regex, Play, Stop, Refresh, Parsed/Raw mode) were wrapped in a `Tooltip` component (inline-flex span), causing hover enter/exit events and flickering. Replaced with native `title` attribute on buttons. Removed `fadeInDown` animation from plugin dropdown and `transition-transform` from chevron.
 
 #### Changelog in Docker version
+
 - **Changelog unavailable in Admin > Info**: `CHANGELOG.md` was not copied into the final Docker image. Added a `COPY` in the Dockerfile to include `CHANGELOG.md` at the container root (`/app/CHANGELOG.md`), so the `GET /api/info/changelog` route returns content in Docker.
 
 #### Raw logs view – Frame height
+
 - **Frame too small**: the scrollable raw logs area had a fixed height `max-h-[600px]`. Replaced with `min-h-[400px] h-[calc(100vh-15rem)]` to adapt height to viewport while keeping the "Lines per page" choice and pagination.
 
 ### Changed
 
 #### Admin > Info – "About" text
+
 - **Tagline and description (EN/FR)**: wording updated to clarify that LogviewR **reads local log files** (machine or container) and that **no outbound connection** to servers is required, which is preferable for security. The `tagline` and `aboutDescription` keys were modified in `en.json` and `fr.json`.
 
 #### Apache – Custom regexes and option display
+
 - **Custom regex used for parsing**: when a custom regex is saved for an Apache file (access), the backend was using `CustomLogParser` without column mapping. Now, for the Apache plugin and the access type, the custom regex is passed to `ApacheParser.parseAccessLineWithCustomRegex()`: columns (ip, vhost, method, url, status, size, referer, userAgent) are correctly populated.
 - **Default access regex**: the default regex for Apache access (editor and default-regex API) is now `APACHE_ACCESS_VHOST_COMBINED_REGEX` (vhost_combined format with `%t` first).
-- **Regex options: 3 generic entries + Custom**: in "Files detected with regex" (Settings > Plugins > Apache), display of only **access.log**, **error.log** and **access_*.log** (generic editing). Files whose regex was edited via the viewer header appear as **Custom**; a Custom entry replaces the corresponding generic entry (no duplicate). **Reset** button shown for any Custom entry or when the regex differs from the default.
-- **access.\*.log recognition**: files of type `access.home32.myoueb.fr.log` or `access.ip.myoueb.fr.log` are now assigned to the **access_*.log** slot for applying the vhost_combined regex (fix for VIRTUAL HOST / STATUS / METHOD / URL display).
+- **Regex options: 3 generic entries + Custom**: in "Files detected with regex" (Settings > Plugins > Apache), display of only **access.log**, **error.log** and **access\_\*.log** (generic editing). Files whose regex was edited via the viewer header appear as **Custom**; a Custom entry replaces the corresponding generic entry (no duplicate). **Reset** button shown for any Custom entry or when the regex differs from the default.
+- **access.\*.log recognition**: files of type `access.home32.myoueb.fr.log` or `access.ip.myoueb.fr.log` are now assigned to the **access\_\*.log** slot for applying the vhost_combined regex (fix for VIRTUAL HOST / STATUS / METHOD / URL display).
 
 #### NPM – Regex option grouping
-- **Regex options: 10 generic entries + Custom**: in "Files detected with regex" for NPM, display of **proxy-host-*_access.log**, **proxy-host-*_error.log**, **dead-host-*_access/error**, **default-host_access/error**, **fallback_access/error**, **letsencrypt-requests_access/error**. A regex saved for an entry applies to all matching files. Same Custom logic as Apache (replace generic, no duplicate). Regex resolution by key via `getNpmRegexKeyForPath()`.
+
+- **Regex options: 10 generic entries + Custom**: in "Files detected with regex" for NPM, display of **proxy-host-\*\_access.log**, **proxy-host-\*\_error.log**, **dead-host-\*\_access/error**, **default-host_access/error**, **fallback_access/error**, **letsencrypt-requests_access/error**. A regex saved for an entry applies to all matching files. Same Custom logic as Apache (replace generic, no duplicate). Regex resolution by key via `getNpmRegexKeyForPath()`.
 
 #### Nginx – Regex option grouping
+
 - **Regex options: 2 generic entries + Custom**: for Nginx, display of **access.log** and **error.log** only; one regex per type applies to all access/error files. Resolution via `getNginxRegexKeyForPath()`.
 
 #### i18n
+
 - **Regex option hints**: added `apacheRegexHint`, `npmRegexHint` and `nginxRegexHint` in locales (fr/en), displayed above the list in the "Files detected with regex" section for Apache, NPM and Nginx.
 
 ---
@@ -2304,6 +2382,7 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
 ### Changed
 
 #### Script update-version.sh
+
 - **Integration of `commit-message.txt` in `--tag-push`**: the `--tag-push` mode now uses `git commit -F commit-message.txt` instead of the generic message `"release: v$NEW"`. If the file is absent or does not mention the version, automatic fallback with warning.
 - **Addition of `server/routes/system.ts`** (step 5): the `appVersion` fallback in `system.ts` is now automatically updated by the script (it was previously forgotten).
 - **Intelligent detection of commit-message.txt**: after the bump, the script checks if `commit-message.txt` exists and mentions the correct version (green check / yellow warning / template generation).
@@ -2317,16 +2396,19 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
 ### Fixed
 
 #### NPM Plugin – error.log file parsing
+
 - **`proxy-host-*_error.log` files not shown in table**: the `determineLogType()` method in `NpmLogPlugin.ts` checked `proxy-host` before `error` in the filename. A `proxy-host-12_error.log` file was classified as `access` instead of `error`, the access parser failed on Nginx error lines, and all lines remained unparsed. The check order is now reversed: `error` is tested first.
 - **NPM error parser without PID/TID support**: `NpmParser.parseErrorLine()` had only one basic regex that didn't handle the `497#497:` (PID/TID) format ubiquitous in Nginx error logs. Added the PID/TID format as in `NginxParser`, with extraction of `pid` and `tid`.
 - **Missing `pid`/`tid` columns for NPM error logs**: `getColumns('error')` returned `['timestamp', 'level', 'message']`. Aligned with Nginx with `['timestamp', 'level', 'pid', 'tid', 'message']`.
 
 #### LogTable – Timestamp badge overflow
+
 - **Timestamp badge overflowing the column**: timestamp width was 146px (access) and 158px (error), insufficient for the mono fr-FR badge "08/02/2026 13:30:06" (~149px badge + 32px cell padding = 181px minimum). Width unified to 185px for all plugins and logTypes.
 
 ### Changed
 
 #### LogTable – Column unification
+
 - **Centralized column widths**: replacement of ~110 lines of duplicated `if/else` (error vs non-error branch) in `colgroup` by a single `COLUMN_WIDTHS` object (single source of truth for 30+ columns). Any common column now has the same width regardless of plugin or logType.
 - **Unified cell padding**: removed special `px-5` padding for error logs. All cells and headers use `px-4 py-3` uniformly.
 - **Completed `getColumnType`**: added `port` in numeric columns, `action` in badge columns.
@@ -2340,17 +2422,20 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
 ### Added
 
 #### Internationalization (i18n)
+
 - **Complete administration translation**: namespaces and keys for all tabs (Exporter, Database, Analysis, Notifications, Debug, Info). All texts use `t()` with `fr.json` / `en.json`.
 - **Analytics page**: `analytics` namespace (titles, plugin sections, largest files, database, user info, roles). `AnalyticsPage` component fully translated.
 - **Log View (LogTable)**: `logViewer` namespace for pagination (lines per page, page X of Y), stats (total/valid/filtered/unreadable lines), cell tooltips (HTTP codes, size, GZIP, upstream, response time, level, HTTP method). Applies to Apache, Nginx, NPM and System.
 - **Footer**: `footer` namespace for Analytics and Administration button tooltips, and detailed tooltips for stats badges (readable files, total size, .gz size).
 
 #### Footer – UX
+
 - **Button tooltips**: hover tooltips for Analytics button ("Statistics and detailed info") and Administration button ("Settings and administration"). Detailed tooltips for stats badges (files, size, .gz).
 - **Icon-only buttons**: Analytics and Administration buttons displayed as icon only (no text) for a more compact footer.
 - **Click effect**: visual feedback on click for navigation buttons (Analytics, Administration, plugins) via `active:brightness-90`, without shifting other buttons.
 
 #### Tooltip component
+
 - **Reliable display**: tooltip rendered in a portal (`createPortal` to `document.body`) to avoid any masking by the footer (overflow, z-index). Z-index raised to 10000.
 - **Position**: position calculated in `useLayoutEffect` before display to avoid a flash at (0,0). Constraints to stay within viewport.
 - **`wrap` option**: long tooltips (stats badges) with line wrapping and `max-w-sm`.
@@ -2358,9 +2443,11 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
 ### Changed
 
 #### License
+
 - **Project license**: display in the Info tab changed from "Private" to "Public, MIT" (fr.json / en.json, key `info.licenseValue`).
 
 #### Versions
+
 - **Server version fallback**: default value in `server/index.ts` and `server/routes/system.ts` aligned on `0.2.0` when `package.json` is not readable.
 
 ---
@@ -2370,15 +2457,18 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
 ### Fixed
 
 #### Dashboard / Footer – Plugin stats in Docker
+
 - **Stats at 0 in Docker**: the `GET /plugins/:pluginId/stats` routes and the "all plugins" aggregation were using `getDefaultBasePath()` instead of the saved path in database. They now use `getEffectiveBasePath()`: statistics (Total, Readable, Size) in the dashboard and footer reflect the configured path (e.g. `/home/docker/nginx_proxy/data/logs` for NPM).
 
 #### Theme – Live animation settings
+
 - **Sliders without effect**: by passing a second instance of the settings (`animationParametersForBackground`) to the background, sliders (speed, colors, etc.) were only updating the context, not the displayed animation. When a single animation is selected, the background now receives the same parameters as the Settings panel (`backgroundParams` = context parameters), so settings apply in real time.
 - **Speed and animation out of sync (same tab)**: `StorageEvent` does not fire in the tab that modifies `localStorage`. Custom events added (`logviewr_animation_speed_sync`, `logviewr_full_animation_id_sync`) so that all instances of the `useBackgroundAnimation` hook (App + Settings) receive speed and animation selection changes in real time.
 
 ### Added
 
 #### Theme – Animations
+
 - **"Reset" button**: next to the "Animation settings" title, a button resets all current animation parameters to their default (ideal) values.
 - **Stars animation**: **Star color (palette)** parameter (`starColor`, color type, default `#6eb5ff`); if set, gradient and background use this color (with `hexToDarkHsl` helper for dark tones).
 - **Sidelined animation**: **Line color (palette)** parameter (`lineColor`, color type, default `#a78bfa`); if set, strokes and glow use this color.
@@ -2386,6 +2476,7 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
 ### Changed
 
 #### Theme – Particle waves
+
 - **Max speed and responsiveness**: Speed parameter extended (max 8 → 15, default 0.5 → 0.8); time divisor 5000 ms → 1500 ms; wave phase amplified (`phaseSpeed = waveSpeed * 2.5`) for a visible effect at max speed. The Speed slider (and global multiplier) has a clear impact on the animation.
 
 ---
@@ -2395,14 +2486,17 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
 ### Fixed
 
 #### Docker – NPM plugin and custom path
+
 - **Empty file list in Docker**: when the Log Viewer page calls the API without sending the `basePath` parameter (`files-direct` route), the backend was always using the plugin's default path (`/var/log/npm`) instead of the saved path in database (e.g. `/home/docker/nginx_proxy/data/logs`). A `getEffectiveBasePath()` function has been added: priority 1) request value, 2) saved path in database (plugin config), 3) plugin default. The `files`, `files-direct`, `scan` and `detected-files` routes now use this effective path. The path configured in Settings → NPM plugin is thus respected in Docker without having to declare an additional volume.
 
 ### Changed
 
 #### Theme – Background animation
+
 - **"Speed" slider (All cycle)**: display of value with multiplier unit (×), range 0.3× to 3.0×; explanatory label and tooltip (slow/fast); use of `speedToMultiplier` from `useBackgroundAnimation`.
 
 #### Docker
+
 - **docker-compose.yml**: comment added clarifying that the custom NPM path (e.g. `/home/docker/nginx_proxy/data/logs`) does not need to be declared as a volume: the `/: /host:ro` mount already exposes the entire host, the app resolves the path automatically.
 
 ---
@@ -2412,12 +2506,14 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
 ### Fixed
 
 #### Docker – Plugin paths
+
 - **Absolute host paths in options**: in Docker, any absolute path entered in a plugin's options (e.g. `/home/docker/nginx_proxy/data/logs`) is now prefixed by `HOST_ROOT_PATH` (`/host` by default). The container thus accesses the correct directory (e.g. `/host/home/docker/nginx_proxy/data/logs`), notably when `/var/log/npm` on the host is a symlink to another directory.
 - **NPM plugin**: use of `resolveDockerPathSync` (testing both variants `/host/logs/npm` and `/host/var/log/npm`) and diagnostic logs on `testConnection` or `scanLogFiles` failure (tested path + `docker exec` command to verify).
 
 ### Changed
 
 #### Apache and NPM plugins
+
 - **Apache / NPM alignment**: Apache now uses `resolveDockerPathSync` and the same diagnostic messages as NPM on connection or scan failure. Both plugins share the same path resolution logic and regex for files (rotation `.log.1`, compression `.gz`/`.bz2`/`.xz`).
 - **BasePlugin**: `resolveDockerPathSync` extended to handle any absolute host path (not just `/var/log`) by prefixing it with `/host` when the app runs in Docker.
 
@@ -2428,16 +2524,19 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
 ### Added
 
 #### Docker
+
 - **HOST_IP indication at startup**: in Docker, if `HOST_IP` is not defined, a message in the logs reminds to define `HOST_IP` in the `.env` (e.g. `HOST_IP=192.168.32.150`) to display the host machine's IP in the banner instead of the Docker gateway
 
 ### Fixed
 
 #### NPM Plugin (Docker)
+
 - **NPM files visible in Docker**: the NPM plugin now applies `convertToDockerPath()` on the `basePath` (like Apache and Nginx), so that `/var/log/npm` is converted to `/host/logs/npm` or `/host/var/log/npm` and NPM log files display correctly
 
 ### Changed
 
 #### Docker
+
 - **docker-compose.yml**: reinforced comments for `HOST_IP` (recommendation and example 192.168.32.150)
 
 ---
@@ -2447,6 +2546,7 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
 ### Added
 
 #### Log Viewer – Live mode and Auto-refresh
+
 - **Play button in header**: once a file is selected, display a Play button opening a menu
   - **Live (real-time)**: existing WebSocket follow (tail -f)
   - **Auto-refresh**: periodic HTTP reload with chosen interval (2s, 5s, 10s, 15s, 30s)
@@ -2458,6 +2558,7 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
 ### Changed
 
 #### Dependency security
+
 - **npm overrides**: `tar` >= 7.5.7 and `esbuild` >= 0.25.0 to fix vulnerabilities (Dependabot) without upgrading to bcrypt 6 or vitest 4
 
 ---
@@ -2467,12 +2568,14 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
 ### Added
 
 #### Footer
+
 - **`.gz` size badge**: New badge displaying the total size of compressed log files (.gz)
   - Displayed only if at least one plugin has .gz files (and "Read .gz" option enabled)
   - Green style (emerald), Archive icon, explanatory tooltip
   - Calculation via double stats call (quick=true for non-.gz, without quick for total) then difference
 
 #### Scripts
+
 - **update-version.sh**: Version update script adapted for the LogviewR project
   - Updates `package.json`, `src/constants/version.ts` and `README.md` (badge, release link, text)
   - Reads current version from `package.json`; suggests patch version if no argument
@@ -2482,12 +2585,14 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
 ### Changed
 
 #### Header / Clock
+
 - **Clock LED indicator**: Color and animation aligned with theme
   - Fixed yellow color replaced by `var(--accent-primary)` (follows theme)
   - New `clockLedGlow` animation (2s breathing): opacity and halo (box-shadow) in loop
   - Animation defined in `src/index.css`, applied on the Clock component dot
 
 #### Footer
+
 - **Stats badge labels**: "size" badge tooltip clarified: "Total size of uncompressed log files"
   - Stats state extended with `totalSizeGz` for the new .gz badge
 
@@ -2498,6 +2603,7 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
 ### Fixed
 
 #### Plugin Options Panel
+
 - **Auto-refresh issue**: Fixed automatic refresh that was overwriting user input when editing `basePath` field
   - Added debounce (500ms) for `basePath` field auto-save
   - Added debounce (1s) for detected files reload after `basePath` changes
@@ -2505,6 +2611,7 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
   - User modifications are no longer overwritten during editing
 
 #### Docker Path Conversion
+
 - **Apache and Nginx plugins**: Fixed Docker path conversion for log files
   - Added `convertToDockerPath()` method in `BasePlugin` for automatic path conversion
   - Converts `/var/log/apache2` to `/host/logs/apache2` (or `/host/var/log/apache2` as fallback)
@@ -2513,12 +2620,14 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
   - Works correctly even when `/host/logs` symlink doesn't exist
 
 #### Host System Plugin
+
 - **Docker path fallback**: Improved fallback mechanism for log base path
   - Uses `/host/var/log` directly when `/host/logs` symlink doesn't exist
   - Prevents "Connection failed" errors when symlink creation fails
   - Better compatibility with read-only filesystems
 
 #### HTML Validation
+
 - **Nested buttons**: Fixed React hydration error caused by nested `<button>` elements
   - Replaced parent buttons with `<div>` elements using `role="button"` and `tabIndex={0}`
   - Added keyboard navigation support (Enter and Space keys)
@@ -2526,6 +2635,7 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
   - Maintains full functionality and accessibility
 
 #### TypeScript Errors
+
 - **Type conversions**: Fixed TypeScript errors for `HostSystemPluginConfig` type conversions
   - Added `as unknown as` intermediate conversion for safe type casting
   - Fixed type mapping for 'user' and 'cron' log types in auto-detected files
@@ -2534,6 +2644,7 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
 ### Added
 
 #### Log File Permissions
+
 - **Docker permissions**: Added automatic configuration for reading system log files
   - Container automatically adds `node` user to `adm` group (GID 4)
   - Allows reading files owned by `root:adm` with permissions `640`
@@ -2541,6 +2652,7 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
   - Supports reading auth.log, cron.log, daemon.log, syslog, and other system logs
 
 #### Documentation
+
 - **README updates**: Added comprehensive documentation for log file permissions
   - Section explaining Docker permissions configuration
   - Instructions for handling files with restrictive permissions (600)
@@ -2550,11 +2662,13 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
 ### Changed
 
 #### Docker Configuration
+
 - **docker-compose.yml**: Added `group_add` configuration for adm group
   - Automatically adds container to adm group for log file access
   - Configurable via `ADM_GID` environment variable (default: 4)
 
 #### docker-entrypoint.sh
+
 - **Group management**: Enhanced entrypoint script to add node user to adm group
   - Creates adm group with standard GID 4 if it doesn't exist
   - Adds node user to adm group for log file access
@@ -2571,6 +2685,7 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
 ### Changed
 
 #### UI/UX Improvements
+
 - **Header file selector**: Removed file count badge from "Fichiers de logs" button - count now only displayed on plugin icon badge
   - Cleaner header interface
   - File count remains visible on plugin icon for quick reference
@@ -2599,6 +2714,7 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
 ### Added
 
 #### Log Viewer Improvements
+
 - **Automatic log loading**: Logs are now automatically loaded when a file is selected, eliminating the need to click "Refresh"
   - Automatic loading triggered when `selectedFilePath` or `selectedLogType` changes
   - Seamless user experience with immediate log display
@@ -2650,6 +2766,7 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
 ### Added
 
 #### User Management
+
 - **Automatic default admin user creation**: On first application startup, a default admin user is automatically created
   - Default username: `admin`
   - Default password: `admin123`
@@ -2677,6 +2794,7 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
   - Role management
 
 #### Log Source Plugin System
+
 - **Plugin architecture**: New plugin system for log sources
   - `LogSourcePlugin` interface for implementing log source plugins
   - Support for multiple log source types (Apache, Nginx, NPM, Host System)
@@ -2737,6 +2855,7 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
   - Database tables with proper indexes
 
 #### Frontend Log Viewer
+
 - **LogViewerPage**: Complete log viewer page component
   - Plugin selection
   - File selection
