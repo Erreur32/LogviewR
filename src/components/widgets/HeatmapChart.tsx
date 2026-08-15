@@ -54,7 +54,7 @@ export const HeatmapChart: React.FC<HeatmapChartProps> = ({
             dateMap.set(key, (dateMap.get(key) ?? 0) + d.count);
         }
 
-        const dates = Array.from(dateMap.keys()).sort();
+        const dates = Array.from(dateMap.keys()).sort((a, b) => a.localeCompare(b));
         const firstDate = new Date(dates[0] + 'T00:00:00');
         const lastDate  = new Date(dates[dates.length - 1] + 'T00:00:00');
 

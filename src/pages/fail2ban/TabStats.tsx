@@ -594,7 +594,7 @@ const HistChart: React.FC<{
     const allNames = hist?.ipset_names ?? [];
     const names = nonEmptyNames ? allNames.filter((nm) => nonEmptyNames.has(nm)) : allNames;
     const days_map = hist?.ipset_days ?? {};
-    const rawDates = Object.keys(days_map).sort();
+    const rawDates = Object.keys(days_map).sort((a, b) => a.localeCompare(b));
     const [hiddenLines, setHiddenLines] = useState<Set<string>>(new Set());
     const toggleLine = (nm: string) =>
         setHiddenLines((prev) => {

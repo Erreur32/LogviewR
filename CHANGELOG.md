@@ -5,6 +5,13 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.17] - 2026-08-15
+
+### For developers
+
+- **Fixed SonarCloud `new_reliability_rating` quality gate failure on v0.9.16** (`Reliability Rating on New Code` dropped to B). Two `.sort()` calls on date-key arrays (`TabStats.tsx`, `HeatmapChart.tsx`) lacked an explicit compare function; added `.localeCompare()` per SonarCloud rule `S2871`.
+- **Added `.prettierignore`** (`*`) so the global Prettier PostToolUse hook no longer reformats this project's files at all — LogviewR's hand-formatted style (manual alignment, non-standard spacing) can't be reliably reproduced by an automated formatter, and full-file reformats were inflating diffs and pushing pre-existing, unrelated issues into SonarCloud's "new code" window on every push.
+
 ## [0.9.16] - 2026-08-15
 
 ### For users
