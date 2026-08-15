@@ -5,6 +5,16 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.18] - 2026-08-15
+
+### For users
+
+- Fixed: fail2ban.log lifecycle lines (e.g. "Added logfile: ...", emitted by fail2ban's own filter/server loggers, not the actions logger) showed a blank timestamp and forced "info" level in the host-system log viewer. These lines legitimately have no jail/action/IP, but their real timestamp and level are now parsed and displayed correctly instead of falling back to raw text.
+
+### For developers
+
+- `Fail2banHostLogParser.parseFail2banLine()`: added a fallback regex (`FALLBACK_LINE_REGEX`) for lines matching fail2ban's log header but missing the `[jail]` prefix (only `fail2ban.actions` lines carry one). Extracts timestamp/level, leaves jail/action/ipAddress undefined.
+
 ## [0.9.17] - 2026-08-15
 
 ### For developers

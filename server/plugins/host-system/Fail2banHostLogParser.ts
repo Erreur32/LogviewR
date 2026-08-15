@@ -21,6 +21,11 @@ const MAX_LINE_LENGTH = 10_000;
 
 const LINE_REGEX = /^(\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}),(\d{3})\s+(?:\S+)\s+\[(?:\d+)\]:\s+(\S+)\s+\[([^\]]+)\]\s*(.*)$/;
 
+// Fallback for fail2ban's own lifecycle lines (fail2ban.filter/server/jail loggers),
+// which share the same header but have no `[jail]` prefix in the message
+// (e.g. "INFO Added logfile: '...'"). Only fail2ban.actions lines carry a jail.
+const FALLBACK_LINE_REGEX = /^(\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}),(\d{3})\s+(?:\S+)\s+\[(?:\d+)\]:\s+(\S+)\s+(.*)$/;
+
 const KNOWN_ACTIONS = ['Restore Ban', 'Ban', 'Unban', 'Found', 'Ignore'];
 
 const IPV4_REGEX = /\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b/;
@@ -34,7 +39,15 @@ export class Fail2banHostLogParser {
 
         const match = LINE_REGEX.exec(line);
         if (!match) {
-            return { message: line.trim(), level: 'info' };
+            const fallback = FALLBACK_LINE_REGEX.exec(line);
+            if (!fallback) return { message: line.trim(), level: 'info' };
+
+            const [, date, ms, level, rest] = fallback;
+            return {
+                timestamp: parseTimestamp(`${date.replace(' ', 'T')}.${ms}`),
+                level: level.toLowerCase(),
+                message: rest.trim(),
+            };
         }
 
         const [, date, ms, level, jail, rest] = match;
