@@ -5,11 +5,17 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.20] - 2026-08-15
+
+### For developers
+
+- SonarCloud still flagged `Fail2banHostLogParser.ts`'s regexes as super-linear (S5852) after the v0.9.19 bounding fix — bounding quantifier widths didn't change the structural shape the analyzer flags. Rewrote `parseFail2banLine()` to only regex-match the fixed-digit timestamp header (no backtracking ambiguity possible); logger name, pid, level, message, and the optional `[jail]` prefix are now located with plain `indexOf`/`slice`. Output verified unchanged against real log lines.
+
 ## [0.9.19] - 2026-08-15
 
 ### For developers
 
-- Fixed a ReDoS-prone regex flagged by static analysis on `Fail2banHostLogParser.ts`: `LINE_REGEX` and `FALLBACK_LINE_REGEX` chained unbounded `\S+`/`\d+` quantifiers separated by `\s+`, which backtracks polynomially on non-matching input. Bounded each field (logger name, PID, level, jail) to a realistic max width, keeping matching linear (SonarCloud S5852).
+- Fixed a ReDoS-prone regex flagged by static analysis on `Fail2banHostLogParser.ts`: `LINE_REGEX` and `FALLBACK_LINE_REGEX` chained unbounded `\S+`/`\d+` quantifiers separated by `\s+`, which backtracks polynomially on non-matching input (SonarCloud S5852). Bounded each field to a realistic max width — superseded in v0.9.20, see below.
 
 ## [0.9.18] - 2026-08-15
 

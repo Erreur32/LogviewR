@@ -19,15 +19,12 @@ import { parseTimestamp } from './TimestampParser.js';
  *  under this size; anything larger is returned as-is. */
 const MAX_LINE_LENGTH = 10_000;
 
-// Field widths are bounded (logger name, PID, level are never more than a few dozen
-// chars in real fail2ban output) to keep matching linear instead of letting adjacent
-// unbounded \S+/\s+ quantifiers backtrack polynomially on non-matching input (S5852).
-const LINE_REGEX = /^(\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}),(\d{3})\s+\S{1,64}\s+\[\d{1,10}\]:\s+(\S{1,16})\s+\[([^\]]{1,256})\]\s*(.*)$/;
-
-// Fallback for fail2ban's own lifecycle lines (fail2ban.filter/server/jail loggers),
-// which share the same header but have no `[jail]` prefix in the message
-// (e.g. "INFO Added logfile: '...'"). Only fail2ban.actions lines carry a jail.
-const FALLBACK_LINE_REGEX = /^(\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}),(\d{3})\s+\S{1,64}\s+\[\d{1,10}\]:\s+(\S{1,16})\s+(.*)$/;
+// Only the timestamp header is matched by regex — it's a fixed sequence of digit-only
+// groups, so there's no ambiguity between adjacent quantifiers and matching stays linear.
+// Everything after it (logger name, [pid]:, level, message) is located with plain
+// indexOf/slice instead of a monolithic regex, which is what let adjacent unbounded
+// \S+/\s+ quantifiers backtrack polynomially on non-matching input (S5852).
+const HEADER_REGEX = /^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}),(\d{3}) /;
 
 const KNOWN_ACTIONS = ['Restore Ban', 'Ban', 'Unban', 'Found', 'Ignore'];
 
@@ -40,29 +37,45 @@ export class Fail2banHostLogParser {
         // ReDoS guard (S5852): cap input before running the parsing regex below.
         if (line.length > MAX_LINE_LENGTH) return { message: line.slice(0, MAX_LINE_LENGTH), level: 'info' };
 
-        const match = LINE_REGEX.exec(line);
-        if (!match) {
-            const fallback = FALLBACK_LINE_REGEX.exec(line);
-            if (!fallback) return { message: line.trim(), level: 'info' };
+        const header = HEADER_REGEX.exec(line);
+        if (!header) return { message: line.trim(), level: 'info' };
 
-            const [, date, ms, level, rest] = fallback;
-            return {
-                timestamp: parseTimestamp(`${date.replace(' ', 'T')}.${ms}`),
-                level: level.toLowerCase(),
-                message: rest.trim(),
-            };
+        const [full, date, time, ms] = header;
+        const afterHeader = line.slice(full.length);
+
+        // afterHeader looks like: "<logger name>   [<pid>]: <LEVEL>  <message...>"
+        const pidOpen = afterHeader.indexOf('[');
+        const pidClose = pidOpen === -1 ? -1 : afterHeader.indexOf(']', pidOpen);
+        if (pidOpen === -1 || pidClose === -1 || afterHeader[pidClose + 1] !== ':') {
+            return { message: line.trim(), level: 'info' };
         }
 
-        const [, date, ms, level, jail, rest] = match;
-        const message = rest.trim();
+        const afterPid = afterHeader.slice(pidClose + 2).trimStart();
+        const levelEnd = afterPid.indexOf(' ');
+        const level = (levelEnd === -1 ? afterPid : afterPid.slice(0, levelEnd)).toLowerCase();
+        const message = (levelEnd === -1 ? '' : afterPid.slice(levelEnd + 1).trimStart());
+        const timestamp = parseTimestamp(`${date}T${time}.${ms}`);
+
+        // Only fail2ban.actions lines carry a leading "[jail] " prefix in the message;
+        // lifecycle lines from other loggers (filter/server/jail) don't.
+        if (!message.startsWith('[')) {
+            return { timestamp, level, message };
+        }
+        const jailEnd = message.indexOf(']');
+        if (jailEnd === -1) {
+            return { timestamp, level, message };
+        }
+
+        const jail = message.slice(1, jailEnd);
+        const rest = message.slice(jailEnd + 1).trimStart();
 
         return {
-            timestamp: parseTimestamp(`${date.replace(' ', 'T')}.${ms}`),
-            level: level.toLowerCase(),
+            timestamp,
+            level,
             jail,
-            action: this.extractAction(message),
-            ipAddress: this.extractIpAddress(message),
-            message,
+            action: this.extractAction(rest),
+            ipAddress: this.extractIpAddress(rest),
+            message: rest,
         };
     }
 
