@@ -16,6 +16,8 @@ interface IpContextMenuProps {
     y: number;
     /** When true, render "Remove from excluded list" instead of "Exclude from logs" */
     isExcluded?: boolean;
+    /** When false, the Exclude/Unexclude action is hidden (not wired up for this log source) */
+    canExclude?: boolean;
     onExclude: (ip: string) => void;
     onUnexclude?: (ip: string) => void;
     onDetails: (ip: string) => void;
@@ -47,7 +49,7 @@ const itemStyle: React.CSSProperties = {
     textAlign: 'left',
 };
 
-export const IpContextMenu: React.FC<IpContextMenuProps> = ({ ip, x, y, isExcluded = false, onExclude, onUnexclude, onDetails, onClose }) => {
+export const IpContextMenu: React.FC<IpContextMenuProps> = ({ ip, x, y, isExcluded = false, canExclude = true, onExclude, onUnexclude, onDetails, onClose }) => {
     const { t } = useTranslation();
     const ref = useRef<HTMLDivElement>(null);
 
@@ -80,8 +82,8 @@ export const IpContextMenu: React.FC<IpContextMenuProps> = ({ ip, x, y, isExclud
                 <span style={{ fontFamily: 'monospace', fontSize: '.8rem', color: '#e6edf3', fontWeight: 600 }}>{ip}</span>
             </div>
 
-            {/* Exclude / Unexclude option — label depends on current state */}
-            {isExcluded && onUnexclude ? (
+            {/* Exclude / Unexclude option — hidden entirely when not wired up for this log source */}
+            {canExclude && (isExcluded && onUnexclude ? (
                 <button
                     type="button"
                     style={itemStyle}
@@ -103,7 +105,7 @@ export const IpContextMenu: React.FC<IpContextMenuProps> = ({ ip, x, y, isExclud
                     <ShieldOff size={14} style={{ color: '#e3b341' }} />
                     {t('logViewer.ipMenu.exclude')}
                 </button>
-            )}
+            ))}
 
             {/* Details option */}
             <button

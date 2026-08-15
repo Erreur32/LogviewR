@@ -648,32 +648,29 @@ const formatCellValue = (log: LogEntry, column: string): React.ReactNode => {
                 const ipStyle = getIPBadgeStyle(ipValue);
                 const hasMenu = !!(onAddIpToFilter || onIpDetails);
                 const bannedJails = bannedIpsMap?.get(ipValue);
-                const content = (
+                const ipTooltipContent = hasMenu ? `${ipValue} (${t('logViewer.ipMenu.title')})` : ipValue;
+                return (
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, maxWidth: '100%' }}>
-                        <span
-                            className={`font-mono text-xs px-1.5 py-0.5 rounded ${hasMenu ? 'cursor-pointer hover:ring-1 hover:ring-amber-500/50' : 'cursor-help'}`}
-                            style={ipStyle}
-                            onClick={hasMenu ? (e) => {
-                                e.stopPropagation();
-                                const rect = e.currentTarget.getBoundingClientRect();
-                                setIpMenu({ ip: ipValue, x: rect.left, y: rect.bottom + 4 });
-                            } : undefined}
-                            role={hasMenu ? 'button' : undefined}
-                            title={hasMenu ? t('logViewer.ipMenu.title') : undefined}
-                        >
-                            {ipDisplay}
-                        </span>
+                        <Tooltip content={ipTooltipContent}>
+                            <span
+                                className={`font-mono text-xs px-1.5 py-0.5 rounded ${hasMenu ? 'cursor-pointer hover:ring-1 hover:ring-amber-500/50' : 'cursor-help'}`}
+                                style={ipStyle}
+                                onClick={hasMenu ? (e) => {
+                                    e.stopPropagation();
+                                    const rect = e.currentTarget.getBoundingClientRect();
+                                    setIpMenu({ ip: ipValue, x: rect.left, y: rect.bottom + 4 });
+                                } : undefined}
+                                role={hasMenu ? 'button' : undefined}
+                            >
+                                {ipDisplay}
+                            </span>
+                        </Tooltip>
                         {bannedJails && bannedJails.length > 0 && (
                             <Tooltip content={t('logViewer.bannedTooltip', { jails: bannedJails.join(', ') })}>
                                 <ShieldAlert size={12} style={{ color: '#e86a65', flexShrink: 0 }} />
                             </Tooltip>
                         )}
                     </span>
-                );
-                return (
-                    <Tooltip content={ipValue} wrap>
-                        {content}
-                    </Tooltip>
                 );
             }
             
@@ -1331,6 +1328,7 @@ const formatCellValue = (log: LogEntry, column: string): React.ReactNode => {
                     x={ipMenu.x}
                     y={ipMenu.y}
                     isExcluded={!!excludedIpsSet?.has(ipMenu.ip)}
+                    canExclude={!!onAddIpToFilter}
                     onExclude={(ip) => { onAddIpToFilter?.(ip); }}
                     onUnexclude={(ip) => { onRemoveIpFromFilter?.(ip); }}
                     onDetails={(ip) => { onIpDetails?.(ip); }}

@@ -10,10 +10,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### For users
 
 - Fixed: fail2ban.log lifecycle lines (e.g. "Added logfile: ...", emitted by fail2ban's own filter/server loggers, not the actions logger) showed a blank timestamp and forced "info" level in the host-system log viewer. These lines legitimately have no jail/action/IP, but their real timestamp and level are now parsed and displayed correctly instead of falling back to raw text.
+- Fixed: hovering the IP address column in the log table could show two tooltips at once (the full IP value and, separately, the banned-jails shield tooltip or the native browser title). The IP tooltip and the fail2ban badge tooltip are now independent, non-overlapping elements.
+- Fixed: the "Exclude from logs" action in the IP address context menu did nothing when opened from the host-system (fail2ban.log) log viewer. The button is now hidden entirely for log sources where the exclude feature isn't wired up, instead of appearing clickable but silently no-op.
 
 ### For developers
 
 - `Fail2banHostLogParser.parseFail2banLine()`: added a fallback regex (`FALLBACK_LINE_REGEX`) for lines matching fail2ban's log header but missing the `[jail]` prefix (only `fail2ban.actions` lines carry one). Extracts timestamp/level, leaves jail/action/ipAddress undefined.
+- `LogTable.tsx` (`ip` column renderer): removed the outer `Tooltip` that wrapped both the IP span (which also had a native `title` attribute) and the nested banned-jails `Tooltip`. React's synthetic `onMouseEnter` fires per nested trigger, so hovering the shield icon showed both tooltips simultaneously. The IP tooltip now wraps only the IP span (content includes the click hint when a menu is available) and sits as a sibling to the badge's own tooltip.
+- `IpContextMenu.tsx`: added a `canExclude?: boolean` prop (default `true`) gating the Exclude/Unexclude button. `LogTable.tsx` now passes `canExclude={!!onAddIpToFilter}` — `onAddIpToFilter` is only wired for plugins in `LogViewerPage.tsx`'s `LOG_PLUGINS_WITH_IP_FILTER` (`apache`, `npm`, `nginx`), so `host-system` correctly hides the action instead of rendering a no-op button.
 
 ## [0.9.17] - 2026-08-15
 
