@@ -10,6 +10,7 @@ import { AuthLogParser } from './AuthLogParser.js';
 import { KernLogParser } from './KernLogParser.js';
 import { DaemonLogParser } from './DaemonLogParser.js';
 import { MailLogParser } from './MailLogParser.js';
+import { Fail2banHostLogParser } from './Fail2banHostLogParser.js';
 import { CustomLogParser, type CustomParserConfig } from './CustomLogParser.js';
 import { parseJournaldJson, isJournaldJson } from './JournaldJsonParser.js';
 import { detectOS, getDefaultLogFiles, getDefaultFilePatterns } from './OSDetector.js';
@@ -24,12 +25,18 @@ import * as path from 'node:path';
 import { logger } from '../../utils/logger.js';
 import { globToLogRegex } from '../../utils/globToRegex.js';
 
+const SYSTEM_BASE_FILE_TYPES = ['syslog', 'journald', 'auth', 'kern', 'daemon', 'mail', 'fail2ban'] as const;
+export type SystemBaseFileType = typeof SYSTEM_BASE_FILE_TYPES[number];
+
+const AUTO_DETECTED_FILE_TYPES = ['syslog', 'auth', 'kern', 'daemon', 'mail', 'fail2ban', 'custom'] as const;
+export type AutoDetectedFileType = typeof AUTO_DETECTED_FILE_TYPES[number];
+
 export interface HostSystemPluginConfig {
     // Catégorie 1 : Fichiers Système de Base
     // Auto-détectés avec regex standard validée, fichiers importants du système
     systemBaseFiles?: Array<{
         path: string;
-        type: 'syslog' | 'journald' | 'auth' | 'kern' | 'daemon' | 'mail';
+        type: SystemBaseFileType;
         enabled: boolean;
         detected: boolean; // Auto-détecté par le système
         validated: boolean; // Regex standard validée et fonctionnelle
@@ -40,7 +47,7 @@ export interface HostSystemPluginConfig {
     // Auto-détectés et validés, mais ne faisant pas partie du système de base
     autoDetectedFiles?: Array<{
         path: string;
-        type: 'syslog' | 'auth' | 'kern' | 'daemon' | 'mail' | 'custom';
+        type: AutoDetectedFileType;
         enabled: boolean;
         detected: boolean;
         validated: boolean; // Regex standard validée
@@ -60,7 +67,7 @@ export interface HostSystemPluginConfig {
     // Legacy support: pour compatibilité avec anciennes configurations
     logFiles?: Array<{
         path: string;
-        type: 'syslog' | 'journald' | 'auth' | 'kern' | 'daemon' | 'mail' | 'custom';
+        type: SystemBaseFileType | 'custom';
         enabled: boolean;
         customParserConfig?: CustomParserConfig;
     }>;
@@ -333,6 +340,8 @@ export class HostSystemLogPlugin extends BasePlugin implements LogSourcePlugin {
                 return DaemonLogParser.parseDaemonLine(line);
             case 'mail':
                 return MailLogParser.parseMailLine(line);
+            case 'fail2ban':
+                return Fail2banHostLogParser.parseFail2banLine(line);
             case 'custom':
                 if (customParserConfig) {
                     return CustomLogParser.parseCustomLine(line, customParserConfig);
@@ -364,6 +373,8 @@ export class HostSystemLogPlugin extends BasePlugin implements LogSourcePlugin {
                 return ['timestamp', 'hostname', 'service', 'level', 'pid', 'message'];
             case 'mail':
                 return ['timestamp', 'hostname', 'service', 'level', 'action', 'ipAddress', 'queueId', 'message'];
+            case 'fail2ban':
+                return ['timestamp', 'level', 'jail', 'action', 'ipAddress', 'message'];
             case 'custom':
             default:
                 return ['timestamp', 'level', 'message'];
@@ -386,7 +397,7 @@ export class HostSystemLogPlugin extends BasePlugin implements LogSourcePlugin {
                 if (!file.path || typeof file.path !== 'string') {
                     return false;
                 }
-                if (!['syslog', 'journald', 'auth', 'kern', 'daemon', 'mail'].includes(file.type)) {
+                if (!SYSTEM_BASE_FILE_TYPES.includes(file.type)) {
                     return false;
                 }
                 if (typeof file.enabled !== 'boolean') {
@@ -403,7 +414,7 @@ export class HostSystemLogPlugin extends BasePlugin implements LogSourcePlugin {
                 if (!file.path || typeof file.path !== 'string') {
                     return false;
                 }
-                if (!['syslog', 'auth', 'kern', 'daemon', 'mail', 'custom'].includes(file.type)) {
+                if (!AUTO_DETECTED_FILE_TYPES.includes(file.type)) {
                     return false;
                 }
                 if (typeof file.enabled !== 'boolean') {
@@ -441,7 +452,7 @@ export class HostSystemLogPlugin extends BasePlugin implements LogSourcePlugin {
                 if (!logFile.path || typeof logFile.path !== 'string') {
                     return false;
                 }
-                if (!['syslog', 'journald', 'auth', 'kern', 'daemon', 'mail', 'custom'].includes(logFile.type)) {
+                if (![...SYSTEM_BASE_FILE_TYPES, 'custom'].includes(logFile.type)) {
                     return false;
                 }
                 if (typeof logFile.enabled !== 'boolean') {
@@ -646,7 +657,7 @@ export class HostSystemLogPlugin extends BasePlugin implements LogSourcePlugin {
     ): Promise<{
         systemBaseFiles: Array<{
             path: string;
-            type: 'syslog' | 'journald' | 'auth' | 'kern' | 'daemon' | 'mail';
+            type: SystemBaseFileType;
             enabled: boolean;
             detected: boolean;
             validated: boolean;
@@ -654,7 +665,7 @@ export class HostSystemLogPlugin extends BasePlugin implements LogSourcePlugin {
         }>;
         autoDetectedFiles: Array<{
             path: string;
-            type: 'syslog' | 'auth' | 'kern' | 'daemon' | 'mail' | 'custom';
+            type: AutoDetectedFileType;
             enabled: boolean;
             detected: boolean;
             validated: boolean;
@@ -670,7 +681,7 @@ export class HostSystemLogPlugin extends BasePlugin implements LogSourcePlugin {
     }> {
         const systemBaseFiles: Array<{
             path: string;
-            type: 'syslog' | 'journald' | 'auth' | 'kern' | 'daemon' | 'mail';
+            type: SystemBaseFileType;
             enabled: boolean;
             detected: boolean;
             validated: boolean;
@@ -679,7 +690,7 @@ export class HostSystemLogPlugin extends BasePlugin implements LogSourcePlugin {
 
         const autoDetectedFiles: Array<{
             path: string;
-            type: 'syslog' | 'auth' | 'kern' | 'daemon' | 'mail' | 'custom';
+            type: AutoDetectedFileType;
             enabled: boolean;
             detected: boolean;
             validated: boolean;
@@ -718,7 +729,7 @@ export class HostSystemLogPlugin extends BasePlugin implements LogSourcePlugin {
             if (classification.category === 'systemBase') {
                 systemBaseFiles.push({
                     path: basePath,
-                    type: mainFile.type as 'syslog' | 'journald' | 'auth' | 'kern' | 'daemon' | 'mail',
+                    type: mainFile.type as SystemBaseFileType,
                     enabled: systemBasePaths.includes(basePath), // Enable par défaut si fichier système
                     detected: true,
                     validated: classification.validated,
@@ -727,7 +738,7 @@ export class HostSystemLogPlugin extends BasePlugin implements LogSourcePlugin {
             } else if (classification.category === 'autoDetected') {
                 autoDetectedFiles.push({
                     path: basePath,
-                    type: (classification.parserType || mainFile.type) as 'syslog' | 'auth' | 'kern' | 'daemon' | 'mail' | 'custom',
+                    type: (classification.parserType || mainFile.type) as AutoDetectedFileType,
                     enabled: false,
                     detected: true,
                     validated: classification.validated,
@@ -769,6 +780,11 @@ export class HostSystemLogPlugin extends BasePlugin implements LogSourcePlugin {
             .replace(/\.bz2$/, '') // Remove .bz2
             .replace(/\.xz$/, ''); // Remove .xz
         
+        // fail2ban patterns (check first, before generic auth/syslog fallbacks)
+        if (baseFilename.startsWith('fail2ban')) {
+            return 'fail2ban';
+        }
+
         // auth patterns (check first to avoid false matches)
         if (baseFilename === 'auth.log' || baseFilename === 'secure' || 
             baseFilename.startsWith('auth') || baseFilename.includes('auth.log')) {
@@ -831,7 +847,7 @@ export class HostSystemLogPlugin extends BasePlugin implements LogSourcePlugin {
         categorizedFiles: {
             systemBaseFiles: Array<{
                 path: string;
-                type: 'syslog' | 'journald' | 'auth' | 'kern' | 'daemon' | 'mail';
+                type: SystemBaseFileType;
                 enabled: boolean;
                 detected: boolean;
                 validated: boolean;
@@ -839,7 +855,7 @@ export class HostSystemLogPlugin extends BasePlugin implements LogSourcePlugin {
             }>;
             autoDetectedFiles: Array<{
                 path: string;
-                type: 'syslog' | 'auth' | 'kern' | 'daemon' | 'mail' | 'custom';
+                type: AutoDetectedFileType;
                 enabled: boolean;
                 detected: boolean;
                 validated: boolean;
@@ -855,7 +871,7 @@ export class HostSystemLogPlugin extends BasePlugin implements LogSourcePlugin {
             // Categorize detected log files
             const systemBaseFiles: Array<{
             path: string;
-            type: 'syslog' | 'journald' | 'auth' | 'kern' | 'daemon' | 'mail';
+            type: SystemBaseFileType;
             enabled: boolean;
             detected: boolean;
             validated: boolean;
@@ -864,7 +880,7 @@ export class HostSystemLogPlugin extends BasePlugin implements LogSourcePlugin {
 
             const autoDetectedFiles: Array<{
                 path: string;
-                type: 'syslog' | 'auth' | 'kern' | 'daemon' | 'mail' | 'custom';
+                type: AutoDetectedFileType;
                 enabled: boolean;
                 detected: boolean;
                 validated: boolean;
@@ -927,7 +943,7 @@ export class HostSystemLogPlugin extends BasePlugin implements LogSourcePlugin {
                         if (!existing) {
                             // Map log file type to valid autoDetectedFiles type
                             // journald -> syslog, user/cron -> custom, others stay as-is
-                            let mappedType: 'syslog' | 'auth' | 'kern' | 'daemon' | 'mail' | 'custom';
+                            let mappedType: AutoDetectedFileType;
                             if (logFile.type === 'journald') {
                                 mappedType = 'syslog';
                             } else if (logFile.type === 'user' || logFile.type === 'cron') {

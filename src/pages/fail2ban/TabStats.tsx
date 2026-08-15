@@ -1,5 +1,12 @@
 /**
  * TabStats — Statistiques Fail2ban, aligné sur tabs/stats.php du projet PHP.
+ *
+ * TODO(i18n): several section titles and empty-state fallbacks here are hardcoded French
+ * literals (not routed through t()/en.json/fr.json), so they stay in French even when the
+ * user profile is set to English. Known offenders: "Top Domaines — bans/tentatives",
+ * "Types d'attaque", "Bans à vérifier", "Protection IPSet", "Tentatives en hausse",
+ * "État actuel", "Bans par heure", "Tentatives par heure", plus the domainsEmptyMsgBans/
+ * domainsEmptyMsgFails fallback strings. Needs a full audit + keys added to both locale files.
  */
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';

@@ -287,6 +287,19 @@ const SortableHeader: React.FC<SortableHeaderProps> = ({ column, sortConfig, onS
     );
 };
 
+const ACTION_COLORS: Record<string, string> = {
+    'accepted': 'bg-green-500/20 text-green-300',
+    'failed': 'bg-red-500/20 text-red-300',
+    'denied': 'bg-red-500/20 text-red-300',
+    'success': 'bg-green-500/20 text-green-300',
+    // fail2ban actions
+    'ban': 'bg-red-500/20 text-red-300',
+    'restore ban': 'bg-red-500/20 text-red-300',
+    'unban': 'bg-green-500/20 text-green-300',
+    'found': 'bg-amber-500/20 text-amber-300',
+    'ignore': 'bg-gray-500/20 text-gray-400'
+};
+
 export const LogTable: React.FC<LogTableProps> = ({
     logs,
     columns,
@@ -487,7 +500,7 @@ export const LogTable: React.FC<LogTableProps> = ({
     }, [logs, nonEmptyLogs, filteredCount, totalLogsCount]);
     
     // Format cell value based on column type and plugin
-    const formatCellValue = (log: LogEntry, column: string): React.ReactNode => {
+const formatCellValue = (log: LogEntry, column: string): React.ReactNode => {
         const value = log[column];
         const columnType = getColumnType(column);
         
@@ -763,13 +776,7 @@ export const LogTable: React.FC<LogTableProps> = ({
                 if (column === 'action') {
                     // Action badge (accepted, failed, etc.)
                     const action = String(value).toLowerCase();
-                    const actionColors: Record<string, string> = {
-                        'accepted': 'bg-green-500/20 text-green-300',
-                        'failed': 'bg-red-500/20 text-red-300',
-                        'denied': 'bg-red-500/20 text-red-300',
-                        'success': 'bg-green-500/20 text-green-300'
-                    };
-                    const colorClass = actionColors[action] || 'bg-gray-500/20 text-gray-300';
+                    const colorClass = ACTION_COLORS[action] || 'bg-gray-500/20 text-gray-300';
                     return (
                         <span className={`px-1.5 py-0.5 rounded text-xs ${colorClass}`}>
                             {String(value)}

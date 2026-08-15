@@ -16,7 +16,7 @@ import { displayPath } from '../../utils/constants';
 
 interface SystemBaseFile {
     path: string;
-    type: 'syslog' | 'journald' | 'auth' | 'kern' | 'daemon' | 'mail';
+    type: 'syslog' | 'journald' | 'auth' | 'kern' | 'daemon' | 'mail' | 'fail2ban';
     enabled: boolean;
     detected: boolean;
     validated: boolean;
@@ -25,7 +25,7 @@ interface SystemBaseFile {
 
 interface AutoDetectedFile {
     path: string;
-    type: 'syslog' | 'auth' | 'kern' | 'daemon' | 'mail' | 'custom';
+    type: 'syslog' | 'auth' | 'kern' | 'daemon' | 'mail' | 'fail2ban' | 'custom';
     enabled: boolean;
     detected: boolean;
     validated: boolean;

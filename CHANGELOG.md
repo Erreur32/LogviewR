@@ -5,6 +5,21 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.15] - 2026-08-15
+
+### For users
+
+- **fail2ban.log now has a structured table in the system log viewer** (`/log/host-system`). Previously every line fell back to a plain `timestamp/level/message` view; the parser now recognizes fail2ban's own log format and adds `jail`, `action` and `ip` columns, with the same color-coded action badges (ban/unban/found/ignore) and banned-IP tooltip used elsewhere in the app. Uncompressed rotated files (`fail2ban.log.1`, etc.) are picked up automatically; gzipped rotations are not (consistent with every other system log type).
+- **Fixed a silent failure on "Top Domaines" when NPM's database is unreadable.** If the app's OS user can't read NPM's `database.sqlite` (a host permissions issue), the fail2ban stats page used to show "0 bans" — indistinguishable from a correctly configured setup with genuinely no matches. It now surfaces a specific "Base NPM illisible — vérifiez les droits de lecture" warning instead.
+
+### For developers
+
+- **New parser (`Fail2banHostLogParser.ts`):** follows the existing `AuthLogParser`/`MailLogParser` static-class pattern, with the same `MAX_LINE_LENGTH` ReDoS guard and IPv4 octet validation (0-255) as its siblings.
+- **`HostSystemLogPlugin.ts`:** wired `'fail2ban'` through `determineLogType()`, `parseLogLine()`, `getColumns()` and `validateConfig()`. Extracted the previously ~13-times-duplicated inline union types into exported `SystemBaseFileType`/`AutoDetectedFileType` aliases; while doing so, found and fixed a bug where `validateConfig()`'s whitelist arrays for `systemBaseFiles`/`autoDetectedFiles`/legacy `logFiles` had never been updated to accept `'fail2ban'`, which would have silently rejected any config trying to enable it.
+- **`LogTable.tsx`:** action-badge color map hoisted to a module-level constant (was being reallocated on every cell render) and extended with fail2ban actions.
+- **`Fail2banPlugin.ts`:** the `/tops/domains` route's `getNpmDomainMap()` call now has its own try/catch, returning `{ ok: false, warning }` immediately on a DB read failure instead of falling through to the ambiguous `{ ok: true, topDomains: [] }` catch-all.
+- **`TabStats.tsx`:** added a `TODO(i18n)` comment documenting ~12 hardcoded French strings that bypass `t()`/locale files — tracked for a future i18n pass, not fixed in this release.
+
 ## [0.9.14] - 2026-08-15
 
 ### For users

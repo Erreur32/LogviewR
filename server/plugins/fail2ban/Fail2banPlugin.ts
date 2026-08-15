@@ -2686,10 +2686,20 @@ export class Fail2banPlugin extends BasePlugin {
                 return res.json({ success: true, result: { ok: false, topDomains: [], warning: 'Chemin des logs NPM non configuré (onglet Config › Intégrations)' } });
             }
             if (npmEnabled) {
+                let idToDomain: Record<string, string>;
                 try {
                     // 1. Build proxy-host id → domain from NPM DB (SQLite or MySQL)
-                    const { idToDomain } = await getNpmDomainMap(npmSettings!, this.resolveDockerPathSync.bind(this));
+                    ({ idToDomain } = await getNpmDomainMap(npmSettings!, this.resolveDockerPathSync.bind(this)));
+                } catch (err) {
+                    // A real config/permission problem (e.g. database.sqlite unreadable by the app's
+                    // OS user) must surface as a warning — it must not look identical to "0 domains
+                    // matched this period", which is what an unconditional catch below would produce.
+                    const msg = err instanceof Error ? err.message : String(err);
+                    res.json({ success: true, result: { ok: false, topDomains: [], warning: `Base NPM illisible (${msg}) — vérifiez les droits de lecture sur database.sqlite` } });
+                    return;
+                }
 
+                try {
                     // 2. Build jail → log files map from fail2ban config
                     //    Only jails that explicitly watch a proxy-host log file are relevant here.
                     //    This ensures SSH/recidive jails never pollute domain stats.
