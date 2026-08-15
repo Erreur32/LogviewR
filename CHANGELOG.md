@@ -5,6 +5,12 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.19] - 2026-08-15
+
+### For developers
+
+- Fixed a ReDoS-prone regex flagged by static analysis on `Fail2banHostLogParser.ts`: `LINE_REGEX` and `FALLBACK_LINE_REGEX` chained unbounded `\S+`/`\d+` quantifiers separated by `\s+`, which backtracks polynomially on non-matching input. Bounded each field (logger name, PID, level, jail) to a realistic max width, keeping matching linear (SonarCloud S5852).
+
 ## [0.9.18] - 2026-08-15
 
 ### For users

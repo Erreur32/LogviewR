@@ -19,12 +19,15 @@ import { parseTimestamp } from './TimestampParser.js';
  *  under this size; anything larger is returned as-is. */
 const MAX_LINE_LENGTH = 10_000;
 
-const LINE_REGEX = /^(\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}),(\d{3})\s+(?:\S+)\s+\[(?:\d+)\]:\s+(\S+)\s+\[([^\]]+)\]\s*(.*)$/;
+// Field widths are bounded (logger name, PID, level are never more than a few dozen
+// chars in real fail2ban output) to keep matching linear instead of letting adjacent
+// unbounded \S+/\s+ quantifiers backtrack polynomially on non-matching input (S5852).
+const LINE_REGEX = /^(\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}),(\d{3})\s+\S{1,64}\s+\[\d{1,10}\]:\s+(\S{1,16})\s+\[([^\]]{1,256})\]\s*(.*)$/;
 
 // Fallback for fail2ban's own lifecycle lines (fail2ban.filter/server/jail loggers),
 // which share the same header but have no `[jail]` prefix in the message
 // (e.g. "INFO Added logfile: '...'"). Only fail2ban.actions lines carry a jail.
-const FALLBACK_LINE_REGEX = /^(\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}),(\d{3})\s+(?:\S+)\s+\[(?:\d+)\]:\s+(\S+)\s+(.*)$/;
+const FALLBACK_LINE_REGEX = /^(\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}),(\d{3})\s+\S{1,64}\s+\[\d{1,10}\]:\s+(\S{1,16})\s+(.*)$/;
 
 const KNOWN_ACTIONS = ['Restore Ban', 'Ban', 'Unban', 'Found', 'Ignore'];
 
