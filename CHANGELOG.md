@@ -5,6 +5,18 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.13] - 2026-08-15
+
+### For users
+
+- **Security dependency bumps (23 Dependabot alerts closed).** Fixes a critical `tar` decompression DoS, five high-severity React Router issues (CSRF bypass, inefficient route matching DoS), high-severity SSRF bypasses in `ip-address`, a `brace-expansion` ReDoS, and several `postcss`/`vite`/`shell-quote` issues. No behavioral change to the app.
+
+### For developers
+
+- **Direct/parent bumps:** `postcss` `^8.5.10` to `^8.5.23`, `vite` `^6.2.0` to `^6.4.3`, `concurrently` `^9.2.1` to `^9.2.4`, `express-rate-limit` `^8.3.2` to `^8.5.1`, `react-router-dom` `^7.16.0` to `^7.18.2` — closes the high-severity postcss path-traversal, vite `server.fs.deny` bypass, and the react-router CSRF/DoS/open-redirect/XSS alerts.
+- **Overrides raised:** `tar` `>=7.5.10` to `>=7.5.21` (closes the critical decompression DoS, transitive via `bcrypt` → `@mapbox/node-pre-gyp`), `ip-address` `>=10.1.1` to `>=10.3.1` (closes the SSRF trust-boundary bypasses, transitive via `express-rate-limit`), `shell-quote` `>=1.8.4` to `>=1.9.0` (closes the quadratic-complexity DoS, transitive via `concurrently`).
+- **Lockfile refresh** picked up `nanoid` 3.3.11 to 3.3.18 (via `postcss`), `brace-expansion` 1.1.13 to 1.1.18 (via `concurrently`), `@babel/core` 7.28.5 to 7.29.6 and `body-parser` 2.2.1 to 2.3.0 (via `express`). `npm audit` and `npm run security:cve` are both clean.
+
 ## [0.9.12] - 2026-06-14
 
 ### For users
