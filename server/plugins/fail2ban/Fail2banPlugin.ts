@@ -2683,7 +2683,7 @@ export class Fail2banPlugin extends BasePlugin {
                 if (isMysql && !mysqlCredsOk) {
                     return res.json({ success: true, result: { ok: false, topDomains: [], warning: 'Configuration MySQL incomplète (hôte, utilisateur et base de données requis)' } });
                 }
-                return res.json({ success: true, result: { ok: true, topDomains: [] } });
+                return res.json({ success: true, result: { ok: false, topDomains: [], warning: 'Chemin des logs NPM non configuré (onglet Config › Intégrations)' } });
             }
             if (npmEnabled) {
                 try {

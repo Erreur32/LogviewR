@@ -5,6 +5,17 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.14] - 2026-08-15
+
+### For users
+
+- **Fixed misleading "Top Domaines" empty message on the fail2ban stats page.** When NPM (Nginx Proxy Manager) domain matching found zero bans/attempts, the page always showed a static "configure NPM data path" message, even when NPM was already correctly configured and there simply was nothing to show for the selected period. The message now reflects the real situation: a specific configuration warning when NPM's data path or database is genuinely misconfigured, or a neutral "nothing this period" message when NPM is set up correctly.
+
+### For developers
+
+- **Backend (`Fail2banPlugin.ts`):** the `/api/plugins/fail2ban/tops/domains` route's default/SQLite branch (no `npmDataPath` configured) now returns `{ ok: false, warning: '...' }` like its two sibling misconfiguration branches (MySQL mode with missing path/incomplete credentials), instead of the ambiguous `{ ok: true, topDomains: [] }` it shared with the "configured, nothing found" case.
+- **Frontend (`TabStats.tsx`):** `TopsData` gained a `domainsWarning` field; `TopsSection`'s two domain `TopCard`s now derive their `emptyMsg` from it instead of a hardcoded string. The Phase-3 domains fetch merges `ok`/`warning` into state on every poll but skips the update when nothing actually changed, to avoid redundant re-renders while NPM stays unconfigured.
+
 ## [0.9.13] - 2026-08-15
 
 ### For users

@@ -521,6 +521,7 @@ interface TopsData {
     topJails: { jail: string; count: number }[];
     topRecidivists: { ip: string; count: number }[];
     topDomains: { domain: string; count: number; failures?: number; files?: DomainLogFile[] }[];
+    domainsWarning?: string | null;
     heatmap: { hour: number; count: number }[];
     heatmapFailed: { hour: number; count: number }[];
     heatmapWeek: number[][];
@@ -1110,6 +1111,9 @@ const TopsSection: React.FC<{ days: number; onDaysChange: (d: number) => void; o
         ),
     };
 
+    const domainsEmptyMsg = (fallback: string): string => data?.domainsWarning ?? fallback;
+    const domainsEmptyMsgBans  = domainsEmptyMsg('Aucun ban n\'a été attribué à un domaine NPM sur cette période');
+    const domainsEmptyMsgFails = domainsEmptyMsg('Aucune tentative n\'a été attribuée à un domaine NPM sur cette période');
     const domainBanEntries: TopEntry[] = (data?.topDomains ?? []).map(e => ({ ip: e.domain, count: e.count, secondary: e.failures ?? 0, files: e.files }));
     const domainFailEntries: TopEntry[] = [...(data?.topDomains ?? [])]
         .sort((a, b) => (b.failures ?? 0) - (a.failures ?? 0))
@@ -1218,7 +1222,7 @@ const TopsSection: React.FC<{ days: number; onDaysChange: (d: number) => void; o
                     labelKey="ip"
                     viewMode={viewMode}
                     limit={topLimit}
-                    emptyMsg="NPM uniquement — configurez le chemin données NPM dans l'onglet Config › Intégrations"
+                    emptyMsg={domainsEmptyMsgBans}
                     onLabelClick={onDomainClick}
                     rowTooltip={domainBanTooltip}
                     titleTooltip={domainTitleTooltip}
@@ -1240,7 +1244,7 @@ const TopsSection: React.FC<{ days: number; onDaysChange: (d: number) => void; o
                     labelKey="ip"
                     viewMode={viewMode}
                     limit={topLimit}
-                    emptyMsg="NPM uniquement — configurez le chemin données NPM dans l'onglet Config › Intégrations"
+                    emptyMsg={domainsEmptyMsgFails}
                     onLabelClick={onDomainClick}
                     rowTooltip={domainFailTooltip}
                     titleTooltip={domainTitleTooltip}
@@ -1939,13 +1943,23 @@ export const TabStats: React.FC<TabStatsProps> = ({
             .catch(() => {})
             .finally(() => {
 
-        // Phase 3: domains — slow NPM log scan, runs in parallel, merges into topsData when ready
-        api.get<{ ok: boolean; topDomains: { domain: string; count: number; failures: number; files?: DomainLogFile[] }[] }>(
+        // Phase 3: domains — slow NPM log scan, runs in parallel, merges into topsData when ready.
+        // Always merge `ok`/`warning` (not just when topDomains is non-empty) so the UI can tell
+        // "NPM misconfigured" apart from "NPM OK, nothing matched this period".
+        api.get<{ ok: boolean; warning?: string; topDomains: { domain: string; count: number; failures: number; files?: DomainLogFile[] }[] }>(
             `/api/plugins/fail2ban/tops/domains?days=${days}&limit=100`, { signal: ac.signal }
         ).then(res => {
             if (ac.signal.aborted) return;
-            if (res.success && res.result?.ok && res.result.topDomains.length > 0) {
-                setTopsData(prev => prev ? { ...prev, topDomains: res.result!.topDomains } : null);
+            if (res.success && res.result) {
+                const { ok, warning, topDomains } = res.result;
+                setTopsData(prev => {
+                    if (!prev) return null;
+                    const nextTopDomains = ok ? topDomains : prev.topDomains;
+                    const nextWarning = ok ? null : (warning ?? null);
+                    const bothEmpty = nextTopDomains.length === 0 && prev.topDomains.length === 0;
+                    if (bothEmpty && nextWarning === prev.domainsWarning) return prev;
+                    return { ...prev, topDomains: nextTopDomains, domainsWarning: nextWarning };
+                });
             }
         }).catch(() => {});
                 if (ac.signal.aborted) return;
