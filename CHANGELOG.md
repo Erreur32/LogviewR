@@ -5,6 +5,17 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.16] - 2026-08-15
+
+### For users
+
+- **Fixed hardcoded French strings on the fail2ban stats page.** Section titles, tooltips and empty-state messages in "Top Domaines", "Types d'attaque", "Bans à vérifier", "Protection IPSet", "Tentatives en hausse", "État actuel" and the ban history chart mode toggle now switch language correctly when the UI is set to English (they were previously stuck in French regardless of locale).
+
+### For developers
+
+- **`TabStats.tsx` / `BanHistoryChart.tsx` / `Fail2banPage.tsx`:** replaced ~15 hardcoded French JSX literals with `t('fail2ban.stats.*')` calls; added the corresponding keys to both `en.json` and `fr.json` (`topDomainsBans/Fails`, `domainsEmptyBans/Fails`, `bansToCheck`, `ipsetProtection`, `attemptsRising`, `attemptsRisingDelta`, `currentState`, `bansByHour`, `attemptsByHour`, `chartLine/LineDesc/Bar/BarDesc`, `activeFailures/Desc`). Removed the `TODO(i18n)` comment this closes.
+- **Added `.prettierrc`** (4-space indent, single quotes, printWidth 120) so the global Prettier PostToolUse hook stops defaulting to 2-space/double-quote formatting on this project. Files touched by this release carry a one-time full reformat; Prettier can't fully preserve pre-existing hand-alignment (compact imports, aligned ternaries), so some formatting noise remains in the diff beyond the semantic i18n change.
+
 ## [0.9.15] - 2026-08-15
 
 ### For users
@@ -1993,12 +2004,12 @@ The bug existed from the start but only manifested when the data volume / number
 ### Added
 
 - **Shared IpModal** (`src/pages/fail2ban/IpModal.tsx`) - New IP detail modal shared across all tabs:
-  - Header: IP (red monospace), recidivist badge if present in `recidive` jail, flag + city/country + organization.
-  - 2-column block: Statistics (total bans, jail(s), last ban, first ban, attempts) | Whois/Network (country, organization, ASN, ISP, city).
-  - **Ban in recidive** button (hidden if already a recidivist), with success/error visual feedback.
-  - Scrollable history table (date, jail, duration, attempts) with sticky headers.
-  - Auto-fetch geolocation if not provided by the calling context.
-  - Exports: `IpModal`, `GeoInfo`, `toFlag`, `fmtBantime`.
+    - Header: IP (red monospace), recidivist badge if present in `recidive` jail, flag + city/country + organization.
+    - 2-column block: Statistics (total bans, jail(s), last ban, first ban, attempts) | Whois/Network (country, organization, ASN, ISP, city).
+    - **Ban in recidive** button (hidden if already a recidivist), with success/error visual feedback.
+    - Scrollable history table (date, jail, duration, attempts) with sticky headers.
+    - Auto-fetch geolocation if not provided by the calling context.
+    - Exports: `IpModal`, `GeoInfo`, `toFlag`, `fmtBantime`.
 - **Clickable IPs - TabTracker** - Updated to use the new shared `IpModal` (local component removed); known jails passed to the modal.
 - **Clickable IPs - TabJailsEvents** - IPs in the Events table now open the detail modal.
 - **Clickable IPs - JailCard (Cards view)** - Banned IPs in the jail card table now open the detail modal.
@@ -2230,9 +2241,9 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
 ### Security
 
 - **Dependencies (npm overrides)**: Fix vulnerabilities reported by Dependabot and `npm audit`.
-  - **minimatch**: override `>=10.2.1` to fix ReDoS (CVE, patterns with repeated wildcards). Transitive dependency via bcrypt → node-pre-gyp → rimraf → glob → minimatch.
-  - **tar**: override `>=7.5.9` to fix arbitrary file read/write via hardlink (CVE). Transitive dependency via bcrypt → node-pre-gyp → tar.
-  - After `npm install`, `npm audit` shows 0 vulnerabilities.
+    - **minimatch**: override `>=10.2.1` to fix ReDoS (CVE, patterns with repeated wildcards). Transitive dependency via bcrypt → node-pre-gyp → rimraf → glob → minimatch.
+    - **tar**: override `>=7.5.9` to fix arbitrary file read/write via hardlink (CVE). Transitive dependency via bcrypt → node-pre-gyp → tar.
+    - After `npm install`, `npm audit` shows 0 vulnerabilities.
 
 ---
 
@@ -2586,8 +2597,8 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
 #### Log Viewer – Live mode and Auto-refresh
 
 - **Play button in header**: once a file is selected, display a Play button opening a menu
-  - **Live (real-time)**: existing WebSocket follow (tail -f)
-  - **Auto-refresh**: periodic HTTP reload with chosen interval (2s, 5s, 10s, 15s, 30s)
+    - **Live (real-time)**: existing WebSocket follow (tail -f)
+    - **Auto-refresh**: periodic HTTP reload with chosen interval (2s, 5s, 10s, 15s, 30s)
 - **Square button (Stop)**: stops Live mode or Auto-refresh
 - **Persistence**: the chosen interval for Auto-refresh is saved in `localStorage` (`logviewer_auto_refresh_interval_ms`)
 - Constants `AUTO_REFRESH_INTERVALS_MS`, `AUTO_REFRESH_DEFAULT_MS` and `AUTO_REFRESH_STORAGE_KEY` in `src/utils/constants.ts`
@@ -2608,31 +2619,31 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
 #### Footer
 
 - **`.gz` size badge**: New badge displaying the total size of compressed log files (.gz)
-  - Displayed only if at least one plugin has .gz files (and "Read .gz" option enabled)
-  - Green style (emerald), Archive icon, explanatory tooltip
-  - Calculation via double stats call (quick=true for non-.gz, without quick for total) then difference
+    - Displayed only if at least one plugin has .gz files (and "Read .gz" option enabled)
+    - Green style (emerald), Archive icon, explanatory tooltip
+    - Calculation via double stats call (quick=true for non-.gz, without quick for total) then difference
 
 #### Scripts
 
 - **update-version.sh**: Version update script adapted for the LogviewR project
-  - Updates `package.json`, `src/constants/version.ts` and `README.md` (badge, release link, text)
-  - Reads current version from `package.json`; suggests patch version if no argument
-  - Reminder to add an entry in `CHANGELOG.md` and suggested git commands
-  - Portable macOS/Linux (sed in-place), ANSI colors if TTY
+    - Updates `package.json`, `src/constants/version.ts` and `README.md` (badge, release link, text)
+    - Reads current version from `package.json`; suggests patch version if no argument
+    - Reminder to add an entry in `CHANGELOG.md` and suggested git commands
+    - Portable macOS/Linux (sed in-place), ANSI colors if TTY
 
 ### Changed
 
 #### Header / Clock
 
 - **Clock LED indicator**: Color and animation aligned with theme
-  - Fixed yellow color replaced by `var(--accent-primary)` (follows theme)
-  - New `clockLedGlow` animation (2s breathing): opacity and halo (box-shadow) in loop
-  - Animation defined in `src/index.css`, applied on the Clock component dot
+    - Fixed yellow color replaced by `var(--accent-primary)` (follows theme)
+    - New `clockLedGlow` animation (2s breathing): opacity and halo (box-shadow) in loop
+    - Animation defined in `src/index.css`, applied on the Clock component dot
 
 #### Footer
 
 - **Stats badge labels**: "size" badge tooltip clarified: "Total size of uncompressed log files"
-  - Stats state extended with `totalSizeGz` for the new .gz badge
+    - Stats state extended with `totalSizeGz` for the new .gz badge
 
 ---
 
@@ -2643,74 +2654,74 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
 #### Plugin Options Panel
 
 - **Auto-refresh issue**: Fixed automatic refresh that was overwriting user input when editing `basePath` field
-  - Added debounce (500ms) for `basePath` field auto-save
-  - Added debounce (1s) for detected files reload after `basePath` changes
-  - Prevents file list from reloading while user is typing
-  - User modifications are no longer overwritten during editing
+    - Added debounce (500ms) for `basePath` field auto-save
+    - Added debounce (1s) for detected files reload after `basePath` changes
+    - Prevents file list from reloading while user is typing
+    - User modifications are no longer overwritten during editing
 
 #### Docker Path Conversion
 
 - **Apache and Nginx plugins**: Fixed Docker path conversion for log files
-  - Added `convertToDockerPath()` method in `BasePlugin` for automatic path conversion
-  - Converts `/var/log/apache2` to `/host/logs/apache2` (or `/host/var/log/apache2` as fallback)
-  - Converts `/var/log/nginx` to `/host/logs/nginx` (or `/host/var/log/nginx` as fallback)
-  - Handles all paths starting with `/var/log` automatically
-  - Works correctly even when `/host/logs` symlink doesn't exist
+    - Added `convertToDockerPath()` method in `BasePlugin` for automatic path conversion
+    - Converts `/var/log/apache2` to `/host/logs/apache2` (or `/host/var/log/apache2` as fallback)
+    - Converts `/var/log/nginx` to `/host/logs/nginx` (or `/host/var/log/nginx` as fallback)
+    - Handles all paths starting with `/var/log` automatically
+    - Works correctly even when `/host/logs` symlink doesn't exist
 
 #### Host System Plugin
 
 - **Docker path fallback**: Improved fallback mechanism for log base path
-  - Uses `/host/var/log` directly when `/host/logs` symlink doesn't exist
-  - Prevents "Connection failed" errors when symlink creation fails
-  - Better compatibility with read-only filesystems
+    - Uses `/host/var/log` directly when `/host/logs` symlink doesn't exist
+    - Prevents "Connection failed" errors when symlink creation fails
+    - Better compatibility with read-only filesystems
 
 #### HTML Validation
 
 - **Nested buttons**: Fixed React hydration error caused by nested `<button>` elements
-  - Replaced parent buttons with `<div>` elements using `role="button"` and `tabIndex={0}`
-  - Added keyboard navigation support (Enter and Space keys)
-  - Applied to "Fichiers de logs système" and "Fichiers détectés avec regex" sections
-  - Maintains full functionality and accessibility
+    - Replaced parent buttons with `<div>` elements using `role="button"` and `tabIndex={0}`
+    - Added keyboard navigation support (Enter and Space keys)
+    - Applied to "Fichiers de logs système" and "Fichiers détectés avec regex" sections
+    - Maintains full functionality and accessibility
 
 #### TypeScript Errors
 
 - **Type conversions**: Fixed TypeScript errors for `HostSystemPluginConfig` type conversions
-  - Added `as unknown as` intermediate conversion for safe type casting
-  - Fixed type mapping for 'user' and 'cron' log types in auto-detected files
-  - Improved type safety in plugin configuration handling
+    - Added `as unknown as` intermediate conversion for safe type casting
+    - Fixed type mapping for 'user' and 'cron' log types in auto-detected files
+    - Improved type safety in plugin configuration handling
 
 ### Added
 
 #### Log File Permissions
 
 - **Docker permissions**: Added automatic configuration for reading system log files
-  - Container automatically adds `node` user to `adm` group (GID 4)
-  - Allows reading files owned by `root:adm` with permissions `640`
-  - Configurable via `ADM_GID` environment variable for custom GID
-  - Supports reading auth.log, cron.log, daemon.log, syslog, and other system logs
+    - Container automatically adds `node` user to `adm` group (GID 4)
+    - Allows reading files owned by `root:adm` with permissions `640`
+    - Configurable via `ADM_GID` environment variable for custom GID
+    - Supports reading auth.log, cron.log, daemon.log, syslog, and other system logs
 
 #### Documentation
 
 - **README updates**: Added comprehensive documentation for log file permissions
-  - Section explaining Docker permissions configuration
-  - Instructions for handling files with restrictive permissions (600)
-  - Examples for fixing permissions on php8.0-fpm.log and rkhunter.log.1
-  - Security notes about adm group usage
+    - Section explaining Docker permissions configuration
+    - Instructions for handling files with restrictive permissions (600)
+    - Examples for fixing permissions on php8.0-fpm.log and rkhunter.log.1
+    - Security notes about adm group usage
 
 ### Changed
 
 #### Docker Configuration
 
 - **docker-compose.yml**: Added `group_add` configuration for adm group
-  - Automatically adds container to adm group for log file access
-  - Configurable via `ADM_GID` environment variable (default: 4)
+    - Automatically adds container to adm group for log file access
+    - Configurable via `ADM_GID` environment variable (default: 4)
 
 #### docker-entrypoint.sh
 
 - **Group management**: Enhanced entrypoint script to add node user to adm group
-  - Creates adm group with standard GID 4 if it doesn't exist
-  - Adds node user to adm group for log file access
-  - Works seamlessly with Docker volume mounts
+    - Creates adm group with standard GID 4 if it doesn't exist
+    - Adds node user to adm group for log file access
+    - Works seamlessly with Docker volume mounts
 
 ---
 
@@ -2725,27 +2736,27 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
 #### UI/UX Improvements
 
 - **Header file selector**: Removed file count badge from "Fichiers de logs" button - count now only displayed on plugin icon badge
-  - Cleaner header interface
-  - File count remains visible on plugin icon for quick reference
+    - Cleaner header interface
+    - File count remains visible on plugin icon for quick reference
 - **Log table statistics**: Improved statistics badges display
-  - Added file size badge (displayed first, before other badges)
-  - Removed "Statistiques :" label text - only badges are now displayed
-  - File size badge uses purple color scheme to differentiate from other badges
-  - File size formatted automatically (B, KB, MB, GB)
+    - Added file size badge (displayed first, before other badges)
+    - Removed "Statistiques :" label text - only badges are now displayed
+    - File size badge uses purple color scheme to differentiate from other badges
+    - File size formatted automatically (B, KB, MB, GB)
 - **Filter badges layout**: Enhanced filter badges display for better readability
-  - Filter titles and badges now displayed on a single line with separator "|"
-  - Applied to "Niveau", "Code HTTP", and "Méthode HTTP" filters
-  - More compact and consistent layout
-  - Better use of horizontal space
+    - Filter titles and badges now displayed on a single line with separator "|"
+    - Applied to "Niveau", "Code HTTP", and "Méthode HTTP" filters
+    - More compact and consistent layout
+    - Better use of horizontal space
 
 ### Technical Details
 
 - **Frontend**:
-  - Updated `Header.tsx` to remove file count from file selector button
-  - Updated `LogTable.tsx` to add file size badge and remove statistics label
-  - Updated `LogFilters.tsx` to display filter titles and badges on single line
-  - Added `fileSize` prop to `LogTable` component
-  - Updated `LogViewerPage.tsx` to pass file size from `availableFiles` to `LogTable`
+    - Updated `Header.tsx` to remove file count from file selector button
+    - Updated `LogTable.tsx` to add file size badge and remove statistics label
+    - Updated `LogFilters.tsx` to display filter titles and badges on single line
+    - Added `fileSize` prop to `LogTable` component
+    - Updated `LogViewerPage.tsx` to pass file size from `availableFiles` to `LogTable`
 
 ## [0.1.1] - 2025-01-28
 
@@ -2754,50 +2765,50 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
 #### Log Viewer Improvements
 
 - **Automatic log loading**: Logs are now automatically loaded when a file is selected, eliminating the need to click "Refresh"
-  - Automatic loading triggered when `selectedFilePath` or `selectedLogType` changes
-  - Seamless user experience with immediate log display
+    - Automatic loading triggered when `selectedFilePath` or `selectedLogType` changes
+    - Seamless user experience with immediate log display
 - **Custom regex editor**: New modal for editing custom regex patterns for log files
-  - `RegexEditorModal` component with full regex editing capabilities
-  - Display of default regex pattern (if available) for the selected log type
-  - Real-time regex testing with sample log lines
-  - Visual feedback showing capture groups and matches
-  - Validation of regex syntax before saving
+    - `RegexEditorModal` component with full regex editing capabilities
+    - Display of default regex pattern (if available) for the selected log type
+    - Real-time regex testing with sample log lines
+    - Visual feedback showing capture groups and matches
+    - Validation of regex syntax before saving
 - **Regex editor button in header**: Quick access to regex editor from the log viewer header
-  - Button with `Code` icon next to the file selector
-  - Only visible when a log file is selected
-  - Opens the regex editor modal for the current file
+    - Button with `Code` icon next to the file selector
+    - Only visible when a log file is selected
+    - Opens the regex editor modal for the current file
 - **Backend API for custom regex**: New API endpoints for managing custom regex patterns
-  - `GET /api/log-viewer/plugins/:pluginId/default-regex` - Get default regex for a log type
-  - `GET /api/log-viewer/plugins/:pluginId/regex-config` - Get custom regex for a file
-  - `PUT /api/log-viewer/plugins/:pluginId/regex-config` - Save custom regex for a file
-  - Custom regexes stored in plugin configuration via `PluginConfigRepository`
+    - `GET /api/log-viewer/plugins/:pluginId/default-regex` - Get default regex for a log type
+    - `GET /api/log-viewer/plugins/:pluginId/regex-config` - Get custom regex for a file
+    - `PUT /api/log-viewer/plugins/:pluginId/regex-config` - Save custom regex for a file
+    - Custom regexes stored in plugin configuration via `PluginConfigRepository`
 - **Custom regex display in plugin settings**: List of custom regexes in plugin configuration modal
-  - New "Regex personnalisées" section in `PluginConfigModal`
-  - Displays all custom regexes with file path, log type, modification date, and full regex pattern
-  - Available for all log source plugins (host-system, nginx, apache, npm)
-  - Helpful message explaining how to configure regexes from the log viewer
+    - New "Regex personnalisées" section in `PluginConfigModal`
+    - Displays all custom regexes with file path, log type, modification date, and full regex pattern
+    - Available for all log source plugins (host-system, nginx, apache, npm)
+    - Helpful message explaining how to configure regexes from the log viewer
 
 ### Changed
 
 - **Log file selection behavior**: File selection now automatically triggers log loading
-  - Removed manual "Refresh" requirement after file selection
-  - Improved user experience with immediate feedback
+    - Removed manual "Refresh" requirement after file selection
+    - Improved user experience with immediate feedback
 - **Header component**: Enhanced with regex editor button
-  - Added `Code` icon button for regex editing
-  - Integrated `RegexEditorModal` component
-  - Conditional rendering based on file selection
+    - Added `Code` icon button for regex editing
+    - Integrated `RegexEditorModal` component
+    - Conditional rendering based on file selection
 
 ### Technical Details
 
 - **Frontend**:
-  - New `RegexEditorModal.tsx` component with regex editing and testing
-  - Updated `Header.tsx` with regex editor button and modal integration
-  - Updated `LogViewerPage.tsx` with automatic log loading on file selection
-  - Updated `PluginConfigModal.tsx` with custom regex display section
+    - New `RegexEditorModal.tsx` component with regex editing and testing
+    - Updated `Header.tsx` with regex editor button and modal integration
+    - Updated `LogViewerPage.tsx` with automatic log loading on file selection
+    - Updated `PluginConfigModal.tsx` with custom regex display section
 - **Backend**:
-  - New routes in `log-viewer.ts` for regex management
-  - Integration with `PluginConfigRepository` for persistent storage
-  - Default regex patterns for common log types (NPM, Nginx, Apache, Host System)
+    - New routes in `log-viewer.ts` for regex management
+    - Integration with `PluginConfigRepository` for persistent storage
+    - Default regex patterns for common log types (NPM, Nginx, Apache, Host System)
 
 ## [0.1.0] - 2024-01-15
 
@@ -2806,147 +2817,147 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
 #### User Management
 
 - **Automatic default admin user creation**: On first application startup, a default admin user is automatically created
-  - Default username: `admin`
-  - Default password: `admin123`
-  - Default email: `admin@localhost`
-  - Default role: `admin`
-  - Credentials can be customized via environment variables:
-    - `DEFAULT_ADMIN_USERNAME`
-    - `DEFAULT_ADMIN_PASSWORD`
-    - `DEFAULT_ADMIN_EMAIL`
+    - Default username: `admin`
+    - Default password: `admin123`
+    - Default email: `admin@localhost`
+    - Default role: `admin`
+    - Credentials can be customized via environment variables:
+        - `DEFAULT_ADMIN_USERNAME`
+        - `DEFAULT_ADMIN_PASSWORD`
+        - `DEFAULT_ADMIN_EMAIL`
 - **JWT-based authentication system**: Secure user authentication using JSON Web Tokens
-  - Token stored in browser localStorage
-  - Automatic token validation on application startup
-  - Automatic reconnection if valid token exists
-  - Configurable token expiration (default: 7 days)
+    - Token stored in browser localStorage
+    - Automatic token validation on application startup
+    - Automatic reconnection if valid token exists
+    - Configurable token expiration (default: 7 days)
 - **User login modal**: Automatic display of login modal when user is not authenticated
 - **Password security**: Passwords are hashed using bcrypt (10 rounds)
 - **Brute force protection**: Account lockout after multiple failed login attempts
 - **User roles**: Support for three roles (`admin`, `user`, `viewer`)
 - **User management**: Full CRUD operations for user accounts
-  - User registration
-  - User login/logout
-  - User profile management
-  - Password change functionality
-  - User enable/disable
-  - Role management
+    - User registration
+    - User login/logout
+    - User profile management
+    - Password change functionality
+    - User enable/disable
+    - Role management
 
 #### Log Source Plugin System
 
 - **Plugin architecture**: New plugin system for log sources
-  - `LogSourcePlugin` interface for implementing log source plugins
-  - Support for multiple log source types (Apache, Nginx, NPM, Host System)
-  - Plugin registration and management system
+    - `LogSourcePlugin` interface for implementing log source plugins
+    - Support for multiple log source types (Apache, Nginx, NPM, Host System)
+    - Plugin registration and management system
 - **Host System Log Plugin**: Default plugin for reading system logs
-  - Automatic detection of Docker environment
-  - Reads logs from `/host/logs` in Docker or `/var/log` locally
-  - Support for multiple log types:
-    - Syslog
-    - Auth logs
-    - Kernel logs
-    - Daemon logs
-    - Mail logs
-    - Custom logs
+    - Automatic detection of Docker environment
+    - Reads logs from `/host/logs` in Docker or `/var/log` locally
+    - Support for multiple log types:
+        - Syslog
+        - Auth logs
+        - Kernel logs
+        - Daemon logs
+        - Mail logs
+        - Custom logs
 - **Log file scanning**: Automatic detection and scanning of log files
-  - Pattern-based file matching
-  - Support for rotated log files
-  - Compressed file support (gzip)
+    - Pattern-based file matching
+    - Support for rotated log files
+    - Compressed file support (gzip)
 - **Log parsing**: Specialized parsers for different log formats
-  - Syslog parser
-  - Nginx access/error log parser
-  - Apache access/error log parser
-  - NPM log parser
-  - Auth log parser
-  - Kernel log parser
-  - Daemon log parser
-  - Mail log parser
-  - Custom log parser
+    - Syslog parser
+    - Nginx access/error log parser
+    - Apache access/error log parser
+    - NPM log parser
+    - Auth log parser
+    - Kernel log parser
+    - Daemon log parser
+    - Mail log parser
+    - Custom log parser
 - **Log reading service**: Efficient log file reading with streaming support
-  - Configurable line limits
-  - Support for reading from specific line numbers
-  - Handling of large log files
+    - Configurable line limits
+    - Support for reading from specific line numbers
+    - Handling of large log files
 - **Log parser service**: Coordinates log reading and parsing using registered plugins
-  - Dynamic column detection based on log type
-  - Parsed log entry structure
+    - Dynamic column detection based on log type
+    - Parsed log entry structure
 - **WebSocket streaming**: Real-time log streaming via WebSocket
-  - `/ws/log-viewer` WebSocket endpoint
-  - Real-time log updates
-  - Automatic reconnection on disconnect
-  - Follow mode for live log monitoring
+    - `/ws/log-viewer` WebSocket endpoint
+    - Real-time log updates
+    - Automatic reconnection on disconnect
+    - Follow mode for live log monitoring
 - **REST API routes**: Complete API for log viewer functionality
-  - `GET /api/log-viewer/plugins/:pluginId/files` - List available log files
-  - `POST /api/log-viewer/plugins/:pluginId/scan` - Scan for log files
-  - `GET /api/log-viewer/files/:fileId/logs` - Read logs from a file
-  - `POST /api/log-viewer/plugins/:pluginId/read-direct` - Read logs directly (bypass DB)
-  - `GET /api/log-viewer/plugins/:pluginId/files-direct` - List files directly (bypass DB)
-  - `GET /api/log-viewer/sources` - List log sources
-  - `POST /api/log-viewer/sources` - Create log source
-  - `GET /api/log-viewer/sources/:id` - Get log source
-  - `PUT /api/log-viewer/sources/:id` - Update log source
-  - `DELETE /api/log-viewer/sources/:id` - Delete log source
-  - `GET /api/log-viewer/files` - List log files
-  - `PUT /api/log-viewer/files/:id` - Update log file
-  - `DELETE /api/log-viewer/files/:id` - Delete log file
+    - `GET /api/log-viewer/plugins/:pluginId/files` - List available log files
+    - `POST /api/log-viewer/plugins/:pluginId/scan` - Scan for log files
+    - `GET /api/log-viewer/files/:fileId/logs` - Read logs from a file
+    - `POST /api/log-viewer/plugins/:pluginId/read-direct` - Read logs directly (bypass DB)
+    - `GET /api/log-viewer/plugins/:pluginId/files-direct` - List files directly (bypass DB)
+    - `GET /api/log-viewer/sources` - List log sources
+    - `POST /api/log-viewer/sources` - Create log source
+    - `GET /api/log-viewer/sources/:id` - Get log source
+    - `PUT /api/log-viewer/sources/:id` - Update log source
+    - `DELETE /api/log-viewer/sources/:id` - Delete log source
+    - `GET /api/log-viewer/files` - List log files
+    - `PUT /api/log-viewer/files/:id` - Update log file
+    - `DELETE /api/log-viewer/files/:id` - Delete log file
 - **Database models**: New database models for log management
-  - `LogSource` model for managing log sources
-  - `LogFile` model for managing individual log files
-  - Database tables with proper indexes
+    - `LogSource` model for managing log sources
+    - `LogFile` model for managing individual log files
+    - Database tables with proper indexes
 
 #### Frontend Log Viewer
 
 - **LogViewerPage**: Complete log viewer page component
-  - Plugin selection
-  - File selection
-  - Log display with dynamic columns
-  - Real-time log streaming support
+    - Plugin selection
+    - File selection
+    - Log display with dynamic columns
+    - Real-time log streaming support
 - **LogTable component**: Structured table for displaying logs
-  - Dynamic columns based on log type
-  - Colored badges for log levels, HTTP codes, methods
-  - Responsive design with horizontal scrolling on mobile
+    - Dynamic columns based on log type
+    - Colored badges for log levels, HTTP codes, methods
+    - Responsive design with horizontal scrolling on mobile
 - **LogBadge component**: Colored badges for log entries
-  - Level badges (INFO, WARN, ERROR, DEBUG, etc.)
-  - HTTP code badges (2xx, 3xx, 4xx, 5xx)
-  - HTTP method badges (GET, POST, DELETE, etc.)
-  - Response time badges
+    - Level badges (INFO, WARN, ERROR, DEBUG, etc.)
+    - HTTP code badges (2xx, 3xx, 4xx, 5xx)
+    - HTTP method badges (GET, POST, DELETE, etc.)
+    - Response time badges
 - **LogFilters component**: Advanced filtering system
-  - Text search with debounce (300ms)
-  - Level filtering
-  - HTTP code filtering
-  - HTTP method filtering
-  - Date range filtering
-  - IP source filtering
-  - Active filter count badge
-  - Reset filters button
-  - Responsive modal on mobile
+    - Text search with debounce (300ms)
+    - Level filtering
+    - HTTP code filtering
+    - HTTP method filtering
+    - Date range filtering
+    - IP source filtering
+    - Active filter count badge
+    - Reset filters button
+    - Responsive modal on mobile
 - **WebSocket hook**: React hook for WebSocket connection
-  - `useLogViewerWebSocket` hook
-  - Automatic connection management
-  - Automatic reconnection on disconnect
-  - Subscribe/unsubscribe to log files
-  - Real-time log updates
+    - `useLogViewerWebSocket` hook
+    - Automatic connection management
+    - Automatic reconnection on disconnect
+    - Subscribe/unsubscribe to log files
+    - Real-time log updates
 - **Log viewer store**: Zustand store for log viewer state management
-  - Selected plugin and file state
-  - Log entries state
-  - Filter state
-  - WebSocket connection state
-  - Loading and error states
+    - Selected plugin and file state
+    - Log entries state
+    - Filter state
+    - WebSocket connection state
+    - Loading and error states
 - **Dashboard integration**: Button in dashboard to navigate to log viewer
 - **TypeScript types**: Complete type definitions for log viewer
-  - `LogEntry` interface
-  - `LogFilters` interface
-  - `LogFileInfo` interface
+    - `LogEntry` interface
+    - `LogFilters` interface
+    - `LogFileInfo` interface
 
 ### Changed
 
 - **Project name**: Changed from "MyNetwork" to "LogviewR"
 - **Project version**: Set to `0.1.0`
 - **Removed Freebox/UniFi/Scanner**: All Freebox, UniFi, and network scanner code has been removed
-  - Freebox API routes removed
-  - Freebox services removed
-  - UniFi plugin removed
-  - Network scanner plugin removed
-  - Freebox-specific WebSocket removed
-  - Freebox-specific configuration removed
+    - Freebox API routes removed
+    - Freebox services removed
+    - UniFi plugin removed
+    - Network scanner plugin removed
+    - Freebox-specific WebSocket removed
+    - Freebox-specific configuration removed
 
 ### Removed
 
@@ -2981,9 +2992,9 @@ New Fail2ban monitoring plugin with a complete multi-tab interface, visually ali
 ### Planned Features
 
 - **Additional log source plugins**:
-  - Apache log plugin (in progress)
-  - Nginx log plugin (in progress)
-  - NPM log plugin (in progress)
+    - Apache log plugin (in progress)
+    - Nginx log plugin (in progress)
+    - NPM log plugin (in progress)
 - **Dashboard page**: Summary dashboard with plugin statistics
 - **Export functionality**: Export logs in multiple formats (CSV, JSON, TXT, Excel, PDF)
 - **Advanced filtering**: Server-side filtering for better performance

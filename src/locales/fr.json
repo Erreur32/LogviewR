@@ -1485,7 +1485,24 @@
       "periodSummary": "Résumé de la période",
       "attackTypes": "Types d'attaque",
       "lastEvents": "Derniers événements",
-      "totalBansCumul": "Total bans (cumul)"
+      "totalBansCumul": "Total bans (cumul)",
+      "topDomainsBans": "Top Domaines — bans",
+      "topDomainsFails": "Top Domaines — tentatives",
+      "domainsEmptyBans": "Aucun ban n'a été attribué à un domaine NPM sur cette période",
+      "domainsEmptyFails": "Aucune tentative n'a été attribuée à un domaine NPM sur cette période",
+      "bansToCheck": "Bans à vérifier",
+      "ipsetProtection": "Protection IPSet",
+      "attemptsRising": "Tentatives en hausse",
+      "attemptsRisingDelta": "Tentatives en hausse +{{delta}} vs période préc.",
+      "currentState": "État actuel",
+      "bansByHour": "Bans par heure",
+      "attemptsByHour": "Tentatives par heure",
+      "chartLine": "Courbe",
+      "chartLineDesc": "Représentation en lignes continues — idéal pour voir les tendances",
+      "chartBar": "Barres",
+      "chartBarDesc": "Colonnes verticales empilées par jail — idéal pour comparer les volumes",
+      "activeFailures": "Échecs actifs",
+      "activeFailuresDesc": "Tentatives échouées en cours dans la fenêtre findtime — pas encore bannies. Seuil maxretry pas atteint."
     }
   }
 }
