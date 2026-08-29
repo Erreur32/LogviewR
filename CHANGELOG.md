@@ -5,6 +5,20 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.24] - 2026-08-29
+
+### For users
+
+- MCP is now disabled by default: on a fresh install (or any instance that never touched the toggle), the LogviewR MCP server refuses tool calls until you explicitly enable it from Settings → MCP. Previously, absence of the setting was treated as enabled.
+- Settings → MCP now shows an explanatory panel when MCP is off, describing what enabling it allows an AI agent to do, why it is opt-in, and how to wire it into your MCP client (config snippet + link to `Docs/MCP_SERVER.md`).
+- README.md/README.fr.md: added a "Guides / Docker / Troubleshooting / Parsers & Internals" documentation index linking every existing `Docs/` guide (MCP server, log analytics, environment variables, UniFi setup, Docker comparisons, production troubleshooting, permission and JWT fixes, etc.), previously not linked from the README.
+
+### For developers
+
+- `server/mcp/mcpConfig.ts`: `isMcpEnabled()` now requires the `mcp_enabled` key to equal `'true'` explicitly instead of only checking `!== 'false'`. `MCP_DISABLED_MESSAGE` is exported and reused by `auditGate.ts` (previously duplicated there with different wording).
+- `server/mcp/__tests__/auditGate.test.ts`: `beforeEach` now calls `setMcpEnabled(true)` since these tests exercise the confirm/audit gate, not the enabled gate; added coverage for the `rejected_disabled` path.
+- `src/components/McpSection.tsx`: new info block (shown only while `status.enabled === false`) with 4 new i18n keys under `mcp.overview.*` in both `en.json` and `fr.json`.
+
 ## [0.9.23] - 2026-08-29
 
 ### For users

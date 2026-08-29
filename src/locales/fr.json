@@ -360,7 +360,11 @@
       "statsSuccess": "Succès",
       "statsError": "Erreurs",
       "statsRejected": "Non confirmées",
-      "architectureNote": "Le process MCP est démarré par votre client MCP (Claude Code/Desktop), pas par LogviewR. Ce panneau ne peut donc pas démarrer ou arrêter le process, seulement l'autoriser ou non."
+      "architectureNote": "Le process MCP est démarré par votre client MCP (Claude Code/Desktop), pas par LogviewR. Ce panneau ne peut donc pas démarrer ou arrêter le process, seulement l'autoriser ou non.",
+      "enableGuideTitle": "Comment activer MCP",
+      "enableGuideIntro": "MCP est désactivé par défaut : une fois activé, un agent IA (Claude Code/Desktop) peut consulter l'état de fail2ban, chercher dans vos logs, et, avec confirmation explicite, bannir/débannir des IPs ou démarrer/arrêter des jails. N'activez cette option que si vous comptez piloter LogviewR via un agent.",
+      "enableGuideSteps": "Pour intégrer : ajoutez une entrée \"logviewr\" dans la config de votre client MCP (claude_desktop_config.json ou .claude.json), avec \"command\" pointant sur \"npm run mcp:stdio\" et \"cwd\" réglé sur la racine de ce dépôt, puis redémarrez votre client MCP. Cet interrupteur ne fait qu'autoriser, il ne démarre pas le process lui-même.",
+      "enableGuideDocLink": "Instructions complètes et liste des outils dans Docs/MCP_SERVER.md."
     },
     "audit": {
       "title": "Journal d'audit des actions MCP",

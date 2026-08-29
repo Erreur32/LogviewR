@@ -16,12 +16,16 @@ process.env.NODE_ENV = 'test';
 const { initializeDatabase, closeDatabase } = await import('../../database/connection.js');
 const { McpActionAuditRepository } = await import('../../database/models/McpActionAudit.js');
 const { runGatedAction } = await import('../auditGate.js');
+const { setMcpEnabled } = await import('../mcpConfig.js');
 
 describe('runGatedAction', () => {
     beforeEach(() => {
         closeDatabase();
         process.env.DATABASE_PATH = ':memory:';
         initializeDatabase();
+        // MCP is opt-in (disabled by default) — these tests exercise the confirm/audit
+        // gate itself, so enable it explicitly rather than the disabled-gate path.
+        setMcpEnabled(true);
     });
 
     afterEach(() => {
@@ -86,5 +90,23 @@ describe('runGatedAction', () => {
         } finally {
             delete process.env.LOGVIEWR_MCP_ACTOR;
         }
+    });
+
+    it('rejects and logs when MCP is disabled, without running fn', async () => {
+        setMcpEnabled(false);
+        let ran = false;
+        const result = await runGatedAction('f2b_ban_ip', { confirm: true }, async () => {
+            ran = true;
+            return 'should not happen';
+        });
+
+        assert.equal(ran, false);
+        assert.equal(result.ok, false);
+        assert.match(result.error ?? '', /disabled/);
+
+        const rows = McpActionAuditRepository.list({ toolName: 'f2b_ban_ip' });
+        assert.equal(rows.length, 1);
+        assert.equal(rows[0].result, 'rejected_disabled');
+        assert.equal(rows[0].confirmed, false);
     });
 });

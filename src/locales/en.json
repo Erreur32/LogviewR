@@ -360,7 +360,11 @@
       "statsSuccess": "Success",
       "statsError": "Errors",
       "statsRejected": "Unconfirmed",
-      "architectureNote": "The MCP process is started by your MCP client (Claude Code/Desktop), not by LogviewR. This panel cannot start or stop the process, only allow or block it."
+      "architectureNote": "The MCP process is started by your MCP client (Claude Code/Desktop), not by LogviewR. This panel cannot start or stop the process, only allow or block it.",
+      "enableGuideTitle": "How to enable MCP",
+      "enableGuideIntro": "MCP is disabled by default: once enabled, an AI agent (Claude Code/Desktop) can inspect fail2ban state, search your logs, and, with explicit confirmation, ban/unban IPs or start/stop jails. Enable it only if you intend to control LogviewR through an agent.",
+      "enableGuideSteps": "To integrate: add a \"logviewr\" entry to your MCP client's config (claude_desktop_config.json or .claude.json), pointing \"command\" at \"npm run mcp:stdio\" with \"cwd\" set to this repository's root, then restart your MCP client. This toggle only grants permission, it does not start the process itself.",
+      "enableGuideDocLink": "Full setup instructions and the tool list are in Docs/MCP_SERVER.md."
     },
     "audit": {
       "title": "MCP action audit log",

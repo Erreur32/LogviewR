@@ -7,7 +7,7 @@
 
 <img src="LogviewR_banner.svg" alt="LogviewR" width="512" height="256" />
 
-![LogviewR](https://img.shields.io/badge/LogviewR-0.9.23-111827?style=for-the-badge)
+![LogviewR](https://img.shields.io/badge/LogviewR-0.9.24-111827?style=for-the-badge)
 ![Status](https://img.shields.io/badge/Status-DEVELOPMENT-374151?style=for-the-badge)
 ![Docker](https://img.shields.io/badge/Docker-Ready-1f2937?style=for-the-badge&logo=docker&logoColor=38bdf8)
 ![React](https://img.shields.io/badge/React-19-111827?style=for-the-badge&logo=react&logoColor=38bdf8)
@@ -302,6 +302,31 @@ create 640 root adm
 ---
 
 ## 📚 Documentation
+
+### Guides
+
+- **[MCP Server](Docs/MCP_SERVER.md)** - control fail2ban and query logs from an AI agent (Claude Code, Claude Desktop, etc.)
+- **[Log Analytics](Docs/LOG_ANALYTICS.md)** - architecture and data flow of the analytics dashboard
+- **[Environment variables](Docs/VARIABLES_ENVIRONNEMENT.md)** - full reference, per execution mode
+- **[UniFi Controller setup](Docs/CONFIGURATION_UNIFI.md)** - configuring the UniFi plugin
+- **[How Docker log access works](Docs/HOW_LOGS_ACCESS_WORKS.md)** - the `/:/host:ro` mount explained
+- **[HOST_ROOT_PATH](Docs/HOST_ROOT_PATH.md)** - accessing host files from inside the container
+
+### Docker
+
+- **[docker-compose files compared](Docs/DOCKER_COMPOSE_COMPARISON.md)** - which file to use and when
+- **[Testing Docker locally](Docs/TEST_LOCAL_DOCKER.md)** - simulate production before deploying
+- **[Resetting a production deployment](Docs/RESET_DOCKER_PROD.md)** - clean slate procedure
+
+### Troubleshooting
+
+- **[Production troubleshooting](Docs/TROUBLESHOOTING_PROD.md)** - WebSocket and common errors
+- **[Fixing log permissions](Docs/FIX_LOG_PERMISSIONS.md)** - `root:adm` 640 files unreadable
+- **[Fixing 401 errors](Docs/JWT_SECRET_FIX.md)** - JWT secret misconfiguration
+- **[Fixing a Docker mount issue](Docs/DOCKER_MOUNT_FIX.md)** - volume path mismatch
+- **[Nginx WebSocket configuration](Docs/NGINX_WEBSOCKET_CONFIG.md)** - "Invalid frame header" fix
+
+### Parsers & Internals
 
 - **[Parser guides](server/plugins/PARSERS_HELP.md)** - supported formats and regex
 - **[NPM Parser Help](server/plugins/npm/NPM_PARSER_HELP.md)** - NPM formats

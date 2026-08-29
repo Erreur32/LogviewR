@@ -12,7 +12,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Bot, Loader2, RefreshCw, CheckCircle, XCircle, AlertTriangle, Info, ShieldAlert } from 'lucide-react';
+import { Bot, Loader2, RefreshCw, CheckCircle, XCircle, AlertTriangle, Info, ShieldAlert, BookOpen } from 'lucide-react';
 import { Section, SettingRow } from './SettingsSection';
 import { api } from '../api/client';
 import { useNotificationStore } from '../stores/notificationStore';
@@ -165,6 +165,20 @@ const OverviewTab: React.FC = () => {
                         <p className="text-xs text-gray-400">{t('mcp.overview.architectureNote')}</p>
                     </div>
                 </div>
+
+                {!status?.enabled && (
+                    <div className="mt-4 p-3 bg-amber-900/10 border border-amber-700/30 rounded-lg">
+                        <div className="flex items-start gap-2">
+                            <BookOpen size={14} className="text-amber-400 mt-0.5 flex-shrink-0" />
+                            <div className="space-y-2">
+                                <p className="text-xs font-medium text-amber-300">{t('mcp.overview.enableGuideTitle')}</p>
+                                <p className="text-xs text-gray-400">{t('mcp.overview.enableGuideIntro')}</p>
+                                <p className="text-xs text-gray-400 whitespace-pre-line">{t('mcp.overview.enableGuideSteps')}</p>
+                                <p className="text-xs text-gray-500 italic">{t('mcp.overview.enableGuideDocLink')}</p>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </Section>
 
             <Section title={t('mcp.overview.statsTitle')} icon={ShieldAlert} iconColor="cyan">

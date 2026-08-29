@@ -12,11 +12,11 @@ import { AppConfigRepository } from '../database/models/AppConfig.js';
 
 const MCP_ENABLED_KEY = 'mcp_enabled';
 const MCP_LAST_SEEN_KEY = 'mcp_last_seen';
-const MCP_DISABLED_MESSAGE = 'MCP is disabled from the LogviewR admin panel — enable it before retrying.';
+export const MCP_DISABLED_MESSAGE = 'MCP is disabled from the LogviewR admin panel: enable it before retrying.';
 
-/** Absence of the key means enabled — preserves existing deployed behavior. */
+/** Absence of the key means disabled — MCP is opt-in and must be enabled explicitly from the admin panel. */
 export function isMcpEnabled(): boolean {
-    return AppConfigRepository.get(MCP_ENABLED_KEY) !== 'false';
+    return AppConfigRepository.get(MCP_ENABLED_KEY) === 'true';
 }
 
 export function setMcpEnabled(enabled: boolean): boolean {

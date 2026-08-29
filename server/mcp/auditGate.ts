@@ -8,7 +8,7 @@
  */
 
 import { McpActionAuditRepository } from '../database/models/McpActionAudit.js';
-import { isMcpEnabled, touchHeartbeat } from './mcpConfig.js';
+import { isMcpEnabled, touchHeartbeat, MCP_DISABLED_MESSAGE } from './mcpConfig.js';
 
 export function mcpActor(): string {
     return process.env.LOGVIEWR_MCP_ACTOR || 'unknown-mcp-agent';
@@ -60,7 +60,7 @@ export async function runGatedAction<T>(
             confirmed: false,
             result: 'rejected_disabled',
         });
-        return { ok: false, error: 'MCP is disabled from the LogviewR admin panel — enable it before retrying.' };
+        return { ok: false, error: MCP_DISABLED_MESSAGE };
     }
 
     if (params.dryRun === true) {
