@@ -5,6 +5,20 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.21] - 2026-08-29
+
+### For users
+
+- Fixed: clicking "next page" in the log table would briefly show page 2, then snap back to page 1 after about a second. Pagination now stays put when you navigate.
+- Fixed: if an active search or filter narrowed the results so the current page no longer existed, the table could get stuck showing an empty page instead of snapping back to the last valid page.
+
+### For developers
+
+- `LogFilters.tsx`: the debounced search `useEffect` compared `searchValue` (defaults to `''`) against `filters.search` (defaults to `undefined`) without normalization, so it fired `onFiltersChange` — and the parent's page reset — on every unrelated re-render, not just on an actual search change. Fixed by normalizing both sides before comparing.
+- `LogViewerPage.tsx`: `onFiltersChange`/`onPageSizeChange` were passed to `LogTable` as new inline closures on every render, which retriggered `LogFilters`' debounce effect (a dependency) on any parent re-render, including a plain page-change click. Replaced with `useCallback`-memoized `handleLogTableFiltersChange`/`handleLogTablePageSizeChange`. Also removed two dead `setTimeout(() => loadRawLogs(...), 100)` reload calls left over from before pagination went client-side, and trimmed `loadLogs`'s dependency array (`pageSize`/`currentPage` no longer belong there since reloads must not reset the page).
+- `LogTable.tsx`: added a `safePage = Math.min(currentPage, totalPages)` clamp used for both slicing and pagination-bar rendering, plus a corrective `useEffect` that calls `onPageChange(totalPages)` when `currentPage` exceeds `totalPages` (e.g. after a filter shrinks the result set) — prevents the "stuck on an empty page" state.
+- `logViewerStore.ts`: `clearLogs()` no longer resets `currentPage` — page resets are now handled explicitly by the call sites that change file/plugin/filters/page size, not implicitly on every log clear (which was also firing on plain reloads).
+
 ## [0.9.20] - 2026-08-15
 
 ### For developers

@@ -275,12 +275,13 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
             unsubscribe(fileId);
             setFollowing(false);
         }
+        setPage(1);
         setSelectedFile(null, filePath, logType);
         // Save last file if remember is enabled
         if (selectedPluginId) {
             saveLastFile(selectedPluginId, filePath, logType);
         }
-    }, [isFollowing, selectedFilePath, selectedPluginId, unsubscribe, setSelectedFile, setFollowing, saveLastFile]);
+    }, [isFollowing, selectedFilePath, selectedPluginId, unsubscribe, setSelectedFile, setFollowing, saveLastFile, setPage]);
 
     // Load available files for selected plugin using direct route
     useEffect(() => {
@@ -440,7 +441,7 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
         } finally {
             setLoading(false);
         }
-    }, [selectedPluginId, pageSize, currentPage, setLoading, setError]);
+    }, [selectedPluginId, setLoading, setError]);
 
     // Load logs for selected file using direct route
     const loadLogs = useCallback(async (filePath: string, logType: string) => {
@@ -460,8 +461,9 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
         try {
             setLoading(true);
             setError(null);
-            clearLogs();
-            setPage(1); // Reset to first page when loading new file
+            // Do not reset currentPage here: pagination is client-side. Reloading
+            // (auto-refresh, view toggle, or a store update) must keep the user
+            // on the page they selected. Page is reset only when plugin/file changes.
 
             console.log('[LogViewerPage] Sending POST request to /api/log-viewer/plugins/' + selectedPluginId + '/read-direct');
 
@@ -521,7 +523,7 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
         } finally {
             setLoading(false);
         }
-    }, [selectedPluginId, viewMode, setLoading, setError, clearLogs, setLogs, setColumns, setPage, loadRawLogs, pageSize, currentPage]);
+    }, [selectedPluginId, viewMode, setLoading, setError, setLogs, setColumns, loadRawLogs]);
 
     // Automatically load logs when file is selected
     useEffect(() => {
@@ -539,6 +541,7 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
             unsubscribe(fileId);
             setFollowing(false);
         }
+        setPage(1);
         setSelectedFile(null, file.path, file.type);
         // Save last file if remember is enabled
         if (selectedPluginId) {
@@ -549,6 +552,18 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
             loadLogs(file.path, file.type);
         }, 100);
     };
+
+    // Stable references so children (LogFilters' debounced-search effect in particular)
+    // don't see a new prop identity on every unrelated re-render (e.g. page change).
+    const handleLogTableFiltersChange = useCallback((next: Partial<LogFiltersType>) => {
+        setPage(1);
+        setFilters(next);
+    }, [setPage, setFilters]);
+
+    const handleLogTablePageSizeChange = useCallback((size: number) => {
+        setPageSize(size);
+        setPage(1);
+    }, [setPageSize, setPage]);
 
     const handleRefresh = useCallback(() => {
         if (selectedFilePath && selectedLogType) {
@@ -707,6 +722,7 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
             onToggleViewMode: () => {
                 const newMode = viewModeRef.current === 'parsed' ? 'raw' : 'parsed';
                 setViewMode(newMode);
+                setPage(1);
                 if (selectedFilePathRef.current && selectedLogTypeRef.current) {
                     setTimeout(() => {
                         loadLogsRef.current(selectedFilePathRef.current!, selectedLogTypeRef.current!);
@@ -863,9 +879,6 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
     const goToRawPage = (newPage: number) => {
         const clamped = Math.max(1, Math.min(totalRawPages, newPage));
         setPage(clamped);
-        if (selectedFilePath) {
-            setTimeout(() => loadRawLogs(selectedFilePath), 100);
-        }
     };
     const rawPagBtn = 'px-2 py-1 rounded border border-cyan-500/40 bg-[#0f1a1f] text-cyan-300 hover:bg-cyan-500/10 hover:border-cyan-400 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-xs font-semibold';
     const rawPagAccent = 'text-cyan-400 font-semibold';
@@ -945,12 +958,6 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
                                                                         const newSize = Number.parseInt(e.target.value, 10);
                                                                         setPageSize(newSize);
                                                                         setPage(1);
-                                                                        // Reload raw logs with new page size
-                                                                        if (selectedFilePath) {
-                                                                            setTimeout(() => {
-                                                                                loadRawLogs(selectedFilePath);
-                                                                            }, 100);
-                                                                        }
                                                                     }}
                                                                     className="px-2 py-1 bg-[#121212] border border-gray-700 rounded text-gray-300 text-xs focus:outline-none focus:ring-2 focus:ring-cyan-500"
                                                                 >
@@ -1006,9 +1013,9 @@ export function LogViewerPage({ pluginId: initialPluginId, defaultLogFile: initi
                                                     selectedFilePath={selectedFilePath}
                                                     pageSize={pageSize}
                                                     onPageChange={setPage}
-                                                    onPageSizeChange={setPageSize}
+                                                    onPageSizeChange={handleLogTablePageSizeChange}
                                                     filters={logTableFilters}
-                                                    onFiltersChange={setFilters}
+                                                    onFiltersChange={handleLogTableFiltersChange}
                                                     logDateRange={logDateRange}
                                                     pluginId={selectedPluginId || undefined}
                                                     fileSize={selectedFileSize}

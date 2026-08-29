@@ -39,6 +39,7 @@ CLAUDE.md
 .windsurf
 .mcp.json
 .worktrees/
+.playwright-mcp/
 .planning/
 .reboot_schedule.json
 resume_*.txt

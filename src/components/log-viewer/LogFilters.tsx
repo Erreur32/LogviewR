@@ -75,7 +75,9 @@ export const LogFilters: React.FC<LogFiltersProps> = ({
     // Debounce search
     useEffect(() => {
         const timer = setTimeout(() => {
-            if (searchValue !== filters.search) {
+            // Normalize both sides ('' and undefined are equivalent "no search") to
+            // avoid firing onFiltersChange (and the parent's page reset) spuriously.
+            if (searchValue !== (filters.search || '')) {
                 onFiltersChange({ search: searchValue || undefined });
             }
         }, 300);

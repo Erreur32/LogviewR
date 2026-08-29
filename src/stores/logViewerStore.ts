@@ -122,5 +122,5 @@ export const useLogViewerStore = create<LogViewerState>((set) => ({
     setFilters: (filters) => set((state) => ({ filters: { ...state.filters, ...filters } })),
     setConnected: (isConnected) => set({ isConnected }),
     setFollowing: (isFollowing) => set({ isFollowing }),
-    clearLogs: () => set({ logs: [], totalLines: 0, currentPage: 1 })
+    clearLogs: () => set({ logs: [], totalLines: 0 })
 }));

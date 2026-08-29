@@ -486,9 +486,17 @@ export const LogTable: React.FC<LogTableProps> = ({
     
     // Pagination: calculate paginated logs
     const totalPages = Math.max(1, Math.ceil(nonEmptyLogs.length / pageSize));
-    const startIndex = (currentPage - 1) * pageSize;
+    const safePage = Math.min(currentPage, totalPages);
+    const startIndex = (safePage - 1) * pageSize;
     const endIndex = startIndex + pageSize;
     const paginatedLogs = nonEmptyLogs.slice(startIndex, endIndex);
+
+    // If filters/page-size shrink the result set, snap back to a valid page
+    useEffect(() => {
+        if (currentPage > totalPages && onPageChange) {
+            onPageChange(totalPages);
+        }
+    }, [currentPage, totalPages, onPageChange]);
     
     // Statistics (use totalLogsCount when logs empty, e.g. search returned nothing)
     const stats = useMemo(() => {
@@ -1122,14 +1130,14 @@ const formatCellValue = (log: LogEntry, column: string): React.ReactNode => {
 
                 <div className="flex items-center gap-2">
                     <span className="text-xs text-gray-400">
-                        {t('logViewer.pageOf', { current: currentPage, total: totalPages })}
+                        {t('logViewer.pageOf', { current: safePage, total: totalPages })}
                     </span>
                     
                     <div className="flex items-center gap-1">
                         <Tooltip content={t('logViewer.firstPage')}>
                             <button
                                 onClick={() => onPageChange && onPageChange(1)}
-                                disabled={currentPage === 1}
+                                disabled={safePage === 1}
                                 className="p-1.5 rounded border border-gray-700 bg-[#121212] text-gray-400 hover:text-gray-200 hover:bg-[#1a1a1a] disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-help"
                             >
                                 <ChevronsLeft size={16} />
@@ -1137,8 +1145,8 @@ const formatCellValue = (log: LogEntry, column: string): React.ReactNode => {
                         </Tooltip>
                         <Tooltip content={t('logViewer.prevPage')}>
                             <button
-                                onClick={() => onPageChange && onPageChange(currentPage - 1)}
-                                disabled={currentPage === 1}
+                                onClick={() => onPageChange && onPageChange(safePage - 1)}
+                                disabled={safePage === 1}
                                 className="p-1.5 rounded border border-gray-700 bg-[#121212] text-gray-400 hover:text-gray-200 hover:bg-[#1a1a1a] disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-help"
                             >
                                 <ChevronLeft size={16} />
@@ -1146,8 +1154,8 @@ const formatCellValue = (log: LogEntry, column: string): React.ReactNode => {
                         </Tooltip>
                         <Tooltip content={t('logViewer.nextPage')}>
                             <button
-                                onClick={() => onPageChange && onPageChange(currentPage + 1)}
-                                disabled={currentPage >= totalPages}
+                                onClick={() => onPageChange && onPageChange(safePage + 1)}
+                                disabled={safePage >= totalPages}
                                 className="p-1.5 rounded border border-gray-700 bg-[#121212] text-gray-400 hover:text-gray-200 hover:bg-[#1a1a1a] disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-help"
                             >
                                 <ChevronRight size={16} />
@@ -1276,7 +1284,7 @@ const formatCellValue = (log: LogEntry, column: string): React.ReactNode => {
 
                 <div className="flex items-center gap-2">
                     <span className="text-xs text-gray-400">
-                        {t('logViewer.pageOf', { current: currentPage, total: totalPages })}
+                        {t('logViewer.pageOf', { current: safePage, total: totalPages })}
                         {' '}({t('logViewer.lineTotalCount', { count: nonEmptyLogs.length })})
                     </span>
                     
@@ -1284,7 +1292,7 @@ const formatCellValue = (log: LogEntry, column: string): React.ReactNode => {
                         <Tooltip content={t('logViewer.firstPage')}>
                             <button
                                 onClick={() => onPageChange && onPageChange(1)}
-                                disabled={currentPage === 1}
+                                disabled={safePage === 1}
                                 className="p-1.5 rounded border border-gray-700 bg-[#121212] text-gray-400 hover:text-gray-200 hover:bg-[#1a1a1a] disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-help"
                             >
                                 <ChevronsLeft size={16} />
@@ -1292,8 +1300,8 @@ const formatCellValue = (log: LogEntry, column: string): React.ReactNode => {
                         </Tooltip>
                         <Tooltip content={t('logViewer.prevPage')}>
                             <button
-                                onClick={() => onPageChange && onPageChange(currentPage - 1)}
-                                disabled={currentPage === 1}
+                                onClick={() => onPageChange && onPageChange(safePage - 1)}
+                                disabled={safePage === 1}
                                 className="p-1.5 rounded border border-gray-700 bg-[#121212] text-gray-400 hover:text-gray-200 hover:bg-[#1a1a1a] disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-help"
                             >
                                 <ChevronLeft size={16} />
@@ -1301,8 +1309,8 @@ const formatCellValue = (log: LogEntry, column: string): React.ReactNode => {
                         </Tooltip>
                         <Tooltip content={t('logViewer.nextPage')}>
                             <button
-                                onClick={() => onPageChange && onPageChange(currentPage + 1)}
-                                disabled={currentPage >= totalPages}
+                                onClick={() => onPageChange && onPageChange(safePage + 1)}
+                                disabled={safePage >= totalPages}
                                 className="p-1.5 rounded border border-gray-700 bg-[#121212] text-gray-400 hover:text-gray-200 hover:bg-[#1a1a1a] disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-help"
                             >
                                 <ChevronRight size={16} />
@@ -1311,7 +1319,7 @@ const formatCellValue = (log: LogEntry, column: string): React.ReactNode => {
                         <Tooltip content={t('logViewer.lastPage')}>
                             <button
                                 onClick={() => onPageChange && onPageChange(totalPages)}
-                                disabled={currentPage >= totalPages}
+                                disabled={safePage >= totalPages}
                                 className="p-1.5 rounded border border-gray-700 bg-[#121212] text-gray-400 hover:text-gray-200 hover:bg-[#1a1a1a] disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-help"
                             >
                                 <ChevronsRight size={16} />
