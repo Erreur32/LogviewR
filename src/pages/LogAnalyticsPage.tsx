@@ -445,7 +445,12 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
         const { from, to, bucketHour } = resolveDateRange(timeRange, customFrom, customTo);
         const fromStr = from.toISOString();
         const toStr = to.toISOString();
-        const cacheKey = JSON.stringify({ fromStr, toStr, bucketHour, pluginId, fileScope, includeCompressed });
+        // Relative ranges (1h/24h/7d/30d) resolve "to" as `new Date()`, which differs on every
+        // call by definition: keying the cache on fromStr/toStr would make it miss on every
+        // remount. Key on the stable timeRange selector instead; only "custom" needs the exact
+        // bounds since those don't change between calls.
+        const cacheRange = timeRange === 'custom' ? `${fromStr}|${toStr}` : timeRange;
+        const cacheKey = JSON.stringify({ cacheRange, bucketHour, pluginId, fileScope, includeCompressed });
 
         if (!force) {
             const cached = getCachedAnalytics(cacheKey);

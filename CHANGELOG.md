@@ -5,6 +5,16 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.29] - 2026-08-29
+
+### For users
+
+- Fixed `/log-analytics` reloading everything on every page visit instead of using the cache: coming back to the page even a few seconds after leaving it triggered a full reload, when it should have stayed cached for up to 10 minutes.
+
+### For developers
+
+- `src/pages/LogAnalyticsPage.tsx`: `fetchAnalytics()`'s cache key included `fromStr`/`toStr` derived from `resolveDateRange()`. For relative ranges (1h/24h/7d/30d), that function resolves `to` as `new Date()`, so the timestamp differs on every single call by definition, making the cache key never match between mounts and defeating the TTL cache in `logAnalyticsCache.ts`. The key now uses the stable `timeRange` selector for relative ranges, and only falls back to the exact `fromStr`/`toStr` bounds for `custom` ranges (which don't change between calls).
+
 ## [0.9.28] - 2026-08-29
 
 ### For users
