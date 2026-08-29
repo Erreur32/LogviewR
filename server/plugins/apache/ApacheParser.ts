@@ -9,8 +9,9 @@
 import type { ParsedLogEntry } from '../base/LogSourcePluginInterface.js';
 import { parseAccessLogTimestamp, MONTH_MAP, getLevelFromStatus as sharedGetLevelFromStatus } from '../base/ParserUtils.js';
 
-// IPv4 or IPv6 pattern (supports both)
-const IP_PATTERN = '(?:[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}|[0-9a-fA-F:]+(?:::[0-9a-fA-F:]*)?)';
+// IPv4 or IPv6 pattern (supports both). Capturing by design — every call site
+// destructures this as the ip field, so it must stay a capturing group.
+const IP_PATTERN = '([0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}|[0-9a-fA-F:]+(?:::[0-9a-fA-F:]*)?)';
 
 /**
  * Default regex patterns for Apache logs

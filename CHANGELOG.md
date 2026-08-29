@@ -5,6 +5,18 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.27] - 2026-08-29
+
+### For users
+
+- Fixed Apache access log parsing: all built-in formats (standard Combined/Common Log Format, and the vhost-prefixed and custom variants) were misaligning fields after the IP address, since a shared internal regex fragment was not capturing the IP into its own group. Client IP, user, timestamp, request, status and size are now parsed correctly again.
+- More robust automatic detection of Apache/nginx log directory permissions inside the Docker container: if the host resets ownership of the log directory later, the container now re-detects and rejoins the owning group at startup instead of silently losing read access.
+
+### For developers
+
+- `server/plugins/apache/ApacheParser.ts`: `IP_PATTERN` changed from a non-capturing `(?:...)` group to a capturing `(...)` group at its single declaration, since every consumer (`vhostCombined`, `vhostCommon`, `vhostSimple`, `combined`, `common`, and the custom format) destructures it as the `ip` field. Removed the now-redundant manual `(${IP_PATTERN})` wrapping at each of the 8 call sites — fixing the bug at its source instead of patching every usage.
+- `docker-entrypoint.sh`: added a `join_owning_group()` helper (GID lookup via `stat`, group create-if-missing, `addgroup node`) shared between the existing fail2ban socket logic and a new startup loop over `/host/var/log/{apache2,httpd,nginx}` that joins whichever group owns each directory. Falls through to a warning with the host-side fix command (`chgrp adm ... && chmod g+rx ...`) when the directory is still unreadable or owned by gid 0.
+
 ## [0.9.26] - 2026-08-29
 
 ### For users
