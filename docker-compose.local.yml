@@ -12,8 +12,7 @@
 # Environment variables (set in .env):
 #   DASHBOARD_PORT  - Dashboard port (default: 7501)
 #   JWT_SECRET      - JWT secret (required)
-#   ADM_GID         - GID of the adm group on the host (default: 4)
-#   FAIL2BAN_GID    - GID of the fail2ban group on the host (run setup script to set)
+#   ADM_GID         - GID of the adm group on the host (default: 4, override only if different)
 #   HOST_IP         - Host machine IP (optional, auto-detected if not set)
 #
 # ── Port modes ──────────────────────────────────────────────────────────────
@@ -78,10 +77,11 @@ services:
       # Override via TZ=... in your .env if your host is not in Europe/Paris.
       TZ: ${TZ:-Europe/Paris}
 
-    # Add node user to system groups for log and fail2ban access
+    # Add node user to the adm group for log access
     group_add:
-      - "${ADM_GID:-4}"           # adm group — read host log files
-      - "${FAIL2BAN_GID:-}"       # fail2ban group — socket access (set by setup script)
+      - "${ADM_GID:-4}"           # adm group — read host log files; override if your host's adm GID differs
+      # fail2ban group is no longer needed here: the container auto-joins the
+      # fail2ban socket's owning group at startup (docker-entrypoint.sh).
 
     volumes:
       - logviewr_data_local:/app/data

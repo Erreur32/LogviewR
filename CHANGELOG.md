@@ -5,6 +5,18 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.28] - 2026-08-29
+
+### For users
+
+- Fixed Docker console log timestamps ignoring the container's timezone: they always showed UTC time regardless of the `TZ` environment variable, off by up to a few hours from local time.
+- Removed the now-unnecessary `FAIL2BAN_GID` step from the fail2ban Docker setup: the container already auto-detects and joins the fail2ban socket's owning group at startup, so nothing needs to be written to `.env` for it anymore. `ADM_GID` is unchanged (still required as a manual override on hosts where the `adm` group's GID isn't 4).
+
+### For developers
+
+- `server/utils/logger.ts`: `formatMessage()`/`success()` built their timestamp via `new Date().toISOString().split('T')[1].split('.')[0]`, which is always UTC. Replaced with a new private `getTimestamp()` using `getHours()/getMinutes()/getSeconds()` (local-time getters, honor `TZ`).
+- `docker-compose.yml` / `docker-compose.fail2ban.yml` / `docker-compose.local.yml`: dropped `FAIL2BAN_GID` from `group_add` (redundant with the dynamic `join_owning_group()` socket join added in v0.9.27); kept `ADM_GID` since `docker-entrypoint.sh` hardcodes GID 4 for `adm` and never reads that variable itself. `README.md`/`README.fr.md` updated to match (setup script description, install note).
+
 ## [0.9.27] - 2026-08-29
 
 ### For users

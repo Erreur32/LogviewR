@@ -7,7 +7,7 @@
 # Prerequisites:
 #   1. Create .env:  echo "JWT_SECRET=$(openssl rand -base64 32)" > .env
 #   2. Run setup:    curl -fsSL https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setup-fail2ban-access.sh | sudo bash
-#      (creates fail2ban group, sets permissions, writes FAIL2BAN_GID to .env)
+#      (creates fail2ban group, fixes socket/SQLite permissions, installs systemd drop-in)
 #   3. Start:        docker compose up -d
 #
 # ── Reverse proxy (required — network_mode: host exposes the port directly) ──
@@ -44,8 +44,9 @@ services:
       # PUBLIC_URL: https://dashboard.example.com
 
     group_add:
-      - "${ADM_GID:-4}"           # adm group (GID 4) — read /var/log files
-      - "${FAIL2BAN_GID}"         # fail2ban group — set by setup script in .env
+      - "${ADM_GID:-4}"           # adm group (GID 4) — read /var/log files; override if your host's adm GID differs
+      # fail2ban group is no longer needed here: the container auto-joins the
+      # fail2ban socket's owning group at startup (docker-entrypoint.sh).
 
     volumes:
       - ./data:/app/data          # persistent data (SQLite DB + config)

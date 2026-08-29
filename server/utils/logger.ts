@@ -106,6 +106,20 @@ class Logger {
   }
 
   /**
+   * Current time formatted as HH:MM:SS in the container's local timezone (TZ env var).
+   * Date.getHours()/getMinutes()/getSeconds() are local-time getters, unlike
+   * toISOString() which is always UTC — using the latter here previously made
+   * console log timestamps silently ignore TZ.
+   */
+  private getTimestamp(): string {
+    const now = new Date();
+    const hh = now.getHours().toString().padStart(2, '0');
+    const mm = now.getMinutes().toString().padStart(2, '0');
+    const ss = now.getSeconds().toString().padStart(2, '0');
+    return `${hh}:${mm}:${ss}`;
+  }
+
+  /**
    * Format log message with colors based on level
    */
   private formatMessage(level: LogLevel, prefix: string, message: string, ...args: any[]): string {
@@ -135,7 +149,7 @@ class Logger {
         break;
     }
 
-    const timestamp = new Date().toISOString().split('T')[1].split('.')[0];
+    const timestamp = this.getTimestamp();
     const formattedPrefix = `${colors.dim}[${timestamp}]${colors.reset} ${levelColor}[${prefix}]${colors.reset}`;
     
     return `${formattedPrefix} ${color}${message}${colors.reset}`;
@@ -194,7 +208,7 @@ class Logger {
    * Log important success message (always shown, green)
    */
   success(prefix: string, message: string, ...args: any[]): void {
-    const timestamp = new Date().toISOString().split('T')[1].split('.')[0];
+    const timestamp = this.getTimestamp();
     const formattedPrefix = `${colors.dim}[${timestamp}]${colors.reset} ${colors.bright}${colors.green}[${prefix}]${colors.reset}`;
     const formatted = `${formattedPrefix} ${colors.green}${message}${colors.reset}`;
     console.log(formatted, ...args);

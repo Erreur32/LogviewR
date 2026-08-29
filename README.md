@@ -7,7 +7,7 @@
 
 <img src="LogviewR_banner.svg" alt="LogviewR" width="512" height="256" />
 
-![LogviewR](https://img.shields.io/badge/LogviewR-0.9.27-111827?style=for-the-badge)
+![LogviewR](https://img.shields.io/badge/LogviewR-0.9.28-111827?style=for-the-badge)
 ![Status](https://img.shields.io/badge/Status-DEVELOPMENT-374151?style=for-the-badge)
 ![Docker](https://img.shields.io/badge/Docker-Ready-1f2937?style=for-the-badge&logo=docker&logoColor=38bdf8)
 ![React](https://img.shields.io/badge/React-19-111827?style=for-the-badge&logo=react&logoColor=38bdf8)
@@ -154,11 +154,11 @@ wget -O docker-compose.yml https://raw.githubusercontent.com/Erreur32/LogviewR/m
 
 ```bash
 wget -O docker-compose.yml https://raw.githubusercontent.com/Erreur32/LogviewR/main/docker-compose.fail2ban.yml
-# then run the setup script (one-time, sets permissions + writes FAIL2BAN_GID to .env):
+# then run the setup script (one-time, fixes host-side permissions):
 curl -fsSL https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setup-fail2ban-access.sh | sudo bash
 ```
 
-> The setup script automatically creates the `fail2ban` group, sets socket/SQLite permissions, installs a systemd drop-in for persistence, and writes `FAIL2BAN_GID` to `.env`.
+> The setup script automatically creates the `fail2ban` group, sets socket/SQLite permissions, and installs a systemd drop-in for persistence across reboots. The container itself auto-detects and joins the socket's owning group at startup, so no `.env` group ID is required.
 > Run it once on the Docker host — survives reboots automatically.
 
 **Step 3 - Start**

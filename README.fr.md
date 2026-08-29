@@ -154,11 +154,11 @@ wget -O docker-compose.yml https://raw.githubusercontent.com/Erreur32/LogviewR/m
 
 ```bash
 wget -O docker-compose.yml https://raw.githubusercontent.com/Erreur32/LogviewR/main/docker-compose.fail2ban.yml
-# puis lancer le script de configuration (une seule fois, règle les permissions + écrit FAIL2BAN_GID dans .env) :
+# puis lancer le script de configuration (une seule fois, règle les permissions côté hôte) :
 curl -fsSL https://raw.githubusercontent.com/Erreur32/LogviewR/main/scripts/setup-fail2ban-access.sh | sudo bash
 ```
 
-> Le script crée automatiquement le groupe `fail2ban`, règle les permissions du socket/SQLite, installe un drop-in systemd pour la persistance, et écrit `FAIL2BAN_GID` dans `.env`.
+> Le script crée automatiquement le groupe `fail2ban`, règle les permissions du socket/SQLite, et installe un drop-in systemd pour la persistance aux redémarrages. Le conteneur détecte et rejoint lui-même le groupe propriétaire du socket au démarrage, aucune variable de groupe n'est donc requise dans `.env`.
 > À lancer une seule fois sur l'hôte Docker — survit aux redémarrages automatiquement.
 
 **Étape 3 — Démarrer**
