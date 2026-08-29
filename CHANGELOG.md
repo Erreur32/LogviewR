@@ -5,6 +5,12 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.22] - 2026-08-29
+
+### For developers
+
+- `LogTable.tsx`: extracted the first/prev/next/last pagination button group into a shared `PaginationNav` component, used by both the main table and raw-view pagination bars. The `safePage` clamp added in 0.9.21 made those two blocks byte-for-byte identical, which tripped SonarCloud's duplicated-lines quality gate (19.2% vs 3.0% allowed). Fixes a latent inconsistency as a side effect: the top bar's "last page" button was still checking `currentPage` instead of `safePage`.
+
 ## [0.9.21] - 2026-08-29
 
 ### For users
