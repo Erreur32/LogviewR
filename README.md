@@ -7,7 +7,7 @@
 
 <img src="LogviewR_banner.svg" alt="LogviewR" width="512" height="256" />
 
-![LogviewR](https://img.shields.io/badge/LogviewR-0.9.29-111827?style=for-the-badge)
+![LogviewR](https://img.shields.io/badge/LogviewR-0.10.0-111827?style=for-the-badge)
 ![Status](https://img.shields.io/badge/Status-DEVELOPMENT-374151?style=for-the-badge)
 ![Docker](https://img.shields.io/badge/Docker-Ready-1f2937?style=for-the-badge&logo=docker&logoColor=38bdf8)
 ![React](https://img.shields.io/badge/React-19-111827?style=for-the-badge&logo=react&logoColor=38bdf8)
@@ -332,6 +332,12 @@ create 640 root adm
 - **[NPM Parser Help](server/plugins/npm/NPM_PARSER_HELP.md)** - NPM formats
 - **[Nginx Parser Help](server/plugins/nginx/NGINX_PARSER_HELP.md)** - Nginx formats
 - **[Host-system integration audit](Doc_Dev/AUDIT_ERROR_SUMMARY_HOST_SYSTEM.md)** - error/warning scan
+
+---
+
+## 🗒️ Known TODO
+
+- **i18n: Fail2ban page tooltips** - hover/tooltip text on `/fail2ban` (`F2bTooltip` `body=`/`bodyNode=` props, `TT` helpers in `src/pages/fail2ban/helpers.tsx`) still needs a translation review; not yet audited for hardcoded French strings.
 
 ---
 

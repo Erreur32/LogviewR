@@ -329,9 +329,9 @@ export const Header: React.FC<HeaderProps> = ({
   // invert=true to make white SVG visible on light browser tab backgrounds
   useFavicon(logviewrLogo, true);
   
-  // Load OS type for plugin icons (only needed for dashboard, analytics, log-analytics, and if not provided as prop)
+  // Load OS type for plugin icons (only needed for dashboard, log-analytics, and if not provided as prop)
   useEffect(() => {
-    if (!osTypeProp && (pageType === 'dashboard' || pageType === 'analytics' || pageType === 'log-analytics')) {
+    if (!osTypeProp && (pageType === 'dashboard' || pageType === 'log-analytics')) {
       api.get<{ type: string }>('/api/log-viewer/os-type')
         .then(response => {
           if (response.success && response.result) {
@@ -368,10 +368,10 @@ export const Header: React.FC<HeaderProps> = ({
   // Update check info
   const { updateInfo } = useUpdateStore();
   
-  // Get active plugins for dashboard and analytics pages
+  // Get active plugins for dashboard and log-analytics pages
   const { plugins } = usePluginStore();
   const activePlugins = useMemo(() => {
-    if (pageType !== 'dashboard' && pageType !== 'analytics' && pageType !== 'log-analytics') {
+    if (pageType !== 'dashboard' && pageType !== 'log-analytics') {
       return [];
     }
     return plugins.filter(p => p.enabled && (p.id === 'host-system' || p.id === 'nginx' || p.id === 'apache' || p.id === 'npm' || p.id === 'fail2ban'));
@@ -456,8 +456,8 @@ export const Header: React.FC<HeaderProps> = ({
         )}
       </div>
 
-      {/* Active Plugins Icons - Only for Dashboard and Analytics pages */}
-      {(pageType === 'dashboard' || pageType === 'analytics' || pageType === 'log-analytics') && activePlugins.length > 0 && (
+      {/* Active Plugins Icons - Only for Dashboard and Log Analytics pages */}
+      {(pageType === 'dashboard' || pageType === 'log-analytics') && activePlugins.length > 0 && (
         <div className="flex items-center gap-3">
           {activePlugins
             .sort((a, b) => {

@@ -503,8 +503,8 @@ const DatabasePerformanceSection: React.FC = () => {
       <div className="grid grid-cols-2 gap-6">
         <div className="space-y-6">
           <SettingRow
-            label="Optimisations Docker"
-            description="Active les optimisations spécifiques pour Docker (checkpoint WAL automatique toutes les 5 min)"
+            label={t('database.perf.dockerOpt')}
+            description={t('database.perf.dockerOptDesc')}
           >
             <Toggle
               enabled={dbConfig.optimizeForDocker}
@@ -513,8 +513,8 @@ const DatabasePerformanceSection: React.FC = () => {
           </SettingRow>
 
           <SettingRow
-            label="Checkpoint WAL automatique"
-            description="Active le checkpoint WAL automatique (recommandé pour Docker)"
+            label={t('database.perf.walAutoCheckpoint')}
+            description={t('database.perf.walAutoCheckpointDesc')}
           >
             <Toggle
               enabled={dbConfig.walAutoCheckpoint}
@@ -523,15 +523,15 @@ const DatabasePerformanceSection: React.FC = () => {
           </SettingRow>
 
           <SettingRow
-            label="Mode WAL"
-            description="Mode de journalisation (WAL recommandé pour Docker)"
+            label={t('database.perf.walMode')}
+            description={t('database.perf.walModeDesc')}
           >
             <select
               value={dbConfig.walMode}
               onChange={(e) => setDbConfig({ ...dbConfig, walMode: e.target.value as any })}
               className="px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-sm text-gray-200 focus:outline-none focus:border-blue-500"
             >
-              <option value="WAL">WAL (Recommandé)</option>
+              <option value="WAL">{t('database.perf.walRecommended')}</option>
               <option value="DELETE">DELETE</option>
               <option value="TRUNCATE">TRUNCATE</option>
               <option value="PERSIST">PERSIST</option>
@@ -543,23 +543,23 @@ const DatabasePerformanceSection: React.FC = () => {
 
         <div className="space-y-6">
           <SettingRow
-            label="Mode synchrone"
-            description="0=OFF (rapide, risqué), 1=NORMAL (équilibré), 2=FULL (sûr, lent)"
+            label={t('database.perf.syncMode')}
+            description={t('database.perf.syncModeDesc')}
           >
             <select
               value={dbConfig.synchronous}
               onChange={(e) => setDbConfig({ ...dbConfig, synchronous: Number.parseInt(e.target.value) as 0 | 1 | 2 })}
               className="px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-sm text-gray-200 focus:outline-none focus:border-blue-500"
             >
-              <option value="0">OFF (Rapide)</option>
-              <option value="1">NORMAL (Recommandé)</option>
-              <option value="2">FULL (Sûr)</option>
+              <option value="0">{t('database.perf.syncOff')}</option>
+              <option value="1">{t('database.perf.syncNormal')}</option>
+              <option value="2">{t('database.perf.syncFull')}</option>
             </select>
           </SettingRow>
 
           <SettingRow
-            label="Taille du cache (KB)"
-            description="Cache SQLite en KB (négatif = KB, positif = pages). Défaut: -64000 (64 MB)"
+            label={t('database.perf.cacheSize')}
+            description={t('database.perf.cacheSizeDesc')}
           >
             <div className="flex items-center gap-3">
               <input
@@ -575,8 +575,8 @@ const DatabasePerformanceSection: React.FC = () => {
           </SettingRow>
 
           <SettingRow
-            label="Timeout de verrouillage (ms)"
-            description="Temps d'attente pour les verrous de base de données (défaut: 5000ms)"
+            label={t('database.perf.lockTimeout')}
+            description={t('database.perf.lockTimeoutDesc')}
           >
             <input
               type="number"
@@ -589,7 +589,7 @@ const DatabasePerformanceSection: React.FC = () => {
             />
           </SettingRow>
 
- 
+
         </div>
       </div>
 
@@ -600,7 +600,7 @@ const DatabasePerformanceSection: React.FC = () => {
           className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-medium text-white flex items-center gap-2"
         >
           {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-          Sauvegarder
+          {t('database.perf.save')}
         </button>
       </div>
   </div>
@@ -966,12 +966,12 @@ const UPDATE_FREQUENCIES = [
   { value: 6,   label: '6h' },
   { value: 12,  label: '12h' },
   { value: 24,  label: '24h' },
-  { value: 168, label: '7 jours' },
+  { value: 168, label: null as string | null },
 ];
 
 // Update Check Section Component (for Administration > General tab)
 const UpdateCheckSection: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { updateConfig, updateInfo, loadConfig, setConfig, checkForUpdates, isLoading, lastCheck } = useUpdateStore();
   const { addAction } = useNotificationStore();
   const [isSaving, setIsSaving] = useState(false);
@@ -981,9 +981,9 @@ const UpdateCheckSection: React.FC = () => {
     const info = useUpdateStore.getState().updateInfo;
     if (!info) return;
     if (info.error) {
-      addAction(`Vérification MAJ échouée : ${info.error}`, false);
+      addAction(t('admin.general.updates.checkFailed', { error: info.error }), false);
     } else if (!info.updateAvailable) {
-      addAction(`LogviewR v${info.currentVersion} — déjà à jour`, true);
+      addAction(t('admin.general.updates.alreadyUpToDate', { version: info.currentVersion }), true);
     }
     // update available: the header banner already signals it — no duplicate toast
   };
@@ -1027,11 +1027,11 @@ const UpdateCheckSection: React.FC = () => {
       <div className="flex items-center gap-3 flex-wrap">
         <Toggle enabled={enabled} onChange={handleToggle} disabled={isSaving} />
         <span className="text-sm text-gray-300 flex-1">
-          Vérifier les mises à jour automatiquement
+          {t('admin.general.updates.autoCheck')}
         </span>
         {enabled && (
           <div className="flex items-center gap-1.5">
-            <span className="text-xs text-gray-500">Fréquence :</span>
+            <span className="text-xs text-gray-500">{t('admin.general.updates.frequency')}</span>
             <div className="flex gap-1">
               {UPDATE_FREQUENCIES.map(f => (
                 <button
@@ -1044,7 +1044,7 @@ const UpdateCheckSection: React.FC = () => {
                       : 'bg-transparent border-gray-700 text-gray-500 hover:text-gray-300'
                   }`}
                 >
-                  {f.label}
+                  {f.label ?? t('admin.general.updates.frequency7d')}
                 </button>
               ))}
             </div>
@@ -1058,32 +1058,32 @@ const UpdateCheckSection: React.FC = () => {
           {/* Versions */}
           <div className="px-3 py-2 flex flex-col gap-1">
             <div className="flex justify-between text-xs">
-              <span className="text-gray-500">Version actuelle</span>
+              <span className="text-gray-500">{t('admin.general.updates.currentVersion')}</span>
               <span className="font-mono text-gray-300">{updateInfo?.currentVersion || getVersionString()}</span>
             </div>
             {updateInfo?.latestVersion && (
               <div className="flex justify-between text-xs">
-                <span className="text-gray-500">Dernière version (GitHub)</span>
+                <span className="text-gray-500">{t('admin.general.updates.latestVersion')}</span>
                 <span className="font-mono text-amber-400">{updateInfo.latestVersion}</span>
               </div>
             )}
             {/* Docker build status */}
             {updateInfo?.latestVersion && updateInfo.latestVersion !== updateInfo.currentVersion && (
               <div className="flex justify-between text-xs">
-                <span className="text-gray-500">Image Docker GHCR</span>
+                <span className="text-gray-500">{t('admin.general.updates.dockerImage')}</span>
                 {updateInfo.dockerReady === true ? (
-                  <span className="text-green-400 font-semibold">✓ Disponible</span>
+                  <span className="text-green-400 font-semibold">✓ {t('admin.general.updates.available')}</span>
                 ) : updateInfo.dockerReady === false ? (
-                  <span className="text-orange-400">⟳ Build en cours…</span>
+                  <span className="text-orange-400">⟳ {t('admin.general.updates.buildInProgress')}</span>
                 ) : (
-                  <span className="text-gray-600">—</span>
+                  <span className="text-gray-600">, </span>
                 )}
               </div>
             )}
             {lastCheck && (
               <div className="flex justify-between text-xs">
-                <span className="text-gray-600">Dernière vérification</span>
-                <span className="text-gray-600">{lastCheck.toLocaleTimeString('fr-FR')}</span>
+                <span className="text-gray-600">{t('admin.general.updates.lastCheck')}</span>
+                <span className="text-gray-600">{lastCheck.toLocaleTimeString(i18n.language)}</span>
               </div>
             )}
           </div>
@@ -1091,7 +1091,7 @@ const UpdateCheckSection: React.FC = () => {
           {/* Up to date */}
           {updateInfo && !updateInfo.updateAvailable && !updateInfo.error && (
             <div className="px-3 py-2 bg-green-500/5 flex items-center gap-2">
-              <span className="text-green-400 text-xs font-semibold">✓ LogviewR v{updateInfo.currentVersion} — up to date</span>
+              <span className="text-green-400 text-xs font-semibold">✓ {t('admin.general.updates.upToDate', { version: updateInfo.currentVersion })}</span>
             </div>
           )}
 
@@ -1099,7 +1099,7 @@ const UpdateCheckSection: React.FC = () => {
           {updateInfo?.updateAvailable && (
             <div className="px-3 py-2 bg-amber-500/5">
               <p className="text-xs text-amber-400 font-semibold mb-1">
-                🚀 Mise à jour disponible — v{updateInfo.latestVersion}
+                🚀 {t('admin.general.updates.updateAvailable', { version: updateInfo.latestVersion })}
               </p>
               {updateInfo.releaseNotes && (
                 <div className="mb-2">
@@ -1112,7 +1112,7 @@ const UpdateCheckSection: React.FC = () => {
                     rel="noopener noreferrer"
                     className="text-xs text-amber-400/70 hover:text-amber-400 transition-colors mt-0.5 inline-block"
                   >
-                    Voir le changelog complet →
+                    {t('admin.general.updates.viewChangelog')} →
                   </a>
                 </div>
               )}
@@ -1122,7 +1122,7 @@ const UpdateCheckSection: React.FC = () => {
                 </code>
               ) : (
                 <p className="text-xs text-orange-400/80">
-                  Image Docker en cours de build sur GHCR…
+                  {t('admin.general.updates.dockerBuilding')}
                 </p>
               )}
             </div>
@@ -1143,7 +1143,7 @@ const UpdateCheckSection: React.FC = () => {
               className="flex items-center gap-1.5 px-3 py-1 text-xs rounded border border-gray-700 text-gray-400 hover:text-white hover:border-gray-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <RefreshCw size={12} className={isLoading ? 'animate-spin' : ''} />
-              {isLoading ? 'Vérification…' : 'Vérifier maintenant'}
+              {isLoading ? t('admin.general.updates.checking') : t('admin.general.updates.checkNow')}
             </button>
           </div>
         </div>
@@ -2913,6 +2913,7 @@ const BackupSection: React.FC<{
   fail2banEnabled: boolean;
   onNavigateToPage?: (page: 'plugins' | 'users' | 'fail2ban') => void;
 }> = ({ fail2banEnabled, onNavigateToPage }) => {
+  const { t } = useTranslation();
   // ── Config export/import ─────────────────────────────────────────────────
   const [isExporting, setIsExporting]     = useState(false);
   const [selectedFile, setSelectedFile]   = useState<File | null>(null);
@@ -2946,16 +2947,16 @@ const BackupSection: React.FC<{
     setIsExporting(true); setConfigMsg(null);
     try {
       const res = await api.get<{ content: string }>('/api/config/export');
-      if (!res.result) throw new Error('Réponse vide');
+      if (!res.result) throw new Error(t('database.backups.emptyResponse'));
       const blob = new Blob([res.result.content], { type: 'text/plain' });
       const url  = URL.createObjectURL(blob);
       const a    = document.createElement('a');
       a.href = url; a.download = 'logviewr.conf';
       document.body.appendChild(a); a.click();
       document.body.removeChild(a); URL.revokeObjectURL(url);
-      setConfigMsg({ ok: true, text: 'Configuration exportée avec succès.' });
+      setConfigMsg({ ok: true, text: t('database.backups.exportSuccess') });
     } catch (e: any) {
-      setConfigMsg({ ok: false, text: e?.message || 'Erreur lors de l\'export.' });
+      setConfigMsg({ ok: false, text: e?.message || t('database.backups.exportError') });
     } finally { setIsExporting(false); }
   };
 
@@ -2966,11 +2967,11 @@ const BackupSection: React.FC<{
     try {
       const content = await file.text();
       const res = await api.post<{ imported: number; message: string }>('/api/config/import', { content });
-      if (!res.success) throw new Error(res.error?.message || 'Import échoué');
-      setConfigMsg({ ok: true, text: res.result?.message || `${res.result?.imported} paramètres importés — rechargement…` });
+      if (!res.success) throw new Error(res.error?.message || t('database.backups.importErrorGeneric'));
+      setConfigMsg({ ok: true, text: res.result?.message || t('database.backups.importSuccess', { count: res.result?.imported }) });
       setTimeout(() => window.location.reload(), 2000);
     } catch (err: any) {
-      setConfigMsg({ ok: false, text: err?.message || 'Erreur lors de l\'import.' });
+      setConfigMsg({ ok: false, text: err?.message || t('database.backups.importError') });
       setSelectedFile(null);
     }
     e.target.value = '';
@@ -2987,28 +2988,28 @@ const BackupSection: React.FC<{
   );
 
   return (
-    <Section title="Sauvegardes" icon={Archive} iconColor="amber" collapsible>
+    <Section title={t('database.backups.title')} icon={Archive} iconColor="amber" collapsible>
       <div className="space-y-5">
 
         {/* ── 1. Configuration logviewr.conf ─────────────────────────────── */}
         <div className="p-3 bg-[#0d1117] border border-gray-800 rounded-lg space-y-3">
           <div className="flex items-center gap-2 mb-1">
             <FileText size={13} className="text-amber-400" />
-            <span className="text-sm font-medium text-white">Configuration application</span>
+            <span className="text-sm font-medium text-white">{t('database.backups.appConfig')}</span>
             <span className="text-xs text-gray-500 ml-1">logviewr.conf</span>
           </div>
           <p className="text-xs text-gray-400">
-            Exporte tous les paramètres de l'application dans un fichier texte. Utile pour migrer ou restaurer une configuration.
+            {t('database.backups.appConfigDesc')}
           </p>
           <div className="flex flex-wrap items-center gap-2">
             <button onClick={handleExport} disabled={isExporting}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-600/80 hover:bg-amber-500/80 text-white disabled:opacity-50 transition-colors">
               {isExporting ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
-              Exporter .conf
+              {t('database.backups.exportConf')}
             </button>
             <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-700 text-gray-300 bg-gray-800/50 hover:bg-gray-700/50 transition-colors cursor-pointer">
               <Upload size={12} />
-              {selectedFile ? selectedFile.name : 'Importer .conf'}
+              {selectedFile ? selectedFile.name : t('database.backups.importConf')}
               <input type="file" accept=".conf" onChange={handleImport} className="hidden" />
             </label>
           </div>
@@ -3034,40 +3035,40 @@ const BackupSection: React.FC<{
                 fail2banEnabled
                   ? 'bg-emerald-500/15 text-emerald-400'
                   : 'bg-amber-500/15 text-amber-400'
-              }`}>{fail2banEnabled ? 'actif' : 'inactif'}</span>
+              }`}>{fail2banEnabled ? t('database.backups.f2bActive') : t('database.backups.f2bInactive')}</span>
             </div>
             {fail2banEnabled && (
               <button onClick={() => onNavigateToPage?.('fail2ban')}
                 className="flex items-center gap-1 text-xs text-cyan-400 hover:text-cyan-300 transition-colors">
-                Ouvrir <ExternalLink size={11} />
+                {t('database.backups.open')} <ExternalLink size={11} />
               </button>
             )}
           </div>
 
           {fail2banEnabled ? (
             <>
-              <p className="text-xs text-gray-400">Snapshots & exports gérés dans le plugin Fail2ban → onglet <strong className="text-gray-300">Sauvegardes</strong>.</p>
+              <p className="text-xs text-gray-400">{t('database.backups.f2bManaged')} <strong className="text-gray-300">{t('database.backups.f2bManagedTab')}</strong>{t('database.backups.f2bManagedSuffix')}</p>
               {f2bLoading ? (
                 <div className="flex items-center gap-1.5 text-xs text-gray-500 py-1">
-                  <Loader2 size={11} className="animate-spin" /> Chargement des compteurs…
+                  <Loader2 size={11} className="animate-spin" /> {t('database.backups.loadingCounts')}
                 </div>
               ) : f2bCounts ? (
                 <div className="mt-1 grid grid-cols-2 gap-x-6">
-                  <CountBadge n={f2bCounts.configSnapshots} label="Snapshots config" />
-                  <CountBadge n={f2bCounts.dbSnapshots}     label="Snapshots base de données" />
-                  <CountBadge n={f2bCounts.iptablesBackups} label="Backups iptables" />
-                  <CountBadge n={f2bCounts.ipsetBackups}    label="Backups ipset" />
+                  <CountBadge n={f2bCounts.configSnapshots} label={t('database.backups.configSnapshots')} />
+                  <CountBadge n={f2bCounts.dbSnapshots}     label={t('database.backups.dbSnapshots')} />
+                  <CountBadge n={f2bCounts.iptablesBackups} label={t('database.backups.iptablesBackups')} />
+                  <CountBadge n={f2bCounts.ipsetBackups}    label={t('database.backups.ipsetBackups')} />
                 </div>
               ) : null}
             </>
           ) : (
             <div className="space-y-2">
               <p className="text-xs text-amber-300/80">
-                Le plugin Fail2ban fournit les sauvegardes automatiques (snapshots config, DB, iptables, ipset).
+                {t('database.backups.f2bDisabledHint')}
               </p>
               <button onClick={() => onNavigateToPage?.('plugins')}
                 className="flex items-center gap-1.5 text-xs text-amber-400 hover:text-amber-300 transition-colors">
-                Activer dans Plugins <ExternalLink size={11} />
+                {t('database.backups.enableInPlugins')} <ExternalLink size={11} />
               </button>
             </div>
           )}
@@ -3077,17 +3078,16 @@ const BackupSection: React.FC<{
         <div className="p-3 bg-[#0d1117] border border-gray-800 rounded-lg space-y-2">
           <div className="flex items-center gap-2">
             <HardDriveDownload size={13} className="text-purple-400" />
-            <span className="text-sm font-medium text-white">Base de données SQLite</span>
-            <span className="text-xs text-gray-500 ml-1">sauvegarde manuelle</span>
+            <span className="text-sm font-medium text-white">{t('database.backups.sqliteManual')}</span>
+            <span className="text-xs text-gray-500 ml-1">{t('database.backups.sqliteManualSub')}</span>
           </div>
           <p className="text-xs text-gray-400">
-            Le fichier SQLite principal contient toute la configuration persistante (utilisateurs, paramètres, logs analysés).
-            Copiez-le régulièrement pour garantir une restauration complète.
+            {t('database.backups.sqliteManualDesc')}
           </p>
           <div className="flex items-center gap-2 px-2 py-1.5 bg-gray-900/60 rounded border border-gray-700/50">
             <Server size={11} className="text-gray-500 shrink-0" />
             <code className="text-xs text-gray-400 font-mono">/data/logviewr.db</code>
-            <span className="text-xs text-gray-600 ml-auto">(volume Docker)</span>
+            <span className="text-xs text-gray-600 ml-auto">{t('database.backups.dockerVolume')}</span>
           </div>
         </div>
 
@@ -3144,8 +3144,8 @@ const DatabaseSection: React.FC<{
       try {
         const r = await api.get<DbHealthResult>('/api/database/health');
         if (!cancelled && r.success && r.result) setHealth(r.result);
-        else if (!cancelled) setHealthErr('Impossible de lancer le check');
-      } catch { if (!cancelled) setHealthErr('Erreur réseau'); }
+        else if (!cancelled) setHealthErr(t('database.checkLaunchFailed'));
+      } catch { if (!cancelled) setHealthErr(t('database.networkError')); }
       finally { if (!cancelled) setHealthLoading(false); }
     };
     fetchStats();
@@ -3158,19 +3158,19 @@ const DatabaseSection: React.FC<{
     try {
       const r = await api.get<DbHealthResult>(`/api/database/health${full ? '?full=1' : ''}`);
       if (r.success && r.result) setHealth(r.result);
-      else setHealthErr('Erreur serveur');
-    } catch { setHealthErr('Erreur réseau'); }
+      else setHealthErr(t('database.serverError'));
+    } catch { setHealthErr(t('database.networkError')); }
     finally { setHealthLoading(false); }
   };
 
   const runVacuum = async () => {
-    if (!window.confirm('Lancer VACUUM ?\n\nOpération bloquante (~quelques secondes). La base sera compactée et défragmentée.')) return;
+    if (!window.confirm(t('database.vacuumConfirm'))) return;
     setVacuuming(true); setVacuumResult(null); setVacuumErr(null);
     try {
       const r = await api.post<VacuumResult>('/api/database/vacuum', {});
       if (r.success && r.result) setVacuumResult(r.result);
-      else setVacuumErr('Erreur serveur');
-    } catch { setVacuumErr('Erreur réseau'); }
+      else setVacuumErr(t('database.serverError'));
+    } catch { setVacuumErr(t('database.networkError')); }
     finally { setVacuuming(false); }
   };
 
@@ -3180,7 +3180,7 @@ const DatabaseSection: React.FC<{
   const healthBadge = health
     ? health.ok && health.fragmentation <= 10
       ? <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">OK</span>
-      : <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400">{health.ok ? `Fragmenté ${health.fragmentation}%` : 'Erreur'}</span>
+      : <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400">{health.ok ? t('database.fragmentedBadge', { pct: health.fragmentation }) : t('database.healthError')}</span>
     : null;
 
   const hasHealthIssue = !!health && (!health.ok || health.fragmentation > 10);
@@ -3246,7 +3246,7 @@ const DatabaseSection: React.FC<{
 
       {/* ── 3. Santé & Intégrité ─────────────────────────────────────────────── */}
       <Section
-        title="Santé & Intégrité"
+        title={t('database.healthTitle')}
         icon={Shield}
         iconColor={hasHealthIssue ? 'amber' : 'emerald'}
         collapsible
@@ -3262,7 +3262,7 @@ const DatabaseSection: React.FC<{
               className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 disabled:opacity-50 transition-colors"
             >
               {healthLoading ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle size={13} />}
-              Vérification rapide
+              {t('database.checkQuick')}
             </button>
             <button
               onClick={() => { void runCheck(true); }}
@@ -3270,7 +3270,7 @@ const DatabaseSection: React.FC<{
               className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium bg-blue-500/10 border border-blue-500/30 text-blue-400 hover:bg-blue-500/20 disabled:opacity-50 transition-colors"
             >
               {healthLoading ? <Loader2 size={13} className="animate-spin" /> : <Shield size={13} />}
-              Intégrité complète
+              {t('database.checkFull')}
             </button>
             <button
               onClick={() => { void runVacuum(); }}
@@ -3278,7 +3278,7 @@ const DatabaseSection: React.FC<{
               className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20 disabled:opacity-50 transition-colors"
             >
               {vacuuming ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-              VACUUM
+              {t('database.vacuum')}
             </button>
           </div>
 
@@ -3293,24 +3293,24 @@ const DatabaseSection: React.FC<{
             <div className={`rounded-lg border px-4 py-3 text-sm space-y-2 ${health.ok ? 'bg-emerald-500/8 border-emerald-500/25' : 'bg-red-500/8 border-red-500/25'}`}>
               <div className={`flex items-center gap-2 font-medium ${health.ok ? 'text-emerald-400' : 'text-red-400'}`}>
                 {health.ok ? <CheckCircle size={14} /> : <AlertCircle size={14} />}
-                {health.full ? 'Intégrité complète' : 'Vérification rapide'} — {health.ok ? 'Aucun problème détecté' : 'Problèmes détectés'}
+                {health.full ? t('database.checkFull') : t('database.checkQuick')}: {health.ok ? t('database.noIssuesDetected') : t('database.issuesDetected')}
               </div>
               <div className="grid grid-cols-3 gap-3 text-xs pt-1">
                 <div className="flex flex-col gap-0.5">
-                  <span className="text-gray-500 uppercase tracking-wider text-[10px]">Pages libres</span>
+                  <span className="text-gray-500 uppercase tracking-wider text-[10px]">{t('database.freePages')}</span>
                   <span className={`font-mono font-semibold ${health.freelistCount > 0 ? 'text-amber-400' : 'text-gray-300'}`}>{health.freelistCount.toLocaleString()}</span>
                 </div>
                 <div className="flex flex-col gap-0.5">
-                  <span className="text-gray-500 uppercase tracking-wider text-[10px]">Fragmentation</span>
+                  <span className="text-gray-500 uppercase tracking-wider text-[10px]">{t('database.fragmentationLabel')}</span>
                   <span className={`font-mono font-semibold ${health.fragmentation > 20 ? 'text-red-400' : health.fragmentation > 10 ? 'text-amber-400' : 'text-emerald-400'}`}>{health.fragmentation}%</span>
                 </div>
                 <div className="flex flex-col gap-0.5">
-                  <span className="text-gray-500 uppercase tracking-wider text-[10px]">Pages totales</span>
+                  <span className="text-gray-500 uppercase tracking-wider text-[10px]">{t('database.totalPages')}</span>
                   <span className="font-mono font-semibold text-gray-300">{health.pageCount.toLocaleString()}</span>
                 </div>
               </div>
               {health.fragmentation > 10 && (
-                <p className="text-xs text-amber-400/80 mt-1">Fragmentation élevée — un VACUUM permettrait de récupérer {formatBytes(health.freelistCount * health.pageSize)}.</p>
+                <p className="text-xs text-amber-400/80 mt-1">{t('database.highFragmentation', { size: formatBytes(health.freelistCount * health.pageSize) })}</p>
               )}
               {!health.ok && health.checks.length > 1 && (
                 <div className="mt-2 space-y-1 text-xs text-red-300 font-mono bg-red-900/20 rounded px-2 py-1.5 max-h-32 overflow-y-auto">
@@ -3329,19 +3329,19 @@ const DatabaseSection: React.FC<{
           {vacuumResult && (
             <div className="flex items-center gap-3 text-sm text-emerald-400 bg-emerald-500/8 border border-emerald-500/25 rounded-lg px-4 py-2">
               <CheckCircle size={14} />
-              VACUUM terminé — {vacuumResult.saved > 0 ? `${formatBytes(vacuumResult.saved)} récupérés` : 'aucun espace récupéré'}
+              {t('database.vacuumDone')}: {vacuumResult.saved > 0 ? t('database.vacuumSaved', { size: formatBytes(vacuumResult.saved) }) : t('database.vacuumNoSpace')}
               <span className="text-gray-500 text-xs ml-auto">{formatBytes(vacuumResult.beforeSize)} → {formatBytes(vacuumResult.afterSize)}</span>
             </div>
           )}
 
           <p className="text-xs text-gray-500">
-            Le VACUUM compacte le fichier SQLite et récupère les pages fragmentées. Il bloque brièvement les écritures.
+            {t('database.vacuumHint')}
           </p>
         </div>
       </Section>
 
       {/* ── 4. Performances ──────────────────────────────────────────────────── */}
-      <Section title="Performances" icon={HardDrive} iconColor="cyan" collapsible defaultCollapsed>
+      <Section title={t('database.performanceTitle')} icon={HardDrive} iconColor="cyan" collapsible defaultCollapsed>
         <DatabasePerformanceSection />
       </Section>
 
@@ -4084,7 +4084,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 
                 {/* Column 2 */}
                 <div className="space-y-6">
-                  <Section title="Mises à jour" icon={Download} iconColor="amber">
+                  <Section title={t('admin.general.updates.title')} icon={Download} iconColor="amber">
                     <div className="space-y-4">
                       <UpdateCheckSection />
                       <div className="pt-3 border-t border-gray-800">
@@ -4109,7 +4109,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 {/* Sub-tab bar */}
                 <div className="flex gap-1 p-1 bg-[#111] border border-gray-800 rounded-lg w-fit">
                   {([
-                    { id: 'plugins' as const, label: 'Gestion des plugins' },
+                    { id: 'plugins' as const, label: t('plugins.pageTitle') },
                     { id: 'regex'   as const, label: 'Regex' },
                   ] as const).map(st => (
                     <button
@@ -4143,10 +4143,10 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 {/* Sub-tab bar */}
                 <div className="flex gap-1 p-1 bg-[#111] border border-gray-800 rounded-lg w-fit">
                   {([
-                    { id: 'users'      as const, label: 'Utilisateurs', icon: Users,    activeColor: 'bg-purple-500/20 text-purple-300 border-purple-500/40' },
-                    { id: 'protection' as const, label: 'Protection',   icon: Shield,   activeColor: 'bg-red-500/20 text-red-300 border-red-500/40' },
-                    { id: 'network'    as const, label: 'Réseau',       icon: Globe,    activeColor: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40' },
-                    { id: 'logs'       as const, label: 'Journaux',     icon: FileText, activeColor: 'bg-blue-500/20 text-blue-300 border-blue-500/40' },
+                    { id: 'users'      as const, label: t('security.subTabs.users'),      icon: Users,    activeColor: 'bg-purple-500/20 text-purple-300 border-purple-500/40' },
+                    { id: 'protection' as const, label: t('security.subTabs.protection'), icon: Shield,   activeColor: 'bg-red-500/20 text-red-300 border-red-500/40' },
+                    { id: 'network'    as const, label: t('security.subTabs.network'),    icon: Globe,    activeColor: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40' },
+                    { id: 'logs'       as const, label: t('security.subTabs.logs'),       icon: FileText, activeColor: 'bg-blue-500/20 text-blue-300 border-blue-500/40' },
                   ]).map(tab => {
                     const Icon = tab.icon;
                     const isActive = securitySubTab === tab.id;
@@ -4172,7 +4172,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                   </div>
                 )}
                 {securitySubTab === 'users' && currentUser?.role !== 'admin' && (
-                  <p className="text-sm text-gray-500 py-4">Accès administrateur requis.</p>
+                  <p className="text-sm text-gray-500 py-4">{t('security.adminRequired')}</p>
                 )}
 
                 {/* Protection */}

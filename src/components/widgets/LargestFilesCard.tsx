@@ -61,7 +61,7 @@ const Toggle: React.FC<{ checked: boolean; onChange: () => void; color?: string 
 );
 
 export const LargestFilesCard: React.FC<Props> = ({ limit = 20 }) => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const [files, setFiles] = useState<LargestFileEntry[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isExpanded, setIsExpanded] = useState(false);
@@ -139,16 +139,16 @@ export const LargestFilesCard: React.FC<Props> = ({ limit = 20 }) => {
                     <div className="flex flex-wrap items-center gap-3 mb-4">
                         <label className="flex items-center gap-2 cursor-pointer select-none group">
                             <Toggle checked={showAll} onChange={() => setShowAll(v => !v)} color="bg-cyan-500" />
-                            <span className="text-xs text-gray-400 group-hover:text-gray-300">Tout afficher</span>
+                            <span className="text-xs text-gray-400 group-hover:text-gray-300">{t('analytics.showAll')}</span>
                         </label>
                         <div className="w-px h-4 bg-gray-700" />
                         <label className="flex items-center gap-2 cursor-pointer select-none group">
                             <Toggle checked={hideGz} onChange={() => setHideGz(v => !v)} />
-                            <span className="text-xs text-gray-400 group-hover:text-gray-300">Masquer .gz</span>
+                            <span className="text-xs text-gray-400 group-hover:text-gray-300">{t('analytics.hideGz')}</span>
                         </label>
                         <label className="flex items-center gap-2 cursor-pointer select-none group">
                             <Toggle checked={hideRotated} onChange={() => setHideRotated(v => !v)} />
-                            <span className="text-xs text-gray-400 group-hover:text-gray-300">Masquer .log.1</span>
+                            <span className="text-xs text-gray-400 group-hover:text-gray-300">{t('analytics.hideRotated')}</span>
                         </label>
                         {isLoading && <RefreshCw size={13} className="text-gray-500 animate-spin ml-auto" />}
                     </div>
@@ -202,15 +202,15 @@ export const LargestFilesCard: React.FC<Props> = ({ limit = 20 }) => {
                                                         color="muted"
                                                         width={360}
                                                         bodyNode={<>
-                                                            {TT.section('Chemin complet')}
+                                                            {TT.section(t('analytics.tooltipFullPath'))}
                                                             {TT.info(displayPath(file.path))}
                                                             {TT.sep()}
-                                                            {TT.section('Informations')}
-                                                            {TT.info(`Plugin : ${file.pluginName}`)}
-                                                            {TT.info(`Type : ${file.type}`)}
-                                                            {TT.info(`Taille : ${formatBytes(file.size)}${file.size > LARGE_FILE_THRESHOLD ? '  ⚠️ > ' + thresholdLabel : ''}`)}
-                                                            {file.modified && TT.info(`Modifié : ${new Date(file.modified).toLocaleDateString('fr-FR')}`)}
-                                                            {file.domain && <>{TT.sep()}{TT.section('Domaine')}{TT.row(<DomainInitial domain={file.domain} size={12} />, file.domain)}</>}
+                                                            {TT.section(t('analytics.tooltipInfo'))}
+                                                            {TT.info(t('analytics.tooltipPlugin', { name: file.pluginName }))}
+                                                            {TT.info(t('analytics.tooltipType', { type: file.type }))}
+                                                            {TT.info(t('analytics.tooltipSize', { size: formatBytes(file.size) }) + (file.size > LARGE_FILE_THRESHOLD ? '  ⚠️ > ' + thresholdLabel : ''))}
+                                                            {file.modified && TT.info(t('analytics.tooltipModified', { date: new Date(file.modified).toLocaleDateString(i18n.language) }))}
+                                                            {file.domain && <>{TT.sep()}{TT.section(t('analytics.tooltipDomain'))}{TT.row(<DomainInitial domain={file.domain} size={12} />, file.domain)}</>}
                                                         </>}
                                                     >
                                                         <a
@@ -246,7 +246,7 @@ export const LargestFilesCard: React.FC<Props> = ({ limit = 20 }) => {
                                                         onClick={() => setShowAll(true)}
                                                         className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
                                                     >
-                                                        + {filtered.length - 10} fichier{filtered.length - 10 > 1 ? 's' : ''} supplémentaire{filtered.length - 10 > 1 ? 's' : ''}
+                                                        {t('analytics.moreFiles', { count: filtered.length - 10 })}
                                                     </button>
                                                 </td>
                                             </tr>
@@ -256,7 +256,7 @@ export const LargestFilesCard: React.FC<Props> = ({ limit = 20 }) => {
                             </div>
                             {showAll && (
                                 <div className="px-4 py-2 border-t border-gray-800 text-xs text-gray-600">
-                                    {filtered.length} fichier{filtered.length !== 1 ? 's' : ''} affiché{filtered.length !== 1 ? 's' : ''}
+                                    {t('analytics.filesDisplayed', { count: filtered.length })}
                                 </div>
                             )}
                         </div>

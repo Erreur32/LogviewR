@@ -1,5 +1,6 @@
 import React, { useEffect, useState, Suspense, lazy, useMemo, useRef } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Header, Footer, type PageType } from './components/layout';
 import {
   Card,
@@ -9,7 +10,8 @@ import {
   LogHistoryCard,
   ErrorFilesCard,
   DashboardSearchCard,
-  LargestFilesCard
+  LargestFilesCard,
+  QuickPluginStatsCard
 } from './components/widgets';
 import { ActionButton, UnsupportedFeature } from './components/ui';
 import { UserLoginModal, UserRegistrationModal } from './components/modals';
@@ -23,7 +25,6 @@ function pageToPath(page: PageType, pluginId?: string): string {
         case 'log-viewer':     return pluginId ? `/log/${pluginId}` : '/log';
         case 'settings':       return '/settings';
         case 'log-analytics': return '/log-analytics';
-        case 'analytics':      return '/analytics';
         case 'plugins':        return '/plugins';
         case 'users':          return '/users';
         case 'logs':           return '/logs';
@@ -40,7 +41,6 @@ function pathToPage(pathname: string): PageType {
     if (pathname.startsWith('/log-test'))      return 'log-viewer-test';
     if (pathname.startsWith('/log'))           return 'log-viewer';
     if (pathname.startsWith('/settings'))      return 'settings';
-    if (pathname.startsWith('/analytics'))     return 'analytics';
     if (pathname.startsWith('/plugins'))       return 'plugins';
     if (pathname.startsWith('/users'))         return 'users';
     if (pathname.startsWith('/logs'))          return 'logs';
@@ -50,7 +50,6 @@ function pathToPage(pathname: string): PageType {
 
 // Lazy load pages for code splitting
 // Use default exports when available, otherwise use named exports
-const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage').then(m => ({ default: m.AnalyticsPage })));
 const LogAnalyticsPage = lazy(() => import('./pages/LogAnalyticsPage').then(m => ({ default: m.LogAnalyticsPage })));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const PluginsPage = lazy(() => import('./pages/PluginsPage').then(m => ({ default: m.PluginsPage })));
@@ -94,6 +93,7 @@ const PageLoader = () => (
 );
 
 const App: React.FC = () => {
+  const { t } = useTranslation();
   // User authentication (JWT)
   const { isAuthenticated: isUserAuthenticated, isLoading: userAuthLoading, checkAuth: checkUserAuth, logout: userLogout, user } = useUserAuthStore();
 
@@ -491,33 +491,6 @@ const App: React.FC = () => {
     ));
   }
 
-  // Render Analytics page
-  if (currentPage === 'analytics') {
-    return wrapWithBackground(renderPageWithFooter(
-      <>
-        <Header
-          pageType="analytics"
-          user={user || undefined}
-          onHomeClick={handleHomeClick}
-          onSettingsClick={handleSettingsClick}
-          onAdminClick={handleAdminClick}
-          onProfileClick={handleProfileClick}
-          onUsersClick={handleUsersClick}
-          onLogout={handleLogout}
-          onPluginClick={(pluginId) => {
-            if (pluginId === 'fail2ban') {
-              navigate('/fail2ban');
-            } else {
-              navigate(`/log/${pluginId}`);
-            }
-          }}
-          updateBanner={{ show: showUpdateBanner, latestVersion: updateInfo?.latestVersion, releaseNotes: updateInfo?.releaseNotes, onDismiss: dismissBanner }}
-        />
-        <AnalyticsPage onBack={() => navigate('/')} />
-      </>
-    ));
-  }
-
   // Render Profile page
   if (currentPage === 'profile') {
     return wrapWithBackground(renderPageWithFooter(
@@ -713,14 +686,14 @@ const App: React.FC = () => {
         />
         <main className="p-4 md:p-6 max-w-[1920px] mx-auto">
           <div className="mb-8">
-            <h1 className="text-2xl font-bold mb-2">LogviewR Dashboard</h1>
-            <p className="text-gray-400">Visualiseur de logs en temps réel</p>
+            <h1 className="text-2xl font-bold mb-2">{t('dashboard.pageTitle')}</h1>
+            <p className="text-gray-400">{t('dashboard.pageSubtitle')}</p>
           </div>
 
           {/* Plugin Stats Cards */}
           {plugins.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-gray-400 mb-4">Chargement des plugins...</p>
+              <p className="text-gray-400 mb-4">{t('dashboard.loadingPlugins')}</p>
             </div>
           ) : (
             <>
@@ -763,17 +736,22 @@ const App: React.FC = () => {
               {plugins.filter(p => p.enabled && (p.id === 'host-system' || p.id === 'nginx' || p.id === 'apache' || p.id === 'npm')).length === 0 && (
                 <div className="text-center py-12 bg-theme-tertiary rounded-lg border border-theme-border mb-8">
                   <FileText size={48} className="mx-auto mb-4 text-gray-500" />
-                  <p className="text-gray-400 mb-2">Aucun plugin de logs activé</p>
-                  <p className="text-sm text-gray-500">Activez un plugin dans les paramètres pour commencer</p>
+                  <p className="text-gray-400 mb-2">{t('dashboard.noPluginEnabledTitle')}</p>
+                  <p className="text-sm text-gray-500">{t('dashboard.noPluginEnabledHint')}</p>
                 </div>
               )}
 
               {/* Historique des logs */}
-              <LogHistoryCard
-                onOpenLog={(entry) => {
-                  navigate(`/log/${entry.pluginId}?file=${encodeURIComponent(entry.filePath)}`);
-                }}
-              />
+              <div className="mb-8">
+                <LogHistoryCard
+                  onOpenLog={(entry) => {
+                    navigate(`/log/${entry.pluginId}?file=${encodeURIComponent(entry.filePath)}`);
+                  }}
+                />
+              </div>
+
+              {/* Statistiques rapides des plugins de logs (repliées par défaut) */}
+              <QuickPluginStatsCard />
             </>
           )}
         </main>
@@ -797,8 +775,8 @@ const App: React.FC = () => {
       />
       <main className="p-4 md:p-6 max-w-[1920px] mx-auto">
         <div className="text-center py-12">
-          <h1 className="text-2xl font-bold mb-4">LogviewR Dashboard</h1>
-          <p className="text-gray-400">Visualiseur de logs en temps réel</p>
+          <h1 className="text-2xl font-bold mb-4">{t('dashboard.pageTitle')}</h1>
+          <p className="text-gray-400">{t('dashboard.pageSubtitle')}</p>
         </div>
       </main>
     </>

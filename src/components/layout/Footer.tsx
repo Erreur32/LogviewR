@@ -1,7 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import {
   Settings,
-  BarChart2,
   Home,
   FileText,
   HardDrive,
@@ -19,7 +18,7 @@ import { Tooltip } from '../ui/Tooltip';
 import { useTranslation } from 'react-i18next';
 import type { LogPluginStats } from '../../types/logViewer';
 
-export type PageType = 'dashboard' | 'analytics' | 'log-analytics' | 'settings' | 'plugins' | 'users' | 'logs' | 'log-viewer' | 'log-viewer-test' | 'fail2ban' | 'profile';
+export type PageType = 'dashboard' | 'log-analytics' | 'settings' | 'plugins' | 'users' | 'logs' | 'log-viewer' | 'log-viewer-test' | 'fail2ban' | 'profile';
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
@@ -41,7 +40,6 @@ interface FooterProps {
 // Only tabs that are actually displayed in the footer
 const allTabs: { id: PageType; label: string; icon: React.ElementType; adminOnly?: boolean }[] = [
   { id: 'dashboard', label: 'LogviewR', icon: Home },
-  { id: 'analytics', label: 'Analytique', icon: BarChart2 },
   { id: 'log-analytics', label: 'Stats Logs', icon: LineChart }
 ];
 
@@ -195,11 +193,9 @@ export const Footer: React.FC<FooterProps> = ({
           {visibleTabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = currentPage === tab.id;
-            const iconOnly = tab.id === 'analytics' || tab.id === 'log-analytics' || tab.id === 'dashboard';
+            const iconOnly = tab.id === 'log-analytics' || tab.id === 'dashboard';
             const tooltipLabel = tab.id === 'log-analytics'
               ? t('footer.logAnalyticsTooltip')
-              : tab.id === 'analytics'
-              ? t('footer.analyticsTooltip')
               : tab.label;
 
             return (
@@ -246,14 +242,14 @@ export const Footer: React.FC<FooterProps> = ({
           {logStats !== null && (
             <>
               <Tooltip
-                title="Fichiers de logs"
+                title={t('footer.readableFilesTitle')}
                 bodyNode={
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '.25rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', color: '#388bfd' }}>
                       <ScrollText size={11} />
-                      <span style={{ fontWeight: 600 }}>{logStats.readableFiles} fichier{logStats.readableFiles !== 1 ? 's' : ''} lisibles</span>
+                      <span style={{ fontWeight: 600 }}>{t('footer.readableFilesCount', { count: logStats.readableFiles })}</span>
                     </div>
-                    <div style={{ color: '#8b949e', fontSize: '.76rem' }}>Fichiers de logs actifs surveillés par les plugins activés</div>
+                    <div style={{ color: '#8b949e', fontSize: '.76rem' }}>{t('footer.statsReadableFilesTooltip')}</div>
                   </div>
                 }
                 color="blue"
@@ -261,18 +257,18 @@ export const Footer: React.FC<FooterProps> = ({
               >
                 <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-blue-500/30 text-blue-400 text-sm font-medium cursor-help">
                   <FileText size={16} className="flex-shrink-0" />
-                  {logStats.readableFiles} fichier{logStats.readableFiles !== 1 ? 's' : ''}
+                  {t('footer.readableFilesCount', { count: logStats.readableFiles })}
                 </span>
               </Tooltip>
               <Tooltip
-                title="Taille des logs"
+                title={t('footer.totalSizeTitle')}
                 bodyNode={
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '.25rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', color: '#e3b341' }}>
                       <HardDrive size={11} />
                       <span style={{ fontWeight: 600 }}>{formatBytes(logStats.totalSize)}</span>
                     </div>
-                    <div style={{ color: '#8b949e', fontSize: '.76rem' }}>Taille totale des fichiers logs lisibles (hors .gz)</div>
+                    <div style={{ color: '#8b949e', fontSize: '.76rem' }}>{t('footer.statsTotalSizeTooltip')}</div>
                   </div>
                 }
                 color="orange"
@@ -285,14 +281,14 @@ export const Footer: React.FC<FooterProps> = ({
               </Tooltip>
               {logStats.totalSizeGz > 0 && (
                 <Tooltip
-                  title="Archives compressées"
+                  title={t('footer.gzTitle')}
                   bodyNode={
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '.25rem' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', color: '#3fb950' }}>
                         <Package size={11} />
-                        <span style={{ fontWeight: 600 }}>{formatBytes(logStats.totalSizeGz)} en .gz</span>
+                        <span style={{ fontWeight: 600 }}>{t('footer.gzSizeLabel', { size: formatBytes(logStats.totalSizeGz) })}</span>
                       </div>
-                      <div style={{ color: '#8b949e', fontSize: '.76rem' }}>Logs archivés et compressés (rotation automatique)</div>
+                      <div style={{ color: '#8b949e', fontSize: '.76rem' }}>{t('footer.statsGzSizeTooltip')}</div>
                     </div>
                   }
                   color="green"
@@ -312,7 +308,7 @@ export const Footer: React.FC<FooterProps> = ({
         {loadTimeMs !== null && (
           <div className="flex-shrink-0">
             <Tooltip
-              title="Temps de chargement"
+              title={t('footer.loadTimeTitle')}
               bodyNode={
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '.25rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', color: loadTimeMs < 500 ? '#3fb950' : loadTimeMs < 1500 ? '#e3b341' : '#e86a65' }}>
@@ -322,7 +318,7 @@ export const Footer: React.FC<FooterProps> = ({
                     </span>
                   </div>
                   <div style={{ color: '#8b949e', fontSize: '.76rem' }}>
-                    {loadTimeMs < 500 ? 'Excellent — réponse très rapide' : loadTimeMs < 1500 ? 'Correct — charge modérée' : 'Lent — vérifier la charge serveur'}
+                    {loadTimeMs < 500 ? t('footer.loadTimeExcellent') : loadTimeMs < 1500 ? t('footer.loadTimeOk') : t('footer.loadTimeSlow')}
                   </div>
                 </div>
               }
@@ -354,7 +350,7 @@ export const Footer: React.FC<FooterProps> = ({
                       ? 'bg-blue-500/15 border-blue-500/40 text-blue-400'
                       : 'bg-transparent border-transparent text-theme-secondary hover:bg-theme-tertiary hover:text-theme-primary'
                   }`}
-                  title={`Voir les logs ${pluginName}`}
+                  title={t('footer.viewPluginLogs', { name: pluginName })}
                 >
                   <img
                     src={pluginIconSrc}
@@ -375,7 +371,7 @@ export const Footer: React.FC<FooterProps> = ({
                     ? 'bg-red-500/15 border-red-500/40 text-red-400'
                     : 'bg-transparent border-transparent text-theme-secondary hover:bg-theme-tertiary hover:text-theme-primary'
                 }`}
-                title="Fail2ban — Gestion des bannissements"
+                title={t('footer.fail2banTitle')}
               >
                 <img
                   src={getPluginIcon('fail2ban')}

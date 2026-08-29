@@ -15,3 +15,4 @@ export { LogHistoryCard } from './LogHistoryCard';
 export { ErrorFilesCard } from './ErrorFilesCard';
 export { DashboardSearchCard } from './DashboardSearchCard';
 export { LargestFilesCard } from './LargestFilesCard';
+export { QuickPluginStatsCard } from './QuickPluginStatsCard';

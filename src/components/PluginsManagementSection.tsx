@@ -79,7 +79,7 @@ export const PluginsManagementSection: React.FC = () => {
             setTogglingId(pluginId);
             const ok = await updatePluginConfig(pluginId, { enabled: false });
             setTogglingId(null);
-            addAction(ok ? `${plugin.name} — désactivé` : `${plugin.name} — erreur de désactivation`, ok);
+            addAction(ok ? t('admin.pluginsSection.toastDisabled', { name: plugin.name }) : t('admin.pluginsSection.toastDisableError', { name: plugin.name }), ok);
             return;
         }
 
@@ -89,7 +89,7 @@ export const PluginsManagementSection: React.FC = () => {
         if (!plugin.configured) {
             setNotConfiguredId(pluginId);
             setTimeout(() => setNotConfiguredId(null), 3000);
-            addAction(`${plugin.name} — configurez d'abord le plugin`, false);
+            addAction(t('admin.pluginsSection.toastConfigureFirst', { name: plugin.name }), false);
             return;
         }
 
@@ -107,8 +107,8 @@ export const PluginsManagementSection: React.FC = () => {
                     const result = data.result ?? data;
                     if (!result.ok && result.checks) {
                         const CHECK_LABELS: Record<string, string> = {
-                            socket: 'Socket Unix', client: 'fail2ban-client',
-                            daemon: 'Daemon fail2ban', sqlite: 'Base SQLite', dropin: 'Drop-in systemd',
+                            socket: t('admin.pluginsSection.checkLabels.socket'), client: t('admin.pluginsSection.checkLabels.client'),
+                            daemon: t('admin.pluginsSection.checkLabels.daemon'), sqlite: t('admin.pluginsSection.checkLabels.sqlite'), dropin: t('admin.pluginsSection.checkLabels.dropin'),
                         };
                         const errors = Object.entries(result.checks as Record<string, { ok: boolean; fix?: string | null }>)
                             .filter(([, c]) => !c.ok)
@@ -126,19 +126,19 @@ export const PluginsManagementSection: React.FC = () => {
             const result = await testPluginConnection(pluginId);
             if (!result?.connected) {
                 setTogglingId(null);
-                addAction(`${plugin.name} — ${result?.message || 'connexion impossible, vérifiez la configuration'}`, false);
+                addAction(t('admin.pluginsSection.toastConnectionFailed', { name: plugin.name, message: result?.message || t('admin.pluginsSection.toastConnectionFailedDefault') }), false);
                 return;
             }
         } catch {
             setTogglingId(null);
-            addAction(`${plugin.name} — test de connexion échoué`, false);
+            addAction(t('admin.pluginsSection.toastTestConnectionFailed', { name: plugin.name }), false);
             return;
         }
 
         // Connection OK → enable
         const ok = await updatePluginConfig(pluginId, { enabled: true });
         setTogglingId(null);
-        addAction(ok ? `${plugin.name} — activé avec succès` : `${plugin.name} — erreur d'activation`, ok);
+        addAction(ok ? t('admin.pluginsSection.toastEnabledSuccess', { name: plugin.name }) : t('admin.pluginsSection.toastEnableError', { name: plugin.name }), ok);
     };
 
     const handleTestPlugin = async (e: React.MouseEvent, pluginId: string) => {
@@ -149,15 +149,15 @@ export const PluginsManagementSection: React.FC = () => {
             if (result) {
                 addAction(
                     result.connected
-                        ? `${pluginId} — connexion OK`
-                        : `${pluginId} — ${result.message}`,
+                        ? t('admin.pluginsSection.toastTestOk', { name: pluginId })
+                        : t('admin.pluginsSection.toastConnectionFailed', { name: pluginId, message: result.message }),
                     result.connected
                 );
             } else {
-                addAction(`${pluginId} — test impossible`, false);
+                addAction(t('admin.pluginsSection.toastTestImpossible', { name: pluginId }), false);
             }
         } catch {
-            addAction(`${pluginId} — erreur de test`, false);
+            addAction(t('admin.pluginsSection.toastTestError', { name: pluginId }), false);
         } finally {
             setTestingId(null);
         }
@@ -212,8 +212,8 @@ export const PluginsManagementSection: React.FC = () => {
                         <div style={{ background: 'rgba(232,106,101,.12)', padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '.75rem', borderBottom: '1px solid rgba(232,106,101,.25)' }}>
                             <AlertCircle size={20} style={{ color: '#e86a65', flexShrink: 0 }} />
                             <div>
-                                <div style={{ fontWeight: 700, color: '#e86a65', fontSize: '.95rem' }}>Fail2ban — erreurs de configuration</div>
-                                <div style={{ fontSize: '.75rem', color: '#8b949e', marginTop: 2 }}>Le plugin ne fonctionnera pas correctement tant que ces problèmes ne sont pas résolus.</div>
+                                <div style={{ fontWeight: 700, color: '#e86a65', fontSize: '.95rem' }}>{t('admin.pluginsSection.f2bModalTitle')}</div>
+                                <div style={{ fontSize: '.75rem', color: '#8b949e', marginTop: 2 }}>{t('admin.pluginsSection.f2bModalHint')}</div>
                             </div>
                         </div>
                         <div style={{ padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '.6rem' }}>
@@ -234,15 +234,15 @@ export const PluginsManagementSection: React.FC = () => {
                         <div style={{ padding: '.75rem 1.25rem', borderTop: '1px solid #30363d', display: 'flex', gap: '.5rem', justifyContent: 'flex-end' }}>
                             <button onClick={() => setF2bWarn(null)}
                                 style={{ padding: '.35rem .85rem', borderRadius: 6, border: '1px solid #30363d', background: 'transparent', color: '#8b949e', cursor: 'pointer', fontSize: '.82rem' }}>
-                                Annuler
+                                {t('admin.pluginsSection.f2bModalCancel')}
                             </button>
                             <button onClick={async () => {
                                 setF2bWarn(null);
                                 const ok = await updatePluginConfig('fail2ban', { enabled: true });
-                                addAction(ok ? 'Fail2ban — activé (config incomplète)' : 'Fail2ban — erreur d\'activation', ok);
+                                addAction(ok ? t('admin.pluginsSection.f2bToastEnabledIncomplete') : t('admin.pluginsSection.f2bToastEnableError'), ok);
                             }}
                                 style={{ padding: '.35rem .85rem', borderRadius: 6, border: '1px solid rgba(232,106,101,.4)', background: 'rgba(232,106,101,.15)', color: '#e86a65', cursor: 'pointer', fontSize: '.82rem', fontWeight: 600 }}>
-                                Activer quand même
+                                {t('admin.pluginsSection.f2bModalEnableAnyway')}
                             </button>
                         </div>
                     </div>
@@ -295,7 +295,7 @@ export const PluginsManagementSection: React.FC = () => {
                                     <div className="font-semibold text-theme-primary text-sm truncate">{plugin.name}</div>
                                     <div className="flex items-center gap-1.5 mt-0.5">
                                         {notConfiguredId === plugin.id ? (
-                                            <span className="inline-flex items-center gap-1 text-orange-400 text-[10px]"><AlertCircle size={10} />Configurez d'abord</span>
+                                            <span className="inline-flex items-center gap-1 text-orange-400 text-[10px]"><AlertCircle size={10} />{t('admin.pluginsSection.notConfiguredBadge')}</span>
                                         ) : plugin.connectionStatus ? (
                                             <span className="inline-flex items-center gap-1 text-emerald-400 text-[10px]"><CheckCircle size={10} />{t('admin.pluginsSection.connected')}</span>
                                         ) : plugin.enabled ? (
@@ -322,7 +322,7 @@ export const PluginsManagementSection: React.FC = () => {
                                             </button>
                                         </Tooltip>
                                     )}
-                                    <Tooltip content={plugin.configured ? (plugin.enabled ? 'Désactiver' : 'Activer (test connexion requis)') : 'Configurez d\'abord ce plugin'}>
+                                    <Tooltip content={plugin.configured ? (plugin.enabled ? t('admin.pluginsSection.tooltipDisable') : t('admin.pluginsSection.tooltipEnable')) : t('admin.pluginsSection.tooltipConfigureFirst')}>
                                         <button
                                             onClick={() => handleToggle(plugin.id, !plugin.enabled)}
                                             disabled={togglingId === plugin.id}

@@ -5,6 +5,26 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2026-08-29
+
+### For users
+
+- Removed the `/analytics` page. Its "quick plugin stats" section now lives on the home page (dashboard), alongside search, largest log files, and log history, so everything is in one place.
+- The plugin stats section on the home page is collapsed by default and only loads data the first time you expand it, instead of always loading on every visit, so the dashboard opens faster.
+- Renamed the "Log history" card on the home page to "Log viewer history" for clarity.
+- Fixed missing translations on the Administration page: the Database tab (Performance, Backups, Health & Integrity sections) and the profile menu in the header (role label, "My Profile", "Administration", "User management", "Log out") now fully respect the selected language instead of showing French text when English is selected.
+
+### For developers
+
+- Deleted `src/pages/AnalyticsPage.tsx`. Its "Plugin Statistics" section was extracted into a new `src/components/widgets/QuickPluginStatsCard.tsx`, added to the dashboard render in `App.tsx`. The rest of the old page (database stats, user info blocks) was dead code: state existed (`databaseStats`, `isUserExpanded`) but was never rendered in JSX, so nothing was migrated for it.
+- `QuickPluginStatsCard` only fetches plugin stats on first expand (`isExpanded && !hasFetched`), unlike the old page which fetched unconditionally on mount regardless of the section's collapsed state. Results are cached via a new module-level TTL cache (`src/utils/pluginStatsCache.ts`, same pattern as `logAnalyticsCache.ts`) so collapsing/re-expanding within 10 minutes skips the refetch.
+- Removed the `'analytics'` route/page entirely: `App.tsx` (`pageToPath`/`pathToPage`, lazy import, render block), `Footer.tsx` (`PageType` union, `allTabs` entry, `BarChart2` import), `Header.tsx` (three `pageType === 'analytics'` checks folded into the `'dashboard'` case), `src/pages/index.ts` export.
+- Removed dead i18n keys tied only to the deleted page: `analytics.title`/`subtitle`, `analytics.dbStats*`, `analytics.userInfo*`, `analytics.roles.*`, `footer.analyticsTooltip` (en.json + fr.json). Kept `analytics.pluginStats*`/`analytics.largestFiles*` keys, still used by `QuickPluginStatsCard`/`LargestFilesCard`.
+- Renamed `dashboard.logHistoryTitle`/`logHistoryModalTitle` to "Log viewer history" / "Historique du visualiseur de logs" (en.json + fr.json).
+- `SettingsPage.tsx`: added `t()` calls to `DatabasePerformanceSection`, `BackupSection` (new `useTranslation()` hook, previously had none), and `DatabaseSection`. Extended the `database.*` locale namespace with `perf.*`, `backups.*`, and health/VACUUM keys in `en.json`/`fr.json`.
+- `src/components/ui/UserMenu.tsx` (header profile dropdown): added `useTranslation()` (previously had none) and translated role label, "My Profile", "Administration", "User management", and "Log out". Reused existing `admin.general.myProfile`/`settings.administration`/`admin.general.userManagement` keys; added new `header.userMenu.{roleAdmin,roleUser,roleViewer,logout}` keys.
+- Added a "Known TODO" section to `README.md`: hover/tooltip text on `/fail2ban` (`F2bTooltip`, `TT` helpers in `src/pages/fail2ban/helpers.tsx`) still needs an i18n review, deferred to a future pass.
+
 ## [0.9.29] - 2026-08-29
 
 ### For users
