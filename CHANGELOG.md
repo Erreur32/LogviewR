@@ -5,6 +5,19 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.2] - 2026-08-29
+
+### For users
+
+- Fixed missing translations on the Administration page: the Notifications tab, the Exporter tab's MQTT section, the Security tab (CORS hint, custom method/header fields), and the Users management tab now fully respect the selected language instead of showing French text when English is selected.
+
+### For developers
+
+- `SettingsPage.tsx`: `NotificationsSection` and `UsersManagementSection` fully routed through `t()` (loading/error states, delete confirmation, empty states). No new `useTranslation()` hooks needed, both components already had the import.
+- `src/components/ExporterSection.tsx`: `MqttSection` fully routed through `t()` (labels, hints, save/test/publish messages, stat descriptions). Added `useTranslation()` to the sub-component; `STAT_LABELS` renamed to `STAT_LABEL_KEYS` to reference i18n keys instead of literal strings.
+- `src/components/SecuritySection.tsx`: fixed an em-dash in the tracking-window description (replaced with parentheses per project style), segmented the CORS public-URL hint sentence and the MQTT HA auto-discovery description into semantically-named locale keys (`corsPublicUrlHint{Intro,UrlPhrase,Scope,Action}`, `haDiscovery{Intro,OnStartup}`) around their embedded `<span>`/`<em>`/`<code>` markup — this codebase has no `Trans` component usage, so inline markup is handled by splitting the sentence around literal JSX rather than introducing one. Translated the two custom method/header input placeholders.
+- Extended `admin.general.users.*`, `exporter.mqtt.*`, and `security.*` locale namespaces in `en.json`/`fr.json`.
+
 ## [0.10.1] - 2026-08-29
 
 ### For users

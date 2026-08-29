@@ -2149,6 +2149,7 @@ const DEFAULT_FORM = {
 };
 
 const NotificationsSection: React.FC = () => {
+  const { t } = useTranslation();
   const { setPrefs: storeSetPrefs } = useNotificationStore();
 
   // ── Tabs ──────────────────────────────────────────────────────────────────────
@@ -2253,14 +2254,14 @@ const NotificationsSection: React.FC = () => {
 
   const verifyTgToken = async () => {
     const token = form.token.trim();
-    if (!token) { setTgVerifyErr('Entrez un token d\'abord'); return; }
+    if (!token) { setTgVerifyErr(t('notifications.telegramVerify.enterTokenFirst')); return; }
     setTgVerifying(true); setTgBotName(null); setTgVerifyErr(null);
     try {
       const res = await api.post<{ username?: string; first_name?: string }>('/api/notifications/telegram/verify', { token });
       if (res.result?.username) setTgBotName(`@${res.result.username} (${res.result.first_name ?? ''})`);
-      else setTgBotName(res.result?.first_name ?? 'Bot vérifié');
+      else setTgBotName(res.result?.first_name ?? t('notifications.telegramVerify.botVerified'));
     } catch (e: any) {
-      setTgVerifyErr(e?.message || 'Token invalide');
+      setTgVerifyErr(e?.message || t('notifications.telegramVerify.tokenInvalid'));
     } finally { setTgVerifying(false); }
   };
 
@@ -2269,20 +2270,20 @@ const NotificationsSection: React.FC = () => {
     setFormError(''); setFieldErrors({});
     // Validate required fields per type
     const errs: Record<string, string> = {};
-    if (!form.name.trim()) errs.name = 'Nom obligatoire';
+    if (!form.name.trim()) errs.name = t('notifications.validation.nameRequired');
     if (showForm === 'discord') {
-      if (!form.url.trim()) errs.url = 'URL du webhook Discord obligatoire';
-      else if (!form.url.trim().startsWith('https://discord.com/api/webhooks/')) errs.url = 'URL invalide — doit commencer par https://discord.com/api/webhooks/';
+      if (!form.url.trim()) errs.url = t('notifications.validation.discordUrlRequired');
+      else if (!form.url.trim().startsWith('https://discord.com/api/webhooks/')) errs.url = t('notifications.validation.discordUrlInvalid');
     }
     if (showForm === 'telegram') {
-      if (!form.token.trim()) errs.token = 'Token du bot obligatoire';
-      else if (!/^\d+:[\w-]{30,}$/.test(form.token.trim())) errs.token = 'Format invalide — ex: 123456789:AAFabc…';
-      if (!form.chatId.trim()) errs.chatId = 'Chat ID obligatoire';
-      else if (!/^-?\d+$/.test(form.chatId.trim())) errs.chatId = 'Chat ID doit être numérique — ex: -100123456789';
+      if (!form.token.trim()) errs.token = t('notifications.validation.tokenRequired');
+      else if (!/^\d+:[\w-]{30,}$/.test(form.token.trim())) errs.token = t('notifications.validation.tokenInvalid');
+      if (!form.chatId.trim()) errs.chatId = t('notifications.validation.chatIdRequired');
+      else if (!/^-?\d+$/.test(form.chatId.trim())) errs.chatId = t('notifications.validation.chatIdInvalid');
     }
     if (showForm === 'generic') {
-      if (!form.url.trim()) errs.url = 'URL obligatoire';
-      else if (!/^https?:\/\/.+/.test(form.url.trim())) errs.url = 'URL invalide — doit commencer par http:// ou https://';
+      if (!form.url.trim()) errs.url = t('notifications.validation.urlRequired');
+      else if (!/^https?:\/\/.+/.test(form.url.trim())) errs.url = t('notifications.validation.urlInvalid');
     }
     if (Object.keys(errs).length > 0) { setFieldErrors(errs); return; }
     setFormSaving(true);
@@ -2328,7 +2329,7 @@ const NotificationsSection: React.FC = () => {
       }
       setShowForm(null); setEditId(null);
     } catch (e: any) {
-      setFormError(e?.message || 'Erreur lors de l\'enregistrement');
+      setFormError(e?.message || t('notifications.validation.saveError'));
     } finally { setFormSaving(false); }
   };
 
@@ -2346,9 +2347,9 @@ const NotificationsSection: React.FC = () => {
     setTestResults(r => { const n = { ...r }; delete n[id]; return n; });
     try {
       await api.post(`/api/notifications/webhooks/${id}/test`, {});
-      setTestResults(r => ({ ...r, [id]: { ok: true, msg: 'Envoyé !' } }));
+      setTestResults(r => ({ ...r, [id]: { ok: true, msg: t('notifications.test.sent') } }));
     } catch (e: any) {
-      setTestResults(r => ({ ...r, [id]: { ok: false, msg: e?.message || 'Erreur' } }));
+      setTestResults(r => ({ ...r, [id]: { ok: false, msg: e?.message || t('notifications.test.error') } }));
     } finally { setTestingId(null); }
   };
 
@@ -2364,8 +2365,8 @@ const NotificationsSection: React.FC = () => {
       {/* ── Tab bar ─────────────────────────────────────────────────────────────── */}
       <div className="flex gap-1 p-1 bg-[#111] border border-gray-800 rounded-lg w-fit">
         {([
-          { id: 'internal' as const, label: 'Notifications internes', icon: Bell,   activeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40' },
-          { id: 'webhooks' as const, label: 'Webhooks',               icon: Share2, activeColor: 'bg-blue-500/20 text-blue-300 border-blue-500/40' },
+          { id: 'internal' as const, label: t('notifications.tabInternal'), icon: Bell,   activeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40' },
+          { id: 'webhooks' as const, label: t('notifications.tabWebhooks'), icon: Share2, activeColor: 'bg-blue-500/20 text-blue-300 border-blue-500/40' },
         ]).map(tab => {
           const Icon = tab.icon;
           const isActive = activeNotifTab === tab.id;
@@ -2393,17 +2394,17 @@ const NotificationsSection: React.FC = () => {
       {activeNotifTab === 'internal' && (
         <div className="space-y-3 p-4 bg-[#0d1117] border border-gray-800 rounded-lg">
           <p className="text-xs text-gray-400">
-            Choisissez quels types de notifications s'affichent dans la barre centrale de l'interface.
-            {prefsSaving && <span className="ml-2 text-cyan-400"><Loader2 size={10} className="inline animate-spin mr-1" />Enregistrement…</span>}
+            {t('notifications.internalDescription')}
+            {prefsSaving && <span className="ml-2 text-cyan-400"><Loader2 size={10} className="inline animate-spin mr-1" />{t('common.saving')}</span>}
           </p>
           <div className="space-y-1">
-            <SettingRow label="Bannissements IP" description="Alerte quand une IP est bannie par Fail2ban">
+            <SettingRow label={t('notifications.eventLabels.ban')} description={t('notifications.internal.banDescription')}>
               <Toggle enabled={prefs.ban} onChange={v => savePref('ban', v)} disabled={prefsSaving} />
             </SettingRow>
-            <SettingRow label="Tentatives de connexion" description="Alerte quand de nouvelles tentatives échouées sont détectées">
+            <SettingRow label={t('notifications.eventLabels.attempt')} description={t('notifications.internal.attemptDescription')}>
               <Toggle enabled={prefs.attempt} onChange={v => savePref('attempt', v)} disabled={prefsSaving} />
             </SettingRow>
-            <SettingRow label="Retours d'actions" description="Confirmation ou erreur après une action (ban manuel, config, etc.)">
+            <SettingRow label={t('notifications.eventLabels.action')} description={t('notifications.internal.actionDescription')}>
               <Toggle enabled={prefs.action} onChange={v => savePref('action', v)} disabled={prefsSaving} />
             </SettingRow>
           </div>
@@ -2414,7 +2415,7 @@ const NotificationsSection: React.FC = () => {
       {activeNotifTab === 'webhooks' && (
         <div className="space-y-4 p-4 bg-[#0d1117] border border-gray-800 rounded-lg">
           <p className="text-xs text-gray-400">
-            Envoyez des alertes vers Discord, Telegram ou un endpoint HTTP personnalisé.
+            {t('notifications.webhooksDescription')}
           </p>
 
           {/* Add buttons */}
@@ -2449,15 +2450,17 @@ const NotificationsSection: React.FC = () => {
                   <img src={WEBHOOK_TYPE_ICONS[showForm]!} alt={showForm}
                     style={{ width: 15, height: 15, objectFit: 'contain' }} />
                 )}
-                {editId ? `Modifier — ${WEBHOOK_TYPE_LABELS[showForm]}` : `Ajouter — ${WEBHOOK_TYPE_LABELS[showForm]}`}
+                {editId
+                  ? t('notifications.form.editTitle', { type: WEBHOOK_TYPE_LABELS[showForm] })
+                  : t('notifications.form.addTitle', { type: WEBHOOK_TYPE_LABELS[showForm] })}
               </h4>
 
               {/* Name */}
               <div>
-                <label className="block text-xs text-gray-400 mb-1">Nom <span className="text-red-400">*</span></label>
+                <label className="block text-xs text-gray-400 mb-1">{t('notifications.form.name')} <span className="text-red-400">*</span></label>
                 <input type="text" value={form.name}
                   onChange={e => { setForm(f => ({ ...f, name: e.target.value })); setFieldErrors(fe => ({ ...fe, name: '' })); }}
-                  placeholder={`Mon webhook ${WEBHOOK_TYPE_LABELS[showForm]}`}
+                  placeholder={t('notifications.form.namePlaceholder', { type: WEBHOOK_TYPE_LABELS[showForm] })}
                   className={`w-full px-3 py-2 bg-[#161b22] border rounded-lg text-white text-sm placeholder-gray-600 focus:outline-none ${fieldErrors.name ? 'border-red-500/60 focus:border-red-500' : 'border-gray-700 focus:border-cyan-500/50'}`} />
                 {fieldErrors.name && <p className="mt-1 text-xs text-red-400 flex items-center gap-1"><AlertCircle size={10} />{fieldErrors.name}</p>}
               </div>
@@ -2466,7 +2469,7 @@ const NotificationsSection: React.FC = () => {
               {(showForm === 'discord' || showForm === 'generic') && (
                 <div>
                   <label className="block text-xs text-gray-400 mb-1">
-                    {showForm === 'discord' ? 'URL Webhook Discord' : 'URL Endpoint'} <span className="text-red-400">*</span>
+                    {showForm === 'discord' ? t('notifications.form.discordUrl') : t('notifications.form.genericUrl')} <span className="text-red-400">*</span>
                   </label>
                   <input type="url" value={form.url}
                     onChange={e => { setForm(f => ({ ...f, url: e.target.value })); setFieldErrors(fe => ({ ...fe, url: '' })); }}
@@ -2474,7 +2477,7 @@ const NotificationsSection: React.FC = () => {
                     className={`w-full px-3 py-2 bg-[#161b22] border rounded-lg text-white text-sm placeholder-gray-600 focus:outline-none ${fieldErrors.url ? 'border-red-500/60 focus:border-red-500' : 'border-gray-700 focus:border-cyan-500/50'}`} />
                   {fieldErrors.url && <p className="mt-1 text-xs text-red-400 flex items-center gap-1"><AlertCircle size={10} />{fieldErrors.url}</p>}
                   {!fieldErrors.url && showForm === 'discord' && (
-                    <p className="mt-1 text-xs text-gray-500">Paramètres du serveur → Intégrations → Webhooks dans Discord.</p>
+                    <p className="mt-1 text-xs text-gray-500">{t('notifications.form.discordUrlHelp')}</p>
                   )}
                 </div>
               )}
@@ -2483,7 +2486,7 @@ const NotificationsSection: React.FC = () => {
               {showForm === 'telegram' && (
                 <>
                   <div>
-                    <label className="block text-xs text-gray-400 mb-1">Token du Bot <span className="text-red-400">*</span></label>
+                    <label className="block text-xs text-gray-400 mb-1">{t('notifications.form.botToken')} <span className="text-red-400">*</span></label>
                     <div className="flex gap-2">
                       <input type="text" value={form.token}
                         onChange={e => { setForm(f => ({ ...f, token: e.target.value })); resetTgVerify(); setFieldErrors(fe => ({ ...fe, token: '' })); }}
@@ -2492,47 +2495,47 @@ const NotificationsSection: React.FC = () => {
                       <button type="button" onClick={verifyTgToken} disabled={tgVerifying || !form.token.trim()}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-blue-500/40 bg-blue-500/10 text-blue-300 hover:bg-blue-500/20 disabled:opacity-40 transition-colors whitespace-nowrap">
                         {tgVerifying ? <Loader2 size={11} className="animate-spin" /> : <CheckCircle size={11} />}
-                        Vérifier
+                        {t('notifications.telegramVerify.verify')}
                       </button>
                     </div>
                     {fieldErrors.token && <p className="mt-1 text-xs text-red-400 flex items-center gap-1"><AlertCircle size={10} />{fieldErrors.token}</p>}
-                    {tgBotName && <p className="mt-1 text-xs text-emerald-400 flex items-center gap-1"><CheckCircle size={10} /> Bot : {tgBotName}</p>}
+                    {tgBotName && <p className="mt-1 text-xs text-emerald-400 flex items-center gap-1"><CheckCircle size={10} /> {t('notifications.telegramVerify.botLabel', { name: tgBotName })}</p>}
                     {tgVerifyErr && <p className="mt-1 text-xs text-red-400 flex items-center gap-1"><AlertCircle size={10} /> {tgVerifyErr}</p>}
-                    {!fieldErrors.token && !tgBotName && !tgVerifyErr && <p className="mt-1 text-xs text-gray-500">Obtenu via @BotFather sur Telegram.</p>}
+                    {!fieldErrors.token && !tgBotName && !tgVerifyErr && <p className="mt-1 text-xs text-gray-500">{t('notifications.telegramVerify.tokenHelp')}</p>}
                   </div>
                   <div>
-                    <label className="block text-xs text-gray-400 mb-1">Chat ID <span className="text-red-400">*</span></label>
+                    <label className="block text-xs text-gray-400 mb-1">{t('notifications.form.chatId')} <span className="text-red-400">*</span></label>
                     <input type="text" value={form.chatId}
                       onChange={e => { setForm(f => ({ ...f, chatId: e.target.value })); setFieldErrors(fe => ({ ...fe, chatId: '' })); }}
                       placeholder="-100123456789"
                       className={`w-full px-3 py-2 bg-[#161b22] border rounded-lg text-white text-sm font-mono placeholder-gray-600 focus:outline-none ${fieldErrors.chatId ? 'border-red-500/60 focus:border-red-500' : 'border-gray-700 focus:border-cyan-500/50'}`} />
                     {fieldErrors.chatId && <p className="mt-1 text-xs text-red-400 flex items-center gap-1"><AlertCircle size={10} />{fieldErrors.chatId}</p>}
-                    {!fieldErrors.chatId && <p className="mt-1 text-xs text-gray-500">ID du chat ou groupe. Utilisez @userinfobot pour le trouver.</p>}
+                    {!fieldErrors.chatId && <p className="mt-1 text-xs text-gray-500">{t('notifications.telegramVerify.chatIdHelp')}</p>}
                   </div>
                 </>
               )}
 
               {/* Event triggers */}
               <div className="p-3 bg-[#161b22] border border-gray-800 rounded-lg space-y-2">
-                <p className="text-xs font-medium text-gray-300 mb-2">Événements déclencheurs</p>
+                <p className="text-xs font-medium text-gray-300 mb-2">{t('notifications.events.title')}</p>
                 <div className="flex items-center justify-between">
                   <div>
-                    <span className="text-sm text-gray-300">Bannissements IP</span>
-                    <span className="text-xs text-gray-600 block">Envoi quand une IP est bannie par Fail2ban</span>
+                    <span className="text-sm text-gray-300">{t('notifications.eventLabels.ban')}</span>
+                    <span className="text-xs text-gray-600 block">{t('notifications.events.banDescription')}</span>
                   </div>
                   <Toggle enabled={form.events.ban} onChange={v => setForm(f => ({ ...f, events: { ...f.events, ban: v } }))} />
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
-                    <span className="text-sm text-gray-300">Tentatives de connexion</span>
-                    <span className="text-xs text-gray-600 block">Envoi quand de nouvelles tentatives sont détectées</span>
+                    <span className="text-sm text-gray-300">{t('notifications.eventLabels.attempt')}</span>
+                    <span className="text-xs text-gray-600 block">{t('notifications.events.attemptDescription')}</span>
                   </div>
                   <Toggle enabled={form.events.attempt} onChange={v => setForm(f => ({ ...f, events: { ...f.events, attempt: v } }))} />
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
-                    <span className="text-sm text-gray-300">Retours d'actions</span>
-                    <span className="text-xs text-gray-600 block">Ban manuel, débannissement, modification de config</span>
+                    <span className="text-sm text-gray-300">{t('notifications.eventLabels.action')}</span>
+                    <span className="text-xs text-gray-600 block">{t('notifications.events.actionDescription')}</span>
                   </div>
                   <Toggle enabled={form.events.action} onChange={v => setForm(f => ({ ...f, events: { ...f.events, action: v } }))} />
                 </div>
@@ -2540,22 +2543,22 @@ const NotificationsSection: React.FC = () => {
 
               {/* Frequency / batching */}
               <div>
-                <label className="block text-xs text-gray-400 mb-1">Regroupement d'envoi</label>
+                <label className="block text-xs text-gray-400 mb-1">{t('notifications.frequency.label')}</label>
                 <select value={form.batchWindow}
                   onChange={e => setForm(f => ({ ...f, batchWindow: Number(e.target.value) }))}
                   className="w-full px-3 py-2 bg-[#161b22] border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-cyan-500/50">
-                  <option value={0}>Immédiat — 1 message par événement</option>
-                  <option value={5}>Regrouper — toutes les 5 minutes</option>
-                  <option value={15}>Regrouper — toutes les 15 minutes</option>
-                  <option value={30}>Regrouper — toutes les 30 minutes</option>
+                  <option value={0}>{t('notifications.frequency.immediate')}</option>
+                  <option value={5}>{t('notifications.frequency.batch5')}</option>
+                  <option value={15}>{t('notifications.frequency.batch15')}</option>
+                  <option value={30}>{t('notifications.frequency.batch30')}</option>
                 </select>
                 {form.batchWindow > 0 && (
                   <div className="mt-2 flex items-center gap-2">
-                    <span className="text-xs text-gray-400">Maximum</span>
+                    <span className="text-xs text-gray-400">{t('notifications.frequency.maximum')}</span>
                     <input type="number" min={1} max={50} value={form.maxPerBatch}
                       onChange={e => setForm(f => ({ ...f, maxPerBatch: Number(e.target.value) }))}
                       className="w-20 px-2 py-1.5 bg-[#161b22] border border-gray-700 rounded text-white text-sm focus:outline-none focus:border-cyan-500/50" />
-                    <span className="text-xs text-gray-400">événements par message</span>
+                    <span className="text-xs text-gray-400">{t('notifications.frequency.eventsPerMessage')}</span>
                   </div>
                 )}
               </div>
@@ -2564,63 +2567,63 @@ const NotificationsSection: React.FC = () => {
               <div className="border border-gray-800 rounded-lg overflow-hidden">
                 <button type="button" onClick={() => setShowFilters(v => !v)}
                   className="w-full flex items-center justify-between px-3 py-2.5 text-xs font-medium text-gray-400 hover:text-gray-200 bg-[#161b22] transition-colors">
-                  <span className="flex items-center gap-1.5"><Shield size={11} /> Filtres de déclenchement</span>
+                  <span className="flex items-center gap-1.5"><Shield size={11} /> {t('notifications.filters.title')}</span>
                   <ChevronDown size={12} className={`transition-transform ${showFilters ? 'rotate-180' : ''}`} />
                 </button>
                 {showFilters && (
                   <div className="p-3 space-y-3 border-t border-gray-800 bg-[#0d1117]">
                     {/* Jail filter */}
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Jails concernés</label>
+                      <label className="block text-xs text-gray-400 mb-1">{t('notifications.filters.jails')}</label>
                       <input type="text" value={form.jailFilter}
                         onChange={e => setForm(f => ({ ...f, jailFilter: e.target.value }))}
-                        placeholder="sshd, nginx-http-auth, apache-auth  (vide = tous)"
+                        placeholder={t('notifications.filters.jailsPlaceholder')}
                         className="w-full px-3 py-2 bg-[#161b22] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-600 focus:outline-none focus:border-cyan-500/50" />
-                      <p className="mt-1 text-xs text-gray-500">Noms de jails séparés par des virgules. Laissez vide pour recevoir tous les jails.</p>
+                      <p className="mt-1 text-xs text-gray-500">{t('notifications.filters.jailsHelp')}</p>
                     </div>
                     <div className="grid grid-cols-3 gap-3">
                       {/* Min failures */}
                       <div>
-                        <label className="block text-xs text-gray-400 mb-1">Échecs minimum</label>
+                        <label className="block text-xs text-gray-400 mb-1">{t('notifications.filters.minFailures')}</label>
                         <input type="number" min={0} value={form.minFailures}
                           onChange={e => setForm(f => ({ ...f, minFailures: Number(e.target.value) }))}
                           className="w-full px-2 py-1.5 bg-[#161b22] border border-gray-700 rounded text-white text-sm focus:outline-none focus:border-cyan-500/50" />
-                        <p className="mt-1 text-xs text-gray-500">0 = tous</p>
+                        <p className="mt-1 text-xs text-gray-500">{t('notifications.filters.minFailuresHelp')}</p>
                       </div>
                       {/* Rate limit */}
                       <div>
-                        <label className="block text-xs text-gray-400 mb-1">Limite / heure</label>
+                        <label className="block text-xs text-gray-400 mb-1">{t('notifications.filters.rateLimit')}</label>
                         <input type="number" min={0} value={form.rateLimit}
                           onChange={e => setForm(f => ({ ...f, rateLimit: Number(e.target.value) }))}
                           className="w-full px-2 py-1.5 bg-[#161b22] border border-gray-700 rounded text-white text-sm focus:outline-none focus:border-cyan-500/50" />
-                        <p className="mt-1 text-xs text-gray-500">0 = illimitée</p>
+                        <p className="mt-1 text-xs text-gray-500">{t('notifications.filters.rateLimitHelp')}</p>
                       </div>
                       {/* Cooldown */}
                       <div>
-                        <label className="block text-xs text-gray-400 mb-1">Cooldown IP (min)</label>
+                        <label className="block text-xs text-gray-400 mb-1">{t('notifications.filters.cooldown')}</label>
                         <input type="number" min={0} value={form.cooldownMinutes}
                           onChange={e => setForm(f => ({ ...f, cooldownMinutes: Number(e.target.value) }))}
                           className="w-full px-2 py-1.5 bg-[#161b22] border border-gray-700 rounded text-white text-sm focus:outline-none focus:border-cyan-500/50" />
-                        <p className="mt-1 text-xs text-gray-500">0 = aucun</p>
+                        <p className="mt-1 text-xs text-gray-500">{t('notifications.filters.cooldownHelp')}</p>
                       </div>
                     </div>
                     {/* Active hours */}
                     <div>
                       <div className="flex items-center justify-between mb-2">
-                        <label className="text-xs text-gray-400">Plage horaire active</label>
+                        <label className="text-xs text-gray-400">{t('notifications.filters.activeHours')}</label>
                         <Toggle enabled={form.activeHoursEnabled} onChange={v => setForm(f => ({ ...f, activeHoursEnabled: v }))} />
                       </div>
                       {form.activeHoursEnabled && (
                         <div className="flex items-center gap-2 mt-1">
-                          <span className="text-xs text-gray-500">De</span>
+                          <span className="text-xs text-gray-500">{t('notifications.filters.from')}</span>
                           <input type="number" min={0} max={23} value={form.activeHoursFrom}
                             onChange={e => setForm(f => ({ ...f, activeHoursFrom: Number(e.target.value) }))}
                             className="w-16 px-2 py-1.5 bg-[#161b22] border border-gray-700 rounded text-white text-sm text-center focus:outline-none focus:border-cyan-500/50" />
-                          <span className="text-xs text-gray-500">h à</span>
+                          <span className="text-xs text-gray-500">h {t('notifications.filters.to')}</span>
                           <input type="number" min={0} max={23} value={form.activeHoursTo}
                             onChange={e => setForm(f => ({ ...f, activeHoursTo: Number(e.target.value) }))}
                             className="w-16 px-2 py-1.5 bg-[#161b22] border border-gray-700 rounded text-white text-sm text-center focus:outline-none focus:border-cyan-500/50" />
-                          <span className="text-xs text-gray-500">h (heure serveur)</span>
+                          <span className="text-xs text-gray-500">h {t('notifications.filters.serverTime')}</span>
                         </div>
                       )}
                     </div>
@@ -2635,7 +2638,7 @@ const NotificationsSection: React.FC = () => {
                     className="w-full flex items-center justify-between px-3 py-2.5 text-xs font-medium text-gray-400 hover:text-gray-200 bg-[#161b22] transition-colors">
                     <span className="flex items-center gap-1.5">
                       {WEBHOOK_TYPE_ICONS.discord && <img src={WEBHOOK_TYPE_ICONS.discord} alt="discord" style={{ width: 11, height: 11 }} />}
-                      Options Discord
+                      {t('notifications.discordOpts.title')}
                     </span>
                     <ChevronDown size={12} className={`transition-transform ${showDiscordOpts ? 'rotate-180' : ''}`} />
                   </button>
@@ -2643,14 +2646,14 @@ const NotificationsSection: React.FC = () => {
                     <div className="p-3 space-y-3 border-t border-gray-800 bg-[#0d1117]">
                       <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <label className="block text-xs text-gray-400 mb-1">Nom d'affichage du bot</label>
+                          <label className="block text-xs text-gray-400 mb-1">{t('notifications.discordOpts.botName')}</label>
                           <input type="text" value={form.discordUsername}
                             onChange={e => setForm(f => ({ ...f, discordUsername: e.target.value }))}
                             placeholder="LogviewR Fail2ban"
                             className="w-full px-3 py-2 bg-[#161b22] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-600 focus:outline-none focus:border-cyan-500/50" />
                         </div>
                         <div>
-                          <label className="block text-xs text-gray-400 mb-1">URL avatar</label>
+                          <label className="block text-xs text-gray-400 mb-1">{t('notifications.discordOpts.avatarUrl')}</label>
                           <input type="url" value={form.discordAvatarUrl}
                             onChange={e => setForm(f => ({ ...f, discordAvatarUrl: e.target.value }))}
                             placeholder="https://…/avatar.png"
@@ -2659,30 +2662,30 @@ const NotificationsSection: React.FC = () => {
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <label className="block text-xs text-gray-400 mb-1">ID Thread / Forum</label>
+                          <label className="block text-xs text-gray-400 mb-1">{t('notifications.discordOpts.threadId')}</label>
                           <input type="text" value={form.discordThreadId}
                             onChange={e => setForm(f => ({ ...f, discordThreadId: e.target.value }))}
                             placeholder="1234567890123456789"
                             className="w-full px-3 py-2 bg-[#161b22] border border-gray-700 rounded-lg text-white text-sm font-mono placeholder-gray-600 focus:outline-none focus:border-cyan-500/50" />
-                          <p className="mt-1 text-xs text-gray-500">Optionnel — envoie dans un thread spécifique</p>
+                          <p className="mt-1 text-xs text-gray-500">{t('notifications.discordOpts.threadIdHelp')}</p>
                         </div>
                         <div>
-                          <label className="block text-xs text-gray-400 mb-1">Mention</label>
+                          <label className="block text-xs text-gray-400 mb-1">{t('notifications.discordOpts.mention')}</label>
                           <input type="text" value={form.discordMention}
                             onChange={e => setForm(f => ({ ...f, discordMention: e.target.value }))}
-                            placeholder="@here  ou  ID de rôle"
+                            placeholder={t('notifications.discordOpts.mentionPlaceholder')}
                             className="w-full px-3 py-2 bg-[#161b22] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-600 focus:outline-none focus:border-cyan-500/50" />
-                          <p className="mt-1 text-xs text-gray-500">@here, @everyone, ou ID numérique du rôle</p>
+                          <p className="mt-1 text-xs text-gray-500">{t('notifications.discordOpts.mentionHelp')}</p>
                         </div>
                       </div>
                       {/* Couleurs par type */}
                       <div>
-                        <p className="text-xs text-gray-400 mb-2">Couleurs des embeds</p>
+                        <p className="text-xs text-gray-400 mb-2">{t('notifications.discordOpts.colorsTitle')}</p>
                         <div className="flex items-center gap-4">
                           {([
-                            { key: 'discordColorBan' as const,    label: 'Ban auto' },
-                            { key: 'discordColorAction' as const,  label: 'Ban manuel' },
-                            { key: 'discordColorUnban' as const,   label: 'Débannissement' },
+                            { key: 'discordColorBan' as const,    label: t('notifications.discordOpts.colorBan') },
+                            { key: 'discordColorAction' as const,  label: t('notifications.discordOpts.colorAction') },
+                            { key: 'discordColorUnban' as const,   label: t('notifications.discordOpts.colorUnban') },
                           ] as const).map(({ key, label }) => (
                             <label key={key} className="flex items-center gap-2 cursor-pointer">
                               <input type="color" value={form[key]}
@@ -2705,7 +2708,7 @@ const NotificationsSection: React.FC = () => {
                     className="w-full flex items-center justify-between px-3 py-2.5 text-xs font-medium text-gray-400 hover:text-gray-200 bg-[#161b22] transition-colors">
                     <span className="flex items-center gap-1.5">
                       {WEBHOOK_TYPE_ICONS.telegram && <img src={WEBHOOK_TYPE_ICONS.telegram} alt="telegram" style={{ width: 11, height: 11 }} />}
-                      Options Telegram
+                      {t('notifications.telegramOpts.title')}
                     </span>
                     <ChevronDown size={12} className={`transition-transform ${showTgOpts ? 'rotate-180' : ''}`} />
                   </button>
@@ -2713,25 +2716,25 @@ const NotificationsSection: React.FC = () => {
                     <div className="p-3 space-y-3 border-t border-gray-800 bg-[#0d1117]">
                       <div className="flex items-center justify-between">
                         <div>
-                          <span className="text-sm text-gray-300">Notification silencieuse</span>
-                          <span className="text-xs text-gray-600 block">Aucun son ni vibration à la réception</span>
+                          <span className="text-sm text-gray-300">{t('notifications.telegramOpts.silent')}</span>
+                          <span className="text-xs text-gray-600 block">{t('notifications.telegramOpts.silentHelp')}</span>
                         </div>
                         <Toggle enabled={form.telegramSilent} onChange={v => setForm(f => ({ ...f, telegramSilent: v }))} />
                       </div>
                       <div className="flex items-center justify-between">
                         <div>
-                          <span className="text-sm text-gray-300">Désactiver l'aperçu des liens</span>
-                          <span className="text-xs text-gray-600 block">Empêche Telegram de prévisualiser les URLs dans le message</span>
+                          <span className="text-sm text-gray-300">{t('notifications.telegramOpts.disablePreview')}</span>
+                          <span className="text-xs text-gray-600 block">{t('notifications.telegramOpts.disablePreviewHelp')}</span>
                         </div>
                         <Toggle enabled={form.telegramDisablePreview} onChange={v => setForm(f => ({ ...f, telegramDisablePreview: v }))} />
                       </div>
                       <div>
-                        <label className="block text-xs text-gray-400 mb-1">ID du topic (supergroupe)</label>
+                        <label className="block text-xs text-gray-400 mb-1">{t('notifications.telegramOpts.topicId')}</label>
                         <input type="text" value={form.telegramThreadId}
                           onChange={e => setForm(f => ({ ...f, telegramThreadId: e.target.value }))}
                           placeholder="12345"
                           className="w-full px-3 py-2 bg-[#161b22] border border-gray-700 rounded-lg text-white text-sm font-mono placeholder-gray-600 focus:outline-none focus:border-cyan-500/50" />
-                        <p className="mt-1 text-xs text-gray-500">Pour envoyer dans un topic spécifique d'un supergroupe</p>
+                        <p className="mt-1 text-xs text-gray-500">{t('notifications.telegramOpts.topicIdHelp')}</p>
                       </div>
                     </div>
                   )}
@@ -2742,55 +2745,55 @@ const NotificationsSection: React.FC = () => {
               <div className="border border-gray-800 rounded-lg overflow-hidden">
                 <button type="button" onClick={() => setShowTemplates(v => !v)}
                   className="w-full flex items-center justify-between px-3 py-2.5 text-xs font-medium text-gray-400 hover:text-gray-200 bg-[#161b22] transition-colors">
-                  <span className="flex items-center gap-1.5"><Code size={11} /> Personnaliser les messages</span>
+                  <span className="flex items-center gap-1.5"><Code size={11} /> {t('notifications.templates.title')}</span>
                   <ChevronDown size={12} className={`transition-transform ${showTemplates ? 'rotate-180' : ''}`} />
                 </button>
                 {showTemplates && (
                   <div className="p-3 space-y-3 border-t border-gray-800 bg-[#0d1117]">
                     <p className="text-xs text-gray-500">
-                      Laissez vide pour utiliser le format par défaut.
-                      {showForm === 'discord' && ' Discord Markdown supporté (**gras**, `code`).'}
-                      {showForm === 'telegram' && ' HTML Telegram supporté (<b>gras</b>, <code>code</code>, <i>italique</i>).'}
+                      {t('notifications.templates.defaultHint')}
+                      {showForm === 'discord' && t('notifications.templates.discordMarkdownHint')}
+                      {showForm === 'telegram' && t('notifications.templates.telegramHtmlHint')}
                     </p>
                     {/* Variables hint */}
                     <div className="p-2 bg-[#161b22] rounded-lg border border-gray-800">
-                      <p className="text-xs text-gray-500 mb-1.5 font-medium">Variables disponibles :</p>
+                      <p className="text-xs text-gray-500 mb-1.5 font-medium">{t('notifications.templates.variablesTitle')}</p>
                       <div className="flex flex-wrap gap-1">
                         {(['{{ip}}','{{jail}}','{{bantime}}','{{failures}}','{{domain}}','{{date}}','{{time}}'] as const).map(v => (
                           <code key={v} className="text-[10px] px-1.5 py-0.5 bg-gray-800 text-cyan-400 rounded font-mono">{v}</code>
                         ))}
-                        <span className="text-[10px] text-gray-600 self-center ml-1">+ pour les résumés :</span>
+                        <span className="text-[10px] text-gray-600 self-center ml-1">{t('notifications.templates.summaryVariablesHint')}</span>
                         {(['{{count}}','{{list}}'] as const).map(v => (
                           <code key={v} className="text-[10px] px-1.5 py-0.5 bg-gray-800 text-amber-400 rounded font-mono">{v}</code>
                         ))}
                       </div>
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Ban solo (automatique)</label>
+                      <label className="block text-xs text-gray-400 mb-1">{t('notifications.templates.banSolo')}</label>
                       <textarea value={form.templateBanSolo}
                         onChange={e => setForm(f => ({ ...f, templateBanSolo: e.target.value }))}
                         rows={3}
                         placeholder={showForm === 'telegram'
-                          ? '🔴 <b>Ban</b> — <code>{{ip}}</code>\nJail : <b>{{jail}}</b> · Durée : {{bantime}}'
-                          : '**Ban détecté**\n`{{ip}}` — {{jail}} — {{bantime}}'}
+                          ? t('notifications.templates.banSoloPlaceholderTelegram')
+                          : t('notifications.templates.banSoloPlaceholderDiscord')}
                         className="w-full px-3 py-2 bg-[#161b22] border border-gray-700 rounded-lg text-white text-xs font-mono placeholder-gray-600 focus:outline-none focus:border-cyan-500/50 resize-y" />
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Résumé groupé</label>
+                      <label className="block text-xs text-gray-400 mb-1">{t('notifications.templates.banGroup')}</label>
                       <textarea value={form.templateBanGroup}
                         onChange={e => setForm(f => ({ ...f, templateBanGroup: e.target.value }))}
                         rows={3}
-                        placeholder="📋 {{count}} bans\n\n{{list}}"
+                        placeholder={t('notifications.templates.banGroupPlaceholder')}
                         className="w-full px-3 py-2 bg-[#161b22] border border-gray-700 rounded-lg text-white text-xs font-mono placeholder-gray-600 focus:outline-none focus:border-cyan-500/50 resize-y" />
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Action manuelle (ban / débannissement)</label>
+                      <label className="block text-xs text-gray-400 mb-1">{t('notifications.templates.actionSolo')}</label>
                       <textarea value={form.templateActionSolo}
                         onChange={e => setForm(f => ({ ...f, templateActionSolo: e.target.value }))}
                         rows={3}
                         placeholder={showForm === 'telegram'
-                          ? '🔨 <b>{{action}}</b> — <code>{{ip}}</code>\nJail : <b>{{jail}}</b>'
-                          : '**{{action}}** — `{{ip}}` — {{jail}}'}
+                          ? t('notifications.templates.actionSoloPlaceholderTelegram')
+                          : t('notifications.templates.actionSoloPlaceholderDiscord')}
                         className="w-full px-3 py-2 bg-[#161b22] border border-gray-700 rounded-lg text-white text-xs font-mono placeholder-gray-600 focus:outline-none focus:border-cyan-500/50 resize-y" />
                     </div>
                   </div>
@@ -2813,18 +2816,18 @@ const NotificationsSection: React.FC = () => {
                   <button onClick={() => testWh(editId)} disabled={testingId === editId}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border border-cyan-500/40 bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 disabled:opacity-40 transition-colors">
                     {testingId === editId ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
-                    Envoyer un test
+                    {t('notifications.buttons.sendTest')}
                   </button>
                 ) : <span />}
                 <div className="flex items-center gap-2">
                   <button onClick={() => { setShowForm(null); setEditId(null); setFormError(''); }}
                     className="px-3 py-1.5 text-sm text-gray-400 hover:text-white transition-colors">
-                    Annuler
+                    {t('common.cancel')}
                   </button>
                   <button onClick={submitForm} disabled={formSaving}
                     className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-medium bg-cyan-600 hover:bg-cyan-500 text-gray-100 disabled:opacity-50 transition-colors">
                     {formSaving && <Loader2 size={12} className="animate-spin" />}
-                    {editId ? 'Enregistrer' : 'Ajouter'}
+                    {editId ? t('notifications.buttons.save') : t('notifications.buttons.add')}
                   </button>
                 </div>
               </div>
@@ -2834,10 +2837,10 @@ const NotificationsSection: React.FC = () => {
           {/* Webhook list */}
           {wLoading ? (
             <div className="flex items-center gap-2 text-gray-500 text-sm py-2">
-              <Loader2 size={14} className="animate-spin" /> Chargement…
+              <Loader2 size={14} className="animate-spin" /> {t('common.loading')}
             </div>
           ) : webhooks.length === 0 ? (
-            <p className="text-sm text-gray-500 py-1">Aucun webhook configuré.</p>
+            <p className="text-sm text-gray-500 py-1">{t('notifications.list.empty')}</p>
           ) : (
             <div className="space-y-2">
               {webhooks.map(wh => (
@@ -2862,17 +2865,17 @@ const NotificationsSection: React.FC = () => {
                     <div className="flex items-center gap-1 flex-shrink-0">
                       <Toggle enabled={wh.enabled} onChange={v => toggleWh(wh.id, v)} />
                       <button onClick={() => testWh(wh.id)} disabled={testingId === wh.id || !wh.enabled}
-                        title="Envoyer un message de test"
+                        title={t('notifications.list.testTooltip')}
                         className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium border border-cyan-500/30 bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 disabled:opacity-40 transition-colors ml-1">
                         {testingId === wh.id ? <Loader2 size={11} className="animate-spin" /> : <Zap size={11} />}
-                        Test
+                        {t('common.test')}
                       </button>
-                      <button onClick={() => openEditForm(wh)} title="Modifier"
+                      <button onClick={() => openEditForm(wh)} title={t('notifications.list.editTooltip')}
                         className="p-1.5 text-gray-500 hover:text-white transition-colors">
                         <Edit2 size={13} />
                       </button>
                       <button onClick={() => deleteWh(wh.id)} disabled={deletingId === wh.id}
-                        title="Supprimer"
+                        title={t('notifications.list.deleteTooltip')}
                         className="p-1.5 text-gray-500 hover:text-red-400 disabled:opacity-40 transition-colors">
                         {deletingId === wh.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
                       </button>
@@ -2880,14 +2883,14 @@ const NotificationsSection: React.FC = () => {
                   </div>
                   {/* Event badges + frequency */}
                   <div className="flex flex-wrap gap-1 mt-2 pl-6">
-                    {wh.events?.ban     && <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 border border-red-500/30">Ban</span>}
-                    {wh.events?.attempt && <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30">Tentative</span>}
-                    {wh.events?.action  && <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-400 border border-blue-500/30">Action</span>}
+                    {wh.events?.ban     && <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 border border-red-500/30">{t('notifications.list.badgeBan')}</span>}
+                    {wh.events?.attempt && <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30">{t('notifications.list.badgeAttempt')}</span>}
+                    {wh.events?.action  && <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-400 border border-blue-500/30">{t('notifications.list.badgeAction')}</span>}
                     {!wh.events?.ban && !wh.events?.attempt && !wh.events?.action && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-700/60 text-gray-500">Aucun événement</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-700/60 text-gray-500">{t('notifications.list.badgeNone')}</span>
                     )}
                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-700/60 text-gray-400">
-                      {wh.batchWindow ? `Regroupé /${wh.batchWindow}min` : 'Immédiat'}
+                      {wh.batchWindow ? t('notifications.list.batched', { min: wh.batchWindow }) : t('notifications.list.immediate')}
                     </span>
                   </div>
                 </div>
@@ -3542,18 +3545,18 @@ const UsersManagementSection: React.FC = () => {
       if (response.success && response.result) {
         setUsers(response.result);
       } else {
-        const errorMsg = response.error?.message || 'Échec du chargement des utilisateurs';
+        const errorMsg = response.error?.message || t('admin.general.users.loadError');
         setError(errorMsg);
       }
     } catch (err: any) {
       // Handle network/socket errors
-      let errorMessage = 'Échec du chargement des utilisateurs';
-      
+      let errorMessage = t('admin.general.users.loadError');
+
       if (err.message) {
         if (err.message.includes('socket') || err.message.includes('ended') || err.message.includes('ECONNRESET')) {
-          errorMessage = 'Connexion interrompue. Veuillez réessayer.';
+          errorMessage = t('admin.general.users.connectionError');
         } else if (err.message.includes('timeout') || err.message.includes('TIMEOUT')) {
-          errorMessage = 'La requête a expiré. Veuillez réessayer.';
+          errorMessage = t('admin.general.users.timeoutError');
         } else if (err.error?.message) {
           errorMessage = err.error.message;
         } else {
@@ -3570,7 +3573,7 @@ const UsersManagementSection: React.FC = () => {
   };
 
   const handleDelete = async (userId: number) => {
-    if (!confirm(`Voulez-vous vraiment supprimer cet utilisateur ?`)) {
+    if (!confirm(t('admin.general.users.deleteConfirm'))) {
       return;
     }
 
@@ -3579,18 +3582,18 @@ const UsersManagementSection: React.FC = () => {
       if (response.success) {
         await fetchUsers();
       } else {
-        const errorMsg = response.error?.message || 'Échec de la suppression';
+        const errorMsg = response.error?.message || t('admin.general.users.deleteError');
         alert(errorMsg);
       }
     } catch (err: any) {
       // Handle network/socket errors
-      let errorMessage = 'Échec de la suppression';
-      
+      let errorMessage = t('admin.general.users.deleteError');
+
       if (err.message) {
         if (err.message.includes('socket') || err.message.includes('ended') || err.message.includes('ECONNRESET')) {
-          errorMessage = 'Connexion interrompue. Veuillez réessayer.';
+          errorMessage = t('admin.general.users.connectionError');
         } else if (err.message.includes('timeout') || err.message.includes('TIMEOUT')) {
-          errorMessage = 'La requête a expiré. Veuillez réessayer.';
+          errorMessage = t('admin.general.users.timeoutError');
         } else if (err.error?.message) {
           errorMessage = err.error.message;
         } else {
@@ -3615,14 +3618,14 @@ const UsersManagementSection: React.FC = () => {
       {isLoading ? (
         <div className="text-center py-8 text-gray-500">
           <Loader2 size={24} className="mx-auto mb-2 animate-spin" />
-          <p>Chargement des utilisateurs...</p>
+          <p>{t('admin.general.users.loading')}</p>
         </div>
       ) : (
         <div className="space-y-3">
           {users.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
               <Users size={32} className="mx-auto mb-2" />
-              <p>Aucun utilisateur trouvé</p>
+              <p>{t('admin.general.users.noUsersFound')}</p>
             </div>
           ) : (
             users.map((user) => {

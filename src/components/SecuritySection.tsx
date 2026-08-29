@@ -447,7 +447,7 @@ export const SecuritySection: React.FC<{ view?: 'protection' | 'auth' | 'network
 
                             <SettingRow
                                 label={t('security.trackingWindow')}
-                                description={<><span>{t('security.trackingWindowDesc')}</span> <span className="text-gray-600">— {t('security.readOnly')}</span></>}
+                                description={<><span>{t('security.trackingWindowDesc')}</span> <span className="text-gray-600">({t('security.readOnly')})</span></>}
                             >
                                 <div className="flex items-center gap-2 w-44">
                                     <input
@@ -653,7 +653,7 @@ export const SecuritySection: React.FC<{ view?: 'protection' | 'auth' | 'network
                                 <p className="text-xs text-gray-500">{t('security.noOriginsConfigured')}</p>
                             )}
                             <p className="text-xs text-gray-600">
-                                💡 Si vous avez une <span className="text-gray-500">URL publique</span> configurée dans <em>Général</em>, ajoutez-la ici comme origine autorisée.
+                                💡 {t('security.corsPublicUrlHintIntro')} <span className="text-gray-500">{t('security.corsPublicUrlHintUrlPhrase')}</span> {t('security.corsPublicUrlHintScope')} <em>{t('admin.tabs.general')}</em>, {t('security.corsPublicUrlHintAction')}
                             </p>
                         </div>
                     </SettingRow>
@@ -714,7 +714,7 @@ export const SecuritySection: React.FC<{ view?: 'protection' | 'auth' | 'network
                                     value={newMethod}
                                     onChange={(e) => setNewMethod(e.target.value.toUpperCase())}
                                     onKeyPress={(e) => e.key === 'Enter' && addMethod()}
-                                    placeholder="Méthode custom (ex: PROPFIND)"
+                                    placeholder={t('security.customMethodPlaceholder')}
                                     className="flex-1 px-3 py-1.5 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500"
                                 />
                                 <button
@@ -768,7 +768,7 @@ export const SecuritySection: React.FC<{ view?: 'protection' | 'auth' | 'network
                                     value={newHeader}
                                     onChange={(e) => setNewHeader(e.target.value)}
                                     onKeyPress={(e) => e.key === 'Enter' && addHeader()}
-                                    placeholder="Header custom (ex: X-Custom-Header)"
+                                    placeholder={t('security.customHeaderPlaceholder')}
                                     className="flex-1 px-3 py-1.5 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500"
                                 />
                                 <button

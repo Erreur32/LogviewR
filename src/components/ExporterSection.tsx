@@ -658,13 +658,13 @@ interface MqttConfig {
     stats:           MqttStatSelection;
 }
 
-const STAT_LABELS: { key: keyof MqttStatSelection; label: string; desc: string }[] = [
-    { key: 'bansToday',   label: 'Bans aujourd\'hui',    desc: 'Total des bans depuis minuit' },
-    { key: 'uniqueIps',   label: 'IPs uniques bannies',  desc: 'Nombre d\'IPs distinctes bannies aujourd\'hui' },
-    { key: 'activeBans',  label: 'Bans actifs',           desc: 'Bans permanents + non expirés en cours' },
-    { key: 'jailDetails', label: 'Détail par jail',       desc: 'JSON {jail: count} publié sur logviewr/jails' },
-    { key: 'dbSizeMb',    label: 'Taille base de données', desc: 'Taille SQLite en Mo' },
-    { key: 'systemLoad',  label: 'CPU / Mémoire serveur', desc: 'Charge CPU % et RAM utilisée en Mo' },
+const STAT_LABEL_KEYS: { key: keyof MqttStatSelection; labelKey: string; descKey: string }[] = [
+    { key: 'bansToday',   labelKey: 'exporter.mqtt.statBansToday',   descKey: 'exporter.mqtt.statBansTodayDesc' },
+    { key: 'uniqueIps',   labelKey: 'exporter.mqtt.statUniqueIps',   descKey: 'exporter.mqtt.statUniqueIpsDesc' },
+    { key: 'activeBans',  labelKey: 'exporter.mqtt.statActiveBans',  descKey: 'exporter.mqtt.statActiveBansDesc' },
+    { key: 'jailDetails', labelKey: 'exporter.mqtt.statJailDetails', descKey: 'exporter.mqtt.statJailDetailsDesc' },
+    { key: 'dbSizeMb',    labelKey: 'exporter.mqtt.statDbSize',      descKey: 'exporter.mqtt.statDbSizeDesc' },
+    { key: 'systemLoad',  labelKey: 'exporter.mqtt.statSystemLoad',  descKey: 'exporter.mqtt.statSystemLoadDesc' },
 ];
 
 const INTERVAL_OPTIONS = [
@@ -681,6 +681,7 @@ const DEFAULT_MQTT: MqttConfig = {
 };
 
 const MqttSection: React.FC = () => {
+    const { t } = useTranslation();
     const [config, setConfig] = useState<MqttConfig>(DEFAULT_MQTT);
     const [loading, setLoading]       = useState(true);
     const [saving, setSaving]         = useState(false);
@@ -707,13 +708,13 @@ const MqttSection: React.FC = () => {
         setSaving(true); setMsg(null);
         try {
             await api.post('/api/metrics/mqtt/config', config);
-            setMsg({ ok: true, text: 'Configuration enregistrée.' });
+            setMsg({ ok: true, text: t('exporter.mqtt.saveSuccess') });
             setTimeout(async () => {
                 const st = await api.get<{ connected: boolean }>('/api/metrics/mqtt/status');
                 if (st.result) setConnected(st.result.connected);
             }, 2000);
         } catch (e: unknown) {
-            setMsg({ ok: false, text: e instanceof Error ? e.message : 'Erreur' });
+            setMsg({ ok: false, text: e instanceof Error ? e.message : t('exporter.mqtt.genericError') });
         } finally { setSaving(false); }
     };
 
@@ -721,10 +722,10 @@ const MqttSection: React.FC = () => {
         setTesting(true); setMsg(null);
         try {
             await api.post('/api/metrics/mqtt/test', { broker: config.broker, username: config.username, password: config.password });
-            setMsg({ ok: true, text: 'Connexion broker réussie !' });
+            setMsg({ ok: true, text: t('exporter.mqtt.testSuccess') });
             setConnected(true);
         } catch (e: unknown) {
-            setMsg({ ok: false, text: e instanceof Error ? e.message : 'Erreur de connexion' });
+            setMsg({ ok: false, text: e instanceof Error ? e.message : t('exporter.mqtt.testError') });
             setConnected(false);
         } finally { setTesting(false); }
     };
@@ -733,9 +734,9 @@ const MqttSection: React.FC = () => {
         setPublishing(true); setMsg(null);
         try {
             await api.post('/api/metrics/mqtt/publish', {});
-            setMsg({ ok: true, text: 'Stats publiées avec succès.' });
+            setMsg({ ok: true, text: t('exporter.mqtt.publishSuccess') });
         } catch (e: unknown) {
-            setMsg({ ok: false, text: e instanceof Error ? e.message : 'Erreur de publication' });
+            setMsg({ ok: false, text: e instanceof Error ? e.message : t('exporter.mqtt.publishError') });
         } finally { setPublishing(false); }
     };
 
@@ -744,7 +745,7 @@ const MqttSection: React.FC = () => {
 
     if (loading) return (
         <div className="flex items-center gap-2 text-gray-500 text-sm py-3">
-            <Loader2 size={14} className="animate-spin" /> Chargement…
+            <Loader2 size={14} className="animate-spin" /> {t('exporter.mqtt.loading')}
         </div>
     );
 
@@ -765,37 +766,37 @@ const MqttSection: React.FC = () => {
                         role="button" tabIndex={0}
                         onClick={() => setConfig(c => ({ ...c, enabled: !c.enabled }))}
                         onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setConfig(c => ({ ...c, enabled: !c.enabled })); } }}>
-                        Activer la publication MQTT
+                        {t('exporter.mqtt.enablePublish')}
                     </span>
                 </div>
                 <span className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded-full font-medium ${
                     connected ? 'bg-emerald-500/15 text-emerald-400' : 'bg-gray-700/40 text-gray-500'
                 }`}>
                     <Wifi size={11} />
-                    {connected ? 'Connecté' : 'Déconnecté'}
+                    {connected ? t('exporter.mqtt.connected') : t('exporter.mqtt.disconnected')}
                 </span>
             </div>
 
             {/* Connection */}
             <div className="grid grid-cols-1 gap-3">
                 <div>
-                    <label htmlFor="mqtt-broker-url" className="block text-xs text-gray-400 mb-1">URL du broker</label>
+                    <label htmlFor="mqtt-broker-url" className="block text-xs text-gray-400 mb-1">{t('exporter.mqtt.brokerUrl')}</label>
                     <input id="mqtt-broker-url" type="text" value={config.broker}
                         onChange={e => setConfig(c => ({ ...c, broker: e.target.value }))}
                         placeholder="mqtt://192.168.1.1:1883"
                         className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm font-mono placeholder-gray-600 focus:outline-none focus:border-cyan-500/50" />
-                    <p className="mt-1 text-xs text-gray-500">Formats : <code>mqtt://</code> · <code>mqtts://</code> · <code>ws://</code></p>
+                    <p className="mt-1 text-xs text-gray-500">{t('exporter.mqtt.formatsLabel')} <code>mqtt://</code> · <code>mqtts://</code> · <code>ws://</code></p>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                     <div>
-                        <label htmlFor="mqtt-username" className="block text-xs text-gray-400 mb-1">Utilisateur (optionnel)</label>
+                        <label htmlFor="mqtt-username" className="block text-xs text-gray-400 mb-1">{t('exporter.mqtt.username')}</label>
                         <input id="mqtt-username" type="text" value={config.username ?? ''}
                             onChange={e => setConfig(c => ({ ...c, username: e.target.value }))}
                             placeholder="user"
                             className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-600 focus:outline-none focus:border-cyan-500/50" />
                     </div>
                     <div>
-                        <label htmlFor="mqtt-password" className="block text-xs text-gray-400 mb-1">Mot de passe (optionnel)</label>
+                        <label htmlFor="mqtt-password" className="block text-xs text-gray-400 mb-1">{t('exporter.mqtt.password')}</label>
                         <div className="relative">
                             <input id="mqtt-password" type={showPass ? 'text' : 'password'} value={config.password ?? ''}
                                 onChange={e => setConfig(c => ({ ...c, password: e.target.value }))}
@@ -803,22 +804,22 @@ const MqttSection: React.FC = () => {
                                 className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-600 focus:outline-none focus:border-cyan-500/50 pr-8" />
                             <button type="button" onClick={() => setShowPass(v => !v)}
                                 className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 text-xs">
-                                {showPass ? 'hide' : 'show'}
+                                {showPass ? t('exporter.mqtt.hidePassword') : t('exporter.mqtt.showPassword')}
                             </button>
                         </div>
                     </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                     <div>
-                        <label htmlFor="mqtt-topic-prefix" className="block text-xs text-gray-400 mb-1">Préfixe de topic</label>
+                        <label htmlFor="mqtt-topic-prefix" className="block text-xs text-gray-400 mb-1">{t('exporter.mqtt.topicPrefix')}</label>
                         <input id="mqtt-topic-prefix" type="text" value={config.topicPrefix}
                             onChange={e => setConfig(c => ({ ...c, topicPrefix: e.target.value }))}
                             placeholder="logviewr"
                             className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm font-mono placeholder-gray-600 focus:outline-none focus:border-cyan-500/50" />
-                        <p className="mt-1 text-xs text-gray-500">Topic état : <code className="text-gray-400">{config.topicPrefix || 'logviewr'}/sensor/bans_today/state</code></p>
+                        <p className="mt-1 text-xs text-gray-500">{t('exporter.mqtt.topicStateLabel')} <code className="text-gray-400">{config.topicPrefix || 'logviewr'}/sensor/bans_today/state</code></p>
                     </div>
                     <div>
-                        <label htmlFor="mqtt-interval" className="block text-xs text-gray-400 mb-1">Intervalle de publication</label>
+                        <label htmlFor="mqtt-interval" className="block text-xs text-gray-400 mb-1">{t('exporter.mqtt.interval')}</label>
                         <select id="mqtt-interval" value={config.intervalMinutes}
                             onChange={e => setConfig(c => ({ ...c, intervalMinutes: Number(e.target.value) }))}
                             className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-cyan-500/50">
@@ -833,7 +834,7 @@ const MqttSection: React.FC = () => {
             {/* HA auto-discovery */}
             <div className="p-3 bg-[#0d1117] border border-gray-800 rounded-lg space-y-2">
                 <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-200">Auto-discovery Home Assistant</span>
+                    <span className="text-sm font-medium text-gray-200">{t('exporter.mqtt.haDiscoveryTitle')}</span>
                     <button type="button" onClick={() => setConfig(c => ({ ...c, discovery: !c.discovery }))}
                         className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
                             config.discovery ? 'bg-teal-500' : 'bg-gray-700'
@@ -844,23 +845,23 @@ const MqttSection: React.FC = () => {
                     </button>
                 </div>
                 <p className="text-xs text-gray-500">
-                    Publie automatiquement les entités sur <code className="text-gray-400">homeassistant/sensor/logviewr_*/config</code> au démarrage.
-                    Les sensors apparaissent sans configuration dans HA.
+                    {t('exporter.mqtt.haDiscoveryIntro')} <code className="text-gray-400">homeassistant/sensor/logviewr_*/config</code> {t('exporter.mqtt.haDiscoveryOnStartup')}
+                    {' '}{t('exporter.mqtt.haDiscoverySensors')}
                 </p>
             </div>
 
             {/* Stat selection */}
             <div>
-                <p className="text-xs font-medium text-gray-400 mb-2">Données à publier</p>
+                <p className="text-xs font-medium text-gray-400 mb-2">{t('exporter.mqtt.statsToPublish')}</p>
                 <div className="space-y-2">
-                    {STAT_LABELS.map(s => (
+                    {STAT_LABEL_KEYS.map(s => (
                         <div key={s.key} className="flex items-center justify-between gap-3 cursor-pointer group"
                             role="button" tabIndex={0}
                             onClick={() => setStat(s.key, !config.stats[s.key])}
                             onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setStat(s.key, !config.stats[s.key]); } }}>
                             <div>
-                                <span className="text-sm text-gray-300 group-hover:text-gray-100 transition-colors">{s.label}</span>
-                                <span className="text-xs text-gray-600 block">{s.desc}</span>
+                                <span className="text-sm text-gray-300 group-hover:text-gray-100 transition-colors">{t(s.labelKey)}</span>
+                                <span className="text-xs text-gray-600 block">{t(s.descKey)}</span>
                             </div>
                             <button type="button"
                                 className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
@@ -890,18 +891,18 @@ const MqttSection: React.FC = () => {
                 <button onClick={test} disabled={testing || !config.broker}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-teal-700/50 text-teal-400 bg-teal-500/10 hover:bg-teal-500/20 disabled:opacity-40 transition-colors">
                     {testing ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-                    Tester la connexion
+                    {t('exporter.mqtt.testConnection')}
                 </button>
                 <button onClick={publishNow} disabled={publishing || !connected}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-cyan-700/50 text-cyan-400 bg-cyan-500/10 hover:bg-cyan-500/20 disabled:opacity-40 transition-colors">
                     {publishing ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
-                    Publier maintenant
+                    {t('exporter.mqtt.publishNow')}
                 </button>
                 <div className="flex-1" />
                 <button onClick={save} disabled={saving}
                     className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-medium bg-teal-600 hover:bg-teal-500 text-gray-100 disabled:opacity-40 transition-colors">
                     {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
-                    Enregistrer
+                    {t('exporter.mqtt.save')}
                 </button>
             </div>
         </div>
