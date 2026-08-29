@@ -5,6 +5,17 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.1] - 2026-08-29
+
+### For users
+
+- Fixed a bug where re-enabled IP blocklists (Fail2ban Blocklists) could fail to refresh after the first run, with an "ipset destroy" error in the logs. Blocklist updates now apply reliably even while the list is actively blocking traffic.
+
+### For developers
+
+- `BlocklistService.ts` (`refresh()`): the pre-swap maxelem check used a regex (`/Maxelem:\s*(\d+)/i`) that never matched real `ipset list -t` output (the value appears as `maxelem N` inside the `Header:` line, no colon, lowercase, as already handled correctly in `Fail2banClientExec.ts`). This made `currentMaxelem` always resolve to 0, so the "mismatch" branch fired on every refresh once the set already existed, attempting `ipset destroy` on the production set. That destroy fails with EBUSY whenever an iptables rule still references the set (the normal case after the list has been enabled once).
+- Removed the destroy-and-recreate step entirely instead of fixing the regex: `ipset swap` (already used to promote the freshly-populated `-new` set) exchanges the full set header, including `maxelem`/`hashsize`, so the production set's maxelem is corrected on every refresh regardless. The `create` call now only needs to tolerate "already exists" and otherwise propagate real errors.
+
 ## [0.10.0] - 2026-08-29
 
 ### For users

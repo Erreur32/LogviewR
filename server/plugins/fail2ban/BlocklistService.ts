@@ -493,32 +493,17 @@ export class BlocklistService {
             const script = entries.map(e => `add ${list.ipsetName}-new ${e}`).join('\n') + '\n';
 
             // 4a. Ensure main set exists with correct type (ignore "already exists").
-            //     If it exists with wrong maxelem, destroy it first so a fresh create picks
-            //     up the new value. Iptables rules are not affected until the swap.
+            //     No need to fix maxelem here: the -new/swap below (4e) exchanges the
+            //     full set header, including maxelem/hashsize, so any stale value on
+            //     the main set is corrected automatically on every refresh. Destroying
+            //     the main set here would also fail (EBUSY) whenever an iptables rule
+            //     still references it, which is the common case after the first run.
             try {
                 const [c, a] = priv('ipset', ['create', list.ipsetName, ipsetType, 'family', 'inet', 'maxelem', String(list.maxelem)]);
                 await execFileAsync(c, a, { timeout: 10_000 });
             } catch (err: unknown) {
                 const msg = err instanceof Error ? err.message : String(err);
-                if (msg.includes('already exists') || msg.includes('set with the same name')) {
-                    // Set exists — check maxelem; destroy & recreate if too small
-                    try {
-                        const [lc, la] = priv('ipset', ['list', list.ipsetName, '-t']);
-                        const { stdout } = await execFileAsync(lc, la, { timeout: 10_000 });
-                        const maxElemMatch = stdout.match(/Maxelem:\s*(\d+)/i);
-                        const currentMaxelem = maxElemMatch ? Number.parseInt(maxElemMatch[1], 10) : 0;
-                        if (currentMaxelem < list.maxelem) {
-                            logger.info('BlocklistService', `${list.name}: maxelem mismatch (${currentMaxelem} < ${list.maxelem}), recreating`);
-                            const [dc, da] = priv('ipset', ['destroy', list.ipsetName]);
-                            await execFileAsync(dc, da, { timeout: 10_000 });
-                            const [cc, ca] = priv('ipset', ['create', list.ipsetName, ipsetType, 'family', 'inet', 'maxelem', String(list.maxelem)]);
-                            await execFileAsync(cc, ca, { timeout: 10_000 });
-                        }
-                    } catch (innerErr: unknown) {
-                        const innerMsg = innerErr instanceof Error ? innerErr.message : String(innerErr);
-                        logger.warn('BlocklistService', `${list.name}: could not verify/fix maxelem — ${innerMsg}`);
-                    }
-                } else {
+                if (!msg.includes('already exists') && !msg.includes('set with the same name')) {
                     throw new Error(`ipset create ${list.ipsetName}: ${msg}`);
                 }
             }
