@@ -5,6 +5,19 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.25] - 2026-08-29
+
+### For users
+
+- `/log-analytics` now loads faster on repeat visits and shows real progress instead of a bare spinner: the first load displays a step-by-step list of what's being read/aggregated, and revisiting the page within a minute with the same filters shows the previous results instantly (no network call, no spinner). Changing filters or clicking "Refresh" keeps the previous results visible while the new data loads in the background, instead of blanking the page.
+
+### For developers
+
+- `server/services/logAnalyticsService.ts`: added `getAllAnalyticsWithMeta`/`getCalendarAnalyticsWithMeta` (60s single-slot TTL cache, same pattern as `errorSummaryService.ts`), a capped progress-message ring buffer (`PROGRESS_MAX=15`) pushed from `collectParsedEntries()`, and a `force` param to bypass the cache.
+- `server/routes/log-viewer.ts`: `GET /analytics` and `GET /analytics/calendar` now use the `*WithMeta` functions; new `GET /analytics/progress` mirrors `GET /error-summary/progress`.
+- New `src/utils/logAnalyticsCache.ts`: module-level TTL cache (survives component unmount, since `LogAnalyticsPage` uses hash-based navigation rather than React Router) for the main and calendar analytics responses.
+- `src/pages/LogAnalyticsPage.tsx`: `fetchAnalytics`/`fetchCalendar` check the cache before fetching and accept a `force` param wired to the "Refresh" button; `isCalendarLoading` split from `isLoading`; stale-while-revalidate keeps previously loaded data visible during refetches (full-page spinner gated on `overview === null` instead of a tracked "has loaded" flag); progress steps polled via the existing `usePolling` hook while the first load is in flight.
+
 ## [0.9.24] - 2026-08-29
 
 ### For users

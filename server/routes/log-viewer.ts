@@ -22,7 +22,7 @@ import { requireAuth } from '../middleware/authMiddleware.js';
 import { generateRegexFromLogLine } from '../services/regexGeneratorService.js';
 import { APACHE_ACCESS_VHOST_COMBINED_REGEX } from '../plugins/apache/ApacheParser.js';
 import { APACHE_REGEX_KEYS, getApacheRegexKeyForPath, NPM_REGEX_KEYS, getNpmRegexKeyForPath, NGINX_REGEX_KEYS, getNginxRegexKeyForPath } from '../services/logParserService.js';
-import { getAllAnalytics, getCalendarAnalytics } from '../services/logAnalyticsService.js';
+import { getAllAnalyticsWithMeta, getCalendarAnalyticsWithMeta, getLogAnalyticsProgress } from '../services/logAnalyticsService.js';
 import { getErrorSummaryWithMeta, getErrorSummaryProgress, invalidateErrorSummaryCache, analyzeSingleFile } from '../services/errorSummaryService.js';
 import { getErrorAnalysisConfig } from '../config/errorAnalysisConfig.js';
 import { searchAllLogs } from '../services/logSearchService.js';
@@ -1530,7 +1530,7 @@ router.get('/largest-files', async (req, res) => {
  * - includeCompressed: optional, 'true' | 'false' - include .gz/.bz2/.xz when plugin has readCompressed enabled
  */
 function parseAnalyticsQuery(query: Record<string, unknown>) {
-    const { pluginId, from, to, bucket, topLimit, fileScope, includeCompressed } = query;
+    const { pluginId, from, to, bucket, topLimit, fileScope, includeCompressed, force } = query;
     const toValidDate = (v: unknown): Date | undefined => {
         if (typeof v !== 'string') return undefined;
         const d = new Date(v);
@@ -1550,20 +1550,25 @@ function parseAnalyticsQuery(query: Record<string, unknown>) {
         topLimit: parseTopLimit(topLimit),
         fileScope: fileScopeVal,
         includeCompressed: includeCompressed === 'true' || includeCompressed === '1',
+        force: force === 'true' || force === '1',
     };
 }
 
 router.get('/analytics', async (req, res) => {
     try {
         const q = parseAnalyticsQuery(req.query as Record<string, unknown>);
-        const result = await getAllAnalytics(
-            q.pluginId,
-            q.fromDate,
-            q.toDate,
-            { bucket: q.bucket, topLimit: q.topLimit, fileScope: q.fileScope, includeCompressed: q.includeCompressed }
-        );
+        const { result, fromCache, cacheAgeMs } = await getAllAnalyticsWithMeta({
+            pluginId: q.pluginId,
+            fromDate: q.fromDate,
+            toDate: q.toDate,
+            bucket: q.bucket,
+            topLimit: q.topLimit,
+            fileScope: q.fileScope,
+            includeCompressed: q.includeCompressed,
+            force: q.force
+        });
 
-        res.json({ success: true, result });
+        res.json({ success: true, result: { ...result, fromCache, cacheAgeMs } });
     } catch (error) {
         logger.error('LogViewer', 'Error getting analytics:', error);
         res.status(500).json({
@@ -1574,16 +1579,33 @@ router.get('/analytics', async (req, res) => {
 });
 
 /**
+ * GET /api/log-viewer/analytics/progress
+ * Returns current progress messages while analytics is being computed (for live UI).
+ */
+router.get('/analytics/progress', (req, res) => {
+    try {
+        const steps = getLogAnalyticsProgress();
+        res.json({ success: true, result: { steps } });
+    } catch (error) {
+        res.json({ success: true, result: { steps: [] } });
+    }
+});
+
+/**
  * GET /api/log-viewer/analytics/calendar
  * Calendar-heatmap data over a fixed sliding window (default 365d).
  * Independent of the page's timeRange selector. Always forces includeCompressed=true.
  */
 router.get('/analytics/calendar', async (req, res) => {
     try {
-        const { pluginId, windowDays } = req.query as { pluginId?: string; windowDays?: string };
+        const { pluginId, windowDays, force } = req.query as { pluginId?: string; windowDays?: string; force?: string };
         const parsedWindow = windowDays ? Math.max(30, Math.min(Number.parseInt(windowDays, 10) || 365, 730)) : 365;
-        const result = await getCalendarAnalytics(pluginId, parsedWindow);
-        res.json({ success: true, result });
+        const { result, fromCache, cacheAgeMs } = await getCalendarAnalyticsWithMeta({
+            pluginId,
+            windowDays: parsedWindow,
+            force: force === 'true' || force === '1'
+        });
+        res.json({ success: true, result: { ...result, fromCache, cacheAgeMs } });
     } catch (error) {
         logger.error('LogViewer', 'Error getting calendar analytics:', error);
         res.json({

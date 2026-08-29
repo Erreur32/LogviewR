@@ -176,12 +176,13 @@ async function collectParsedEntries(
     pluginIds: string[],
     dateFrom?: Date,
     dateTo?: Date,
-    options?: { fileScope?: FileScopeOption; includeCompressed?: boolean }
+    options?: { fileScope?: FileScopeOption; includeCompressed?: boolean; onProgress?: (message: string) => void }
 ): Promise<{ entries: ParsedAccessEntry[]; filesAnalyzed: number }> {
     const allEntries: ParsedAccessEntry[] = [];
     let filesAnalyzed = 0;
     const fileScope = options?.fileScope ?? 'all';
     const includeCompressed = options?.includeCompressed ?? false;
+    const onProgress = options?.onProgress;
 
     for (const pluginId of pluginIds) {
         const plugin = pluginManager.getPlugin(pluginId);
@@ -211,6 +212,9 @@ async function collectParsedEntries(
                 if (filesAnalyzed >= MAX_FILES_TOTAL) break;
 
                 try {
+                    const fileName = file.path.split('/').pop() ?? file.path;
+                    onProgress?.(`Lecture ${pluginId}/${fileName}...`);
+
                     // Tail from the end of the file: recent entries come first, which matches
                     // how users think of "7d of logs" (the last 7 days, not the first 5000 lines).
                     const lines = await logReaderService.readLastLines(file.path, tailCap, {
@@ -254,6 +258,32 @@ async function collectParsedEntries(
     }
 
     return { entries: allEntries, filesAnalyzed };
+}
+
+/** In-memory cache for analytics results to avoid re-scanning on every dashboard load/revisit. */
+const ANALYTICS_CACHE_TTL_MS = 60 * 1000; // 60 seconds
+let analyticsCache: { key: string; result: AnalyticsResult; timestamp: number } | null = null;
+let calendarCache: { key: string; result: AnalyticsCalendarResponse; timestamp: number } | null = null;
+
+/** Progress messages for live UI (last N entries), main analytics path only, not calendar. */
+const PROGRESS_MAX = 15;
+const logAnalyticsProgress: { message: string }[] = [];
+
+function pushLogAnalyticsProgress(message: string): void {
+    logAnalyticsProgress.push({ message });
+    if (logAnalyticsProgress.length > PROGRESS_MAX) {
+        logAnalyticsProgress.shift();
+    }
+}
+
+/** Get current progress messages for log analytics (for polling from frontend). */
+export function getLogAnalyticsProgress(): { message: string }[] {
+    return [...logAnalyticsProgress];
+}
+
+/** Clear progress (call before starting a new computation). */
+export function clearLogAnalyticsProgress(): void {
+    logAnalyticsProgress.length = 0;
 }
 
 /**
@@ -850,21 +880,8 @@ export function computeResponseTimeDistribution(entries: ParsedAccessEntry[]): A
     return { avg, p50, p95, p99, max, buckets };
 }
 
-/**
- * Main entry: fetch all analytics for the given plugin filter and time range.
- * Returns overview, timeseries, and top metrics in one pass (single parse).
- */
-export async function getAllAnalytics(
-    pluginId: string | undefined,
-    fromDate?: Date,
-    toDate?: Date,
-    options?: {
-        bucket?: 'minute' | 'hour' | 'day';
-        topLimit?: number;
-        fileScope?: FileScopeOption;
-        includeCompressed?: boolean;
-    }
-): Promise<{
+/** Return shape of {@link getAllAnalytics}, named so the cache slot can be typed cleanly. */
+export interface AnalyticsResult {
     overview: AnalyticsOverview;
     timeseries: { buckets: AnalyticsTimeseriesBucket[] };
     /** 24-number array: count per hour-of-day aggregated over the selected period (independent of main bucket). */
@@ -891,7 +908,24 @@ export async function getAllAnalytics(
         statusByHost: AnalyticsStatusByHostItem[];
         notFoundUrls: AnalyticsTopItemWithVisitors[];
     };
-}> {
+}
+
+/**
+ * Main entry: fetch all analytics for the given plugin filter and time range.
+ * Returns overview, timeseries, and top metrics in one pass (single parse).
+ */
+export async function getAllAnalytics(
+    pluginId: string | undefined,
+    fromDate?: Date,
+    toDate?: Date,
+    options?: {
+        bucket?: 'minute' | 'hour' | 'day';
+        topLimit?: number;
+        fileScope?: FileScopeOption;
+        includeCompressed?: boolean;
+        onProgress?: (message: string) => void;
+    }
+): Promise<AnalyticsResult> {
     const enabledPluginIds = LOG_SOURCE_PLUGINS.filter((id) => {
         const cfg = PluginConfigRepository.findByPluginId(id);
         return cfg?.enabled === true;
@@ -918,7 +952,8 @@ export async function getAllAnalytics(
         toDate,
         {
             fileScope: options?.fileScope ?? 'all',
-            includeCompressed: effectiveIncludeCompressed
+            includeCompressed: effectiveIncludeCompressed,
+            onProgress: options?.onProgress
         }
     );
     const bucket = options?.bucket ?? 'hour';
@@ -953,6 +988,58 @@ export async function getAllAnalytics(
             notFoundUrls: computeTop404Urls(entries, topLimit)
         }
     };
+}
+
+export interface AnalyticsQueryParams {
+    pluginId?: string;
+    fromDate?: Date;
+    toDate?: Date;
+    bucket?: 'minute' | 'hour' | 'day';
+    topLimit?: number;
+    fileScope?: FileScopeOption;
+    includeCompressed?: boolean;
+    /** Bypass the cache and force a fresh computation (used by the "Rafraîchir" button). */
+    force?: boolean;
+}
+
+function buildAnalyticsCacheKey(params: AnalyticsQueryParams): string {
+    return JSON.stringify({
+        pluginId: params.pluginId ?? 'all',
+        fromDate: params.fromDate?.toISOString() ?? null,
+        toDate: params.toDate?.toISOString() ?? null,
+        bucket: params.bucket ?? 'hour',
+        topLimit: params.topLimit ?? 10,
+        fileScope: params.fileScope ?? 'all',
+        includeCompressed: params.includeCompressed ?? false
+    });
+}
+
+/**
+ * Same as {@link getAllAnalytics}, with an in-memory cache (TTL 60s) keyed by the query params.
+ * Returns cache metadata so the UI can show "Résultat en cache (il y a X s)" when applicable.
+ */
+export async function getAllAnalyticsWithMeta(params: AnalyticsQueryParams): Promise<{
+    result: AnalyticsResult;
+    fromCache: boolean;
+    cacheAgeMs: number;
+}> {
+    const key = buildAnalyticsCacheKey(params);
+    const now = Date.now();
+    if (!params.force && analyticsCache && analyticsCache.key === key && (now - analyticsCache.timestamp) < ANALYTICS_CACHE_TTL_MS) {
+        return { result: analyticsCache.result, fromCache: true, cacheAgeMs: now - analyticsCache.timestamp };
+    }
+
+    clearLogAnalyticsProgress();
+    const result = await getAllAnalytics(params.pluginId, params.fromDate, params.toDate, {
+        bucket: params.bucket,
+        topLimit: params.topLimit,
+        fileScope: params.fileScope,
+        includeCompressed: params.includeCompressed,
+        onProgress: (message) => pushLogAnalyticsProgress(message)
+    });
+    pushLogAnalyticsProgress('Agrégation des résultats...');
+    analyticsCache = { key, result, timestamp: now };
+    return { result, fromCache: false, cacheAgeMs: 0 };
 }
 
 /** Calendar heatmap response shape: one bucket per calendar day over a fixed sliding window. */
@@ -1217,4 +1304,31 @@ export async function getCalendarAnalytics(
         filesAnalyzed,
         windowDays
     };
+}
+
+export interface CalendarQueryParams {
+    pluginId?: string;
+    windowDays?: number;
+    /** Bypass the cache and force a fresh computation. */
+    force?: boolean;
+}
+
+/**
+ * Same as {@link getCalendarAnalytics}, with an in-memory cache (TTL 60s) keyed by pluginId + windowDays.
+ */
+export async function getCalendarAnalyticsWithMeta(params: CalendarQueryParams): Promise<{
+    result: AnalyticsCalendarResponse;
+    fromCache: boolean;
+    cacheAgeMs: number;
+}> {
+    const windowDays = params.windowDays ?? 365;
+    const key = `${params.pluginId ?? 'all'}:${windowDays}`;
+    const now = Date.now();
+    if (!params.force && calendarCache && calendarCache.key === key && (now - calendarCache.timestamp) < ANALYTICS_CACHE_TTL_MS) {
+        return { result: calendarCache.result, fromCache: true, cacheAgeMs: now - calendarCache.timestamp };
+    }
+
+    const result = await getCalendarAnalytics(params.pluginId, windowDays);
+    calendarCache = { key, result, timestamp: now };
+    return { result, fromCache: false, cacheAgeMs: 0 };
 }

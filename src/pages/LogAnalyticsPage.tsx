@@ -53,6 +53,15 @@ import type {
 } from '../types/analytics';
 import { usePluginStore } from '../stores/pluginStore';
 import { useUserAuthStore } from '../stores/userAuthStore';
+import { usePolling } from '../hooks/usePolling';
+import {
+    getCachedAnalytics,
+    setCachedAnalytics,
+    getCachedCalendar,
+    setCachedCalendar,
+    type AnalyticsApiResponse,
+    type CalendarApiResponse
+} from '../utils/logAnalyticsCache';
 
 interface LogAnalyticsPageProps {
     onBack: () => void;
@@ -330,6 +339,8 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
     const [hourDayLive, setHourDayLive] = useState(false);
 
     const [isLoading, setIsLoading] = useState(true);
+    const [isCalendarLoading, setIsCalendarLoading] = useState(true);
+    const [progressSteps, setProgressSteps] = useState<{ message: string }[]>([]);
     const [error, setError] = useState<string | null>(null);
     /** Stats KPI block: collapsible, visible by default. */
     const [statsKpiVisible, setStatsKpiVisible] = useState(true);
@@ -381,7 +392,31 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
         setHourOfDay([]);
     }, []);
 
-    const fetchAnalytics = useCallback(async () => {
+    // Populates all analytics-response-derived state from a fetched or cached response.
+    const applyAnalyticsResult = useCallback((result: AnalyticsApiResponse) => {
+        setOverview(result.overview);
+        setTimeseries(result.timeseries?.buckets ?? []);
+        setTopUrls(result.top?.urls ?? []);
+        setTopIps(result.top?.ips ?? []);
+        setTopStatus(result.top?.status ?? []);
+        setTopUserAgents(result.top?.ua ?? []);
+        setTopReferrers(result.top?.referrer ?? []);
+        setTopBrowsers(result.top?.browser ?? []);
+        setDistMethods(result.distribution?.methods ?? []);
+        setDistStatus(result.distribution?.status ?? []);
+        setStatusWithVisitors(result.distribution?.statusWithVisitors ?? []);
+        setReferringSites(result.top?.referringSites ?? []);
+        setHostWithVisitors(result.top?.hostWithVisitors ?? []);
+        setReferrerWithVisitors(result.top?.referrerWithVisitors ?? []);
+        setUrlsWithExtras(result.top?.urlsWithExtras ?? []);
+        setStatusByHost(result.top?.statusByHost ?? []);
+        setNotFoundUrls(result.top?.notFoundUrls ?? []);
+        setBotVsHuman(result.distribution?.botVsHuman ?? null);
+        setResponseTimeDist(result.distribution?.responseTime ?? null);
+        setHourOfDay(Array.isArray(result.hourOfDay) ? result.hourOfDay : []);
+    }, []);
+
+    const fetchAnalytics = useCallback(async (force = false) => {
         const isPluginEnabled =
             pluginId === 'all'
                 ? enabledLogPlugins.length > 0
@@ -393,69 +428,40 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
             return;
         }
 
-        setIsLoading(true);
-        setError(null);
-
         const { from, to, bucketHour } = resolveDateRange(timeRange, customFrom, customTo);
-
         const fromStr = from.toISOString();
         const toStr = to.toISOString();
+        const cacheKey = JSON.stringify({ fromStr, toStr, bucketHour, pluginId, fileScope, includeCompressed });
+
+        if (!force) {
+            const cached = getCachedAnalytics(cacheKey);
+            if (cached) {
+                applyAnalyticsResult(cached);
+                setError(null);
+                setIsLoading(false);
+                return;
+            }
+        }
+
+        // Stale-while-revalidate: previously loaded data is left in place (not cleared here)
+        // while the new fetch is in flight, so the page keeps showing usable content.
+        setIsLoading(true);
+        setError(null);
+        setProgressSteps([]);
+
         const pluginParam = `&pluginId=${encodeURIComponent(pluginId)}`;
         const fileScopeParam = `&fileScope=${fileScope}`;
         const compressedParam = includeCompressed ? '&includeCompressed=true' : '';
+        const forceParam = force ? '&force=true' : '';
 
         try {
-            const res = await api.get<{
-                overview: AnalyticsOverview;
-                timeseries: { buckets: AnalyticsTimeseriesBucket[] };
-                hourOfDay?: number[];
-                distribution?: {
-                    methods: AnalyticsDistribution[];
-                    status: AnalyticsDistribution[];
-                    statusWithVisitors?: AnalyticsDistributionWithVisitors[];
-                    botVsHuman?: AnalyticsBotVsHuman;
-                    responseTime?: AnalyticsResponseTimeDistribution | null;
-                };
-                top: {
-                    urls: AnalyticsTopItem[];
-                    ips: AnalyticsTopItem[];
-                    status: AnalyticsTopItem[];
-                    ua: AnalyticsTopItem[];
-                    referrer: AnalyticsTopItem[];
-                    browser?: AnalyticsTopItem[];
-                    host?: AnalyticsTopItem[];
-                    referringSites?: AnalyticsTopItemWithVisitors[];
-                    referrerWithVisitors?: AnalyticsTopItemWithVisitors[];
-                    hostWithVisitors?: AnalyticsTopItemWithVisitors[];
-                    urlsWithExtras?: AnalyticsTopUrlItem[];
-                    statusByHost?: AnalyticsStatusByHostItem[];
-                    notFoundUrls?: AnalyticsTopItemWithVisitors[];
-                };
-            }>(
-                `/api/log-viewer/analytics?from=${encodeURIComponent(fromStr)}&to=${encodeURIComponent(toStr)}&bucket=${bucketHour}&topLimit=15${pluginParam}${fileScopeParam}${compressedParam}`
+            const res = await api.get<AnalyticsApiResponse>(
+                `/api/log-viewer/analytics?from=${encodeURIComponent(fromStr)}&to=${encodeURIComponent(toStr)}&bucket=${bucketHour}&topLimit=15${pluginParam}${fileScopeParam}${compressedParam}${forceParam}`
             );
 
             if (res.success && res.result) {
-                setOverview(res.result.overview);
-                setTimeseries(res.result.timeseries?.buckets ?? []);
-                setTopUrls(res.result.top?.urls ?? []);
-                setTopIps(res.result.top?.ips ?? []);
-                setTopStatus(res.result.top?.status ?? []);
-                setTopUserAgents(res.result.top?.ua ?? []);
-                setTopReferrers(res.result.top?.referrer ?? []);
-                setTopBrowsers(res.result.top?.browser ?? []);
-                setDistMethods(res.result.distribution?.methods ?? []);
-                setDistStatus(res.result.distribution?.status ?? []);
-                setStatusWithVisitors(res.result.distribution?.statusWithVisitors ?? []);
-                setReferringSites(res.result.top?.referringSites ?? []);
-                setHostWithVisitors(res.result.top?.hostWithVisitors ?? []);
-                setReferrerWithVisitors(res.result.top?.referrerWithVisitors ?? []);
-                setUrlsWithExtras(res.result.top?.urlsWithExtras ?? []);
-                setStatusByHost(res.result.top?.statusByHost ?? []);
-                setNotFoundUrls(res.result.top?.notFoundUrls ?? []);
-                setBotVsHuman(res.result.distribution?.botVsHuman ?? null);
-                setResponseTimeDist(res.result.distribution?.responseTime ?? null);
-                setHourOfDay(Array.isArray(res.result.hourOfDay) ? res.result.hourOfDay : []);
+                applyAnalyticsResult(res.result);
+                setCachedAnalytics(cacheKey, res.result);
             } else {
                 resetAnalyticsState();
             }
@@ -473,40 +479,67 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
         } finally {
             setIsLoading(false);
         }
-    }, [pluginId, enabledLogPlugins, timeRange, customFrom, customTo, fileScope, includeCompressed, t, resetAnalyticsState]);
+    }, [pluginId, enabledLogPlugins, timeRange, customFrom, customTo, fileScope, includeCompressed, t, resetAnalyticsState, applyAnalyticsResult]);
 
     useEffect(() => {
         fetchAnalytics();
     }, [fetchAnalytics]);
+
+    // Poll progress while the main section is doing its first-ever load, so the user
+    // sees which files are being scanned instead of a bare spinner.
+    const pollProgress = useCallback(() => {
+        api.get<{ steps: { message: string }[] }>('/api/log-viewer/analytics/progress')
+            .then((res) => {
+                if (res.success && res.result?.steps?.length) {
+                    setProgressSteps(res.result.steps);
+                }
+            })
+            .catch(() => {});
+    }, []);
+    usePolling(pollProgress, { enabled: isLoading && overview === null, interval: 800 });
 
     /**
      * Calendar heatmap + day-of-week chart use a fixed 12-month sliding window,
      * independent of the timeRange selector above. Refetched only when the plugin filter changes
      * (or via the main refresh button).
      */
-    const fetchCalendar = useCallback(async () => {
+    const applyCalendarResult = useCallback((r: CalendarApiResponse) => {
+        if (Array.isArray(r.buckets)) setCalendarBuckets(r.buckets);
+        if (Array.isArray(r.hourDayGrid)) setHourDayGrid(r.hourDayGrid);
+        if (r.live24h && Array.isArray(r.live24h.hourOfDay) && Array.isArray(r.live24h.dayOfWeek)) {
+            setLive24h({ hourOfDay: r.live24h.hourOfDay, dayOfWeek: r.live24h.dayOfWeek });
+        }
+        if (r.live7d && Array.isArray(r.live7d.hourDayGrid)) {
+            setLive7d({ hourDayGrid: r.live7d.hourDayGrid });
+        }
+    }, []);
+
+    const fetchCalendar = useCallback(async (force = false) => {
+        const cacheKey = pluginId;
+
+        if (!force) {
+            const cached = getCachedCalendar(cacheKey);
+            if (cached) {
+                applyCalendarResult(cached);
+                setIsCalendarLoading(false);
+                return;
+            }
+        }
+
+        setIsCalendarLoading(true);
         try {
             const pluginParam = pluginId && pluginId !== 'all' ? `&pluginId=${encodeURIComponent(pluginId)}` : '';
-            const res = await api.get<{
-                buckets: { label: string; count: number; uniqueVisitors: number }[];
-                hourDayGrid: number[][];
-                live24h: { hourOfDay: number[]; dayOfWeek: number[] };
-                live7d: { hourDayGrid: number[][] };
-            }>(`/api/log-viewer/analytics/calendar?windowDays=365${pluginParam}`);
+            const forceParam = force ? '&force=true' : '';
+            const res = await api.get<CalendarApiResponse>(`/api/log-viewer/analytics/calendar?windowDays=365${pluginParam}${forceParam}`);
             if (!res.success || !res.result || Array.isArray((res.result as unknown as { ok?: false }).ok)) return;
-            const r = res.result;
-            if (Array.isArray(r.buckets)) setCalendarBuckets(r.buckets);
-            if (Array.isArray(r.hourDayGrid)) setHourDayGrid(r.hourDayGrid);
-            if (r.live24h && Array.isArray(r.live24h.hourOfDay) && Array.isArray(r.live24h.dayOfWeek)) {
-                setLive24h({ hourOfDay: r.live24h.hourOfDay, dayOfWeek: r.live24h.dayOfWeek });
-            }
-            if (r.live7d && Array.isArray(r.live7d.hourDayGrid)) {
-                setLive7d({ hourDayGrid: r.live7d.hourDayGrid });
-            }
+            applyCalendarResult(res.result);
+            setCachedCalendar(cacheKey, res.result);
         } catch {
-            /* silent — heatmap will just render no-data */
+            /* silent, heatmap will just render no-data */
+        } finally {
+            setIsCalendarLoading(false);
         }
-    }, [pluginId]);
+    }, [pluginId, applyCalendarResult]);
 
     useEffect(() => {
         fetchCalendar();
@@ -881,11 +914,11 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                             </label>
                             <div className="h-6 w-px bg-gray-700/60" aria-hidden />
                             <button
-                                onClick={() => { fetchAnalytics(); fetchCalendar(); }}
-                                disabled={isLoading}
+                                onClick={() => { fetchAnalytics(true); fetchCalendar(true); }}
+                                disabled={isLoading || isCalendarLoading}
                                 className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-medium text-white shadow-lg shadow-emerald-900/20 transition-all duration-200 hover:shadow-emerald-900/30"
                             >
-                                <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''} />
+                                <RefreshCw size={16} className={isLoading || isCalendarLoading ? 'animate-spin' : ''} />
                                 {t('logAnalytics.refresh')}
                             </button>
                         </div>
@@ -900,10 +933,19 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                     </div>
                 )}
 
-                {isLoading ? (
-                    <div className="flex items-center justify-center py-24">
-                        <RefreshCw className="w-10 h-10 text-emerald-500 animate-spin" />
-                        <span className="ml-3 text-gray-400">{t('logAnalytics.loading')}</span>
+                {isLoading && overview === null ? (
+                    <div className="flex flex-col items-center justify-center py-24 gap-4">
+                        <div className="flex items-center">
+                            <RefreshCw className="w-10 h-10 text-emerald-500 animate-spin" />
+                            <span className="ml-3 text-gray-400">{t('logAnalytics.loading')}</span>
+                        </div>
+                        {progressSteps.length > 0 && (
+                            <ul className="text-xs text-gray-500 space-y-1 max-w-md text-center">
+                                {progressSteps.map((step, i) => (
+                                    <li key={i}>{step.message}</li>
+                                ))}
+                            </ul>
+                        )}
                     </div>
                 ) : (
                     <>
