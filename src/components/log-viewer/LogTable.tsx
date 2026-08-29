@@ -287,6 +287,57 @@ const SortableHeader: React.FC<SortableHeaderProps> = ({ column, sortConfig, onS
     );
 };
 
+// Pagination button group (first/prev/next/last), shared by the two pagination bars
+interface PaginationNavProps {
+    safePage: number;
+    totalPages: number;
+    onPageChange?: (page: number) => void;
+}
+
+const PaginationNav: React.FC<PaginationNavProps> = ({ safePage, totalPages, onPageChange }) => {
+    const { t } = useTranslation();
+    return (
+        <div className="flex items-center gap-1">
+            <Tooltip content={t('logViewer.firstPage')}>
+                <button
+                    onClick={() => onPageChange && onPageChange(1)}
+                    disabled={safePage === 1}
+                    className="p-1.5 rounded border border-gray-700 bg-[#121212] text-gray-400 hover:text-gray-200 hover:bg-[#1a1a1a] disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-help"
+                >
+                    <ChevronsLeft size={16} />
+                </button>
+            </Tooltip>
+            <Tooltip content={t('logViewer.prevPage')}>
+                <button
+                    onClick={() => onPageChange && onPageChange(safePage - 1)}
+                    disabled={safePage === 1}
+                    className="p-1.5 rounded border border-gray-700 bg-[#121212] text-gray-400 hover:text-gray-200 hover:bg-[#1a1a1a] disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-help"
+                >
+                    <ChevronLeft size={16} />
+                </button>
+            </Tooltip>
+            <Tooltip content={t('logViewer.nextPage')}>
+                <button
+                    onClick={() => onPageChange && onPageChange(safePage + 1)}
+                    disabled={safePage >= totalPages}
+                    className="p-1.5 rounded border border-gray-700 bg-[#121212] text-gray-400 hover:text-gray-200 hover:bg-[#1a1a1a] disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-help"
+                >
+                    <ChevronRight size={16} />
+                </button>
+            </Tooltip>
+            <Tooltip content={t('logViewer.lastPage')}>
+                <button
+                    onClick={() => onPageChange && onPageChange(totalPages)}
+                    disabled={safePage >= totalPages}
+                    className="p-1.5 rounded border border-gray-700 bg-[#121212] text-gray-400 hover:text-gray-200 hover:bg-[#1a1a1a] disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-help"
+                >
+                    <ChevronsRight size={16} />
+                </button>
+            </Tooltip>
+        </div>
+    );
+};
+
 const ACTION_COLORS: Record<string, string> = {
     'accepted': 'bg-green-500/20 text-green-300',
     'failed': 'bg-red-500/20 text-red-300',
@@ -1133,47 +1184,10 @@ const formatCellValue = (log: LogEntry, column: string): React.ReactNode => {
                         {t('logViewer.pageOf', { current: safePage, total: totalPages })}
                     </span>
                     
-                    <div className="flex items-center gap-1">
-                        <Tooltip content={t('logViewer.firstPage')}>
-                            <button
-                                onClick={() => onPageChange && onPageChange(1)}
-                                disabled={safePage === 1}
-                                className="p-1.5 rounded border border-gray-700 bg-[#121212] text-gray-400 hover:text-gray-200 hover:bg-[#1a1a1a] disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-help"
-                            >
-                                <ChevronsLeft size={16} />
-                            </button>
-                        </Tooltip>
-                        <Tooltip content={t('logViewer.prevPage')}>
-                            <button
-                                onClick={() => onPageChange && onPageChange(safePage - 1)}
-                                disabled={safePage === 1}
-                                className="p-1.5 rounded border border-gray-700 bg-[#121212] text-gray-400 hover:text-gray-200 hover:bg-[#1a1a1a] disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-help"
-                            >
-                                <ChevronLeft size={16} />
-                            </button>
-                        </Tooltip>
-                        <Tooltip content={t('logViewer.nextPage')}>
-                            <button
-                                onClick={() => onPageChange && onPageChange(safePage + 1)}
-                                disabled={safePage >= totalPages}
-                                className="p-1.5 rounded border border-gray-700 bg-[#121212] text-gray-400 hover:text-gray-200 hover:bg-[#1a1a1a] disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-help"
-                            >
-                                <ChevronRight size={16} />
-                            </button>
-                        </Tooltip>
-                        <Tooltip content={t('logViewer.lastPage')}>
-                            <button
-                                onClick={() => onPageChange && onPageChange(totalPages)}
-                                disabled={currentPage >= totalPages}
-                                className="p-1.5 rounded border border-gray-700 bg-[#121212] text-gray-400 hover:text-gray-200 hover:bg-[#1a1a1a] disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-help"
-                            >
-                                <ChevronsRight size={16} />
-                            </button>
-                        </Tooltip>
-                    </div>
+                    <PaginationNav safePage={safePage} totalPages={totalPages} onPageChange={onPageChange} />
                 </div>
             </div>
-            
+
             {isEmpty ? (
                 /* Empty state: message in table area only - header/filters stay visible so user can clear search */
                 <div className="border-t border-gray-800 bg-[#121212] min-h-[200px] flex items-center justify-center p-8">
@@ -1288,44 +1302,7 @@ const formatCellValue = (log: LogEntry, column: string): React.ReactNode => {
                         {' '}({t('logViewer.lineTotalCount', { count: nonEmptyLogs.length })})
                     </span>
                     
-                    <div className="flex items-center gap-1">
-                        <Tooltip content={t('logViewer.firstPage')}>
-                            <button
-                                onClick={() => onPageChange && onPageChange(1)}
-                                disabled={safePage === 1}
-                                className="p-1.5 rounded border border-gray-700 bg-[#121212] text-gray-400 hover:text-gray-200 hover:bg-[#1a1a1a] disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-help"
-                            >
-                                <ChevronsLeft size={16} />
-                            </button>
-                        </Tooltip>
-                        <Tooltip content={t('logViewer.prevPage')}>
-                            <button
-                                onClick={() => onPageChange && onPageChange(safePage - 1)}
-                                disabled={safePage === 1}
-                                className="p-1.5 rounded border border-gray-700 bg-[#121212] text-gray-400 hover:text-gray-200 hover:bg-[#1a1a1a] disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-help"
-                            >
-                                <ChevronLeft size={16} />
-                            </button>
-                        </Tooltip>
-                        <Tooltip content={t('logViewer.nextPage')}>
-                            <button
-                                onClick={() => onPageChange && onPageChange(safePage + 1)}
-                                disabled={safePage >= totalPages}
-                                className="p-1.5 rounded border border-gray-700 bg-[#121212] text-gray-400 hover:text-gray-200 hover:bg-[#1a1a1a] disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-help"
-                            >
-                                <ChevronRight size={16} />
-                            </button>
-                        </Tooltip>
-                        <Tooltip content={t('logViewer.lastPage')}>
-                            <button
-                                onClick={() => onPageChange && onPageChange(totalPages)}
-                                disabled={safePage >= totalPages}
-                                className="p-1.5 rounded border border-gray-700 bg-[#121212] text-gray-400 hover:text-gray-200 hover:bg-[#1a1a1a] disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-help"
-                            >
-                                <ChevronsRight size={16} />
-                            </button>
-                        </Tooltip>
-                    </div>
+                    <PaginationNav safePage={safePage} totalPages={totalPages} onPageChange={onPageChange} />
                 </div>
             </div>
 
