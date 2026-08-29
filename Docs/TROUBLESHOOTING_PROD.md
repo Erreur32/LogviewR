@@ -1,20 +1,22 @@
-# Dépannage Production Docker
+# Docker Production Troubleshooting
 
-## 🔴 Problème 1 : WebSocket "Invalid frame header"
+> 🇫🇷 [Lire en français](./TROUBLESHOOTING_PROD.fr.md)
 
-### Symptôme
+## 🔴 Issue 1: WebSocket "Invalid frame header"
+
+### Symptom
 ```
 WebSocket connection to 'wss://mwk.myoueb.fr/ws/connection' failed: Invalid frame header
 [WS Client] Disconnected: 1006
 ```
 
 ### Cause
-Nginx n'est pas configuré pour gérer l'upgrade WebSocket.
+Nginx isn't configured to handle the WebSocket upgrade.
 
 ### Solution
-Voir le guide complet : `Docs/NGINX_WEBSOCKET_CONFIG.md`
+See the full guide: `Docs/NGINX_WEBSOCKET_CONFIG.md`
 
-**Configuration nginx minimale :**
+**Minimal nginx configuration:**
 ```nginx
 location /ws/ {
     proxy_pass http://localhost:7505;
@@ -32,7 +34,7 @@ location /ws/ {
 }
 ```
 
-**Après modification :**
+**After the change:**
 ```bash
 sudo nginx -t
 sudo systemctl reload nginx
@@ -40,109 +42,108 @@ sudo systemctl reload nginx
 
 ---
 
-## 🔴 Problème 2 : UniFi ne fonctionne pas en production
+## 🔴 Issue 2: UniFi doesn't work in production
 
-### Diagnostic
+### Diagnosis
 
-**1. Vérifier les logs du serveur :**
+**1. Check the server logs:**
 ```bash
 docker logs viewerlog | grep -i unifi
 ```
 
-**2. Vérifier la connectivité réseau depuis le conteneur :**
+**2. Check network connectivity from the container:**
 ```bash
-docker exec viewerlog wget -O- https://votre-controller-unifi:8443
-# ou
-docker exec viewerlog curl -k https://votre-controller-unifi:8443
+docker exec viewerlog wget -O- https://your-unifi-controller:8443
+# or
+docker exec viewerlog curl -k https://your-unifi-controller:8443
 ```
 
-**3. Vérifier la configuration UniFi :**
-- URL du controller (doit être accessible depuis le conteneur)
-- Identifiants (username/password)
+**3. Check the UniFi configuration:**
+- Controller URL (must be reachable from the container)
+- Credentials (username/password)
 - Site name
 
-### Causes possibles
+### Possible causes
 
-#### 1. Problème de réseau Docker
-Le conteneur ne peut pas accéder au controller UniFi.
+#### 1. Docker network issue
+The container can't reach the UniFi controller.
 
-**Solution :** Vérifier que le controller UniFi est accessible depuis l'hôte :
+**Solution:** Check that the UniFi controller is reachable from the host:
 ```bash
-# Depuis l'hôte
-curl -k https://votre-controller-unifi:8443
+# From the host
+curl -k https://your-unifi-controller:8443
 ```
 
-Si ça fonctionne depuis l'hôte mais pas depuis le conteneur, c'est un problème de réseau Docker.
+If it works from the host but not from the container, it's a Docker networking issue.
 
-#### 2. Problème SSL/TLS
-Erreur SSL dans les logs.
+#### 2. SSL/TLS issue
+SSL error in the logs.
 
-**Solution :** Essayer avec `http://` au lieu de `https://` si le controller le permet.
+**Solution:** Try `http://` instead of `https://` if the controller allows it.
 
-#### 3. Configuration différente entre dev et prod
-Les configurations sont dans `./data/dashboard.db` qui est monté différemment.
+#### 3. Different configuration between dev and prod
+The configurations live in `./data/dashboard.db`, which is mounted differently.
 
-**Vérifier :**
+**Check:**
 ```bash
-# Vérifier que la config UniFi est bien dans la DB prod
+# Check that the UniFi config is present in the prod DB
 docker exec viewerlog ls -la /app/data/
 ```
 
-#### 4. Controller UniFi derrière un firewall
-Le controller bloque les connexions depuis le conteneur Docker.
+#### 4. UniFi controller behind a firewall
+The controller blocks connections from the Docker container.
 
-**Solution :** Autoriser l'IP de l'hôte Docker dans le firewall du controller.
+**Solution:** Allow the Docker host's IP through the controller's firewall.
 
-### Commandes de diagnostic
+### Diagnostic commands
 
 ```bash
-# 1. Logs UniFi
+# 1. UniFi logs
 docker logs viewerlog 2>&1 | grep -i unifi
 
-# 2. Test de connexion depuis le conteneur
-docker exec viewerlog wget --no-check-certificate -O- https://votre-controller:8443
+# 2. Connection test from the container
+docker exec viewerlog wget --no-check-certificate -O- https://your-controller:8443
 
-# 3. Vérifier la configuration dans la DB
+# 3. Check the configuration in the DB
 docker exec viewerlog cat /app/data/dashboard.db | strings | grep -i unifi
 
-# 4. Vérifier les variables d'environnement
+# 4. Check environment variables
 docker exec viewerlog env | grep -i unifi
 ```
 
 ---
 
-## 🔍 Différences Dev vs Prod
+## 🔍 Dev vs Prod differences
 
 | Aspect | Docker Dev | Docker Prod |
 |--------|------------|-------------|
-| **Réseau** | Accès direct au réseau hôte | Réseau bridge Docker (peut être isolé) |
-| **Volumes** | `./data` (montage local) | `./data` (montage local) |
-| **Code source** | Monté en volume (hot reload) | Copié dans l'image |
-| **Node modules** | Préservé dans le conteneur | Installé dans l'image |
+| **Network** | Direct access to the host network | Docker bridge network (may be isolated) |
+| **Volumes** | `./data` (local mount) | `./data` (local mount) |
+| **Source code** | Mounted as a volume (hot reload) | Copied into the image |
+| **Node modules** | Preserved in the container | Installed in the image |
 
-### Impact sur UniFi
+### Impact on UniFi
 
-En **Docker prod**, le conteneur peut être sur un réseau Docker isolé qui ne peut pas accéder au controller UniFi local.
+In **Docker prod**, the container may sit on an isolated Docker network that can't reach the local UniFi controller.
 
-**Solution :** Utiliser `network_mode: host` dans `docker-compose.yml` (si le controller est sur le même réseau) :
+**Solution:** Use `network_mode: host` in `docker-compose.yml` (if the controller is on the same network):
 
 ```yaml
 services:
   viewerlog:
     # ...
-    network_mode: host  # Accès direct au réseau hôte
+    network_mode: host  # Direct access to the host network
 ```
 
-**⚠️ Attention :** Avec `network_mode: host`, le mapping de ports est ignoré. L'application écoutera directement sur le port 3000 de l'hôte.
+**⚠️ Warning:** With `network_mode: host`, port mapping is ignored. The application will listen directly on the host's port 3000.
 
 ---
 
-## ✅ Checklist de vérification
+## ✅ Verification checklist
 
-- [ ] Nginx configuré pour WebSocket (voir `Docs/NGINX_WEBSOCKET_CONFIG.md`)
-- [ ] Logs UniFi vérifiés : `docker logs viewerlog | grep -i unifi`
-- [ ] Controller UniFi accessible depuis l'hôte
-- [ ] Controller UniFi accessible depuis le conteneur : `docker exec viewerlog wget ...`
-- [ ] Configuration UniFi correcte dans l'interface admin
-- [ ] Test de connexion UniFi effectué depuis l'interface
-
+- [ ] Nginx configured for WebSocket (see `Docs/NGINX_WEBSOCKET_CONFIG.md`)
+- [ ] UniFi logs checked: `docker logs viewerlog | grep -i unifi`
+- [ ] UniFi controller reachable from the host
+- [ ] UniFi controller reachable from the container: `docker exec viewerlog wget ...`
+- [ ] UniFi configuration correct in the admin interface
+- [ ] UniFi connection test performed from the interface

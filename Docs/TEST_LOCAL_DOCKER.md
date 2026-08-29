@@ -1,30 +1,32 @@
-# Guide de test Docker local (simulation production)
+# Local Docker Test Guide (Production Simulation)
 
-Ce guide explique comment tester la configuration Docker localement pour simuler l'environnement de production avant de déployer.
+> 🇫🇷 [Lire en français](./TEST_LOCAL_DOCKER.fr.md)
 
-## 🎯 Objectif
+This guide explains how to test the Docker configuration locally to simulate the production environment before deploying.
 
-Vérifier que :
-- Les logs de l'hôte sont accessibles depuis le conteneur
-- Les chemins Docker sont correctement convertis
-- Les plugins peuvent lire les fichiers de logs
-- La configuration est identique à la production
+## 🎯 Goal
 
-## 📋 Prérequis
+Verify that:
+- Host logs are accessible from the container
+- Docker paths are correctly converted
+- Plugins can read log files
+- The configuration matches production
 
-1. Docker et Docker Compose installés
-2. Accès en lecture à `/var/log` sur l'hôte
-3. Le projet cloné localement
+## 📋 Prerequisites
 
-## 🚀 Étapes de test
+1. Docker and Docker Compose installed
+2. Read access to `/var/log` on the host
+3. The project cloned locally
 
-### 1. Préparer l'environnement
+## 🚀 Test steps
+
+### 1. Prepare the environment
 
 ```bash
-# Aller dans le répertoire du projet
-cd /chemin/vers/LogviewR
+# Go to the project directory
+cd /path/to/LogviewR
 
-# Créer le fichier .env si nécessaire
+# Create the .env file if needed
 if [ ! -f .env ]; then
     echo "JWT_SECRET=$(openssl rand -base64 32)" > .env
     echo "DASHBOARD_PORT=7501" >> .env
@@ -32,56 +34,56 @@ if [ ! -f .env ]; then
 fi
 ```
 
-### 2. Construire et démarrer le conteneur local
+### 2. Build and start the local container
 
 ```bash
-# Construire l'image localement
+# Build the image locally
 docker-compose -f docker-compose.local.yml build
 
-# Démarrer le conteneur
+# Start the container
 docker-compose -f docker-compose.local.yml up -d
 
-# Vérifier que le conteneur est démarré
+# Check that the container is running
 docker ps | grep logviewr-local
 ```
 
-### 3. Exécuter les tests d'accès aux logs
+### 3. Run the log access tests
 
 ```bash
-# Exécuter le script de test
+# Run the test script
 ./scripts/test-local-docker.sh
 ```
 
-Ce script vérifie :
-- ✅ Accès à `/host/var/log`
-- ✅ Existence du symlink `/host/logs` (optionnel)
-- ✅ Lecture des fichiers de logs communs
-- ✅ Accès aux logs Apache/Nginx
-- ✅ Variables d'environnement
-- ✅ Conversion des chemins Docker
+This script checks:
+- ✅ Access to `/host/var/log`
+- ✅ Existence of the `/host/logs` symlink (optional)
+- ✅ Reading common log files
+- ✅ Access to Apache/Nginx logs
+- ✅ Environment variables
+- ✅ Docker path conversion
 
-### 4. Tests manuels supplémentaires
+### 4. Additional manual tests
 
-#### Vérifier l'accès aux logs depuis le conteneur
+#### Check log access from the container
 
 ```bash
-# Lister les fichiers dans /host/var/log
+# List files in /host/var/log
 docker exec logviewr-local ls -la /host/var/log
 
-# Vérifier le symlink (s'il existe)
+# Check the symlink (if it exists)
 docker exec logviewr-local ls -la /host/logs
 
-# Tester la lecture d'un fichier de log
+# Test reading a log file
 docker exec logviewr-local head -n 5 /host/var/log/syslog
 
-# Vérifier les logs Apache (si présents)
+# Check Apache logs (if present)
 docker exec logviewr-local ls -la /host/var/log/apache2
 ```
 
-#### Tester la conversion des chemins
+#### Test path conversion
 
 ```bash
-# Tester la conversion des chemins dans Node.js
+# Test path conversion in Node.js
 docker exec logviewr-local node -e "
 const fs = require('fs');
 const HOST_ROOT_PATH = process.env.HOST_ROOT_PATH || '/host';
@@ -113,59 +115,59 @@ testPaths.forEach(p => {
 "
 ```
 
-#### Vérifier les logs du conteneur
+#### Check the container logs
 
 ```bash
-# Voir les logs du conteneur
+# View the container logs
 docker logs logviewr-local
 
-# Suivre les logs en temps réel
+# Follow the logs in real time
 docker logs -f logviewr-local
 ```
 
-### 5. Tester l'application web
+### 5. Test the web application
 
 ```bash
-# Ouvrir l'application dans le navigateur
-# URL: http://localhost:7501 (ou le port configuré dans DASHBOARD_PORT)
+# Open the application in your browser
+# URL: http://localhost:7501 (or the port configured in DASHBOARD_PORT)
 
-# Tester la connexion au plugin host-system
-# 1. Aller dans "Plugins" > "Host System"
-# 2. Cliquer sur "Options"
-# 3. Vérifier que le chemin de base est détecté
-# 4. Cliquer sur "Tester la connexion"
-# 5. Vérifier qu'il n'y a pas d'erreur "Connection failed"
+# Test the host-system plugin connection
+# 1. Go to "Plugins" > "Host System"
+# 2. Click "Options"
+# 3. Check that the base path is detected
+# 4. Click "Test connection"
+# 5. Check there's no "Connection failed" error
 ```
 
-### 6. Vérifier la configuration Docker Compose
+### 6. Check the Docker Compose configuration
 
-Comparer `docker-compose.local.yml` avec `docker-compose.yml` pour s'assurer que :
-- Les volumes sont identiques (sauf le nom du volume de données)
-- Les variables d'environnement sont cohérentes
-- Les ports sont différents (7501 pour local, 7500 pour prod)
+Compare `docker-compose.local.yml` with `docker-compose.yml` to make sure that:
+- The volumes are identical (except the data volume name)
+- The environment variables are consistent
+- The ports differ (7501 for local, 7500 for prod)
 
-## 🔍 Dépannage
+## 🔍 Troubleshooting
 
-### Problème : "Connection failed" dans les options du plugin
+### Issue: "Connection failed" in plugin options
 
-**Causes possibles :**
-1. Le conteneur n'a pas accès à `/host/var/log`
-2. Les permissions sont incorrectes
-3. Le symlink `/host/logs` n'existe pas et le fallback ne fonctionne pas
+**Possible causes:**
+1. The container doesn't have access to `/host/var/log`
+2. Permissions are incorrect
+3. The `/host/logs` symlink doesn't exist and the fallback isn't working
 
-**Solutions :**
+**Solutions:**
 
 ```bash
-# Vérifier que /host/var/log est accessible
+# Check that /host/var/log is accessible
 docker exec logviewr-local test -d /host/var/log && echo "OK" || echo "FAIL"
 
-# Vérifier les permissions
+# Check permissions
 docker exec logviewr-local ls -ld /host/var/log
 
-# Créer manuellement le symlink si nécessaire (en tant que root)
+# Manually create the symlink if needed (as root)
 docker exec -u root logviewr-local ln -s /host/var/log /host/logs
 
-# Vérifier que le code utilise le bon chemin
+# Check that the code uses the right path
 docker exec logviewr-local node -e "
 const fs = require('fs');
 const paths = ['/host/logs', '/host/var/log'];
@@ -173,16 +175,16 @@ paths.forEach(p => console.log(p + ':', fs.existsSync(p) ? 'exists' : 'missing')
 "
 ```
 
-### Problème : Les logs ne s'affichent pas
+### Issue: Logs don't display
 
-**Vérifications :**
+**Checks:**
 
 ```bash
-# Vérifier que les fichiers de logs existent
+# Check that the log files exist
 docker exec logviewr-local ls -la /host/var/log/syslog
 docker exec logviewr-local ls -la /host/var/log/auth.log
 
-# Vérifier que le plugin peut les lire
+# Check that the plugin can read them
 docker exec logviewr-local node -e "
 const fs = require('fs');
 try {
@@ -194,14 +196,14 @@ try {
 "
 ```
 
-### Problème : Le symlink `/host/logs` n'est pas créé
+### Issue: The `/host/logs` symlink isn't created
 
-**Cause :** Le système de fichiers `/host` est en lecture seule, donc le symlink ne peut pas être créé.
+**Cause:** The `/host` filesystem is read-only, so the symlink can't be created.
 
-**Solution :** C'est normal ! Le code utilise automatiquement `/host/var/log` comme fallback. Vérifiez que le fallback fonctionne :
+**Solution:** This is expected! The code automatically falls back to `/host/var/log`. Check that the fallback works:
 
 ```bash
-# Vérifier que le code détecte correctement le chemin
+# Check that the code correctly detects the path
 docker exec logviewr-local node -e "
 const fs = require('fs');
 const HOST_ROOT_PATH = '/host';
@@ -218,32 +220,32 @@ if (fs.existsSync(DOCKER_LOG_PATH)) {
 "
 ```
 
-## ✅ Checklist de validation
+## ✅ Validation checklist
 
-Avant de déployer en production, vérifier :
+Before deploying to production, check:
 
-- [ ] Le conteneur démarre sans erreur
-- [ ] `/host/var/log` est accessible depuis le conteneur
-- [ ] Les fichiers de logs peuvent être lus (syslog, auth.log, etc.)
-- [ ] Le plugin host-system peut se connecter (test dans l'UI)
-- [ ] Les logs Apache/Nginx sont accessibles (si présents)
-- [ ] Les variables d'environnement sont correctes (JWT_SECRET, HOST_ROOT_PATH)
-- [ ] Le script de test passe tous les tests
-- [ ] L'application web fonctionne correctement
-- [ ] Aucune erreur dans les logs du conteneur
+- [ ] The container starts without errors
+- [ ] `/host/var/log` is accessible from the container
+- [ ] Log files can be read (syslog, auth.log, etc.)
+- [ ] The host-system plugin can connect (test in the UI)
+- [ ] Apache/Nginx logs are accessible (if present)
+- [ ] Environment variables are correct (JWT_SECRET, HOST_ROOT_PATH)
+- [ ] The test script passes all tests
+- [ ] The web application works correctly
+- [ ] No errors in the container logs
 
-## 📝 Notes importantes
+## 📝 Important notes
 
-1. **Symlink optionnel** : Le symlink `/host/logs` est créé par `docker-entrypoint.sh`, mais s'il échoue (système de fichiers en lecture seule), le code utilise automatiquement `/host/var/log` comme fallback.
+1. **Optional symlink**: The `/host/logs` symlink is created by `docker-entrypoint.sh`, but if it fails (read-only filesystem), the code automatically falls back to `/host/var/log`.
 
-2. **Port différent** : Le port local (7501) est différent du port de production (7500) pour éviter les conflits.
+2. **Different port**: The local port (7501) differs from the production port (7500) to avoid conflicts.
 
-3. **Variables d'environnement** : Assurez-vous que `JWT_SECRET` est défini dans le fichier `.env` pour éviter les erreurs 401.
+3. **Environment variables**: Make sure `JWT_SECRET` is set in the `.env` file to avoid 401 errors.
 
-4. **Permissions** : Le conteneur s'exécute en tant qu'utilisateur `node` (non-root), donc il ne peut que lire les fichiers de logs, pas les modifier.
+4. **Permissions**: The container runs as the `node` user (non-root), so it can only read log files, not modify them.
 
-## 🔗 Ressources
+## 🔗 Resources
 
-- [Documentation Docker Compose](https://docs.docker.com/compose/)
-- [Guide de configuration Docker](./DOCKER_MOUNT_FIX.md)
-- [Guide d'accès aux logs](./HOW_LOGS_ACCESS_WORKS.md)
+- [Docker Compose Documentation](https://docs.docker.com/compose/)
+- [Docker Configuration Guide](./DOCKER_MOUNT_FIX.md)
+- [Log Access Guide](./HOW_LOGS_ACCESS_WORKS.md)

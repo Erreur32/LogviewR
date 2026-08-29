@@ -1580,14 +1580,13 @@ router.get('/analytics', async (req, res) => {
 
 /**
  * GET /api/log-viewer/analytics/progress
- * Returns current progress messages while analytics is being computed (for live UI).
+ * Returns current per-file scan progress while analytics is being computed (for live UI).
  */
 router.get('/analytics/progress', (req, res) => {
     try {
-        const steps = getLogAnalyticsProgress();
-        res.json({ success: true, result: { steps } });
+        res.json({ success: true, result: getLogAnalyticsProgress() });
     } catch (error) {
-        res.json({ success: true, result: { steps: [] } });
+        res.json({ success: true, result: { files: [], phase: 'idle' } });
     }
 });
 

@@ -1,42 +1,44 @@
-# Réinitialisation complète Docker Production
+# Full Docker Production Reset
 
-## 🔄 Procédure pour repartir à zéro
+> 🇫🇷 [Lire en français](./RESET_DOCKER_PROD.fr.md)
 
-### 1. Arrêter et supprimer le conteneur
+## 🔄 Procedure to start from scratch
+
+### 1. Stop and remove the container
 
 ```bash
 docker compose down
 ```
 
-### 2. Supprimer le volume (efface toutes les données)
+### 2. Remove the volume (erases all data)
 
-⚠️ **ATTENTION** : Cette commande supprime **TOUTES** les données :
-- Base de données SQLite (`dashboard.db`)
-- Token Freebox (`freebox_token.json`)
-- Toutes les configurations sauvegardées
+⚠️ **WARNING**: This command deletes **ALL** data:
+- SQLite database (`dashboard.db`)
+- Freebox token (`freebox_token.json`)
+- All saved configuration
 
 ```bash
 docker compose down -v
 ```
 
-Ou pour supprimer uniquement le volume spécifique :
+Or to remove only the specific volume:
 
 ```bash
 docker volume rm viewerlog_data
 ```
 
-### 3. Récupérer la dernière image depuis le registry
+### 3. Pull the latest image from the registry
 
 ```bash
 docker compose pull
 ```
 
-### 4. Vérifier la configuration
+### 4. Check the configuration
 
-Assurez-vous d'avoir un fichier `.env` (optionnel mais recommandé) :
+Make sure you have a `.env` file (optional but recommended):
 
 ```bash
-# Créer un fichier .env avec vos variables
+# Create a .env file with your variables
 cat > .env << EOF
 DASHBOARD_PORT=7505
 FREEBOX_HOST=mafreebox.freebox.fr
@@ -44,15 +46,15 @@ JWT_SECRET=$(openssl rand -base64 32)
 EOF
 ```
 
-**Important** : Générer un nouveau `JWT_SECRET` sécurisé pour la production !
+**Important**: Generate a new secure `JWT_SECRET` for production!
 
-### 5. Relancer Docker
+### 5. Restart Docker
 
 ```bash
 docker compose up -d
 ```
 
-### 6. Vérifier les logs
+### 6. Check the logs
 
 ```bash
 docker logs -f viewerlog
@@ -60,42 +62,42 @@ docker logs -f viewerlog
 
 ---
 
-## 📋 Commandes complètes (copier-coller)
+## 📋 Full commands (copy-paste)
 
 ```bash
-# 1. Arrêter et supprimer tout
+# 1. Stop and remove everything
 docker compose down -v
 
-# 2. Récupérer la dernière image
+# 2. Pull the latest image
 docker compose pull
 
-# 3. (Optionnel) Créer/éditer le fichier .env
-nano .env  # ou votre éditeur préféré
+# 3. (Optional) Create/edit the .env file
+nano .env  # or your preferred editor
 
-# 4. Relancer
+# 4. Restart
 docker compose up -d
 
-# 5. Voir les logs
+# 5. Watch the logs
 docker logs -f viewerlog
 ```
 
 ---
 
-## 🔍 Vérifications après redémarrage
+## 🔍 Post-restart checks
 
-### Vérifier que le conteneur tourne
+### Check that the container is running
 
 ```bash
 docker ps | grep viewerlog
 ```
 
-### Vérifier les volumes
+### Check the volumes
 
 ```bash
 docker volume ls | grep viewerlog
 ```
 
-### Vérifier l'accès au dashboard
+### Check dashboard access
 
 ```bash
 curl http://localhost:7505/api/health
@@ -103,17 +105,16 @@ curl http://localhost:7505/api/health
 
 ---
 
-## ⚠️ Notes importantes
+## ⚠️ Important notes
 
-1. **JWT_SECRET** : Après réinitialisation, tous les utilisateurs devront se reconnecter (les tokens JWT précédents seront invalides)
+1. **JWT_SECRET**: After a reset, all users will need to log in again (previous JWT tokens will be invalid)
 
-2. **Token Freebox** : Vous devrez reconfigurer l'authentification Freebox (créer un nouvel app_token)
+2. **Freebox token**: You'll need to reconfigure Freebox authentication (create a new app_token)
 
-3. **Base de données** : Toutes les données (utilisateurs, plugins, configurations) seront perdues
+3. **Database**: All data (users, plugins, configuration) will be lost
 
-4. **Backup** : Si vous voulez sauvegarder avant de tout effacer :
+4. **Backup**: If you want to back up before wiping everything:
    ```bash
-   # Sauvegarder le volume
+   # Back up the volume
    docker run --rm -v viewerlog_data:/data -v $(pwd):/backup alpine tar czf /backup/viewerlog_backup_$(date +%Y%m%d_%H%M%S).tar.gz /data
    ```
-

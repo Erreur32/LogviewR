@@ -1,87 +1,89 @@
-# Correction des permissions pour les fichiers de logs
+# Fixing Log File Permissions
 
-## 🐛 Problème
+> 🇫🇷 [Lire en français](./FIX_LOG_PERMISSIONS.fr.md)
 
-Les fichiers de logs système (auth.log, cron.log, daemon.log, etc.) appartiennent à `root:adm` avec des permissions `640` (rw-r-----), ce qui signifie que seul le propriétaire (root) et le groupe (adm) peuvent les lire.
+## 🐛 Problem
 
-Le conteneur Docker s'exécute avec l'utilisateur `node` (non-root) qui n'est pas dans le groupe `adm`, donc il ne peut pas lire ces fichiers.
+System log files (auth.log, cron.log, daemon.log, etc.) are owned by `root:adm` with `640` permissions (rw-r-----), meaning only the owner (root) and the group (adm) can read them.
+
+The Docker container runs as the `node` user (non-root), which isn't in the `adm` group, so it can't read these files.
 
 ## ✅ Solutions
 
-### Solution 1 : Ajouter l'utilisateur node au groupe adm (Recommandé)
+### Solution 1: Add the node user to the adm group (Recommended)
 
-Modifier le `docker-entrypoint.sh` pour ajouter l'utilisateur `node` au groupe `adm` :
+Modify `docker-entrypoint.sh` to add the `node` user to the `adm` group:
 
 ```bash
-# Dans docker-entrypoint.sh, avant de switcher vers node
-# Ajouter node au groupe adm (GID 4 sur Debian/Ubuntu)
+# In docker-entrypoint.sh, before switching to node
+# Add node to the adm group (GID 4 on Debian/Ubuntu)
 if getent group adm > /dev/null 2>&1; then
-    # Si le groupe adm existe dans le conteneur, ajouter node
+    # If the adm group already exists in the container, add node
     addgroup -g 4 adm 2>/dev/null || true
     addgroup node adm 2>/dev/null || true
 else
-    # Sinon, créer le groupe adm avec le GID standard (4)
+    # Otherwise, create the adm group with the standard GID (4)
     addgroup -g 4 adm 2>/dev/null || true
     addgroup node adm 2>/dev/null || true
 fi
 ```
 
-**Limitation** : Cette solution ne fonctionne que si le GID du groupe `adm` sur l'hôte correspond au GID dans le conteneur.
+**Limitation**: This only works if the `adm` group's GID on the host matches the GID inside the container.
 
-### Solution 2 : Utiliser le GID du groupe adm de l'hôte (Meilleure solution)
+### Solution 2: Use the host's adm group GID (Better solution)
 
-Modifier `docker-compose.yml` pour mapper le GID du groupe `adm` de l'hôte :
+Modify `docker-compose.yml` to map the host's `adm` group GID:
 
 ```yaml
 services:
   logviewr:
-    # ... autres configurations ...
-    user: "${UID:-1000}:${ADM_GID:-4}"  # UID de node : GID de adm
+    # ... other configuration ...
+    user: "${UID:-1000}:${ADM_GID:-4}"  # node's UID : adm's GID
     group_add:
-      - "${ADM_GID:-4}"  # Ajouter le groupe adm
+      - "${ADM_GID:-4}"  # Add the adm group
 ```
 
-Puis dans `.env` :
+Then in `.env`:
 ```bash
-# Récupérer le GID du groupe adm sur l'hôte
+# Get the host's adm group GID
 ADM_GID=$(getent group adm | cut -d: -f3)
 echo "ADM_GID=$ADM_GID" >> .env
 ```
 
-**Note** : Cette solution nécessite de modifier le `user` du conteneur, ce qui peut causer des problèmes avec les permissions de `/app/data`.
+**Note**: This solution requires changing the container's `user`, which can cause issues with `/app/data` permissions.
 
-### Solution 3 : Modifier les permissions sur l'hôte (Non recommandé)
+### Solution 3: Change permissions on the host (Not recommended)
 
-Modifier les permissions des fichiers de logs sur l'hôte pour les rendre lisibles par tous :
+Change the permissions of log files on the host to make them world-readable:
 
 ```bash
-# ⚠️ NON RECOMMANDÉ pour la sécurité
+# ⚠️ NOT RECOMMENDED for security
 sudo chmod 644 /var/log/auth.log
 sudo chmod 644 /var/log/cron.log
 # etc.
 ```
 
-**Problème** : Cela réduit la sécurité du système.
+**Problem**: This reduces the security of the system.
 
-### Solution 4 : Exécuter le conteneur en root (Non recommandé)
+### Solution 4: Run the container as root (Not recommended)
 
-Modifier `docker-compose.yml` pour exécuter le conteneur en root :
+Modify `docker-compose.yml` to run the container as root:
 
 ```yaml
 services:
   logviewr:
-    # ... autres configurations ...
-    user: "root:root"  # ⚠️ NON RECOMMANDÉ
+    # ... other configuration ...
+    user: "root:root"  # ⚠️ NOT RECOMMENDED
 ```
 
-**Problème** : Cela réduit la sécurité du conteneur.
+**Problem**: This reduces container security.
 
-## 🎯 Solution recommandée : Mapper le groupe adm
+## 🎯 Recommended solution: map the adm group
 
-La meilleure solution est de mapper le GID du groupe `adm` de l'hôte dans le conteneur et d'ajouter l'utilisateur `node` à ce groupe.
+The best solution is to map the host's `adm` group GID into the container and add the `node` user to that group.
 
-### Étapes d'implémentation
+### Implementation steps
 
-1. **Modifier `docker-entrypoint.sh`** pour ajouter node au groupe adm
-2. **Modifier `docker-compose.yml`** pour mapper le groupe adm
-3. **Créer un script** pour récupérer le GID de adm sur l'hôte
+1. **Modify `docker-entrypoint.sh`** to add node to the adm group
+2. **Modify `docker-compose.yml`** to map the adm group
+3. **Create a script** to fetch the host's adm GID

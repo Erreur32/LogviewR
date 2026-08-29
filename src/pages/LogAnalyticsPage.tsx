@@ -25,7 +25,9 @@ import {
     Archive,
     TrendingUp,
     Shield,
-    Trophy
+    Trophy,
+    CheckCircle2,
+    XCircle
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../api/client';
@@ -78,6 +80,17 @@ function formatBytes(bytes: number): string {
     const sizes = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
+}
+
+interface AnalyticsProgressFile {
+    pluginId: string;
+    fileName: string;
+    sizeBytes: number;
+    status: 'pending' | 'reading' | 'done' | 'error';
+}
+interface AnalyticsProgressResponse {
+    files: AnalyticsProgressFile[];
+    phase: 'idle' | 'scanning' | 'aggregating';
 }
 
 type TimeRangeKey = '1h' | '24h' | '7d' | '30d' | 'custom';
@@ -340,7 +353,8 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
 
     const [isLoading, setIsLoading] = useState(true);
     const [isCalendarLoading, setIsCalendarLoading] = useState(true);
-    const [progressSteps, setProgressSteps] = useState<{ message: string }[]>([]);
+    const [progressFiles, setProgressFiles] = useState<AnalyticsProgressFile[]>([]);
+    const [progressPhase, setProgressPhase] = useState<AnalyticsProgressResponse['phase']>('idle');
     const [error, setError] = useState<string | null>(null);
     /** Stats KPI block: collapsible, visible by default. */
     const [statsKpiVisible, setStatsKpiVisible] = useState(true);
@@ -447,7 +461,8 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
         // while the new fetch is in flight, so the page keeps showing usable content.
         setIsLoading(true);
         setError(null);
-        setProgressSteps([]);
+        setProgressFiles([]);
+        setProgressPhase('idle');
 
         const pluginParam = `&pluginId=${encodeURIComponent(pluginId)}`;
         const fileScopeParam = `&fileScope=${fileScope}`;
@@ -488,10 +503,11 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
     // Poll progress while the main section is doing its first-ever load, so the user
     // sees which files are being scanned instead of a bare spinner.
     const pollProgress = useCallback(() => {
-        api.get<{ steps: { message: string }[] }>('/api/log-viewer/analytics/progress')
+        api.get<AnalyticsProgressResponse>('/api/log-viewer/analytics/progress')
             .then((res) => {
-                if (res.success && res.result?.steps?.length) {
-                    setProgressSteps(res.result.steps);
+                if (res.success && res.result?.files?.length) {
+                    setProgressFiles(res.result.files);
+                    setProgressPhase(res.result.phase);
                 }
             })
             .catch(() => {});
@@ -939,12 +955,53 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                             <RefreshCw className="w-10 h-10 text-emerald-500 animate-spin" />
                             <span className="ml-3 text-gray-400">{t('logAnalytics.loading')}</span>
                         </div>
-                        {progressSteps.length > 0 && (
-                            <ul className="text-xs text-gray-500 space-y-1 max-w-md text-center">
-                                {progressSteps.map((step, i) => (
-                                    <li key={i}>{step.message}</li>
-                                ))}
-                            </ul>
+                        {progressFiles.length > 0 && (
+                            <div className="w-full max-w-md space-y-1.5">
+                                <div className="text-xs text-gray-500 text-center">
+                                    {progressPhase === 'aggregating'
+                                        ? t('logAnalytics.aggregatingResults')
+                                        : t('logAnalytics.scanningFiles')}
+                                </div>
+                                {progressFiles.map((file) => {
+                                    const barPct = file.status === 'done' || file.status === 'error' ? 100 : file.status === 'reading' ? 60 : 0;
+                                    const barColor =
+                                        file.status === 'error' ? 'bg-red-500' : file.status === 'done' ? 'bg-emerald-500' : 'bg-sky-500';
+                                    const statusLabel =
+                                        file.status === 'done'
+                                            ? t('logAnalytics.scanStatusDone')
+                                            : file.status === 'error'
+                                                ? t('logAnalytics.scanStatusError')
+                                                : file.status === 'reading'
+                                                    ? t('logAnalytics.scanStatusReading')
+                                                    : t('logAnalytics.scanStatusPending');
+                                    return (
+                                        <div key={`${file.pluginId}/${file.fileName}`} className="text-xs">
+                                            <div className="flex items-center justify-between gap-2 text-gray-400 mb-0.5">
+                                                <span className="flex items-center gap-1.5 truncate">
+                                                    {file.status === 'done' ? (
+                                                        <CheckCircle2 size={12} className="text-emerald-500 shrink-0" />
+                                                    ) : file.status === 'error' ? (
+                                                        <XCircle size={12} className="text-red-500 shrink-0" />
+                                                    ) : (
+                                                        <FileText size={12} className="text-gray-600 shrink-0" />
+                                                    )}
+                                                    <span className="truncate">{file.pluginId}/{file.fileName}</span>
+                                                </span>
+                                                <span className="text-gray-500 shrink-0 flex items-center gap-1.5">
+                                                    <span>{statusLabel}</span>
+                                                    <span>{formatBytes(file.sizeBytes)}</span>
+                                                </span>
+                                            </div>
+                                            <div className="h-1.5 rounded-full bg-gray-800 overflow-hidden">
+                                                <div
+                                                    className={`h-full rounded-full transition-all duration-300 ${barColor} ${file.status === 'reading' ? 'animate-pulse' : ''}`}
+                                                    style={{ width: `${barPct}%` }}
+                                                />
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         )}
                     </div>
                 ) : (

@@ -1,10 +1,12 @@
-# Guide d'aide - Parsers LogviewR
+# Parser Help Guide - LogviewR
 
-Ce document décrit les formats de logs supportés et les regex utilisées pour chaque parser.
+> 🇫🇷 [Lire en français](./PARSERS_HELP.fr.md)
+
+This document describes the supported log formats and the regexes used by each parser.
 
 ---
 
-## 📋 Table des matières
+## 📋 Table of contents
 
 1. [NPM (Nginx Proxy Manager)](#npm-nginx-proxy-manager)
 2. [Apache](#apache)
@@ -15,178 +17,178 @@ Ce document décrit les formats de logs supportés et les regex utilisées pour 
 
 ## 🔷 NPM (Nginx Proxy Manager)
 
-**Fichier** : `server/plugins/npm/NpmParser.ts`  
-**Documentation détaillée** : [NPM_PARSER_HELP.md](./npm/NPM_PARSER_HELP.md)
+**File**: `server/plugins/npm/NpmParser.ts`
+**Detailed documentation**: [NPM_PARSER_HELP.md](./npm/NPM_PARSER_HELP.md)
 
-### Formats supportés
+### Supported formats
 
-1. **Format NPM standard avec cache** : `[time] cache upstream status - METHOD scheme host "uri" [Client ip] [Length bytes] [Gzip ratio] [Sent-to server] "UA" "Referer"`
-2. **Format NPM standard sans cache** : `[time] status - METHOD scheme host "uri" [Client ip] [Length bytes] [Gzip ratio] "UA" "Referer"`
-3. **Format custom combined** : `IP - host [time] "request" status bytes "Referer" "UA"`
+1. **Standard NPM format with cache**: `[time] cache upstream status - METHOD scheme host "uri" [Client ip] [Length bytes] [Gzip ratio] [Sent-to server] "UA" "Referer"`
+2. **Standard NPM format without cache**: `[time] status - METHOD scheme host "uri" [Client ip] [Length bytes] [Gzip ratio] "UA" "Referer"`
+3. **Custom combined format**: `IP - host [time] "request" status bytes "Referer" "UA"`
 
-Voir [NPM_PARSER_HELP.md](./npm/NPM_PARSER_HELP.md) pour les regex détaillées.
+See [NPM_PARSER_HELP.md](./npm/NPM_PARSER_HELP.md) for the detailed regexes.
 
 ---
 
 ## 🔷 Apache
 
-**Fichier** : `server/plugins/apache/ApacheParser.ts`
+**File**: `server/plugins/apache/ApacheParser.ts`
 
-### Formats supportés
+### Supported formats
 
 #### 1. VHost Combined
-**Format** : `vhost:port IP - user [timestamp] "method path protocol" status size "referer" "user-agent"`
+**Format**: `vhost:port IP - user [timestamp] "method path protocol" status size "referer" "user-agent"`
 
-**Exemple** :
+**Example**:
 ```
 example.com:443 192.168.1.1 - - [01/Jan/2024:12:00:00 +0000] "GET / HTTP/1.1" 200 1234 "-" "Mozilla/5.0"
 ```
 
-**Regex** :
+**Regex**:
 ```regex
 ^([^:]+):(\d+)\s+(?:[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}|[0-9a-fA-F:]+(?:::[0-9a-fA-F:]*)?)\s+-\s+-\s+\[([^\]]+)\]\s+"(\S+)\s+(\S+)\s+([^"]+)"\s+(\d+)\s+(\S+)\s+"([^"]*)"\s+"([^"]*)"
 ```
 
 #### 2. VHost Common
-**Format** : `vhost:port IP - user [timestamp] "method path protocol" status size`
+**Format**: `vhost:port IP - user [timestamp] "method path protocol" status size`
 
-**Exemple** :
+**Example**:
 ```
 example.com:80 192.168.1.1 - - [01/Jan/2024:12:00:00 +0000] "GET / HTTP/1.1" 200 1234
 ```
 
 #### 3. VHost Simple
-**Format** : `vhost IP - user [timestamp] "method path protocol" status size`
+**Format**: `vhost IP - user [timestamp] "method path protocol" status size`
 
-**Exemple** :
+**Example**:
 ```
 example.com 192.168.1.1 - - [01/Jan/2024:12:00:00 +0000] "GET / HTTP/1.1" 200 1234
 ```
 
 #### 4. Combined (standard)
-**Format** : `IP - user [timestamp] "method path protocol" status size "referer" "user-agent"`
+**Format**: `IP - user [timestamp] "method path protocol" status size "referer" "user-agent"`
 
-**Exemple** :
+**Example**:
 ```
 192.168.1.1 - - [01/Jan/2024:12:00:00 +0000] "GET / HTTP/1.1" 200 1234 "-" "Mozilla/5.0"
 ```
 
-**Regex** :
+**Regex**:
 ```regex
 ^(?:[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}|[0-9a-fA-F:]+(?:::[0-9a-fA-F:]*)?)\s+-\s+-\s+\[([^\]]+)\]\s+"(\S+)\s+(\S+)\s+([^"]+)"\s+(\d+)\s+(\S+)\s+"([^"]*)"\s+"([^"]*)"
 ```
 
 #### 5. Common (standard)
-**Format** : `IP - user [timestamp] "method path protocol" status size`
+**Format**: `IP - user [timestamp] "method path protocol" status size`
 
-**Exemple** :
+**Example**:
 ```
 192.168.1.1 - - [01/Jan/2024:12:00:00 +0000] "GET / HTTP/1.1" 200 1234
 ```
 
-### Fonctions
+### Functions
 
-- `parseAccessLine(line: string): ParsedLogEntry | null` - Parse les logs d'accès
-- `parseErrorLine(line: string): ParsedLogEntry | null` - Parse les logs d'erreur
+- `parseAccessLine(line: string): ParsedLogEntry | null` - Parses access logs
+- `parseErrorLine(line: string): ParsedLogEntry | null` - Parses error logs
 
-### Caractéristiques
+### Features
 
-- ✅ Support IPv6
-- ✅ Support Virtual Host (vhost)
-- ✅ Parsing timezone amélioré
-- ✅ Détection automatique du format
+- ✅ IPv6 support
+- ✅ Virtual Host (vhost) support
+- ✅ Improved timezone parsing
+- ✅ Automatic format detection
 
 ---
 
 ## 🔷 Nginx
 
-**Fichier** : `server/plugins/nginx/NginxParser.ts`  
-**Documentation détaillée** : [NGINX_PARSER_HELP.md](./nginx/NGINX_PARSER_HELP.md)
+**File**: `server/plugins/nginx/NginxParser.ts`
+**Detailed documentation**: [NGINX_PARSER_HELP.md](./nginx/NGINX_PARSER_HELP.md)
 
-### Formats supportés
+### Supported formats
 
-1. **Format combined** : `IP - user [timestamp] "request" status bytes "referer" "user-agent"`
-2. **Format common** : `IP - user [timestamp] "request" status bytes`
-3. **Format extended** : `IP - user [timestamp] "request" status bytes "referer" "user-agent" "upstream"`
+1. **Combined format**: `IP - user [timestamp] "request" status bytes "referer" "user-agent"`
+2. **Common format**: `IP - user [timestamp] "request" status bytes`
+3. **Extended format**: `IP - user [timestamp] "request" status bytes "referer" "user-agent" "upstream"`
 
-Voir [NGINX_PARSER_HELP.md](./nginx/NGINX_PARSER_HELP.md) pour les regex détaillées, formats FAIL2BAN, GROK, et GoAccess.
+See [NGINX_PARSER_HELP.md](./nginx/NGINX_PARSER_HELP.md) for the detailed regexes, FAIL2BAN, GROK, and GoAccess formats.
 
-### Fonctions
+### Functions
 
-- `parseAccessLine(line: string): ParsedLogEntry | null` - Parse les logs d'accès
-- `parseErrorLine(line: string): ParsedLogEntry | null` - Parse les logs d'erreur
+- `parseAccessLine(line: string): ParsedLogEntry | null` - Parses access logs
+- `parseErrorLine(line: string): ParsedLogEntry | null` - Parses error logs
 
 ---
 
 ## 🔷 Host System (Syslog)
 
-**Fichier** : `server/plugins/host-system/SyslogParser.ts`
+**File**: `server/plugins/host-system/SyslogParser.ts`
 
-### Formats supportés
+### Supported formats
 
 #### ISO 8601 (Debian 12, systemd)
-**Format** : `timestamp hostname tag[pid]: message`
+**Format**: `timestamp hostname tag[pid]: message`
 
-**Exemple** :
+**Example**:
 ```
 2025-12-28T00:00:02.098394+01:00 Home32-Cloud CRON[2175971]: (root) CMD (command)
 ```
 
-**Regex** :
+**Regex**:
 ```regex
 ^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?)\s+(\S+)\s+(\S+)(?:\[(\d+)\])?:\s*(.*)$
 ```
 
-#### Syslog avec priorité (RFC 3164)
-**Format** : `<priority>timestamp hostname tag[pid]: message`
+#### Syslog with priority (RFC 3164)
+**Format**: `<priority>timestamp hostname tag[pid]: message`
 
-**Exemple** :
+**Example**:
 ```
 <30>Jan 1 12:00:00 hostname app[1234]: message
 ```
 
-#### Syslog sans priorité
-**Format** : `timestamp hostname tag[pid]: message`
+#### Syslog without priority
+**Format**: `timestamp hostname tag[pid]: message`
 
-**Exemple** :
+**Example**:
 ```
 Jan 1 12:00:00 hostname app[1234]: message
 ```
 
-### Parsers spécialisés
+### Specialized parsers
 
-- **SyslogParser** : Logs syslog généraux
-- **AuthLogParser** : Logs d'authentification (`/var/log/auth.log`)
-- **KernLogParser** : Logs kernel (`/var/log/kern.log`)
-- **DaemonLogParser** : Logs daemon (`/var/log/daemon.log`)
-- **MailLogParser** : Logs mail (`/var/log/mail.log`)
+- **SyslogParser**: General syslog logs
+- **AuthLogParser**: Authentication logs (`/var/log/auth.log`)
+- **KernLogParser**: Kernel logs (`/var/log/kern.log`)
+- **DaemonLogParser**: Daemon logs (`/var/log/daemon.log`)
+- **MailLogParser**: Mail logs (`/var/log/mail.log`)
 
-### Fonctions
+### Functions
 
-- `parseSyslogLine(line: string): ParsedLogEntry | null` - Parse les logs syslog
-- Utilise des patterns Grok pour un parsing robuste
+- `parseSyslogLine(line: string): ParsedLogEntry | null` - Parses syslog logs
+- Uses Grok patterns for robust parsing
 
-### Caractéristiques
+### Features
 
-- ✅ Support ISO 8601
-- ✅ Support RFC 3164 / RFC 5424
-- ✅ Patterns Grok
-- ✅ Extraction automatique du niveau de log
-
----
-
-## 📝 Notes générales
-
-- Tous les parsers gèrent les lignes vides ou invalides en retournant `null`
-- Les timestamps sont convertis en objets `Date` JavaScript
-- Les champs optionnels peuvent être `-` ou vides
-- Les regex supportent IPv4 et IPv6 (selon le parser)
-- L'ordre de détection est important : les formats les plus spécifiques sont testés en premier
+- ✅ ISO 8601 support
+- ✅ RFC 3164 / RFC 5424 support
+- ✅ Grok patterns
+- ✅ Automatic log level extraction
 
 ---
 
-## 🔗 Références
+## 📝 General notes
 
-- [Documentation Grok Patterns](./host-system/GROK_PATTERNS.md)
+- All parsers handle empty or invalid lines by returning `null`
+- Timestamps are converted to JavaScript `Date` objects
+- Optional fields may be `-` or empty
+- Regexes support IPv4 and IPv6 (depending on the parser)
+- Detection order matters: the most specific formats are tested first
+
+---
+
+## 🔗 References
+
+- [Grok Patterns Documentation](./host-system/GROK_PATTERNS.md)
 - [NPM Parser Help](./npm/NPM_PARSER_HELP.md)
-- [Apache Améliorations](../.cursor/plans/02-backend/apache_ameliorations.md)
+- [Apache Improvements](../.cursor/plans/02-backend/apache_ameliorations.md)

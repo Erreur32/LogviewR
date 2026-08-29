@@ -1,136 +1,91 @@
-# Comment les logs sont accessibles dans Docker
+# How Log Access Works
 
-## 🔍 Explication du mécanisme
+> 🇫🇷 [Lire en français](./HOW_LOGS_ACCESS_WORKS.fr.md)
 
-### Le montage `/:/host:ro` monte TOUT
+## 📋 Overview
 
-Quand vous montez `/:/host:ro` dans docker-compose, Docker monte **tout le système de fichiers du host** dans le conteneur sous `/host`.
+LogviewR runs inside a Docker container but needs to read log files living on the host system. This document explains the mechanism used to access those files.
 
-Cela signifie que :
-- `/var/log` du host → accessible via `/host/var/log` dans le conteneur
-- `/etc/os-release` du host → accessible via `/host/etc/os-release` dans le conteneur
-- `/proc` du host → accessible via `/host/proc` dans le conteneur
-- Etc.
+## 🔧 The `/:/host:ro` mount
 
-### Pourquoi ne pas monter `/var/log:/host/logs:ro` séparément ?
-
-**Problème** : Docker essaie de créer le répertoire `/host/logs` dans le système de fichiers overlay2 qui est en lecture seule lors de l'initialisation du conteneur. Cela cause l'erreur :
-```
-error mounting "/var/log" to rootfs at "/host/logs": read-only file system
-```
-
-**Solution** : Utiliser le symlink créé par l'entrypoint au lieu d'un montage séparé.
-
-## 🔗 Comment ça fonctionne
-
-### 1. Montage principal (`/:/host:ro`)
+In production and local docker-compose files, the entire host filesystem is mounted read-only inside the container:
 
 ```yaml
 volumes:
-  - /:/host:ro  # Monte TOUT le système de fichiers du host
+  - /:/host:ro
 ```
 
-**Résultat** :
-- `/var/log` du host → `/host/var/log` dans le conteneur ✅
-- Tous les fichiers de logs sont accessibles via `/host/var/log/...`
+This means the container's `/host` directory mirrors the host's `/` (root) filesystem. For example:
+- Host `/var/log/auth.log` → Container `/host/var/log/auth.log`
+- Host `/etc/os-release` → Container `/host/etc/os-release`
 
-### 2. Symlink créé par l'entrypoint
+## 🔗 The `/host/logs -> /host/var/log` symlink
 
-Le fichier `docker-entrypoint.sh` crée automatiquement un symlink :
+Since `/var/log:/host/logs:ro` isn't mounted directly (it caused "read-only file system" errors in some setups), `docker-entrypoint.sh` creates a symlink at container startup:
 
 ```bash
-# Créer symlink /host/logs -> /host/var/log pour compatibilité
-if [ -d "/host/var/log" ] && [ ! -e "/host/logs" ]; then
+# In docker-entrypoint.sh
+if [ -d /host/var/log ] && [ ! -e /host/logs ]; then
     ln -s /host/var/log /host/logs
 fi
 ```
 
-**Résultat** :
-- `/host/logs` → pointe vers `/host/var/log` ✅
-- Le plugin peut utiliser `/host/logs` comme prévu ✅
+This way, code referencing `/host/logs` transparently resolves to `/host/var/log`, without requiring a separate mount.
 
-### 3. Le plugin utilise `/host/logs`
-
-Dans `HostSystemLogPlugin.ts` :
+## 💻 Code: `HostSystemLogPlugin.ts`
 
 ```typescript
-private readonly DOCKER_LOG_PATH = '/host/logs';
-private readonly STANDARD_LOG_PATH = '/var/log';
+const DOCKER_LOG_PATH = '/host/logs';
+const STANDARD_LOG_PATH = '/var/log';
 
-private getLogBasePath(): string {
-    if (this.isDocker()) {
-        // Vérifie si /host/logs existe (symlink créé par entrypoint)
-        if (fsSync.existsSync(this.DOCKER_LOG_PATH)) {
-            return this.DOCKER_LOG_PATH;  // Retourne /host/logs
-        }
+function getLogBasePath(): string {
+    if (fs.existsSync(DOCKER_LOG_PATH)) {
+        return DOCKER_LOG_PATH;
     }
-    // Fallback vers /var/log si pas en Docker
-    return this.STANDARD_LOG_PATH;
+    return STANDARD_LOG_PATH;
 }
 ```
 
-**Résultat** :
-- Le plugin trouve `/host/logs` (via le symlink) ✅
-- `/host/logs` pointe vers `/host/var/log` ✅
-- `/host/var/log` contient les vrais logs du host ✅
-- **Les logs sont accessibles !** ✅
+**Logic**:
+1. If `/host/logs` exists (Docker environment with the mount + symlink) → use it
+2. Otherwise (bare-metal/non-Docker environment) → fall back to the standard `/var/log` path
 
-## 📋 Exemple concret
+This lets the exact same code run both inside a Docker container and directly on a host machine.
 
-### Fichier de log sur le host
-```
-/var/log/syslog  (sur le host)
-```
+## 🧩 Why this two-step approach (mount + symlink)?
 
-### Accessible dans le conteneur via
-```
-/host/var/log/syslog  (montage direct via /:/host:ro)
-/host/logs/syslog     (via symlink /host/logs -> /host/var/log)
-```
+- **Direct mount** (`/var/log:/host/logs:ro`) is simpler but can fail on some systems where `/var/log` is itself a mount point or a symlink on the host, causing Docker's bind-mount to error out.
+- **Full-root mount** (`/:/host:ro`) plus an internal symlink sidesteps that issue entirely: the whole filesystem is already available under `/host`, and the symlink just provides the conventional `/host/logs` shortcut that the code expects.
+- This approach also gives the container access to `/host/etc`, `/host/proc`, `/host/sys` for OS detection and system metrics, which a narrow `/var/log` mount wouldn't provide.
 
-### Le plugin convertit automatiquement
-```typescript
-// Le plugin reçoit : /var/log/syslog
-// Il convertit en : /host/logs/syslog
-// Qui pointe vers : /host/var/log/syslog
-// Qui est le vrai fichier du host ✅
-```
+## 🔍 Verification
 
-## ✅ Avantages de cette approche
-
-1. **Pas d'erreur de montage** : Pas besoin de créer `/host/logs` dans overlay2
-2. **Tous les logs accessibles** : Le montage `/:/host:ro` donne accès à tout
-3. **Compatibilité** : Le plugin utilise toujours `/host/logs` comme prévu
-4. **Simplicité** : Un seul montage principal au lieu de plusieurs montages séparés
-
-## 🔍 Vérification
-
-Pour vérifier que ça fonctionne dans le conteneur :
+### 1. Check the mount inside the container
 
 ```bash
-# Entrer dans le conteneur
-docker exec -it logviewr sh
-
-# Vérifier que /host/var/log existe (montage principal)
-ls -la /host/var/log
-
-# Vérifier que /host/logs est un symlink
-ls -la /host/logs
-
-# Vérifier que le symlink pointe vers /host/var/log
-readlink /host/logs
-# Devrait afficher : /host/var/log
-
-# Vérifier qu'on peut lire les logs
-cat /host/logs/syslog | head -5
+docker exec logviewr ls -la /host
 ```
 
-## 📝 Résumé
+### 2. Check the symlink
 
-**Question** : Comment lire les logs si on ne monte pas `/var/log:/host/logs:ro` ?
+```bash
+docker exec logviewr ls -la /host/logs
+# Should show: /host/logs -> /host/var/log
+```
 
-**Réponse** :
-1. Le montage `/:/host:ro` monte déjà `/var/log` du host → accessible via `/host/var/log`
-2. L'entrypoint crée un symlink `/host/logs -> /host/var/log`
-3. Le plugin utilise `/host/logs` qui pointe vers les vrais logs du host
-4. **Tous les logs sont accessibles sans montage séparé !**
+### 3. Check that log files are readable
+
+```bash
+docker exec logviewr ls -la /host/logs/auth.log
+docker exec logviewr cat /host/logs/auth.log | head -5
+```
+
+### 4. Check permissions
+
+If files aren't readable, see [Fixing Log File Permissions](./FIX_LOG_PERMISSIONS.md).
+
+## ⚠️ Important notes
+
+1. **Read-only mount** (`:ro`) — LogviewR can never modify files on the host, only read them
+2. **Non-root user** — the container runs as the `node` user, so file permissions on the host still apply (see [Fixing Log File Permissions](./FIX_LOG_PERMISSIONS.md))
+3. **Symlink created at startup** — if `/host/var/log` doesn't exist when the container starts, the symlink won't be created either

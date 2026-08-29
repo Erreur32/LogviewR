@@ -1,8 +1,10 @@
-# Correction des erreurs 401 (Unauthorized)
+# Fixing 401 (Unauthorized) Errors
 
-## 🐛 Problème
+> 🇫🇷 [Lire en français](./JWT_SECRET_FIX.fr.md)
 
-Erreurs 401 sur toutes les requêtes API :
+## 🐛 Problem
+
+401 errors on all API requests:
 ```
 GET http://192.168.1.150:7500/api/plugins 401 (Unauthorized)
 GET http://192.168.1.150:7500/api/log-viewer/plugins/apache/detected-files 401 (Unauthorized)
@@ -11,63 +13,63 @@ POST http://192.168.1.150:7500/api/plugins/apache/test 401 (Unauthorized)
 
 ## 🔍 Cause
 
-Le `JWT_SECRET` n'est pas défini dans le conteneur Docker. Le code génère alors un secret aléatoire à chaque redémarrage :
+`JWT_SECRET` isn't set in the Docker container. The code then generates a random secret on every restart:
 
 ```typescript
-// Si JWT_SECRET n'est pas défini, génère un secret aléatoire
+// If JWT_SECRET isn't set, generate a random secret
 const generatedSecret = crypto.randomBytes(48).toString('base64');
 this.jwtSecret = generatedSecret;
 ```
 
-**Conséquence** :
-- Les tokens JWT créés avec l'ancien secret ne sont plus valides
-- L'utilisateur doit se reconnecter à chaque redémarrage
-- Erreurs 401 sur toutes les requêtes API
+**Consequence**:
+- JWT tokens created with the previous secret are no longer valid
+- The user has to log in again after every restart
+- 401 errors on all API requests
 
 ## ✅ Solution
 
-### 1. Créer le fichier `.env`
+### 1. Create the `.env` file
 
 ```bash
-# Générer un secret JWT sécurisé
+# Generate a secure JWT secret
 JWT_SECRET=$(openssl rand -base64 32)
 echo "JWT_SECRET=$JWT_SECRET" > .env
 echo "DASHBOARD_PORT=7500" >> .env
 ```
 
-### 2. Redémarrer le conteneur
+### 2. Restart the container
 
 ```bash
 docker-compose down
 docker-compose up -d
 ```
 
-### 3. Se reconnecter
+### 3. Log in again
 
-Une fois le conteneur redémarré avec un `JWT_SECRET` fixe :
-1. Ouvrez l'application dans le navigateur
-2. Le modal de connexion devrait s'afficher automatiquement
-3. Connectez-vous avec vos identifiants
-4. Le nouveau token sera créé avec le secret fixe
+Once the container has restarted with a fixed `JWT_SECRET`:
+1. Open the app in your browser
+2. The login modal should appear automatically
+3. Log in with your credentials
+4. The new token will be created with the fixed secret
 
-## 🔐 Vérification
+## 🔐 Verification
 
-Pour vérifier que `JWT_SECRET` est bien défini :
+To verify that `JWT_SECRET` is properly set:
 
 ```bash
-# Vérifier dans le conteneur
+# Check inside the container
 docker exec logviewr env | grep JWT_SECRET
 
-# Devrait afficher :
-# JWT_SECRET=votre_secret_genere (pas vide)
+# Should show:
+# JWT_SECRET=your_generated_secret (not empty)
 ```
 
 ## ⚠️ Important
 
-- **Ne jamais commit le fichier `.env`** (déjà dans `.gitignore`)
-- **Utiliser un secret différent pour chaque environnement** (dev, staging, prod)
-- **Ne jamais utiliser les valeurs par défaut en production**
+- **Never commit the `.env` file** (already in `.gitignore`)
+- **Use a different secret for each environment** (dev, staging, prod)
+- **Never use default values in production**
 
 ## 📝 Note
 
-Le fichier `.env` doit être créé dans le même répertoire que `docker-compose.yml` pour que Docker Compose le charge automatiquement.
+The `.env` file must be created in the same directory as `docker-compose.yml` so Docker Compose loads it automatically.

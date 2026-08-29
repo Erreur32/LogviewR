@@ -9,7 +9,7 @@ import { pluginManager } from './pluginManager.js';
 import { logParserService } from './logParserService.js';
 import { logReaderService } from './logReaderService.js';
 import { PluginConfigRepository } from '../database/models/PluginConfig.js';
-import type { LogSourcePlugin } from '../plugins/base/LogSourcePluginInterface.js';
+import type { LogSourcePlugin, LogFileInfo } from '../plugins/base/LogSourcePluginInterface.js';
 import { logger } from '../utils/logger.js';
 
 /** Web access log plugins only (NPM, Apache). Nginx excluded for now - focus on NPM first. */
@@ -176,13 +176,16 @@ async function collectParsedEntries(
     pluginIds: string[],
     dateFrom?: Date,
     dateTo?: Date,
-    options?: { fileScope?: FileScopeOption; includeCompressed?: boolean; onProgress?: (message: string) => void }
+    options?: { fileScope?: FileScopeOption; includeCompressed?: boolean; onProgress?: (event: LogAnalyticsProgressEvent) => void }
 ): Promise<{ entries: ParsedAccessEntry[]; filesAnalyzed: number }> {
     const allEntries: ParsedAccessEntry[] = [];
     let filesAnalyzed = 0;
     const fileScope = options?.fileScope ?? 'all';
     const includeCompressed = options?.includeCompressed ?? false;
     const onProgress = options?.onProgress;
+
+    type PlannedFile = { pluginId: string; file: LogFileInfo; readCompressed: boolean };
+    const planned: PlannedFile[] = [];
 
     for (const pluginId of pluginIds) {
         const plugin = pluginManager.getPlugin(pluginId);
@@ -206,54 +209,73 @@ async function collectParsedEntries(
                 .sort((a, b) => (b.modified instanceof Date ? b.modified.getTime() : 0) - (a.modified instanceof Date ? a.modified.getTime() : 0))
                 .slice(0, fileScope === 'latest' ? 1 : Math.ceil(MAX_FILES_TOTAL / pluginIds.length));
 
-            const tailCap = tailCapForPeriod(dateFrom, dateTo);
-
             for (const file of accessFiles) {
-                if (filesAnalyzed >= MAX_FILES_TOTAL) break;
-
-                try {
-                    const fileName = file.path.split('/').pop() ?? file.path;
-                    onProgress?.(`Lecture ${pluginId}/${fileName}...`);
-
-                    // Tail from the end of the file: recent entries come first, which matches
-                    // how users think of "7d of logs" (the last 7 days, not the first 5000 lines).
-                    const lines = await logReaderService.readLastLines(file.path, tailCap, {
-                        readCompressed: readCompressed && isCompressedFile(file.path)
-                    });
-
-                    for (const logLine of lines) {
-                        const parsed = logParserService.parseLogLine(pluginId, logLine.line, 'access', file.path);
-                        if (!parsed) continue;
-                        const p = parsed as ParsedAccessEntry;
-                        if (!hasAccessFields(p)) continue;
-
-                        const ts = toDate(p.timestamp);
-                        if (dateFrom && ts && ts < dateFrom) continue;
-                        if (dateTo && ts && ts > dateTo) continue;
-
-                        const ext = p as { host?: string; vhost?: string; protocol?: string; responseTime?: number };
-                        allEntries.push({
-                            ip: p.ip,
-                            status: p.status,
-                            size: typeof p.size === 'number' ? p.size : 0,
-                            url: p.url,
-                            userAgent: p.userAgent,
-                            referer: p.referer,
-                            method: p.method,
-                            host: ext.host ?? ext.vhost,
-                            protocol: ext.protocol,
-                            timestamp: p.timestamp,
-                            responseTime: typeof ext.responseTime === 'number' ? ext.responseTime : undefined
-                        });
-                    }
-
-                    filesAnalyzed++;
-                } catch (err) {
-                    logger.warn('LogAnalytics', `Failed to parse ${file.path}:`, err);
-                }
+                planned.push({ pluginId, file, readCompressed });
             }
         } catch (err) {
             logger.warn('LogAnalytics', `Failed to scan plugin ${pluginId}:`, err);
+        }
+    }
+
+    // Process smallest files first across all plugins: cheap files finish fast so the
+    // progress UI fills up quickly instead of stalling on the very first large file.
+    planned.sort((a, b) => a.file.size - b.file.size);
+
+    onProgress?.({
+        type: 'init',
+        files: planned.map((p) => ({
+            pluginId: p.pluginId,
+            fileName: p.file.path.split('/').pop() ?? p.file.path,
+            sizeBytes: p.file.size
+        }))
+    });
+
+    const tailCap = tailCapForPeriod(dateFrom, dateTo);
+
+    for (const { pluginId, file, readCompressed } of planned) {
+        if (filesAnalyzed >= MAX_FILES_TOTAL) break;
+
+        const fileName = file.path.split('/').pop() ?? file.path;
+        try {
+            onProgress?.({ type: 'update', pluginId, fileName, status: 'reading' });
+
+            // Tail from the end of the file: recent entries come first, which matches
+            // how users think of "7d of logs" (the last 7 days, not the first 5000 lines).
+            const lines = await logReaderService.readLastLines(file.path, tailCap, {
+                readCompressed: readCompressed && isCompressedFile(file.path)
+            });
+
+            for (const logLine of lines) {
+                const parsed = logParserService.parseLogLine(pluginId, logLine.line, 'access', file.path);
+                if (!parsed) continue;
+                const p = parsed as ParsedAccessEntry;
+                if (!hasAccessFields(p)) continue;
+
+                const ts = toDate(p.timestamp);
+                if (dateFrom && ts && ts < dateFrom) continue;
+                if (dateTo && ts && ts > dateTo) continue;
+
+                const ext = p as { host?: string; vhost?: string; protocol?: string; responseTime?: number };
+                allEntries.push({
+                    ip: p.ip,
+                    status: p.status,
+                    size: typeof p.size === 'number' ? p.size : 0,
+                    url: p.url,
+                    userAgent: p.userAgent,
+                    referer: p.referer,
+                    method: p.method,
+                    host: ext.host ?? ext.vhost,
+                    protocol: ext.protocol,
+                    timestamp: p.timestamp,
+                    responseTime: typeof ext.responseTime === 'number' ? ext.responseTime : undefined
+                });
+            }
+
+            filesAnalyzed++;
+            onProgress?.({ type: 'update', pluginId, fileName, status: 'done' });
+        } catch (err) {
+            logger.warn('LogAnalytics', `Failed to parse ${file.path}:`, err);
+            onProgress?.({ type: 'update', pluginId, fileName, status: 'error' });
         }
     }
 
@@ -261,29 +283,59 @@ async function collectParsedEntries(
 }
 
 /** In-memory cache for analytics results to avoid re-scanning on every dashboard load/revisit. */
-const ANALYTICS_CACHE_TTL_MS = 60 * 1000; // 60 seconds
+const ANALYTICS_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 let analyticsCache: { key: string; result: AnalyticsResult; timestamp: number } | null = null;
 let calendarCache: { key: string; result: AnalyticsCalendarResponse; timestamp: number } | null = null;
 
-/** Progress messages for live UI (last N entries), main analytics path only, not calendar. */
-const PROGRESS_MAX = 15;
-const logAnalyticsProgress: { message: string }[] = [];
+/** Per-file scan progress for live UI (main analytics path only, not calendar). */
+export interface LogAnalyticsProgressFile {
+    pluginId: string;
+    fileName: string;
+    sizeBytes: number;
+    status: 'pending' | 'reading' | 'done' | 'error';
+}
 
-function pushLogAnalyticsProgress(message: string): void {
-    logAnalyticsProgress.push({ message });
-    if (logAnalyticsProgress.length > PROGRESS_MAX) {
-        logAnalyticsProgress.shift();
+export type LogAnalyticsProgressEvent =
+    | { type: 'init'; files: { pluginId: string; fileName: string; sizeBytes: number }[] }
+    | { type: 'update'; pluginId: string; fileName: string; status: 'reading' | 'done' | 'error' }
+    | { type: 'aggregating' };
+
+let logAnalyticsProgressMap = new Map<string, LogAnalyticsProgressFile>();
+let logAnalyticsProgressPhase: 'idle' | 'scanning' | 'aggregating' = 'idle';
+
+/** Bumped on every new scan; lets stale events from a superseded/concurrent scan be dropped. */
+let logAnalyticsScanToken = 0;
+
+function progressKey(pluginId: string, fileName: string): string {
+    return `${pluginId}/${fileName}`;
+}
+
+function handleLogAnalyticsProgressEvent(scanToken: number, event: LogAnalyticsProgressEvent): void {
+    if (scanToken !== logAnalyticsScanToken) return; // superseded by a newer scan, ignore
+
+    if (event.type === 'init') {
+        logAnalyticsProgressMap = new Map(
+            event.files.map((f) => [progressKey(f.pluginId, f.fileName), { ...f, status: 'pending' as const }])
+        );
+        logAnalyticsProgressPhase = 'scanning';
+    } else if (event.type === 'update') {
+        const entry = logAnalyticsProgressMap.get(progressKey(event.pluginId, event.fileName));
+        if (entry) entry.status = event.status;
+    } else {
+        logAnalyticsProgressPhase = 'aggregating';
     }
 }
 
-/** Get current progress messages for log analytics (for polling from frontend). */
-export function getLogAnalyticsProgress(): { message: string }[] {
-    return [...logAnalyticsProgress];
+/** Get current scan progress for log analytics (for polling from frontend). */
+export function getLogAnalyticsProgress(): { files: LogAnalyticsProgressFile[]; phase: 'idle' | 'scanning' | 'aggregating' } {
+    return { files: [...logAnalyticsProgressMap.values()], phase: logAnalyticsProgressPhase };
 }
 
-/** Clear progress (call before starting a new computation). */
-export function clearLogAnalyticsProgress(): void {
-    logAnalyticsProgress.length = 0;
+/** Clear progress and mint a new scan token (call before starting a new computation). */
+export function clearLogAnalyticsProgress(): number {
+    logAnalyticsProgressMap = new Map();
+    logAnalyticsProgressPhase = 'idle';
+    return ++logAnalyticsScanToken;
 }
 
 /**
@@ -923,7 +975,7 @@ export async function getAllAnalytics(
         topLimit?: number;
         fileScope?: FileScopeOption;
         includeCompressed?: boolean;
-        onProgress?: (message: string) => void;
+        onProgress?: (event: LogAnalyticsProgressEvent) => void;
     }
 ): Promise<AnalyticsResult> {
     const enabledPluginIds = LOG_SOURCE_PLUGINS.filter((id) => {
@@ -1029,15 +1081,15 @@ export async function getAllAnalyticsWithMeta(params: AnalyticsQueryParams): Pro
         return { result: analyticsCache.result, fromCache: true, cacheAgeMs: now - analyticsCache.timestamp };
     }
 
-    clearLogAnalyticsProgress();
+    const scanToken = clearLogAnalyticsProgress();
     const result = await getAllAnalytics(params.pluginId, params.fromDate, params.toDate, {
         bucket: params.bucket,
         topLimit: params.topLimit,
         fileScope: params.fileScope,
         includeCompressed: params.includeCompressed,
-        onProgress: (message) => pushLogAnalyticsProgress(message)
+        onProgress: (event) => handleLogAnalyticsProgressEvent(scanToken, event)
     });
-    pushLogAnalyticsProgress('Agrégation des résultats...');
+    handleLogAnalyticsProgressEvent(scanToken, { type: 'aggregating' });
     analyticsCache = { key, result, timestamp: now };
     return { result, fromCache: false, cacheAgeMs: 0 };
 }

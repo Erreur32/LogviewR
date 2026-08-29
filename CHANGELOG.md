@@ -5,6 +5,20 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.26] - 2026-08-29
+
+### For users
+
+- `/log-analytics` now stays cached for 10 minutes instead of 1 (both the loading path and the instant "revisit within X" reload), so switching tabs and coming back no longer re-triggers a full rescan as often.
+- The first-load progress indicator now shows a progress bar per log file being scanned, with the file's size and its current status (waiting / reading / done / error), instead of a plain text list. Files are processed smallest-first so the bars start filling in immediately instead of stalling on the first large file.
+
+### For developers
+
+- `server/services/logAnalyticsService.ts`: `ANALYTICS_CACHE_TTL_MS` 60s → 10min (shared by `analyticsCache`/`calendarCache`). Replaced the flat progress-message ring buffer with a structured `LogAnalyticsProgressEvent`/`LogAnalyticsProgressFile` model tracked in a `Map` keyed by `pluginId/fileName` (was an `Array.find()` scan per update). `collectParsedEntries()` now builds a `planned` list across all plugins and sorts it by file size ascending before reading (selection order via `fileScope`/`MAX_FILES_TOTAL` is unchanged, only processing order changes). Added a monotonic `scanToken` (returned by `clearLogAnalyticsProgress()`) so progress events from a superseded/concurrent scan are dropped instead of corrupting the shared progress state.
+- `src/utils/logAnalyticsCache.ts`: `CACHE_TTL_MS` 60s → 10min, mirroring the backend.
+- `src/pages/LogAnalyticsPage.tsx`: `progressSteps` (flat message list) replaced by `progressFiles`/`progressPhase`; new per-file progress-bar rendering with `formatBytes()`, a status icon (`CheckCircle2`/`XCircle`/`FileText`), and a translated status label.
+- 6 new i18n keys under `logAnalytics.*` (`scanningFiles`, `scanStatusPending`/`Reading`/`Done`/`Error`, `aggregatingResults`) in `en.json`/`fr.json`.
+
 ## [0.9.25] - 2026-08-29
 
 ### For users

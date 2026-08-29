@@ -1,26 +1,28 @@
 # HOST_ROOT_PATH - Documentation
 
-## 📋 Utilisation
+> 🇫🇷 [Lire en français](./HOST_ROOT_PATH.fr.md)
 
-La variable d'environnement `HOST_ROOT_PATH` est utilisée pour accéder aux fichiers du système hôte quand LogviewR s'exécute dans un conteneur Docker.
+## 📋 Usage
 
-## 🎯 Cas d'usage
+The `HOST_ROOT_PATH` environment variable is used to access the host system's files when LogviewR runs inside a Docker container.
 
-### 1. Détection OS (`OSDetector.ts`)
-- Lit `/host/etc/os-release` pour détecter le type d'OS du host
-- Utilisé pour déterminer les chemins de logs par défaut (Debian vs RedHat vs Arch, etc.)
-- **Nécessite** : Montage `/:/host:ro` dans docker-compose
+## 🎯 Use cases
 
-### 2. Métriques système (`systemServer.ts`)
-- Lit les métriques du host (disques, hostname, uptime)
-- Utilise `/host/proc`, `/host/sys` pour les statistiques système
-- **Nécessite** : Montage `/:/host:ro` ou montages spécifiques (`/proc:/host/proc:ro`, `/sys:/host/sys:ro`)
+### 1. OS detection (`OSDetector.ts`)
+- Reads `/host/etc/os-release` to detect the host's OS type
+- Used to determine default log paths (Debian vs RedHat vs Arch, etc.)
+- **Requires**: `/:/host:ro` mount in docker-compose
 
-### 3. Accès aux logs (`HostSystemLogPlugin.ts`)
-- Accède aux logs du host via `/host/logs` (qui pointe vers `/var/log` du host)
-- **Nécessite** : Montage `/var/log:/host/logs:ro`
+### 2. System metrics (`systemServer.ts`)
+- Reads host metrics (disks, hostname, uptime)
+- Uses `/host/proc`, `/host/sys` for system statistics
+- **Requires**: `/:/host:ro` mount or specific mounts (`/proc:/host/proc:ro`, `/sys:/host/sys:ro`)
 
-## 📦 Configuration dans docker-compose
+### 3. Log access (`HostSystemLogPlugin.ts`)
+- Accesses host logs via `/host/logs` (which points to the host's `/var/log`)
+- **Requires**: `/var/log:/host/logs:ro` mount
+
+## 📦 Configuration in docker-compose
 
 ### Production (`docker-compose.yml`)
 ```yaml
@@ -28,25 +30,25 @@ environment:
   HOST_ROOT_PATH: ${HOST_ROOT_PATH:-/host}
 
 volumes:
-  - /:/host:ro                    # ✅ Monté - Détection OS host fonctionne
+  - /:/host:ro                    # ✅ Mounted - host OS detection works
   - /proc:/host/proc:ro
   - /sys:/host/sys:ro
   - /var/log:/host/logs:ro
 ```
-**Résultat** : Détection OS du host ✅
+**Result**: Host OS detection ✅
 
-### Développement (`docker-compose.dev.yml`)
+### Development (`docker-compose.dev.yml`)
 ```yaml
 environment:
   HOST_ROOT_PATH: ${HOST_ROOT_PATH:-/host}
 
 volumes:
-  # - /:/host:ro                  # ❌ Commenté - Problèmes de permissions
+  # - /:/host:ro                  # ❌ Commented out - permission issues
   - /proc:/host/proc:ro
   - /sys:/host/sys:ro
   - /var/log:/host/logs:ro
 ```
-**Résultat** : Détection OS du conteneur (Alpine) ⚠️
+**Result**: Container OS detection (Alpine) ⚠️
 
 ### Local (`docker-compose.local.yml`)
 ```yaml
@@ -54,41 +56,41 @@ environment:
   HOST_ROOT_PATH: ${HOST_ROOT_PATH:-/host}
 
 volumes:
-  - /:/host:ro                    # ✅ Monté - Détection OS host fonctionne
+  - /:/host:ro                    # ✅ Mounted - host OS detection works
   - /proc:/host/proc:ro
   - /sys:/host/sys:ro
   - /var/log:/host/logs:ro
 ```
-**Résultat** : Détection OS du host ✅
+**Result**: Host OS detection ✅
 
-## ❓ Faut-il garder HOST_ROOT_PATH ?
+## ❓ Should HOST_ROOT_PATH be kept?
 
-### ✅ OUI, garder la variable
+### ✅ YES, keep the variable
 
-**Raisons** :
-1. **Production** : Le montage `/:/host:ro` est présent → La détection OS du host fonctionne
-2. **Code existant** : Le code utilise `HOST_ROOT_PATH` dans plusieurs endroits
-3. **Flexibilité** : Permet de changer le chemin si nécessaire
-4. **Métriques système** : Utilisé pour lire les métriques du host
+**Reasons**:
+1. **Production**: The `/:/host:ro` mount is present → host OS detection works
+2. **Existing code**: The code uses `HOST_ROOT_PATH` in several places
+3. **Flexibility**: Allows changing the path if needed
+4. **System metrics**: Used to read host metrics
 
-### ⚠️ Impact si on retire HOST_ROOT_PATH
+### ⚠️ Impact if HOST_ROOT_PATH is removed
 
-Si on retire la variable d'environnement :
-- Le code utilisera la valeur par défaut `/host`
-- Si `/:/host:ro` n'est pas monté → La détection OS utilisera `/etc/os-release` du conteneur (Alpine)
-- Les métriques système ne fonctionneront pas correctement
+If the environment variable is removed:
+- The code falls back to the default value `/host`
+- If `/:/host:ro` isn't mounted → OS detection uses the container's `/etc/os-release` (Alpine)
+- System metrics won't work correctly
 
-## 🔧 Recommandation
+## 🔧 Recommendation
 
-**Garder `HOST_ROOT_PATH` dans tous les docker-compose** car :
-- ✅ Nécessaire pour la détection OS en production
-- ✅ Utilisé pour les métriques système
-- ✅ Valeur par défaut `/host` fonctionne si le montage est présent
-- ✅ Pas de problème si le montage n'est pas présent (fallback vers `/etc/os-release` du conteneur)
+**Keep `HOST_ROOT_PATH` in all docker-compose files** because:
+- ✅ Required for OS detection in production
+- ✅ Used for system metrics
+- ✅ The default value `/host` works when the mount is present
+- ✅ No issue if the mount isn't present (falls back to the container's `/etc/os-release`)
 
-## 📝 Note sur docker-compose.dev.yml
+## 📝 Note on docker-compose.dev.yml
 
-Dans `docker-compose.dev.yml`, le montage `/:/host:ro` est commenté pour éviter les problèmes de permissions. Dans ce cas :
-- La détection OS utilisera `/etc/os-release` du conteneur Alpine
-- C'est acceptable pour le développement
-- Pour tester la détection OS du host, décommentez `/:/host:ro`
+In `docker-compose.dev.yml`, the `/:/host:ro` mount is commented out to avoid permission issues. In that case:
+- OS detection uses the Alpine container's `/etc/os-release`
+- This is acceptable for development
+- To test host OS detection, uncomment `/:/host:ro`

@@ -1,61 +1,63 @@
-# Comparaison des fichiers Docker Compose
+# Docker Compose Files Comparison
 
-## 📋 Vue d'ensemble
+> 🇫🇷 [Lire en français](./DOCKER_COMPOSE_COMPARISON.fr.md)
 
-Le projet contient 3 fichiers docker-compose pour différents usages :
+## 📋 Overview
 
-| Fichier | Usage | Image | Port par défaut |
-|---------|-------|-------|-----------------|
+The project contains 3 docker-compose files for different use cases:
+
+| File | Usage | Image | Default port |
+|------|-------|-------|---------------|
 | `docker-compose.yml` | Production | `ghcr.io/erreur32/logviewr:latest` | 7500 |
-| `docker-compose.local.yml` | Build local | Build local | 7501 |
-| `docker-compose.dev.yml` | Développement | Build local (hot reload) | 3777 |
+| `docker-compose.local.yml` | Local build | Local build | 7501 |
+| `docker-compose.dev.yml` | Development | Local build (hot reload) | 3777 |
 
-## 🔍 Comparaison détaillée
+## 🔍 Detailed comparison
 
-### Variables d'environnement
+### Environment variables
 
 | Variable | docker-compose.yml | docker-compose.local.yml | docker-compose.dev.yml |
 |----------|-------------------|-------------------------|----------------------|
-| `JWT_SECRET` | ✅ `${JWT_SECRET}` (requis) | ✅ `${JWT_SECRET:-change-me...}` | ✅ `${JWT_SECRET:-dev_secret...}` |
+| `JWT_SECRET` | ✅ `${JWT_SECRET}` (required) | ✅ `${JWT_SECRET:-change-me...}` | ✅ `${JWT_SECRET:-dev_secret...}` |
 | `DASHBOARD_PORT` | ✅ `7500` | ✅ `7501` | ✅ `3777` |
-| `HOST_ROOT_PATH` | ✅ `/host` | ❌ **MANQUANT** | ✅ `/host` |
-| `HOST_IP` | ✅ Optionnel | ✅ `192.168.1.150` | ❌ Non défini |
-| `CONFIG_FILE_PATH` | ✅ `/app/config/logviewr.conf` | ✅ `/app/config/logviewr.conf` | ❌ Non défini |
+| `HOST_ROOT_PATH` | ✅ `/host` | ❌ **MISSING** | ✅ `/host` |
+| `HOST_IP` | ✅ Optional | ✅ `192.168.1.150` | ❌ Not set |
+| `CONFIG_FILE_PATH` | ✅ `/app/config/logviewr.conf` | ✅ `/app/config/logviewr.conf` | ❌ Not set |
 
 ### Volumes
 
-| Montage | docker-compose.yml | docker-compose.local.yml | docker-compose.dev.yml |
-|---------|-------------------|-------------------------|----------------------|
-| `./data:/app/data` | ✅ | ✅ (volume nommé) | ✅ |
-| `/:/host:ro` | ✅ | ✅ | ❌ Commenté (permissions) |
+| Mount | docker-compose.yml | docker-compose.local.yml | docker-compose.dev.yml |
+|-------|-------------------|-------------------------|----------------------|
+| `./data:/app/data` | ✅ | ✅ (named volume) | ✅ |
+| `/:/host:ro` | ✅ | ✅ | ❌ Commented out (permissions) |
 | `/proc:/host/proc:ro` | ✅ | ✅ | ✅ |
 | `/sys:/host/sys:ro` | ✅ | ✅ | ✅ |
-| `/var/log:/host/logs:ro` | ❌ Symlink | ❌ Symlink | ✅ Nécessaire |
+| `/var/log:/host/logs:ro` | ❌ Symlink | ❌ Symlink | ✅ Required |
 
-### Montage `/var/log:/host/logs:ro`
+### `/var/log:/host/logs:ro` mount
 
-**docker-compose.yml** et **docker-compose.local.yml** :
-- ❌ Montage supprimé (cause erreur "read-only file system")
-- ✅ Utilisation du symlink `/host/logs -> /host/var/log` créé par `docker-entrypoint.sh`
-- ✅ `/host/var/log` disponible via `/:/host:ro`
+**docker-compose.yml** and **docker-compose.local.yml**:
+- ❌ Mount removed (causes "read-only file system" error)
+- ✅ Uses the `/host/logs -> /host/var/log` symlink created by `docker-entrypoint.sh`
+- ✅ `/host/var/log` is available via `/:/host:ro`
 
-**docker-compose.dev.yml** :
-- ✅ Montage conservé car `/:/host:ro` est commenté
-- ✅ Nécessaire pour accéder aux logs en mode dev
+**docker-compose.dev.yml**:
+- ✅ Mount kept because `/:/host:ro` is commented out
+- ✅ Required to access logs in dev mode
 
-## ⚠️ Problèmes identifiés
+## ⚠️ Identified issues
 
-### 1. HOST_ROOT_PATH manquant dans docker-compose.local.yml
+### 1. HOST_ROOT_PATH missing in docker-compose.local.yml
 
-**Problème** : `HOST_ROOT_PATH` n'est pas défini dans `docker-compose.local.yml`
+**Problem**: `HOST_ROOT_PATH` is not defined in `docker-compose.local.yml`
 
-**Impact** : La détection OS et les métriques système peuvent ne pas fonctionner correctement
+**Impact**: OS detection and system metrics may not work correctly
 
-**Solution** : Ajouter `HOST_ROOT_PATH: ${HOST_ROOT_PATH:-/host}` dans la section environment
+**Solution**: Add `HOST_ROOT_PATH: ${HOST_ROOT_PATH:-/host}` in the environment section
 
-## ✅ Alignement recommandé
+## ✅ Recommended alignment
 
-Tous les fichiers devraient avoir :
+All files should have:
 - ✅ `HOST_ROOT_PATH: ${HOST_ROOT_PATH:-/host}`
-- ✅ Même stratégie pour `/host/logs` (symlink si `/:/host:ro` présent, montage sinon)
-- ✅ Documentation cohérente
+- ✅ The same strategy for `/host/logs` (symlink if `/:/host:ro` is present, direct mount otherwise)
+- ✅ Consistent documentation

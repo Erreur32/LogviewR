@@ -306,30 +306,30 @@ create 640 root adm
 
 - **[Serveur MCP](Docs/MCP_SERVER.md)** : piloter fail2ban et interroger les logs depuis un agent IA (Claude Code, Claude Desktop, etc.)
 - **[Log Analytics](Docs/LOG_ANALYTICS.md)** : architecture et flux de données du tableau de bord analytique
-- **[Variables d'environnement](Docs/VARIABLES_ENVIRONNEMENT.md)** : référence complète, par mode d'exécution
-- **[Configuration UniFi Controller](Docs/CONFIGURATION_UNIFI.md)** : configurer le plugin UniFi
-- **[Fonctionnement de l'accès aux logs Docker](Docs/HOW_LOGS_ACCESS_WORKS.md)** : explication du montage `/:/host:ro`
-- **[HOST_ROOT_PATH](Docs/HOST_ROOT_PATH.md)** : accéder aux fichiers de l'hôte depuis le conteneur
+- **[Variables d'environnement](Docs/VARIABLES_ENVIRONNEMENT.fr.md)** : référence complète, par mode d'exécution
+- **[Configuration UniFi Controller](Docs/CONFIGURATION_UNIFI.fr.md)** : configurer le plugin UniFi
+- **[Fonctionnement de l'accès aux logs Docker](Docs/HOW_LOGS_ACCESS_WORKS.fr.md)** : explication du montage `/:/host:ro`
+- **[HOST_ROOT_PATH](Docs/HOST_ROOT_PATH.fr.md)** : accéder aux fichiers de l'hôte depuis le conteneur
 
 ### Docker
 
-- **[Comparatif des fichiers docker-compose](Docs/DOCKER_COMPOSE_COMPARISON.md)** : quel fichier utiliser et quand
-- **[Tester Docker en local](Docs/TEST_LOCAL_DOCKER.md)** : simuler la production avant de déployer
-- **[Réinitialiser une production](Docs/RESET_DOCKER_PROD.md)** : procédure de remise à zéro
+- **[Comparatif des fichiers docker-compose](Docs/DOCKER_COMPOSE_COMPARISON.fr.md)** : quel fichier utiliser et quand
+- **[Tester Docker en local](Docs/TEST_LOCAL_DOCKER.fr.md)** : simuler la production avant de déployer
+- **[Réinitialiser une production](Docs/RESET_DOCKER_PROD.fr.md)** : procédure de remise à zéro
 
 ### Dépannage
 
-- **[Dépannage production](Docs/TROUBLESHOOTING_PROD.md)** : WebSocket et erreurs courantes
-- **[Correction des permissions de logs](Docs/FIX_LOG_PERMISSIONS.md)** : fichiers `root:adm` 640 illisibles
-- **[Correction des erreurs 401](Docs/JWT_SECRET_FIX.md)** : mauvaise configuration du secret JWT
-- **[Correction d'un problème de montage Docker](Docs/DOCKER_MOUNT_FIX.md)** : décalage de chemin de volume
-- **[Configuration Nginx WebSocket](Docs/NGINX_WEBSOCKET_CONFIG.md)** : correction de l'erreur "Invalid frame header"
+- **[Dépannage production](Docs/TROUBLESHOOTING_PROD.fr.md)** : WebSocket et erreurs courantes
+- **[Correction des permissions de logs](Docs/FIX_LOG_PERMISSIONS.fr.md)** : fichiers `root:adm` 640 illisibles
+- **[Correction des erreurs 401](Docs/JWT_SECRET_FIX.fr.md)** : mauvaise configuration du secret JWT
+- **[Correction d'un problème de montage Docker](Docs/DOCKER_MOUNT_FIX.fr.md)** : décalage de chemin de volume
+- **[Configuration Nginx WebSocket](Docs/NGINX_WEBSOCKET_CONFIG.fr.md)** : correction de l'erreur "Invalid frame header"
 
 ### Parsers et éléments internes
 
-- **[Guides des parsers](server/plugins/PARSERS_HELP.md)** : formats supportés et regex
-- **[NPM Parser Help](server/plugins/npm/NPM_PARSER_HELP.md)** : formats NPM
-- **[Nginx Parser Help](server/plugins/nginx/NGINX_PARSER_HELP.md)** : formats Nginx
+- **[Guides des parsers](server/plugins/PARSERS_HELP.fr.md)** : formats supportés et regex
+- **[NPM Parser Help](server/plugins/npm/NPM_PARSER_HELP.fr.md)** : formats NPM
+- **[Nginx Parser Help](server/plugins/nginx/NGINX_PARSER_HELP.fr.md)** : formats Nginx
 - **[Audit intégration host-system](Doc_Dev/AUDIT_ERROR_SUMMARY_HOST_SYSTEM.md)** : scan erreurs/warnings
 
 ---

@@ -1,77 +1,79 @@
-# Variables d'Environnement - Guide Complet
+# Environment Variables - Complete Guide
 
-**Date** : $(date)  
-**Objectif** : Expliquer d'où viennent les variables d'environnement selon le mode d'exécution
+> 🇫🇷 [Lire en français](./VARIABLES_ENVIRONNEMENT.fr.md)
+
+**Date**: $(date)
+**Goal**: Explain where environment variables come from depending on the run mode
 
 ---
 
-## 🔍 D'où viennent les variables `${DASHBOARD_PORT:-3000}` dans Docker Compose ?
+## 🔍 Where do the `${DASHBOARD_PORT:-3000}` values in Docker Compose come from?
 
-### Ordre de Priorité (Docker Compose)
+### Priority order (Docker Compose)
 
-Docker Compose lit les variables d'environnement dans cet ordre (du plus prioritaire au moins prioritaire) :
+Docker Compose reads environment variables in this order (highest to lowest priority):
 
-1. **Variables d'environnement du shell** (exportées avant la commande)
+1. **Shell environment variables** (exported before the command)
    ```bash
    export DASHBOARD_PORT=4000
    docker-compose -f docker-compose.dev.yml up
    ```
 
-2. **Fichier `.env`** (à la racine du projet, à côté de `docker-compose.yml`)
+2. **`.env` file** (at the project root, next to `docker-compose.yml`)
    ```bash
-   # Fichier .env
+   # .env file
    DASHBOARD_PORT=4000
    SERVER_PORT=3004
    ```
-   Docker Compose lit automatiquement ce fichier s'il existe.
+   Docker Compose automatically reads this file if it exists.
 
-3. **Flag `--env-file`** (fichier personnalisé)
+3. **`--env-file` flag** (custom file)
    ```bash
    docker-compose -f docker-compose.dev.yml --env-file .env.local up
    ```
 
-4. **Valeurs par défaut** dans `docker-compose.yml` (syntaxe `${VAR:-default}`)
+4. **Default values** in `docker-compose.yml` (`${VAR:-default}` syntax)
    ```yaml
    ports:
      - "${DASHBOARD_PORT:-3000}:${DASHBOARD_PORT:-3000}"
    ```
-   Si `DASHBOARD_PORT` n'est pas défini, utilise `3000` par défaut.
+   If `DASHBOARD_PORT` isn't set, `3000` is used by default.
 
 ---
 
-## 📋 Modes d'Exécution
+## 📋 Run modes
 
-### Mode 1 : `npm run dev` (Développement Local - SANS Docker)
+### Mode 1: `npm run dev` (Local development - WITHOUT Docker)
 
-**Commande** :
+**Command**:
 ```bash
 npm run dev
 ```
 
-**Ce qui se passe** :
-- Lance `concurrently "npm run dev:server" "npm run dev:client"`
-- **Backend** : `npm run dev:server` → `tsx watch server/index.ts`
-- **Frontend** : `npm run dev:client` → `vite`
+**What happens**:
+- Runs `concurrently "npm run dev:server" "npm run dev:client"`
+- **Backend**: `npm run dev:server` → `tsx watch server/index.ts`
+- **Frontend**: `npm run dev:client` → `vite`
 
-**Variables d'environnement** :
-- ✅ Lit automatiquement le fichier `.env` (via `dotenv/config` dans `server/index.ts`)
-- ✅ Variables du shell (`export PORT=3003`)
-- ✅ Valeurs par défaut dans le code
+**Environment variables**:
+- ✅ Automatically reads the `.env` file (via `dotenv/config` in `server/index.ts`)
+- ✅ Shell variables (`export PORT=3003`)
+- ✅ Default values in the code
 
-**Configuration utilisée** :
-- ❌ **N'utilise PAS** `docker-compose.dev.yml`
-- ✅ Utilise directement les fichiers de configuration :
-  - `vite.config.ts` pour le frontend
-  - `server/config.ts` pour le backend
-  - Variables d'environnement du système
+**Configuration used**:
+- ❌ **Does NOT use** `docker-compose.dev.yml`
+- ✅ Uses the configuration files directly:
+  - `vite.config.ts` for the frontend
+  - `server/config.ts` for the backend
+  - System environment variables
 
-**Ports par défaut** :
-- Frontend (Vite) : `5173` (défini dans `vite.config.ts`)
-- Backend : `3003` (défini dans `server/config.ts`)
+**Default ports**:
+- Frontend (Vite): `5173` (set in `vite.config.ts`)
+- Backend: `3003` (set in `server/config.ts`)
 
-**Exemple de configuration** :
+**Example configuration**:
 ```bash
-# Fichier .env (à la racine)
+# .env file (at the root)
 PORT=3003
 SERVER_PORT=3003
 VITE_PORT=5173
@@ -80,36 +82,36 @@ JWT_SECRET=dev_secret
 
 ---
 
-### Mode 2 : `docker-compose -f docker-compose.dev.yml` (Développement avec Docker)
+### Mode 2: `docker-compose -f docker-compose.dev.yml` (Docker development)
 
-**Commande** :
+**Command**:
 ```bash
 docker-compose -f docker-compose.dev.yml up --build
 ```
 
-**Ce qui se passe** :
-- Lance un conteneur Docker avec hot reload
-- Monte le code source dans le conteneur
-- Exécute `npm run dev` **dans le conteneur**
+**What happens**:
+- Runs a Docker container with hot reload
+- Mounts the source code into the container
+- Runs `npm run dev` **inside the container**
 
-**Variables d'environnement** :
-- ✅ Variables définies dans `docker-compose.dev.yml` (section `environment:`)
-- ✅ Variables du shell (exportées avant la commande)
-- ✅ Fichier `.env` (si présent à la racine)
-- ✅ Flag `--env-file` (si utilisé)
+**Environment variables**:
+- ✅ Variables defined in `docker-compose.dev.yml` (`environment:` section)
+- ✅ Shell variables (exported before the command)
+- ✅ `.env` file (if present at the root)
+- ✅ `--env-file` flag (if used)
 
-**Configuration utilisée** :
-- ✅ **Utilise** `docker-compose.dev.yml`
-- ✅ Les variables sont passées au conteneur via la section `environment:`
-- ✅ Le code dans le conteneur lit aussi `.env` (s'il est monté)
+**Configuration used**:
+- ✅ **Uses** `docker-compose.dev.yml`
+- ✅ Variables are passed to the container via the `environment:` section
+- ✅ The code inside the container also reads `.env` (if mounted)
 
-**Ports par défaut** :
-- Frontend (Vite) : `3000` (mappé depuis le conteneur)
-- Backend : `3003` (mappé depuis le conteneur)
+**Default ports**:
+- Frontend (Vite): `3000` (mapped from the container)
+- Backend: `3003` (mapped from the container)
 
-**Exemple de configuration** :
+**Example configuration**:
 ```bash
-# Fichier .env (optionnel, pour override)
+# .env file (optional, for overrides)
 DASHBOARD_PORT=3000
 SERVER_PORT=3003
 JWT_SECRET=dev_secret
@@ -117,30 +119,30 @@ JWT_SECRET=dev_secret
 
 ---
 
-## 🔄 Comparaison des Modes
+## 🔄 Mode comparison
 
 | Aspect | `npm run dev` | `docker-compose -f docker-compose.dev.yml` |
 |--------|---------------|--------------------------------------------|
-| **Environnement** | Machine hôte (Node.js direct) | Conteneur Docker |
+| **Environment** | Host machine (direct Node.js) | Docker container |
 | **Configuration** | `vite.config.ts` + `server/config.ts` | `docker-compose.dev.yml` + configs |
 | **Variables** | `.env` + shell + defaults | `.env` + shell + `docker-compose.dev.yml` |
-| **Port Frontend** | `5173` (Vite default) | `3000` (défini dans docker-compose) |
-| **Port Backend** | `3003` (config.ts default) | `3003` (défini dans docker-compose) |
-| **Hot Reload** | ✅ Oui | ✅ Oui (via volume mount) |
-| **Isolation** | ❌ Non (utilise node_modules local) | ✅ Oui (conteneur isolé) |
+| **Frontend port** | `5173` (Vite default) | `3000` (set in docker-compose) |
+| **Backend port** | `3003` (config.ts default) | `3003` (set in docker-compose) |
+| **Hot Reload** | ✅ Yes | ✅ Yes (via volume mount) |
+| **Isolation** | ❌ No (uses local node_modules) | ✅ Yes (isolated container) |
 
 ---
 
-## 📝 Fichiers de Configuration
+## 📝 Configuration files
 
-### 1. `.env` (Optionnel - à la racine)
+### 1. `.env` (Optional - at the root)
 
-Ce fichier est lu par :
-- ✅ Docker Compose (automatiquement)
-- ✅ `npm run dev` (via `dotenv/config` dans `server/index.ts`)
-- ✅ Vite (si configuré, mais pas par défaut)
+This file is read by:
+- ✅ Docker Compose (automatically)
+- ✅ `npm run dev` (via `dotenv/config` in `server/index.ts`)
+- ✅ Vite (if configured, but not by default)
 
-**Exemple** :
+**Example**:
 ```bash
 # .env
 PORT=3003
@@ -153,7 +155,7 @@ FREEBOX_HOST=mafreebox.freebox.fr
 
 ### 2. `docker-compose.dev.yml`
 
-Définit les variables pour le conteneur Docker :
+Defines variables for the Docker container:
 ```yaml
 environment:
   - PORT=${SERVER_PORT:-3003}
@@ -163,7 +165,7 @@ environment:
 
 ### 3. `vite.config.ts`
 
-Configuration Vite (frontend) :
+Vite (frontend) configuration:
 ```typescript
 port: parseInt(process.env.VITE_PORT || '5173', 10),
 proxy: {
@@ -175,7 +177,7 @@ proxy: {
 
 ### 4. `server/config.ts`
 
-Configuration backend :
+Backend configuration:
 ```typescript
 port: parseInt(
   process.env.PORT || 
@@ -187,37 +189,37 @@ port: parseInt(
 
 ---
 
-## 🎯 Réponses aux Questions
+## 🎯 Answers to common questions
 
-### Question 1 : D'où viennent `${DASHBOARD_PORT:-3000}` ?
+### Question 1: Where does `${DASHBOARD_PORT:-3000}` come from?
 
-**Réponse** : Docker Compose cherche la variable dans cet ordre :
-1. Variable d'environnement du shell : `export DASHBOARD_PORT=4000`
-2. Fichier `.env` à la racine : `DASHBOARD_PORT=4000`
-3. Flag `--env-file` : `docker-compose --env-file .env.local`
-4. Valeur par défaut : `3000` (dans `${DASHBOARD_PORT:-3000}`)
+**Answer**: Docker Compose looks for the variable in this order:
+1. Shell environment variable: `export DASHBOARD_PORT=4000`
+2. `.env` file at the root: `DASHBOARD_PORT=4000`
+3. `--env-file` flag: `docker-compose --env-file .env.local`
+4. Default value: `3000` (in `${DASHBOARD_PORT:-3000}`)
 
-**Le fichier `.env` n'est pas obligatoire**, mais s'il existe, Docker Compose le lit automatiquement.
+**The `.env` file isn't required**, but if it exists, Docker Compose reads it automatically.
 
-### Question 2 : `npm run dev` utilise-t-il `docker-compose.dev.yml` ?
+### Question 2: Does `npm run dev` use `docker-compose.dev.yml`?
 
-**Réponse** : **NON** ❌
+**Answer**: **NO** ❌
 
-- `npm run dev` : Lance directement Node.js/Vite sur la machine hôte, **sans Docker**
-- `docker-compose -f docker-compose.dev.yml` : Lance dans un conteneur Docker
+- `npm run dev`: Runs Node.js/Vite directly on the host machine, **without Docker**
+- `docker-compose -f docker-compose.dev.yml`: Runs inside a Docker container
 
-**Ce sont deux modes différents** :
-- **Mode local** (`npm run dev`) : Plus rapide, utilise les node_modules locaux
-- **Mode Docker** (`docker-compose.dev.yml`) : Plus isolé, reproduit l'environnement de production
+**These are two different modes**:
+- **Local mode** (`npm run dev`): Faster, uses local node_modules
+- **Docker mode** (`docker-compose.dev.yml`): More isolated, reproduces the production environment
 
 ---
 
-## 🔧 Exemples Pratiques
+## 🔧 Practical examples
 
-### Exemple 1 : Développement Local (`npm run dev`)
+### Example 1: Local development (`npm run dev`)
 
 ```bash
-# 1. Créer un fichier .env (optionnel)
+# 1. Create a .env file (optional)
 cat > .env << EOF
 PORT=3003
 SERVER_PORT=3003
@@ -225,60 +227,60 @@ VITE_PORT=5173
 JWT_SECRET=dev_secret
 EOF
 
-# 2. Lancer en dev local
+# 2. Run in local dev mode
 npm run dev
 
-# Frontend : http://localhost:5173
-# Backend : http://localhost:3003
+# Frontend: http://localhost:5173
+# Backend: http://localhost:3003
 ```
 
-### Exemple 2 : Développement Docker (`docker-compose.dev.yml`)
+### Example 2: Docker development (`docker-compose.dev.yml`)
 
 ```bash
-# 1. Créer un fichier .env (optionnel)
+# 1. Create a .env file (optional)
 cat > .env << EOF
 DASHBOARD_PORT=3000
 SERVER_PORT=3003
 JWT_SECRET=dev_secret
 EOF
 
-# 2. Lancer avec Docker
+# 2. Run with Docker
 docker-compose -f docker-compose.dev.yml up --build
 
-# Frontend : http://localhost:3000
-# Backend : http://localhost:3003
+# Frontend: http://localhost:3000
+# Backend: http://localhost:3003
 ```
 
-### Exemple 3 : Override avec variables shell
+### Example 3: Override with shell variables
 
 ```bash
-# Override les ports via variables shell
+# Override ports via shell variables
 DASHBOARD_PORT=4000 SERVER_PORT=3004 docker-compose -f docker-compose.dev.yml up
 
-# Frontend : http://localhost:4000
-# Backend : http://localhost:3004
+# Frontend: http://localhost:4000
+# Backend: http://localhost:3004
 ```
 
 ---
 
-## ⚠️ Points d'Attention
+## ⚠️ Points of attention
 
-1. **Fichier `.env`** :
-   - ✅ Lu automatiquement par Docker Compose
-   - ✅ Lu automatiquement par `npm run dev` (via dotenv)
-   - ⚠️ Ne doit **JAMAIS** être commité dans Git (ajouté dans `.gitignore`)
+1. **`.env` file**:
+   - ✅ Automatically read by Docker Compose
+   - ✅ Automatically read by `npm run dev` (via dotenv)
+   - ⚠️ Must **NEVER** be committed to Git (added to `.gitignore`)
 
-2. **Variables dans `docker-compose.dev.yml`** :
-   - Les variables dans la section `environment:` sont passées **au conteneur**
-   - Le conteneur peut aussi lire un `.env` monté en volume
+2. **Variables in `docker-compose.dev.yml`**:
+   - Variables in the `environment:` section are passed **to the container**
+   - The container can also read a `.env` file mounted as a volume
 
-3. **Ordre de priorité** :
-   - Variables shell > `.env` > Valeurs par défaut
-   - Dans `docker-compose.yml`, les variables `environment:` ont priorité sur celles du shell
+3. **Priority order**:
+   - Shell variables > `.env` > default values
+   - In `docker-compose.yml`, `environment:` variables take priority over shell ones
 
 ---
 
-## 📚 Références
+## 📚 References
 
 - [Docker Compose - Environment Variables](https://docs.docker.com/compose/environment-variables/)
 - [dotenv - npm](https://www.npmjs.com/package/dotenv)
@@ -286,5 +288,4 @@ DASHBOARD_PORT=4000 SERVER_PORT=3004 docker-compose -f docker-compose.dev.yml up
 
 ---
 
-**Document généré automatiquement pour clarifier la gestion des variables d'environnement**
-
+**Document automatically generated to clarify environment variable handling**

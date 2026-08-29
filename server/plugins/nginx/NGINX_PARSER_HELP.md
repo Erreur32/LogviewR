@@ -1,16 +1,18 @@
-# NGINX Parser - Guide d'aide
+# NGINX Parser - Help Guide
 
-## Vue d'ensemble
+> 🇫🇷 [Lire en français](./NGINX_PARSER_HELP.fr.md)
 
-Le parser NGINX supporte les formats de logs NGINX standards avec détection automatique.
+## Overview
+
+The NGINX parser supports standard NGINX log formats with automatic detection.
 
 ---
 
-## 📋 Formats de logs NGINX standards
+## 📋 Standard NGINX log formats
 
-### 1️⃣ Format `combined` (par défaut)
+### 1️⃣ `combined` format (default)
 
-**Définition NGINX** :
+**NGINX definition**:
 ```nginx
 log_format combined
 '$remote_addr - $remote_user [$time_local] '
@@ -18,149 +20,149 @@ log_format combined
 '"$http_referer" "$http_user_agent"';
 ```
 
-**Format réel** :
+**Real format**:
 ```
 IP - user [timestamp] "request" status bytes "referer" "user-agent"
 ```
 
-**Exemple** :
+**Example**:
 ```
 192.168.1.1 - - [01/Jan/2024:12:00:00 +0000] "GET / HTTP/1.1" 200 1234 "https://example.com" "Mozilla/5.0"
 ```
 
-**Regex exacte (compatible fail2ban / grok / regex)** :
+**Exact regex (fail2ban / grok / regex compatible)**:
 ```regex
 ^(?<ip>\S+)\s+-\s+(?<user>\S+)\s+\[(?<time>[^\]]+)\]\s+"(?<request>[^"]+)"\s+(?<status>\d{3})\s+(?<bytes>\d+)\s+"(?<referer>[^"]*)"\s+"(?<agent>[^"]*)"
 ```
 
-**Champs extraits** :
-- `ip` : Adresse IP du client (`$remote_addr`)
-- `user` : Utilisateur distant (`$remote_user`, souvent `-`)
-- `time` : Timestamp (`$time_local`)
-- `request` : Requête complète (`$request` : méthode + URI + protocole)
-- `status` : Code de statut HTTP (`$status`)
-- `bytes` : Taille de la réponse (`$body_bytes_sent`)
-- `referer` : Referer HTTP (`$http_referer`)
-- `agent` : User-Agent (`$http_user_agent`)
+**Extracted fields**:
+- `ip`: Client IP address (`$remote_addr`)
+- `user`: Remote user (`$remote_user`, often `-`)
+- `time`: Timestamp (`$time_local`)
+- `request`: Full request (`$request`: method + URI + protocol)
+- `status`: HTTP status code (`$status`)
+- `bytes`: Response size (`$body_bytes_sent`)
+- `referer`: HTTP Referer (`$http_referer`)
+- `agent`: User-Agent (`$http_user_agent`)
 
 ---
 
-### 2️⃣ Format `common`
+### 2️⃣ `common` format
 
-**Définition NGINX** :
+**NGINX definition**:
 ```nginx
 log_format common
 '$remote_addr - $remote_user [$time_local] '
 '"$request" $status $body_bytes_sent';
 ```
 
-**Format réel** :
+**Real format**:
 ```
 IP - user [timestamp] "request" status bytes
 ```
 
-**Exemple** :
+**Example**:
 ```
 192.168.1.1 - - [01/Jan/2024:12:00:00 +0000] "GET / HTTP/1.1" 200 1234
 ```
 
-**Regex exacte** :
+**Exact regex**:
 ```regex
 ^(?<ip>\S+)\s+-\s+(?<user>\S+)\s+\[(?<time>[^\]]+)\]\s+"(?<request>[^"]+)"\s+(?<status>\d{3})\s+(?<bytes>\d+)
 ```
 
-**Champs extraits** :
-- `ip` : Adresse IP du client
-- `user` : Utilisateur distant (souvent `-`)
-- `time` : Timestamp
-- `request` : Requête complète
-- `status` : Code de statut HTTP
-- `bytes` : Taille de la réponse
+**Extracted fields**:
+- `ip`: Client IP address
+- `user`: Remote user (often `-`)
+- `time`: Timestamp
+- `request`: Full request
+- `status`: HTTP status code
+- `bytes`: Response size
 
 ---
 
-### 3️⃣ Format `main`
+### 3️⃣ `main` format
 
-➡️ Généralement **alias de `combined`**
+➡️ Usually an **alias for `combined`**
 
-**Format réel** :
+**Real format**:
 ```
 IP - user [timestamp] "request" status bytes "referer" "user-agent"
 ```
 
-**Regex** :
+**Regex**:
 ```regex
 ^(?<ip>\S+)\s+-\s+(?<user>\S+)\s+\[(?<time>[^\]]+)\]\s+"(?<request>[^"]+)"\s+(?<status>\d{3})\s+(?<bytes>\d+)\s+"(?<referer>[^"]*)"\s+"(?<agent>[^"]*)"
 ```
 
 ---
 
-### 4️⃣ Format avec `upstream` (extended)
+### 4️⃣ Format with `upstream` (extended)
 
-**Format réel** :
+**Real format**:
 ```
 IP - user [timestamp] "request" status bytes "referer" "user-agent" "upstream"
 ```
 
-**Exemple** :
+**Example**:
 ```
 192.168.1.1 - - [01/Jan/2024:12:00:00 +0000] "GET / HTTP/1.1" 200 1234 "https://example.com" "Mozilla/5.0" "http://backend:8080"
 ```
 
-**Regex** :
+**Regex**:
 ```regex
 ^(?<ip>\S+)\s+-\s+(?<user>\S+)\s+\[(?<time>[^\]]+)\]\s+"(?<request>[^"]+)"\s+(?<status>\d{3})\s+(?<bytes>\d+)\s+"(?<referer>[^"]*)"\s+"(?<agent>[^"]*)"\s+"(?<upstream>[^"]*)"
 ```
 
 ---
 
-## 🔍 Formats Error Log
+## 🔍 Error Log formats
 
-### Format standard
+### Standard format
 
-**Format réel** :
+**Real format**:
 ```
 timestamp [level] message
 ```
 
-**Exemple** :
+**Example**:
 ```
 2024/01/01 12:00:00 [error] connect() failed (111: Connection refused)
 ```
 
-**Regex** :
+**Regex**:
 ```regex
 ^(?<time>\d{4}\/\d{2}\/\d{2}\s+\d{2}:\d{2}:\d{2})\s+\[(?<level>\w+)\]\s+(?<message>.+)$
 ```
 
-### Format avec PID/TID
+### Format with PID/TID
 
-**Format réel** :
+**Real format**:
 ```
 timestamp [level] pid#tid: message
 ```
 
-**Exemple** :
+**Example**:
 ```
 2024/01/01 12:00:00 [error] 123#456: connect() failed (111: Connection refused)
 ```
 
-**Regex** :
+**Regex**:
 ```regex
 ^(?<time>\d{4}\/\d{2}\/\d{2}\s+\d{2}:\d{2}:\d{2})\s+\[(?<level>\w+)\]\s+(?<pid>\d+)#(?<tid>\d+):\s+(?<message>.+)$
 ```
 
 ---
 
-## 🛠️ Regex FAIL2BAN (optimisée)
+## 🛠️ FAIL2BAN regex (optimized)
 
-### Pour bloquer les erreurs HTTP
+### To block HTTP errors
 
 ```regex
 ^<HOST> - .* \[.*\] ".*" (401|403|404|444|500) .*
 ```
 
-### Pour bloquer les tentatives d'injection SQL
+### To block SQL injection attempts
 
 ```regex
 ^<HOST> - .* \[.*\] ".*" .* ".*" ".*(union|select|insert|delete|update|drop|exec|script).*"
@@ -170,13 +172,13 @@ timestamp [level] pid#tid: message
 
 ## 📊 GROK (ELK / Logstash)
 
-### Pattern GROK pour format combined
+### GROK pattern for combined format
 
 ```grok
 %{IPORHOST:clientip} - %{DATA:user} \[%{HTTPDATE:timestamp}\] "%{DATA:request}" %{INT:status} %{INT:bytes} "%{DATA:referrer}" "%{DATA:agent}"
 ```
 
-### Pattern GROK pour format common
+### GROK pattern for common format
 
 ```grok
 %{IPORHOST:clientip} - %{DATA:user} \[%{HTTPDATE:timestamp}\] "%{DATA:request}" %{INT:status} %{INT:bytes}
@@ -186,13 +188,13 @@ timestamp [level] pid#tid: message
 
 ## 🔧 GoAccess
 
-### Format combined
+### Combined format
 
 ```bash
 goaccess access.log --log-format=COMBINED
 ```
 
-### Format common
+### Common format
 
 ```bash
 goaccess access.log --log-format=COMMON
@@ -200,90 +202,90 @@ goaccess access.log --log-format=COMMON
 
 ---
 
-## 📝 Fonctions du parser
+## 📝 Parser functions
 
 ### `parseAccessLine(line: string): ParsedLogEntry | null`
 
-Parse une ligne de log d'accès NGINX.
+Parses an NGINX access log line.
 
-**Paramètres** :
-- `line` : Ligne de log à parser
+**Parameters**:
+- `line`: The log line to parse
 
-**Retour** :
-- `ParsedLogEntry | null` : Entrée parsée ou `null` si la ligne ne correspond à aucun format
+**Returns**:
+- `ParsedLogEntry | null`: Parsed entry, or `null` if the line doesn't match any format
 
-**Exemple d'utilisation** :
+**Usage example**:
 ```typescript
 const entry = NginxParser.parseAccessLine('192.168.1.1 - - [01/Jan/2024:12:00:00 +0000] "GET / HTTP/1.1" 200 1234 "https://example.com" "Mozilla/5.0"');
 ```
 
-**Champs retournés** :
-- `timestamp` : Date parsée
-- `ip` : Adresse IP du client
-- `method` : Méthode HTTP (extrait de `request`)
-- `url` : URI de la requête (extrait de `request`)
-- `protocol` : Protocole HTTP (extrait de `request`)
-- `status` : Code de statut HTTP
-- `size` : Taille de la réponse en bytes
-- `referer` : Referer HTTP
-- `userAgent` : User-Agent
-- `upstream` : Serveur upstream (si présent)
-- `level` : Niveau de log dérivé du code de statut
+**Returned fields**:
+- `timestamp`: Parsed date
+- `ip`: Client IP address
+- `method`: HTTP method (extracted from `request`)
+- `url`: Request URI (extracted from `request`)
+- `protocol`: HTTP protocol (extracted from `request`)
+- `status`: HTTP status code
+- `size`: Response size in bytes
+- `referer`: HTTP Referer
+- `userAgent`: User-Agent
+- `upstream`: Upstream server (if present)
+- `level`: Log level derived from the status code
 
 ### `parseErrorLine(line: string): ParsedLogEntry | null`
 
-Parse une ligne de log d'erreur NGINX.
+Parses an NGINX error log line.
 
-**Paramètres** :
-- `line` : Ligne de log d'erreur à parser
+**Parameters**:
+- `line`: The error log line to parse
 
-**Retour** :
-- `ParsedLogEntry | null` : Entrée parsée ou `null` si la ligne ne correspond à aucun format
+**Returns**:
+- `ParsedLogEntry | null`: Parsed entry, or `null` if the line doesn't match any format
 
-**Champs retournés** :
-- `timestamp` : Date parsée
-- `level` : Niveau de log (error, warn, info, etc.)
-- `message` : Message d'erreur
-- `pid` : Process ID (si présent)
-- `tid` : Thread ID (si présent)
-
----
-
-## 🔄 Ordre de détection
-
-Le parser tente les formats dans cet ordre :
-1. Format avec upstream (extended)
-2. Format combined (standard)
-3. Format common (simplifié)
-
-Le premier format qui correspond est utilisé.
+**Returned fields**:
+- `timestamp`: Parsed date
+- `level`: Log level (error, warn, info, etc.)
+- `message`: Error message
+- `pid`: Process ID (if present)
+- `tid`: Thread ID (if present)
 
 ---
 
-## ✅ Notes importantes
+## 🔄 Detection order
 
-- ✅ Compatible IPv4 (IPv6 supporté via regex améliorée)
-- ✅ Regex testées avec logs NGINX réels
-- ✅ Support des timestamps avec timezone (`+0000`, `-0500`)
-- ✅ Parsing automatique de la requête (`method`, `url`, `protocol`)
-- ✅ Gestion des champs optionnels (`-` ou vides)
-- ✅ Extraction automatique du niveau de log depuis le code de statut HTTP
+The parser tries formats in this order:
+1. Format with upstream (extended)
+2. Combined format (standard)
+3. Common format (simplified)
+
+The first matching format is used.
 
 ---
 
-## 📌 Exemples de logs réels
+## ✅ Important notes
 
-### Format combined
+- ✅ IPv4 compatible (IPv6 supported via improved regex)
+- ✅ Regexes tested against real NGINX logs
+- ✅ Support for timestamps with timezone (`+0000`, `-0500`)
+- ✅ Automatic parsing of the request (`method`, `url`, `protocol`)
+- ✅ Handling of optional fields (`-` or empty)
+- ✅ Automatic log level extraction from the HTTP status code
+
+---
+
+## 📌 Real log examples
+
+### Combined format
 ```
 192.168.1.1 - - [01/Jan/2024:12:00:00 +0000] "GET /api/users HTTP/1.1" 200 1234 "https://example.com" "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
 ```
 
-### Format common
+### Common format
 ```
 192.168.1.1 - - [01/Jan/2024:12:00:00 +0000] "GET /api/users HTTP/1.1" 200 1234
 ```
 
-### Format avec upstream
+### Format with upstream
 ```
 192.168.1.1 - - [01/Jan/2024:12:00:00 +0000] "GET /api/users HTTP/1.1" 200 1234 "https://example.com" "Mozilla/5.0" "http://backend:8080"
 ```
@@ -295,7 +297,7 @@ Le premier format qui correspond est utilisé.
 
 ---
 
-## 🔗 Références
+## 🔗 References
 
-- [Documentation NGINX - log_format](http://nginx.org/en/docs/http/ngx_http_log_module.html#log_format)
-- [Guide général des parsers](../PARSERS_HELP.md)
+- [NGINX Documentation - log_format](http://nginx.org/en/docs/http/ngx_http_log_module.html#log_format)
+- [General parsers guide](../PARSERS_HELP.md)
