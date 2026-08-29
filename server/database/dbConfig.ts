@@ -184,6 +184,7 @@ export function initializeDatabaseConfig(): void {
             checkpointInterval = setInterval(() => {
                 checkpointWAL();
             }, 5 * 60 * 1000); // Every 5 minutes
+            checkpointInterval.unref(); // background maintenance timer — must not keep the process (or test runner) alive
             logger.info('DatabaseConfig', 'Periodic WAL checkpoint enabled (every 5 minutes)');
         }
         

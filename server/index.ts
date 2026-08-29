@@ -35,6 +35,7 @@ import apiDocsRoutes from './routes/api-docs.js';
 import securityRoutes from './routes/security.js';
 import logViewerRoutes from './routes/log-viewer.js';
 import settingsRoutes from './routes/settings.js';
+import mcpRoutes from './routes/mcp.js';
 import { securityNotificationService } from './services/securityNotificationService.js';
 import { logger } from './utils/logger.js';
 import { logBuffer } from './utils/logBuffer.js';
@@ -225,6 +226,7 @@ app.use('/api/system', systemRoutes);
 app.use('/api/system', systemServerRoutes);
 // app.use('/api/connection', connectionRoutes); // Removed: Freebox-specific routes
 app.use('/api/settings', settingsRoutes);
+app.use('/api/mcp', mcpRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/updates', updatesRoutes);
 app.use('/api/debug', debugRoutes);
@@ -601,7 +603,7 @@ server.listen(port, host, () => {
   };
 
   // Read app version from package.json
-  let appVersion = '0.9.22'; // Default fallback
+  let appVersion = '0.9.23'; // Default fallback
   try {
     const packageJsonPath = path.join(__dirname, '..', 'package.json');
     const packageJson = JSON.parse(fsSync.readFileSync(packageJsonPath, 'utf8'));

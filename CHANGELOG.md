@@ -5,6 +5,22 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.23] - 2026-08-29
+
+### For users
+
+- Added an MCP (Model Context Protocol) admin panel under Settings → MCP: enable/disable the LogviewR MCP server from the web UI, view its live status (last activity, action counts), browse the write-action audit trail, and see currently active fail2ban threat clusters (IP escalation across jails, coordinated ASN campaigns).
+- The LogviewR MCP server now exposes fail2ban read/write tools, generic log search tools, and MCP Resources for AI agents (e.g. Claude Code/Desktop) — see `Docs/MCP_SERVER.md`. All write actions (ban/unban IP, start/stop jail) require explicit confirmation, are rate-limited, and are fully audited.
+
+### For developers
+
+- New backend: `server/mcp/` (stdio MCP server entrypoint, `auditGate.ts` confirm+rate-limit+audit gate for write tools, `mcpConfig.ts` centralized `mcp_enabled` guard + heartbeat, `tools/fail2banReadTools.ts`, `tools/fail2banWriteTools.ts`, `tools/logSearchTools.ts`, `resources.ts`), `server/database/models/McpActionAudit.ts` (new `mcp_action_audit` table), `server/services/attackCorrelationService.ts` (IP escalation / ASN campaign detection), `server/routes/mcp.ts` (5 admin-gated REST endpoints: `GET/POST /config`, `GET /status`, `GET /audit`, `GET /threats`).
+- New frontend: `src/components/McpSection.tsx` (Overview/Audit/Threats sub-tabs), wired into `SettingsPage.tsx` as a new "MCP" admin tab.
+- New deps: `@modelcontextprotocol/sdk@1.30.0`, `zod@4.5.2` — audited clean (`npm audit --audit-level=high`, `npm run security:cve`).
+- Write-tool gate order in `runGatedAction()`: `mcp_enabled` check → `dryRun` short-circuit → `confirm` check → rate-limit (5 confirmed actions / 60s, `LOGVIEWR_MCP_WRITE_RATE_LIMIT`) → execution. Every branch writes an audit entry.
+- `Fail2banClientExec.ts` write paths use `execFile` exclusively (never shell-interpolated) — structurally immune to command injection via `jail`/`ip`/`reason` params.
+- Fixed a real test-hang bug found while verifying this feature: `dbConfig.ts`'s periodic `setInterval` was missing `.unref()`, keeping the Node process alive after tests completed.
+
 ## [0.9.22] - 2026-08-29
 
 ### For developers

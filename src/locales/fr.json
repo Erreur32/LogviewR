@@ -16,7 +16,8 @@
       "analysis": "Analyse",
       "notifications": "Notifications",
       "debug": "Debug",
-      "info": "Info"
+      "info": "Info",
+      "mcp": "MCP"
     },
     "general": {
       "myProfile": "Mon Profil",
@@ -334,6 +335,63 @@
     "activeFeature2": "Blocage automatique des IPs et comptes",
     "activeFeature3": "Notifications de sécurité",
     "saveSettings": "Sauvegarder les paramètres"
+  },
+  "mcp": {
+    "title": "Serveur MCP",
+    "description": "Pilotez le serveur MCP (Model Context Protocol) de LogviewR : activation, statut, journal d'audit et menaces actives détectées.",
+    "saveSuccess": "Configuration MCP sauvegardée avec succès",
+    "saveError": "Erreur lors de la sauvegarde de la configuration MCP",
+    "loadError": "Erreur lors du chargement du statut MCP",
+    "subTabs": {
+      "overview": "Vue d'ensemble",
+      "audit": "Audit",
+      "threats": "Menaces actives"
+    },
+    "overview": {
+      "enabledLabel": "Serveur MCP activé",
+      "enabledDesc": "Autorise le process MCP externe (lancé par votre client Claude Code/Desktop) à exécuter des tools sur LogviewR. La désactivation prend effet immédiatement, sans redémarrer le process.",
+      "statusTitle": "Statut",
+      "statusEnabled": "Activé",
+      "statusDisabled": "Désactivé",
+      "lastSeenLabel": "Dernière activité",
+      "lastSeenNever": "Aucune activité enregistrée",
+      "statsTitle": "Statistiques",
+      "statsTotal": "Actions totales",
+      "statsSuccess": "Succès",
+      "statsError": "Erreurs",
+      "statsRejected": "Non confirmées",
+      "architectureNote": "Le process MCP est démarré par votre client MCP (Claude Code/Desktop), pas par LogviewR. Ce panneau ne peut donc pas démarrer ou arrêter le process, seulement l'autoriser ou non."
+    },
+    "audit": {
+      "title": "Journal d'audit des actions MCP",
+      "filterTool": "Outil",
+      "filterActor": "Acteur",
+      "filterResult": "Résultat",
+      "allTools": "Tous les outils",
+      "allActors": "Tous les acteurs",
+      "allResults": "Tous les résultats",
+      "resultSuccess": "Succès",
+      "resultError": "Erreur",
+      "resultRejectedUnconfirmed": "Non confirmé",
+      "resultRejectedDisabled": "MCP désactivé",
+      "resultRejectedRateLimited": "Limite de débit",
+      "resultDryRun": "Simulation (dry-run)",
+      "columnDate": "Date",
+      "columnTool": "Outil",
+      "columnActor": "Acteur",
+      "columnResult": "Résultat",
+      "columnParams": "Paramètres",
+      "empty": "Aucune action enregistrée",
+      "loadMore": "Charger plus"
+    },
+    "threats": {
+      "title": "Menaces actives détectées",
+      "windowLabel": "Fenêtre d'analyse",
+      "empty": "Aucune menace active détectée sur cette période",
+      "ipsLabel": "IPs",
+      "jailsLabel": "Jails",
+      "orgLabel": "Organisation"
+    }
   },
   "exporter": {
     "unsavedTitle": "Modifications non sauvegardées",

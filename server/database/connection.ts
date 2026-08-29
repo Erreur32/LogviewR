@@ -372,6 +372,23 @@ export function initializeDatabase(): void {
         ts      INTEGER NOT NULL
     )`);
 
+    // Audit trail for MCP server actions (confirm-gated writes + rejected/unconfirmed attempts)
+    database.exec(`
+        CREATE TABLE IF NOT EXISTS mcp_action_audit (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            actor         TEXT    NOT NULL DEFAULT 'unknown-mcp-agent',
+            tool_name     TEXT    NOT NULL,
+            params_json   TEXT    NOT NULL,
+            confirmed     INTEGER NOT NULL DEFAULT 0,
+            result        TEXT    NOT NULL,
+            error_message TEXT,
+            created_at    INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+        )
+    `);
+    database.exec(`
+        CREATE INDEX IF NOT EXISTS idx_mcp_audit_tool  ON mcp_action_audit(tool_name, created_at);
+        CREATE INDEX IF NOT EXISTS idx_mcp_audit_actor ON mcp_action_audit(actor, created_at)
+    `);
 
     // Log sources table (configuration for log sources: Apache, Nginx, System, etc.)
     database.exec(`

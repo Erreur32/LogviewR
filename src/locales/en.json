@@ -16,7 +16,8 @@
       "analysis": "Analysis",
       "notifications": "Notifications",
       "debug": "Debug",
-      "info": "Info"
+      "info": "Info",
+      "mcp": "MCP"
     },
     "general": {
       "myProfile": "My Profile",
@@ -334,6 +335,63 @@
     "activeFeature2": "Automatic IP and account blocking",
     "activeFeature3": "Security notifications",
     "saveSettings": "Save settings"
+  },
+  "mcp": {
+    "title": "MCP server",
+    "description": "Control LogviewR's MCP (Model Context Protocol) server: enable/disable, status, audit log, and detected active threats.",
+    "saveSuccess": "MCP configuration saved successfully",
+    "saveError": "Error saving MCP configuration",
+    "loadError": "Error loading MCP status",
+    "subTabs": {
+      "overview": "Overview",
+      "audit": "Audit",
+      "threats": "Active threats"
+    },
+    "overview": {
+      "enabledLabel": "MCP server enabled",
+      "enabledDesc": "Allows the external MCP process (launched by your Claude Code/Desktop client) to run tools against LogviewR. Disabling takes effect immediately, without restarting the process.",
+      "statusTitle": "Status",
+      "statusEnabled": "Enabled",
+      "statusDisabled": "Disabled",
+      "lastSeenLabel": "Last activity",
+      "lastSeenNever": "No activity recorded",
+      "statsTitle": "Statistics",
+      "statsTotal": "Total actions",
+      "statsSuccess": "Success",
+      "statsError": "Errors",
+      "statsRejected": "Unconfirmed",
+      "architectureNote": "The MCP process is started by your MCP client (Claude Code/Desktop), not by LogviewR. This panel cannot start or stop the process, only allow or block it."
+    },
+    "audit": {
+      "title": "MCP action audit log",
+      "filterTool": "Tool",
+      "filterActor": "Actor",
+      "filterResult": "Result",
+      "allTools": "All tools",
+      "allActors": "All actors",
+      "allResults": "All results",
+      "resultSuccess": "Success",
+      "resultError": "Error",
+      "resultRejectedUnconfirmed": "Unconfirmed",
+      "resultRejectedDisabled": "MCP disabled",
+      "resultRejectedRateLimited": "Rate limited",
+      "resultDryRun": "Dry run",
+      "columnDate": "Date",
+      "columnTool": "Tool",
+      "columnActor": "Actor",
+      "columnResult": "Result",
+      "columnParams": "Params",
+      "empty": "No actions recorded",
+      "loadMore": "Load more"
+    },
+    "threats": {
+      "title": "Detected active threats",
+      "windowLabel": "Analysis window",
+      "empty": "No active threats detected in this window",
+      "ipsLabel": "IPs",
+      "jailsLabel": "Jails",
+      "orgLabel": "Organization"
+    }
   },
   "exporter": {
     "unsavedTitle": "Unsaved changes",

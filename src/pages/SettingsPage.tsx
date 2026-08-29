@@ -49,7 +49,8 @@ import {
   HardDriveDownload,
   Zap,
   Send,
-  ChevronDown
+  ChevronDown,
+  Bot
 } from 'lucide-react';
 import { api } from '../api/client';
 import { API_ROUTES, formatBytes } from '../utils/constants';
@@ -65,6 +66,7 @@ import logviewrLogo from '../icons/logviewr.svg';
 import { APP_VERSION, getVersionString } from '../constants/version';
 import { SecuritySection } from '../components/SecuritySection';
 import { ThemeSection } from '../components/ThemeSection';
+import { McpSection } from '../components/McpSection';
 import { Section, SettingRow } from '../components/SettingsSection';
 import { getPluginIcon } from '../utils/pluginIcons';
 import { useUpdateStore } from '../stores/updateStore';
@@ -87,9 +89,9 @@ export interface SettingsPageProps {
   onLogout?: () => void;
 }
 
-type AdminTab = 'general' | 'plugins' | 'security' | 'exporter' | 'theme' | 'info' | 'database' | 'analysis' | 'notifications';
+type AdminTab = 'general' | 'plugins' | 'security' | 'exporter' | 'theme' | 'info' | 'database' | 'analysis' | 'notifications' | 'mcp';
 
-const ADMIN_TAB_IDS: AdminTab[] = ['general', 'plugins', 'analysis', 'notifications', 'theme', 'security', 'exporter', 'database', 'info'];
+const ADMIN_TAB_IDS: AdminTab[] = ['general', 'plugins', 'analysis', 'notifications', 'theme', 'security', 'exporter', 'database', 'info', 'mcp'];
 
 function toAdminTab(value: string | null | undefined): AdminTab {
   if (!value) return 'general';
@@ -3907,7 +3909,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     { id: 'security', label: t('admin.tabs.security'), icon: Shield, color: 'red' },
     { id: 'exporter', label: t('admin.tabs.exporter'), icon: Share2, color: 'amber' },
     { id: 'database', label: t('admin.tabs.database'), icon: Database, color: 'purple' },
-    { id: 'info', label: t('admin.tabs.info'), icon: Info, color: 'teal' }
+    { id: 'info', label: t('admin.tabs.info'), icon: Info, color: 'teal' },
+    { id: 'mcp', label: t('admin.tabs.mcp'), icon: Bot, color: 'violet' }
   ];
 
   return (
@@ -4437,7 +4440,10 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             {/* Notifications Section */}
             {activeAdminTab === 'notifications' && <NotificationsSection />}
 
-          </> 
+            {/* MCP Section */}
+            {activeAdminTab === 'mcp' && <McpSection />}
+
+          </>
         )}
 
  
