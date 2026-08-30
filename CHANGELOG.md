@@ -5,6 +5,12 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.6] - 2026-08-30
+
+### For developers
+
+- Added 203 missing `fail2ban.*` translation keys to both `fr.json` and `en.json`. Previously untranslated keys (history, stats, map, backup, ipModal, jails, aide, fbActions, iptables, pathConfig) are now available in both languages.
+
 ## [0.10.5] - 2026-08-30
 
 ### For developers
