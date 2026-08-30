@@ -339,6 +339,32 @@ create 640 root adm
 
 - **i18n: Fail2ban page tooltips** - hover/tooltip text on `/fail2ban` (`F2bTooltip` `body=`/`bodyNode=` props, `TT` helpers in `src/pages/fail2ban/helpers.tsx`) still needs a translation review; not yet audited for hardcoded French strings.
 
+## 📋 Release workflow preferences
+
+Always follow the full pre-push checklist from CLAUDE.md — never skip steps.
+
+**Why:** Multiple versions were pushed in rapid succession during the 2026-04-15 session (v0.8.48→0.8.53), and SonarCloud/rate-limit issues were only caught after push. User wants checks BEFORE push.
+
+**How to apply:**
+- Run `npx tsc` + `npm run test:run` before every commit
+- Check SonarCloud patterns (accessibility, replaceAll, log injection) before push
+- Group related fixes into one version instead of pushing many small ones
+- Use `docker-compose.local.yml` with `--build` to test before publishing ghcr.io image
+- The prod database is at `/home/docker/LogviewR/data/dashboard.db` — copy it into the local container for testing with real data
+- Run commands yourself instead of giving the user copy-paste instructions
+
+**Patch pushes without version bump are OK** — user confirmed 2026-04-17. For internal refactors / CodeQL / Sonar fixes that don't warrant a release, push straight to main. Consequence: the current version tag on GHCR (`:0.8.x`) gets overwritten each push, so `:0.8.56` becomes mouvant. Acceptable for this personal project; only bump `package.json` when there's a batch of user-visible changes worth announcing.
+
+**Patch bumps preferred even for feature batches** — 2026-04-18 session: I proposed `0.9.0 → 0.10.0` for a UX bundle (NPM domain badge, auto-discover, IP exclusion UX). User corrected to `0.9.1`: *"0.9.1, pas de version majeur pour ça"*. Default to patch bumps on the `0.x.y` line; reserve minor bumps (`0.y.0`) for real milestones. Don't assume semver-minor just because features were added.
+
+**When running pre-push checks, DO NOT `git add -A` blindly.** User keeps local changes in the working tree that aren't meant to be committed (e.g. `docker-compose.yml` swapped to a variant for local testing). Use `git add -A ':!docker-compose.yml'` or stage explicitly to avoid pulling in unrelated edits. Surface unexpected modifications to the user before staging.
+
+**Prefer in-repo implementations over new dependencies.** Session 2026-04-17 rejections: Sonner (toasts — custom `notificationStore` already covers the need), motion/framer-motion (CSS transitions + existing keyframes suffice), Tremor (palette conflict + replaces 1682 lines of working SVG), visx (same). Don't propose libs prophylactically; only suggest when a specific feature genuinely needs one.
+
+**`gh` CLI is authenticated with `repo` scope** — can set repo secrets (`gh secret set NAME --body "..."`), trigger workflows, etc. Use it directly instead of asking the user to click through the GitHub UI.
+
+**If a version tag is already pushed to origin and more fixes need to go out under "the same release," bump to the next patch version instead of force-moving the existing tag.** Session 2026-08-15: mid-v0.9.18 push, a new fix arrived after `v0.9.18` was already tagged and pushed on an earlier commit. Asked the user whether to force-move the tag (`git tag -f` + force-push) or bump to `v0.9.19`; user rejected the question prompt and just said "avec nouveau bump version" — bump and move on. **Why:** force-moving a published tag rewrites a ref others may have already fetched; a patch bump is strictly additive and needs no force-push. **How to apply:** don't offer tag force-move as the default option — just bump to the next patch version when new work lands after a tag/push, unless the user explicitly asks to amend that specific release.
+
 ---
 
 ## 🤝 Contribution
