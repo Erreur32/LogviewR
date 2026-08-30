@@ -3,6 +3,8 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { Shield } from 'lucide-react';
 import { api } from '../../api/client';
 
@@ -26,14 +28,14 @@ interface ListState {
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-function fmtAge(iso: string | null): string {
-  if (!iso) return 'Non chargée';
+function fmtAge(iso: string | null, t: TFunction): string {
+  if (!iso) return t('fail2ban.blocklists.ageNotLoaded');
   const diff = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diff / 60_000);
-  if (mins < 1) return 'il y a moins d\'1 min';
-  if (mins < 60) return `il y a ${mins}min`;
+  if (mins < 1) return t('fail2ban.blocklists.ageLessThanMin');
+  if (mins < 60) return t('fail2ban.blocklists.ageMinutes', { count: mins });
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `il y a ${hours}h`;
+  if (hours < 24) return t('fail2ban.blocklists.ageHours', { count: hours });
   // More than 24h: truncated ISO
   return iso.slice(0, 16).replace('T', ' ');
 }
@@ -41,6 +43,7 @@ function fmtAge(iso: string | null): string {
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export const TabBlocklists: React.FC = () => {
+  const { t } = useTranslation();
   const [lists, setLists] = useState<ListState[]>([]);
   const [loading, setLoading] = useState(true);
   const [globalError, setGlobalError] = useState<string | null>(null);
@@ -62,10 +65,10 @@ export const TabBlocklists: React.FC = () => {
       if (res.success) {
         setLists(res.result?.lists ?? []);
       } else {
-        setGlobalError('Impossible de charger le statut des blocklists.');
+        setGlobalError(t('fail2ban.blocklists.loadStatusError'));
       }
     } catch {
-      setGlobalError('Erreur réseau lors du chargement des blocklists.');
+      setGlobalError(t('fail2ban.blocklists.networkError'));
     } finally {
       setLoading(false);
     }
@@ -134,7 +137,7 @@ export const TabBlocklists: React.FC = () => {
 
   const handleAdd = async () => {
     if (lists.some(l => l.id === newIpset)) {
-      setAddError(`Le nom d'ipset "${newIpset}" est déjà utilisé`);
+      setAddError(t('fail2ban.blocklists.ipsetNameUsed', { name: newIpset }));
       return;
     }
     setAdding(true);
@@ -149,7 +152,7 @@ export const TabBlocklists: React.FC = () => {
         setNewName(''); setNewUrl(''); setNewIpset(''); setNewDesc(''); setNewMaxelem(150_000); setNewDirection('in');
         await fetchStatus();
       } else {
-        setAddError(res.result?.error ?? 'Erreur inconnue');
+        setAddError(res.result?.error ?? t('fail2ban.blocklists.errorUnknown'));
       }
     } finally {
       setAdding(false);
@@ -160,7 +163,7 @@ export const TabBlocklists: React.FC = () => {
     try {
       const res = await api.delete<{ ok: boolean; error?: string }>(`/api/plugins/fail2ban/blocklists/remove/${id}`);
       if (res.result && !res.result.ok) {
-        setGlobalError(res.result.error ?? 'Erreur lors de la suppression');
+        setGlobalError(res.result.error ?? t('fail2ban.blocklists.removeError'));
       }
     } finally {
       await fetchStatus();
@@ -173,11 +176,11 @@ export const TabBlocklists: React.FC = () => {
       <div style={{ marginBottom: '1rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.3rem' }}>
           <Shield style={{ width: 18, height: 18, color: '#e86a65' }} />
-          <span style={{ fontWeight: 700, fontSize: '1rem', color: '#e6edf3' }}>Blocklists IP</span>
-          <span style={{ fontSize: '.72rem', color: '#8b949e' }}>({lists.length} sources)</span>
+          <span style={{ fontWeight: 700, fontSize: '1rem', color: '#e6edf3' }}>{t('fail2ban.blocklists.title')}</span>
+          <span style={{ fontSize: '.72rem', color: '#8b949e' }}>({t('fail2ban.blocklists.sources', { count: lists.length })})</span>
         </div>
         <p style={{ color: '#8b949e', fontSize: '.82rem', margin: 0 }}>
-          Listes IPv4 malveillantes chargées dans des ipsets avec règles iptables DROP sur INPUT.
+          {t('fail2ban.blocklists.subtitle')}
         </p>
       </div>
 
@@ -190,7 +193,7 @@ export const TabBlocklists: React.FC = () => {
 
       {/* ── Loading ── */}
       {loading && (
-        <div style={{ color: '#8b949e', fontSize: '.85rem', padding: '1rem 0' }}>Chargement…</div>
+        <div style={{ color: '#8b949e', fontSize: '.85rem', padding: '1rem 0' }}>{t('fail2ban.blocklists.loading')}</div>
       )}
 
       {/* ── List rows — compact horizontal ── */}
@@ -213,7 +216,7 @@ export const TabBlocklists: React.FC = () => {
           <button
             onClick={() => !list.updating && handleToggle(list.id, list.enabled)}
             disabled={list.updating}
-            title={list.enabled ? 'Désactiver' : 'Activer'}
+            title={list.enabled ? t('fail2ban.blocklists.disable') : t('fail2ban.blocklists.enable')}
             style={{
               background: 'none', border: 'none', padding: 0,
               color: list.updating ? '#555d69' : list.enabled ? '#3fb950' : '#484f58',
@@ -237,13 +240,13 @@ export const TabBlocklists: React.FC = () => {
           {/* IP count */}
           {list.count > 0 && (
             <span style={{ fontSize: '.75rem', color: '#bc8cff', fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 }}>
-              {list.count.toLocaleString()} IPs
+              {t('fail2ban.blocklists.ipCount', { n: list.count.toLocaleString() })}
             </span>
           )}
 
           {/* Age */}
           <span style={{ fontSize: '.7rem', color: '#484f58', whiteSpace: 'nowrap', flexShrink: 0 }}>
-            {fmtAge(list.lastUpdate)}
+            {fmtAge(list.lastUpdate, t)}
           </span>
 
           {/* Direction badge */}
@@ -253,13 +256,13 @@ export const TabBlocklists: React.FC = () => {
             border: `1px solid ${list.direction === 'out' ? 'rgba(227,179,65,.3)' : list.direction === 'both' ? 'rgba(188,140,255,.3)' : 'rgba(63,185,80,.2)'}`,
             color: list.direction === 'out' ? '#e3b341' : list.direction === 'both' ? '#bc8cff' : '#3fb950',
           }}>
-            {list.direction === 'in' ? '↓ IN' : list.direction === 'out' ? '↑ OUT' : '↕'}
+            {list.direction === 'in' ? t('fail2ban.blocklists.dirIn') : list.direction === 'out' ? t('fail2ban.blocklists.dirOut') : t('fail2ban.blocklists.dirBoth')}
           </span>
 
           {/* Source link */}
           {list.sourceUrl && (
             <a href={list.sourceUrl} target="_blank" rel="noopener noreferrer"
-              title="Voir la source"
+              title={t('fail2ban.blocklists.viewSource')}
               style={{ fontSize: '.7rem', color: '#58a6ff', textDecoration: 'none', flexShrink: 0 }}>
               ↗
             </a>
@@ -267,7 +270,7 @@ export const TabBlocklists: React.FC = () => {
 
           {/* Out warning when active */}
           {(list.direction === 'out' || list.direction === 'both') && list.enabled && (
-            <span style={{ fontSize: '.68rem', color: '#e3b341', flexShrink: 0 }} title="Filtre le trafic sortant">⚠</span>
+            <span style={{ fontSize: '.68rem', color: '#e3b341', flexShrink: 0 }} title={t('fail2ban.blocklists.outTraffic')}>⚠</span>
           )}
 
           {/* Spacer */}
@@ -277,7 +280,7 @@ export const TabBlocklists: React.FC = () => {
           <button
             onClick={() => !list.updating && handleRefresh(list.id)}
             disabled={list.updating}
-            title="Rafraîchir la liste"
+            title={t('fail2ban.blocklists.refresh')}
             style={{
               background: 'rgba(88,166,255,.08)', border: '1px solid rgba(88,166,255,.2)',
               color: list.updating ? '#555d69' : '#58a6ff',
@@ -294,7 +297,7 @@ export const TabBlocklists: React.FC = () => {
             <button
               onClick={() => handleRemove(list.id)}
               disabled={list.updating}
-              title="Supprimer cette liste"
+              title={t('fail2ban.blocklists.deleteList')}
               style={{
                 background: 'rgba(248,81,73,.08)', border: '1px solid rgba(248,81,73,.2)',
                 color: '#f85149', borderRadius: 4, padding: '.2rem .4rem',
@@ -315,14 +318,14 @@ export const TabBlocklists: React.FC = () => {
               <button
                 onClick={() => !list.updating && handleForceReset(list.id)}
                 disabled={list.updating}
-                title="Détruire l'ipset existant et recharger depuis zéro"
+                title={t('fail2ban.blocklists.forceResetTitle')}
                 style={{
                   flexShrink: 0, background: 'rgba(248,81,73,.12)', border: '1px solid rgba(248,81,73,.35)',
                   color: list.updating ? '#555d69' : '#f85149', borderRadius: 4, padding: '.2rem .5rem',
                   fontSize: '.72rem', cursor: list.updating ? 'default' : 'pointer', whiteSpace: 'nowrap',
                 }}
               >
-                🔄 Reset ipset
+                🔄 {t('fail2ban.blocklists.resetIpset')}
               </button>
             </div>
           )}
@@ -341,7 +344,7 @@ export const TabBlocklists: React.FC = () => {
             marginBottom: '.75rem',
           }}
         >
-          + Ajouter une liste
+          + {t('fail2ban.blocklists.addList')}
         </button>
       ) : (
         <div style={{
@@ -350,20 +353,20 @@ export const TabBlocklists: React.FC = () => {
           padding: '1rem', marginBottom: '.75rem',
         }}>
           <div style={{ fontWeight: 600, color: '#e6edf3', marginBottom: '.75rem', fontSize: '.9rem' }}>
-            Nouvelle liste personnalisée
+            {t('fail2ban.blocklists.newCustomList')}
           </div>
 
           {/* Name */}
           <div style={{ marginBottom: '.5rem' }}>
-            <label style={{ display: 'block', fontSize: '.78rem', color: '#8b949e', marginBottom: '.2rem' }}>Nom *</label>
+            <label style={{ display: 'block', fontSize: '.78rem', color: '#8b949e', marginBottom: '.2rem' }}>{t('fail2ban.blocklists.name')} *</label>
             <input value={newName} onChange={e => setNewName(e.target.value)}
-              placeholder="Ex: Spamhaus DROP"
+              placeholder={t('fail2ban.blocklists.namePlaceholder')}
               style={{ width: '100%', background: '#0d1117', border: '1px solid #30363d', borderRadius: 4, padding: '.3rem .5rem', color: '#e6edf3', fontSize: '.85rem', boxSizing: 'border-box' }} />
           </div>
 
           {/* URL */}
           <div style={{ marginBottom: '.5rem' }}>
-            <label style={{ display: 'block', fontSize: '.78rem', color: '#8b949e', marginBottom: '.2rem' }}>URL *</label>
+            <label style={{ display: 'block', fontSize: '.78rem', color: '#8b949e', marginBottom: '.2rem' }}>{t('fail2ban.blocklists.url')} *</label>
             <input value={newUrl} onChange={e => setNewUrl(e.target.value)}
               placeholder="https://..."
               style={{ width: '100%', background: '#0d1117', border: '1px solid #30363d', borderRadius: 4, padding: '.3rem .5rem', color: '#e6edf3', fontSize: '.85rem', boxSizing: 'border-box' }} />
@@ -371,31 +374,31 @@ export const TabBlocklists: React.FC = () => {
 
           {/* ipset name */}
           <div style={{ marginBottom: '.5rem' }}>
-            <label style={{ display: 'block', fontSize: '.78rem', color: '#8b949e', marginBottom: '.2rem' }}>Nom d'ipset * <span style={{ color: '#555d69' }}>(lettres minuscules, chiffres, tirets)</span></label>
+            <label style={{ display: 'block', fontSize: '.78rem', color: '#8b949e', marginBottom: '.2rem' }}>{t('fail2ban.blocklists.ipsetName')} * <span style={{ color: '#555d69' }}>({t('fail2ban.blocklists.ipsetNameHint')})</span></label>
             <input value={newIpset} onChange={e => { setNewIpset(e.target.value); setAddError(null); }}
-              placeholder="Ex: spamhaus-drop"
+              placeholder={t('fail2ban.blocklists.ipsetNamePlaceholder')}
               style={{
                 width: '100%', background: '#0d1117',
                 border: `1px solid ${lists.some(l => l.id === newIpset) && newIpset ? '#f85149' : '#30363d'}`,
                 borderRadius: 4, padding: '.3rem .5rem', color: '#e6edf3', fontSize: '.85rem', boxSizing: 'border-box',
               }} />
             {lists.some(l => l.id === newIpset) && newIpset && (
-              <div style={{ color: '#f85149', fontSize: '.75rem', marginTop: '.2rem' }}>Nom déjà utilisé</div>
+              <div style={{ color: '#f85149', fontSize: '.75rem', marginTop: '.2rem' }}>{t('fail2ban.blocklists.nameUsed')}</div>
             )}
           </div>
 
           {/* Description */}
           <div style={{ marginBottom: '.5rem' }}>
-            <label style={{ display: 'block', fontSize: '.78rem', color: '#8b949e', marginBottom: '.2rem' }}>Description</label>
+            <label style={{ display: 'block', fontSize: '.78rem', color: '#8b949e', marginBottom: '.2rem' }}>{t('fail2ban.blocklists.description')}</label>
             <input value={newDesc} onChange={e => setNewDesc(e.target.value)}
-              placeholder="Optionnel"
+              placeholder={t('fail2ban.blocklists.optional')}
               style={{ width: '100%', background: '#0d1117', border: '1px solid #30363d', borderRadius: 4, padding: '.3rem .5rem', color: '#e6edf3', fontSize: '.85rem', boxSizing: 'border-box' }} />
           </div>
 
           {/* Maxelem */}
           <div style={{ marginBottom: '.75rem' }}>
             <label style={{ display: 'block', fontSize: '.78rem', color: '#8b949e', marginBottom: '.2rem' }}>
-              Taille max ipset <span style={{ color: '#555d69' }}>(maxelem — nb max d'IPs)</span>
+              {t('fail2ban.blocklists.maxelemLabel')} <span style={{ color: '#555d69' }}>({t('fail2ban.blocklists.maxelemHint')})</span>
             </label>
             <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
               {[65_000, 150_000, 500_000, 1_000_000].map(v => (
@@ -418,14 +421,14 @@ export const TabBlocklists: React.FC = () => {
             </div>
             {newMaxelem >= 500_000 && (
               <div style={{ color: '#e3b341', fontSize: '.72rem', marginTop: '.25rem' }}>
-                ⚠ Les grands ipsets consomment plus de RAM kernel. 500K ≈ 14 MB, 1M ≈ 28 MB.
+                ⚠ {t('fail2ban.blocklists.ramWarning')}
               </div>
             )}
           </div>
 
           {/* Direction */}
           <div style={{ marginBottom: '.75rem' }}>
-            <label style={{ display: 'block', fontSize: '.78rem', color: '#8b949e', marginBottom: '.2rem' }}>Direction iptables</label>
+            <label style={{ display: 'block', fontSize: '.78rem', color: '#8b949e', marginBottom: '.2rem' }}>{t('fail2ban.blocklists.direction')}</label>
             <div style={{ display: 'flex', gap: '.4rem' }}>
               {(['in', 'out', 'both'] as ListDirection[]).map(d => (
                 <button key={d} type="button" onClick={() => setNewDirection(d)}
@@ -436,14 +439,14 @@ export const TabBlocklists: React.FC = () => {
                     color: newDirection === d ? (d === 'out' ? '#e3b341' : d === 'both' ? '#bc8cff' : '#3fb950') : '#8b949e',
                     fontWeight: newDirection === d ? 600 : 400,
                   }}>
-                  {d === 'in' ? '↓ INPUT' : d === 'out' ? '↑ OUTPUT' : '↕ IN+OUT'}
+                  {d === 'in' ? t('fail2ban.blocklists.dirInput') : d === 'out' ? t('fail2ban.blocklists.dirOutput') : t('fail2ban.blocklists.dirInOut')}
                 </button>
               ))}
             </div>
             {newDirection !== 'in' && (
               <div style={{ color: '#e3b341', fontSize: '.72rem', marginTop: '.3rem', padding: '.3rem .5rem', background: 'rgba(227,179,65,.06)', border: '1px solid rgba(227,179,65,.2)', borderRadius: 4 }}>
-                ⚠ <strong>Attention OUTPUT</strong> : bloque les connexions sortantes depuis ce serveur.
-                Si la liste contient des IPs de CDN, DNS ou APIs systèmes, ça peut casser des services. Tester d'abord en environnement non critique.
+                ⚠ <strong>{t('fail2ban.blocklists.outWarningTitle')}</strong> : {t('fail2ban.blocklists.outWarningBody')}
+                {t('fail2ban.blocklists.outWarningAdvice')}
               </div>
             )}
           </div>
@@ -464,7 +467,7 @@ export const TabBlocklists: React.FC = () => {
                 fontSize: '.82rem', cursor: 'pointer', opacity: adding ? 0.6 : 1,
               }}
             >
-              {adding ? 'Ajout…' : 'Ajouter'}
+              {adding ? t('fail2ban.blocklists.adding') : t('fail2ban.blocklists.add')}
             </button>
             <button
               onClick={() => { setShowAddForm(false); setAddError(null); setNewName(''); setNewUrl(''); setNewIpset(''); setNewDesc(''); setNewMaxelem(150_000); setNewDirection('in'); }}
@@ -474,7 +477,7 @@ export const TabBlocklists: React.FC = () => {
                 fontSize: '.82rem', cursor: 'pointer',
               }}
             >
-              Annuler
+              {t('fail2ban.blocklists.cancel')}
             </button>
           </div>
         </div>
@@ -483,9 +486,9 @@ export const TabBlocklists: React.FC = () => {
       {/* ── Info note ── */}
       {!loading && (
         <div style={{ marginTop: '1rem', padding: '.6rem .8rem', background: 'rgba(88,166,255,.06)', border: '1px solid rgba(88,166,255,.15)', borderRadius: 6, fontSize: '.78rem', color: '#8b949e', lineHeight: 1.5 }}>
-          <span style={{ color: '#58a6ff', fontWeight: 600 }}>💡 Mise à jour automatique</span> : LogviewR rafraîchit les listes activées toutes les 6h.
-          Les règles iptables sont recréées automatiquement si elles disparaissent au prochain rafraîchissement.
-          Trafic entrant (INPUT) par défaut — les listes en mode sortant (OUTPUT) peuvent être activées, mais avec précaution : elles bloquent les connexions initiées depuis votre serveur.
+          <span style={{ color: '#58a6ff', fontWeight: 600 }}>💡 {t('fail2ban.blocklists.autoUpdateTitle')}</span> : {t('fail2ban.blocklists.autoUpdateBody')}
+          {t('fail2ban.blocklists.autoUpdateRules')}
+          {t('fail2ban.blocklists.autoUpdateTraffic')}
         </div>
       )}
 
@@ -501,13 +504,13 @@ export const TabBlocklists: React.FC = () => {
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.75rem' }}>
               <span style={{ fontSize: '1.2rem' }}>⚠️</span>
-              <span style={{ fontWeight: 700, color: '#f85149', fontSize: '.95rem' }}>Risque d'auto-bannissement</span>
+              <span style={{ fontWeight: 700, color: '#f85149', fontSize: '.95rem' }}>{t('fail2ban.blocklists.selfBanTitle')}</span>
             </div>
             <p style={{ color: '#e6edf3', fontSize: '.85rem', margin: '0 0 .5rem' }}>
-              Votre IP <strong style={{ color: '#ffa657' }}>{selfBanConfirm.ip}</strong> est présente dans la liste <strong style={{ color: '#e6edf3' }}>{selfBanConfirm.listName}</strong>.
+              {t('fail2ban.blocklists.selfBanIpPresent')} <strong style={{ color: '#ffa657' }}>{selfBanConfirm.ip}</strong> {t('fail2ban.blocklists.selfBanInList')} <strong style={{ color: '#e6edf3' }}>{selfBanConfirm.listName}</strong>.
             </p>
             <p style={{ color: '#8b949e', fontSize: '.82rem', margin: '0 0 1.25rem' }}>
-              L'activer vous bannirait immédiatement de l'interface. Ajoutez votre IP en whitelist iptables avant de continuer, ou forcez si vous savez ce que vous faites.
+              {t('fail2ban.blocklists.selfBanWarning')}
             </p>
             <div style={{ display: 'flex', gap: '.5rem', justifyContent: 'flex-end' }}>
               <button
@@ -518,7 +521,7 @@ export const TabBlocklists: React.FC = () => {
                   fontSize: '.82rem', cursor: 'pointer',
                 }}
               >
-                Annuler
+                {t('fail2ban.blocklists.cancel')}
               </button>
               <button
                 onClick={handleForceConfirm}
@@ -530,7 +533,7 @@ export const TabBlocklists: React.FC = () => {
                   opacity: forceToggling ? 0.6 : 1,
                 }}
               >
-                {forceToggling ? 'Activation…' : "Forcer l'activation"}
+                {forceToggling ? t('fail2ban.blocklists.activating') : t('fail2ban.blocklists.forceActivate')}
               </button>
             </div>
           </div>

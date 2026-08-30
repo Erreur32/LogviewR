@@ -5,7 +5,7 @@
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { Activity } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { PERIODS, F2bTooltip } from './helpers';
+import { PERIODS, F2bTooltip, fmtPeriodLabel } from './helpers';
 import type { F2bTtColor } from './helpers';
 import type { HistoryEntry } from './types';
 import { fetchTopsPrevTotalBans } from './fail2banTopsPrevFlight';
@@ -69,6 +69,7 @@ const ChartTooltip: React.FC<{
     isHourly?: boolean;
 }> = ({ data, cw, ch, isHourly = false }) => {
     if (!data) return null;
+    const { t } = useTranslation();
     const { x, y, jail, date, value, color } = data;
 
     // Vertical: show above by default, below if near top
@@ -170,7 +171,7 @@ const ChartTooltip: React.FC<{
                 <div style={{ color: '#bc8cff', fontWeight: 600, fontSize: '.7rem' }}>{dateLabel}</div>
                 <div style={{ marginTop: '.1rem' }}>
                     <span style={{ color, fontWeight: 700, fontSize: '.92rem' }}>{value}</span>
-                    <span style={{ color: '#8b949e', fontSize: '.78rem' }}> ban{value !== 1 ? 's' : ''}</span>
+                    <span style={{ color: '#8b949e', fontSize: '.78rem' }}> {t('fail2ban.history.banUnit', { count: value })}</span>
                 </div>
             </div>
         </div>
@@ -718,7 +719,7 @@ export const BanHistoryChart: React.FC<BanHistoryChartProps> = ({
     }, [days]);
 
     const isHourly = granularity === 'hour';
-    const periodLabel = PERIODS.find((p) => p.days === days)?.label ?? `${days}j`;
+    const periodLabel = fmtPeriodLabel(days, t);
     // For 24h: rolling 30-min slots ending at "now"; otherwise last 60 days
     const { slots: rollingSlots, nowSlotFrac } = isHourly
         ? buildRollingSlots(history, slotBase)
@@ -766,9 +767,9 @@ export const BanHistoryChart: React.FC<BanHistoryChartProps> = ({
         >
             <div style={{ display: 'flex', gap: '.2rem' }}>
                 {PERIODS.map((p) => (
-                    <F2bTooltip key={p.days} title={p.label} body={p.title} color="blue">
+                    <F2bTooltip key={p.days} title={t(p.labelKey)} body={t(p.titleKey)} color="blue">
                         <button onClick={() => onDaysChange(p.days)} style={periodBtnStyle(days === p.days)}>
-                            {p.label}
+                            {t(p.labelKey)}
                         </button>
                     </F2bTooltip>
                 ))}
@@ -803,12 +804,12 @@ export const BanHistoryChart: React.FC<BanHistoryChartProps> = ({
                 const color = jailColor(jail, jailNames);
                 const isHidden = hidden.has(jail);
                 const total = jailTotals(jail);
-                const ttBody = `${total} ban${total !== 1 ? 's' : ''} sur la période\n${isHidden ? 'Cliquer pour afficher' : 'Cliquer pour masquer'}`;
+                const ttBody = `${t('fail2ban.history.banCount', { count: total })}\n${isHidden ? t('fail2ban.history.clickShow') : t('fail2ban.history.clickHide')}`;
                 return (
                     <F2bTooltip key={jail} title={jail} body={ttBody} color={colorToTt(jailColor(jail, jailNames))}>
                         <button
                             onClick={() => toggleJail(jail)}
-                            title={isHidden ? 'Afficher dans le graphique' : 'Masquer du graphique'}
+                            title={isHidden ? t('fail2ban.history.showInChart') : t('fail2ban.history.hideFromChart')}
                             style={{
                                 display: 'inline-flex',
                                 alignItems: 'center',
@@ -863,7 +864,7 @@ export const BanHistoryChart: React.FC<BanHistoryChartProps> = ({
                         fontSize: '.85rem',
                     }}
                 >
-                    Chargement…
+                    {t('common.loading')}
                 </div>
             ) : history.length === 0 ? (
                 <div
@@ -876,7 +877,7 @@ export const BanHistoryChart: React.FC<BanHistoryChartProps> = ({
                         borderRadius: 6,
                     }}
                 >
-                    Aucun ban enregistré sur la période
+                    {t('fail2ban.history.noBans')}
                 </div>
             ) : mode === 'bar' ? (
                 <BarChart
@@ -964,7 +965,7 @@ export const BanHistoryChart: React.FC<BanHistoryChartProps> = ({
                               marginLeft: '.4rem',
                           }}
                       >
-                          = stable
+                          = {t('fail2ban.history.stable')}
                       </span>
                   );
               })()
@@ -991,7 +992,7 @@ export const BanHistoryChart: React.FC<BanHistoryChartProps> = ({
             >
                 <Activity style={{ width: 13, height: 13, color: '#bc8cff', flexShrink: 0 }} />
                 <span style={{ fontWeight: 600, fontSize: '.85rem' }}>
-                    Statistiques de bans
+                    {t('fail2ban.history.title')}
                     <span
                         style={{
                             fontWeight: 400,
@@ -1014,7 +1015,7 @@ export const BanHistoryChart: React.FC<BanHistoryChartProps> = ({
                     {controls}
                     <button
                         onClick={() => setCollapsed((c) => !c)}
-                        title={collapsed ? 'Développer' : 'Réduire'}
+                        title={collapsed ? t('fail2ban.views.expand') : t('fail2ban.views.collapse')}
                         style={{
                             background: 'transparent',
                             border: '1px solid #30363d',

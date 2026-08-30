@@ -4,6 +4,7 @@ import { Shield, Trash2, RotateCcw, Plus, AlertTriangle, CheckCircle, Network, C
 import { api } from '../../api/client';
 import { card, cardH, cardB, F2bTooltip } from './helpers';
 import { TabNFTables } from './TabNFTables';
+import { getAppLanguage } from '../../i18n';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -59,22 +60,23 @@ function ColorLine({ line }: { line: string }) {
 // ── Rollback Banner ────────────────────────────────────────────────────────────
 
 function RollbackBanner({ countdown, onConfirm, onRollback, loading }: { countdown: number; onConfirm: () => void; onRollback: () => void; loading: boolean }) {
+    const { t } = useTranslation();
     return (
         <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', background: 'rgba(232,106,101,.08)', border: '1px solid rgba(232,106,101,.3)', borderRadius: 6, padding: '.6rem .85rem', flexWrap: 'wrap' }}>
             <AlertTriangle style={{ width: 14, height: 14, color: '#e86a65', flexShrink: 0 }} />
             <div style={{ flex: 1 }}>
-                <span style={{ fontSize: '.82rem', color: '#e86a65', fontWeight: 600 }}>Rollback automatique dans </span>
+                <span style={{ fontSize: '.82rem', color: '#e86a65', fontWeight: 600 }}>{t('fail2ban.iptables.rollbackAuto')} </span>
                 <span style={{ fontSize: '.95rem', fontWeight: 800, color: '#e86a65', fontFamily: 'monospace' }}>{countdown}s</span>
-                <span style={{ fontSize: '.76rem', color: '#8b949e', marginLeft: '.5rem' }}>— confirmez ou annulez</span>
+                <span style={{ fontSize: '.76rem', color: '#8b949e', marginLeft: '.5rem' }}>{t('fail2ban.iptables.rollbackPrompt')}</span>
             </div>
-            <F2bTooltip title="Confirmer" body="Garder les règles actuelles — annule le rollback" color="green">
+            <F2bTooltip title={t('fail2ban.iptables.confirmTitle')} body={t('fail2ban.iptables.confirmBody')} color="green">
                 <button onClick={onConfirm} style={{ background: 'rgba(63,185,80,.12)', border: '1px solid rgba(63,185,80,.3)', color: '#3fb950', borderRadius: 4, cursor: 'pointer', padding: '.25rem .65rem', fontSize: '.78rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '.3rem' }}>
-                    <CheckCircle style={{ width: 12, height: 12 }} /> Confirmer
+                    <CheckCircle style={{ width: 12, height: 12 }} /> {t('fail2ban.iptables.confirmBtn')}
                 </button>
             </F2bTooltip>
-            <F2bTooltip title="Rollback" body="Restaurer les règles d'avant la modification" color="red">
+            <F2bTooltip title={t('fail2ban.iptables.rollbackTitle')} body={t('fail2ban.iptables.rollbackBody')} color="red">
                 <button onClick={onRollback} disabled={loading} style={{ background: 'rgba(232,106,101,.12)', border: '1px solid rgba(232,106,101,.3)', color: '#e86a65', borderRadius: 4, cursor: loading ? 'default' : 'pointer', padding: '.25rem .65rem', fontSize: '.78rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '.3rem', opacity: loading ? .6 : 1 }}>
-                    <RotateCcw style={{ width: 12, height: 12 }} /> Rollback
+                    <RotateCcw style={{ width: 12, height: 12 }} /> {t('fail2ban.iptables.rollbackBtn')}
                 </button>
             </F2bTooltip>
         </div>
@@ -156,27 +158,27 @@ function ChainCard({ chain, onDelete, deleting, hiddenDockerRules, onToggleDocke
                     ? <ChevronRight style={{ width: 13, height: 13, color: '#555d69', flexShrink: 0 }} />
                     : <ChevronDown  style={{ width: 13, height: 13, color: '#555d69', flexShrink: 0 }} />}
                 <Network style={{ width: 13, height: 13, color: '#58a6ff', flexShrink: 0 }} />
-                <span style={{ fontWeight: 700, fontSize: '.85rem', color: '#58a6ff' }}>Chain {chain.name}</span>
-                <span style={{ color: '#555d69', fontSize: '.74rem' }}>({chain.rules.length} règle{chain.rules.length !== 1 ? 's' : ''})</span>
+                <span style={{ fontWeight: 700, fontSize: '.85rem', color: '#58a6ff' }}>{t('fail2ban.labels.chain')} {chain.name}</span>
+                <span style={{ color: '#555d69', fontSize: '.74rem' }}>({t('fail2ban.iptables.chainRules', { count: chain.rules.length })})</span>
                 <span style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
                     {hiddenDockerRules !== undefined && hiddenDockerRules > 0 && onToggleDocker && (
-                        <F2bTooltip title="Règles Docker masquées" body={`${hiddenDockerRules} règle${hiddenDockerRules > 1 ? 's' : ''} Docker filtrée${hiddenDockerRules > 1 ? 's' : ''} dans cette chaîne — cliquer pour afficher`} color="blue">
+                        <F2bTooltip title={t('fail2ban.iptables.dockerHiddenTitle')} body={t('fail2ban.iptables.dockerHiddenBody', { count: hiddenDockerRules })} color="blue">
                             <button onClick={e => { e.stopPropagation(); onToggleDocker(); }}
                                 style={{ background: 'rgba(88,166,255,.1)', border: '1px solid rgba(88,166,255,.35)', color: '#58a6ff', borderRadius: 4, cursor: 'pointer', padding: '.1rem .45rem', fontSize: '.68rem', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                                +{hiddenDockerRules} Docker
+                                {t('fail2ban.iptables.dockerShowBtn', { count: hiddenDockerRules })}
                             </button>
                         </F2bTooltip>
                     )}
                 </span>
                 <span style={{ background: `${pc}1a`, border: `1px solid ${pc}40`, color: pc, borderRadius: 3, padding: '.1rem .5rem', fontSize: '.72rem', fontWeight: 700, fontFamily: 'monospace' }}>
-                    Politique : {chain.policy}
+                    {t('fail2ban.iptables.policy', { policy: chain.policy })}
                 </span>
             </div>
 
             {/* ── Body (collapsible) ── */}
             {!collapsed && (
                 chain.rules.length === 0
-                    ? <div style={{ padding: '.65rem 1rem', color: '#555d69', fontSize: '.8rem' }}>Aucune règle</div>
+                    ? <div style={{ padding: '.65rem 1rem', color: '#555d69', fontSize: '.8rem' }}>{t('fail2ban.iptables.noRules')}</div>
                     : (
                         <div style={{ overflowX: 'auto' }}>
                             <table style={{ width: '100%', minWidth: 780, borderCollapse: 'collapse', fontSize: '.77rem', tableLayout: 'fixed' }}>
@@ -200,9 +202,9 @@ function ChainCard({ chain, onDelete, deleting, hiddenDockerRules, onToggleDocke
                                         {TH('iface_in', 'In')}
                                         {TH('iface_out','Out')}
                                         {TH('source',   t('fail2ban.labels.source'))}
-                                        {TH('dest',     'Destination')}
+                                        {TH('dest',     t('fail2ban.labels.destination'))}
                                         {TH('pkts',     t('fail2ban.labels.packets'),     { textAlign: 'right' })}
-                                        {TH('options',  'Options')}
+                                        {TH('options',  t('fail2ban.labels.options'))}
                                         <th style={{ padding: '.3rem .65rem', borderBottom: '1px solid #30363d' }}></th>
                                     </tr>
                                 </thead>
@@ -223,7 +225,7 @@ function ChainCard({ chain, onDelete, deleting, hiddenDockerRules, onToggleDocke
                                                 <td style={{ ...TD, textAlign: 'right', fontFamily: 'monospace', color: '#8b949e', fontSize: '.72rem' }}>{r.pkts}</td>
                                                 <td style={{ ...TD, color: '#8b949e', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.options}>{r.options}</td>
                                                 <td style={{ ...TD, textAlign: 'right' }}>
-                                                    <F2bTooltip title="Supprimer" body={`Règle #${r.num} de ${chain.name}`} color="red">
+                                                    <F2bTooltip title={t('fail2ban.iptables.deleteTitle')} body={t('fail2ban.iptables.deleteRuleBody', { num: r.num, chain: chain.name })} color="red">
                                                         <button onClick={e => { e.stopPropagation(); onDelete(chain.name, r.num); }} disabled={deleting === dk}
                                                             style={{ background: 'rgba(232,106,101,.08)', border: '1px solid rgba(232,106,101,.2)', color: '#e86a65', borderRadius: 3, cursor: deleting === dk ? 'default' : 'pointer', padding: '.18rem .32rem', display: 'inline-flex', alignItems: 'center', opacity: deleting === dk ? .5 : 1 }}>
                                                             <Trash2 style={{ width: 11, height: 11 }} />
@@ -311,7 +313,7 @@ function RulesetViewer({ refreshToken, onAction }: { refreshToken?: number; onAc
     const switchMode  = (m: 'table' | 'raw') => { setViewMode(m); fetchData(selTable, m); };
 
     const deleteRule = async (chainName: string, rulenum: number) => {
-        if (!confirm(`Supprimer la règle #${rulenum} de ${chainName} ?`)) return;
+        if (!confirm(t('fail2ban.iptables.deleteRuleConfirm', { num: rulenum, chain: chainName }))) return;
         const dk = `${chainName}-${rulenum}`;
         setDeleting(dk);
         try {
@@ -322,7 +324,7 @@ function RulesetViewer({ refreshToken, onAction }: { refreshToken?: number; onAc
                 onAction(res.result.rollbackDeadline);
                 fetchData(selTable, viewMode);
             } else {
-                alert(res.result?.error ?? 'Erreur suppression');
+                alert(res.result?.error ?? t('fail2ban.iptables.deleteError'));
             }
         } finally { setDeleting(null); }
     };
@@ -332,7 +334,7 @@ function RulesetViewer({ refreshToken, onAction }: { refreshToken?: number; onAc
             <div style={{ ...cardH, justifyContent: 'space-between', flexWrap: 'wrap', gap: '.5rem' }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: '.4rem', fontWeight: 600, fontSize: '.88rem' }}>
                     <Shield style={{ width: 14, height: 14, color: '#39c5cf' }} />
-                    Règles IPTables
+                    {t('fail2ban.iptables.title')}
                 </span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', flexWrap: 'wrap' }}>
                     {TABLES.map(t => (
@@ -346,9 +348,9 @@ function RulesetViewer({ refreshToken, onAction }: { refreshToken?: number; onAc
                     <button onClick={() => switchMode(viewMode === 'table' ? 'raw' : 'table')}
                         style={{ padding: '.12rem .45rem', fontSize: '.7rem', borderRadius: 4, cursor: 'pointer', border: '1px solid #30363d', background: 'transparent', color: '#8b949e', display: 'flex', alignItems: 'center', gap: '.25rem' }}>
                         {viewMode === 'table' ? <Code style={{ width: 11, height: 11 }} /> : <Table2 style={{ width: 11, height: 11 }} />}
-                        {viewMode === 'table' ? 'Voir brut' : 'Vue tableau'}
+                        {viewMode === 'table' ? t('fail2ban.iptables.viewRaw') : t('fail2ban.iptables.viewTable')}
                     </button>
-{lastLoaded > 0 && !loading && <span style={{ fontSize: '.67rem', color: '#555d69' }}>{new Date(lastLoaded).toLocaleTimeString('fr-FR')}</span>}
+{lastLoaded > 0 && !loading && <span style={{ fontSize: '.67rem', color: '#555d69' }}>{new Date(lastLoaded).toLocaleTimeString(getAppLanguage())}</span>}
                 </div>
             </div>
             <div style={cardB}>
@@ -356,7 +358,7 @@ function RulesetViewer({ refreshToken, onAction }: { refreshToken?: number; onAc
                 {error && (
                     <div style={{ background: 'rgba(227,179,65,.07)', border: '1px solid rgba(227,179,65,.25)', borderRadius: 6, padding: '.75rem 1rem' }}>
                         <div style={{ display: 'flex', gap: '.4rem', alignItems: 'center', color: '#e3b341', fontSize: '.82rem', marginBottom: '.4rem' }}>
-                            <AlertTriangle style={{ width: 13, height: 13 }} /> Commande non disponible
+                            <AlertTriangle style={{ width: 13, height: 13 }} /> {t('fail2ban.iptables.cmdUnavailable')}
                         </div>
                         <pre style={{ fontSize: '.75rem', color: '#8b949e', fontFamily: 'monospace', margin: 0, whiteSpace: 'pre-wrap' }}>{error}</pre>
                     </div>
@@ -371,14 +373,14 @@ function RulesetViewer({ refreshToken, onAction }: { refreshToken?: number; onAc
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '.85rem' }}>{visible.map(c => <ChainCard key={c.name} chain={c} onDelete={deleteRule} deleting={deleting} hiddenDockerRules={hideDocker ? (perChainHidden[c.name] ?? 0) : 0} onToggleDocker={toggle} />)}</div>
                                     {(hiddenRules > 0 || hiddenChains > 0) && (
                                         <div style={{ fontSize: '.72rem', color: '#555d69', textAlign: 'center', padding: '.35rem' }}>
-                                            {hiddenChains > 0 && <>{hiddenChains} chaîne{hiddenChains > 1 ? 's' : ''} Docker masquée{hiddenChains > 1 ? 's' : ''} — </>}
-                                            {hiddenRules} règle{hiddenRules > 1 ? 's' : ''} Docker masquée{hiddenRules > 1 ? 's' : ''}
+                                            {hiddenChains > 0 && <>{t('fail2ban.iptables.dockerHiddenChains', { count: hiddenChains })} — </>}
+                                            {t('fail2ban.iptables.dockerHiddenRules', { count: hiddenRules })}
                                         </div>
                                     )}
                                 </>
                             );
                           })()
-                        : lastLoaded > 0 && <div style={{ color: '#555d69', fontSize: '.8rem' }}>Aucune règle</div>
+                        : lastLoaded > 0 && <div style={{ color: '#555d69', fontSize: '.8rem' }}>{t('fail2ban.iptables.noRules')}</div>
                 )}
                 {!loading && !error && viewMode === 'raw' && rawOutput && (
                     <pre style={{ fontFamily: 'monospace', fontSize: '.78rem', lineHeight: 1.7, margin: 0, overflowX: 'auto', maxHeight: '50vh' }}>
@@ -408,7 +410,7 @@ function RuleBuilder({ onAction }: { onAction: (deadline?: number) => void }) {
                 '/api/plugins/fail2ban/iptables/rule/add', { table, chain, rule: rule.trim() }
             );
             if (res.success && res.result?.ok) {
-                setMsg({ ok: true, text: res.result.output ?? 'Règle ajoutée' });
+                setMsg({ ok: true, text: res.result.output ?? t('fail2ban.iptables.ruleAdded') });
                 setRule('');
                 onAction(res.result.rollbackDeadline);
             } else {
@@ -423,27 +425,27 @@ function RuleBuilder({ onAction }: { onAction: (deadline?: number) => void }) {
         <div style={card}>
             <div style={cardH}>
                 <Plus style={{ width: 14, height: 14, color: '#e3b341' }} />
-                <span style={{ fontWeight: 600, fontSize: '.88rem' }}>Ajouter une règle</span>
-                <span style={{ marginLeft: 'auto', fontSize: '.72rem', color: '#8b949e' }}>iptables -t TABLE -A CHAIN [règle]</span>
+                <span style={{ fontWeight: 600, fontSize: '.88rem' }}>{t('fail2ban.iptables.addRuleTitle')}</span>
+                <span style={{ marginLeft: 'auto', fontSize: '.72rem', color: '#8b949e' }}>{t('fail2ban.iptables.addRuleHint')}</span>
             </div>
             <div style={{ ...cardB, display: 'flex', flexDirection: 'column', gap: '.65rem' }}>
                 <div style={{ display: 'flex', gap: '.4rem', background: 'rgba(227,179,65,.06)', border: '1px solid rgba(227,179,65,.2)', borderRadius: 5, padding: '.45rem .75rem', fontSize: '.76rem', color: '#e3b341' }}>
                     <AlertTriangle style={{ width: 12, height: 12, flexShrink: 0, marginTop: 1 }} />
-                    <span>Écriture iptables — <strong>rollback automatique en 30s</strong> si non confirmé. Une règle mal formée peut couper l'accès SSH.</span>
+                    <span dangerouslySetInnerHTML={{ __html: t('fail2ban.iptables.writeWarn') }} />
                 </div>
                 <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '.25rem' }}>
-                        <label style={{ fontSize: '.67rem', color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.05em' }}>Table</label>
+                        <label style={{ fontSize: '.67rem', color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.05em' }}>{t('fail2ban.iptables.formTable')}</label>
                         <select value={table} onChange={e => setTable(e.target.value)} style={{ ...inputStyle, cursor: 'pointer', minWidth: 90 }}>
                             {['filter', 'nat', 'mangle', 'raw'].map(t => <option key={t} value={t}>{t}</option>)}
                         </select>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '.25rem' }}>
-                        <label style={{ fontSize: '.67rem', color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.05em' }}>Chain</label>
+                        <label style={{ fontSize: '.67rem', color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.05em' }}>{t('fail2ban.iptables.formChain')}</label>
                         <input value={chain} onChange={e => setChain(e.target.value.toUpperCase())} placeholder="INPUT" style={{ ...inputStyle, width: 110 }} />
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '.25rem', flex: 1, minWidth: 200 }}>
-                        <label style={{ fontSize: '.67rem', color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.05em' }}>Règle</label>
+                        <label style={{ fontSize: '.67rem', color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.05em' }}>{t('fail2ban.iptables.formRule')}</label>
                         <input value={rule} onChange={e => setRule(e.target.value)} placeholder="-s 1.2.3.4 -j DROP"
                             style={{ ...inputStyle, width: '100%' }}
                             onKeyDown={e => { if (e.key === 'Enter') addRule(); }} />
@@ -454,7 +456,7 @@ function RuleBuilder({ onAction }: { onAction: (deadline?: number) => void }) {
                         padding: '.35rem .85rem', fontSize: '.8rem', fontWeight: 600,
                         display: 'flex', alignItems: 'center', gap: '.35rem', opacity: loading || !rule.trim() ? .5 : 1,
                     }}>
-                        <Plus style={{ width: 12, height: 12 }} /> Ajouter
+                        <Plus style={{ width: 12, height: 12 }} /> {t('fail2ban.iptables.addRule')}
                     </button>
                 </div>
                 {msg && (
@@ -471,6 +473,7 @@ function RuleBuilder({ onAction }: { onAction: (deadline?: number) => void }) {
 // ── Main tab ───────────────────────────────────────────────────────────────────
 
 const IPTablesContent: React.FC = () => {
+    const { t } = useTranslation();
     const [refreshToken, setRefreshToken] = useState(0);
     const [rollback, setRollback] = useState<RollbackStatus>({ pending: false, deadline: null });
     const [countdown, setCountdown] = useState(0);
@@ -528,7 +531,7 @@ const IPTablesContent: React.FC = () => {
             <RuleBuilder onAction={handleAction} />
             <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.6rem .85rem', background: 'rgba(57,197,207,.05)', border: '1px solid rgba(57,197,207,.2)', borderRadius: 6, fontSize: '.8rem', color: '#8b949e' }}>
                 <Archive style={{ width: 13, height: 13, color: '#39c5cf', flexShrink: 0 }} />
-                Les sauvegardes IPTables se trouvent dans l&apos;onglet <span style={{ color: '#39c5cf', fontWeight: 600, marginLeft: '.25rem' }}>Backup</span>.
+                <span dangerouslySetInnerHTML={{ __html: t('fail2ban.iptables.backupHint') }} />
             </div>
         </div>
     );

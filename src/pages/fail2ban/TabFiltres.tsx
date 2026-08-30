@@ -42,6 +42,7 @@ interface FilterModalProps {
 }
 
 const FilterModal: React.FC<FilterModalProps> = ({ name, jailsUsingIt, onClose, onSaved }) => {
+    const { t } = useTranslation();
     const [content, setContent]       = useState('');
     const [edited, setEdited]         = useState('');
     const [loading, setLoading]       = useState(true);
@@ -74,7 +75,7 @@ const FilterModal: React.FC<FilterModalProps> = ({ name, jailsUsingIt, onClose, 
             setResults(res.result.reloadResults ?? []);
             onSaved();
         } else {
-            setSaveError(res.result?.error ?? res.error?.message ?? 'Erreur inconnue');
+            setSaveError(res.result?.error ?? res.error?.message ?? t('fail2ban.errors.unknown'));
         }
     };
 
@@ -92,7 +93,7 @@ const FilterModal: React.FC<FilterModalProps> = ({ name, jailsUsingIt, onClose, 
                         <code style={{ fontSize: '.85rem', color: '#e6edf3' }}>filter.d/{name}</code>
                         {jailsUsingIt.length > 0 && (
                             <span style={{ fontSize: '.7rem', color: '#8b949e' }}>
-                                · utilisé par {jailsUsingIt.length} jail{jailsUsingIt.length > 1 ? 's' : ''}
+                                · {jailsUsingIt.length === 1 ? t('fail2ban.fbActions.usedByJails_one', { count: jailsUsingIt.length }) : t('fail2ban.fbActions.usedByJails_other', { count: jailsUsingIt.length })}
                             </span>
                         )}
                     </div>
@@ -104,9 +105,9 @@ const FilterModal: React.FC<FilterModalProps> = ({ name, jailsUsingIt, onClose, 
                 {/* Reload results */}
                 {results !== null && (
                     <div style={{ padding: '.6rem 1rem', borderBottom: '1px solid #30363d', display: 'flex', flexWrap: 'wrap', gap: '.4rem', alignItems: 'center' }}>
-                        <span style={{ fontSize: '.75rem', color: '#8b949e', marginRight: '.25rem' }}>Reload :</span>
+                        <span style={{ fontSize: '.75rem', color: '#8b949e', marginRight: '.25rem' }}>{t('fail2ban.filtres.reload')}</span>
                         {results.length === 0
-                            ? <span style={{ fontSize: '.75rem', color: '#8b949e' }}>aucun jail affecté</span>
+                            ? <span style={{ fontSize: '.75rem', color: '#8b949e' }}>{t('fail2ban.fbActions.noJailAffected')}</span>
                             : results.map(r => (
                                 <span key={r.jail} title={r.error ?? r.output} style={{ display: 'inline-flex', alignItems: 'center', gap: '.25rem', fontSize: '.72rem', padding: '.15rem .5rem', borderRadius: 4, background: r.ok ? 'rgba(63,185,80,.12)' : 'rgba(232,106,101,.12)', color: r.ok ? '#3fb950' : '#e86a65', border: `1px solid ${r.ok ? 'rgba(63,185,80,.25)' : 'rgba(232,106,101,.25)'}` }}>
                                     {r.ok ? <CheckCircle style={{ width: 10, height: 10 }} /> : <AlertTriangle style={{ width: 10, height: 10 }} />}
@@ -127,7 +128,7 @@ const FilterModal: React.FC<FilterModalProps> = ({ name, jailsUsingIt, onClose, 
                 {/* Content */}
                 <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                     {loading
-                        ? <div style={{ padding: '2rem', textAlign: 'center', color: '#8b949e', fontSize: '.85rem' }}>Chargement…</div>
+                        ? <div style={{ padding: '2rem', textAlign: 'center', color: '#8b949e', fontSize: '.85rem' }}>{t('common.loading')}</div>
                         : editing
                             ? <textarea value={edited} onChange={e => setEdited(e.target.value)}
                                 style={{ flex: 1, resize: 'none', padding: '1rem', background: '#161b22', color: '#e6edf3', border: 'none', borderBottom: '1px solid #555', fontFamily: 'monospace', fontSize: '.78rem', lineHeight: 1.6, outline: 'none', overflowY: 'auto', boxShadow: 'inset 0 2px 4px rgba(0,0,0,.55), inset 0 1px 0 rgba(0,0,0,.4)' }} />
@@ -142,11 +143,11 @@ const FilterModal: React.FC<FilterModalProps> = ({ name, jailsUsingIt, onClose, 
                             <>
                                 <button onClick={() => { setEditing(false); setEdited(content); setSaveError(null); }}
                                     style={{ padding: '.3rem .75rem', fontSize: '.8rem', borderRadius: 5, background: 'transparent', border: '1px solid #30363d', color: '#8b949e', cursor: 'pointer' }}>
-                                    Annuler
+                                    {t('common.cancel')}
                                 </button>
                                 <button onClick={handleSave} disabled={saving || !dirty}
                                     style={{ display: 'flex', alignItems: 'center', gap: '.35rem', padding: '.3rem .85rem', fontSize: '.8rem', borderRadius: 5, background: dirty ? '#3fb950' : '#30363d', border: 'none', color: dirty ? '#0d1117' : '#8b949e', cursor: dirty ? 'pointer' : 'default', fontWeight: 600, opacity: saving ? .7 : 1 }}>
-                                    <Save style={{ width: 13, height: 13 }} />{saving ? 'Sauvegarde…' : 'Sauvegarder'}
+                                    <Save style={{ width: 13, height: 13 }} />{saving ? t('common.saving') : t('common.save')}
                                     {!saving && dirty && jailsUsingIt.length > 0 && (
                                         <span style={{ fontSize: '.7rem', fontWeight: 400, opacity: .85 }}>+ reload {jailsUsingIt.length} jail{jailsUsingIt.length > 1 ? 's' : ''}</span>
                                     )}
@@ -155,7 +156,7 @@ const FilterModal: React.FC<FilterModalProps> = ({ name, jailsUsingIt, onClose, 
                         ) : (
                             <button onClick={() => { setEditing(true); setResults(null); setSaveError(null); }}
                                 style={{ display: 'flex', alignItems: 'center', gap: '.35rem', padding: '.3rem .85rem', fontSize: '.8rem', borderRadius: 5, background: 'rgba(88,166,255,.1)', border: '1px solid rgba(88,166,255,.25)', color: '#58a6ff', cursor: 'pointer' }}>
-                                <Pencil style={{ width: 13, height: 13 }} />Modifier
+                                <Pencil style={{ width: 13, height: 13 }} />{t('common.edit')}
                             </button>
                         )}
                     </div>
@@ -186,7 +187,7 @@ export const TabFiltres: React.FC<TabFiltresProps> = ({ jails, onJailCreated }) 
                 if (res.success && res.result?.ok) {
                     setCached('filters:list', res.result.files);
                     setFiles(res.result.files);
-                } else if (!cached) setError(res.result?.error ?? 'Erreur lecture filter.d');
+                } else if (!cached) setError(res.result?.error ?? t('fail2ban.errors.readError'));
                 setLoading(false);
             });
     };
@@ -235,7 +236,7 @@ export const TabFiltres: React.FC<TabFiltresProps> = ({ jails, onJailCreated }) 
 
     const modalRow = modal ? rows.find(r => r.name === modal) : null;
 
-    if (loading) return <div style={{ padding: '2rem', color: '#8b949e', fontSize: '.85rem' }}>Chargement…</div>;
+    if (loading) return <div style={{ padding: '2rem', color: '#8b949e', fontSize: '.85rem' }}>{t('common.loading')}</div>;
     if (error)   return <div style={{ padding: '2rem', color: '#e86a65', fontSize: '.85rem' }}>{error}</div>;
 
     const refreshList = () => {
@@ -273,7 +274,7 @@ export const TabFiltres: React.FC<TabFiltresProps> = ({ jails, onJailCreated }) 
             <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.75rem', flexWrap: 'wrap' }}>
                 {/* Toggle */}
                 <div style={{ display: 'flex', gap: '.2rem', background: '#21262d', borderRadius: 6, padding: '.2rem', border: '1px solid #30363d' }}>
-                    {[{ label: 'Actifs', value: false }, { label: 'Tous', value: true }].map(({ label, value }) => (
+                    {[{ label: t('fail2ban.filtres.actifs'), value: false }, { label: t('fail2ban.filtres.tous'), value: true }].map(({ label, value }) => (
                         <button key={label} onClick={() => setShowAll(value)}
                             style={{ padding: '.2rem .7rem', fontSize: '.78rem', borderRadius: 4, border: 'none', background: showAll === value ? 'rgba(88,166,255,.15)' : 'transparent', color: showAll === value ? '#58a6ff' : '#8b949e', cursor: 'pointer', fontWeight: showAll === value ? 600 : 400 }}>
                             {label}
@@ -290,7 +291,7 @@ export const TabFiltres: React.FC<TabFiltresProps> = ({ jails, onJailCreated }) 
                 <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', background: '#21262d', border: '1px solid #30363d', borderRadius: 6, padding: '.3rem .65rem', width: 260 }}>
                         <span style={{ color: '#8b949e', fontSize: '.8rem' }}>⌕</span>
-                        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Filtrer les filtres…"
+                        <input value={search} onChange={e => setSearch(e.target.value)} placeholder={t('fail2ban.filtres.filtrerFiltres')}
                             style={{ background: 'none', border: 'none', outline: 'none', color: '#e6edf3', fontSize: '.82rem', flex: 1, minWidth: 0 }} />
                         {search && <button onClick={() => setSearch('')} style={{ background: 'none', border: 'none', color: '#8b949e', cursor: 'pointer', padding: 0, lineHeight: 1 }}>✕</button>}
                     </div>
@@ -311,7 +312,7 @@ export const TabFiltres: React.FC<TabFiltresProps> = ({ jails, onJailCreated }) 
                 {/* Header */}
                 <div style={{ display: 'grid', gridTemplateColumns: '220px 56px minmax(0,1fr) auto', gap: 0, ...cardH, borderBottom: '1px solid #30363d', fontSize: '.68rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: '#8b949e' }}>
                     <div>Filtre</div>
-                    <div style={{ textAlign: 'center' }}>Jails</div>
+                    <div style={{ textAlign: 'center' }}>{t('fail2ban.labels.jails')}</div>
                     <div>Utilisé par</div>
                     <div />
                 </div>
@@ -368,9 +369,9 @@ export const TabFiltres: React.FC<TabFiltresProps> = ({ jails, onJailCreated }) 
                             )}
                             <button onClick={() => setModal(row.name)}
                                 style={{ display: 'flex', alignItems: 'center', gap: '.3rem', padding: '.28rem .65rem', fontSize: '.75rem', borderRadius: 5, background: 'rgba(88,166,255,.08)', border: '1px solid rgba(88,166,255,.2)', color: '#58a6ff', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                                <FileText style={{ width: 11, height: 11 }} />Voir / Éditer
+                                <FileText style={{ width: 11, height: 11 }} />{t('fail2ban.jailConfig.viewFilter')}
                             </button>
-                            <button onClick={() => downloadFilter(row.name)} title="Télécharger"
+                            <button onClick={() => downloadFilter(row.name)} title={t('fail2ban.newFilter.download')}
                                 style={{ display: 'flex', alignItems: 'center', padding: '.28rem .45rem', fontSize: '.75rem', borderRadius: 5, background: 'transparent', border: '1px solid #30363d', color: '#8b949e', cursor: 'pointer' }}>
                                 <Download style={{ width: 12, height: 12 }} />
                             </button>

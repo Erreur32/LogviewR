@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { HelpCircle, Copy, CheckCircle, ChevronDown, ChevronRight } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 // ── Block types ───────────────────────────────────────────────────────────────
 
@@ -90,6 +91,7 @@ function doCopy(text: string, onDone: () => void) {
 // ── Code block with copy ──────────────────────────────────────────────────────
 
 const CodeBlock: React.FC<{ type: 'shell' | 'yaml' | 'conf'; code: string }> = ({ type, code }) => {
+    const { t } = useTranslation();
     const [copied, setCopied] = useState(false);
     const label = type === 'yaml' ? 'YAML' : type === 'conf' ? 'INI/CONF' : 'SHELL';
     const labelColor = type === 'yaml' ? '#e3b341' : type === 'conf' ? '#58a6ff' : '#39c5cf';
@@ -101,7 +103,7 @@ const CodeBlock: React.FC<{ type: 'shell' | 'yaml' | 'conf'; code: string }> = (
                 <button onClick={() => doCopy(code, () => { setCopied(true); setTimeout(() => setCopied(false), 1400); })}
                     style={{ background: 'none', border: 'none', cursor: 'pointer', color: copied ? '#3fb950' : '#555d69', padding: 0, display: 'flex', alignItems: 'center', gap: '.3rem', fontSize: '.68rem' }}>
                     {copied ? <CheckCircle style={{ width: 11, height: 11 }} /> : <Copy style={{ width: 11, height: 11 }} />}
-                    {copied ? 'Copié' : 'Copier'}
+                    {copied ? t('fail2ban.aide.copied') : t('fail2ban.aide.copy')}
                 </button>
             </div>
             <pre style={{ margin: 0, padding: '.6rem .85rem', fontSize: '.74rem', fontFamily: 'monospace', lineHeight: 1.7, overflowX: 'auto' }}>
@@ -134,10 +136,11 @@ const CmdRow: React.FC<{ cmd: string; desc?: string }> = ({ cmd, desc }) => {
 // ── IP blocks (CDN/Cloud ranges) ──────────────────────────────────────────────
 
 const CidrBadge: React.FC<{ cidr: string; color: string }> = ({ cidr, color }) => {
+    const { t } = useTranslation();
     const [copied, setCopied] = useState(false);
     return (
         <button onClick={() => doCopy(cidr, () => { setCopied(true); setTimeout(() => setCopied(false), 1200); })}
-            title={copied ? 'Copié !' : 'Copier'}
+            title={copied ? t('fail2ban.aide.copiedBang') : t('fail2ban.aide.copy')}
             style={{ fontFamily: 'monospace', fontSize: '.71rem', color: copied ? color : '#c9d1d9', background: '#161b22', border: `1px solid ${copied ? color : '#21262d'}`, borderRadius: 4, padding: '.12rem .4rem', cursor: 'pointer', transition: 'border-color .15s, color .15s', whiteSpace: 'nowrap' }}>
             {cidr}
         </button>
@@ -155,14 +158,16 @@ const PALETTE_RGB: Record<string, string> = {
 };
 const rgb = (c: string) => PALETTE_RGB[c] ?? '139,148,158';
 
-const IpBlocks: React.FC<{ providers: { name: string; color: string; desc?: string; ranges: string[] }[]; safe?: boolean }> = ({ providers, safe }) => (
+const IpBlocks: React.FC<{ providers: { name: string; color: string; desc?: string; ranges: string[] }[]; safe?: boolean }> = ({ providers, safe }) => {
+    const { t } = useTranslation();
+    return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(270px, 1fr))', gap: '.75rem', marginTop: '.25rem' }}>
         {providers.map(p => (
             <div key={p.name} style={{ background: '#0d1117', border: `1px solid rgba(${rgb(p.color)},.25)`, borderRadius: 7, overflow: 'hidden' }}>
                 <div style={{ padding: '.38rem .65rem', background: `rgba(${rgb(p.color)},.07)`, borderBottom: `1px solid rgba(${rgb(p.color)},.2)`, display: 'flex', alignItems: 'center', gap: '.5rem' }}>
                     {safe && <span style={{ fontSize: '.68rem', color: p.color }}>✓</span>}
                     <span style={{ fontWeight: 700, fontSize: '.82rem', color: p.color }}>{p.name}</span>
-                    <span style={{ fontSize: '.63rem', color: '#8b949e', marginLeft: 'auto' }}>{p.ranges.length} entrée{p.ranges.length > 1 ? 's' : ''}</span>
+                    <span style={{ fontSize: '.63rem', color: '#8b949e', marginLeft: 'auto' }}>{t('fail2ban.aide.entries', { count: p.ranges.length })}</span>
                 </div>
                 {p.desc && <div style={{ padding: '.3rem .65rem .1rem', fontSize: '.71rem', color: '#8b949e', lineHeight: 1.4 }}>{p.desc}</div>}
                 <div style={{ padding: '.45rem .65rem', display: 'flex', flexWrap: 'wrap', gap: '.3rem' }}>
@@ -171,7 +176,8 @@ const IpBlocks: React.FC<{ providers: { name: string; color: string; desc?: stri
             </div>
         ))}
     </div>
-);
+    );
+};
 
 const CmdList: React.FC<{ subs: CmdSub[] }> = ({ subs }) => (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.25rem 2rem', marginTop: '.5rem' }}>
@@ -226,16 +232,16 @@ const SectionCard: React.FC<{ section: Section }> = ({ section: s }) => {
 
 // ── Sections data ─────────────────────────────────────────────────────────────
 
-const GROUPS: Group[] = [
+const buildGroups = (t: (k: string) => string): Group[] => [
     {
-        label: 'Dépannage & Configuration',
+        label: t('fail2ban.aide.groupTroubleshooting'),
         icon: '🔧',
         sections: [
             {
-                title: 'Socket inaccessible',
+                title: t('fail2ban.aide.socketTitle'),
                 color: '#e86a65', border: 'rgba(232,106,101,.25)', bg: 'rgba(232,106,101,.04)', collapsed: true,
                 blocks: [
-                    { type: 'text', v: 'Le socket fail2ban doit être chmod 660 sur le host. Créez le drop-in systemd :' },
+                    { type: 'text', v: t('fail2ban.aide.socketText1') },
                     { type: 'shell', v: `mkdir -p /etc/systemd/system/fail2ban.service.d/
 echo "[Service]\\nExecStartPost=-/usr/bin/chmod 660 /var/run/fail2ban/fail2ban.sock" \\
   > /etc/systemd/system/fail2ban.service.d/docker-access.conf
@@ -243,28 +249,28 @@ systemctl daemon-reload && systemctl restart fail2ban` },
                 ],
             },
             {
-                title: 'Config jail manquante (filter/port/bantime…)',
+                title: t('fail2ban.aide.jailMissingTitle'),
                 color: '#e86a65', border: 'rgba(232,106,101,.25)', bg: 'rgba(232,106,101,.04)', collapsed: true,
                 blocks: [
-                    { type: 'text', v: 'Ces métadonnées sont lues depuis /etc/fail2ban/jail.conf + jail.d/. Montez le volume :' },
+                    { type: 'text', v: t('fail2ban.aide.jailMissingText1') },
                     { type: 'yaml', v: 'volumes:\n  - /etc/fail2ban:/host/etc/fail2ban:ro' },
                 ],
             },
             {
-                title: 'SQLite non lisible',
+                title: t('fail2ban.aide.sqliteTitle'),
                 color: '#e86a65', border: 'rgba(232,106,101,.25)', bg: 'rgba(232,106,101,.04)', collapsed: true,
                 blocks: [
-                    { type: 'text', v: 'La DB fail2ban est montée via /host/ dans Docker. Corrigez les permissions sur le host :' },
+                    { type: 'text', v: t('fail2ban.aide.sqliteText1') },
                     { type: 'shell', v: 'chmod o+r /var/lib/fail2ban/fail2ban.sqlite3' },
-                    { type: 'text', v: 'Et vérifiez le volume dans docker-compose.yml :' },
+                    { type: 'text', v: t('fail2ban.aide.sqliteText2') },
                     { type: 'yaml', v: 'volumes:\n  - /var/lib/fail2ban:/host/var/lib/fail2ban:ro' },
                 ],
             },
             {
-                title: 'IPTables / IPSet / NFTables vides',
+                title: t('fail2ban.aide.fwEmptyTitle'),
                 color: '#e86a65', border: 'rgba(232,106,101,.25)', bg: 'rgba(232,106,101,.04)', collapsed: true,
                 blocks: [
-                    { type: 'text', v: 'Ces onglets nécessitent NET_ADMIN + les binaires dans le container :' },
+                    { type: 'text', v: t('fail2ban.aide.fwEmptyText1') },
                     { type: 'yaml', v: 'cap_add:\n  - NET_ADMIN' },
                     { type: 'shell', v: 'apk add --no-cache iptables ipset nftables' },
                 ],
@@ -272,33 +278,33 @@ systemctl daemon-reload && systemctl restart fail2ban` },
         ],
     },
     {
-        label: 'Comprendre',
+        label: t('fail2ban.aide.groupUnderstand'),
         icon: '📖',
         sections: [
             {
-                title: 'Bans actifs vs Tracker vs Total cumulé',
+                title: t('fail2ban.aide.countersTitle'),
                 color: '#58a6ff', border: 'rgba(88,166,255,.25)', bg: 'rgba(88,166,255,.04)', span: 2, collapsed: true,
                 blocks: [
-                    { type: 'text', v: 'Le dashboard affiche plusieurs compteurs qui mesurent des choses différentes — ils ne sont pas censés être identiques.' },
-                    { type: 'text', v: '🔴 Bans actifs (header) — IPs actuellement en jail dont le ban n\'a pas encore expiré. Source : socket fail2ban en temps réel. Diminue quand un ban expire.' },
-                    { type: 'text', v: '🟠 Tracker IPs (badge nav) — IPs uniques ayant eu au moins un ban depuis le début de l\'historique interne (f2b_events). Inclut les bans expirés. Ne fait que croître.' },
-                    { type: 'text', v: '🟣 Total bans cumulé (header) — Somme de tous les événements ban enregistrés depuis l\'installation. Une même IP peut être comptée plusieurs fois.' },
+                    { type: 'text', v: t('fail2ban.aide.countersText1') },
+                    { type: 'text', v: t('fail2ban.aide.countersText2') },
+                    { type: 'text', v: t('fail2ban.aide.countersText3') },
+                    { type: 'text', v: t('fail2ban.aide.countersText4') },
                     { type: 'conf', v: `# Exemple : IP bannie 3 fois, ban actuel expiré
 Bans actifs      = 0   (ban expiré → plus en jail)
 Tracker IPs      = 1   (l'IP existe dans l'historique)
 Total cumulé     = 3   (3 événements ban enregistrés)` },
-                    { type: 'note', v: 'L\'historique interne (f2b_events) est conservé indéfiniment dans dashboard.db — même si fail2ban purge sa propre DB selon dbpurgeage.' },
+                    { type: 'note', v: t('fail2ban.aide.countersNote') },
                 ],
             },
             {
-                title: 'Logique fail2ban + ipset — tentatives après ban',
+                title: t('fail2ban.aide.logicTitle'),
                 color: '#58a6ff', border: 'rgba(88,166,255,.25)', bg: 'rgba(88,166,255,.04)',
                 span: 2, collapsed: true,
                 blocks: [
-                    { type: 'text', v: 'Un tracker peut afficher 15 tentatives sur une IP déjà dans un ipset. C\'est normal — voici pourquoi.' },
+                    { type: 'text', v: t('fail2ban.aide.logicText1') },
                     { type: 'conf', v: `# ① Ordre de traitement réseau
 Internet → Kernel Netfilter (ipset/iptables) → Daemon applicatif (nginx, sshd…) → fail2ban lit les logs` },
-                    { type: 'note', v: 'L\'ipset opère au niveau kernel, avant que le paquet atteigne le daemon. Fail2ban ne voit que les logs — il ne peut pas bloquer ce que le kernel n\'a pas encore intercepté.' },
+                    { type: 'note', v: t('fail2ban.aide.logicNote1') },
                     { type: 'conf', v: `# ② Pourquoi le compteur de tentatives reste à 15 malgré l'ipset
 #    L'ipset ne bloque pas rétroactivement les logs déjà écrits.
 
@@ -322,17 +328,17 @@ Résultat : IP dans ipset = bloquée définitivement au niveau kernel` },
 # Règle par IP  iptables = 1 règle/IP              ipset = 1 règle iptables → hash O(1)
 # Performance   se dégrade avec 1000+ IPs          constant, même avec 100k IPs
 # Niveau        Netfilter (avant routing)           Netfilter (avant routing)` },
-                    { type: 'note', v: 'Badge BANNI + IPSet sur une IP avec 15 tentatives = cohérent et correct. Tentatives = historique avant le ban. IPSet = état actuel, plus aucune tentative possible.' },
-                    { type: 'warn', v: 'Si de nouvelles tentatives apparaissent après l\'ajout dans l\'ipset → problème de config : règle iptables mal positionnée, ou log généré avant le DROP kernel.' },
+                    { type: 'note', v: t('fail2ban.aide.logicNote2') },
+                    { type: 'warn', v: t('fail2ban.aide.logicWarn') },
                 ],
             },
             {
-                title: 'fail2ban.local vs jail.local',
+                title: t('fail2ban.aide.localTitle'),
                 color: '#58a6ff', border: 'rgba(88,166,255,.25)', bg: 'rgba(88,166,255,.04)', span: 2, collapsed: true,
                 blocks: [
-                    { type: 'text', v: 'fail2ban.local configure le démon global : loglevel, logtarget, dbfile, dbpurgeage, dbmaxmatches.' },
-                    { type: 'text', v: 'jail.local configure les jails : enabled, bantime, findtime, maxretry, filter, action, logpath.' },
-                    { type: 'note', v: 'Règle .conf vs .local : les .conf sont fournis par le package (ne jamais les éditer). Les .local sont vos overrides — ne mettre que ce que vous voulez changer.' },
+                    { type: 'text', v: t('fail2ban.aide.localText1') },
+                    { type: 'text', v: t('fail2ban.aide.localText2') },
+                    { type: 'note', v: t('fail2ban.aide.localNote') },
                     { type: 'conf', v: `# fail2ban.local — exemple minimal
 [Definition]
 loglevel   = INFO
@@ -351,114 +357,114 @@ enabled = true` },
         ],
     },
     {
-        label: 'Commandes shell',
+        label: t('fail2ban.aide.groupCommands'),
         icon: '💻',
         sections: [
             {
-                title: 'Fail2ban — Statut, Ban/Unban, Config, Logs',
+                title: t('fail2ban.aide.f2bCmdsTitle'),
                 color: '#39c5cf', border: 'rgba(57,197,207,.25)', bg: 'rgba(57,197,207,.04)',
                 span: 2,
                 collapsed: true,
                 blocks: [
                     { type: 'cmds', subs: [
-                        { title: 'Statut & Jails', cmds: [
-                            { cmd: 'fail2ban-client status',              desc: 'Liste tous les jails actifs' },
-                            { cmd: 'fail2ban-client status sshd',         desc: 'Détail d\'un jail (IPs bannies, compteurs)' },
-                            { cmd: 'fail2ban-client ping',                desc: 'Vérifie que le service répond' },
-                            { cmd: 'systemctl status fail2ban',           desc: 'Statut du service systemd' },
+                        { title: t('fail2ban.aide.subStatusJails'), cmds: [
+                            { cmd: 'fail2ban-client status',              desc: t('fail2ban.aide.cmdStatusList') },
+                            { cmd: 'fail2ban-client status sshd',         desc: t('fail2ban.aide.cmdStatusDetail') },
+                            { cmd: 'fail2ban-client ping',                desc: t('fail2ban.aide.cmdPing') },
+                            { cmd: 'systemctl status fail2ban',           desc: t('fail2ban.aide.cmdSystemdStatus') },
                         ]},
-                        { title: 'Ban / Unban manuel', cmds: [
-                            { cmd: 'fail2ban-client set sshd banip 1.2.3.4',   desc: 'Bannir une IP dans un jail' },
-                            { cmd: 'fail2ban-client set sshd unbanip 1.2.3.4', desc: 'Débannir une IP' },
-                            { cmd: 'fail2ban-client unban 1.2.3.4',            desc: 'Débannir de TOUS les jails' },
+                        { title: t('fail2ban.aide.subBan'), cmds: [
+                            { cmd: 'fail2ban-client set sshd banip 1.2.3.4',   desc: t('fail2ban.aide.cmdBanip') },
+                            { cmd: 'fail2ban-client set sshd unbanip 1.2.3.4', desc: t('fail2ban.aide.cmdUnbanip') },
+                            { cmd: 'fail2ban-client unban 1.2.3.4',            desc: t('fail2ban.aide.cmdUnbanAll') },
                         ]},
-                        { title: 'Configuration d\'un jail', cmds: [
-                            { cmd: 'fail2ban-client get sshd bantime',         desc: 'Lire bantime actuel' },
+                        { title: t('fail2ban.aide.subConfig'), cmds: [
+                            { cmd: 'fail2ban-client get sshd bantime',         desc: t('fail2ban.aide.cmdGetBantime') },
                             { cmd: 'fail2ban-client get sshd findtime' },
                             { cmd: 'fail2ban-client get sshd maxretry' },
-                            { cmd: 'fail2ban-client set sshd bantime 86400',   desc: 'Changer bantime à 24h (live)' },
+                            { cmd: 'fail2ban-client set sshd bantime 86400',   desc: t('fail2ban.aide.cmdSetBantime') },
                         ]},
-                        { title: 'Logs', cmds: [
-                            { cmd: 'tail -f /var/log/fail2ban.log',                                                  desc: 'Suivre en temps réel' },
-                            { cmd: 'grep "Ban " /var/log/fail2ban.log | tail -20',                                   desc: '20 derniers bans' },
-                            { cmd: 'zgrep "Ban " /var/log/fail2ban.log* | wc -l',                                   desc: 'Total bans (logs archivés inclus)' },
-                            { cmd: 'grep "Ban " /var/log/fail2ban.log | grep "$(date +%Y-%m-%d)" | wc -l',          desc: 'Bans aujourd\'hui' },
+                        { title: t('fail2ban.aide.subLogs'), cmds: [
+                            { cmd: 'tail -f /var/log/fail2ban.log',                                                  desc: t('fail2ban.aide.cmdTailF') },
+                            { cmd: 'grep "Ban " /var/log/fail2ban.log | tail -20',                                   desc: t('fail2ban.aide.cmdLastBans') },
+                            { cmd: 'zgrep "Ban " /var/log/fail2ban.log* | wc -l',                                   desc: t('fail2ban.aide.cmdTotalBans') },
+                            { cmd: 'grep "Ban " /var/log/fail2ban.log | grep "$(date +%Y-%m-%d)" | wc -l',          desc: t('fail2ban.aide.cmdTodayBans') },
                         ]},
-                        { title: 'Redémarrage & rechargement', cmds: [
-                            { cmd: 'systemctl reload fail2ban',    desc: 'Recharger config sans perdre les bans' },
-                            { cmd: 'systemctl restart fail2ban',   desc: 'Redémarrer (remet les compteurs à zéro)' },
-                            { cmd: 'fail2ban-client reload',       desc: 'Équivalent reload via client' },
+                        { title: t('fail2ban.aide.subRestart'), cmds: [
+                            { cmd: 'systemctl reload fail2ban',    desc: t('fail2ban.aide.cmdReload') },
+                            { cmd: 'systemctl restart fail2ban',   desc: t('fail2ban.aide.cmdRestart') },
+                            { cmd: 'fail2ban-client reload',       desc: t('fail2ban.aide.cmdReloadClient') },
                         ]},
                     ]},
                 ],
             },
             {
-                title: 'Pare-feu — IPTables & IPSet',
+                title: t('fail2ban.aide.fwCmdsTitle'),
                 color: '#39c5cf', border: 'rgba(57,197,207,.25)', bg: 'rgba(57,197,207,.04)',
                 span: 2,
                 collapsed: true,
                 blocks: [
                     { type: 'cmds', subs: [
-                        { title: 'IPSet — Lister / Inspecter', cmds: [
-                            { cmd: 'ipset list -n',              desc: 'Noms de tous les sets' },
-                            { cmd: 'ipset list monset',          desc: 'Contenu complet d\'un set' },
-                            { cmd: 'ipset list monset -t',       desc: 'Infos (type, taille) sans les IPs' },
-                            { cmd: 'ipset list monset | wc -l',  desc: 'Nombre d\'entrées (approx.)' },
+                        { title: t('fail2ban.aide.subIpsetList'), cmds: [
+                            { cmd: 'ipset list -n',              desc: t('fail2ban.aide.cmdIpsetNames') },
+                            { cmd: 'ipset list monset',          desc: t('fail2ban.aide.cmdIpsetContent') },
+                            { cmd: 'ipset list monset -t',       desc: t('fail2ban.aide.cmdIpsetInfo') },
+                            { cmd: 'ipset list monset | wc -l',  desc: t('fail2ban.aide.cmdIpsetCount') },
                         ]},
-                        { title: 'IPSet — Créer / Modifier', cmds: [
-                            { cmd: 'ipset create blacklist hash:ip',                   desc: 'Set d\'IPs simples' },
-                            { cmd: 'ipset create blacklist hash:net',                  desc: 'Set d\'IPs + plages CIDR' },
-                            { cmd: 'ipset create blacklist hash:net maxelem 1000000',  desc: 'Capacité étendue' },
+                        { title: t('fail2ban.aide.subIpsetCreate'), cmds: [
+                            { cmd: 'ipset create blacklist hash:ip',                   desc: t('fail2ban.aide.cmdIpsetSimple') },
+                            { cmd: 'ipset create blacklist hash:net',                  desc: t('fail2ban.aide.cmdIpsetCidr') },
+                            { cmd: 'ipset create blacklist hash:net maxelem 1000000',  desc: t('fail2ban.aide.cmdIpsetExtended') },
                             { cmd: 'ipset add blacklist 1.2.3.4' },
-                            { cmd: 'ipset add blacklist 1.2.0.0/16',    desc: 'Bloquer une plage entière' },
+                            { cmd: 'ipset add blacklist 1.2.0.0/16',    desc: t('fail2ban.aide.cmdIpsetRange') },
                             { cmd: 'ipset del blacklist 1.2.3.4' },
-                            { cmd: 'ipset flush blacklist',              desc: 'Vider (garder la structure)' },
-                            { cmd: 'ipset destroy blacklist',            desc: 'Supprimer entièrement' },
-                            { cmd: 'ipset save > /etc/ipset.conf',       desc: 'Sauvegarder tous les sets' },
-                            { cmd: 'ipset restore < /etc/ipset.conf',    desc: 'Restaurer' },
+                            { cmd: 'ipset flush blacklist',              desc: t('fail2ban.aide.cmdIpsetFlush') },
+                            { cmd: 'ipset destroy blacklist',            desc: t('fail2ban.aide.cmdIpsetDestroy') },
+                            { cmd: 'ipset save > /etc/ipset.conf',       desc: t('fail2ban.aide.cmdIpsetSave') },
+                            { cmd: 'ipset restore < /etc/ipset.conf',    desc: t('fail2ban.aide.cmdIpsetRestore') },
                         ]},
-                        { title: 'IPTables — Lister', cmds: [
-                            { cmd: 'iptables -L -n -v --line-numbers',          desc: 'Toutes les chaînes avec compteurs' },
-                            { cmd: 'iptables -L INPUT -n -v --line-numbers',    desc: 'Chaîne INPUT uniquement' },
-                            { cmd: 'iptables -S',                               desc: 'Format script (toutes les règles)' },
-                            { cmd: 'iptables-save > /etc/iptables/rules.v4',    desc: 'Sauvegarder' },
-                            { cmd: 'iptables-restore < /etc/iptables/rules.v4', desc: 'Restaurer' },
+                        { title: t('fail2ban.aide.subIptablesList'), cmds: [
+                            { cmd: 'iptables -L -n -v --line-numbers',          desc: t('fail2ban.aide.cmdIptablesAll') },
+                            { cmd: 'iptables -L INPUT -n -v --line-numbers',    desc: t('fail2ban.aide.cmdIptablesInput') },
+                            { cmd: 'iptables -S',                               desc: t('fail2ban.aide.cmdIptablesScript') },
+                            { cmd: 'iptables-save > /etc/iptables/rules.v4',    desc: t('fail2ban.aide.cmdIptablesSave') },
+                            { cmd: 'iptables-restore < /etc/iptables/rules.v4', desc: t('fail2ban.aide.cmdIptablesRestore') },
                         ]},
-                        { title: 'IPTables — Lier un IPSet (bloquer)', cmds: [
-                            { cmd: 'iptables -I INPUT -m set --match-set blacklist src -j DROP',   desc: 'Bloquer tout le set en entrée' },
-                            { cmd: 'iptables -I FORWARD -m set --match-set blacklist src -j DROP', desc: 'Bloquer aussi en transit' },
+                        { title: t('fail2ban.aide.subIptablesLink'), cmds: [
+                            { cmd: 'iptables -I INPUT -m set --match-set blacklist src -j DROP',   desc: t('fail2ban.aide.cmdIptablesDropInput') },
+                            { cmd: 'iptables -I FORWARD -m set --match-set blacklist src -j DROP', desc: t('fail2ban.aide.cmdIptablesDropForward') },
                         ]},
-                        { title: 'IPTables — Supprimer une règle', cmds: [
-                            { cmd: 'iptables -D INPUT -m set --match-set blacklist src -j DROP', desc: 'Par contenu exact' },
-                            { cmd: 'iptables -D INPUT 3',   desc: 'Par numéro de ligne' },
-                            { cmd: 'iptables -F INPUT',     desc: 'Vider toute la chaîne INPUT' },
+                        { title: t('fail2ban.aide.subIptablesDel'), cmds: [
+                            { cmd: 'iptables -D INPUT -m set --match-set blacklist src -j DROP', desc: t('fail2ban.aide.cmdIptablesDelExact') },
+                            { cmd: 'iptables -D INPUT 3',   desc: t('fail2ban.aide.cmdIptablesDelLine') },
+                            { cmd: 'iptables -F INPUT',     desc: t('fail2ban.aide.cmdIptablesFlush') },
                         ]},
                     ]},
-                    { type: 'note', v: 'DROP = silencieux (recommandé pour blacklists). REJECT = envoie une réponse. Utiliser hash:net pour les plages CIDR, hash:ip pour les IPs simples.' },
-                    { type: 'warn', v: 'iptables -F vide TOUTES les chaînes sans confirmation — dangereux sur un serveur distant sans règle SSH de secours.' },
+                    { type: 'note', v: t('fail2ban.aide.fwCmdsNote') },
+                    { type: 'warn', v: t('fail2ban.aide.fwCmdsWarn') },
                 ],
             },
             {
-                title: 'Diagnostic & Surveillance',
+                title: t('fail2ban.aide.diagTitle'),
                 color: '#39c5cf', border: 'rgba(57,197,207,.25)', bg: 'rgba(57,197,207,.04)',
                 span: 2,
                 collapsed: true,
                 blocks: [
                     { type: 'cmds', subs: [
-                        { title: 'Vérifier si une IP est bannie', cmds: [
+                        { title: t('fail2ban.aide.subDiagBanned'), cmds: [
                             { cmd: 'fail2ban-client status sshd | grep 1.2.3.4' },
-                            { cmd: 'ipset test blacklist 1.2.3.4 && echo "PRESENT" || echo "ABSENT"',  desc: 'Tester présence dans un set' },
-                            { cmd: 'iptables -C INPUT -s 1.2.3.4 -j DROP 2>&1',                        desc: 'Vérifier si règle existe (exit 0 = oui)' },
+                            { cmd: 'ipset test blacklist 1.2.3.4 && echo "PRESENT" || echo "ABSENT"',  desc: t('fail2ban.aide.cmdDiagTestPresence') },
+                            { cmd: 'iptables -C INPUT -s 1.2.3.4 -j DROP 2>&1',                        desc: t('fail2ban.aide.cmdDiagRuleExists') },
                         ]},
-                        { title: 'Top attaquants', cmds: [
-                            { cmd: "grep \"Ban \" /var/log/fail2ban.log | awk '{print $NF}' | sort | uniq -c | sort -rn | head -20",  desc: 'Top 20 IPs les plus bannies' },
-                            { cmd: "grep \"Found \" /var/log/fail2ban.log | awk '{print $NF}' | sort | uniq -c | sort -rn | head -20", desc: 'Top 20 IPs avec plus d\'échecs' },
-                            { cmd: "grep \"Ban \" /var/log/fail2ban.log | grep \"$(date +%Y-%m-%d)\" | wc -l",                        desc: 'Bans aujourd\'hui' },
+                        { title: t('fail2ban.aide.subDiagTop'), cmds: [
+                            { cmd: "grep \"Ban \" /var/log/fail2ban.log | awk '{print $NF}' | sort | uniq -c | sort -rn | head -20",  desc: t('fail2ban.aide.cmdDiagTopBanned') },
+                            { cmd: "grep \"Found \" /var/log/fail2ban.log | awk '{print $NF}' | sort | uniq -c | sort -rn | head -20", desc: t('fail2ban.aide.cmdDiagTopFailures') },
+                            { cmd: "grep \"Ban \" /var/log/fail2ban.log | grep \"$(date +%Y-%m-%d)\" | wc -l",                        desc: t('fail2ban.aide.cmdDiagTodayBans') },
                         ]},
-                        { title: 'Connexions actives', cmds: [
-                            { cmd: "ss -tn state established | awk 'NR>1 {print $5}' | cut -d: -f1 | sort | uniq -c | sort -rn | head -15", desc: 'Top IPs connectées' },
-                            { cmd: "ss -tn | grep :22 | awk '{print $5}' | cut -d: -f1 | sort | uniq -c | sort -rn",                        desc: 'Connexions SSH par IP' },
-                            { cmd: "netstat -ntu | awk '{print $5}' | cut -d: -f1 | sort | uniq -c | sort -rn | head -10",                  desc: 'Top IPs (netstat)' },
+                        { title: t('fail2ban.aide.subDiagConns'), cmds: [
+                            { cmd: "ss -tn state established | awk 'NR>1 {print $5}' | cut -d: -f1 | sort | uniq -c | sort -rn | head -15", desc: t('fail2ban.aide.cmdDiagTopConns') },
+                            { cmd: "ss -tn | grep :22 | awk '{print $5}' | cut -d: -f1 | sort | uniq -c | sort -rn",                        desc: t('fail2ban.aide.cmdDiagSshByIp') },
+                            { cmd: "netstat -ntu | awk '{print $5}' | cut -d: -f1 | sort | uniq -c | sort -rn | head -10",                  desc: t('fail2ban.aide.cmdDiagNetstat') },
                         ]},
                     ]},
                 ],
@@ -466,31 +472,31 @@ enabled = true` },
         ],
     },
     {
-        label: 'Référence',
+        label: t('fail2ban.aide.groupReference'),
         icon: '📋',
         sections: [
             {
-                title: 'IPs à ne PAS bannir — Safe list',
+                title: t('fail2ban.aide.safeTitle'),
                 color: '#3fb950', border: 'rgba(63,185,80,.25)', bg: 'rgba(63,185,80,.04)',
                 span: 2, collapsed: true,
                 blocks: [
-                    { type: 'note', v: 'Bannir ces plages bloquerait du trafic légitime ou casserait des services (proxy CDN, résolveurs DNS, crawlers SEO, monitoring). Ajoutez-les dans ignoreip de vos jails.' },
+                    { type: 'note', v: t('fail2ban.aide.safeNote') },
                     { type: 'ipblocks', safe: true, providers: [
-                        { name: 'Cloudflare Proxy', color: '#e3b341', desc: 'Si votre domaine est derrière Cloudflare, tout le trafic passe par ces IPs — les bannir bloque tout le monde',
+                        { name: t('fail2ban.aide.providerCloudflareProxy'), color: '#e3b341', desc: t('fail2ban.aide.providerCloudflareProxyDesc'),
                           ranges: ['173.245.48.0/20','103.21.244.0/22','103.22.200.0/22','103.31.4.0/22','141.101.64.0/18','108.162.192.0/18','190.93.240.0/20','188.114.96.0/20','197.234.240.0/22','198.41.128.0/17','162.158.0.0/15','104.16.0.0/13','104.24.0.0/14','172.64.0.0/13','131.0.72.0/22'] },
-                        { name: 'Cloudflare DNS', color: '#e3b341', desc: 'Résolveur DNS public 1.1.1.1 — ne pas confondre avec le proxy',
+                        { name: t('fail2ban.aide.providerCloudflareDns'), color: '#e3b341', desc: t('fail2ban.aide.providerCloudflareDnsDesc'),
                           ranges: ['1.1.1.1/32','1.0.0.1/32','2606:4700:4700::1111/128','2606:4700:4700::1001/128'] },
-                        { name: 'Google DNS', color: '#58a6ff', desc: 'Résolveur DNS public 8.8.8.8',
+                        { name: t('fail2ban.aide.providerGoogleDns'), color: '#58a6ff', desc: t('fail2ban.aide.providerGoogleDnsDesc'),
                           ranges: ['8.8.8.8/32','8.8.4.4/32','2001:4860:4860::8888/128','2001:4860:4860::8844/128'] },
-                        { name: 'Googlebot', color: '#58a6ff', desc: 'Crawler SEO Google — ban = déréférencement',
+                        { name: t('fail2ban.aide.providerGooglebot'), color: '#58a6ff', desc: t('fail2ban.aide.providerGooglebotDesc'),
                           ranges: ['66.249.64.0/19','66.249.80.0/20','66.249.88.0/21'] },
-                        { name: 'Bingbot', color: '#39c5cf', desc: 'Crawler Microsoft Bing',
+                        { name: t('fail2ban.aide.providerBingbot'), color: '#39c5cf', desc: t('fail2ban.aide.providerBingbotDesc'),
                           ranges: ['40.77.167.0/24','65.52.109.0/24','199.30.16.0/20','207.46.13.0/24'] },
-                        { name: 'Let\'s Encrypt', color: '#3fb950', desc: 'Validation ACME pour renouvellement SSL — ban = certificats cassés',
+                        { name: t('fail2ban.aide.providerLetsEncrypt'), color: '#3fb950', desc: t('fail2ban.aide.providerLetsEncryptDesc'),
                           ranges: ['66.133.109.36/32','64.78.149.164/32'] },
-                        { name: 'UptimeRobot', color: '#bc8cff', desc: 'Monitoring uptime — ban = fausses alertes down',
+                        { name: t('fail2ban.aide.providerUptimeRobot'), color: '#bc8cff', desc: t('fail2ban.aide.providerUptimeRobotDesc'),
                           ranges: ['216.245.221.80/28','69.162.124.224/28','63.143.42.240/28','216.245.221.80/28','178.62.52.237/32','54.36.148.0/24','87.248.104.0/22'] },
-                        { name: 'Quad9 DNS', color: '#8b949e', desc: 'Résolveur DNS public sécurisé',
+                        { name: t('fail2ban.aide.providerQuad9'), color: '#8b949e', desc: t('fail2ban.aide.providerQuad9Desc'),
                           ranges: ['9.9.9.9/32','149.112.112.112/32','2620:fe::fe/128','2620:fe::9/128'] },
                     ]},
                     { type: 'conf', v: `# jail.local — ajouter dans [DEFAULT] ou par jail
@@ -501,40 +507,40 @@ ignoreip = 127.0.0.1/8 ::1
                 ],
             },
             {
-                title: 'IP publiques connues — CDN & Cloud',
+                title: t('fail2ban.aide.publicIpsTitle'),
                 color: '#e3b341', border: 'rgba(227,179,65,.25)', bg: 'rgba(227,179,65,.04)',
                 span: 2, collapsed: true,
                 blocks: [
-                    { type: 'text', v: 'Un ban sur ces plages est souvent légitime (bot/abus depuis CDN ou cloud). Repère informatif — ces IPs appartiennent à des fournisseurs reconnus. Cliquer sur un CIDR pour le copier.' },
+                    { type: 'text', v: t('fail2ban.aide.publicIpsText1') },
                     { type: 'ipblocks', providers: [
-                        { name: 'Cloudflare', color: '#e3b341', desc: 'CDN mondial — bots légitimes et abus fréquents',
+                        { name: t('fail2ban.aide.providerCloudflare'), color: '#e3b341', desc: t('fail2ban.aide.providerCloudflareDesc'),
                           ranges: ['173.245.48.0/20','103.21.244.0/22','103.22.200.0/22','103.31.4.0/22','141.101.64.0/18','108.162.192.0/18','190.93.240.0/20','188.114.96.0/20','197.234.240.0/22','198.41.128.0/17','162.158.0.0/15','104.16.0.0/13','104.24.0.0/14','172.64.0.0/13','131.0.72.0/22'] },
-                        { name: 'Google', color: '#58a6ff', desc: 'Crawlers, bots publicitaires, services GCP',
+                        { name: t('fail2ban.aide.providerGoogle'), color: '#58a6ff', desc: t('fail2ban.aide.providerGoogleDesc'),
                           ranges: ['66.249.64.0/19','64.233.160.0/19','72.14.192.0/18','209.85.128.0/17','216.239.32.0/19','74.125.0.0/16','108.177.0.0/17','172.217.0.0/16','142.250.0.0/15'] },
-                        { name: 'Amazon AWS', color: '#e86a65', desc: 'Cloud public — source fréquente de scans',
+                        { name: t('fail2ban.aide.providerAws'), color: '#e86a65', desc: t('fail2ban.aide.providerAwsDesc'),
                           ranges: ['3.0.0.0/9','18.0.0.0/8','52.0.0.0/8','54.0.0.0/8','176.32.64.0/18','205.251.192.0/18'] },
-                        { name: 'Microsoft Azure', color: '#39c5cf', desc: 'Cloud Microsoft / Office 365',
+                        { name: t('fail2ban.aide.providerAzure'), color: '#39c5cf', desc: t('fail2ban.aide.providerAzureDesc'),
                           ranges: ['13.64.0.0/11','20.36.0.0/14','40.64.0.0/10','52.96.0.0/12'] },
                     ]},
                 ],
             },
             {
-                title: 'Plages régionales à risque élevé',
+                title: t('fail2ban.aide.regionalTitle'),
                 color: '#e3b341', border: 'rgba(227,179,65,.25)', bg: 'rgba(227,179,65,.04)',
                 span: 2, collapsed: true,
                 blocks: [
-                    { type: 'warn', v: 'Ces plages sont statistiquement surreprésentées dans les logs de scan/brute-force. Un ban préventif réduit le bruit. À utiliser selon votre contexte — certaines peuvent héberger des utilisateurs légitimes.' },
+                    { type: 'warn', v: t('fail2ban.aide.regionalWarn') },
                     { type: 'ipblocks', providers: [
-                        { name: 'Chine (CN)', color: '#e86a65', desc: 'Plages APNIC principales — scans massifs, brute-force SSH/HTTP',
+                        { name: t('fail2ban.aide.providerChina'), color: '#e86a65', desc: t('fail2ban.aide.providerChinaDesc'),
                           ranges: ['1.0.0.0/8','14.0.0.0/8','27.0.0.0/8','36.0.0.0/8','39.0.0.0/8','42.0.0.0/8','49.0.0.0/8','58.0.0.0/8','59.0.0.0/8','60.0.0.0/8','61.0.0.0/8','101.0.0.0/8','106.0.0.0/8','110.0.0.0/8','111.0.0.0/8','112.0.0.0/8','113.0.0.0/8','114.0.0.0/8','115.0.0.0/8','116.0.0.0/8','117.0.0.0/8','118.0.0.0/8','119.0.0.0/8','120.0.0.0/8','121.0.0.0/8','122.0.0.0/8','123.0.0.0/8','124.0.0.0/8','125.0.0.0/8','163.0.0.0/8','175.0.0.0/8','180.0.0.0/8','182.0.0.0/8','183.0.0.0/8','202.0.0.0/8','203.0.0.0/8','210.0.0.0/8','211.0.0.0/8','218.0.0.0/8','219.0.0.0/8','220.0.0.0/8','221.0.0.0/8','222.0.0.0/8','223.0.0.0/8'] },
-                        { name: 'Russie (RU)', color: '#bc8cff', desc: 'Plages RIPE NCC — botnets, ransomware, phishing',
+                        { name: t('fail2ban.aide.providerRussia'), color: '#bc8cff', desc: t('fail2ban.aide.providerRussiaDesc'),
                           ranges: ['5.8.0.0/16','5.45.0.0/16','5.188.0.0/16','31.13.0.0/16','37.9.0.0/16','45.8.0.0/16','45.95.0.0/16','46.8.0.0/16','77.75.0.0/16','80.66.0.0/16','83.69.0.0/16','85.93.0.0/16','89.22.0.0/16','91.108.0.0/16','92.63.0.0/16','93.179.0.0/16','95.165.0.0/16','176.97.0.0/16','185.220.0.0/16','193.32.0.0/16','194.165.0.0/16','195.54.0.0/16'] },
-                        { name: 'Corée du Nord (KP)', color: '#e3b341', desc: 'Infrastructure étatique — activité malveillante documentée',
+                        { name: t('fail2ban.aide.providerNorthKorea'), color: '#e3b341', desc: t('fail2ban.aide.providerNorthKoreaDesc'),
                           ranges: ['175.45.176.0/22','210.52.109.0/24','77.94.35.0/24'] },
-                        { name: 'Iran (IR)', color: '#3fb950', desc: 'Plages ARIN/RIPE — scans, espionnage ciblé',
+                        { name: t('fail2ban.aide.providerIran'), color: '#3fb950', desc: t('fail2ban.aide.providerIranDesc'),
                           ranges: ['2.176.0.0/12','5.22.0.0/15','5.52.0.0/14','5.106.0.0/15','5.200.0.0/14','31.2.0.0/15','31.24.0.0/14','31.40.0.0/13','37.98.0.0/15','37.156.0.0/14','46.36.0.0/14','46.100.0.0/14','46.143.0.0/16','78.38.0.0/15','78.157.0.0/16','80.191.0.0/16','82.99.0.0/16','85.9.0.0/16','85.15.0.0/16','85.133.0.0/16','91.98.0.0/15','91.108.0.0/16','91.238.0.0/16','94.74.0.0/15','95.38.0.0/15'] },
                     ]},
-                    { type: 'note', v: 'Source : APNIC, RIPE NCC, ARIN — données publiques. Ces plages évoluent — vérifier régulièrement via whois ou les RIR.' },
+                    { type: 'note', v: t('fail2ban.aide.regionalNote') },
                 ],
             },
         ],
@@ -563,8 +569,12 @@ const GroupBlock: React.FC<{ group: Group }> = ({ group }) => (
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export const TabAide: React.FC = () => (
+export const TabAide: React.FC = () => {
+    const { t } = useTranslation();
+    const GROUPS = buildGroups(t);
+    return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2.25rem', width: '100%' }}>
         {GROUPS.map(g => <GroupBlock key={g.label} group={g} />)}
     </div>
-);
+    );
+};

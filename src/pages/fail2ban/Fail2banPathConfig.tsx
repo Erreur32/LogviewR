@@ -12,6 +12,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Save, RefreshCw, CheckCircle, XCircle, Stethoscope, Database, Network, Eye, EyeOff } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 interface Fail2banPathConfigProps {
     sqliteDbPath?: string;
@@ -72,6 +73,7 @@ export const Fail2banPathConfig: React.FC<Fail2banPathConfigProps> = ({
     npmDataPath,
     onNpmDataPathChange,
 }) => {
+    const { t } = useTranslation();
     const showSqlite = onSqliteDbPathChange !== undefined;
     const showNpm    = onNpmDataPathChange  !== undefined;
 
@@ -96,11 +98,11 @@ export const Fail2banPathConfig: React.FC<Fail2banPathConfigProps> = ({
                 setSqliteStatus('ok');
             } else {
                 setSqliteStatus('error');
-                setSqliteError('Fichier non accessible — vérifiez les permissions et le montage Docker');
+                setSqliteError(t('fail2ban.pathConfig.sqliteFileNotAccessible'));
             }
         } else {
             setSqliteStatus('error');
-            setSqliteError('Erreur serveur');
+            setSqliteError(t('fail2ban.pathConfig.serverError'));
         }
     };
 
@@ -115,7 +117,7 @@ export const Fail2banPathConfig: React.FC<Fail2banPathConfigProps> = ({
         setSqliteStatus('idle');
         setSqliteError('');
         try { await runSqliteCheck(); }
-        catch (e) { setSqliteStatus('error'); setSqliteError(e instanceof Error ? e.message : 'Erreur réseau'); }
+        catch (e) { setSqliteStatus('error'); setSqliteError(e instanceof Error ? e.message : t('fail2ban.pathConfig.networkError')); }
         finally { setSqliteTesting(false); }
     };
 
@@ -129,12 +131,12 @@ export const Fail2banPathConfig: React.FC<Fail2banPathConfigProps> = ({
                 headers: { 'Content-Type': 'application/json', ...authHeader() },
                 body: JSON.stringify({ settings: { sqliteDbPath: sqliteInput.trim() } }),
             });
-            if (!res.ok) { setSqliteStatus('error'); setSqliteError('Erreur serveur'); return; }
+            if (!res.ok) { setSqliteStatus('error'); setSqliteError(t('fail2ban.pathConfig.serverError')); return; }
             onSqliteDbPathChange!(sqliteInput.trim());
             await runSqliteCheck();
         } catch (e) {
             setSqliteStatus('error');
-            setSqliteError(e instanceof Error ? e.message : 'Erreur réseau');
+            setSqliteError(e instanceof Error ? e.message : t('fail2ban.pathConfig.networkError'));
         } finally {
             setSqliteSaving(false);
         }
@@ -186,10 +188,10 @@ export const Fail2banPathConfig: React.FC<Fail2banPathConfigProps> = ({
         // Validate MySQL fields before save
         if (npmDbType === 'mysql') {
             const port = Number.parseInt(mysql.port);
-            if (!mysql.host.trim()) { setNpmCheck({ ok: false, step: 'validate', error: 'Hôte MySQL obligatoire', resolvedPath: '', domains: 0, jailMatches: 0 }); return; }
-            if (!mysql.user.trim()) { setNpmCheck({ ok: false, step: 'validate', error: 'Utilisateur MySQL obligatoire', resolvedPath: '', domains: 0, jailMatches: 0 }); return; }
-            if (!mysql.db.trim())   { setNpmCheck({ ok: false, step: 'validate', error: 'Nom de la base obligatoire', resolvedPath: '', domains: 0, jailMatches: 0 }); return; }
-            if (Number.isNaN(port) || port < 1 || port > 65535) { setNpmCheck({ ok: false, step: 'validate', error: 'Port invalide — doit être entre 1 et 65535', resolvedPath: '', domains: 0, jailMatches: 0 }); return; }
+            if (!mysql.host.trim()) { setNpmCheck({ ok: false, step: 'validate', error: t('fail2ban.pathConfig.mysqlHostRequired'), resolvedPath: '', domains: 0, jailMatches: 0 }); return; }
+            if (!mysql.user.trim()) { setNpmCheck({ ok: false, step: 'validate', error: t('fail2ban.pathConfig.mysqlUserRequired'), resolvedPath: '', domains: 0, jailMatches: 0 }); return; }
+            if (!mysql.db.trim())   { setNpmCheck({ ok: false, step: 'validate', error: t('fail2ban.pathConfig.mysqlDbRequired'), resolvedPath: '', domains: 0, jailMatches: 0 }); return; }
+            if (Number.isNaN(port) || port < 1 || port > 65535) { setNpmCheck({ ok: false, step: 'validate', error: t('fail2ban.pathConfig.mysqlPortInvalid'), resolvedPath: '', domains: 0, jailMatches: 0 }); return; }
         }
         setNpmSaving(true);
         setNpmCheck(null);
@@ -227,10 +229,10 @@ export const Fail2banPathConfig: React.FC<Fail2banPathConfigProps> = ({
                 const data = await res.json();
                 setNpmCheck(data.result ?? data);
             } else {
-                setNpmCheck({ ok: false, step: 'request', error: 'Erreur réseau', resolvedPath: '', domains: 0, jailMatches: 0 });
+                setNpmCheck({ ok: false, step: 'request', error: t('fail2ban.pathConfig.networkError'), resolvedPath: '', domains: 0, jailMatches: 0 });
             }
         } catch (e) {
-            setNpmCheck({ ok: false, step: 'request', error: e instanceof Error ? e.message : 'Erreur', resolvedPath: '', domains: 0, jailMatches: 0 });
+            setNpmCheck({ ok: false, step: 'request', error: e instanceof Error ? e.message : t('fail2ban.pathConfig.error'), resolvedPath: '', domains: 0, jailMatches: 0 });
         } finally {
             setNpmChecking(false);
         }
@@ -243,20 +245,20 @@ export const Fail2banPathConfig: React.FC<Fail2banPathConfigProps> = ({
                 <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', marginBottom: '.4rem' }}>
                         <Database size={13} style={{ color: '#bc8cff', flexShrink: 0 }} />
-                        <span style={{ fontSize: '.82rem', fontWeight: 600, color: '#e6edf3' }}>Chemin base SQLite</span>
-                        <span style={{ fontSize: '.72rem', color: '#e3b341' }}>(optionnel)</span>
+                        <span style={{ fontSize: '.82rem', fontWeight: 600, color: '#e6edf3' }}>{t('fail2ban.pathConfig.sqlitePath')}</span>
+                        <span style={{ fontSize: '.72rem', color: '#e3b341' }}>({t('fail2ban.pathConfig.optional')})</span>
                         {sqliteStatus === 'ok' && !sqliteInput.trim() && (
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.25rem', fontSize: '.72rem', color: '#3fb950', marginLeft: 'auto',
                                 background: 'rgba(63,185,80,.10)', border: '1px solid rgba(63,185,80,.3)', borderRadius: 4, padding: '.1rem .45rem' }}>
-                                <CheckCircle size={11} /> Par défaut · OK
+                                <CheckCircle size={11} /> {t('fail2ban.pathConfig.defaultOk')}
                             </span>
                         )}
                         {sqliteStatus === 'ok' && !!sqliteInput.trim() && (
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.25rem', fontSize: '.72rem', color: '#3fb950', marginLeft: 'auto' }}>
-                                <CheckCircle size={11} /> Accessible
+                                <CheckCircle size={11} /> {t('fail2ban.pathConfig.accessible')}
                             </span>
                         )}
-                        {sqliteStatus === 'error' && <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.25rem', fontSize: '.72rem', color: '#e86a65', marginLeft: 'auto' }}><XCircle size={11} /> {sqliteError || 'Non accessible'}</span>}
+                        {sqliteStatus === 'error' && <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.25rem', fontSize: '.72rem', color: '#e86a65', marginLeft: 'auto' }}><XCircle size={11} /> {sqliteError || t('fail2ban.pathConfig.notAccessible')}</span>}
                     </div>
                     <div style={{ display: 'flex', gap: '.4rem' }}>
                         <input
@@ -269,16 +271,16 @@ export const Fail2banPathConfig: React.FC<Fail2banPathConfigProps> = ({
                         <button type="button" onClick={testSqlitePath} disabled={sqliteTesting}
                             style={{ ...btnStyle('#3fb950', 'rgba(63,185,80,.12)'), opacity: sqliteTesting ? .5 : 1 }}>
                             {sqliteTesting ? <RefreshCw size={11} style={{ animation: 'spin 1s linear infinite' }} /> : <Stethoscope size={11} />}
-                            {sqliteTesting ? 'Test…' : 'Tester'}
+                            {sqliteTesting ? t('fail2ban.pathConfig.testing') : t('fail2ban.pathConfig.test')}
                         </button>
                         <button type="button" onClick={saveSqlitePath} disabled={sqliteSaving}
                             style={{ ...btnStyle('#58a6ff', 'rgba(88,166,255,.1)'), opacity: sqliteSaving ? .5 : 1 }}>
                             {sqliteSaving ? <RefreshCw size={11} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={11} />}
-                            {sqliteSaving ? 'Sauvegarde…' : 'Sauvegarder'}
+                            {sqliteSaving ? t('fail2ban.pathConfig.saving') : t('fail2ban.pathConfig.save')}
                         </button>
                     </div>
                     <p style={{ fontSize: '.72rem', color: '#8b949e', marginTop: '.3rem' }}>
-                        Vide = chemin par défaut <code style={{ color: '#e86a65' }}>/var/lib/fail2ban/fail2ban.sqlite3</code>
+                        {t('fail2ban.pathConfig.emptyDefaultPath')} <code style={{ color: '#e86a65' }}>/var/lib/fail2ban/fail2ban.sqlite3</code>
                     </p>
                 </div>
             )}
@@ -289,26 +291,26 @@ export const Fail2banPathConfig: React.FC<Fail2banPathConfigProps> = ({
                     {/* Header + status */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem' }}>
                         <Network size={13} style={{ color: '#39c5cf', flexShrink: 0 }} />
-                        <span style={{ fontSize: '.82rem', fontWeight: 600, color: '#e6edf3' }}>Intégration NPM</span>
-                        <span style={{ fontSize: '.72rem', color: '#e3b341' }}>(optionnel)</span>
-                        {npmCheck?.ok === true  && <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.25rem', fontSize: '.72rem', color: '#3fb950', marginLeft: 'auto' }}><CheckCircle size={11} /> {npmCheck.domains} domaine{npmCheck.domains !== 1 ? 's' : ''} · {npmCheck.source}</span>}
-                        {npmCheck?.ok === false && <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.25rem', fontSize: '.72rem', color: '#e86a65', marginLeft: 'auto' }}><XCircle size={11} /> {npmCheck.error ?? 'Erreur'}</span>}
-                        {npmSaved && !npmCheck  && <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.25rem', fontSize: '.72rem', color: '#3fb950', marginLeft: 'auto' }}><CheckCircle size={11} /> Enregistré</span>}
+                        <span style={{ fontSize: '.82rem', fontWeight: 600, color: '#e6edf3' }}>{t('fail2ban.pathConfig.npmIntegration')}</span>
+                        <span style={{ fontSize: '.72rem', color: '#e3b341' }}>({t('fail2ban.pathConfig.optional')})</span>
+                        {npmCheck?.ok === true  && <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.25rem', fontSize: '.72rem', color: '#3fb950', marginLeft: 'auto' }}><CheckCircle size={11} /> {t('fail2ban.pathConfig.npmDomains', { count: npmCheck.domains, source: npmCheck.source })}</span>}
+                        {npmCheck?.ok === false && <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.25rem', fontSize: '.72rem', color: '#e86a65', marginLeft: 'auto' }}><XCircle size={11} /> {npmCheck.error ?? t('fail2ban.pathConfig.error')}</span>}
+                        {npmSaved && !npmCheck  && <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.25rem', fontSize: '.72rem', color: '#3fb950', marginLeft: 'auto' }}><CheckCircle size={11} /> {t('fail2ban.pathConfig.saved')}</span>}
                     </div>
 
                     {/* DB type toggle */}
                     <div style={{ display: 'flex', gap: '.35rem' }}>
-                        {(['sqlite', 'mysql'] as const).map(t => (
-                            <button key={t} type="button"
-                                onClick={() => { setNpmDbType(t); setNpmCheck(null); }}
+                        {(['sqlite', 'mysql'] as const).map(dbType => (
+                            <button key={dbType} type="button"
+                                onClick={() => { setNpmDbType(dbType); setNpmCheck(null); }}
                                 style={{
                                     padding: '.25rem .65rem', borderRadius: 4, fontSize: '.75rem', cursor: 'pointer',
-                                    fontWeight: npmDbType === t ? 700 : 400,
-                                    background: npmDbType === t ? (t === 'mysql' ? 'rgba(88,166,255,.15)' : 'rgba(57,197,207,.15)') : 'transparent',
-                                    border: `1px solid ${npmDbType === t ? (t === 'mysql' ? '#58a6ff88' : '#39c5cf88') : '#30363d'}`,
-                                    color: npmDbType === t ? (t === 'mysql' ? '#58a6ff' : '#39c5cf') : '#8b949e',
+                                    fontWeight: npmDbType === dbType ? 700 : 400,
+                                    background: npmDbType === dbType ? (dbType === 'mysql' ? 'rgba(88,166,255,.15)' : 'rgba(57,197,207,.15)') : 'transparent',
+                                    border: `1px solid ${npmDbType === dbType ? (dbType === 'mysql' ? '#58a6ff88' : '#39c5cf88') : '#30363d'}`,
+                                    color: npmDbType === dbType ? (dbType === 'mysql' ? '#58a6ff' : '#39c5cf') : '#8b949e',
                                 }}>
-                                {t === 'sqlite' ? '📄 SQLite (fichier)' : '🐬 MySQL / MariaDB'}
+                                {dbType === 'sqlite' ? t('fail2ban.pathConfig.dbSqlite') : t('fail2ban.pathConfig.dbMysql')}
                             </button>
                         ))}
                     </div>
@@ -323,7 +325,7 @@ export const Fail2banPathConfig: React.FC<Fail2banPathConfigProps> = ({
                                     style={inputStyle(npmCheck?.ok === true ? 'ok' : npmCheck?.ok === false ? 'error' : 'idle')} />
                             </div>
                             <p style={{ fontSize: '.72rem', color: '#8b949e', marginTop: '.25rem' }}>
-                                Dossier racine NPM. Ex : <code style={{ color: '#e3b341' }}>/home/docker/nginx-proxy-manager/data</code> — doit contenir <code style={{ color: '#8b949e' }}>database.sqlite</code> + <code style={{ color: '#8b949e' }}>logs/</code>
+                                {t('fail2ban.pathConfig.sqliteRootHint')} <code style={{ color: '#e3b341' }}>/home/docker/nginx-proxy-manager/data</code> {t('fail2ban.pathConfig.sqliteRootMustContain')} <code style={{ color: '#8b949e' }}>database.sqlite</code> + <code style={{ color: '#8b949e' }}>logs/</code>
                             </p>
                         </div>
                     )}
@@ -332,23 +334,23 @@ export const Fail2banPathConfig: React.FC<Fail2banPathConfigProps> = ({
                     {npmDbType === 'mysql' && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '.4rem' }}>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '.4rem' }}>
-                                <input type="text" value={mysql.host} placeholder="Hôte (ex: 127.0.0.1 ou mariadb)"
+                                <input type="text" value={mysql.host} placeholder={t('fail2ban.pathConfig.hostPlaceholder')}
                                     onChange={e => setMysql(m => ({ ...m, host: e.target.value }))}
                                     style={inputStyle('idle')} />
-                                <input type="text" value={mysql.port} placeholder="Port"
+                                <input type="text" value={mysql.port} placeholder={t('fail2ban.pathConfig.portPlaceholder')}
                                     onChange={e => setMysql(m => ({ ...m, port: e.target.value }))}
                                     style={{ ...inputStyle(mysql.port.trim() && (Number.isNaN(Number.parseInt(mysql.port)) || +mysql.port < 1 || +mysql.port > 65535) ? 'error' : 'idle'), width: 70, flex: 'none' }} />
                             </div>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.4rem' }}>
-                                <input type="text" value={mysql.user} placeholder="Utilisateur"
+                                <input type="text" value={mysql.user} placeholder={t('fail2ban.pathConfig.userPlaceholder')}
                                     onChange={e => setMysql(m => ({ ...m, user: e.target.value }))}
                                     style={inputStyle('idle')} />
-                                <input type="text" value={mysql.db} placeholder="Base de données"
+                                <input type="text" value={mysql.db} placeholder={t('fail2ban.pathConfig.dbPlaceholder')}
                                     onChange={e => setMysql(m => ({ ...m, db: e.target.value }))}
                                     style={inputStyle('idle')} />
                             </div>
                             <div style={{ position: 'relative', display: 'flex' }}>
-                                <input type={showPass ? 'text' : 'password'} value={mysql.pass} placeholder="Mot de passe"
+                                <input type={showPass ? 'text' : 'password'} value={mysql.pass} placeholder={t('fail2ban.pathConfig.passPlaceholder')}
                                     onChange={e => setMysql(m => ({ ...m, pass: e.target.value }))}
                                     style={{ ...inputStyle('idle'), paddingRight: '2rem' }} />
                                 <button type="button" onClick={() => setShowPass(p => !p)}
@@ -357,18 +359,18 @@ export const Fail2banPathConfig: React.FC<Fail2banPathConfigProps> = ({
                                 </button>
                             </div>
                             <p style={{ fontSize: '.72rem', color: '#8b949e' }}>
-                                Hôte = nom du service Docker ou IP. Base = <code style={{ color: '#e3b341' }}>npm</code> par défaut dans NPM.
+                                {t('fail2ban.pathConfig.mysqlHostHelp')} <code style={{ color: '#e3b341' }}>npm</code> {t('fail2ban.pathConfig.mysqlHostHelpSuffix')}
                             </p>
                             <div style={{ marginTop: '.4rem' }}>
                                 <div style={{ fontSize: '.72rem', color: '#e3b341', marginBottom: '.2rem', fontWeight: 600 }}>
-                                    Dossier logs NPM <span style={{ color: '#8b949e', fontWeight: 400 }}>(requis pour Top Domaines)</span>
+                                    {t('fail2ban.pathConfig.npmLogsDir')} <span style={{ color: '#8b949e', fontWeight: 400 }}>({t('fail2ban.pathConfig.requiredForTopDomains')})</span>
                                 </div>
                                 <input type="text" value={npmInput}
                                     onChange={e => { setNpmInput(e.target.value); setNpmCheck(null); }}
                                     placeholder="/home/docker/nginx-proxy-manager/data"
                                     style={inputStyle('idle')} />
                                 <p style={{ fontSize: '.72rem', color: '#8b949e', marginTop: '.25rem' }}>
-                                    Dossier racine NPM. Ex : <code style={{ color: '#e3b341' }}>/home/docker/nginx-proxy-manager/data</code> — doit contenir <code style={{ color: '#8b949e' }}>logs/</code>
+                                    {t('fail2ban.pathConfig.sqliteRootHint')} <code style={{ color: '#e3b341' }}>/home/docker/nginx-proxy-manager/data</code> {t('fail2ban.pathConfig.mysqlLogsMustContain')} <code style={{ color: '#8b949e' }}>logs/</code>
                                 </p>
                             </div>
                         </div>
@@ -379,12 +381,12 @@ export const Fail2banPathConfig: React.FC<Fail2banPathConfigProps> = ({
                         <button type="button" onClick={checkNpm} disabled={npmChecking}
                             style={{ ...btnStyle('#3fb950', 'rgba(63,185,80,.12)'), opacity: npmChecking ? .5 : 1 }}>
                             {npmChecking ? <RefreshCw size={11} style={{ animation: 'spin 1s linear infinite' }} /> : <Stethoscope size={11} />}
-                            {npmChecking ? 'Test…' : 'Tester connexion'}
+                            {npmChecking ? t('fail2ban.pathConfig.testing') : t('fail2ban.pathConfig.testConnection')}
                         </button>
                         <button type="button" onClick={saveNpmConfig} disabled={npmSaving}
                             style={{ ...btnStyle('#58a6ff', 'rgba(88,166,255,.1)'), opacity: npmSaving ? .5 : 1 }}>
                             {npmSaving ? <RefreshCw size={11} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={11} />}
-                            {npmSaving ? 'Sauvegarde…' : 'Sauvegarder'}
+                            {npmSaving ? t('fail2ban.pathConfig.saving') : t('fail2ban.pathConfig.save')}
                         </button>
                     </div>
                 </div>

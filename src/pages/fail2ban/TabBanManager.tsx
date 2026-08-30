@@ -126,10 +126,12 @@ function StyledSelect({ value, onChange, children }: {
 
 // ── File input button (hidden native input + styled label) ────────────────────
 
-function FileBtn({ onChange, label = 'Charger depuis un fichier' }: {
+function FileBtn({ onChange, label }: {
     onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
     label?: string;
 }) {
+    const { t } = useTranslation();
+    const usedLabel = label ?? t('fail2ban.banManager.loadFromFile');
     return (
         <label style={{
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '.4rem',
@@ -141,7 +143,7 @@ function FileBtn({ onChange, label = 'Charger depuis un fichier' }: {
             onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = '#30363d'}>
             <input type="file" accept=".txt,.csv,text/plain" onChange={onChange} style={{ display: 'none' }} />
             <FolderOpen style={{ width: 13, height: 13, flexShrink: 0 }} />
-            {label}
+            {usedLabel}
         </label>
     );
 }
@@ -176,15 +178,16 @@ function ResultList({ results, onIpClick }: { results: BulkResult[]; onIpClick?:
 // ── Section title ─────────────────────────────────────────────────────────────
 
 function SectionTitle({ icon, color, label, avail }: { icon: React.ReactNode; color: string; label: string; avail?: boolean | null }) {
+    const { t } = useTranslation();
     return (
         <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.65rem' }}>
             <span style={{ color }}>{icon}</span>
             <span style={{ fontWeight: 700, fontSize: '.82rem', color, letterSpacing: '.04em', textTransform: 'uppercase' }}>{label}</span>
             {avail === false && (
-                <span style={{ fontSize: '.67rem', padding: '.1rem .45rem', borderRadius: 4, background: 'rgba(232,106,101,.1)', color: '#e86a65', border: '1px solid rgba(232,106,101,.22)' }}>Non disponible</span>
+                <span style={{ fontSize: '.67rem', padding: '.1rem .45rem', borderRadius: 4, background: 'rgba(232,106,101,.1)', color: '#e86a65', border: '1px solid rgba(232,106,101,.22)' }}>{t('fail2ban.banManager.unavailable')}</span>
             )}
             {avail === true && (
-                <span style={{ fontSize: '.67rem', padding: '.1rem .45rem', borderRadius: 4, background: 'rgba(63,185,80,.1)', color: '#3fb950', border: '1px solid rgba(63,185,80,.22)' }}>Disponible</span>
+                <span style={{ fontSize: '.67rem', padding: '.1rem .45rem', borderRadius: 4, background: 'rgba(63,185,80,.1)', color: '#3fb950', border: '1px solid rgba(63,185,80,.22)' }}>{t('fail2ban.banManager.available')}</span>
             )}
             <div style={{ flex: 1, height: 1, background: `linear-gradient(90deg, ${color}44 0%, transparent 100%)` }} />
         </div>
@@ -243,7 +246,7 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
             '/api/plugins/fail2ban/iptables/ip/ban', { table: 'filter', chain: iptBanChain, ip }
         );
         setIptBanLoading(false);
-        if (res.success && res.result?.ok) { setIptBanResult({ ok: true, msg: `${ip} bloqué dans ${iptBanChain}` }); setIptBanIp(''); }
+        if (res.success && res.result?.ok) { setIptBanResult({ ok: true, msg: t('fail2ban.banManager.blockedInChain', { ip, chain: iptBanChain }) }); setIptBanIp(''); }
         else setIptBanResult({ ok: false, msg: res.result?.error ?? t('fail2ban.errors.unknown') });
     };
 
@@ -254,7 +257,7 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
             '/api/plugins/fail2ban/iptables/ip/unban', { table: 'filter', chain: iptUnbanChain, ip }
         );
         setIptUnbanLoad(false);
-        if (res.success && res.result?.ok) { setIptUnbanResult({ ok: true, msg: `${ip} débloqué dans ${iptUnbanChain}` }); setIptUnbanIp(''); }
+        if (res.success && res.result?.ok) { setIptUnbanResult({ ok: true, msg: t('fail2ban.banManager.unblockedInChain', { ip, chain: iptUnbanChain }) }); setIptUnbanIp(''); }
         else setIptUnbanResult({ ok: false, msg: res.result?.error ?? t('fail2ban.errors.unknown') });
     };
 
@@ -337,7 +340,7 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
         setBulkLoading(true); setBulkResults([]);
         const results: BulkResult[] = [];
         for (const ip of lines) {
-            if (!isValidIpOrCidr(ip)) { results.push({ ip, ok: false, error: 'Format IP/CIDR invalide' }); continue; }
+            if (!isValidIpOrCidr(ip)) { results.push({ ip, ok: false, error: t('fail2ban.banManager.invalidFormat') }); continue; }
             const res = await api.post<{ ok: boolean; error?: string }>('/api/plugins/fail2ban/ban', { jail: bulkJail, ip });
             results.push({ ip, ok: !!(res.success && res.result?.ok), error: res.result?.error });
         }
@@ -361,7 +364,7 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
         const res = await api.post<{ ok: boolean; error?: string; output?: string }>('/api/plugins/fail2ban/ipset/add', { set: addSet, entry: addEntry.trim() });
         setAddLoading(false);
         if (res.success && res.result?.ok) {
-            setAddResult({ ok: true, msg: `${addEntry.trim()} ajouté à ${addSet}` });
+            setAddResult({ ok: true, msg: t('fail2ban.banManager.addedToSet', { entry: addEntry.trim(), set: addSet }) });
             setAddEntry('');
             loadIpsets(true);
         } else {
@@ -376,7 +379,7 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
         const res = await api.post<{ ok: boolean; error?: string }>('/api/plugins/fail2ban/ipset/del', { set: delSet, entry: delEntry.trim() });
         setDelLoading(false);
         if (res.success && res.result?.ok) {
-            setDelResult({ ok: true, msg: `${delEntry.trim()} retiré de ${delSet}` });
+            setDelResult({ ok: true, msg: t('fail2ban.banManager.removedFromSet', { entry: delEntry.trim(), set: delSet }) });
             setDelEntry('');
             loadIpsets(true);
         } else {
@@ -391,7 +394,7 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
         setBulkIpsetLoad(true); setBulkIpsetResult([]);
         const results: BulkResult[] = [];
         for (const entry of entries) {
-            if (!isValidIpOrCidr(entry)) { results.push({ ip: entry, ok: false, error: 'Format IP/CIDR invalide' }); continue; }
+            if (!isValidIpOrCidr(entry)) { results.push({ ip: entry, ok: false, error: t('fail2ban.banManager.invalidFormat') }); continue; }
             const res = await api.post<{ ok: boolean; error?: string }>('/api/plugins/fail2ban/ipset/add', { set: bulkIpsetSet, entry });
             results.push({ ip: entry, ok: !!(res.success && res.result?.ok), error: res.result?.error });
         }
@@ -419,39 +422,39 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
 
                     {/* Ban single */}
                     <ActionCard
-                        header={<><Ban style={{ width: 14, height: 14, color: '#e3b341' }} /><span style={{ fontWeight: 600, fontSize: '.88rem' }}>Bannir via Fail2Ban</span></>}
+                        header={<><Ban style={{ width: 14, height: 14, color: '#e3b341' }} /><span style={{ fontWeight: 600, fontSize: '.88rem' }}>{t('fail2ban.banManager.banViaF2b')}</span></>}
                         action={
                             <ActionBtn color="#e3b341" border="rgba(227,179,65,.25)" bg="rgba(227,179,65,.1)"
                                 disabled={!banIp.trim() || !isValidIpOrCidr(banIp) || !banJail || !!actionLoading}
                                 onClick={() => { if (banIp.trim() && banJail) { onBan(banJail, banIp.trim()); setBanIp(''); } }}>
-                                <Ban style={{ width: 13, height: 13 }} /> Bannir l'IP
+                                <Ban style={{ width: 13, height: 13 }} /> {t('fail2ban.banManager.banIp')}
                             </ActionBtn>
                         }>
-                        <p style={{ fontSize: '.78rem', color: '#8b949e', margin: 0 }}>Bannit une IP dans un jail fail2ban.</p>
+                        <p style={{ fontSize: '.78rem', color: '#8b949e', margin: 0 }}>{t('fail2ban.banManager.banDesc')}</p>
                         <StyledSelect value={banJail} onChange={e => setBanJail(e.target.value)}>
-                            <option value="" style={{ background: '#21262d', color: '#8b949e' }}>— Sélectionner —</option>
+                            <option value="" style={{ background: '#21262d', color: '#8b949e' }}>{t('fail2ban.banManager.select')}</option>
                             {jails.map(j => <option key={j.jail} value={j.jail} style={{ background: '#21262d', color: '#e6edf3' }}>{j.jail}</option>)}
                         </StyledSelect>
-                        <StyledInput value={banIp} onChange={e => setBanIp(e.target.value)} placeholder="ex: 1.2.3.4"
+                        <StyledInput value={banIp} onChange={e => setBanIp(e.target.value)} placeholder={t('fail2ban.banManager.exIps')}
                             hasError={banIp.trim().length > 0 && !isValidIpOrCidr(banIp)} />
                     </ActionCard>
 
                     {/* Bulk ban F2B */}
                     <ActionCard
-                        header={<><ListChecks style={{ width: 14, height: 14, color: '#bc8cff' }} /><span style={{ fontWeight: 600, fontSize: '.88rem' }}>Bannir en masse (Fail2Ban)</span></>}
+                        header={<><ListChecks style={{ width: 14, height: 14, color: '#bc8cff' }} /><span style={{ fontWeight: 600, fontSize: '.88rem' }}>{t('fail2ban.banManager.bulkBanF2b')}</span></>}
                         action={
                             <>
                                 <ActionBtn color="#bc8cff" border="rgba(188,140,255,.25)" bg="rgba(188,140,255,.1)"
                                     disabled={bulkLoading || !bulkIps.trim() || !bulkJail}
                                     onClick={doBulkBan}>
-                                    <Ban style={{ width: 13, height: 13 }} />{bulkLoading ? 'Bannissement…' : 'Bannir'}
+                                    <Ban style={{ width: 13, height: 13 }} />{bulkLoading ? t('fail2ban.banManager.banning') : t('fail2ban.banManager.ban')}
                                 </ActionBtn>
                                 <ResultList results={bulkResults} onIpClick={onIpClick} />
                             </>
                         }>
-                        <p style={{ fontSize: '.78rem', color: '#8b949e', margin: 0 }}>Liste d'IPs → jail fail2ban.</p>
+                        <p style={{ fontSize: '.78rem', color: '#8b949e', margin: 0 }}>{t('fail2ban.banManager.bulkBanDesc')}</p>
                         <StyledSelect value={bulkJail} onChange={e => setBulkJail(e.target.value)}>
-                            <option value="" style={{ background: '#21262d', color: '#8b949e' }}>— Sélectionner —</option>
+                            <option value="" style={{ background: '#21262d', color: '#8b949e' }}>{t('fail2ban.banManager.select')}</option>
                             {jails.map(j => <option key={j.jail} value={j.jail} style={{ background: '#21262d', color: '#e6edf3' }}>{j.jail}</option>)}
                         </StyledSelect>
                         <StyledTextarea value={bulkIps} onChange={e => setBulkIps(e.target.value)} placeholder={"1.2.3.4\n5.6.7.8"} />
@@ -460,20 +463,20 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
 
                     {/* Unban single */}
                     <ActionCard
-                        header={<><Unlock style={{ width: 14, height: 14, color: '#3fb950' }} /><span style={{ fontWeight: 600, fontSize: '.88rem' }}>Débannir via Fail2Ban</span></>}
+                        header={<><Unlock style={{ width: 14, height: 14, color: '#3fb950' }} /><span style={{ fontWeight: 600, fontSize: '.88rem' }}>{t('fail2ban.banManager.unbanViaF2b')}</span></>}
                         action={
                             <ActionBtn color="#3fb950" border="rgba(63,185,80,.25)" bg="rgba(63,185,80,.1)"
                                 disabled={!unbanIp.trim() || !isValidIpOrCidr(unbanIp) || !unbanJail || !!actionLoading}
                                 onClick={() => { if (unbanIp.trim() && unbanJail) { onUnban(unbanJail, unbanIp.trim()); setUnbanIp(''); } }}>
-                                <Unlock style={{ width: 13, height: 13 }} /> Débannir l'IP
+                                <Unlock style={{ width: 13, height: 13 }} /> {t('fail2ban.banManager.unbanIp')}
                             </ActionBtn>
                         }>
-                        <p style={{ fontSize: '.78rem', color: '#8b949e', margin: 0 }}>Retire l'IP du jail et de la liste de blocage.</p>
+                        <p style={{ fontSize: '.78rem', color: '#8b949e', margin: 0 }}>{t('fail2ban.banManager.unbanDesc')}</p>
                         <StyledSelect value={unbanJail} onChange={e => setUnbanJail(e.target.value)}>
-                            <option value="" style={{ background: '#21262d', color: '#8b949e' }}>— Sélectionner —</option>
+                            <option value="" style={{ background: '#21262d', color: '#8b949e' }}>{t('fail2ban.banManager.select')}</option>
                             {jails.map(j => <option key={j.jail} value={j.jail} style={{ background: '#21262d', color: '#e6edf3' }}>{j.jail}</option>)}
                         </StyledSelect>
-                        <StyledInput value={unbanIp} onChange={e => setUnbanIp(e.target.value)} placeholder="ex: 1.2.3.4"
+                        <StyledInput value={unbanIp} onChange={e => setUnbanIp(e.target.value)} placeholder={t('fail2ban.banManager.exIps')}
                             hasError={unbanIp.trim().length > 0 && !isValidIpOrCidr(unbanIp)} />
                     </ActionCard>
                 </div>
@@ -485,16 +488,16 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
                 {ipsetAvail === false ? (
                     <div style={{ ...card, padding: '1rem 1.25rem', fontSize: '.82rem', color: '#8b949e', display: 'flex', alignItems: 'center', gap: '.6rem' }}>
                         <AlertTriangle style={{ width: 13, height: 13, color: '#e3b341', flexShrink: 0 }} />
-                        <span><code style={{ fontFamily: 'monospace', color: '#e6edf3' }}>ipset</code> non accessible — vérifiez <code style={{ fontFamily: 'monospace', color: '#e6edf3' }}>NET_ADMIN</code> + <code style={{ fontFamily: 'monospace', color: '#e6edf3' }}>network_mode: host</code> dans docker-compose.yml</span>
+                        <span><code style={{ fontFamily: 'monospace', color: '#e6edf3' }}>ipset</code> <span dangerouslySetInnerHTML={{ __html: t('fail2ban.banManager.nonAccessible') }} /></span>
                     </div>
                 ) : ipsetAvail === null ? (
-                    <div style={{ color: '#8b949e', fontSize: '.8rem', padding: '.25rem .5rem' }}>Vérification…</div>
+                    <div style={{ color: '#8b949e', fontSize: '.8rem', padding: '.25rem .5rem' }}>{t('fail2ban.banManager.checking')}</div>
                 ) : (
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(min(100%,420px),1fr))', gap: '.75rem' }}>
 
                         {/* IPSet add */}
                         <ActionCard
-                            header={<><Ban style={{ width: 14, height: 14, color: '#e86a65' }} /><span style={{ fontWeight: 600, fontSize: '.88rem' }}>Bloquer via IPSet</span></>}
+                            header={<><Ban style={{ width: 14, height: 14, color: '#e86a65' }} /><span style={{ fontWeight: 600, fontSize: '.88rem' }}>{t('fail2ban.banManager.blockViaIpset')}</span></>}
                             action={
                                 <>
                                     {addResult && (
@@ -506,35 +509,35 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
                                     <ActionBtn color="#e86a65" border="rgba(232,106,101,.25)" bg="rgba(232,106,101,.1)"
                                         disabled={addLoading || !addSet || !addEntry.trim() || !isValidIpOrCidr(addEntry)}
                                         onClick={doIpsetAdd}>
-                                        <Ban style={{ width: 13, height: 13 }} />{addLoading ? 'Blocage…' : 'Bloquer IP / Plage'}
+                                        <Ban style={{ width: 13, height: 13 }} />{addLoading ? t('fail2ban.banManager.blocking') : t('fail2ban.banManager.blockIpRange')}
                                     </ActionBtn>
                                 </>
                             }>
-                            <p style={{ fontSize: '.78rem', color: '#8b949e', margin: 0 }}>Ajoute une IP ou plage CIDR dans un IPSet.</p>
+                            <p style={{ fontSize: '.78rem', color: '#8b949e', margin: 0 }}>{t('fail2ban.banManager.ipsetAddDesc')}</p>
                             <StyledSelect value={addSet} onChange={e => setAddSet(e.target.value)}>
-                                <option value="" style={{ background: '#21262d', color: '#8b949e' }}>— Sélectionner —</option>
-                                {ipsets.map(s => <option key={s.name} value={s.name} style={{ background: '#21262d', color: '#e6edf3' }}>{s.name} ({s.entries} entrées)</option>)}
+                                <option value="" style={{ background: '#21262d', color: '#8b949e' }}>{t('fail2ban.banManager.select')}</option>
+                                {ipsets.map(s => <option key={s.name} value={s.name} style={{ background: '#21262d', color: '#e6edf3' }}>{s.name} {t('fail2ban.banManager.setEntries', { n: s.entries })}</option>)}
                             </StyledSelect>
-                            <StyledInput value={addEntry} onChange={e => setAddEntry(e.target.value)} placeholder="ex: 1.2.3.4 ou 1.2.0.0/16"
+                            <StyledInput value={addEntry} onChange={e => setAddEntry(e.target.value)} placeholder={t('fail2ban.banManager.exIpCidr')}
                                 hasError={addEntry.trim().length > 0 && !isValidIpOrCidr(addEntry)} />
                         </ActionCard>
 
                         {/* IPSet bulk add */}
                         <ActionCard
-                            header={<><ListChecks style={{ width: 14, height: 14, color: '#e86a65' }} /><span style={{ fontWeight: 600, fontSize: '.88rem' }}>Bloquer en masse (IPSet)</span></>}
+                            header={<><ListChecks style={{ width: 14, height: 14, color: '#e86a65' }} /><span style={{ fontWeight: 600, fontSize: '.88rem' }}>{t('fail2ban.banManager.bulkBlockIpset')}</span></>}
                             action={
                                 <>
                                     <ActionBtn color="#e86a65" border="rgba(232,106,101,.25)" bg="rgba(232,106,101,.1)"
                                         disabled={bulkIpsetLoad || !bulkIpsetList.trim() || !bulkIpsetSet}
                                         onClick={doBulkIpsetAdd}>
-                                        <Ban style={{ width: 13, height: 13 }} />{bulkIpsetLoad ? 'Blocage…' : 'Bloquer'}
+                                        <Ban style={{ width: 13, height: 13 }} />{bulkIpsetLoad ? t('fail2ban.banManager.blocking') : t('fail2ban.banManager.block')}
                                     </ActionBtn>
                                     <ResultList results={bulkIpsetResult} />
                                 </>
                             }>
-                            <p style={{ fontSize: '.78rem', color: '#8b949e', margin: 0 }}>Liste d'IPs ou CIDR → IPSet cible.</p>
+                            <p style={{ fontSize: '.78rem', color: '#8b949e', margin: 0 }}>{t('fail2ban.banManager.bulkIpsetDesc')}</p>
                             <StyledSelect value={bulkIpsetSet} onChange={e => setBulkIpsetSet(e.target.value)}>
-                                <option value="" style={{ background: '#21262d', color: '#8b949e' }}>— Sélectionner —</option>
+                                <option value="" style={{ background: '#21262d', color: '#8b949e' }}>{t('fail2ban.banManager.select')}</option>
                                 {ipsets.map(s => <option key={s.name} value={s.name} style={{ background: '#21262d', color: '#e6edf3' }}>{s.name}</option>)}
                             </StyledSelect>
                             <StyledTextarea value={bulkIpsetList} onChange={e => setBulkIpsetList(e.target.value)} placeholder={"1.2.3.4\n10.0.0.0/24"} />
@@ -543,7 +546,7 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
 
                         {/* IPSet del */}
                         <ActionCard
-                            header={<><Unlock style={{ width: 14, height: 14, color: '#3fb950' }} /><span style={{ fontWeight: 600, fontSize: '.88rem' }}>Retirer d'un IPSet</span></>}
+                            header={<><Unlock style={{ width: 14, height: 14, color: '#3fb950' }} /><span style={{ fontWeight: 600, fontSize: '.88rem' }}>{t('fail2ban.banManager.removeFromIpset')}</span></>}
                             action={
                                 <>
                                     {delResult && (
@@ -555,16 +558,16 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
                                     <ActionBtn color="#3fb950" border="rgba(63,185,80,.25)" bg="rgba(63,185,80,.1)"
                                         disabled={delLoading || !delSet || !delEntry.trim() || !isValidIpOrCidr(delEntry)}
                                         onClick={doIpsetDel}>
-                                        <Unlock style={{ width: 13, height: 13 }} />{delLoading ? 'Suppression…' : 'Retirer l\'entrée'}
+                                        <Unlock style={{ width: 13, height: 13 }} />{delLoading ? t('fail2ban.banManager.removing') : t('fail2ban.banManager.removeEntry')}
                                     </ActionBtn>
                                 </>
                             }>
-                            <p style={{ fontSize: '.78rem', color: '#8b949e', margin: 0 }}>Supprime une IP ou CIDR d'un IPSet.</p>
+                            <p style={{ fontSize: '.78rem', color: '#8b949e', margin: 0 }}>{t('fail2ban.banManager.ipsetDelDesc')}</p>
                             <StyledSelect value={delSet} onChange={e => setDelSet(e.target.value)}>
-                                <option value="" style={{ background: '#21262d', color: '#8b949e' }}>— Sélectionner —</option>
-                                {ipsets.map(s => <option key={s.name} value={s.name} style={{ background: '#21262d', color: '#e6edf3' }}>{s.name} ({s.entries} entrées)</option>)}
+                                <option value="" style={{ background: '#21262d', color: '#8b949e' }}>{t('fail2ban.banManager.select')}</option>
+                                {ipsets.map(s => <option key={s.name} value={s.name} style={{ background: '#21262d', color: '#e6edf3' }}>{s.name} {t('fail2ban.banManager.setEntries', { n: s.entries })}</option>)}
                             </StyledSelect>
-                            <StyledInput value={delEntry} onChange={e => setDelEntry(e.target.value)} placeholder="ex: 1.2.3.4 ou 1.2.0.0/16"
+                            <StyledInput value={delEntry} onChange={e => setDelEntry(e.target.value)} placeholder={t('fail2ban.banManager.exIpCidr')}
                                 hasError={delEntry.trim().length > 0 && !isValidIpOrCidr(delEntry)} />
                         </ActionCard>
                     </div>
@@ -577,16 +580,16 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
                 {iptAvail === false ? (
                     <div style={{ ...card, padding: '1rem 1.25rem', fontSize: '.82rem', color: '#8b949e', display: 'flex', alignItems: 'center', gap: '.6rem' }}>
                         <AlertTriangle style={{ width: 13, height: 13, color: '#e3b341', flexShrink: 0 }} />
-                        <span><code style={{ fontFamily: 'monospace', color: '#e6edf3' }}>iptables</code> non accessible — vérifiez <code style={{ fontFamily: 'monospace', color: '#e6edf3' }}>NET_ADMIN</code> + <code style={{ fontFamily: 'monospace', color: '#e6edf3' }}>network_mode: host</code> dans docker-compose.yml</span>
+                        <span><code style={{ fontFamily: 'monospace', color: '#e6edf3' }}>iptables</code> <span dangerouslySetInnerHTML={{ __html: t('fail2ban.banManager.nonAccessible') }} /></span>
                     </div>
                 ) : iptAvail === null ? (
-                    <div style={{ color: '#8b949e', fontSize: '.8rem', padding: '.25rem .5rem' }}>Vérification…</div>
+                    <div style={{ color: '#8b949e', fontSize: '.8rem', padding: '.25rem .5rem' }}>{t('fail2ban.banManager.checking')}</div>
                 ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(min(100%,420px),1fr))', gap: '.75rem' }}>
 
                     {/* IPTables ban */}
                     <ActionCard
-                        header={<><Ban style={{ width: 14, height: 14, color: '#e86a65' }} /><span style={{ fontWeight: 600, fontSize: '.88rem' }}>Bannir via IPTables</span></>}
+                        header={<><Ban style={{ width: 14, height: 14, color: '#e86a65' }} /><span style={{ fontWeight: 600, fontSize: '.88rem' }}>{t('fail2ban.banManager.banViaIpt')}</span></>}
                         action={
                             <>
                                 {iptBanResult && (
@@ -598,22 +601,22 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
                                 <ActionBtn color="#e86a65" border="rgba(232,106,101,.25)" bg="rgba(232,106,101,.1)"
                                     disabled={iptBanLoading || !iptBanIp.trim() || !isValidIpOrCidr(iptBanIp)}
                                     onClick={doIptBan}>
-                                    <Ban style={{ width: 13, height: 13 }} />{iptBanLoading ? 'Blocage…' : 'Bloquer (DROP)'}
+                                    <Ban style={{ width: 13, height: 13 }} />{iptBanLoading ? t('fail2ban.banManager.blocking') : t('fail2ban.banManager.blockDrop')}
                                 </ActionBtn>
                             </>
                         }>
-                        <p style={{ fontSize: '.78rem', color: '#8b949e', margin: 0 }}>Insère <code style={{ fontFamily: 'monospace', color: '#e6edf3' }}>-s IP -j DROP</code> en tête de chaîne. Rollback 30s.</p>
+                        <p style={{ fontSize: '.78rem', color: '#8b949e', margin: 0 }} dangerouslySetInnerHTML={{ __html: t('fail2ban.banManager.iptBanDesc') }} />
                         <StyledSelect value={iptBanChain} onChange={e => setIptBanChain(e.target.value)}>
                             {IPT_CHAINS.map(c => <option key={c} value={c} style={{ background: '#21262d', color: '#e6edf3' }}>{c}</option>)}
                         </StyledSelect>
-                        <StyledInput value={iptBanIp} onChange={e => setIptBanIp(e.target.value)} placeholder="ex: 1.2.3.4 ou 1.2.0.0/24"
+                        <StyledInput value={iptBanIp} onChange={e => setIptBanIp(e.target.value)} placeholder={t('fail2ban.banManager.exIpCidr')}
                             onKeyDown={e => { if (e.key === 'Enter') doIptBan(); }}
                             hasError={iptBanIp.trim().length > 0 && !isValidIpOrCidr(iptBanIp)} />
                     </ActionCard>
 
                     {/* IPTables unban */}
                     <ActionCard
-                        header={<><Unlock style={{ width: 14, height: 14, color: '#39c5cf' }} /><span style={{ fontWeight: 600, fontSize: '.88rem' }}>Débannir via IPTables</span></>}
+                        header={<><Unlock style={{ width: 14, height: 14, color: '#39c5cf' }} /><span style={{ fontWeight: 600, fontSize: '.88rem' }}>{t('fail2ban.banManager.unbanViaIpt')}</span></>}
                         action={
                             <>
                                 {iptUnbanResult && (
@@ -625,15 +628,15 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
                                 <ActionBtn color="#39c5cf" border="rgba(57,197,207,.25)" bg="rgba(57,197,207,.1)"
                                     disabled={iptUnbanLoad || !iptUnbanIp.trim() || !isValidIpOrCidr(iptUnbanIp)}
                                     onClick={doIptUnban}>
-                                    <Unlock style={{ width: 13, height: 13 }} />{iptUnbanLoad ? 'Déblocage…' : 'Retirer le blocage'}
+                                    <Unlock style={{ width: 13, height: 13 }} />{iptUnbanLoad ? t('fail2ban.banManager.unblocking') : t('fail2ban.banManager.removeBlock')}
                                 </ActionBtn>
                             </>
                         }>
-                        <p style={{ fontSize: '.78rem', color: '#8b949e', margin: 0 }}>Supprime la règle <code style={{ fontFamily: 'monospace', color: '#e6edf3' }}>-s IP -j DROP</code> de la chaîne.</p>
+                        <p style={{ fontSize: '.78rem', color: '#8b949e', margin: 0 }} dangerouslySetInnerHTML={{ __html: t('fail2ban.banManager.iptUnbanDesc') }} />
                         <StyledSelect value={iptUnbanChain} onChange={e => setIptUnbanChain(e.target.value)}>
                             {IPT_CHAINS.map(c => <option key={c} value={c} style={{ background: '#21262d', color: '#e6edf3' }}>{c}</option>)}
                         </StyledSelect>
-                        <StyledInput value={iptUnbanIp} onChange={e => setIptUnbanIp(e.target.value)} placeholder="ex: 1.2.3.4 ou 1.2.0.0/24"
+                        <StyledInput value={iptUnbanIp} onChange={e => setIptUnbanIp(e.target.value)} placeholder={t('fail2ban.banManager.exIpCidr')}
                             onKeyDown={e => { if (e.key === 'Enter') doIptUnban(); }}
                             hasError={iptUnbanIp.trim().length > 0 && !isValidIpOrCidr(iptUnbanIp)} />
                     </ActionCard>

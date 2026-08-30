@@ -6,6 +6,7 @@ import { List, Shield } from 'lucide-react';
 import type { TrackerEntry } from './types';
 import { GeoInfo } from './types';
 import { FlagImg } from './FlagImg';
+import { getAppLanguage } from '../../i18n';
 
 // ── Module-level cache (survives tab navigation) ──────────────────────────────
 const _cache: Record<string, { data: unknown; ts: number }> = {};
@@ -31,7 +32,7 @@ const LastSeenBadge: React.FC<{ ts: number }> = ({ ts }) => {
     const shortDate = `${pad(d.getDate())}/${pad(d.getMonth() + 1)}`;
     const time      = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
     return (
-        <span title={d.toLocaleString('fr-FR')} style={{ whiteSpace: 'nowrap' }}>
+        <span title={d.toLocaleString(getAppLanguage())} style={{ whiteSpace: 'nowrap' }}>
             <span style={{ color: '#8b949e', fontSize: '.68rem', marginRight: '.3rem' }}>{shortDate}</span>
             <span style={{ display: 'inline-block', padding: '.05rem .35rem', borderRadius: 4, fontSize: '.72rem', fontWeight: 600, background: tBg, color: tColor, border: `1px solid ${tBorder}` }}>{time}</span>
         </span>
@@ -316,12 +317,12 @@ export const TabTracker: React.FC<{ onIpClick?: (ip: string) => void; onTotalCha
             {/* ── Sync status banner ── */}
             {syncStatus && syncStatus.synced === false && syncStatus.f2bTotalBans !== null && (
                 <div style={{ padding: '.45rem 1rem', background: 'rgba(227,179,65,.07)', borderBottom: '1px solid rgba(227,179,65,.2)', display: 'flex', alignItems: 'center', gap: '.5rem', fontSize: '.78rem' }}>
-                    <span style={{ color: '#e3b341', fontWeight: 700 }}>⟳ Import en cours…</span>
+                    <span style={{ color: '#e3b341', fontWeight: 700 }}>{t('fail2ban.tracker.importing')}</span>
                     <span style={{ color: '#8b949e' }}>
-                        {syncStatus.internalEvents.toLocaleString()} / {syncStatus.f2bTotalBans.toLocaleString()} événements importés
+                        {t('fail2ban.tracker.eventsImported', { imported: syncStatus.internalEvents.toLocaleString(), total: syncStatus.f2bTotalBans.toLocaleString() })}
                     </span>
                     <span style={{ color: '#8b949e', fontSize: '.72rem', marginLeft: '.5rem' }}>
-                        — les données affichées sont partielles, rafraîchissez dans quelques secondes
+                        {t('fail2ban.tracker.partialData')}
                     </span>
                 </div>
             )}
@@ -331,7 +332,7 @@ export const TabTracker: React.FC<{ onIpClick?: (ip: string) => void; onTotalCha
                 ? <div style={{ textAlign: 'center', padding: '3rem', color: '#8b949e' }}>{t('common.loading')}</div>
                 : filtered.length === 0
                 ? <div style={{ textAlign: 'center', padding: '3rem', color: viewMode === 'active' ? '#3fb950' : '#8b949e' }}>
-                    {viewMode === 'active' ? '✓ Aucune IP actuellement bannie' : 'Aucune IP dans l\'historique'}
+                    {viewMode === 'active' ? t('fail2ban.tracker.noActiveBans') : t('fail2ban.tracker.noHistory')}
                   </div>
                 : (
                     <div style={{ overflowX: 'auto' }}>
@@ -339,16 +340,16 @@ export const TabTracker: React.FC<{ onIpClick?: (ip: string) => void; onTotalCha
                             <thead>
                                 <tr>
                                     <th style={{ ...thStyle, width: 32 }}>#</th>
-                                    <SortTh col="last" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} style={{ ...thStyle, width: 110 }}>Dernier vu</SortTh>
-                                    <SortTh col="ip"   sortCol={sortCol} sortDir={sortDir} onSort={handleSort} style={{ ...thStyle, width: 110 }}>IP</SortTh>
+                                    <SortTh col="last" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} style={{ ...thStyle, width: 110 }}>{t('fail2ban.tracker.lastSeen')}</SortTh>
+                                    <SortTh col="ip"   sortCol={sortCol} sortDir={sortDir} onSort={handleSort} style={{ ...thStyle, width: 110 }}>{t('fail2ban.labels.ip')}</SortTh>
                                     <th style={{ ...thStyle, width: 46 }}>{t('fail2ban.labels.country')}</th>
                                     <th style={{ ...thStyle, width: 100 }}>{t('fail2ban.labels.city')}</th>
                                     <SortTh col="failures" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} style={{ ...thStyle, width: 80, textAlign: 'center' }}>{t('fail2ban.labels.attempts')}</SortTh>
-                                    <SortTh col="bans"   sortCol={sortCol} sortDir={sortDir} onSort={handleSort} style={{ ...thStyle, width: 60, textAlign: 'center' }}><span style={{ color: '#e86a65' }}>Bans</span></SortTh>
-                                    <SortTh col="unbans" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} style={{ ...thStyle, width: 60, textAlign: 'center' }}><span style={{ color: '#3fb950' }}>Débans</span></SortTh>
-                                    <SortTh col="jails"  sortCol={sortCol} sortDir={sortDir} onSort={handleSort} style={{ ...thStyle, minWidth: 180, paddingLeft: '1.2rem', borderLeft: '1px solid #30363d' }}>Jail(s)</SortTh>
-                                    <th style={{ ...thStyle, minWidth: 160 }}>IPSet(s)</th>
-                                    <th style={{ ...thStyle, width: 120, maxWidth: 120 }}>Hostname</th>
+                                    <SortTh col="bans"   sortCol={sortCol} sortDir={sortDir} onSort={handleSort} style={{ ...thStyle, width: 60, textAlign: 'center' }}><span style={{ color: '#e86a65' }}>{t('fail2ban.tracker.bans')}</span></SortTh>
+                                    <SortTh col="unbans" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} style={{ ...thStyle, width: 60, textAlign: 'center' }}><span style={{ color: '#3fb950' }}>{t('fail2ban.tracker.unbans')}</span></SortTh>
+                                    <SortTh col="jails"  sortCol={sortCol} sortDir={sortDir} onSort={handleSort} style={{ ...thStyle, minWidth: 180, paddingLeft: '1.2rem', borderLeft: '1px solid #30363d' }}>{t('fail2ban.tracker.jails')}</SortTh>
+                                    <th style={{ ...thStyle, minWidth: 160 }}>{t('fail2ban.tracker.ipsets')}</th>
+                                    <th style={{ ...thStyle, width: 120, maxWidth: 120 }}>{t('fail2ban.tracker.hostname')}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -371,34 +372,34 @@ export const TabTracker: React.FC<{ onIpClick?: (ip: string) => void; onTotalCha
                                             <td style={{ padding: '.4rem .65rem', whiteSpace: 'nowrap' }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '.35rem' }}>
                                                     {inRecidive && (
-                                                        <F2bTooltip title="IP récidiviste" color="orange" placement="bottom"
+                                                        <F2bTooltip title={t('fail2ban.tracker.recidivistTitle')} color="orange" placement="bottom"
                                                             bodyNode={<div style={{ fontSize: '.78rem', lineHeight: 1.6 }}>
-                                                                <div>Cette IP a été bannie <strong style={{ color: '#e3b341' }}>plusieurs fois</strong> et a déclenché le jail <span style={{ fontFamily: 'monospace', color: '#e86a65' }}>recidive</span>.</div>
-                                                                <div style={{ color: '#8b949e', fontSize: '.72rem', marginTop: '.25rem' }}>Le jail recidive applique une durée de ban prolongée aux multi-récidivistes.</div>
+                                                                <div dangerouslySetInnerHTML={{ __html: t('fail2ban.tracker.recidivistBody') }} />
+                                                                <div style={{ color: '#8b949e', fontSize: '.72rem', marginTop: '.25rem' }}>{t('fail2ban.tracker.recidivistHint')}</div>
                                                             </div>}>
                                                             <span style={{ color: '#e3b341', fontSize: '.72rem', cursor: 'default' }}>⚠</span>
                                                         </F2bTooltip>
                                                     )}
                                                     <button onClick={() => onIpClick?.(e.ip)}
-                                                        title="Voir historique détaillé"
+                                                        title={t('fail2ban.tracker.seeDetailedHistory')}
                                                         style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'monospace', fontSize: '.85rem', color: '#e6edf3', fontWeight: 600 }}>
                                                         {e.ip}
                                                     </button>
                                                     {e.currentlyBanned && (
-                                                        <F2bTooltip title="IP actuellement bannie" color="red" placement="bottom"
+                                                        <F2bTooltip title={t('fail2ban.tracker.bannedTitle')} color="red" placement="bottom"
                                                             bodyNode={<div style={{ fontSize: '.78rem', lineHeight: 1.6 }}>
-                                                                <div>Cette IP est <strong style={{ color: '#e86a65' }}>activement bannie</strong> par fail2ban en ce moment.</div>
-                                                                <div style={{ color: '#8b949e', fontSize: '.72rem', marginTop: '.25rem' }}>Source : <span style={{ fontFamily: 'monospace' }}>fail2ban-client status</span> → Currently banned.</div>
-                                                                <div style={{ color: '#8b949e', fontSize: '.72rem' }}>Le bantime n'est pas encore expiré — tout paquet entrant de cette IP est rejeté.</div>
+                                                                <div dangerouslySetInnerHTML={{ __html: t('fail2ban.tracker.bannedActive') }} />
+                                                                <div style={{ color: '#8b949e', fontSize: '.72rem', marginTop: '.25rem' }} dangerouslySetInnerHTML={{ __html: t('fail2ban.tracker.bannedSource') }} />
+                                                                <div style={{ color: '#8b949e', fontSize: '.72rem' }}>{t('fail2ban.tracker.bannedNotExpired')}</div>
                                                                 {e.jails.length > 0 && <div style={{ marginTop: '.35rem' }}>
-                                                                    <div style={{ color: '#8b949e', fontSize: '.68rem', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: '.2rem' }}>Jail(s) actif(s)</div>
+                                                                    <div style={{ color: '#8b949e', fontSize: '.68rem', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: '.2rem' }}>{t('fail2ban.tracker.activeJails')}</div>
                                                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.25rem' }}>
                                                                         {e.jails.map(j => <span key={j} style={{ fontFamily: 'monospace', fontSize: '.78rem', color: j === 'recidive' ? '#e86a65' : '#3fb950' }}>{j}</span>)}
                                                                     </div>
                                                                 </div>}
                                                             </div>}>
                                                             <span style={{ display: 'inline-flex', alignItems: 'center', padding: '.05rem .3rem', borderRadius: 3, fontSize: '.6rem', fontWeight: 700, background: 'rgba(232,106,101,.15)', color: '#e86a65', border: '1px solid rgba(232,106,101,.3)', letterSpacing: '.03em', cursor: 'default' }}>
-                                                                <Shield style={{ width: 8, height: 8, marginRight: 2 }} />BANNI
+                                                                <Shield style={{ width: 8, height: 8, marginRight: 2 }} />{t('fail2ban.tracker.bannedBadge')}
                                                             </span>
                                                         </F2bTooltip>
                                                     )}
@@ -434,12 +435,12 @@ export const TabTracker: React.FC<{ onIpClick?: (ip: string) => void; onTotalCha
                                             </td>
                                             <td style={{ padding: '.4rem .65rem', textAlign: 'center', fontSize: '.78rem' }}>
                                                 {e.bans !== undefined
-                                                    ? <F2bTooltip title="Compteur de bans" placement="bottom"
+                                                    ? <F2bTooltip title={t('fail2ban.tracker.banCounter')} placement="bottom"
                                                         color={e.bans >= 5 ? 'red' : e.bans >= 2 ? 'orange' : 'blue'}
                                                         bodyNode={<div style={{ fontSize: '.78rem', lineHeight: 1.6 }}>
-                                                            <div>IP bannie <strong style={{ color: e.bans >= 5 ? '#e86a65' : e.bans >= 2 ? '#e3b341' : '#58a6ff' }}>{e.bans} fois</strong> au total.</div>
+                                                            <div dangerouslySetInnerHTML={{ __html: t('fail2ban.tracker.bannedTimes', { n: e.bans, color: e.bans >= 5 ? '#e86a65' : e.bans >= 2 ? '#e3b341' : '#58a6ff' }) }} />
                                                             <div style={{ marginTop: '.25rem', fontSize: '.72rem', color: '#8b949e' }}>
-                                                                {e.bans >= 5 ? '● Récidiviste dangereux — 5 bans ou plus' : e.bans >= 2 ? '● Menace modérée — 2 à 4 bans' : '● Activité faible — moins de 2 bans'}
+                                                                {e.bans >= 5 ? t('fail2ban.tracker.dangerousRecidivist') : e.bans >= 2 ? t('fail2ban.tracker.moderateThreat') : t('fail2ban.tracker.lowActivity')}
                                                             </div>
                                                         </div>}>
                                                         <span style={{ color: e.bans >= 5 ? '#e86a65' : e.bans >= 2 ? '#e3b341' : '#58a6ff', fontWeight: 700, cursor: 'default' }}>{e.bans}</span>
@@ -455,12 +456,12 @@ export const TabTracker: React.FC<{ onIpClick?: (ip: string) => void; onTotalCha
                                                     : <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '.2rem' }}>
                                                         {e.jails.map(j => (
                                                             <F2bTooltip key={j}
-                                                                title={j === 'recidive' ? 'Jail récidiviste' : `Jail : ${j}`}
+                                                                title={j === 'recidive' ? t('fail2ban.tracker.recidivistJailTitle') : t('fail2ban.tracker.jailTitle', { jail: j })}
                                                                 color={j === 'recidive' ? 'red' : 'green'}
                                                                 placement="bottom"
                                                                 body={j === 'recidive'
-                                                                    ? 'Ce jail cible les IP multi-récidivistes. Fail2ban y place les IP déjà bannies plusieurs fois pour leur appliquer un bantime prolongé.'
-                                                                    : `Cette IP a déclenché le filtre du jail « ${j} » et a été bannie.`}>
+                                                                    ? t('fail2ban.tracker.recidivistJailBody')
+                                                                    : t('fail2ban.tracker.jailBody', { jail: j })}>
                                                                 <span style={{ whiteSpace: 'nowrap', display: 'inline-block', padding: '.15rem .35rem', borderRadius: 4, fontSize: '.7rem', fontWeight: 600, cursor: 'default', ...(j === 'recidive' ? { background: 'rgba(232,106,101,.08)', color: '#e86a65', border: '1px solid rgba(232,106,101,.2)' } : { background: 'rgba(63,185,80,.1)', color: '#3fb950', border: '1px solid rgba(63,185,80,.25)' }) }}>
                                                                     {j === 'recidive' && <span style={{ color: '#e3b341' }}>⚠ </span>}{j}
                                                                 </span>
@@ -475,10 +476,10 @@ export const TabTracker: React.FC<{ onIpClick?: (ip: string) => void; onTotalCha
                                                     : <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '.2rem' }}>
                                                         {ipsets.map(s => (
                                                             <F2bTooltip key={s}
-                                                                title={`IPSet : ${s}`}
+                                                                title={t('fail2ban.tracker.ipsetTitle', { set: s })}
                                                                 color="purple"
                                                                 placement="bottom"
-                                                                body={`Cette IP est dans l'ipset kernel « ${s} ». Elle est bloquée au niveau netfilter — avant même d'atteindre les règles iptables.`}>
+                                                                body={t('fail2ban.tracker.ipsetBody', { set: s })}>
                                                                 <span style={{ whiteSpace: 'nowrap', display: 'inline-block', padding: '.12rem .35rem', borderRadius: 4, fontSize: '.68rem', fontWeight: 600, background: 'rgba(188,140,255,.1)', color: '#bc8cff', border: '1px solid rgba(188,140,255,.25)', fontFamily: 'monospace', cursor: 'default' }}>{s}</span>
                                                             </F2bTooltip>
                                                         ))}
@@ -494,7 +495,7 @@ export const TabTracker: React.FC<{ onIpClick?: (ip: string) => void; onTotalCha
                         {filtered.length > 0 && perPage > 0 && (
                             <div style={{ padding: '.5rem 1rem', borderTop: '1px solid #30363d', display: 'flex', alignItems: 'center', gap: '.5rem', flexWrap: 'wrap' }}>
                                 <span style={{ fontSize: '.75rem', color: '#8b949e', marginRight: 'auto' }}>
-                                    {filtered.length} IP{filtered.length !== 1 ? 's' : ''} — page {currentPage}/{totalPages}
+                                    {t('fail2ban.tracker.rowCount', { count: filtered.length, current: currentPage, total: totalPages })}
                                 </span>
                                 {totalPages > 1 && (
                                     <div style={{ display: 'flex', gap: '.2rem' }}>

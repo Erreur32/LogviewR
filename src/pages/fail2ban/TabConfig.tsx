@@ -461,32 +461,32 @@ const RawFileViewer: React.FC<{
                         )}
 
                         {/* Copy */}
-                        <button onClick={copyContent} disabled={!content && !editMode} title="Copier" style={{
+                        <button onClick={copyContent} disabled={!content && !editMode} title={t('fail2ban.config.copier')} style={{
                             background: 'none', border: `1px solid #30363d`, borderRadius: 4,
                             cursor: (content || editMode) ? 'pointer' : 'not-allowed',
                             color: copied ? '#3fb950' : '#8b949e', padding: '2px 6px', display: 'flex', alignItems: 'center', gap: '.3rem', fontSize: '.7rem',
                         }}>
                             {copied ? <CheckCircle style={{ width: 11, height: 11 }} /> : <Copy style={{ width: 11, height: 11 }} />}
-                            {copied ? 'Copié' : 'Copier'}
+                            {copied ? t('fail2ban.config.copied') : t('fail2ban.config.copier')}
                         </button>
 
                         {/* Edit toggle */}
                         {isEditable && !editMode && (
-                            <button onClick={enterEdit} title="Activer l'édition" style={{
+                            <button onClick={enterEdit} title={t('fail2ban.config.enterEdit')} style={{
                                 background: 'rgba(88,166,255,.12)', color: '#58a6ff',
                                 border: '1px solid rgba(88,166,255,.35)', borderRadius: 4,
                                 cursor: 'pointer', padding: '2px 7px', display: 'flex', alignItems: 'center', gap: '.3rem', fontSize: '.7rem',
                             }}>
-                                <Pencil style={{ width: 10, height: 10 }} /> Éditer
+                                <Pencil style={{ width: 10, height: 10 }} /> {t('fail2ban.config.edit')}
                             </button>
                         )}
                         {editMode && (
-                            <button onClick={exitEdit} title="Quitter l'édition" style={{
+                            <button onClick={exitEdit} title={t('fail2ban.config.exitEdit')} style={{
                                 background: 'rgba(232,106,101,.12)', color: '#e86a65',
                                 border: '1px solid rgba(232,106,101,.35)', borderRadius: 4,
                                 cursor: 'pointer', padding: '2px 7px', display: 'flex', alignItems: 'center', gap: '.3rem', fontSize: '.7rem',
                             }}>
-                                <X style={{ width: 10, height: 10 }} /> Quitter
+                                <X style={{ width: 10, height: 10 }} /> {t('fail2ban.config.quitter')}
                             </button>
                         )}
                     </div>
@@ -531,9 +531,9 @@ const RawFileViewer: React.FC<{
                             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '.6rem', color: '#555d69', fontSize: '.8rem' }}>
                                 {rawFiles ? (
                                     isEditable ? (
-                                        <span style={{ fontStyle: 'italic' }}>Ce fichier n'existe pas — cliquez <strong style={{ color: '#58a6ff' }}>Éditer</strong> pour le créer</span>
+                                        <span style={{ fontStyle: 'italic' }}>{t('fail2ban.config.fileNotExistClickCreate')}</span>
                                     ) : (
-                                        <span style={{ fontStyle: 'italic' }}>Ce fichier n'existe pas sur ce système</span>
+                                        <span style={{ fontStyle: 'italic' }}>{t('fail2ban.config.fileNotExistSystem')}</span>
                                     )
                                 ) : t('fail2ban.messages.loadingData')}
                             </div>
@@ -609,7 +609,7 @@ const VacuumAlert: React.FC<{ fragPct: number; dbPath: string; onDone: () => voi
                         <Btn onClick={run} loading={state === 'running'} small
                             bg="rgba(227,179,65,.15)" color={C.orange} border="rgba(227,179,65,.4)">
                             <HardDrive style={{ width: 11, height: 11 }} />
-                            {state === 'running' ? 'VACUUM en cours…' : 'Lancer VACUUM'}
+                            {state === 'running' ? t('fail2ban.config.vacuumEnCours') : 'Lancer VACUUM'}
                         </Btn>
                     )}
                 </div>
@@ -664,7 +664,7 @@ const DashboardVacuumAlert: React.FC<{ fragPct: number; onDone: () => void }> = 
                         <Btn onClick={run} loading={state === 'running'} small
                             bg="rgba(227,179,65,.15)" color={C.orange} border="rgba(227,179,65,.4)">
                             <HardDrive style={{ width: 11, height: 11 }} />
-                            {state === 'running' ? 'VACUUM en cours…' : 'Lancer VACUUM'}
+                            {state === 'running' ? t('fail2ban.config.vacuumEnCours') : 'Lancer VACUUM'}
                         </Btn>
                     )}
                 </div>
@@ -1033,11 +1033,11 @@ export const TabConfig: React.FC<{
                     {/* ── Card fusionné : Diagnostic + Infos système fail2ban ── */}
                     {(() => {
                         const LABELS: Record<string, string> = {
-                            socket: 'Socket Unix',
+                            socket: t('admin.pluginsSection.checkLabels.socket'),
                             client: 'fail2ban-client',
-                            daemon: 'Démon fail2ban',
-                            sqlite: 'Base SQLite',
-                            dropin: 'Drop-in systemd',
+                            daemon: t('fail2ban.config.daemonRunning'),
+                            sqlite: t('admin.pluginsSection.checkLabels.sqlite'),
+                            dropin: t('admin.pluginsSection.checkLabels.dropin'),
                         };
                         const diagChecks = checkResult ? (Object.entries(checkResult.checks) as [string, CheckItem | null][]).filter((e): e is [string, CheckItem] => e[1] !== null) : [];
                         const hasErrors  = checkResult && !checkResult.ok;
@@ -1052,13 +1052,13 @@ export const TabConfig: React.FC<{
                             </span>
                             <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '.4rem' }}>
                                 {parsed?.version && (
-                                    <F2bTooltip title="Version fail2ban" color="blue" placement="bottom" width={300} bodyNode={<>
-                                        {TT.section('Détection', '#58a6ff')}
-                                        {TT.info('Récupérée via fail2ban-client version')}
+                                    <F2bTooltip title={t('fail2ban.config.versionF2b')} color="blue" placement="bottom" width={300} bodyNode={<>
+                                        {TT.section(t('fail2ban.config.detectionLabel'), '#58a6ff')}
+                                        {TT.info(t('fail2ban.config.versionRetrievedVia'))}
                                         {TT.sep()}
-                                        {TT.section('Utilisé pour')}
-                                        {TT.info('Vérifier bantime.increment disponible')}
-                                        {TT.info('Vérifier backend systemd compatible')}
+                                        {TT.section(t('fail2ban.config.usedFor'))}
+                                        {TT.info(t('fail2ban.config.checkBantimeIncrement'))}
+                                        {TT.info(t('fail2ban.config.checkBackendSystemd'))}
                                     </>}>
                                         <HBadge color={C.blue} bg="rgba(88,166,255,.1)" border="rgba(88,166,255,.25)">v{parsed.version}</HBadge>
                                     </F2bTooltip>
@@ -1068,23 +1068,23 @@ export const TabConfig: React.FC<{
                                         <RefreshCw style={{ width: 11, height: 11, animation: 'spin 1s linear infinite' }} /> Analyse…
                                     </span>
                                 ) : checkResult?.ok ? (
-                                    <F2bTooltip color="green" title="Service fail2ban — OK" width={320} bodyNode={<>
-                                        {TT.section('Checks effectués', '#3fb950')}
-                                        {TT.ok('Daemon fail2ban actif (systemd)')}
-                                        {TT.ok('Socket Unix accessible en R/W')}
-                                        {TT.ok('Base SQLite lisible')}
-                                        {TT.ok('Drop-in systemd en place')}
+                                    <F2bTooltip color="green" title={t('fail2ban.config.serviceOkTitle')} width={320} bodyNode={<>
+                                        {TT.section(t('fail2ban.config.checksOkSection'), '#3fb950')}
+                                        {TT.ok(t('fail2ban.config.daemonActive'))}
+                                        {TT.ok(t('fail2ban.config.socketAccessOk'))}
+                                        {TT.ok(t('fail2ban.config.sqliteReadable'))}
+                                        {TT.ok(t('fail2ban.config.dropinInPlace'))}
                                     </>}>
                                         <HBadge color={C.green} bg="rgba(63,185,80,.12)" border="rgba(63,185,80,.3)" icon={<CheckCircle style={{ width: 10, height: 10 }} />}>OK</HBadge>
                                     </F2bTooltip>
                                 ) : checkResult ? (
-                                    <F2bTooltip color="red" title="Service fail2ban — Erreur" width={340} bodyNode={<>
-                                        {TT.section('Checks en échec', '#e86a65')}
-                                        {TT.err('Daemon fail2ban (systemctl status fail2ban)')}
-                                        {TT.err('Socket Unix /var/run/fail2ban/fail2ban.sock')}
-                                        {TT.err('Droits SQLite ou drop-in systemd manquant')}
+                                    <F2bTooltip color="red" title={t('fail2ban.config.serviceError')} width={340} bodyNode={<>
+                                        {TT.section(t('fail2ban.config.checksFailedSection'), '#e86a65')}
+                                        {TT.err(t('fail2ban.config.daemonCheckErr'))}
+                                        {TT.err(t('admin.pluginsSection.checkLabels.socket'))}
+                                        {TT.err(t('fail2ban.config.sqliteOrDropinMissing'))}
                                         {TT.sep()}
-                                        {TT.info('Ouvrez ce cadre → script de correction')}
+                                        {TT.info(t('fail2ban.config.openForFixScript'))}
                                     </>}>
                                         <HBadge color={C.red} bg="rgba(232,106,101,.12)" border="rgba(232,106,101,.3)" icon={<AlertTriangle style={{ width: 10, height: 10 }} />}>{errCount} erreur{errCount > 1 ? 's' : ''}</HBadge>
                                     </F2bTooltip>
@@ -1187,23 +1187,23 @@ export const TabConfig: React.FC<{
                                             const bg = dbInfo.fragPct > 40 ? 'rgba(232,106,101,.12)' : dbInfo.fragPct > 20 ? 'rgba(227,179,65,.12)' : 'rgba(63,185,80,.1)';
                                             const bd = dbInfo.fragPct > 40 ? 'rgba(232,106,101,.3)' : dbInfo.fragPct > 20 ? 'rgba(227,179,65,.3)' : 'rgba(63,185,80,.25)';
                                             return (<>
-                                                        <F2bTooltip color="blue" title="Taille — fail2ban.sqlite3" width={300} bodyNode={<>
-                                                            {TT.section('Contenu', '#58a6ff')}
-                                                            {TT.info('Historique des bans, jails et logs')}
-                                                            {TT.info('Géré exclusivement par fail2ban')}
+                                                        <F2bTooltip color="blue" title={t('fail2ban.config.dbSizeTitleF2b')} width={300} bodyNode={<>
+                                                            {TT.section(t('fail2ban.config.dbContentF2b'), '#58a6ff')}
+                                                            {TT.info(t('fail2ban.config.dbContentF2bHistory'))}
+                                                            {TT.info(t('fail2ban.config.dbContentF2bManaged'))}
                                                             {TT.sep()}
-                                                            {TT.info('VACUUM recommandé si fragmentation > 20%')}
+                                                            {TT.info(t('fail2ban.config.dbVacuumHint'))}
                                                         </>}>
                                                             <HBadge color={C.blue} bg="rgba(88,166,255,.1)" border="rgba(88,166,255,.25)">{dbInfo.sizeFmt}</HBadge>
                                                         </F2bTooltip>
-                                                        <F2bTooltip color={dbInfo.fragPct > 40 ? 'red' : dbInfo.fragPct > 20 ? 'orange' : 'green'} title="Fragmentation — fail2ban.sqlite3" width={320} bodyNode={<>
-                                                            {TT.section('Mesure')}
-                                                            {TT.info(`Pages libres / pages totales = ${dbInfo.fragPct}%`)}
+                                                        <F2bTooltip color={dbInfo.fragPct > 40 ? 'red' : dbInfo.fragPct > 20 ? 'orange' : 'green'} title={t('fail2ban.config.dbFragTitleF2b')} width={320} bodyNode={<>
+                                                            {TT.section(t('fail2ban.config.dbFragMeasure'))}
+                                                            {TT.info(t('fail2ban.config.dbFragMeasure') + `: ${dbInfo.fragPct}%`)}
                                                             {TT.sep()}
-                                                            {TT.section('Niveau')}
-                                                            {dbInfo.fragPct <= 20  && TT.ok('Sain — aucune action requise')}
-                                                            {dbInfo.fragPct > 20 && dbInfo.fragPct <= 40 && TT.warn('Modérée — VACUUM conseillé')}
-                                                            {dbInfo.fragPct > 40  && TT.err('Élevée — VACUUM fortement recommandé')}
+                                                            {TT.section(t('fail2ban.config.dbFragLevel'))}
+                                                            {dbInfo.fragPct <= 20  && TT.ok(t('fail2ban.config.dbFragHealthy'))}
+                                                            {dbInfo.fragPct > 20 && dbInfo.fragPct <= 40 && TT.warn(t('fail2ban.config.dbFragModerate'))}
+                                                            {dbInfo.fragPct > 40  && TT.err(t('fail2ban.config.dbFragHigh'))}
                                                         </>}>
                                                             <HBadge color={fc} bg={bg} border={bd}>{dbInfo.fragPct}% frag.</HBadge>
                                                         </F2bTooltip>
@@ -1278,7 +1278,7 @@ export const TabConfig: React.FC<{
                                             </Btn>
                                             <Btn onClick={persistRuntime} loading={saving === 'persist-runtime'}
                                                 bg="rgba(188,140,255,.15)" color={C.purple} border="rgba(188,140,255,.4)" small>
-                                                <Save style={{ width: 11, height: 11 }} /> Appliquer + persister
+                                                <Save style={{ width: 11, height: 11 }} /> {t('fail2ban.config.persistInFail2banLocal')}
                                             </Btn>
                                         </div>
                                     </div>}
@@ -1288,7 +1288,7 @@ export const TabConfig: React.FC<{
                                 <div style={{ ...card, display: 'flex', flexDirection: 'column', alignSelf: (!openDb && openRuntime) ? 'start' : 'stretch' }}>
                                     <div onClick={() => setOpenDb(o => !o)} style={{ ...cardH, cursor: 'pointer', userSelect: 'none', borderBottom: openDb ? '1px solid #30363d' : 'none' }}>
                                         <Database style={{ width: 14, height: 14, color: C.purple }} />
-                                        <span style={{ fontWeight: 600, fontSize: '.9rem' }}>Base de données</span>
+                                        <span style={{ fontWeight: 600, fontSize: '.9rem' }}>{t('fail2ban.config.dbSection')}</span>
                                         <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '.4rem' }}>
                                             <span style={{ fontSize: '.67rem', color: C.muted }}>fail2ban.local</span>
                                             {openDb ? <ChevronDown style={{ width: 13, height: 13, color: C.muted }} /> : <ChevronRight style={{ width: 13, height: 13, color: C.muted }} />}
@@ -1297,10 +1297,10 @@ export const TabConfig: React.FC<{
                                     {openDb && <div style={{ ...cardB, display: 'flex', flexDirection: 'column', gap: '.75rem', flex: 1 }}>
                                         <div>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', marginBottom: '.3rem' }}>
-                                                <label style={{ fontSize: '.75rem', color: C.muted }}>DB Purge Age (secondes)</label>
+                                                <label style={{ fontSize: '.75rem', color: C.muted }}>{t('fail2ban.config.dbPurgeAge')}</label>
                                                 <F2bTooltip
-                                                    title="Rétention des bans (dbpurgeage)"
-                                                    body={`Durée pendant laquelle fail2ban conserve les bans dans sa base SQLite.\n\nValeur par défaut : 86400 (1 jour)\n\nRecommandations :\n• 86400 = 1 jour (défaut — ok pour usage normal)\n• 604800 = 7 jours (bon équilibre)\n• 2592000 = 30 jours (historique long)\n• 0 = désactivé (conserve tout, risque de croissance illimitée)\n\nAugmenter si tu veux voir les bans anciens dans LogviewR. Ne pas dépasser 90 jours sans surveiller la taille de la DB.`}
+                                                    title={t('fail2ban.config.retentionBans')}
+                                                    body={t('fail2ban.config.dbPurgeBody')}
                                                     color="blue" placement="top">
                                                     <span style={{ cursor: 'help', color: C.blue, fontSize: '.85rem', lineHeight: 1 }}>ⓘ</span>
                                                 </F2bTooltip>
@@ -1309,38 +1309,38 @@ export const TabConfig: React.FC<{
                                                 onChange={e => { const v = e.target.value; if (v === '' || /^\d+$/.test(v)) setFmPurgeage(v); }}
                                                 style={{ ...inp, borderColor: fmPurgeage !== '' && (Number.isNaN(Number.parseInt(fmPurgeage, 10)) || Number.parseInt(fmPurgeage, 10) < 0) ? C.red : undefined }} placeholder="86400" />
                                             <div style={{ fontSize: '.65rem', color: C.muted, marginTop: 2 }}>
-                                                {Number.parseInt(fmPurgeage, 10) > 0 ? `≈ ${Math.round(Number.parseInt(fmPurgeage, 10) / 86400)} jour(s)` : Number.parseInt(fmPurgeage, 10) === 0 ? 'Désactivé (0)' : ''}
+                                                 {Number.parseInt(fmPurgeage, 10) > 0 ? `≈ ${Math.round(Number.parseInt(fmPurgeage, 10) / 86400)} ${t('fail2ban.config.jours')}` : Number.parseInt(fmPurgeage, 10) === 0 ? t('fail2ban.config.desactive') : ''}
                                             </div>
                                         </div>
                                         <div>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', marginBottom: '.3rem' }}>
                                                 <label style={{ fontSize: '.75rem', color: C.muted }}>DB Max Matches</label>
                                                 <F2bTooltip
-                                                    title="Historique de log par IP (dbmaxmatches)"
-                                                    body={`Nombre de lignes de log conservées par IP et par jail dans la base fail2ban.\n\nValeur par défaut : 10\n\nUtilisé par : fail2ban-client get <jail> banip <ip> matches\n\nRecommandations :\n• 10 = défaut (suffisant pour diagnostiquer)\n• 20–50 = bon compromis pour plus de contexte\n• >100 = déconseillé sauf usage debug, augmente la taille de la DB\n\nModifier uniquement si tu as besoin de plus d'historique de log par IP bannie.`}
+                                                    title={t('fail2ban.config.logHistoryTitle')}
+                                                    body={t('fail2ban.config.logHistoryBody')}
                                                     color="blue" placement="top">
                                                     <span style={{ cursor: 'help', color: C.blue, fontSize: '.85rem', lineHeight: 1 }}>ⓘ</span>
                                                 </F2bTooltip>
                                             </div>
                                             <input type="number" min="1" max="10000" value={fmMaxmatches} onChange={e => setFmMaxmatches(e.target.value)} style={inp} />
-                                            <div style={{ fontSize: '.65rem', color: C.muted, marginTop: 2 }}>Lignes de log max conservées par IP</div>
+                                            <div style={{ fontSize: '.65rem', color: C.muted, marginTop: 2 }}>{t('fail2ban.config.logHistoryPerIp')}</div>
                                         </div>
                                         {/* Tip: bantime.increment */}
                                         <div style={{ border: '1px solid rgba(88,166,255,.2)', borderRadius: 6, overflow: 'hidden' }}>
                                             <div onClick={() => setOpenDbTip(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: '.35rem', padding: '.45rem .75rem', cursor: 'pointer', background: 'rgba(88,166,255,.06)', userSelect: 'none' }}>
                                                 <span style={{ fontSize: '.85rem', color: C.blue }}>ⓘ</span>
-                                                <span style={{ fontWeight: 600, fontSize: '.75rem', color: C.blue, flex: 1 }}>Conseil : escalade progressive des bans</span>
+                                                <span style={{ fontWeight: 600, fontSize: '.75rem', color: C.blue, flex: 1 }}>{t('fail2ban.config.bantimeIncrementTip')}</span>
                                                 {openDbTip ? <ChevronDown style={{ width: 12, height: 12, color: C.blue }} /> : <ChevronRight style={{ width: 12, height: 12, color: C.blue }} />}
                                             </div>
                                             {openDbTip && <div style={{ padding: '.55rem .75rem', display: 'flex', flexDirection: 'column', gap: '.3rem', background: 'rgba(88,166,255,.03)' }}>
                                                 <div style={{ fontSize: '.72rem', color: C.muted, lineHeight: 1.55 }}>
-                                                    En ajoutant dans <span style={{ fontFamily: 'monospace', color: C.orange }}>jail.local</span> section <span style={{ fontFamily: 'monospace', color: C.text }}>[DEFAULT]</span> :
+                                                    {t('fail2ban.config.addInJailLocal')}
                                                 </div>
                                                 <pre style={{ margin: 0, fontFamily: 'monospace', fontSize: '.68rem', color: C.cyan, background: 'rgba(0,0,0,.25)', borderRadius: 4, padding: '.35rem .5rem', lineHeight: 1.6 }}>{`bantime.increment = true\nbantime.factor    = 2\nbantime.maxtime   = 604800`}</pre>
                                                 <div style={{ fontSize: '.71rem', color: C.muted, lineHeight: 1.55 }}>
-                                                    Chaque récidive <strong style={{ color: C.text }}>double</strong> le bantime (1h → 2h → 4h → … → 7j max).<br />
-                                                    Nécessite <span style={{ fontFamily: 'monospace', color: C.orange }}>dbpurgeage</span> suffisamment long pour se souvenir des anciens bans.<br />
-                                                    Se combine avec le jail <span style={{ fontFamily: 'monospace', color: C.red }}>recidive</span> : l'escalade agit d'abord, recidive attrape les cas extrêmes (5 bans / 24h → 1 an).
+                                                    {t('fail2ban.config.eachRecidive')} <strong style={{ color: C.text }}>{t('fail2ban.config.doubles')}</strong> {t('fail2ban.config.theBantime')}.<br />
+                                                    {t('fail2ban.config.requiresLongPurge')}.<br />
+                                                    {t('fail2ban.config.combinesWithRecidive')}.
                                                 </div>
                                             </div>}
                                         </div>
@@ -1348,7 +1348,7 @@ export const TabConfig: React.FC<{
                                         <div style={{ marginTop: 'auto' }}>
                                             <Btn onClick={persistDb} loading={saving === 'persist-db'}
                                                 bg="rgba(188,140,255,.15)" color={C.purple} border="rgba(188,140,255,.4)">
-                                                <Save style={{ width: 11, height: 11 }} /> Persister dans fail2ban.local
+                                                <Save style={{ width: 11, height: 11 }} /> {t('fail2ban.config.persistInFail2banLocal')}
                                             </Btn>
                                         </div>
                                     </div>}
@@ -1394,7 +1394,7 @@ export const TabConfig: React.FC<{
                     color={C.orange} bg="rgba(227,179,65,.07)"
                     icon={<Settings style={{ width: 16, height: 16 }} />}
                     title="Application"
-                    sub="Base de données interne LogviewR, maintenance"
+                    sub={t('fail2ban.config.appSectionSub')}
                     collapsible
                     open={openAppSection}
                     onToggle={() => setOpenAppSection(o => !o)}
@@ -1418,42 +1418,42 @@ export const TabConfig: React.FC<{
                         <div onClick={() => !syncLoading && setOpenSync(o => !o)}
                             style={{ ...cardH, cursor: syncLoading ? 'default' : 'pointer', background: syncWarn ? 'rgba(227,179,65,.04)' : undefined }}>
                             <RefreshCw style={{ width: 14, height: 14, color: syncWarn ? C.orange : C.cyan, ...(syncLoading ? { animation: 'spin 1s linear infinite' } : {}) }} />
-                            <span style={{ fontWeight: 600, fontSize: '.9rem' }}>Synchronisation <span style={{ fontFamily: 'monospace', color: C.cyan }}>fail2ban</span> ↔ dashboard.db</span>
+                            <span style={{ fontWeight: 600, fontSize: '.9rem' }}>{t('fail2ban.config.syncFail2banDashboard')}</span>
                             <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '.5rem' }}>
                                 {syncLoading ? (
-                                    <span style={{ fontSize: '.72rem', color: C.muted }}>Vérification…</span>
+                                    <span style={{ fontSize: '.72rem', color: C.muted }}>{t('fail2ban.config.verification')}</span>
                                 ) : syncOk ? (
                                     <F2bTooltip color="green" title="Synchronisation — OK" width={340} bodyNode={<>
                                         {TT.section('État', '#3fb950')}
                                         {TT.ok('fail2ban.sqlite3 → dashboard.db synchronisés')}
                                         {TT.sep()}
                                         {TT.section('Fonctionnement')}
-                                        {TT.info('Service tourne en arrière-plan toutes les 60s')}
-                                        {TT.info('Alimente l\'historique long terme de l\'app')}
+                                        {TT.info(t('fail2ban.config.syncServiceRunning'))}
+                                        {TT.info(t('fail2ban.config.syncFeedsHistory'))}
                                     </>}>
                                         <HBadge color={C.green} bg="rgba(63,185,80,.12)" border="rgba(63,185,80,.3)" icon={<CheckCircle style={{ width: 10, height: 10 }} />}>OK</HBadge>
                                     </F2bTooltip>
                                 ) : syncWarn ? (
-                                    <F2bTooltip color="orange" title="Synchronisation — Décalage" width={340} bodyNode={<>
-                                        {TT.section('Problème', '#e3b341')}
-                                        {TT.warn('Décalage entre fail2ban.sqlite3 et dashboard.db')}
+                                    <F2bTooltip color="orange" title={t('fail2ban.config.syncDecalage')} width={340} bodyNode={<>
+                                        {TT.section(t('fail2ban.config.syncProblem'), '#e3b341')}
+                                        {TT.warn(t('fail2ban.config.syncBetween'))}
                                         {TT.sep()}
                                         {TT.section('Actions')}
-                                        {TT.info('Attendez le prochain cycle (≤ 60s)')}
-                                        {TT.info('Ou vérifiez que le service de synchro est actif')}
+                                        {TT.info(t('fail2ban.config.syncNextCycle'))}
+                                        {TT.info(t('fail2ban.config.syncServiceActive'))}
                                     </>}>
-                                        <HBadge color={C.orange} bg="rgba(227,179,65,.12)" border="rgba(227,179,65,.3)" icon={<AlertTriangle style={{ width: 10, height: 10 }} />}>Décalage</HBadge>
+                                        <HBadge color={C.orange} bg="rgba(227,179,65,.12)" border="rgba(227,179,65,.3)" icon={<AlertTriangle style={{ width: 10, height: 10 }} />}>{t('fail2ban.config.syncDecalage')}</HBadge>
                                     </F2bTooltip>
                                 ) : syncStatus?.synced === null ? (
-                                    <F2bTooltip color="muted" title="Synchronisation — SQLite non lisible" width={340} bodyNode={<>
-                                        {TT.section('Problème', '#e3b341')}
-                                        {TT.err('fail2ban.sqlite3 non accessible en lecture')}
+                                    <F2bTooltip color="muted" title={t('fail2ban.config.syncSqliteNotReadable')} width={340} bodyNode={<>
+                                        {TT.section(t('fail2ban.config.syncProblem'), '#e3b341')}
+                                        {TT.err(t('fail2ban.config.syncSqliteNotAccessible'))}
                                         {TT.sep()}
-                                        {TT.section('Correction')}
-                                        {TT.warn('chmod o+r /var/lib/fail2ban/fail2ban.sqlite3')}
-                                        {TT.info('Vérifiez le montage Docker de /var/lib/fail2ban')}
+                                        {TT.section(t('fail2ban.config.syncCorrection'))}
+                                        {TT.warn(t('fail2ban.config.syncChmod'))}
+                                        {TT.info(t('fail2ban.config.syncCheckDockerMount'))}
                                     </>}>
-                                        <HBadge color={C.muted} bg="rgba(227,179,65,.08)" border={C.border} icon={<AlertTriangle style={{ width: 10, height: 10 }} />}>SQLite non lisible</HBadge>
+                                        <HBadge color={C.muted} bg="rgba(227,179,65,.08)" border={C.border} icon={<AlertTriangle style={{ width: 10, height: 10 }} />}>{t('fail2ban.config.syncSqliteNotReadable')}</HBadge>
                                     </F2bTooltip>
                                 ) : null}
                                 {!syncLoading && syncStatus && (openSync
@@ -1488,13 +1488,13 @@ export const TabConfig: React.FC<{
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.3rem .4rem', fontSize: '.68rem', color: C.muted }}>
                                     <Info style={{ width: 10, height: 10, flexShrink: 0 }} />
                                     {syncStatus.lastSyncAt
-                                        ? `Dernière synchro : ${new Date(syncStatus.lastSyncAt).toLocaleString('fr-FR')} — sync auto toutes les 60s`
-                                        : 'Synchronisation en attente (première exécution)'}
+                                        ? `${t('fail2ban.config.lastSyncAt')} ${new Date(syncStatus.lastSyncAt).toLocaleString('fr-FR')} — ${t('fail2ban.config.syncAutoEvery60s')}`
+                                        : t('fail2ban.config.syncPending')}
                                 </div>
                                 {syncWarn && (
                                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: '.4rem', padding: '.4rem .6rem', borderRadius: 5, background: 'rgba(227,179,65,.07)', border: '1px solid rgba(227,179,65,.3)', fontSize: '.72rem', color: C.orange }}>
                                         <AlertTriangle style={{ width: 11, height: 11, flexShrink: 0, marginTop: 1 }} />
-                                        Décalage détecté — la prochaine synchro automatique (≤60s) devrait corriger cet écart.
+                                        {t('fail2ban.config.syncDetectedOffset')}
                                     </div>
                                 )}
                             </div>
@@ -1507,9 +1507,9 @@ export const TabConfig: React.FC<{
                     <div style={{ ...card, borderColor: (parsed?.appDbInfo?.fragPct ?? 0) > 20 ? 'rgba(227,179,65,.4)' : C.border }}>
                         <div style={{ ...cardH, cursor: 'pointer' }} onClick={() => setOpenAppDb(o => !o)}>
                             <HardDrive style={{ width: 14, height: 14, color: C.cyan }} />
-                            <span style={{ fontWeight: 600, fontSize: '.9rem' }}>Base de données interne (dashboard.db)</span>
+                            <span style={{ fontWeight: 600, fontSize: '.9rem' }}>{t('fail2ban.config.internalDb')}</span>
                             {(parsed?.appDbInfo?.fragPct ?? 0) > 20 && (
-                                <WarnBadge count={1} tip={`Fragmentation élevée : ${parsed!.appDbInfo.fragPct}% — VACUUM recommandé`} />
+                                <WarnBadge count={1} tip={t('fail2ban.config.fragWarning', { pct: parsed!.appDbInfo.fragPct })} />
                             )}
                             <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '.35rem' }}>
                                 {parsed?.appDbInfo && (() => {
@@ -1518,23 +1518,23 @@ export const TabConfig: React.FC<{
                                     const bg = db.fragPct > 40 ? 'rgba(232,106,101,.12)' : db.fragPct > 20 ? 'rgba(227,179,65,.12)' : 'rgba(63,185,80,.1)';
                                     const bd = db.fragPct > 40 ? 'rgba(232,106,101,.3)'  : db.fragPct > 20 ? 'rgba(227,179,65,.3)'  : 'rgba(63,185,80,.25)';
                                     return (<>
-                                        <F2bTooltip color="blue" title="Taille — dashboard.db" width={300} bodyNode={<>
-                                            {TT.section('Contenu', '#58a6ff')}
-                                            {TT.info('Historique long terme des bans (f2b_events)')}
-                                            {TT.info('Paramètres et utilisateurs de l\'application')}
+                                        <F2bTooltip color="blue" title={t('fail2ban.config.dbSizeTitleDash')} width={300} bodyNode={<>
+                                            {TT.section(t('fail2ban.config.dbContentDash'), '#58a6ff')}
+                                            {TT.info(t('fail2ban.config.dbContentDashHistory'))}
+                                            {TT.info(t('fail2ban.config.dbContentDashParams'))}
                                             {TT.sep()}
-                                            {TT.info('VACUUM recommandé si fragmentation > 20%')}
+                                            {TT.info(t('fail2ban.config.dbVacuumHint'))}
                                         </>}>
                                             <HBadge color={C.blue} bg="rgba(88,166,255,.1)" border="rgba(88,166,255,.25)">{db.sizeFmt}</HBadge>
                                         </F2bTooltip>
-                                        <F2bTooltip color={db.fragPct > 40 ? 'red' : db.fragPct > 20 ? 'orange' : 'green'} title="Fragmentation — dashboard.db" width={320} bodyNode={<>
-                                            {TT.section('Mesure')}
-                                            {TT.info(`Pages libres / pages totales = ${db.fragPct}%`)}
+                                        <F2bTooltip color={db.fragPct > 40 ? 'red' : db.fragPct > 20 ? 'orange' : 'green'} title={t('fail2ban.config.dbFragTitleDash')} width={320} bodyNode={<>
+                                            {TT.section(t('fail2ban.config.dbFragMeasure'))}
+                                            {TT.info(t('fail2ban.config.dbFragMeasure') + `: ${db.fragPct}%`)}
                                             {TT.sep()}
-                                            {TT.section('Niveau')}
-                                            {db.fragPct <= 20  && TT.ok('Sain — aucune action requise')}
-                                            {db.fragPct > 20 && db.fragPct <= 40 && TT.warn('Modérée — VACUUM conseillé')}
-                                            {db.fragPct > 40  && TT.err('Élevée — VACUUM fortement recommandé')}
+                                            {TT.section(t('fail2ban.config.dbFragLevel'))}
+                                            {db.fragPct <= 20  && TT.ok(t('fail2ban.config.dbFragHealthy'))}
+                                            {db.fragPct > 20 && db.fragPct <= 40 && TT.warn(t('fail2ban.config.dbFragModerate'))}
+                                            {db.fragPct > 40  && TT.err(t('fail2ban.config.dbFragHigh'))}
                                         </>}>
                                             <HBadge color={fc} bg={bg} border={bd}>{db.fragPct}% frag.</HBadge>
                                         </F2bTooltip>
@@ -1680,14 +1680,14 @@ export const TabConfig: React.FC<{
                         <div onClick={() => setOpenInteg(o => !o)} style={{ ...cardH, cursor: 'pointer', background: (npmDataPath || npmMysqlOk) ? undefined : 'rgba(227,179,65,.04)' }}>
                             <Network style={{ width: 14, height: 14, color: (npmDataPath || npmMysqlOk) ? C.cyan : C.orange }} />
                             <span style={{ fontWeight: 600, fontSize: '.9rem' }}>Intégrations <span style={{ fontWeight: 400, color: C.orange, fontSize: '.72rem' }}>(optionnel)</span></span>
-                            {!(npmDataPath || npmMysqlOk) && <WarnBadge count={1} tip="NPM non configuré — Top Domaines inactif" />}
+                            {!(npmDataPath || npmMysqlOk) && <WarnBadge count={1} tip={t('fail2ban.config.npmNotConfigured')} />}
                             {(npmDataPath || npmMysqlOk) && (
                                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.25rem', fontSize: '.72rem', color: C.green, background: 'rgba(63,185,80,.10)', border: '1px solid rgba(63,185,80,.28)', borderRadius: 4, padding: '.08rem .42rem', fontWeight: 600 }}>
                                     <CheckCircle style={{ width: 10, height: 10 }} /> NPM {npmMysqlOk ? 'MySQL' : 'SQLite'}
                                 </span>
                             )}
                             <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '.4rem' }}>
-                                <HBadge color={C.cyan} bg="rgba(57,197,207,.08)" border="rgba(57,197,207,.25)">Nginx Proxy Manager</HBadge>
+                                <HBadge color={C.cyan} bg="rgba(57,197,207,.08)" border="rgba(57,197,207,.25)">{t('fail2ban.tabs.npm')}</HBadge>
                                 {openInteg ? <ChevronDown style={{ width: 13, height: 13, color: C.muted }} /> : <ChevronRight style={{ width: 13, height: 13, color: C.muted }} />}
                             </span>
                         </div>
@@ -1696,7 +1696,7 @@ export const TabConfig: React.FC<{
                                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: '.5rem', padding: '.5rem .7rem', borderRadius: 6, background: 'rgba(227,179,65,.08)', border: '1px solid rgba(227,179,65,.3)', marginBottom: '.75rem' }}>
                                     <AlertTriangle style={{ width: 14, height: 14, color: C.orange, flexShrink: 0, marginTop: 1 }} />
                                     <span style={{ fontSize: '.78rem', color: C.orange, lineHeight: 1.5 }}>
-                                        NPM non configuré — les <strong>Top Domaines</strong> (onglet Stats) ne fonctionneront pas.
+                                        {t('fail2ban.config.npmMissingStats')}
                                     </span>
                                 </div>
                             )}

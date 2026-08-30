@@ -5,6 +5,22 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.4] - 2026-08-30
+
+### For users
+
+- Fail2ban page is now fully internationalized: all tooltips, button labels, status messages, section headers, confirmation dialogs, and fallback/empty states display correctly in both French and English. Previously hardcoded French strings in the Config, Backup, Filters, Stats, Jails, and Actions tabs are now translated.
+
+### For developers
+
+- `TabConfig.tsx`: replaced all hardcoded French text in `F2bTooltip` components (service status, database size/fragmentation tooltips, sync status, netfilter check tooltips) with `t()` calls. Added i18n keys for `serviceOkTitle`, `checksOkSection`, `checksFailedSection`, `dbSizeTitleF2b`, `dbFragTitleF2b`, `dbFragMeasure`, `dbFragLevel`, `dbFragHealthy`, `dbFragModerate`, `dbFragHigh`, `dbSizeTitleDash`, `dbFragTitleDash`, and others.
+- `TabBackup.tsx`: replaced all hardcoded French in `F2bTooltip` components (download/restore/delete actions, snapshot descriptions) and confirmation dialogs with `t()` calls. Added i18n keys under `fail2ban.backup.*`.
+- `TabFiltres.tsx`: `FilterModal` component now uses `useTranslation()` — `Chargement`, `Annuler`, `Modifier` labels are now translated via `common.loading`, `common.cancel`, `common.edit`.
+- `TabStats.tsx`: replaced hardcoded French in IPSet section (`IPs en jail`, `entrées`, `autres sets`, `IPs bloquées en amont`), ban counter info block, and `clickToHide` tooltip with `t()` calls. Fixed `TT.row()` calls that had been incorrectly wrapped in JSX braces (`{t(...)}` → `t(...)`). Added keys: `ipsInJail`, `entries`, `otherSets`, `blockedUpstream`, `jailBanInfo.*`, `dbDataSince`, `clickToHide`.
+- `TabJails.tsx`: `title=` attributes on Bantime, Findtime, Maxretry badges now use `t('fail2ban.labels.bantime')`, `t('fail2ban.labels.findtime')`, `t('fail2ban.labels.maxretry')`.
+- Added all missing translation keys to `src/locales/en.json` and `src/locales/fr.json` under the appropriate `fail2ban.*` namespaces.
+- Fixed TypeScript error in `FilterModal` (`TabFiltres.tsx`) caused by missing `useTranslation()` hook in the component's scope.
+
 ## [0.10.3] - 2026-08-30
 
 ### For users

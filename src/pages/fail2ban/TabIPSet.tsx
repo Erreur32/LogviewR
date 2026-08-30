@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Database, AlertTriangle, Trash2, Plus, Search, CheckCircle } from 'lucide-react';
 import { api } from '../../api/client';
 import { card, cardH, cardB, F2bTooltip } from './helpers';
@@ -41,24 +42,25 @@ function SetList({ sets, selected, onSelect, loading, onDestroy }: {
     loading: boolean;
     onDestroy: (name: string) => void;
 }) {
+    const { t } = useTranslation();
     return (
         <div style={card}>
             <div style={{ ...cardH, justifyContent: 'space-between' }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: '.4rem', fontWeight: 600, fontSize: '.88rem' }}>
                     <Database style={{ width: 14, height: 14, color: '#bc8cff' }} />
-                    Sets IPSet
+                    {t('fail2ban.ipset.setsTitle')}
                     <span style={{ fontSize: '.72rem', color: '#8b949e', fontWeight: 400 }}>({sets.length})</span>
                 </span>
                 {sets.length > 0 && (
                     <span style={{ fontSize: '.72rem', color: '#555d69' }}>
-                        Total: <span style={{ color: '#bc8cff', fontWeight: 600 }}>{sets.reduce((s, x) => s + x.entries, 0).toLocaleString()}</span> IPs
+                        {t('fail2ban.ipset.total')}: <span style={{ color: '#bc8cff', fontWeight: 600 }}>{sets.reduce((s, x) => s + x.entries, 0).toLocaleString()}</span> {t('fail2ban.ipset.ips')}
                     </span>
                 )}
             </div>
             <div style={cardB}>
-                {loading && <div style={{ color: '#8b949e', fontSize: '.82rem' }}>Chargement…</div>}
+                {loading && <div style={{ color: '#8b949e', fontSize: '.82rem' }}>{t('fail2ban.ipset.loading')}</div>}
                 {!loading && sets.length === 0 && (
-                    <div style={{ color: '#555d69', fontSize: '.8rem' }}>Aucun set IPSet détecté</div>
+                    <div style={{ color: '#555d69', fontSize: '.8rem' }}>{t('fail2ban.ipset.noSet')}</div>
                 )}
                 {sets.map(s => {
                     const pct  = s.maxelem > 0 ? Math.min(100, Math.round(s.entries / s.maxelem * 100)) : 0;
@@ -76,9 +78,9 @@ function SetList({ sets, selected, onSelect, loading, onDestroy }: {
                                 <span style={{ marginLeft: 'auto', fontSize: '.72rem', color: pct >= 100 ? '#e86a65' : '#8b949e', fontFamily: 'monospace', whiteSpace: 'nowrap', fontWeight: pct >= 100 ? 700 : 400 }}>
                                     {s.entries.toLocaleString()} / {s.maxelem.toLocaleString()}
                                 </span>
-                                <button
-                                    onClick={e => { e.stopPropagation(); onDestroy(s.name); }}
-                                    title={`Supprimer l'ipset ${s.name}`}
+                                        <button
+                                            onClick={e => { e.stopPropagation(); onDestroy(s.name); }}
+                                            title={t('fail2ban.ipset.deleteTitle', { name: s.name })}
                                     style={{ background: 'rgba(232,106,101,.08)', border: '1px solid rgba(232,106,101,.2)', color: '#e86a65', borderRadius: 3, cursor: 'pointer', padding: '.15rem .3rem', display: 'inline-flex', alignItems: 'center', flexShrink: 0 }}>
                                     <Trash2 style={{ width: 10, height: 10 }} />
                                 </button>
@@ -90,7 +92,7 @@ function SetList({ sets, selected, onSelect, loading, onDestroy }: {
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '.25rem', fontSize: '.67rem', color: '#555d69' }}>
                                 <span>{fmtSize(s.size)}</span>
                                 <span style={{ color: pct >= 100 ? '#e86a65' : '#555d69', fontWeight: pct >= 100 ? 700 : 400 }}>
-                                    {pct >= 100 ? '⚠ PLEIN' : `${pct}% utilisé`}
+                                    {pct >= 100 ? t('fail2ban.ipset.full') : t('fail2ban.ipset.usedPct', { pct })}
                                 </span>
                             </div>
                         </div>
@@ -106,6 +108,7 @@ const PAGE_SIZE = 30;
 // ── Entries Panel (right panel) ────────────────────────────────────────────────
 
 function EntriesPanel({ setName, onEntryDeleted, onIpClick }: { setName: string; onEntryDeleted: () => void; onIpClick?: (ip: string) => void }) {
+    const { t } = useTranslation();
     const [entries, setEntries]   = useState<string[]>([]);
     const [loading, setLoading]   = useState(false);
     const [query, setQuery]       = useState('');
@@ -169,29 +172,29 @@ function EntriesPanel({ setName, onEntryDeleted, onIpClick }: { setName: string;
                 '/api/plugins/fail2ban/ipset/add', { set: setName, entry: e }
             );
             if (res.success && res.result?.ok) {
-                setMsg({ ok: true, text: `${e} ajouté` });
+                setMsg({ ok: true, text: t('fail2ban.ipset.entryAdded', { entry: e }) });
                 setNewEntry('');
                 fetchEntries();
                 onEntryDeleted();
             } else {
-                setMsg({ ok: false, text: res.result?.error ?? 'Erreur' });
+                setMsg({ ok: false, text: res.result?.error ?? t('fail2ban.ipset.error') });
             }
         } finally { setAdding(false); }
     };
 
     const deleteEntry = async (entry: string) => {
-        if (!confirm(`Retirer "${entry}" de ${setName} ?`)) return;
+        if (!confirm(t('fail2ban.ipset.confirmRemove', { entry, set: setName }))) return;
         setDeleting(entry); setMsg(null);
         try {
             const res = await api.post<{ ok: boolean; error?: string }>(
                 '/api/plugins/fail2ban/ipset/del', { set: setName, entry }
             );
             if (res.success && res.result?.ok) {
-                setMsg({ ok: true, text: `${entry} retiré` });
+                setMsg({ ok: true, text: t('fail2ban.ipset.entryRemoved', { entry }) });
                 fetchEntries();
                 onEntryDeleted();
             } else {
-                setMsg({ ok: false, text: res.result?.error ?? 'Erreur' });
+                setMsg({ ok: false, text: res.result?.error ?? t('fail2ban.ipset.error') });
             }
         } finally { setDeleting(null); }
     };
@@ -211,7 +214,7 @@ function EntriesPanel({ setName, onEntryDeleted, onIpClick }: { setName: string;
             <div style={{ ...cardH, justifyContent: 'space-between', flexWrap: 'wrap', gap: '.4rem' }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: '.4rem', fontWeight: 600, fontSize: '.88rem' }}>
                     <Database style={{ width: 14, height: 14, color: '#bc8cff' }} />
-                    Entrées — <span style={{ fontFamily: 'monospace', color: '#bc8cff' }}>{setName}</span>
+                    {t('fail2ban.ipset.entriesTitle')} — <span style={{ fontFamily: 'monospace', color: '#bc8cff' }}>{setName}</span>
                     <span style={{ fontSize: '.72rem', color: '#8b949e', fontWeight: 400 }}>
                         ({filtered.length !== entries.length ? `${filtered.length} / ` : ''}{entries.length})
                     </span>
@@ -226,7 +229,7 @@ function EntriesPanel({ setName, onEntryDeleted, onIpClick }: { setName: string;
                         ref={searchRef}
                         value={query}
                         onChange={e => setQuery(e.target.value)}
-                        placeholder={`Rechercher parmi ${entries.length.toLocaleString()} entrées…`}
+                        placeholder={t('fail2ban.ipset.searchPlaceholder', { n: entries.length.toLocaleString() })}
                         style={{ ...inputStyle, paddingLeft: '2rem', width: '100%', boxSizing: 'border-box', fontSize: '.82rem' }}
                     />
                     {query && (
@@ -242,7 +245,7 @@ function EntriesPanel({ setName, onEntryDeleted, onIpClick }: { setName: string;
                 {/* Add entry form */}
                 <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
                     <input value={newEntry} onChange={e => setNewEntry(e.target.value)}
-                        placeholder="Ajouter IP ou CIDR (ex: 1.2.3.4)"
+                        placeholder={t('fail2ban.ipset.addPlaceholder')}
                         style={{ ...inputStyle, flex: 1 }}
                         onKeyDown={e => { if (e.key === 'Enter') addEntry(); }} />
                     <button onClick={addEntry} disabled={adding || !newEntry.trim()} style={{
@@ -251,7 +254,7 @@ function EntriesPanel({ setName, onEntryDeleted, onIpClick }: { setName: string;
                         padding: '.35rem .75rem', fontSize: '.8rem', fontWeight: 600,
                         display: 'flex', alignItems: 'center', gap: '.3rem', opacity: adding || !newEntry.trim() ? .5 : 1,
                     }}>
-                        <Plus style={{ width: 12, height: 12 }} /> Ajouter
+                        <Plus style={{ width: 12, height: 12 }} /> {t('fail2ban.ipset.add')}
                     </button>
 
                     {/* Hidden file input for import */}
@@ -275,13 +278,13 @@ function EntriesPanel({ setName, onEntryDeleted, onIpClick }: { setName: string;
                             display: 'flex', alignItems: 'center', gap: '.35rem',
                         }}
                     >
-                        {importing ? '⟳ Import…' : '↑ Importer .txt'}
+                        {importing ? t('fail2ban.ipset.importing') : t('fail2ban.ipset.importTxt')}
                     </button>
 
                     {importResult && (
                         <span style={{ fontSize: '.78rem', color: '#3fb950', marginLeft: '.5rem' }}>
-                            ✓ {importResult.added} ajoutées
-                            {importResult.skipped > 0 && `, ${importResult.skipped} ignorées`}
+                            ✓ {t('fail2ban.ipset.importedAdded', { count: importResult.added })}
+                            {importResult.skipped > 0 && t('fail2ban.ipset.importedSkipped', { count: importResult.skipped })}
                         </span>
                     )}
                 </div>
@@ -321,15 +324,15 @@ function EntriesPanel({ setName, onEntryDeleted, onIpClick }: { setName: string;
                 )}
 
                 {/* Entries table */}
-                {loading && <div style={{ color: '#8b949e', fontSize: '.82rem' }}>Chargement…</div>}
+                {loading && <div style={{ color: '#8b949e', fontSize: '.82rem' }}>{t('fail2ban.ipset.loading')}</div>}
                 {!loading && filtered.length === 0 && (
-                    <div style={{ color: '#555d69', fontSize: '.8rem' }}>{query ? 'Aucun résultat pour cette recherche' : 'Aucune entrée'}</div>
+                    <div style={{ color: '#555d69', fontSize: '.8rem' }}>{query ? t('fail2ban.ipset.noResult') : t('fail2ban.ipset.noEntries')}</div>
                 )}
                 {!loading && filtered.length > 0 && (
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.78rem' }}>
                         <thead>
                             <tr style={{ borderBottom: '1px solid #30363d', color: '#8b949e', fontSize: '.67rem', textTransform: 'uppercase', letterSpacing: '.05em' }}>
-                                <th style={{ textAlign: 'left', padding: '.3rem .5rem .3rem 0' }}>Entrée (IP / CIDR)</th>
+                                <th style={{ textAlign: 'left', padding: '.3rem .5rem .3rem 0' }}>{t('fail2ban.ipset.colEntry')}</th>
                                 <th style={{ width: 36 }}></th>
                             </tr>
                         </thead>
@@ -346,7 +349,7 @@ function EntriesPanel({ setName, onEntryDeleted, onIpClick }: { setName: string;
                                         }
                                     </td>
                                     <td style={{ textAlign: 'right', padding: '.3rem 0 .3rem .3rem' }}>
-                                        <F2bTooltip title="Retirer" body={`Supprimer ${entry} de ${setName}`} color="red">
+                                        <F2bTooltip title={t('fail2ban.ipset.remove')} body={t('fail2ban.ipset.removeBody', { entry, set: setName })} color="red">
                                             <button onClick={() => deleteEntry(entry)} disabled={deleting === entry}
                                                 style={{ background: 'rgba(232,106,101,.08)', border: '1px solid rgba(232,106,101,.2)', color: '#e86a65', borderRadius: 3, cursor: deleting === entry ? 'default' : 'pointer', padding: '.18rem .3rem', display: 'inline-flex', alignItems: 'center', opacity: deleting === entry ? .5 : 1 }}>
                                                 <Trash2 style={{ width: 11, height: 11 }} />
@@ -405,14 +408,15 @@ function EntriesPanel({ setName, onEntryDeleted, onIpClick }: { setName: string;
 // ── Not installed banner ───────────────────────────────────────────────────────
 
 function NotInstalledBanner() {
+    const { t } = useTranslation();
     return (
         <div style={{ background: 'rgba(227,179,65,.07)', border: '1px solid rgba(227,179,65,.25)', borderRadius: 6, padding: '.85rem 1.1rem' }}>
             <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center', color: '#e3b341', fontWeight: 600, fontSize: '.85rem', marginBottom: '.4rem' }}>
-                <AlertTriangle style={{ width: 14, height: 14, flexShrink: 0 }} /> IPSet non disponible
+                <AlertTriangle style={{ width: 14, height: 14, flexShrink: 0 }} /> {t('fail2ban.ipset.notInstalledTitle')}
             </div>
             <div style={{ fontSize: '.78rem', color: '#8b949e', lineHeight: 1.6 }}>
-                La commande <code style={{ color: '#c9d1d9', fontFamily: 'monospace' }}>ipset</code> n&apos;est pas accessible.<br />
-                Vérifiez que <code style={{ color: '#c9d1d9', fontFamily: 'monospace' }}>NET_ADMIN</code> est activé dans docker-compose.yml et qu&apos;ipset est installé dans le container.
+                {t('fail2ban.ipset.notInstalledCmd')} <code style={{ color: '#c9d1d9', fontFamily: 'monospace' }}>ipset</code> {t('fail2ban.ipset.notInstalledCmd2')}<br />
+                {t('fail2ban.ipset.notInstalledCheck')} <code style={{ color: '#c9d1d9', fontFamily: 'monospace' }}>NET_ADMIN</code> {t('fail2ban.ipset.notInstalledCheck2')}
             </div>
             <pre style={{ marginTop: '.65rem', background: '#0d1117', border: '1px solid #30363d', borderRadius: 4, padding: '.5rem .75rem', fontSize: '.75rem', fontFamily: 'monospace', color: '#8b949e', whiteSpace: 'pre-wrap' }}>{`cap_add:\n  - NET_ADMIN\n# Dockerfile:\nRUN apk add --no-cache ipset`}</pre>
         </div>
@@ -422,13 +426,14 @@ function NotInstalledBanner() {
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export const TabIPSet: React.FC<{ onIpClick?: (ip: string) => void }> = ({ onIpClick }) => {
+    const { t } = useTranslation();
     const [sets, setSets]           = useState<IpsetInfo[]>([]);
     const [selected, setSelected]   = useState<string | null>(null);
     const [loading, setLoading]     = useState(false);
     const [installed, setInstalled] = useState<boolean | null>(null);
 
     const handleDestroySet = async (name: string) => {
-        if (!confirm(`Supprimer définitivement l'ipset "${name}" et toutes ses entrées ?\n\nCette action est irréversible.`)) return;
+        if (!confirm(t('fail2ban.ipset.confirmDestroy', { name }))) return;
         try {
             await api.delete<{ ok: boolean; error?: string }>(`/api/plugins/fail2ban/ipset/destroy/${encodeURIComponent(name)}`);
         } catch { /* ignore */ }
@@ -492,7 +497,7 @@ export const TabIPSet: React.FC<{ onIpClick?: (ip: string) => void }> = ({ onIpC
                     <div style={{ ...card }}>
                         <div style={cardB}>
                             <div style={{ color: '#555d69', fontSize: '.82rem' }}>
-                                Sélectionnez un set pour voir ses entrées.
+                                {t('fail2ban.ipset.selectSet')}
                             </div>
                         </div>
                     </div>

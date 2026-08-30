@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api } from '../../api/client';
 import { card, cardH } from './helpers';
 
@@ -18,6 +19,7 @@ interface TabFileListProps {
 }
 
 export const TabFileList: React.FC<TabFileListProps> = ({ title, endpoint, icon, label }) => {
+    const { t } = useTranslation();
     const [files, setFiles]       = useState<string[]>([]);
     const [selected, setSelected] = useState<string | null>(null);
     const [content, setContent]   = useState<string>('');
@@ -32,7 +34,7 @@ export const TabFileList: React.FC<TabFileListProps> = ({ title, endpoint, icon,
             if (res.success && res.result?.ok) {
                 setCached(cacheKey, res.result.files);
                 setFiles(res.result.files);
-            } else if (!cached) setError(res.result?.error ?? 'Erreur lecture');
+            } else if (!cached) setError(res.result?.error ?? t('fail2ban.fileList.errorRead'));
             setLoading(false);
         });
     }, [endpoint]);
@@ -51,7 +53,7 @@ export const TabFileList: React.FC<TabFileListProps> = ({ title, endpoint, icon,
                     {!loading && <span style={{ marginLeft: 'auto', fontSize: '.72rem', color: '#8b949e' }}>{files.length}</span>}
                 </div>
                 <div style={{ flex: 1, overflowY: 'auto' }}>
-                    {loading ? <div style={{ padding: '1rem', fontSize: '.8rem', color: '#8b949e' }}>Chargement…</div>
+                    {loading ? <div style={{ padding: '1rem', fontSize: '.8rem', color: '#8b949e' }}>{t('fail2ban.fileList.loading')}</div>
                     : error  ? <div style={{ padding: '1rem', fontSize: '.8rem', color: '#e86a65' }}>{error}</div>
                     : files.map(f => (
                         <button key={f} onClick={() => openFile(f)}
@@ -63,10 +65,10 @@ export const TabFileList: React.FC<TabFileListProps> = ({ title, endpoint, icon,
             </div>
             <div style={{ ...card, flex: 1, display: 'flex', flexDirection: 'column' }}>
                 <div style={{ ...cardH, fontSize: '.8rem', fontFamily: 'monospace', color: '#8b949e' }}>
-                    {selected ? `${label}/${selected}` : 'Sélectionnez un fichier'}
+                    {selected ? `${label}/${selected}` : t('fail2ban.fileList.selectFile')}
                 </div>
                 <pre style={{ flex: 1, overflowY: 'auto', padding: '1rem', fontSize: '.78rem', fontFamily: 'monospace', color: '#e6edf3', lineHeight: 1.6, whiteSpace: 'pre-wrap', margin: 0 }}>
-                    {content || (selected ? 'Chargement…' : 'Cliquez sur un fichier pour voir son contenu')}
+                    {content || (selected ? t('fail2ban.fileList.loading') : t('fail2ban.fileList.clickFile'))}
                 </pre>
             </div>
         </div>

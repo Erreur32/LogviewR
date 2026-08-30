@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AlertTriangle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { api } from '../../api/client';
 import { card } from './helpers';
 
@@ -10,6 +11,7 @@ interface TabNetworkRawProps {
 }
 
 export const TabNetworkRaw: React.FC<TabNetworkRawProps> = ({ title, endpoint, icon }) => {
+    const { t } = useTranslation();
     const [data, setData]       = useState<{ ok: boolean; output: string; error?: string } | null>(null);
     const [loading, setLoading] = useState(true);
     const [lastLoaded, setLastLoaded] = useState<number>(0);
@@ -36,20 +38,20 @@ export const TabNetworkRaw: React.FC<TabNetworkRawProps> = ({ title, endpoint, i
                     </span>
                 )}
                 {loading && (
-                    <span style={{ marginLeft: 'auto', fontSize: '.72rem', color: '#8b949e' }}>Chargement…</span>
+                    <span style={{ marginLeft: 'auto', fontSize: '.72rem', color: '#8b949e' }}>{t('fail2ban.networkRaw.loading')}</span>
                 )}
             </div>
             {data && !data.ok && (
                 <div style={{ background: 'rgba(227,179,65,.07)', border: '1px solid rgba(227,179,65,.25)', borderRadius: 8, padding: '1rem' }}>
                     <p style={{ color: '#e3b341', fontWeight: 600, fontSize: '.85rem', marginBottom: '.5rem', display: 'flex', alignItems: 'center', gap: '.4rem' }}>
-                        <AlertTriangle style={{ width: 14, height: 14 }} /> Commande non disponible
+                        <AlertTriangle style={{ width: 14, height: 14 }} /> {t('fail2ban.networkRaw.commandUnavailable')}
                     </p>
                     <pre style={{ fontSize: '.78rem', color: '#8b949e', fontFamily: 'monospace', margin: 0 }}>{data.error}</pre>
                 </div>
             )}
             {data?.ok && (
                 <pre style={{ ...card, padding: '1rem', fontSize: '.78rem', fontFamily: 'monospace', color: '#e6edf3', overflowX: 'auto', maxHeight: '60vh', lineHeight: 1.6, margin: 0 }}>
-                    {data.output || '(vide)'}
+                    {data.output || t('fail2ban.networkRaw.empty')}
                 </pre>
             )}
         </div>

@@ -10,6 +10,7 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
 import { Server, RefreshCw, AlertTriangle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { api } from '../../api/client';
 import { card, cardH, cardB } from './helpers';
 
@@ -92,13 +93,14 @@ function NftLine({ line }: { line: string }) {
 // ── Legend ────────────────────────────────────────────────────────────────────
 
 function Legend() {
+    const { t } = useTranslation();
     const items = [
-        { color: '#3fb950', label: 'accept' },
-        { color: '#e86a65', label: 'drop / reject' },
-        { color: '#39c5cf', label: 'keyword (table/chain)' },
-        { color: '#e3b341', label: 'match / port' },
-        { color: '#58a6ff', label: 'nom table/chain' },
-        { color: '#bc8cff', label: 'famille (inet/ip6)' },
+        { color: '#3fb950', label: t('fail2ban.nftables.legendAccept') },
+        { color: '#e86a65', label: t('fail2ban.nftables.legendDropReject') },
+        { color: '#39c5cf', label: t('fail2ban.nftables.legendKeyword') },
+        { color: '#e3b341', label: t('fail2ban.nftables.legendMatchPort') },
+        { color: '#58a6ff', label: t('fail2ban.nftables.legendName') },
+        { color: '#bc8cff', label: t('fail2ban.nftables.legendFamily') },
     ];
     return (
         <div style={{ display: 'flex', gap: '.6rem', flexWrap: 'wrap', padding: '.4rem 0' }}>
@@ -115,12 +117,12 @@ function Legend() {
 // ── Info panel ────────────────────────────────────────────────────────────────
 
 function InfoPanel() {
+    const { t } = useTranslation();
     return (
         <div style={{ background: 'rgba(88,166,255,.05)', border: '1px solid rgba(88,166,255,.2)', borderRadius: 6, padding: '.55rem .85rem', fontSize: '.76rem', color: '#8b949e', lineHeight: 1.6 }}>
-            <span style={{ color: '#58a6ff', fontWeight: 600 }}>NFTables</span> est le successeur d&apos;iptables.
-            Sur Ubuntu 22+/Debian 11+, la commande <code style={{ color: '#c9d1d9' }}>iptables</code> est souvent un wrapper
-            autour de nftables — les deux peuvent coexister.
-            La syntaxe nft utilise des tables et chaînes librement nommées au lieu des tables fixes (filter/nat/mangle/raw).
+            <span style={{ color: '#58a6ff', fontWeight: 600 }}>NFTables</span> {t('fail2ban.nftables.infoSuccessor')}
+            {t('fail2ban.nftables.infoApt')} <code style={{ color: '#c9d1d9' }}>iptables</code> {t('fail2ban.nftables.infoWrapper')}
+            {t('fail2ban.nftables.infoSyntax')}
         </div>
     );
 }
@@ -128,6 +130,7 @@ function InfoPanel() {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export const TabNFTables: React.FC = () => {
+    const { t } = useTranslation();
     const [output, setOutput]   = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError]     = useState<string | null>(null);
@@ -141,7 +144,7 @@ export const TabNFTables: React.FC = () => {
                 setOutput(res.result.output ?? '');
                 setLastLoaded(Date.now());
             } else {
-                setError(res.result?.error ?? res.error?.message ?? 'Erreur');
+                setError(res.result?.error ?? res.error?.message ?? t('fail2ban.nftables.error'));
             }
         } finally { setLoading(false); }
     }, []);
@@ -157,7 +160,7 @@ export const TabNFTables: React.FC = () => {
                 <div style={{ ...cardH, justifyContent: 'space-between', flexWrap: 'wrap', gap: '.5rem' }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '.4rem', fontWeight: 600, fontSize: '.88rem' }}>
                         <Server style={{ width: 14, height: 14, color: '#e3b341' }} />
-                        Ruleset NFTables
+                        {t('fail2ban.nftables.rulesetTitle')}
                         <span style={{ fontSize: '.7rem', color: '#555d69', fontFamily: 'monospace', fontWeight: 400 }}>nft list ruleset</span>
                     </span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
@@ -169,11 +172,11 @@ export const TabNFTables: React.FC = () => {
                     </div>
                 </div>
                 <div style={{ ...cardB, paddingTop: '.6rem' }}>
-                    {loading && <div style={{ color: '#8b949e', fontSize: '.82rem' }}>Chargement…</div>}
+                    {loading && <div style={{ color: '#8b949e', fontSize: '.82rem' }}>{t('fail2ban.nftables.loading')}</div>}
                     {error && (
                         <div style={{ background: 'rgba(227,179,65,.07)', border: '1px solid rgba(227,179,65,.25)', borderRadius: 6, padding: '.75rem 1rem' }}>
                             <div style={{ display: 'flex', gap: '.4rem', alignItems: 'center', color: '#e3b341', fontSize: '.82rem', marginBottom: '.4rem' }}>
-                                <AlertTriangle style={{ width: 13, height: 13 }} /> Commande non disponible
+                                <AlertTriangle style={{ width: 13, height: 13 }} /> {t('fail2ban.nftables.commandUnavailable')}
                             </div>
                             <pre style={{ fontSize: '.75rem', color: '#8b949e', fontFamily: 'monospace', margin: 0, whiteSpace: 'pre-wrap' }}>{error}</pre>
                         </div>
@@ -187,7 +190,7 @@ export const TabNFTables: React.FC = () => {
                         </>
                     )}
                     {!loading && !error && !output && lastLoaded > 0 && (
-                        <div style={{ color: '#555d69', fontSize: '.8rem' }}>Aucune règle nftables active</div>
+                        <div style={{ color: '#555d69', fontSize: '.8rem' }}>{t('fail2ban.nftables.noActiveRules')}</div>
                     )}
                 </div>
             </div>

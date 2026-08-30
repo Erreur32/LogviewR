@@ -473,13 +473,13 @@ export const Header: React.FC<HeaderProps> = ({
               const isFail2ban = plugin.id === 'fail2ban';
               const tooltipColor = isFail2ban ? 'red' : plugin.id === 'host-system' ? 'cyan' : 'blue';
               const tooltipDesc = plugin.id === 'host-system'
-                ? 'Logs système · auth · kernel · syslog'
+                ? t('header.pluginTt.hostSystem')
                 : plugin.id === 'apache'
-                ? 'Logs Apache · access · error · vhosts'
+                ? t('header.pluginTt.apache')
                 : plugin.id === 'nginx'
-                ? 'Logs Nginx · access · error · vhosts'
+                ? t('header.pluginTt.nginx')
                 : plugin.id === 'npm'
-                ? 'Nginx Proxy Manager · proxy hosts · logs'
+                ? t('header.pluginTt.npm')
                 : plugin.name;
               const TooltipIcon = isFail2ban ? Shield : plugin.id === 'host-system' ? Server : Globe;
 
@@ -488,45 +488,45 @@ export const Header: React.FC<HeaderProps> = ({
                   {f2bSummary ? (
                     <>
                       {/* Aujourd'hui */}
-                      <div style={{ color: '#6e7681', fontSize: '.68rem', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: '.1rem' }}>Aujourd'hui</div>
+                      <div style={{ color: '#6e7681', fontSize: '.68rem', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: '.1rem' }}>{t('header.pluginTt.f2b.today')}</div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem' }}>
                         <Ban size={11} style={{ color: '#e86a65', flexShrink: 0 }} />
                         <span style={{ color: '#e86a65', fontWeight: 700, fontSize: '.88rem' }}>{f2bSummary.bansToday}</span>
-                        <span style={{ color: '#8b949e', fontSize: '.76rem' }}>bans depuis minuit</span>
+                        <span style={{ color: '#8b949e', fontSize: '.76rem' }}>{t('header.pluginTt.f2b.bansToday')}</span>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem' }}>
                         <Activity size={11} style={{ color: '#58a6ff', flexShrink: 0 }} />
                         <span style={{ color: '#58a6ff', fontWeight: 600 }}>{f2bSummary.uniqIpsToday}</span>
-                        <span style={{ color: '#8b949e', fontSize: '.76rem' }}>IP{f2bSummary.uniqIpsToday !== 1 ? 's' : ''} unique{f2bSummary.uniqIpsToday !== 1 ? 's' : ''} aujourd'hui</span>
+                        <span style={{ color: '#8b949e', fontSize: '.76rem' }}>{t('header.pluginTt.f2b.uniqToday', { count: f2bSummary.uniqIpsToday })}</span>
                       </div>
                       {/* Hier */}
                       {f2bSummary.bansYesterday !== null && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem' }}>
                           <Ban size={11} style={{ color: '#8b949e', flexShrink: 0 }} />
                           <span style={{ color: '#c9d1d9', fontWeight: 600 }}>{f2bSummary.bansYesterday}</span>
-                          <span style={{ color: '#8b949e', fontSize: '.76rem' }}>bans hier</span>
+                          <span style={{ color: '#8b949e', fontSize: '.76rem' }}>{t('header.pluginTt.f2b.bansYesterday')}</span>
                         </div>
                       )}
                       {/* Séparateur + stats globales */}
                       <div style={{ height: 1, background: 'rgba(255,255,255,.07)', margin: '.1rem 0' }} />
-                      <div style={{ color: '#6e7681', fontSize: '.68rem', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: '.1rem' }}>Global</div>
+                      <div style={{ color: '#6e7681', fontSize: '.68rem', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: '.1rem' }}>{t('header.pluginTt.f2b.global')}</div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem' }}>
                         <Shield size={11} style={{ color: '#e3b341', flexShrink: 0 }} />
                         <span style={{ color: '#e3b341', fontWeight: 600 }}>{f2bSummary.currentlyBanned}</span>
-                        <span style={{ color: '#8b949e', fontSize: '.76rem' }}>IPs actuellement bloquées</span>
+                        <span style={{ color: '#8b949e', fontSize: '.76rem' }}>{t('header.pluginTt.f2b.currentlyBanned')}</span>
                       </div>
                       {f2bSummary.totalAllTimeBans > 0 && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem' }}>
                           <Activity size={11} style={{ color: '#3fb950', flexShrink: 0 }} />
                           <span style={{ color: '#3fb950', fontWeight: 600 }}>{f2bSummary.totalAllTimeBans.toLocaleString()}</span>
-                          <span style={{ color: '#8b949e', fontSize: '.76rem' }}>bans total (historique)</span>
+                          <span style={{ color: '#8b949e', fontSize: '.76rem' }}>{t('header.pluginTt.f2b.totalAllTime')}</span>
                         </div>
                       )}
                       {/* Top jails — bans actifs en ce moment */}
                       {f2bSummary.topJails.length > 0 && (
                         <>
                           <div style={{ height: 1, background: 'rgba(255,255,255,.07)', margin: '.1rem 0' }} />
-                          <div style={{ color: '#6e7681', fontSize: '.68rem', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: '.1rem' }}>Jails — bans actifs</div>
+                          <div style={{ color: '#6e7681', fontSize: '.68rem', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: '.1rem' }}>{t('header.pluginTt.f2b.topJails')}</div>
                           {f2bSummary.topJails.map(j => (
                             <div key={j.jail} style={{ display: 'flex', alignItems: 'center', gap: '.4rem' }}>
                               <Shield size={10} style={{ color: '#58a6ff', flexShrink: 0 }} />
@@ -538,14 +538,14 @@ export const Header: React.FC<HeaderProps> = ({
                       )}
                     </>
                   ) : (
-                    <div style={{ color: '#8b949e', fontSize: '.76rem' }}>Gestion des bannissements · jails · statistiques · carte</div>
+                    <div style={{ color: '#8b949e', fontSize: '.76rem' }}>{t('header.pluginTt.f2b.noSummary')}</div>
                   )}
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '.25rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', color: plugin.id === 'host-system' ? '#39c5cf' : '#388bfd' }}>
                     <TooltipIcon size={11} />
-                    <span style={{ fontWeight: 600 }}>Plugin actif</span>
+                    <span style={{ fontWeight: 600 }}>{t('header.pluginTt.active')}</span>
                   </div>
                   <div style={{ color: '#8b949e', fontSize: '.76rem' }}>{tooltipDesc}</div>
                 </div>

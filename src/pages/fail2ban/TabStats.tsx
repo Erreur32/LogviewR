@@ -24,7 +24,8 @@ import {
     Folder,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { card, PERIODS, F2bTooltip, TT } from './helpers';
+import type { TFunction } from 'i18next';
+import { card, PERIODS, F2bTooltip, TT, fmtPeriodLabel } from './helpers';
 import type { F2bTtColor } from './helpers';
 import { api } from '../../api/client';
 import { usePolling } from '../../hooks/usePolling';
@@ -96,17 +97,20 @@ const PeriodBtns: React.FC<{
     days: number;
     color?: string;
     onChange: (d: number) => void;
-}> = ({ days, color, onChange }) => (
-    <div style={{ display: 'flex', gap: '.2rem' }}>
-        {PERIODS.map((p) => (
-            <F2bTooltip key={p.days} title={p.label} body={p.title} color="blue">
-                <button onClick={() => onChange(p.days)} style={btnStyle(days === p.days, color)}>
-                    {p.label}
-                </button>
-            </F2bTooltip>
-        ))}
-    </div>
-);
+}> = ({ days, color, onChange }) => {
+    const { t } = useTranslation();
+    return (
+        <div style={{ display: 'flex', gap: '.2rem' }}>
+            {PERIODS.map((p) => (
+                <F2bTooltip key={p.days} title={t(p.labelKey)} body={t(p.titleKey)} color="blue">
+                    <button onClick={() => onChange(p.days)} style={btnStyle(days === p.days, color)}>
+                        {t(p.labelKey)}
+                    </button>
+                </F2bTooltip>
+            ))}
+        </div>
+    );
+};
 
 // ── Card wrapper ──────────────────────────────────────────────────────────────
 const SCard: React.FC<{
@@ -250,13 +254,13 @@ const DomainDetailModal: React.FC<{
     const fmtExpiry = (ban: DomainDetailBan) => {
         if (ban.bantime === -1) return '∞';
         const rem = ban.timeofban + ban.bantime - now;
-        if (rem <= 0) return 'expiré';
+        if (rem <= 0) return t('fail2ban.stats.expired');
         if (rem < 3600) return `${Math.round(rem / 60)}m`;
         if (rem < 86400) return `${Math.round(rem / 3600)}h`;
         return `${Math.round(rem / 86400)}j`;
     };
 
-    const periodLabel = PERIODS.find((p) => p.days === days)?.label ?? `${days}j`;
+    const periodLabel = fmtPeriodLabel(days, t);
     const bans = data?.bans ?? [];
     const totalFailures = bans.reduce((s, b) => s + b.failures, 0);
 
@@ -325,7 +329,7 @@ const DomainDetailModal: React.FC<{
                                     padding: '.1rem .4rem',
                                 }}
                             >
-                                {bans.length} IP{bans.length !== 1 ? 's' : ''} bannies
+                                {bans.length} IP{bans.length !== 1 ? 's' : ''} {t('fail2ban.stats.banned')}
                             </span>
                             <span
                                 style={{
@@ -337,7 +341,7 @@ const DomainDetailModal: React.FC<{
                                     padding: '.1rem .4rem',
                                 }}
                             >
-                                {totalFailures} tentatives
+                                {totalFailures} {t('fail2ban.labels.attempts')}
                             </span>
                         </>
                     )}
@@ -371,7 +375,7 @@ const DomainDetailModal: React.FC<{
                             flexWrap: 'wrap',
                         }}
                     >
-                        <span style={{ fontSize: '.68rem', color: C.muted }}>Jails fail2ban responsables :</span>
+                        <span style={{ fontSize: '.68rem', color: C.muted }}>{t('fail2ban.stats.jailsResponsible')}</span>
                         {data.jails.map((j) => (
                             <span
                                 key={j}
@@ -395,7 +399,7 @@ const DomainDetailModal: React.FC<{
                                 marginLeft: '.3rem',
                             }}
                         >
-                            — seules les IPs bannies par ces jails ET présentes dans le log de ce domaine sont comptées
+                            {t('fail2ban.stats.onlyBannedByJailsInLog')}
                         </span>
                     </div>
                 )}
@@ -423,7 +427,7 @@ const DomainDetailModal: React.FC<{
                                 textAlign: 'center',
                             }}
                         >
-                            Données non disponibles (NPM non configuré ?)
+                            {t('fail2ban.stats.domainsDataUnavailable')}
                         </div>
                     )}
                     {!loading && data && data.jails.length === 0 && (
@@ -435,7 +439,7 @@ const DomainDetailModal: React.FC<{
                                 color: C.green,
                             }}
                         >
-                            ✓ Aucun jail fail2ban ne surveille ce domaine — 0 bans attribuables.
+                            ✓ {t('fail2ban.stats.noJailMonitorsDomain')}
                         </div>
                     )}
                     {!loading && data && data.jails.length > 0 && bans.length === 0 && (
@@ -447,7 +451,7 @@ const DomainDetailModal: React.FC<{
                                 color: C.green,
                             }}
                         >
-                            ✓ Aucun IP bannie n'est apparue dans le log de ce domaine sur la période.
+                            ✓ {t('fail2ban.stats.noBannedIpInDomainLog')}
                         </div>
                     )}
                     {!loading && data && bans.length > 0 && (
@@ -460,7 +464,13 @@ const DomainDetailModal: React.FC<{
                         >
                             <thead>
                                 <tr style={{ background: C.bg2, position: 'sticky', top: 0 }}>
-                                    {['IP', 'Jail', 'Ban le', 'Tentatives', 'Expiry'].map((h) => (
+                                    {[
+                                        'IP',
+                                        t('fail2ban.labels.jail'),
+                                        t('fail2ban.stats.banOn'),
+                                        t('fail2ban.labels.attempts'),
+                                        t('fail2ban.stats.expiry'),
+                                    ].map((h) => (
                                         <th
                                             key={h}
                                             style={{
@@ -591,6 +601,7 @@ const HistChart: React.FC<{
     nonEmptyNames?: Set<string>;
     colorMap?: Record<string, string>;
 }> = ({ hist, days, onDaysChange, nonEmptyNames, colorMap }) => {
+    const { t } = useTranslation();
     const allNames = hist?.ipset_names ?? [];
     const names = nonEmptyNames ? allNames.filter((nm) => nonEmptyNames.has(nm)) : allNames;
     const days_map = hist?.ipset_days ?? {};
@@ -643,7 +654,7 @@ const HistChart: React.FC<{
         return `${dt} — ${nm}: ${v}`;
     };
 
-    const periodLabel = PERIODS.find((p) => p.days === days)?.label ?? `${days}j`;
+    const periodLabel = fmtPeriodLabel(days, t);
 
     if (!plotDates.length || !names.length) {
         return (
@@ -661,7 +672,7 @@ const HistChart: React.FC<{
                         marginBottom: '.5rem',
                     }}
                 >
-                    <span style={{ fontSize: '.72rem', color: C.muted }}>Historique ({periodLabel})</span>
+                    <span style={{ fontSize: '.72rem', color: C.muted }}>{t('fail2ban.stats.history', { period: periodLabel })}</span>
                     <PeriodBtns days={days} color={C.purple} onChange={onDaysChange} />
                 </div>
                 <div
@@ -674,7 +685,7 @@ const HistChart: React.FC<{
                         borderRadius: 6,
                     }}
                 >
-                    Aucune donnée historique — les snapshots sont enregistrés à chaque visite de cet onglet.
+                    {t('fail2ban.stats.noHistoryData')}
                 </div>
             </div>
         );
@@ -705,7 +716,7 @@ const HistChart: React.FC<{
                     marginBottom: '.5rem',
                 }}
             >
-                <span style={{ fontSize: '.72rem', color: C.muted }}>Historique ({periodLabel})</span>
+                <span style={{ fontSize: '.72rem', color: C.muted }}>{t('fail2ban.stats.history', { period: periodLabel })}</span>
                 <PeriodBtns days={days} color={C.purple} onChange={onDaysChange} />
             </div>
             <div ref={containerRef} style={{ width: '100%' }}>
@@ -928,7 +939,7 @@ const IpSetsSection: React.FC<{
                             .sort((a, b) => b.entries - a.entries),
                     );
                 } else if (!cached) {
-                    setError(res.result?.error ?? 'IPSet non disponible (NET_ADMIN requis)');
+                    setError(res.result?.error ?? t('fail2ban.stats.ipsetUnavailable'));
                 }
             })
             .catch((e) => {
@@ -1058,7 +1069,7 @@ const IpSetsSection: React.FC<{
                             textAlign: 'center',
                         }}
                     >
-                        Aucun IPSet fail2ban à afficher
+                        {t('fail2ban.stats.noIpsetToDisplay')}
                     </div>
                 )}
                 {!loading && !error && sets.length > 0 && (
@@ -1259,7 +1270,10 @@ const IpSetsSection: React.FC<{
                                                         onClick={() => toggleSet(s.name)}
                                                     >
                                                         <title>
-                                                            {s.name}: {s.entries} IPs ({s.pct}%) — cliquer pour masquer
+                                                            {t('fail2ban.stats.clickToHide', {
+                                                                name: s.name,
+                                                                count: `${s.entries} IPs (${s.pct}%)`,
+                                                            })}
                                                         </title>
                                                     </path>
                                                 ))}
@@ -1386,6 +1400,7 @@ const TopCard: React.FC<{
     rowTooltip,
     titleTooltip,
 }) => {
+    const { t } = useTranslation();
     const displayed = limit === 0 ? entries : entries.slice(0, limit);
     const hasMore = limit > 0 && entries.length > limit;
     const max = Math.max(...entries.map((e) => e.count), 1);
@@ -1516,7 +1531,7 @@ const TopCard: React.FC<{
                         flexShrink: 0,
                     }}
                 >
-                    <span style={{ fontSize: '.62rem', color, fontWeight: 600 }}>bans</span>
+                    <span style={{ fontSize: '.62rem', color, fontWeight: 600 }}>{t('fail2ban.stats.bansWord')}</span>
                     <span style={{ fontSize: '.62rem', color: C.border }}>|</span>
                     <span style={{ fontSize: '.62rem', color: C.orange, fontWeight: 600 }}>{secondaryLabel}</span>
                 </div>
@@ -1582,7 +1597,7 @@ const TopCard: React.FC<{
                             fontSize: '.78rem',
                         }}
                     >
-                        {emptyMsg ?? 'Aucune donnée'}
+                        {emptyMsg ?? t('fail2ban.status.noData')}
                     </div>
                 ) : viewMode === 'pie' ? (
                     <div
@@ -1608,7 +1623,10 @@ const TopCard: React.FC<{
                                         onClick={() => togglePie(s.label)}
                                     >
                                         <title>
-                                            {s.label}: {s.count} ({s.pct}%) — cliquer pour masquer
+                                            {t('fail2ban.stats.clickToHide', {
+                                                name: s.label,
+                                                count: `${s.count} (${s.pct}%)`,
+                                            })}
                                         </title>
                                     </path>
                                 ))}
@@ -1895,14 +1913,14 @@ const TopCard: React.FC<{
 
 // ── Trend marker ──────────────────────────────────────────────────────────────
 type SummaryKey = 'totalBans' | 'uniqueIps' | 'topJailCount';
-const TrendBadge: React.FC<{ curr: number; prev: number | null }> = ({ curr, prev }) => {
+const TrendBadge: React.FC<{ curr: number; prev: number | null; t: TFunction }> = ({ curr, prev, t }) => {
     if (prev === null) return <span style={{ fontSize: '.7rem', color: '#555d69', marginLeft: '.3rem' }}>…</span>;
     const delta = curr - prev;
     const pct = prev > 0 ? Math.abs(Math.round((delta / prev) * 100)) : null;
     if (delta > 0)
         return (
             <span
-                title={`+${delta} vs période précédente`}
+                title={t('fail2ban.stats.trendUp', { delta: `+${delta}` })}
                 style={{
                     fontSize: '.72rem',
                     color: '#e86a65',
@@ -1917,7 +1935,7 @@ const TrendBadge: React.FC<{ curr: number; prev: number | null }> = ({ curr, pre
     if (delta < 0)
         return (
             <span
-                title={`${delta} vs période précédente`}
+                title={t('fail2ban.stats.trendDown', { delta })}
                 style={{
                     fontSize: '.72rem',
                     color: '#3bc4cf',
@@ -1931,7 +1949,7 @@ const TrendBadge: React.FC<{ curr: number; prev: number | null }> = ({ curr, pre
         );
     return (
         <span
-            title="Stable vs période précédente"
+            title={t('fail2ban.stats.trendStable')}
             style={{
                 fontSize: '.72rem',
                 color: '#8b949e',
@@ -1939,7 +1957,7 @@ const TrendBadge: React.FC<{ curr: number; prev: number | null }> = ({ curr, pre
                 fontWeight: 600,
             }}
         >
-            = stable
+            = {t('fail2ban.stats.trendStableShort')}
         </span>
     );
 };
@@ -1959,8 +1977,8 @@ const ResumePeriodeSection: React.FC<{
 }> = ({ days, onDaysChange, data, prev, loading }) => {
     const { t } = useTranslation();
 
-    const periodLabel = PERIODS.find((p) => p.days === days)?.label ?? `${days}j`;
-    const prevLabel = days === 1 ? 'hier' : `${days}j précédents`;
+    const periodLabel = fmtPeriodLabel(days, t);
+    const prevLabel = days === 1 ? t('fail2ban.stats.yesterday') : t('fail2ban.stats.prevDays', { n: days });
 
     return (
         <SCard
@@ -1997,7 +2015,7 @@ const ResumePeriodeSection: React.FC<{
                         icon: <Shield style={{ width: 14, height: 14 }} />,
                     },
                     {
-                        l: 'Jail le + actif',
+                        l: t('fail2ban.stats.topJailActive'),
                         k: null,
                         v: data?.topJail ?? '—',
                         c: C.orange,
@@ -2005,7 +2023,7 @@ const ResumePeriodeSection: React.FC<{
                         icon: <Lock style={{ width: 14, height: 14 }} />,
                     },
                     {
-                        l: 'Bans jail #1',
+                        l: t('fail2ban.stats.bansJail1'),
                         k: 'topJailCount' as SummaryKey | null,
                         v: data?.topJailCount ?? 0,
                         c: C.orange,
@@ -2051,11 +2069,11 @@ const ResumePeriodeSection: React.FC<{
                             >
                                 {loading ? '…' : s.v}
                             </span>
-                            {!loading && s.k && <TrendBadge curr={s.v as number} prev={prev?.[s.k]} />}
+                            {!loading && s.k && <TrendBadge curr={s.v as number} prev={prev?.[s.k]} t={t} />}
                         </div>
                         {!loading && s.k && prev != null && (
                             <div style={{ fontSize: '.65rem', color: C.muted }}>
-                                vs {prevLabel}: {prev[s.k]}
+                                {t('fail2ban.stats.vs', { period: prevLabel })}: {prev[s.k]}
                             </div>
                         )}
                     </div>
@@ -2073,7 +2091,7 @@ const TypesAttaqueSection: React.FC<{
     loading: boolean;
 }> = ({ days, onDaysChange, data, loading }) => {
     const { t } = useTranslation();
-    const periodLabel = PERIODS.find((p) => p.days === days)?.label ?? `${days}j`;
+    const periodLabel = fmtPeriodLabel(days, t);
     const jails = data?.topJails ?? [];
     const total = jails.reduce((s, j) => s + j.count, 0);
     let pieAcc = -90;
@@ -2154,7 +2172,7 @@ const TypesAttaqueSection: React.FC<{
                                         opacity={0.9}
                                     >
                                         <title>
-                                            {s.jail}: {s.count} bans ({s.pct}%)
+                                            {t('fail2ban.stats.bansCountPct', { jail: s.jail, count: s.count, pct: s.pct })}
                                         </title>
                                     </path>
                                 ))}
@@ -2163,7 +2181,7 @@ const TypesAttaqueSection: React.FC<{
                                     {total}
                                 </text>
                                 <text x={80} y={95} fontSize={8} fill={C.muted} textAnchor="middle">
-                                    bans
+                                    {t('fail2ban.stats.bansWord')}
                                 </text>
                             </svg>
                         )}
@@ -2256,9 +2274,30 @@ const TypesAttaqueSection: React.FC<{
 };
 
 // ── Heatmap (bans or failures) — peak-hours bars + 7×24 week grid ─────────────
-const DAYS_FR = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+const daysFr = (t: TFunction): string[] => [
+    t('fail2ban.stats.days.mon'),
+    t('fail2ban.stats.days.tue'),
+    t('fail2ban.stats.days.wed'),
+    t('fail2ban.stats.days.thu'),
+    t('fail2ban.stats.days.fri'),
+    t('fail2ban.stats.days.sat'),
+    t('fail2ban.stats.days.sun'),
+];
 
-const MONTHS_FR = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
+const monthsFr = (t: TFunction): string[] => [
+    t('fail2ban.stats.months.jan'),
+    t('fail2ban.stats.months.feb'),
+    t('fail2ban.stats.months.mar'),
+    t('fail2ban.stats.months.apr'),
+    t('fail2ban.stats.months.may'),
+    t('fail2ban.stats.months.jun'),
+    t('fail2ban.stats.months.jul'),
+    t('fail2ban.stats.months.aug'),
+    t('fail2ban.stats.months.sep'),
+    t('fail2ban.stats.months.oct'),
+    t('fail2ban.stats.months.nov'),
+    t('fail2ban.stats.months.dec'),
+];
 
 const HeatmapSection: React.FC<{
     days: number;
@@ -2289,6 +2328,7 @@ const HeatmapSection: React.FC<{
     data,
     loading,
 }) => {
+    const { t } = useTranslation();
     const hours = useMemo(() => {
         const raw = data?.[dataKey] ?? [];
         const map = new Map((raw as { hour: number; count: number }[]).map((h) => [h.hour, h.count]));
@@ -2318,7 +2358,10 @@ const HeatmapSection: React.FC<{
         .map((c, h) => ({ c, h }))
         .filter((x) => x.c > 0)
         .sort((a, b) => a.c - b.c)[0];
-    const periodLabel = PERIODS.find((p) => p.days === days)?.label ?? `${days}j`;
+    const periodLabel = fmtPeriodLabel(days, t);
+    const daysList = daysFr(t);
+    const monthsList = monthsFr(t);
+    const unitPlural = label === 'ban' ? t('fail2ban.stats.bansWord') : t('fail2ban.labels.attempts');
 
     // ── Single hover tooltip state (shared by bars + cells) ───────────────────
     const [tip, setTip] = useState<{
@@ -2329,7 +2372,9 @@ const HeatmapSection: React.FC<{
 
     const titleTooltipBody =
         total === 0 ? (
-            <div style={{ fontSize: '.78rem', color: C.muted }}>Aucune donnée sur la période {periodLabel}.</div>
+            <div style={{ fontSize: '.78rem', color: C.muted }}>
+                {t('fail2ban.stats.noDataPeriod', { period: periodLabel })}
+            </div>
         ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '.3rem' }}>
                 <div
@@ -2341,10 +2386,10 @@ const HeatmapSection: React.FC<{
                     }}
                 >
                     {total.toLocaleString()}{' '}
-                    <span style={{ fontSize: '.72rem', fontWeight: 600, opacity: 0.75 }}>{label}s</span>
+                    <span style={{ fontSize: '.72rem', fontWeight: 600, opacity: 0.75 }}>{unitPlural}</span>
                 </div>
                 <div style={{ fontSize: '.75rem', color: '#e6edf3', lineHeight: 1.5 }}>
-                    Répartition sur la période {periodLabel}.
+                    {t('fail2ban.stats.distributionPeriod', { period: periodLabel })}
                 </div>
                 <div
                     style={{
@@ -2358,28 +2403,30 @@ const HeatmapSection: React.FC<{
                     }}
                 >
                     <div>
-                        Heure de pic&nbsp;: <strong style={{ color }}>{peakHIdx}h</strong> — {hours[peakHIdx]} {label}s
+                        {t('fail2ban.stats.peakHour')}: <strong style={{ color }}>{peakHIdx}h</strong> —{' '}
+                        {hours[peakHIdx]} {unitPlural}
                         {total > 0 && (
                             <span style={{ color: '#555d69' }}>
                                 {' '}
-                                ({Math.round((hours[peakHIdx] / total) * 100)}% du total)
+                                ({Math.round((hours[peakHIdx] / total) * 100)}% {t('fail2ban.stats.ofTotal')})
                             </span>
                         )}
                     </div>
                     <div>
-                        Moyenne horaire&nbsp;: <strong style={{ color: '#8b949e' }}>{avg.toFixed(1)}</strong> {label}s/h
+                        {t('fail2ban.stats.avgHourly')}: <strong style={{ color: '#8b949e' }}>{avg.toFixed(1)}</strong>{' '}
+                        {unitPlural}/{t('fail2ban.stats.unitHour')}
                     </div>
                     {quietH && (
                         <div>
-                            Heure la plus calme&nbsp;: <strong style={{ color: C.green }}>{quietH.h}h</strong> —{' '}
-                            {quietH.c} {label}
+                            {t('fail2ban.stats.quietestHour')}: <strong style={{ color: C.green }}>{quietH.h}h</strong> —{' '}
+                            {quietH.c} {unitPlural}
                             {quietH.c > 1 ? 's' : ''}
                         </div>
                     )}
                     {dayTotals[peakDayIdx] > 0 && (
                         <div>
-                            Jour le plus actif&nbsp;: <strong style={{ color }}>{DAYS_FR[peakDayIdx]}</strong> —{' '}
-                            {dayTotals[peakDayIdx]} {label}s
+                            {t('fail2ban.stats.mostActiveDay')}: <strong style={{ color }}>{daysList[peakDayIdx]}</strong> —{' '}
+                            {dayTotals[peakDayIdx]} {unitPlural}
                         </div>
                     )}
                     <div style={{ display: 'flex', gap: '.5rem', marginTop: '.1rem' }}>
@@ -2393,7 +2440,7 @@ const HeatmapSection: React.FC<{
                                     gap: '.1rem',
                                 }}
                             >
-                                <span style={{ fontSize: '.62rem', color: C.muted }}>{DAYS_FR[i]}</span>
+                                <span style={{ fontSize: '.62rem', color: C.muted }}>{daysList[i]}</span>
                                 <span
                                     style={{
                                         fontSize: '.68rem',
@@ -2519,7 +2566,7 @@ const HeatmapSection: React.FC<{
                                             {hr % 6 === 0 ? `${hr}h` : ''}
                                         </div>
                                     ))}
-                                    {DAYS_FR.map((day, di) => (
+                                    {daysList.map((day, di) => (
                                         <React.Fragment key={day}>
                                             <div
                                                 style={{
@@ -2610,8 +2657,10 @@ const HeatmapSection: React.FC<{
                                                                         color: '#e6edf3',
                                                                     }}
                                                                 >
-                                                                    {cnt} {label}
-                                                                    {cnt > 1 ? 's' : ''}
+                                                                    {t('fail2ban.stats.unitCount', {
+                                                                        count: cnt,
+                                                                        unit: label,
+                                                                    })}
                                                                 </div>
                                                                 {total > 0 && cnt > 0 && (
                                                                     <div
@@ -2620,8 +2669,10 @@ const HeatmapSection: React.FC<{
                                                                             color: C.muted,
                                                                         }}
                                                                     >
-                                                                        {Math.round((cnt / total) * 100)}% du total ·{' '}
-                                                                        {Math.round((cnt / maxH) * 100)}% du pic
+                                                                        {Math.round((cnt / total) * 100)}%{' '}
+                                                                        {t('fail2ban.stats.ofTotal')} ·{' '}
+                                                                        {Math.round((cnt / maxH) * 100)}%{' '}
+                                                                        {t('fail2ban.stats.ofPeak')}
                                                                     </div>
                                                                 )}
                                                                 {isPeak && (
@@ -2632,7 +2683,7 @@ const HeatmapSection: React.FC<{
                                                                             fontWeight: 600,
                                                                         }}
                                                                     >
-                                                                        ▲ Heure de pic
+                                                                        ▲ {t('fail2ban.stats.peakHour')}
                                                                     </div>
                                                                 )}
                                                                 {cnt === 0 && (
@@ -2642,7 +2693,7 @@ const HeatmapSection: React.FC<{
                                                                             color: C.muted,
                                                                         }}
                                                                     >
-                                                                        Aucun {label}
+                                                                        {t('fail2ban.stats.noUnit', { unit: label })}
                                                                     </div>
                                                                 )}
                                                             </div>
@@ -2717,7 +2768,7 @@ const HeatmapSection: React.FC<{
                                         </div>
                                     ))}
                                     {/* day rows */}
-                                    {DAYS_FR.map((day, di) => (
+                                    {daysList.map((day, di) => (
                                         <React.Fragment key={day}>
                                             <div
                                                 style={{
@@ -2785,8 +2836,10 @@ const HeatmapSection: React.FC<{
                                                                                 color: '#e6edf3',
                                                                             }}
                                                                         >
-                                                                            {cnt} {label}
-                                                                            {cnt > 1 ? 's' : ''}
+                                                                            {t('fail2ban.stats.unitCount', {
+                                                                                count: cnt,
+                                                                                unit: label,
+                                                                            })}
                                                                         </div>
                                                                         {cnt > 0 && (
                                                                             <div
@@ -2795,7 +2848,8 @@ const HeatmapSection: React.FC<{
                                                                                     color: C.muted,
                                                                                 }}
                                                                             >
-                                                                                {Math.round(ratio * 100)}% du maximum
+                                                                                {Math.round(ratio * 100)}%{' '}
+                                                                                {t('fail2ban.stats.ofMaximum')}
                                                                             </div>
                                                                         )}
                                                                         {cnt === 0 && (
@@ -2805,7 +2859,7 @@ const HeatmapSection: React.FC<{
                                                                                     color: C.muted,
                                                                                 }}
                                                                             >
-                                                                                Aucun {label}
+                                                                                {t('fail2ban.stats.noUnit', { unit: label })}
                                                                             </div>
                                                                         )}
                                                                     </div>
@@ -2834,7 +2888,7 @@ const HeatmapSection: React.FC<{
                                         color: C.muted,
                                     }}
                                 >
-                                    <span>Moins</span>
+                                    <span>{t('fail2ban.stats.less')}</span>
                                     {[0, 0.25, 0.5, 0.75, 1].map((v) => (
                                         <div
                                             key={v}
@@ -2850,7 +2904,7 @@ const HeatmapSection: React.FC<{
                                             }}
                                         />
                                     ))}
-                                    <span>Plus</span>
+                                    <span>{t('fail2ban.stats.more')}</span>
                                 </div>
                             </div>
 
@@ -2872,7 +2926,7 @@ const HeatmapSection: React.FC<{
                                                 letterSpacing: '.05em',
                                             }}
                                         >
-                                            Par mois
+                                            {t('fail2ban.stats.byMonth')}
                                         </div>
                                         <div
                                             style={{
@@ -2919,7 +2973,7 @@ const HeatmapSection: React.FC<{
                                                                                 fontSize: '.85rem',
                                                                             }}
                                                                         >
-                                                                            {MONTHS_FR[m]}
+                                                                            {monthsList[m]}
                                                                         </div>
                                                                         <div
                                                                             style={{
@@ -2927,8 +2981,10 @@ const HeatmapSection: React.FC<{
                                                                                 color: '#e6edf3',
                                                                             }}
                                                                         >
-                                                                            {cnt} {label}
-                                                                            {cnt > 1 ? 's' : ''}
+                                                                            {t('fail2ban.stats.unitCount', {
+                                                                                count: cnt,
+                                                                                unit: label,
+                                                                            })}
                                                                         </div>
                                                                         {totalM > 0 && cnt > 0 && (
                                                                             <div
@@ -2937,8 +2993,8 @@ const HeatmapSection: React.FC<{
                                                                                     color: C.muted,
                                                                                 }}
                                                                             >
-                                                                                {Math.round((cnt / totalM) * 100)}% du
-                                                                                total
+                                                                                {Math.round((cnt / totalM) * 100)}%{' '}
+                                                                                {t('fail2ban.stats.ofTotal')}
                                                                             </div>
                                                                         )}
                                                                         {isPeak && (
@@ -2949,7 +3005,7 @@ const HeatmapSection: React.FC<{
                                                                                     fontWeight: 600,
                                                                                 }}
                                                                             >
-                                                                                ▲ Mois de pic
+                                                                                ▲ {t('fail2ban.stats.peakMonth')}
                                                                             </div>
                                                                         )}
                                                                     </div>
@@ -2969,7 +3025,7 @@ const HeatmapSection: React.FC<{
                                                 paddingTop: '.25rem',
                                             }}
                                         >
-                                            {MONTHS_FR.map((m) => (
+                                            {monthsList.map((m) => (
                                                 <div
                                                     key={m}
                                                     style={{
@@ -3035,7 +3091,7 @@ const TopsSection: React.FC<{
     const { t } = useTranslation();
     const [viewMode, setViewMode] = useState<'bar' | 'pie'>('bar');
     const [topLimit, setTopLimit] = useState(15);
-    const periodLabel = PERIODS.find((p) => p.days === days)?.label ?? `${days}j`;
+    const periodLabel = fmtPeriodLabel(days, t);
     const elapsed = useElapsed(lastFetchTs);
     const elapsedLabel =
         elapsed === null
@@ -3078,7 +3134,7 @@ const TopsSection: React.FC<{
         width: 360,
         bodyNode: (
             <div>
-                {TT.section('Méthode de comptage', '#39c5cf')}
+                {TT.section(t('fail2ban.stats.countMethod'), '#39c5cf')}
                 {TT.row(
                     <span
                         style={{
@@ -3090,7 +3146,7 @@ const TopsSection: React.FC<{
                     >
                         1
                     </span>,
-                    'Toutes les IPs bannies par fail2ban sont récupérées',
+                    t('fail2ban.stats.ttMethodAllIps'),
                     '#e6edf3',
                 )}
                 {TT.row(
@@ -3104,7 +3160,7 @@ const TopsSection: React.FC<{
                     >
                         2
                     </span>,
-                    "Chaque log d'accès NPM est scanné",
+                    t('fail2ban.stats.ttMethodScanLog'),
                     '#e6edf3',
                 )}
                 {TT.row(
@@ -3118,20 +3174,20 @@ const TopsSection: React.FC<{
                     >
                         3
                     </span>,
-                    'Comptage des IPs uniques trouvées dans le log',
+                    t('fail2ban.stats.ttMethodUniqueIps'),
                     '#e6edf3',
                 )}
                 {TT.sep()}
-                {TT.section('Toutes jails confondues', '#3fb950')}
-                {TT.ok("Une IP bannie via sshd, recidive ou n'importe quelle jail")}
-                {TT.ok('est comptée si elle apparaît dans le log du domaine')}
-                {TT.info("Indique : combien d'attaquants connus ont ciblé ce domaine")}
+                {TT.section(t('fail2ban.stats.ttAllJails'), '#3fb950')}
+                {TT.ok(t('fail2ban.stats.ttBannedViaAnyJail'))}
+                {TT.ok(t('fail2ban.stats.ttCountedIfInLog'))}
+                {TT.info(t('fail2ban.stats.ttKnownAttackers'))}
                 {TT.sep()}
-                {TT.section('Domaines avec Access List IP', '#e3b341')}
-                {TT.warn('NPM logue les requêtes bloquées (403) dans le même fichier')}
-                {TT.warn("qu'il logue les requêtes autorisées")}
-                {TT.warn('Un domaine protégé peut donc apparaître ici')}
-                {TT.info("Ce n'est pas un bug — c'est une tentative détectée et bloquée")}
+                {TT.section(t('fail2ban.stats.ttAccessListDomains'), '#e3b341')}
+                {TT.warn(t('fail2ban.stats.ttNpmLogs403'))}
+                {TT.warn(t('fail2ban.stats.ttNpmLogsAllowed'))}
+                {TT.warn(t('fail2ban.stats.ttProtectedMayAppear'))}
+                {TT.info(t('fail2ban.stats.ttNotABug'))}
             </div>
         ),
     };
@@ -3231,19 +3287,19 @@ const TopsSection: React.FC<{
         color: 'cyan',
         bodyNode: (
             <div style={{ padding: '.1rem 0' }}>
-                {TT.section('Domaine')}
+                {TT.section(t('fail2ban.stats.domain'))}
                 {TT.row(<Globe style={{ width: 11, height: 11, color: '#39c5cf', flexShrink: 0 }} />, label, '#39c5cf')}
                 {TT.sep()}
-                {TT.section('Statistiques')}
+                {TT.section(t('fail2ban.stats.statsWord'))}
                 {TT.row(
                     <Ban style={{ width: 11, height: 11, color: '#e86a65', flexShrink: 0 }} />,
-                    `${e.count} ban${e.count !== 1 ? 's' : ''}`,
+                    t('fail2ban.stats.countBans', { count: e.count }),
                     '#e86a65',
                 )}
                 {(e.secondary ?? 0) > 0 &&
                     TT.row(
                         <AlertTriangle style={{ width: 11, height: 11, color: '#e3b341', flexShrink: 0 }} />,
-                        `${e.secondary} tentative${(e.secondary ?? 0) !== 1 ? 's' : ''}`,
+                        t('fail2ban.stats.countAttempts', { count: e.secondary ?? 0 }),
                         '#e3b341',
                     )}
                 {renderFilesSection(e.files)}
@@ -3259,19 +3315,19 @@ const TopsSection: React.FC<{
         color: 'orange',
         bodyNode: (
             <div style={{ padding: '.1rem 0' }}>
-                {TT.section('Domaine')}
+                {TT.section(t('fail2ban.stats.domain'))}
                 {TT.row(<Globe style={{ width: 11, height: 11, color: '#39c5cf', flexShrink: 0 }} />, label, '#39c5cf')}
                 {TT.sep()}
-                {TT.section('Statistiques')}
+                {TT.section(t('fail2ban.stats.statsWord'))}
                 {TT.row(
                     <AlertTriangle style={{ width: 11, height: 11, color: '#e3b341', flexShrink: 0 }} />,
-                    `${e.count} tentative${e.count !== 1 ? 's' : ''}`,
+                    t('fail2ban.stats.countAttempts', { count: e.count }),
                     '#e3b341',
                 )}
                 {(e.secondary ?? 0) > 0 &&
                     TT.row(
                         <Ban style={{ width: 11, height: 11, color: '#e86a65', flexShrink: 0 }} />,
-                        `${e.secondary} ban${(e.secondary ?? 0) !== 1 ? 's' : ''}`,
+                        t('fail2ban.stats.countBans', { count: e.secondary ?? 0 }),
                         '#e86a65',
                     )}
                 {renderFilesSection(e.files)}
@@ -3447,7 +3503,9 @@ const TopsSection: React.FC<{
                                     <span style={{ color: C.blue }}>
                                         <BarChart2 style={{ width: 12, height: 12 }} />
                                     </span>
-                                    <span style={{ fontWeight: 600, fontSize: '.82rem' }}>Répartition des bans</span>
+                                    <span style={{ fontWeight: 600, fontSize: '.82rem' }}>
+                                        {t('fail2ban.stats.banDistribution')}
+                                    </span>
                                     <span
                                         style={{
                                             marginLeft: 'auto',
@@ -3710,13 +3768,13 @@ const WhitelistStatsSection: React.FC = () => {
         <SCard
             icon={<ShieldOff style={{ width: 14, height: 14 }} />}
             color={C.green}
-            title="IPs whitelistées (ignoreip)"
+            title={t('fail2ban.stats.whitelistedIps')}
             sub={
                 !loading && !error ? (
                     <span style={{ color: C.green, fontWeight: 600 }}>
-                        {global.length} global
+                        {t('fail2ban.stats.globalCount', { count: global.length })}
                         {perJail.length > 0
-                            ? ` · ${perJail.length} jail${perJail.length > 1 ? 's' : ''} avec override`
+                            ? ` · ${t('fail2ban.stats.jailsWithOverride', { count: perJail.length })}`
                             : ''}
                     </span>
                 ) : undefined
@@ -4339,7 +4397,7 @@ const StatsSummaryBanner: React.FC<{
     const prevSummary = topsData?.prevSummary ?? null;
     const topDomain = topsData?.topDomains?.[0] ?? null;
     const topJail = topsData?.topJails?.[0] ?? null;
-    const periodLabel = PERIODS.find((p) => p.days === days)?.label ?? `${days}j`;
+    const periodLabel = fmtPeriodLabel(days, t);
 
     // ── Status: based ONLY on fail2ban live bans, NOT on ipset (ipset = protection, not menace)
     const { statusColor, statusText, statusSub } = (() => {
@@ -4347,25 +4405,31 @@ const StatsSummaryBanner: React.FC<{
         if (totalBanned === 0)
             return {
                 statusColor: C.green,
-                statusText: 'Calme',
-                statusSub: 'Aucun ban actif en ce moment',
+                statusText: t('fail2ban.stats.statusCalme'),
+                statusSub: t('fail2ban.stats.statusAucunBanActif'),
             };
         if (totalBanned <= 5)
             return {
                 statusColor: C.blue,
-                statusText: 'Normal',
-                statusSub: `${totalBanned} IP${totalBanned > 1 ? 's' : ''} en jail`,
+                statusText: t('fail2ban.stats.statusNormal'),
+                statusSub: totalBanned === 1
+                    ? t('fail2ban.stats.ipEnJail_one', { count: totalBanned })
+                    : t('fail2ban.stats.ipEnJail_other', { count: totalBanned }),
             };
         if (totalBanned <= 20)
             return {
                 statusColor: C.orange,
-                statusText: 'Modéré',
-                statusSub: `${totalBanned} IPs actuellement en jail`,
+                statusText: t('fail2ban.stats.statusModere'),
+                statusSub: totalBanned === 1
+                    ? t('fail2ban.stats.currentlyInJail_one', { count: totalBanned })
+                    : t('fail2ban.stats.currentlyInJail_other', { count: totalBanned }),
             };
         return {
             statusColor: C.red,
-            statusText: 'Élevé',
-            statusSub: `${totalBanned} IPs actuellement en jail`,
+            statusText: t('fail2ban.stats.statusCritique'),
+            statusSub: totalBanned === 1
+                ? t('fail2ban.stats.currentlyInJail_one', { count: totalBanned })
+                : t('fail2ban.stats.currentlyInJail_other', { count: totalBanned }),
         };
     })();
 
@@ -4450,7 +4514,7 @@ const StatsSummaryBanner: React.FC<{
                     >
                         {statusHydrated ? totalBanned : '…'}
                     </span>
-                    {' IPs en jail'}
+                    {t('fail2ban.stats.ipsInJail')}
                 </span>
 
                 {sep}
@@ -4503,7 +4567,7 @@ const StatsSummaryBanner: React.FC<{
                                             <span style={{ color: C.purple }}>{s.name}</span>
                                             {' · '}
                                             <span style={{ color: C.text }}>
-                                                {s.entries.toLocaleString('fr-FR')} entrées
+                                                {s.entries.toLocaleString('fr-FR')} {t('fail2ban.stats.entries')}
                                             </span>
                                             {' · '}
                                             <span style={{ color: C.muted, fontSize: '.62rem' }}>{s.type}</span>
@@ -4511,7 +4575,7 @@ const StatsSummaryBanner: React.FC<{
                                     ))}
                                     {ipsetSets.length > 5 && (
                                         <div style={{ fontSize: '.65rem', color: C.muted }}>
-                                            +{ipsetSets.length - 5} autres sets
+                                            +{ipsetSets.length - 5} {t('fail2ban.stats.otherSets', { n: ipsetSets.length - 5 })}
                                         </div>
                                     )}
                                 </div>
@@ -4531,7 +4595,7 @@ const StatsSummaryBanner: React.FC<{
                                 <span style={{ color: C.purple, fontWeight: 700 }}>
                                     {ipsetTotal.toLocaleString('fr-FR')}
                                 </span>
-                                <span style={{ color: C.muted }}>IPs bloquées en amont</span>
+                                <span style={{ color: C.muted }}>{t('fail2ban.stats.blockedUpstream')}</span>
                                 <span
                                     style={{
                                         fontSize: '.62rem',
@@ -4610,7 +4674,7 @@ const StatsSummaryBanner: React.FC<{
                             {summary.totalBans.toLocaleString('fr-FR')}
                         </span>
                         {' bans'}
-                        {prevSummary && <TrendBadge curr={summary.totalBans} prev={prevSummary.totalBans} />}
+                        {prevSummary && <TrendBadge curr={summary.totalBans} prev={prevSummary.totalBans} t={t} />}
                     </span>
                     {sep}
                     {/* IPs uniques */}
@@ -4619,7 +4683,7 @@ const StatsSummaryBanner: React.FC<{
                             {summary.uniqueIps.toLocaleString('fr-FR')}
                         </span>
                         {' IPs uniques'}
-                        {prevSummary && <TrendBadge curr={summary.uniqueIps} prev={prevSummary.uniqueIps} />}
+                        {prevSummary && <TrendBadge curr={summary.uniqueIps} prev={prevSummary.uniqueIps} t={t} />}
                     </span>
                     {sep}
                     {/* Tentatives */}
@@ -4628,7 +4692,7 @@ const StatsSummaryBanner: React.FC<{
                             {summary.totalFailures.toLocaleString('fr-FR')}
                         </span>
                         {' tentatives'}
-                        {prevSummary && <TrendBadge curr={summary.totalFailures} prev={prevSummary.totalFailures} />}
+                        {prevSummary && <TrendBadge curr={summary.totalFailures} prev={prevSummary.totalFailures} t={t} />}
                     </span>
                     {/* Top jail période */}
                     {topJail && (
@@ -5187,16 +5251,14 @@ export const TabStats: React.FC<TabStatsProps> = ({
                         }}
                     >
                         <div>
-                            Source : <code style={{ color: '#58a6ff' }}>fail2ban-client status &lt;jail&gt;</code> →{' '}
-                            <em>Currently banned</em>, sommé sur tous les jails actifs.
+                            {t('fail2ban.stats.jailBanInfo.sourceLabel')} <code style={{ color: '#58a6ff' }}>fail2ban-client status &lt;jail&gt;</code> →{' '}
+                            <em>{t('fail2ban.stats.jailBanInfo.currentlyBanned')}</em>{t('fail2ban.stats.jailBanInfo.somme')}
                         </div>
                         <div style={{ marginTop: '.2rem' }}>
-                            Période : <strong style={{ color: '#e6edf3' }}>maintenant</strong> — une IP est comptée tant
-                            que son <code style={{ color: '#e3b341' }}>bantime</code> n'a pas expiré et qu'elle n'a pas
-                            été débannie manuellement.
+                            {t('fail2ban.stats.jailBanInfo.periodLabel')} <strong style={{ color: '#e6edf3' }}>{t('fail2ban.stats.jailBanInfo.now')}</strong> — {t('fail2ban.stats.jailBanInfo.ipCounted')}
                         </div>
                         <div style={{ marginTop: '.2rem' }}>
-                            ≠ total cumulé BDD — ce chiffre baisse quand les bans expirent.
+                            {t('fail2ban.stats.jailBanInfo.dbTotalNote')}
                         </div>
                     </div>
                 </div>
@@ -5379,7 +5441,7 @@ export const TabStats: React.FC<TabStatsProps> = ({
                                         flexShrink: 0,
                                     }}
                                 />
-                                <span>Données BDD depuis le</span>
+                                <span>{t('fail2ban.stats.dbDataSince')}</span>
                                 <span style={{ fontWeight: 600, color: '#e6edf3' }}>
                                     {new Date(firstEventAt * 1000).toLocaleDateString('fr-FR', {
                                         day: '2-digit',

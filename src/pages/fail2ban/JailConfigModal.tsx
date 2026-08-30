@@ -12,7 +12,7 @@ import {
     Zap, RefreshCw,
 } from 'lucide-react';
 import { api } from '../../api/client';
-import { fmtSecs } from './helpers';
+import type { TFunction } from 'i18next';
 import { ConfEditorModal } from './ConfEditorModal';
 import type { ConfEditorTarget } from './ConfEditorModal';
 
@@ -36,28 +36,30 @@ interface JailParams {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function fmtHint(secs: number): string {
+function fmtHint(secs: number, t: TFunction): string {
     if (Number.isNaN(secs)) return '';
-    if (secs < 0) return 'Permanent';
-    if (secs === 0) return '0 sec';
+    if (secs < 0) return t('fail2ban.jailConfig.permanent');
+    if (secs === 0) return t('fail2ban.jailConfig.zeroSec');
     const d = Math.floor(secs / 86400);
     const h = Math.floor((secs % 86400) / 3600);
     const m = Math.floor((secs % 3600) / 60);
     const s = secs % 60;
     const parts: string[] = [];
-    if (d) parts.push(`${d}j`);
-    if (h) parts.push(`${h}h`);
-    if (m) parts.push(`${m}min`);
+    if (d) parts.push(t('fail2ban.helpers.days', { n: d }));
+    if (h) parts.push(t('fail2ban.helpers.hours', { n: h }));
+    if (m) parts.push(t('fail2ban.helpers.minutes', { n: m }));
     if (s) parts.push(`${s}s`);
-    return parts.join(' ') || '0s';
+    return parts.join(' ') || t('fail2ban.jailConfig.zeroShort');
 }
 
-const USEDNS_OPTIONS = [
-    { v: 'warn',   l: 'warn — résoudre + avertir si FQDN' },
-    { v: 'yes',    l: 'yes — résoudre les noms de domaine' },
-    { v: 'no',     l: 'no — adresses IP uniquement' },
-    { v: 'raw',    l: 'raw — ne pas résoudre du tout' },
-];
+function usednsOptions(t: TFunction) {
+    return [
+        { v: 'warn',   l: t('fail2ban.jailConfig.usednsWarn') },
+        { v: 'yes',    l: t('fail2ban.jailConfig.usednsYes') },
+        { v: 'no',     l: t('fail2ban.jailConfig.usednsNo') },
+        { v: 'raw',    l: t('fail2ban.jailConfig.usednsRaw') },
+    ];
+}
 
 const btnBase: React.CSSProperties = {
     display: 'inline-flex', alignItems: 'center', gap: '.3rem',
@@ -81,6 +83,7 @@ const inputFocus = {
 // ── Failregex collapsible ─────────────────────────────────────────────────────
 
 const FailregexSection: React.FC<{ jailName: string }> = ({ jailName }) => {
+    const { t } = useTranslation();
     const [open, setOpen] = useState(false);
     const [lines, setLines] = useState<string[]>([]);
     const [loading, setLoading] = useState(false);
@@ -102,14 +105,14 @@ const FailregexSection: React.FC<{ jailName: string }> = ({ jailName }) => {
         <div style={{ borderTop: '1px solid #30363d', marginTop: '.75rem' }}>
             <button onClick={toggle} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '.4rem', padding: '.4rem 0', background: 'transparent', border: 'none', color: '#8b949e', cursor: 'pointer', fontSize: '.77rem' }}>
                 <Terminal style={{ width: 11, height: 11, flexShrink: 0 }} />
-                <span>Voir les failregex</span>
+                <span>{t('fail2ban.jailConfig.seeFailregex')}</span>
                 <span style={{ marginLeft: 'auto' }}>
                     {open ? <ChevronDown style={{ width: 11, height: 11 }} /> : <ChevronRight style={{ width: 11, height: 11 }} />}
                 </span>
             </button>
             {open && (
                 <div style={{ color: '#8b949e', fontSize: '.77rem', fontStyle: 'italic', paddingBottom: '.5rem' }}>
-                    Ouvrez le filtre via le badge ⚙ pour voir les failregex.
+                    {t('fail2ban.jailConfig.openFilterHint')}
                 </div>
             )}
         </div>
@@ -119,8 +122,9 @@ const FailregexSection: React.FC<{ jailName: string }> = ({ jailName }) => {
 // ── Param row ─────────────────────────────────────────────────────────────────
 
 const ParamRow: React.FC<{ label: string; hint: string; id: string; value: string; onChange: (v: string) => void; min?: number }> = ({ label, hint, id, value, onChange, min = -1 }) => {
+    const { t } = useTranslation();
     const numVal = Number.parseInt(value, 10);
-    const hintStr = fmtHint(numVal);
+    const hintStr = fmtHint(numVal, t);
     return (
         <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr auto', gap: '.5rem', alignItems: 'center', marginBottom: '.55rem' }}>
             <label htmlFor={id} style={{ fontSize: '.8rem', color: '#8b949e', fontWeight: 600 }}>{label}</label>
@@ -197,7 +201,7 @@ export const JailConfigModal: React.FC<JailConfigModalProps> = ({ jailName, isAc
 
     const handleSave = async () => {
         if (port.trim() && !isValidPort(port)) {
-            setMsg({ ok: false, text: 'Port invalide — attendu : 22 | http | 80,443 | 8080:8090' });
+            setMsg({ ok: false, text: t('fail2ban.jailConfig.portInvalid') });
             return;
         }
         setSaving(true); setMsg(null);
@@ -214,7 +218,7 @@ export const JailConfigModal: React.FC<JailConfigModalProps> = ({ jailName, isAc
             `/api/plugins/fail2ban/jails/${encodeURIComponent(jailName)}/params`, body
         );
         if (res.success && res.result?.ok) {
-            setMsg({ ok: true, text: 'Paramètres sauvegardés et jail rechargé.' });
+            setMsg({ ok: true, text: t('fail2ban.jailConfig.savedAndReloaded') });
             onRefreshNeeded?.();
         } else {
             setMsg({ ok: false, text: res.result?.error ?? t('fail2ban.errors.unknown') });
@@ -224,17 +228,17 @@ export const JailConfigModal: React.FC<JailConfigModalProps> = ({ jailName, isAc
 
     const handleOp = async (op: 'stop' | 'start') => {
         if (!window.confirm(op === 'stop'
-            ? `Arrêter le jail « ${jailName} » ?\n\nLes IPs actuellement bannies seront débloquées.`
-            : `Démarrer le jail « ${jailName} » ?`)) return;
+            ? t('fail2ban.jailConfig.confirmStop', { jail: jailName })
+            : t('fail2ban.jailConfig.confirmStart', { jail: jailName }))) return;
         setOpLoading(op); setMsg(null);
         const res = await api.post<{ ok: boolean; error?: string; output?: string }>(
             `/api/plugins/fail2ban/jails/${encodeURIComponent(jailName)}/${op}`, {}
         );
         if (res.success && res.result?.ok) {
-            setMsg({ ok: true, text: op === 'stop' ? 'Jail arrêté.' : 'Jail démarré.' });
+            setMsg({ ok: true, text: op === 'stop' ? t('fail2ban.jailConfig.jailStopped') : t('fail2ban.jailConfig.jailStarted') });
             onRefreshNeeded?.();
         } else {
-            setMsg({ ok: false, text: res.result?.error ?? res.result?.output ?? 'Erreur' });
+            setMsg({ ok: false, text: res.result?.error ?? res.result?.output ?? t('fail2ban.jailConfig.error') });
         }
         setOpLoading(null);
     };
@@ -265,7 +269,7 @@ export const JailConfigModal: React.FC<JailConfigModalProps> = ({ jailName, isAc
         if (!v) return;
         if (ignoreipList.includes(v)) { setIgnoreipInput(''); return; }
         if (!isValidIpOrCidr(v)) {
-            setMsg({ ok: false, text: `Format invalide : "${v}" — attendu IP (192.168.1.1) ou CIDR (10.0.0.0/8)` });
+            setMsg({ ok: false, text: t('fail2ban.jailConfig.invalidFormat', { value: v }) });
             return;
         }
         setIgnoreipList(l => [...l, v]);
@@ -285,7 +289,7 @@ export const JailConfigModal: React.FC<JailConfigModalProps> = ({ jailName, isAc
                     <span style={{ fontWeight: 700, fontSize: '.95rem', flex: 1 }}>{jailName.toUpperCase()}</span>
                     <span style={{ fontSize: '.72rem', color: isActive ? '#3fb950' : '#e3b341', display: 'flex', alignItems: 'center', gap: '.3rem' }}>
                         <span style={{ width: 6, height: 6, borderRadius: '50%', background: isActive ? '#3fb950' : '#e3b341', flexShrink: 0 }} />
-                        {isActive ? 'Actif' : 'Inactif'}
+                        {isActive ? t('fail2ban.jailConfig.activeBadge') : t('fail2ban.jailConfig.inactiveBadge')}
                     </span>
                     <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#8b949e', cursor: 'pointer', padding: '.2rem', display: 'flex', alignItems: 'center' }}>
                         <X style={{ width: 16, height: 16 }} />
@@ -295,8 +299,8 @@ export const JailConfigModal: React.FC<JailConfigModalProps> = ({ jailName, isAc
                 {/* Tabs */}
                 <div style={{ display: 'flex', background: '#21262d', borderBottom: '1px solid #30363d', flexShrink: 0 }}>
                     {([
-                        { key: 'live',   label: 'À chaud',       Icon: Zap,        color: '#3fb950' },
-                        { key: 'reload', label: 'Reload requis',  Icon: RefreshCw,  color: '#e3b341' },
+                        { key: 'live',   label: t('fail2ban.jailConfig.liveTab'),  Icon: Zap,        color: '#3fb950' },
+                        { key: 'reload', label: t('fail2ban.jailConfig.reloadTab'), Icon: RefreshCw,  color: '#e3b341' },
                     ] as const).map(({ key, label, Icon: TabIcon, color }) => (
                         <button key={key} onClick={() => setTab(key)} style={{
                             padding: '.5rem 1rem', fontSize: '.8rem', fontWeight: 600, border: 'none', cursor: 'pointer',
@@ -327,7 +331,7 @@ export const JailConfigModal: React.FC<JailConfigModalProps> = ({ jailName, isAc
                             {/* Timings */}
                             <div style={{ marginBottom: '.85rem' }}>
                                 <div style={{ fontSize: '.72rem', fontWeight: 700, color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: '.65rem', display: 'flex', alignItems: 'center', gap: '.35rem' }}>
-                                    <Settings style={{ width: 11, height: 11 }} /> Timings
+                                    <Settings style={{ width: 11, height: 11 }} /> {t('fail2ban.jailConfig.timings')}
                                 </div>
                                 <ParamRow label="Bantime" hint="" id="bantime" value={bantime} onChange={setBantime} />
                                 <ParamRow label="Findtime" hint="" id="findtime" value={findtime} onChange={setFindtime} />
@@ -336,7 +340,7 @@ export const JailConfigModal: React.FC<JailConfigModalProps> = ({ jailName, isAc
                                     <div style={{ display: 'flex', gap: '.3rem', alignItems: 'center' }}>
                                         <input id="maxretry" type="number" min={1} value={maxretry} onChange={e => setMaxretry(e.target.value)}
                                             style={{ ...inputStyle, width: '100%' }} {...inputFocus} />
-                                        <span style={{ fontSize: '.7rem', color: '#8b949e', whiteSpace: 'nowrap', minWidth: 60 }}>tentatives</span>
+                                        <span style={{ fontSize: '.7rem', color: '#8b949e', whiteSpace: 'nowrap', minWidth: 60 }}>{t('fail2ban.jailConfig.tentatives')}</span>
                                     </div>
                                     <div style={{ display: 'flex', gap: '.2rem' }}>
                                         <button type="button" onClick={() => setMaxretry(v => String(Math.max(1, (Number.parseInt(v) || 1) - 1)))} style={{ ...btnBase, padding: '.2rem .45rem', fontSize: '.8rem', borderColor: '#30363d', background: 'transparent', color: '#8b949e' }}>−</button>
@@ -348,7 +352,7 @@ export const JailConfigModal: React.FC<JailConfigModalProps> = ({ jailName, isAc
                             {/* Whitelist IP */}
                             <div style={{ borderTop: '1px solid #30363d', paddingTop: '.85rem', marginBottom: '.85rem' }}>
                                 <div style={{ fontSize: '.72rem', fontWeight: 700, color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: '.55rem' }}>
-                                    Whitelist IP (ignoreip)
+                                    {t('fail2ban.jailConfig.whitelist')}
                                 </div>
                                 {ignoreipList.length > 0 ? (
                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.3rem', marginBottom: '.5rem' }}>
@@ -363,15 +367,15 @@ export const JailConfigModal: React.FC<JailConfigModalProps> = ({ jailName, isAc
                                         ))}
                                     </div>
                                 ) : (
-                                    <div style={{ fontSize: '.78rem', color: '#8b949e', fontStyle: 'italic', marginBottom: '.5rem' }}>Aucune IP en whitelist</div>
+                                    <div style={{ fontSize: '.78rem', color: '#8b949e', fontStyle: 'italic', marginBottom: '.5rem' }}>{t('fail2ban.jailConfig.noWhitelist')}</div>
                                 )}
                                 <div style={{ display: 'flex', gap: '.4rem' }}>
                                     <input type="text" value={ignoreipInput} onChange={e => setIgnoreipInput(e.target.value)}
-                                        placeholder="IP ou CIDR (ex: 192.168.1.0/24)"
+                                        placeholder={t('fail2ban.jailConfig.ipCidrPlaceholder')}
                                         onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addIgnoreip(); } }}
                                         style={{ ...inputStyle, flex: 1 }} {...inputFocus} />
                                     <button onClick={addIgnoreip} style={{ ...btnBase, borderColor: 'rgba(63,185,80,.4)', background: 'rgba(63,185,80,.1)', color: '#3fb950' }}>
-                                        <Plus style={{ width: 12, height: 12 }} /> Ajouter
+                                        <Plus style={{ width: 12, height: 12 }} /> {t('fail2ban.jailConfig.add')}
                                     </button>
                                 </div>
                             </div>
@@ -379,11 +383,11 @@ export const JailConfigModal: React.FC<JailConfigModalProps> = ({ jailName, isAc
                             {/* usedns */}
                             <div style={{ borderTop: '1px solid #30363d', paddingTop: '.75rem' }}>
                                 <label style={{ fontSize: '.72rem', fontWeight: 700, color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.05em', display: 'block', marginBottom: '.55rem' }}>
-                                    Résolution DNS (usedns)
+                                    {t('fail2ban.jailConfig.usedns')}
                                 </label>
                                 <select value={usedns} onChange={e => setUsedns(e.target.value)}
                                     style={{ ...inputStyle, width: '100%', cursor: 'pointer' }} {...inputFocus}>
-                                    {USEDNS_OPTIONS.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
+                                    {usednsOptions(t).map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
                                 </select>
                             </div>
                         </div>
@@ -393,39 +397,39 @@ export const JailConfigModal: React.FC<JailConfigModalProps> = ({ jailName, isAc
                             {/* logpath */}
                             <div style={{ marginBottom: '.85rem' }}>
                                 <label htmlFor="logpath" style={{ fontSize: '.72rem', fontWeight: 700, color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.05em', display: 'block', marginBottom: '.55rem' }}>
-                                    Logpath
+                                    {t('fail2ban.jailConfig.logpath')}
                                 </label>
                                 <input id="logpath" type="text" value={logpath} onChange={e => setLogpath(e.target.value)}
                                     placeholder="/var/log/nginx/access.log"
                                     style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }} {...inputFocus} />
                                 <div style={{ fontSize: '.68rem', color: '#8b949e', marginTop: '.3rem' }}>
-                                    Chemin(s) séparés par des espaces. Écrasera la valeur dans jail.conf.
+                                    {t('fail2ban.jailConfig.logpathHint')}
                                 </div>
                             </div>
 
                             {/* port */}
                             <div style={{ borderTop: '1px solid #30363d', paddingTop: '.75rem', marginBottom: '.85rem' }}>
                                 <label htmlFor="port-input" style={{ fontSize: '.72rem', fontWeight: 700, color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.05em', display: 'block', marginBottom: '.55rem' }}>
-                                    Port(s)
+                                    {t('fail2ban.jailConfig.ports')}
                                 </label>
                                 <input id="port-input" type="text" value={port} onChange={e => setPort(e.target.value)}
-                                    placeholder="http,https ou 80,443"
+                                    placeholder={t('fail2ban.jailConfig.portPlaceholder')}
                                     style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }} {...inputFocus} />
                             </div>
 
                             {/* Filter + Actions */}
                             <div style={{ borderTop: '1px solid #30363d', paddingTop: '.85rem' }}>
                                 <div style={{ fontSize: '.72rem', fontWeight: 700, color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: '.65rem', display: 'flex', alignItems: 'center', gap: '.35rem' }}>
-                                    <Terminal style={{ width: 11, height: 11 }} /> Filtre &amp; Actions
+                                    <Terminal style={{ width: 11, height: 11 }} /> {t('fail2ban.jailConfig.filterAndActions')}
                                 </div>
 
                                 {/* Filter */}
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.5rem' }}>
-                                    <span style={{ fontSize: '.8rem', color: '#8b949e', fontWeight: 600, minWidth: 90 }}>Filtre</span>
+                                    <span style={{ fontSize: '.8rem', color: '#8b949e', fontWeight: 600, minWidth: 90 }}>{t('fail2ban.jailConfig.filter')}</span>
                                     {params?.filter ? (
                                         <span onClick={() => setEditor({ type: 'filter', name: params.filter!, jails: [jailName] })}
                                             style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '.25rem', padding: '.18rem .5rem', borderRadius: 4, fontSize: '.78rem', background: 'rgba(63,185,80,.1)', border: '1px solid rgba(63,185,80,.35)', color: '#3fb950' }}
-                                            title="Voir / éditer le filtre">
+                                            title={t('fail2ban.jailConfig.viewFilter')}>
                                             ⚙ {params.filter}
                                         </span>
                                     ) : (
@@ -435,20 +439,20 @@ export const JailConfigModal: React.FC<JailConfigModalProps> = ({ jailName, isAc
 
                                 {/* Actions */}
                                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: '.5rem' }}>
-                                    <span style={{ fontSize: '.8rem', color: '#8b949e', fontWeight: 600, minWidth: 90, paddingTop: '.2rem' }}>Actions</span>
+                                    <span style={{ fontSize: '.8rem', color: '#8b949e', fontWeight: 600, minWidth: 90, paddingTop: '.2rem' }}>{t('fail2ban.jailConfig.actionsLabel')}</span>
                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.3rem', flex: 1 }}>
                                         {(params?.actions?.length ?? 0) > 0
                                             ? params!.actions!.map(a => (
                                                 <span key={a} onClick={() => setEditor({ type: 'action', name: a, jails: [jailName] })}
                                                     style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '.25rem', padding: '.18rem .5rem', borderRadius: 4, fontSize: '.78rem', background: 'rgba(227,179,65,.1)', border: '1px solid rgba(227,179,65,.35)', color: '#e3b341' }}
-                                                    title="Voir / éditer l'action">
+                                                    title={t('fail2ban.jailConfig.viewAction')}>
                                                     ⚡ {a}
                                                 </span>
                                             ))
                                             : params?.banaction
                                                 ? <span onClick={() => setEditor({ type: 'action', name: params.banaction!, jails: [jailName] })}
                                                     style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '.25rem', padding: '.18rem .5rem', borderRadius: 4, fontSize: '.78rem', background: 'rgba(232,106,101,.1)', border: '1px solid rgba(232,106,101,.35)', color: '#e86a65' }}
-                                                    title="Voir / éditer l'action">
+                                                    title={t('fail2ban.jailConfig.viewAction')}>
                                                     ⚡ {params.banaction}
                                                   </span>
                                                 : <span style={{ color: '#8b949e', fontSize: '.78rem' }}>—</span>}
@@ -464,22 +468,22 @@ export const JailConfigModal: React.FC<JailConfigModalProps> = ({ jailName, isAc
                     {isActive && (
                         <button onClick={() => handleOp('stop')} disabled={opLoading === 'stop'}
                             style={{ ...btnBase, borderColor: 'rgba(232,106,101,.35)', background: 'rgba(232,106,101,.1)', color: '#e86a65', opacity: opLoading === 'stop' ? .6 : 1 }}>
-                            <Square style={{ width: 11, height: 11 }} /> {opLoading === 'stop' ? 'Arrêt…' : 'Arrêter le jail'}
+                            <Square style={{ width: 11, height: 11 }} /> {opLoading === 'stop' ? t('fail2ban.jailConfig.stopping') : t('fail2ban.jailConfig.stopJail')}
                         </button>
                     )}
                     {!isActive && (
                         <button onClick={() => handleOp('start')} disabled={opLoading === 'start'}
                             style={{ ...btnBase, borderColor: 'rgba(63,185,80,.35)', background: 'rgba(63,185,80,.1)', color: '#3fb950', opacity: opLoading === 'start' ? .6 : 1 }}>
-                            <Play style={{ width: 11, height: 11 }} /> {opLoading === 'start' ? 'Démarrage…' : 'Démarrer le jail'}
+                            <Play style={{ width: 11, height: 11 }} /> {opLoading === 'start' ? t('fail2ban.jailConfig.starting') : t('fail2ban.jailConfig.startJail')}
                         </button>
                     )}
                     <div style={{ flex: 1 }} />
                     <button onClick={onClose} style={{ ...btnBase, borderColor: '#30363d', background: 'transparent', color: '#8b949e' }}>
-                        Annuler
+                        {t('fail2ban.jailConfig.cancel')}
                     </button>
                     <button onClick={handleSave} disabled={saving}
                         style={{ ...btnBase, borderColor: tab === 'reload' ? 'rgba(227,179,65,.4)' : 'rgba(63,185,80,.4)', background: tab === 'reload' ? 'rgba(227,179,65,.12)' : 'rgba(63,185,80,.12)', color: tab === 'reload' ? '#e3b341' : '#3fb950', opacity: saving ? .6 : 1 }}>
-                        <Save style={{ width: 12, height: 12 }} /> {saving ? 'Enregistrement…' : tab === 'reload' ? 'Appliquer + Reload' : 'Appliquer'}
+                        <Save style={{ width: 12, height: 12 }} /> {saving ? t('fail2ban.jailConfig.saving') : tab === 'reload' ? t('fail2ban.jailConfig.applyReload') : t('fail2ban.jailConfig.apply')}
                     </button>
                 </div>
             </div>

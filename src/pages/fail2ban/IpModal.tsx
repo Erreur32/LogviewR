@@ -455,9 +455,9 @@ export const IpModal: React.FC<{
         if (bans.length < 2) return null;
         const totalSecs = bans[0].timeofban - bans[bans.length - 1].timeofban;
         const avgSecs = totalSecs / (bans.length - 1);
-        if (avgSecs < 3600)  return `~${Math.round(avgSecs / 60)} min`;
-        if (avgSecs < 86400) return `~${Math.round(avgSecs / 3600)}h`;
-        return `~${Math.round(avgSecs / 86400)} jours`;
+        if (avgSecs < 3600)  return t('fail2ban.ipModal.freqMinutes', { n: Math.round(avgSecs / 60) });
+        if (avgSecs < 86400) return t('fail2ban.ipModal.freqHours', { n: Math.round(avgSecs / 3600) });
+        return t('fail2ban.ipModal.freqDays', { n: Math.round(avgSecs / 86400) });
     })();
 
     // Bot detection
@@ -533,7 +533,7 @@ export const IpModal: React.FC<{
                     {inRecidive && (
                         <span style={{ padding: '.1rem .45rem', borderRadius: 4, fontSize: '.72rem', fontWeight: 700,
                             background: 'rgba(232,106,101,.2)', color: '#e86a65', border: '1px solid rgba(232,106,101,.4)' }}>
-                            ⚠ récidiviste
+                            ⚠ {t('fail2ban.ipModal.recidivist')}
                         </span>
                     )}
                     {details?.hostname && (
@@ -571,15 +571,13 @@ export const IpModal: React.FC<{
                     <div style={{ padding: '.6rem 1rem', background: 'rgba(88,166,255,.06)',
                         borderBottom: '1px solid rgba(88,166,255,.2)', display: 'flex', gap: '.6rem', alignItems: 'flex-start' }}>
                         <Info style={{ width: 14, height: 14, color: '#58a6ff', flexShrink: 0, marginTop: 2 }} />
-                        <span style={{ fontSize: '.8rem', color: '#c0d0e0', lineHeight: 1.5 }}>
-                            {isKnownProvider && (
-                                <>Cette IP appartient à l'espace public <strong style={{ color: '#58a6ff' }}>{details!.knownProvider!.name}</strong> ({details!.knownProvider!.cidr}). {' '}</>
-                            )}
-                            {knownBot && (
-                                <>Hostname identifié comme <strong style={{ color: '#e3b341' }}>{knownBot}</strong>. {' '}</>
-                            )}
-                            C'est <strong>habituel</strong> d'y voir des bans — scans, bots et instances compromises proviennent souvent de ces plages. Le ban reste légitime si les règles fail2ban se déclenchent sur vos logs.
-                        </span>
+                        <span style={{ fontSize: '.8rem', color: '#c0d0e0', lineHeight: 1.5 }}
+                            dangerouslySetInnerHTML={{ __html: [
+                                isKnownProvider ? t('fail2ban.ipModal.knownProviderBanner', { name: `<span style="color:#58a6ff">${details!.knownProvider!.name}</span>`, cidr: details!.knownProvider!.cidr }) : '',
+                                knownBot ? t('fail2ban.ipModal.knownBotBanner', { bot: `<span style="color:#e3b341">${knownBot}</span>` }) : '',
+                                t('fail2ban.ipModal.providerBotExplain'),
+                            ].filter(Boolean).join(' ') }}
+                        />
                     </div>
                 )}
 
@@ -605,13 +603,13 @@ export const IpModal: React.FC<{
                         <div style={{ display: 'flex', gap: '1.25rem', flexWrap: 'wrap', alignItems: 'center' }}>
                             {details.whois.org && <div><div style={{ fontSize: '.6rem', color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.1rem' }}>{t('fail2ban.labels.organization')}</div><div style={{ fontSize: '.74rem', fontFamily: 'monospace', color: '#e6edf3' }}>{details.whois.org}</div></div>}
                             {details.whois.asn && <div><div style={{ fontSize: '.6rem', color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.1rem' }}>{t('fail2ban.labels.asn')}</div><div style={{ fontSize: '.74rem', fontFamily: 'monospace', color: '#bc8cff' }}>{details.whois.asn}</div></div>}
-                            {details.whois.cidr && <div><div style={{ fontSize: '.6rem', color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.1rem' }}>CIDR</div><div style={{ fontSize: '.74rem', fontFamily: 'monospace', color: '#8b949e' }}>{details.whois.cidr}</div></div>}
-                            {details.whois.netname && <div><div style={{ fontSize: '.6rem', color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.1rem' }}>Netname</div><div style={{ fontSize: '.74rem', fontFamily: 'monospace', color: '#8b949e' }}>{details.whois.netname}</div></div>}
+                            {details.whois.cidr && <div><div style={{ fontSize: '.6rem', color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.1rem' }}>{t('fail2ban.ipModal.cidr')}</div><div style={{ fontSize: '.74rem', fontFamily: 'monospace', color: '#8b949e' }}>{details.whois.cidr}</div></div>}
+                            {details.whois.netname && <div><div style={{ fontSize: '.6rem', color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.1rem' }}>{t('fail2ban.ipModal.netname')}</div><div style={{ fontSize: '.74rem', fontFamily: 'monospace', color: '#8b949e' }}>{details.whois.netname}</div></div>}
                         </div>
                     ) : loading ? <span style={{ fontSize: '.73rem', color: '#8b949e', fontStyle: 'italic' }}>{t('common.loading')}</span> : null}
 
-                    {geo?.isp && geo.isp !== geo.org && <><div style={{ width: 1, height: 32, background: '#30363d', flexShrink: 0 }} /><div><div style={{ fontSize: '.6rem', color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.1rem' }}>ISP</div><div style={{ fontSize: '.74rem', fontFamily: 'monospace', color: '#8b949e' }}>{geo.isp}</div></div></>}
-                    {details?.hostname && <><div style={{ width: 1, height: 32, background: '#30363d', flexShrink: 0 }} /><div><div style={{ fontSize: '.6rem', color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.1rem' }}>Hostname</div><div style={{ fontSize: '.74rem', fontFamily: 'monospace', color: '#8b949e' }}>{details.hostname}</div></div></>}
+                    {geo?.isp && geo.isp !== geo.org && <><div style={{ width: 1, height: 32, background: '#30363d', flexShrink: 0 }} /><div><div style={{ fontSize: '.6rem', color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.1rem' }}>{t('fail2ban.labels.isp')}</div><div style={{ fontSize: '.74rem', fontFamily: 'monospace', color: '#8b949e' }}>{geo.isp}</div></div></>}
+                    {details?.hostname && <><div style={{ width: 1, height: 32, background: '#30363d', flexShrink: 0 }} /><div><div style={{ fontSize: '.6rem', color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.1rem' }}>{t('fail2ban.ipModal.hostname')}</div><div style={{ fontSize: '.74rem', fontFamily: 'monospace', color: '#8b949e' }}>{details.hostname}</div></div></>}
                     {details?.knownProvider && <><div style={{ width: 1, height: 32, background: '#30363d', flexShrink: 0 }} /><span style={{ padding: '.2rem .55rem', borderRadius: 5, fontSize: '.7rem', fontWeight: 600, background: 'rgba(88,166,255,.12)', color: '#58a6ff', border: '1px solid rgba(88,166,255,.3)' }}>☁ {details.knownProvider.name} · {details.knownProvider.cidr}</span></>}
                 </div>
 
@@ -632,7 +630,7 @@ export const IpModal: React.FC<{
                                 animation: (details?.activeJails ?? []).length > 0 ? 'pulse 1.2s ease-in-out infinite' : 'none' }} />
                             <span style={{ fontWeight: 700, fontSize: '.83rem',
                                 color: (details?.activeJails ?? []).length > 0 ? '#e86a65' : '#3fb950' }}>
-                                {(details?.activeJails ?? []).length > 0 ? 'BANNI ACTUELLEMENT' : 'Non banni actuellement'}
+                                {(details?.activeJails ?? []).length > 0 ? t('fail2ban.ipModal.bannedNow') : t('fail2ban.ipModal.notBanned')}
                             </span>
                             {lastBan && (
                                 <span style={{ marginLeft: 'auto', fontSize: '.68rem', color: '#8b949e', fontFamily: 'monospace' }}>
@@ -646,9 +644,7 @@ export const IpModal: React.FC<{
                             <div style={{ background: 'rgba(227,179,65,.07)', border: '1px solid rgba(227,179,65,.3)',
                                 borderRadius: 6, padding: '.5rem .75rem', display: 'flex', alignItems: 'center', gap: '.5rem' }}>
                                 <AlertTriangle style={{ width: 13, height: 13, color: '#e3b341', flexShrink: 0 }} />
-                                <span style={{ fontSize: '.77rem', color: '#e3b341' }}>
-                                    Comportement de <strong>bot / scanner</strong> détecté
-                                </span>
+                                <span style={{ fontSize: '.77rem', color: '#e3b341' }} dangerouslySetInnerHTML={{ __html: t('fail2ban.ipModal.botScannerDetected') }} />
                             </div>
                         )}
 
@@ -657,17 +653,17 @@ export const IpModal: React.FC<{
                             <div style={{ ...card, flex: 1, minWidth: 0 }}>
                                 <div style={cardH}>
                                     <Shield style={{ width: 12, height: 12, color: (details?.activeJails ?? []).length > 0 ? '#3fb950' : '#8b949e' }} />
-                                    <span style={{ fontWeight: 600, fontSize: '.8rem' }}>Jails actifs</span>
+                                    <span style={{ fontWeight: 600, fontSize: '.8rem' }}>{t('fail2ban.ipModal.activeJails')}</span>
                                     {(details?.activeJails ?? []).length > 0 && (
                                         <span style={{ marginLeft: 'auto', fontSize: '.68rem', color: '#3fb950' }}>
-                                            {(details?.activeJails ?? []).length} actif{(details?.activeJails ?? []).length > 1 ? 's' : ''}
+                                            {t('fail2ban.ipModal.activeCount', { count: (details?.activeJails ?? []).length })}
                                         </span>
                                     )}
                                 </div>
                                 <div style={{ padding: '.6rem .85rem', display: 'flex', flexWrap: 'wrap', gap: '.3rem' }}>
                                     {(details?.activeJails ?? []).length > 0
                                         ? details!.activeJails.map(j => <JailPill key={j} jail={j} />)
-                                        : <span style={{ fontSize: '.73rem', color: '#8b949e', fontStyle: 'italic' }}>aucun jail actif</span>
+                                        : <span style={{ fontSize: '.73rem', color: '#8b949e', fontStyle: 'italic' }}>{t('fail2ban.ipModal.noActiveJail')}</span>
                                     }
                                 </div>
                             </div>
@@ -675,7 +671,7 @@ export const IpModal: React.FC<{
                                 <div style={{ ...card, flex: 1, minWidth: 0 }}>
                                     <div style={cardH}>
                                         <Shield style={{ width: 12, height: 12, color: '#bc8cff' }} />
-                                        <span style={{ fontWeight: 600, fontSize: '.8rem' }}>IPSets</span>
+                                        <span style={{ fontWeight: 600, fontSize: '.8rem' }}>{t('fail2ban.tracker.ipsets')}</span>
                                     </div>
                                     <div style={{ padding: '.6rem .85rem', display: 'flex', flexWrap: 'wrap', gap: '.3rem' }}>
                                         {details!.ipsets.map(s => (
@@ -694,16 +690,16 @@ export const IpModal: React.FC<{
                                     <div style={{ ...card, flex: 1, minWidth: 0 }}>
                                         <div style={cardH}>
                                             <Shield style={{ width: 12, height: 12, color: hasHits ? '#e86a65' : '#555d69' }} />
-                                            <span style={{ fontWeight: 600, fontSize: '.8rem' }}>Blocklists</span>
+                                            <span style={{ fontWeight: 600, fontSize: '.8rem' }}>{t('fail2ban.ipModal.blocklists')}</span>
                                             {hasHits
                                                 ? <>
                                                     <AlertTriangle style={{ width: 11, height: 11, color: '#e3b341', marginLeft: 2 }} />
                                                     <span style={{ marginLeft: 'auto', fontSize: '.68rem', color: '#e86a65', fontWeight: 700 }}>
-                                                        {hits.length} liste{hits.length > 1 ? 's' : ''}
+                                                        {t('fail2ban.ipModal.listCount', { count: hits.length })}
                                                     </span>
                                                   </>
                                                 : <span style={{ marginLeft: 'auto', fontSize: '.68rem', color: '#555d69', fontStyle: 'italic' }}>
-                                                    Non présente dans les blocklists actives
+                                                    {t('fail2ban.ipModal.notInBlocklists')}
                                                   </span>
                                             }
                                         </div>
@@ -735,15 +731,15 @@ export const IpModal: React.FC<{
                             <div style={{ ...card, flex: 1, minWidth: 0 }}>
                                 <div style={cardH}>
                                     <Shield style={{ width: 12, height: 12, color: '#e86a65' }} />
-                                    <span style={{ fontWeight: 600, fontSize: '.8rem' }}>Actions rapides</span>
+                                    <span style={{ fontWeight: 600, fontSize: '.8rem' }}>{t('fail2ban.ipModal.quickActions')}</span>
                                 </div>
                                 <div style={{ ...cardB, gap: '.5rem' }}>
 
                                     {/* ── Bannir dans recidive ── */}
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '.22rem' }}>
-                                        <span style={{ fontSize: '.68rem', color: '#8b949e', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>Recidive</span>
+                                        <span style={{ fontSize: '.68rem', color: '#8b949e', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>{t('fail2ban.ipModal.recidiveSection')}</span>
                                         {inRecidive
-                                            ? <div style={{ fontSize: '.72rem', color: '#e86a65', fontWeight: 600, padding: '.28rem .6rem', borderRadius: 5, background: 'rgba(232,106,101,.07)', border: '1px solid rgba(232,106,101,.2)' }}>⚠ déjà banni en récidive</div>
+                                            ? <div style={{ fontSize: '.72rem', color: '#e86a65', fontWeight: 600, padding: '.28rem .6rem', borderRadius: 5, background: 'rgba(232,106,101,.07)', border: '1px solid rgba(232,106,101,.2)' }}>⚠ {t('fail2ban.ipModal.alreadyBannedRecidive')}</div>
                                             : <button onClick={banRecidive} disabled={banning}
                                                 style={{ width: '100%', padding: '.3rem .6rem', borderRadius: 5,
                                                     background: 'rgba(232,106,101,.08)', border: '1px solid rgba(232,106,101,.3)',
@@ -751,7 +747,7 @@ export const IpModal: React.FC<{
                                                     fontSize: '.74rem', fontWeight: 600, opacity: banning ? .6 : 1,
                                                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '.3rem' }}>
                                                 <Shield style={{ width: 10, height: 10 }} />
-                                                {banning ? 'Bannissement…' : t('fail2ban.actions.banInRecidive')}
+                                                {banning ? t('fail2ban.ipModal.banning') : t('fail2ban.actions.banInRecidive')}
                                             </button>
                                         }
                                     </div>
@@ -759,7 +755,7 @@ export const IpModal: React.FC<{
                                     {/* ── Débannir d'un jail ── */}
                                     {(details?.activeJails ?? []).length > 0 && (
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '.22rem' }}>
-                                            <span style={{ fontSize: '.68rem', color: '#8b949e', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>Débannir</span>
+                                            <span style={{ fontSize: '.68rem', color: '#8b949e', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>{t('fail2ban.actions.unban')}</span>
                                             {details!.activeJails.length === 1
                                                 ? <button onClick={() => unbanFromJail(details!.activeJails[0])} disabled={unbanning}
                                                     style={{ width: '100%', padding: '.3rem .6rem', borderRadius: 5,
@@ -767,7 +763,7 @@ export const IpModal: React.FC<{
                                                         color: '#3fb950', cursor: unbanning ? 'default' : 'pointer',
                                                         fontSize: '.74rem', fontWeight: 600, opacity: unbanning ? .6 : 1,
                                                         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '.3rem' }}>
-                                                    {unbanning ? 'Déban…' : `Débannir de ${details!.activeJails[0]}`}
+                                                    {unbanning ? t('fail2ban.ipModal.unbanning') : t('fail2ban.ipModal.unbanFrom', { jail: details!.activeJails[0] })}
                                                   </button>
                                                 : <div style={{ display: 'flex', gap: '.35rem' }}>
                                                     <select value={selUnbanJail} onChange={e => setSelUnbanJail(e.target.value)}
@@ -780,7 +776,7 @@ export const IpModal: React.FC<{
                                                             background: 'rgba(63,185,80,.08)', border: '1px solid rgba(63,185,80,.3)',
                                                             color: '#3fb950', cursor: (!selUnbanJail || unbanning) ? 'default' : 'pointer',
                                                             fontSize: '.74rem', fontWeight: 600, opacity: (!selUnbanJail || unbanning) ? .5 : 1 }}>
-                                                        {unbanning ? 'Déban…' : 'Débannir'}
+                                                        {unbanning ? t('fail2ban.ipModal.unbanning') : t('fail2ban.actions.unban')}
                                                     </button>
                                                   </div>
                                             }
@@ -790,8 +786,7 @@ export const IpModal: React.FC<{
                                     {/* ── IPSet : ajouter + retirer ── */}
                                     {(details?.allIpsets ?? []).length > 0 && (
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '.22rem' }}>
-                                            <span style={{ fontSize: '.68rem', color: '#8b949e', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>IPSet</span>
-                                            <select value={selIpset} onChange={e => setSelIpset(e.target.value)}
+                                            <span style={{ fontSize: '.68rem', color: '#8b949e', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>IPSet</span>                                            <select value={selIpset} onChange={e => setSelIpset(e.target.value)}
                                                 style={{ width: '100%', background: '#21262d', border: '1px solid #30363d', color: '#e6edf3',
                                                     borderRadius: 4, padding: '.28rem .4rem', fontSize: '.74rem', outline: 'none', cursor: 'pointer' }}>
                                                 {(details?.allIpsets ?? []).map(s => (
@@ -804,7 +799,7 @@ export const IpModal: React.FC<{
                                                 <button
                                                     onClick={() => selIpset && banIpset(selIpset)}
                                                     disabled={!selIpset || !!ipsetBanning || (details?.ipsets ?? []).includes(selIpset)}
-                                                    title="Ajouter l'IP dans ce set"
+                                                    title={t('fail2ban.ipModal.addToIpsetTitle')}
                                                     style={{ flex: 1, padding: '.28rem .5rem', borderRadius: 5,
                                                         background: (details?.ipsets ?? []).includes(selIpset) ? 'rgba(188,140,255,.06)' : 'rgba(188,140,255,.1)',
                                                         border: '1px solid rgba(188,140,255,.3)', color: '#bc8cff',
@@ -812,20 +807,20 @@ export const IpModal: React.FC<{
                                                         fontSize: '.74rem', fontWeight: 600,
                                                         opacity: (!selIpset || !!ipsetBanning) ? .5 : 1 }}>
                                                     {(details?.ipsets ?? []).includes(selIpset)
-                                                        ? '✓ présent'
-                                                        : ipsetBanning === selIpset ? 'Ajout…' : '+ Ajouter'}
+                                                        ? `✓ ${t('fail2ban.ipModal.present')}`
+                                                        : ipsetBanning === selIpset ? t('fail2ban.ipModal.adding') : '+ ' + t('fail2ban.actions.add')}
                                                 </button>
                                                 <button
                                                     onClick={() => selIpset && removeFromIpset(selIpset)}
                                                     disabled={!selIpset || !!ipsetRemoving || !(details?.ipsets ?? []).includes(selIpset)}
-                                                    title="Retirer l'IP de ce set"
+                                                    title={t('fail2ban.ipModal.removeFromIpsetTitle')}
                                                     style={{ flex: 1, padding: '.28rem .5rem', borderRadius: 5,
                                                         background: !(details?.ipsets ?? []).includes(selIpset) ? 'rgba(232,106,101,.03)' : 'rgba(232,106,101,.08)',
                                                         border: '1px solid rgba(232,106,101,.3)', color: '#e86a65',
                                                         cursor: (!selIpset || !!ipsetRemoving || !(details?.ipsets ?? []).includes(selIpset)) ? 'default' : 'pointer',
                                                         fontSize: '.74rem', fontWeight: 600,
                                                         opacity: (!selIpset || !!ipsetRemoving || !(details?.ipsets ?? []).includes(selIpset)) ? .4 : 1 }}>
-                                                    {ipsetRemoving === selIpset ? 'Retrait…' : '− Retirer'}
+                                                    {ipsetRemoving === selIpset ? t('fail2ban.ipModal.removing') : '− ' + t('fail2ban.actions.remove')}
                                                 </button>
                                             </div>
                                         </div>
@@ -851,7 +846,7 @@ export const IpModal: React.FC<{
                         <div style={card}>
                             <div style={cardH}>
                                 <Activity style={{ width: 12, height: 12, color: '#e86a65' }} />
-                                <span style={{ fontWeight: 600, fontSize: '.8rem' }}>Statistiques</span>
+                                <span style={{ fontWeight: 600, fontSize: '.8rem' }}>{t('fail2ban.ipModal.statistics')}</span>
                             </div>
                             <div style={{ ...cardB, gap: '.4rem' }}>
                                 <Row label={t('fail2ban.labels.totalBans')}>
@@ -860,17 +855,17 @@ export const IpModal: React.FC<{
                                     </strong>
                                     {unbans.length > 0 && (
                                         <span style={{ color: '#3fb950', fontSize: '.72rem', marginLeft: '.4rem' }}>
-                                            · {unbans.length} déban{unbans.length > 1 ? 's' : ''}
+                                            {t('fail2ban.ipModal.debanCount', { count: unbans.length })}
                                         </span>
                                     )}
                                     <span style={{ color: '#8b949e', fontSize: '.7rem', marginLeft: '.3rem' }}>
-                                        ({history.length} évts)
+                                        {t('fail2ban.ipModal.eventsCount', { count: history.length })}
                                     </span>
                                 </Row>
                                 {freqLabel && (
-                                    <Row label="Fréquence">
+                                    <Row label={t('fail2ban.ipModal.frequency')}>
                                         <span style={{ color: '#e3b341', fontFamily: 'monospace', fontSize: '.77rem' }}>
-                                            {freqLabel} entre bans
+                                            {t('fail2ban.ipModal.betweenBans', { freq: freqLabel })}
                                         </span>
                                     </Row>
                                 )}
@@ -891,7 +886,7 @@ export const IpModal: React.FC<{
                                 {(lastBan?.failures ?? 0) > 0 && (
                                     <Row label={t('fail2ban.labels.attempts')}>
                                         <strong style={{ color: '#e3b341' }}>{lastBan!.failures}</strong>
-                                        <span style={{ color: '#8b949e', fontSize: '.7rem', marginLeft: '.2rem' }}>(dernier ban)</span>
+                                        <span style={{ color: '#8b949e', fontSize: '.7rem', marginLeft: '.2rem' }}>{t('fail2ban.ipModal.lastBanSuffix')}</span>
                                     </Row>
                                 )}
                             </div>
@@ -904,9 +899,9 @@ export const IpModal: React.FC<{
                                     <div style={{ ...card, flex: 1, minWidth: 0 }}>
                                         <div style={cardH}>
                                             <Shield style={{ width: 12, height: 12, color: '#58a6ff' }} />
-                                            <span style={{ fontWeight: 600, fontSize: '.8rem' }}>Jails déclencheurs</span>
+                                            <span style={{ fontWeight: 600, fontSize: '.8rem' }}>{t('fail2ban.ipModal.triggerJails')}</span>
                                             <span style={{ marginLeft: 'auto', fontSize: '.68rem', color: '#8b949e' }}>
-                                                {jailEntries.length} jail{jailEntries.length > 1 ? 's' : ''}
+                                                {t('fail2ban.ipModal.jailCount', { count: jailEntries.length })}
                                             </span>
                                         </div>
                                         <div style={{ padding: '.65rem 1rem', display: 'flex', flexDirection: 'column', gap: '.45rem' }}>
@@ -933,7 +928,7 @@ export const IpModal: React.FC<{
                                     <div style={{ ...card, flex: 1, minWidth: 0 }}>
                                         <div style={cardH}>
                                             <AlertTriangle style={{ width: 12, height: 12, color: '#e3b341' }} />
-                                            <span style={{ fontWeight: 600, fontSize: '.8rem' }}>Types d'attaque</span>
+                                            <span style={{ fontWeight: 600, fontSize: '.8rem' }}>{t('fail2ban.ipModal.attackTypes')}</span>
                                         </div>
                                         <div style={{ padding: '.75rem 1rem', display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
                                             {categories.map(([cat, count]) => {
@@ -966,20 +961,20 @@ export const IpModal: React.FC<{
                         <div style={{ padding: '.5rem 1rem', background: '#161b22', borderBottom: '1px solid #30363d',
                             fontSize: '.72rem', color: '#8b949e', display: 'flex', alignItems: 'center', gap: '.4rem' }}>
                             <Clock style={{ width: 11, height: 11 }} />
-                            <span style={{ fontWeight: 600, color: '#e6edf3' }}>Timeline des bans</span>
+                            <span style={{ fontWeight: 600, color: '#e6edf3' }}>{t('fail2ban.ipModal.banTimeline')}</span>
                             <span style={{ background: '#21262d', border: '1px solid #30363d', borderRadius: 3,
                                 padding: '0 .35rem', color: '#e6edf3', fontWeight: 600 }}>
                                 {history.length}
                             </span>
                             {history.length >= 250 && (
-                                <span style={{ color: '#e3b341' }}>· limité à 250 évènements</span>
+                                <span style={{ color: '#e3b341' }}>{t('fail2ban.ipModal.limitedEvents')}</span>
                             )}
                         </div>
                         {loading ? (
                             <div style={{ textAlign: 'center', padding: '2rem', color: '#8b949e', fontSize: '.85rem' }}>{t('common.loading')}</div>
                         ) : history.length === 0 ? (
                             <div style={{ textAlign: 'center', padding: '2rem', color: '#3fb950', fontSize: '.85rem' }}>
-                                Aucun historique interne trouvé
+                                {t('fail2ban.ipModal.noInternalHistory')}
                             </div>
                         ) : (
                             <div style={{ maxHeight: 260, overflowY: 'auto' }}>
@@ -1024,7 +1019,7 @@ export const IpModal: React.FC<{
                                                             background: isBan ? 'rgba(232,106,101,.15)' : 'rgba(63,185,80,.12)',
                                                             color: isBan ? '#e86a65' : '#3fb950',
                                                             border: `1px solid ${isBan ? 'rgba(232,106,101,.3)' : 'rgba(63,185,80,.25)'}`}}>
-                                                            {isBan ? '⚖ Ban' : '✓ Unban'}
+                                                            {isBan ? t('fail2ban.ipModal.banBadge') : t('fail2ban.ipModal.unbanBadge')}
                                                         </span>
                                                     </td>
                                                     <td style={{ padding: '.45rem .85rem' }}><JailPill jail={h.jail} /></td>
@@ -1054,13 +1049,13 @@ export const IpModal: React.FC<{
                                 color: '#e3b341', fontSize: '.77rem', textAlign: 'left',
                                 borderBottom: logsOpen ? '1px solid #30363d' : 'none' }}>
                             <FileText style={{ width: 12, height: 12, flexShrink: 0 }} />
-                            <strong>Activité dans les logs source</strong>
+                            <strong>{t('fail2ban.ipModal.sourceLogActivity')}</strong>
                             <span style={{ background: '#21262d', border: '1px solid #30363d', borderRadius: 3,
                                 padding: '0 .35rem', color: '#e6edf3', fontWeight: 600, fontSize: '.7rem' }}>
-                                {totalLogLines} lignes
+                                {t('fail2ban.ipModal.logLinesCount', { count: totalLogLines })}
                             </span>
                             <span style={{ color: '#8b949e', fontSize: '.7rem' }}>
-                                ({logEntries.length} fichier{logEntries.length > 1 ? 's' : ''})
+                                {t('fail2ban.ipModal.fileCount', { count: logEntries.length })}
                             </span>
                             <span style={{ marginLeft: 'auto', color: '#8b949e', fontSize: '.8rem' }}>
                                 {logsOpen ? '▲' : '▼'}
@@ -1108,7 +1103,7 @@ export const IpModal: React.FC<{
                                             </div>
                                             {paths.length > 0 && (
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '.3rem', marginBottom: '.3rem', flexWrap: 'wrap' }}>
-                                                    <span style={{ fontSize: '.64rem', color: '#8b949e', flexShrink: 0 }}>chemins :</span>
+                                                    <span style={{ fontSize: '.64rem', color: '#8b949e', flexShrink: 0 }}>{t('fail2ban.ipModal.pathsLabel')}:</span>
                                                     {paths.map((p, pi) => (
                                                         <span key={pi} style={{ fontFamily: 'monospace', fontSize: '.67rem',
                                                             background: 'rgba(88,166,255,.08)', border: '1px solid rgba(88,166,255,.2)',
@@ -1141,8 +1136,8 @@ export const IpModal: React.FC<{
                                                     transition: 'background .15s',
                                                 }}>
                                                     {isExpanded
-                                                        ? <>▲ Réduire</>
-                                                        : <>▼ Voir tout <span style={{ color: '#8b949e', fontWeight: 400 }}>({entry.lines.length - LOG_LINES_DEFAULT} lignes)</span></>}
+                                                        ? <>▲ {t('fail2ban.ipModal.collapse')}</>
+                                                        : <>▼ {t('fail2ban.ipModal.seeAll')} <span style={{ color: '#8b949e', fontWeight: 400 }}>({t('fail2ban.ipModal.logLinesCount', { count: entry.lines.length - LOG_LINES_DEFAULT })})</span></>}
                                                 </button>
                                             )}
                                         </div>
@@ -1159,7 +1154,7 @@ export const IpModal: React.FC<{
                     fontSize: '.68rem', color: '#8b949e', textAlign: 'right', flexShrink: 0,
                     borderRadius: '0 0 10px 10px', background: '#161b22' }}>
                     {f2bAvailable
-                        ? 'Historique long terme · base interne conservée au-delà du dbpurge'
+                        ? t('fail2ban.ipModal.longTermFooter')
                         : t('logViewer.ipModal.footer')}
                 </div>
             </div>

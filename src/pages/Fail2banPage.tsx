@@ -1297,91 +1297,91 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
         if (ok === true)
             return (
                 <div style={{ color: C.green, fontSize: '.75rem' }}>
-                    ✓ Accessible — NET_ADMIN + network_mode: host OK
+                    {t('fail2ban.navTt.iptables.accessOk')}
                 </div>
             );
         if (ok === false)
             return (
                 <div style={{ color: C.orange, fontSize: '.75rem' }}>
-                    ⚠ Inaccessible — requiert NET_ADMIN + network_mode: host
+                    {t('fail2ban.navTt.iptables.accessNo')}
                 </div>
             );
-        return <div style={{ color: C.muted, fontSize: '.75rem' }}>…vérification en cours</div>;
+        return <div style={{ color: C.muted, fontSize: '.75rem' }}>{t('fail2ban.navTt.iptables.accessChecking')}</div>;
     };
     const navTt: Partial<Record<TabId, { title: string; bodyNode: React.ReactNode; color: F2bTtColor }>> = {
         jails: {
-            title: 'Jails fail2ban',
+            title: t('fail2ban.navTt.jails.title'),
             bodyNode: (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
                     {ttRow(
                         jails.length,
                         C.blue,
-                        `jail${jails.length > 1 ? 's' : ''} configurée${jails.length > 1 ? 's' : ''}`,
+                        t('fail2ban.navTt.jails.jailsLabel', { count: jails.length }),
                     )}
-                    {ttRow(activeJails, C.green, 'avec activité')}
-                    {ttRow(totalBanned, C.red, 'bans actifs (IPs uniques)')}
-                    {totalFailed > 0 && ttRow(totalFailed, C.orange, 'tentatives en cours')}
+                    {ttRow(activeJails, C.green, t('fail2ban.navTt.jails.active'))}
+                    {ttRow(totalBanned, C.red, t('fail2ban.navTt.jails.banned'))}
+                    {totalFailed > 0 && ttRow(totalFailed, C.orange, t('fail2ban.navTt.jails.failing'))}
                 </div>
             ),
             color: 'blue',
         },
         filtres: {
-            title: 'Filtres',
+            title: t('fail2ban.navTt.filtres.title'),
             bodyNode: (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
-                    <div style={{ color: C.muted }}>Règles de détection par jail</div>
-                    <div style={{ color: C.muted }}>failregex · ignoreregex · maxretry</div>
+                    <div style={{ color: C.muted }}>{t('fail2ban.navTt.filtres.desc')}</div>
+                    <div style={{ color: C.muted }}>{t('fail2ban.navTt.filtres.tech')}</div>
                 </div>
             ),
             color: 'green',
         },
         actions: {
-            title: 'Actions',
+            title: t('fail2ban.navTt.actions.title'),
             bodyNode: (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
-                    <div style={{ color: C.muted }}>Scripts ban / unban par jail</div>
-                    <div style={{ color: C.muted }}>iptables-multiport · sendmail…</div>
+                    <div style={{ color: C.muted }}>{t('fail2ban.navTt.actions.desc')}</div>
+                    <div style={{ color: C.muted }}>{t('fail2ban.navTt.actions.tech')}</div>
                 </div>
             ),
             color: 'orange',
         },
         tracker: {
-            title: 'Tracker IPs',
+            title: t('fail2ban.navTt.tracker.title'),
             bodyNode: (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
-                    {ttRow(trackerTotal ?? uniqueIpsTotal, C.orange, 'IPs uniques (historique f2b_events)')}
-                    {ttRow(totalBanned, C.red, 'actuellement actives')}
-                    <div style={{ color: C.muted, fontSize: '.75rem' }}>Inclut les bans expirés</div>
+                    {ttRow(trackerTotal ?? uniqueIpsTotal, C.orange, t('fail2ban.navTt.tracker.uniq'))}
+                    {ttRow(totalBanned, C.red, t('fail2ban.navTt.tracker.active'))}
+                    <div style={{ color: C.muted, fontSize: '.75rem' }}>{t('fail2ban.navTt.tracker.expired')}</div>
                 </div>
             ),
             color: 'orange',
         },
         carte: {
-            title: 'Carte mondiale',
+            title: t('fail2ban.navTt.carte.title'),
             bodyNode: (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
-                    <div style={{ color: C.muted }}>Distribution géographique des bans</div>
-                    <div style={{ color: C.muted }}>Géoloc. ipwho.is · cache 30 jours</div>
+                    <div style={{ color: C.muted }}>{t('fail2ban.navTt.carte.desc')}</div>
+                    <div style={{ color: C.muted }}>{t('fail2ban.navTt.carte.tech')}</div>
                 </div>
             ),
             color: 'cyan',
         },
         ban: {
-            title: 'Ban Manager',
+            title: t('fail2ban.navTt.ban.title'),
             bodyNode: (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
-                    <div style={{ color: C.muted }}>Bannir / débannir manuellement</div>
-                    <div style={{ color: C.muted }}>Par IP · par jail · ou global</div>
+                    <div style={{ color: C.muted }}>{t('fail2ban.navTt.ban.desc')}</div>
+                    <div style={{ color: C.muted }}>{t('fail2ban.navTt.ban.tech')}</div>
                 </div>
             ),
             color: 'red',
         },
         stats: {
-            title: 'Statistiques',
+            title: t('fail2ban.navTt.stats.title'),
             bodyNode: (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
-                    {ttRow(totalAllTime, C.blue, 'bans en base (f2b_events)')}
-                    <div style={{ color: C.muted }}>Top IPs · jails · heatmaps · historique</div>
+                    {ttRow(totalAllTime, C.blue, t('fail2ban.navTt.stats.total'))}
+                    <div style={{ color: C.muted }}>{t('fail2ban.navTt.stats.tech')}</div>
                     {npmMissing && (
                         <div
                             style={{
@@ -1390,7 +1390,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                                 marginTop: '.15rem',
                             }}
                         >
-                            ⚠ Chemin données NPM non configuré — Top Domaines inactif
+                            {t('fail2ban.navTt.stats.npmMissing')}
                         </div>
                     )}
                 </div>
@@ -1398,73 +1398,73 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
             color: npmMissing ? 'orange' : 'blue',
         },
         iptables: {
-            title: 'IPTables',
+            title: t('fail2ban.navTt.iptables.title'),
             bodyNode: (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
-                    <div style={{ color: C.muted }}>Règles netfilter du host</div>
+                    <div style={{ color: C.muted }}>{t('fail2ban.navTt.iptables.desc')}</div>
                     {fwAccessLine(fwOk.iptables)}
                 </div>
             ),
             color: 'cyan',
         },
         ipset: {
-            title: 'IPSet',
+            title: t('fail2ban.navTt.ipset.title'),
             bodyNode: (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
-                    <div style={{ color: C.muted }}>Sets d'IPs actifs (f2b-*, blacklist…)</div>
+                    <div style={{ color: C.muted }}>{t('fail2ban.navTt.ipset.desc')}</div>
                     {fwAccessLine(fwOk.ipset)}
                 </div>
             ),
             color: 'purple',
         },
         config: {
-            title: 'Configuration',
+            title: t('fail2ban.navTt.config.title'),
             bodyNode: (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
                     {configBadge > 0 ? (
                         <div style={{ color: C.orange, fontWeight: 600 }}>
-                            ⚠ {configBadge} avertissement{configBadge > 1 ? 's' : ''}
+                            {t('fail2ban.navTt.config.warning', { count: configBadge })}
                         </div>
                     ) : (
-                        <div style={{ color: C.muted }}>Paramètres fail2ban · DB · maintenance</div>
+                        <div style={{ color: C.muted }}>{t('fail2ban.navTt.config.params')}</div>
                     )}
                     {(dbFragPct ?? 0) > 0 && (
-                        <div style={{ color: C.muted, fontSize: '.75rem' }}>· Fragmentation base de données</div>
+                        <div style={{ color: C.muted, fontSize: '.75rem' }}>{t('fail2ban.navTt.config.frag')}</div>
                     )}
                     {npmMissing && (
-                        <div style={{ color: C.muted, fontSize: '.75rem' }}>· Chemin données NPM non configuré</div>
+                        <div style={{ color: C.muted, fontSize: '.75rem' }}>{t('fail2ban.navTt.config.npmMissing')}</div>
                     )}
-                    <div style={{ color: C.muted }}>Sync f2b_events toutes les 60s</div>
+                    <div style={{ color: C.muted }}>{t('fail2ban.navTt.config.sync')}</div>
                 </div>
             ),
             color: configBadge > 0 ? 'orange' : 'muted',
         },
         audit: {
-            title: 'Audit système',
+            title: t('fail2ban.navTt.audit.title'),
             bodyNode: (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
-                    <div style={{ color: C.muted }}>Socket · daemon · SQLite · drop-in</div>
-                    <div style={{ color: C.muted }}>Pare-feu : IPTables · IPSet · NFTables</div>
+                    <div style={{ color: C.muted }}>{t('fail2ban.navTt.audit.desc')}</div>
+                    <div style={{ color: C.muted }}>{t('fail2ban.navTt.audit.fw')}</div>
                 </div>
             ),
             color: 'muted',
         },
         backup: {
-            title: 'Backup',
+            title: t('fail2ban.navTt.backup.title'),
             bodyNode: (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
-                    <div style={{ color: C.muted }}>Export jails actifs et configs fail2ban</div>
-                    <div style={{ color: C.muted }}>fail2ban.conf · jail.conf · jail.local</div>
+                    <div style={{ color: C.muted }}>{t('fail2ban.navTt.backup.desc')}</div>
+                    <div style={{ color: C.muted }}>{t('fail2ban.navTt.backup.tech')}</div>
                 </div>
             ),
             color: 'blue',
         },
         blocklists: {
-            title: 'Blocklists IP',
+            title: t('fail2ban.navTt.blocklists.title'),
             bodyNode: (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
                     {blocklistsStatus.length === 0 ? (
-                        <div style={{ color: C.muted }}>Listes d'IPs bloquées (ipset + iptables)</div>
+                        <div style={{ color: C.muted }}>{t('fail2ban.navTt.blocklists.empty')}</div>
                     ) : (
                         blocklistsStatus.map((bl) => {
                             const fmtDate = bl.lastUpdate
@@ -1472,9 +1472,11 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                                       const diffMs = Date.now() - new Date(bl.lastUpdate).getTime();
                                       const h = Math.floor(diffMs / 3_600_000);
                                       const m = Math.floor((diffMs % 3_600_000) / 60_000);
-                                      return h > 0 ? `il y a ${h}h${m > 0 ? m + 'm' : ''}` : `il y a ${m}m`;
+                                      return h > 0
+                                          ? t('fail2ban.navTt.blocklists.agoHours', { h, m })
+                                          : t('fail2ban.navTt.blocklists.agoMinutes', { m });
                                   })()
-                                : 'Jamais';
+                                : t('fail2ban.navTt.blocklists.never');
                             return (
                                 <div
                                     key={bl.id}
@@ -1511,11 +1513,11 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
             color: 'red',
         },
         aide: {
-            title: 'Aide',
+            title: t('fail2ban.navTt.aide.title'),
             bodyNode: (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
-                    <div style={{ color: C.muted }}>Documentation · prérequis Docker</div>
-                    <div style={{ color: C.muted }}>Guide de configuration fail2ban</div>
+                    <div style={{ color: C.muted }}>{t('fail2ban.navTt.aide.desc')}</div>
+                    <div style={{ color: C.muted }}>{t('fail2ban.navTt.aide.tech')}</div>
                 </div>
             ),
             color: 'muted',
@@ -1579,7 +1581,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                     )}
                     <button
                         onClick={() => setCollapsed((c) => !c)}
-                        title={collapsed ? 'Développer' : 'Réduire'}
+                        title={collapsed ? t('fail2ban.views.expand') : t('fail2ban.views.collapse')}
                         style={{
                             marginLeft: 'auto',
                             flexShrink: 0,
@@ -1705,7 +1707,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                                                 badge > 0 &&
                                                 (id === 'tracker' ? (
                                                     <span
-                                                        title={`${trackerActive ?? totalBanned} bannis actifs (BDD) · ${trackerTotal ?? uniqueIpsTotal} total historique`}
+                                                        title={t('fail2ban.views.trackerBadge', { active: trackerActive ?? totalBanned, total: trackerTotal ?? uniqueIpsTotal })}
                                                         style={{
                                                             display: 'inline-flex',
                                                             alignItems: 'baseline',

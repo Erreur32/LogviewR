@@ -2,19 +2,21 @@ import React, { useState, useRef, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
+import { getAppLanguage } from '../../i18n';
 
 // ── Formatters ────────────────────────────────────────────────────────────────
 
 export const fmtTs = (ts: number) =>
-    new Date(ts * 1000).toLocaleString('fr-FR', {
+    new Date(ts * 1000).toLocaleString(getAppLanguage(), {
         day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
     });
 
-export const fmtSecs = (s: number): string => {
-    if (s < 0) return 'permanent';
-    if (s >= 86400) return `${Math.floor(s / 86400)}j`;
-    if (s >= 3600)  return `${Math.floor(s / 3600)}h`;
-    return `${Math.floor(s / 60)}m`;
+export const fmtSecs = (s: number, t: TFunction): string => {
+    if (s < 0) return t('fail2ban.helpers.permanent');
+    if (s >= 86400) return t('fail2ban.helpers.days', { n: Math.floor(s / 86400) });
+    if (s >= 3600)  return t('fail2ban.helpers.hours', { n: Math.floor(s / 3600) });
+    return t('fail2ban.helpers.minutes', { n: Math.floor(s / 60) });
 };
 
 // ── Shared card styles (PHP-style dark theme) ────────────────────────────────
@@ -31,15 +33,20 @@ export const cardB: React.CSSProperties = { padding: '1rem' };
 // ── Period selector config ────────────────────────────────────────────────────
 
 export const PERIODS = [
-    { label: '24h',  labelKey: 'fail2ban.periods.last24h',  days: 1,   title: 'Bans des dernières 24h',             titleKey: 'fail2ban.periods.bans24h' },
-    { label: '7j',   labelKey: 'fail2ban.periods.last7d',   days: 7,   title: 'Bans des 7 derniers jours',           titleKey: 'fail2ban.periods.bans7d' },
-    { label: '30j',  labelKey: 'fail2ban.periods.last30d',  days: 30,  title: 'Bans des 30 derniers jours',          titleKey: 'fail2ban.periods.last30d' },
-    { label: '6m',   labelKey: 'fail2ban.periods.last6m',   days: 180, title: 'Bans des 6 derniers mois',            titleKey: 'fail2ban.periods.last6m' },
-    { label: '1an',  labelKey: 'fail2ban.periods.last1y',   days: 365, title: "Bans de l'année passée",              titleKey: 'fail2ban.periods.last1y' },
-    { label: 'Tous', labelKey: 'fail2ban.periods.allShort', days: -1,  title: 'Toutes les données disponibles (SQLite)', titleKey: 'fail2ban.periods.all' },
+    { labelKey: 'fail2ban.periods.last24h',  days: 1,   titleKey: 'fail2ban.periods.bans24h' },
+    { labelKey: 'fail2ban.periods.last7d',   days: 7,   titleKey: 'fail2ban.periods.bans7d' },
+    { labelKey: 'fail2ban.periods.last30d',  days: 30,  titleKey: 'fail2ban.periods.last30d' },
+    { labelKey: 'fail2ban.periods.last6m',   days: 180, titleKey: 'fail2ban.periods.last6m' },
+    { labelKey: 'fail2ban.periods.last1y',   days: 365, titleKey: 'fail2ban.periods.last1y' },
+    { labelKey: 'fail2ban.periods.allShort', days: -1,  titleKey: 'fail2ban.periods.all' },
 ] as const;
 
 export type PeriodDays = (typeof PERIODS)[number]['days'];
+
+export const fmtPeriodLabel = (days: number, t: TFunction): string => {
+    const p = PERIODS.find(x => x.days === days);
+    return p ? t(p.labelKey) : t('fail2ban.periods.daysShort', { n: days });
+};
 
 // ── Badge component (replicates PHP jbadge classes) ──────────────────────────
 

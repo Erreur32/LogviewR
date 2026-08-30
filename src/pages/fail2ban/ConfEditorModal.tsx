@@ -4,6 +4,7 @@
  */
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { X, Edit3, Save, FlaskConical, CheckCircle, XCircle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { api } from '../../api/client';
 
 // ── Syntax highlighter ────────────────────────────────────────────────────────
@@ -94,6 +95,7 @@ interface TestResult {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export const ConfEditorModal: React.FC<{ target: ConfEditorTarget; onClose: () => void }> = ({ target, onClose }) => {
+    const { t } = useTranslation();
     const fileName = `${target.name}.conf`;
     const baseUrl  = target.type === 'filter'
         ? `/api/plugins/fail2ban/filters/${encodeURIComponent(fileName)}`
@@ -115,7 +117,7 @@ export const ConfEditorModal: React.FC<{ target: ConfEditorTarget; onClose: () =
         setLoading(true);
         api.get<{ ok: boolean; content: string }>(baseUrl)
             .then(res => {
-                const c = res.success && res.result?.ok ? (res.result.content ?? '') : '# Fichier non trouvé';
+                const c = res.success && res.result?.ok ? (res.result.content ?? '') : t('fail2ban.confEditor.fileNotFound');
                 setContent(c); setDraft(c);
             })
             .finally(() => setLoading(false));
@@ -133,9 +135,9 @@ export const ConfEditorModal: React.FC<{ target: ConfEditorTarget; onClose: () =
         setSaving(true); setSaveMsg(null);
         const res = await api.post<{ ok: boolean; error?: string }>(`${baseUrl}/save`, { content: draft, jails: target.jails ?? [] });
         if (res.success && res.result?.ok) {
-            setContent(draft); setSaveMsg({ ok: true, text: 'Sauvegardé.' }); setEditMode(false);
+            setContent(draft); setSaveMsg({ ok: true, text: t('common.savedSuccessfully') }); setEditMode(false);
         } else {
-            setSaveMsg({ ok: false, text: res.result?.error ?? 'Erreur inconnue' });
+            setSaveMsg({ ok: false, text: res.result?.error ?? t('fail2ban.errors.unknown') });
         }
         setSaving(false);
     }, [baseUrl, draft, target.jails]);
@@ -173,12 +175,12 @@ export const ConfEditorModal: React.FC<{ target: ConfEditorTarget; onClose: () =
                                 {target.type === 'filter' && (
                                     <button onClick={() => setTesterOpen(t => !t)}
                                         style={{ ...btnBase, borderColor: testerOpen ? 'rgba(57,197,207,.4)' : '#30363d', background: testerOpen ? 'rgba(57,197,207,.1)' : 'transparent', color: testerOpen ? '#39c5cf' : '#8b949e' }}>
-                                        <FlaskConical style={{ width: 12, height: 12 }} /> Tester
+                                        <FlaskConical style={{ width: 12, height: 12 }} /> {t('common.test')}
                                     </button>
                                 )}
                                 <button onClick={() => switchEdit(true)}
                                     style={{ ...btnBase, borderColor: 'rgba(88,166,255,.35)', background: 'rgba(88,166,255,.1)', color: '#58a6ff' }}>
-                                    <Edit3 style={{ width: 12, height: 12 }} /> Modifier
+                                    <Edit3 style={{ width: 12, height: 12 }} /> {t('common.edit')}
                                 </button>
                             </>
                         )}
@@ -186,11 +188,11 @@ export const ConfEditorModal: React.FC<{ target: ConfEditorTarget; onClose: () =
                             <>
                                 <button onClick={handleSave} disabled={saving}
                                     style={{ ...btnBase, borderColor: 'rgba(63,185,80,.4)', background: 'rgba(63,185,80,.12)', color: '#3fb950', opacity: saving ? .6 : 1 }}>
-                                    <Save style={{ width: 12, height: 12 }} /> {saving ? 'Enregistrement…' : 'Sauvegarder'}
+                                    <Save style={{ width: 12, height: 12 }} /> {saving ? t('common.saving') : t('common.save')}
                                 </button>
                                 <button onClick={() => switchEdit(false)}
                                     style={{ ...btnBase, borderColor: '#30363d', background: 'transparent', color: '#8b949e' }}>
-                                    Annuler
+                                    {t('common.cancel')}
                                 </button>
                             </>
                         )}
@@ -210,7 +212,7 @@ export const ConfEditorModal: React.FC<{ target: ConfEditorTarget; onClose: () =
                 {/* Content */}
                 <div style={{ flex: 1, overflowY: 'auto', padding: '1rem' }}>
                     {loading ? (
-                        <div style={{ color: '#8b949e', fontSize: '.85rem' }}>Chargement…</div>
+                        <div style={{ color: '#8b949e', fontSize: '.85rem' }}>{t('common.loading')}</div>
                     ) : editMode ? (
                         <textarea ref={taRef} value={draft} onChange={e => setDraft(e.target.value)} spellCheck={false}
                             style={{ width: '100%', minHeight: 360, padding: '.75rem', fontFamily: 'monospace', fontSize: '.78rem', lineHeight: 1.6, background: '#0d1117', border: '1px solid #30363d', borderRadius: 6, color: '#e6edf3', outline: 'none', resize: 'vertical', boxSizing: 'border-box' }} />
@@ -225,25 +227,25 @@ export const ConfEditorModal: React.FC<{ target: ConfEditorTarget; onClose: () =
                 {testerOpen && target.type === 'filter' && !editMode && (
                     <div style={{ borderTop: '1px solid #30363d', padding: '1rem', flexShrink: 0, maxHeight: 340, overflowY: 'auto' }}>
                         <div style={{ fontSize: '.8rem', fontWeight: 600, color: '#39c5cf', marginBottom: '.5rem', display: 'flex', alignItems: 'center', gap: '.4rem' }}>
-                            <FlaskConical style={{ width: 13, height: 13 }} /> Tester les failregex
+                            <FlaskConical style={{ width: 13, height: 13 }} /> {t('fail2ban.confEditor.testTitle')}
                         </div>
                         <textarea value={logLines} onChange={e => setLogLines(e.target.value)}
-                            placeholder="Collez des lignes de log ici (une par ligne)…" spellCheck={false}
+                            placeholder={t('fail2ban.confEditor.logPlaceholder')} spellCheck={false}
                             style={{ width: '100%', height: 80, padding: '.5rem .65rem', fontFamily: 'monospace', fontSize: '.75rem', background: '#0d1117', border: '1px solid #30363d', borderRadius: 5, color: '#e6edf3', outline: 'none', resize: 'vertical', boxSizing: 'border-box', marginBottom: '.5rem' }} />
                         <button onClick={handleTest} disabled={testing || !logLines.trim()}
                             style={{ ...btnBase, borderColor: 'rgba(57,197,207,.4)', background: 'rgba(57,197,207,.1)', color: '#39c5cf', opacity: (!logLines.trim() || testing) ? .5 : 1 }}>
-                            <FlaskConical style={{ width: 12, height: 12 }} /> {testing ? 'Test en cours…' : 'Tester'}
+                            <FlaskConical style={{ width: 12, height: 12 }} /> {testing ? t('fail2ban.confEditor.testing') : t('common.test')}
                         </button>
                         {testResult && (
                             <div style={{ marginTop: '.65rem' }}>
                                 <div style={{ fontSize: '.76rem', marginBottom: '.4rem' }}>
                                     <span style={{ color: testResult.match_count > 0 ? '#3fb950' : '#8b949e', fontWeight: 700 }}>
-                                        {testResult.match_count}/{testResult.total} lignes matchées
+                                        {t('fail2ban.confEditor.linesMatched', { matched: testResult.match_count, total: testResult.total })}
                                     </span>
                                 </div>
                                 {testResult.matched.length > 0 && (
                                     <div style={{ marginBottom: '.5rem' }}>
-                                        <div style={{ fontSize: '.66rem', fontWeight: 700, color: '#3fb950', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: '.2rem' }}>Matchées ({testResult.matched.length})</div>
+                                        <div style={{ fontSize: '.66rem', fontWeight: 700, color: '#3fb950', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: '.2rem' }}>{t('fail2ban.confEditor.matchedTitle', { n: testResult.matched.length })}</div>
                                         <div style={{ background: '#0d1117', border: '1px solid rgba(63,185,80,.25)', borderRadius: 5 }}>
                                             {testResult.matched.map((m, i) => (
                                                 <div key={i} style={{ padding: '.25rem .6rem', borderBottom: i < testResult.matched.length - 1 ? '1px solid #30363d' : undefined, fontSize: '.74rem', fontFamily: 'monospace', display: 'flex', gap: '.75rem', alignItems: 'center' }}>
@@ -256,14 +258,14 @@ export const ConfEditorModal: React.FC<{ target: ConfEditorTarget; onClose: () =
                                 )}
                                 {testResult.missed.length > 0 && (
                                     <div>
-                                        <div style={{ fontSize: '.66rem', fontWeight: 700, color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: '.2rem' }}>Non matchées ({testResult.missed.length})</div>
+                                        <div style={{ fontSize: '.66rem', fontWeight: 700, color: '#8b949e', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: '.2rem' }}>{t('fail2ban.confEditor.missedTitle', { n: testResult.missed.length })}</div>
                                         <div style={{ background: '#0d1117', border: '1px solid #30363d', borderRadius: 5 }}>
                                             {testResult.missed.slice(0, 10).map((line, i) => (
                                                 <div key={i} style={{ padding: '.25rem .6rem', borderBottom: i < Math.min(testResult!.missed.length, 10) - 1 ? '1px solid #30363d' : undefined, fontSize: '.74rem', fontFamily: 'monospace', color: '#8b949e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                     {line}
                                                 </div>
                                             ))}
-                                            {testResult.missed.length > 10 && <div style={{ padding: '.25rem .6rem', fontSize: '.7rem', color: '#8b949e' }}>+{testResult.missed.length - 10} de plus…</div>}
+                                            {testResult.missed.length > 10 && <div style={{ padding: '.25rem .6rem', fontSize: '.7rem', color: '#8b949e' }}>{t('fail2ban.confEditor.more', { n: testResult.missed.length - 10 })}</div>}
                                         </div>
                                     </div>
                                 )}
