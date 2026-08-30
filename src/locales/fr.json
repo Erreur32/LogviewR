@@ -1884,7 +1884,12 @@
       "chartBar": "Barres",
       "chartBarDesc": "Colonnes verticales empilées par jail — idéal pour comparer les volumes",
       "activeFailures": "Échecs actifs",
-      "activeFailuresDesc": "Tentatives échouées en cours dans la fenêtre findtime — pas encore bannies. Seuil maxretry pas atteint."
+      "activeFailuresDesc": "Tentatives échouées en cours dans la fenêtre findtime — pas encore bannies. Seuil maxretry pas atteint.",
+      "tooltips": {
+        "dailyBans": "Bans du jour",
+        "activeJails": "Jails actifs",
+        "bannedIps": "IPs bannies (BDD)"
+      }
     }
   }
 }

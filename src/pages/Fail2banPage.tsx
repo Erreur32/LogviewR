@@ -1913,10 +1913,10 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                                 </F2bTooltip>
                                 {/* 2. Bans du jour */}
                                 {bansToday !== null && (
-                                    <F2bTooltip
-                                        title="Bans du jour"
-                                        bodyNode={
-                                            <div style={{ fontSize: '.78rem', lineHeight: 1.6 }}>
+                                 <F2bTooltip
+                                 title={t('fail2ban.stats.tooltips.dailyBans')}
+                                 bodyNode={
+                                 <div style={{ fontSize: '.78rem', lineHeight: 1.6 }}>
                                                 <div>
                                                     <span style={{ color: '#e86a65', fontWeight: 700 }}>
                                                         {bansToday.count}
@@ -2038,8 +2038,8 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                                 )}
                                 {/* 4. Jails actifs — tooltip liste les jails avec activité */}
                                 <F2bTooltip
-                                    title="Jails actifs"
-                                    bodyNode={
+                                 title={t('fail2ban.stats.tooltips.activeJails')}
+                                 bodyNode={
                                         <div>
                                             <div
                                                 style={{
@@ -2128,8 +2128,8 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                                     const bddTotal = trackerTotal ?? uniqueIpsTotal;
                                     return (
                                         <F2bTooltip
-                                            title="IPs bannies (BDD)"
-                                            bodyNode={statTtBody(
+                                         title={t('fail2ban.stats.tooltips.bannedIps')}
+                                         bodyNode={statTtBody(
                                                 bddTotal,
                                                 'IPs',
                                                 '#e86a65',
