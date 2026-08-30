@@ -3006,6 +3006,18 @@
       "showInChart": "Afficher dans le graphique",
       "hideFromChart": "Masquer du graphique",
       "noBans": "Aucun ban enregistré sur la période"
+    },
+    "history": {
+      "title": "Historique des bans",
+      "stable": "stable",
+      "banUnit": "ban",
+      "banCount_one": "{{count}} ban sur la période",
+      "banCount_other": "{{count}} bans sur la période",
+      "clickShow": "Cliquer pour afficher",
+      "clickHide": "Cliquer pour masquer",
+      "showInChart": "Afficher dans le graphique",
+      "hideFromChart": "Masquer du graphique",
+      "noBans": "Aucun ban enregistré sur la période"
     }
   }
 }
