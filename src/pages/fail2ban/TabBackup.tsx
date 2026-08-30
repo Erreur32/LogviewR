@@ -677,7 +677,7 @@ const DbImportPanel: React.FC = () => {
         if (!dbFile) return;
         const totalRows = Object.values(dbFile.counts).reduce((a, b) => a + b, 0);
         const modeLabel = dbImportMode === 'replace' ? t('fail2ban.backup.replace') : t('fail2ban.backup.merge');
-        if (!window.confirm(`${dbImportMode === 'replace' ? '⚠ ' : ''}${t('fail2ban.backup.importRowsConfirm', { count: totalRows.toLocaleString(), filename: dbFileName ?? '', mode: modeLabel })}`)) return;
+        if (!window.confirm(`${dbImportMode === 'replace' ? '⚠ ' : ''}${t('fail2ban.backup.importRowsConfirm', { count: totalRows, filename: dbFileName ?? '', mode: modeLabel } as any)}`)) return;
         setDbImporting(true); setDbImportErr(null); setDbImportResult(null);
         try {
             const res = await api.post<DbImportResult>('/api/plugins/fail2ban/db-import', { data: dbFile, mode: dbImportMode });
