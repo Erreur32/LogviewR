@@ -5,6 +5,14 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.5] - 2026-08-30
+
+### For developers
+
+- Extracted duplicated module-level cache pattern (`_cache`, `getCached`, `setCached`) from 6 fail2ban tab components into `src/pages/fail2ban/cacheUtils.ts`. Affected files: `TabFiltres`, `TabActions`, `TabFileList`, `TabBanManager`, `TabIPSet`. `TabJails`, `TabStats`, and `TabTracker` retain custom TTL logic and are excluded.
+- Added `deleteCached()` utility to `cacheUtils.ts` for cache invalidation.
+- Fixed TypeScript errors: added missing `useTranslation()` in `TabFiltres`, fixed `count` prop cast in `TabStats` and `TabBackup`.
+
 ## [0.10.4] - 2026-08-30
 
 ### For users

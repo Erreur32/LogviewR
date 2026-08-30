@@ -3,17 +3,10 @@ import { useTranslation } from 'react-i18next';
 import { Download, FileText, Pencil, X, Save, CheckCircle, AlertTriangle, Plus, Zap } from 'lucide-react';
 import { api } from '../../api/client';
 import { card, cardH } from './helpers';
+import { getCached, setCached, deleteCached } from './cacheUtils';
 import { NewFilterModal } from './NewFilterModal';
 import { NewJailModal } from './NewJailModal';
 import type { JailStatus } from './types';
-
-const _cache: Record<string, { data: unknown; ts: number }> = {};
-const CACHE_TTL = 60_000;
-function getCached<T>(key: string): T | null {
-    const e = _cache[key];
-    return (e && Date.now() - e.ts < CACHE_TTL) ? e.data as T : null;
-}
-function setCached(key: string, data: unknown) { _cache[key] = { data, ts: Date.now() }; }
 
 interface TabFiltresProps {
     jails: JailStatus[];
@@ -240,7 +233,7 @@ export const TabFiltres: React.FC<TabFiltresProps> = ({ jails, onJailCreated }) 
     if (error)   return <div style={{ padding: '2rem', color: '#e86a65', fontSize: '.85rem' }}>{error}</div>;
 
     const refreshList = () => {
-        delete _cache['filters:list'];
+        deleteCached('filters:list');
         loadFilters();
     };
 

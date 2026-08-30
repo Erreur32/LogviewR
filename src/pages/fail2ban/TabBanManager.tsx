@@ -3,13 +3,10 @@ import { useTranslation } from 'react-i18next';
 import { Ban, Unlock, Database, Shield, ListChecks, AlertTriangle, CheckCircle, FolderOpen, ChevronDown, Network } from 'lucide-react';
 import { api } from '../../api/client';
 import { card, cardH, cardB } from './helpers';
+import { getCached, setCached } from './cacheUtils';
 import type { JailStatus } from './types';
 
 // ── Module-level cache ────────────────────────────────────────────────────────
-const _cache: Record<string, { data: unknown; ts: number }> = {};
-const CACHE_TTL = 60_000;
-function getCached<T>(key: string): T | null { const e = _cache[key]; return (e && Date.now() - e.ts < CACHE_TTL) ? e.data as T : null; }
-function setCached(key: string, data: unknown) { _cache[key] = { data, ts: Date.now() }; }
 
 interface TabBanManagerProps {
     jails: JailStatus[];

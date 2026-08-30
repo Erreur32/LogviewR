@@ -8,14 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { Database, AlertTriangle, Trash2, Plus, Search, CheckCircle } from 'lucide-react';
 import { api } from '../../api/client';
 import { card, cardH, cardB, F2bTooltip } from './helpers';
-
-const _cache: Record<string, { data: unknown; ts: number }> = {};
-const CACHE_TTL = 60_000;
-function getCached<T>(key: string): T | null {
-    const e = _cache[key];
-    return (e && Date.now() - e.ts < CACHE_TTL) ? e.data as T : null;
-}
-function setCached(key: string, data: unknown) { _cache[key] = { data, ts: Date.now() }; }
+import { getCached, setCached, deleteCached } from './cacheUtils';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -438,7 +431,7 @@ export const TabIPSet: React.FC<{ onIpClick?: (ip: string) => void }> = ({ onIpC
             await api.delete<{ ok: boolean; error?: string }>(`/api/plugins/fail2ban/ipset/destroy/${encodeURIComponent(name)}`);
         } catch { /* ignore */ }
         // Invalidate cache so fetchSets fetches fresh data
-        delete _cache['ipset:sets'];
+        deleteCached('ipset:sets');
         setSelected(prev => prev === name ? null : prev);
         fetchSets();
     };
@@ -473,7 +466,7 @@ export const TabIPSet: React.FC<{ onIpClick?: (ip: string) => void }> = ({ onIpC
 
     // Invalidate cache when a blocklist is enabled/refreshed from the Blocklists tab
     useEffect(() => {
-        const handler = () => { delete _cache['ipset:sets']; fetchSets(); };
+        const handler = () => {         deleteCached('ipset:sets'); fetchSets(); };
         window.addEventListener('ipset:invalidate', handler);
         return () => window.removeEventListener('ipset:invalidate', handler);
     }, [fetchSets]);
