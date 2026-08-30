@@ -4616,7 +4616,7 @@ const StatsSummaryBanner: React.FC<{
 
                 {/* Total protection combinée */}
                 <span style={{ fontSize: '.72rem', color: C.muted }}>
-                    Total bloqué :{' '}
+                    {t('fail2ban.stats.totalBlocked')} :{' '}
                     <span style={{ color: C.text, fontWeight: 700 }}>
                         {statusHydrated ? totalProtection.toLocaleString('fr-FR') : '…'}
                     </span>{' '}
@@ -4628,7 +4628,7 @@ const StatsSummaryBanner: React.FC<{
                 {/* Jails actifs + all-time */}
                 <span style={{ fontSize: '.72rem', color: C.muted }}>
                     <span style={{ color: C.blue, fontWeight: 600 }}>{statusHydrated ? activeJails : '…'}</span>
-                    {` jail${activeJails !== 1 ? 's' : ''}`}
+                    {t('fail2ban.stats.jailsActive', { count: activeJails })}
                 </span>
 
                 {totalAllTime > 0 && (
@@ -4638,7 +4638,7 @@ const StatsSummaryBanner: React.FC<{
                             <span style={{ color: C.purple, fontWeight: 600 }}>
                                 {totalAllTime.toLocaleString('fr-FR')}
                             </span>
-                            {' bans cumulés (BDD)'}
+                            {' '}{t('fail2ban.stats.bansCumulDB')}
                         </span>
                     </>
                 )}
@@ -4665,7 +4665,7 @@ const StatsSummaryBanner: React.FC<{
                             flexShrink: 0,
                         }}
                     >
-                        Sur {periodLabel} :
+                        {t('fail2ban.stats.onPeriod', { period: periodLabel })} :
                     </span>
 
                     {/* Bans */}
@@ -4673,7 +4673,7 @@ const StatsSummaryBanner: React.FC<{
                         <span style={{ color: C.orange, fontWeight: 700 }}>
                             {summary.totalBans.toLocaleString('fr-FR')}
                         </span>
-                        {' bans'}
+                        {' '}{t('fail2ban.stats.bans')}
                         {prevSummary && <TrendBadge curr={summary.totalBans} prev={prevSummary.totalBans} t={t} />}
                     </span>
                     {sep}
@@ -4682,7 +4682,7 @@ const StatsSummaryBanner: React.FC<{
                         <span style={{ color: C.blue, fontWeight: 700 }}>
                             {summary.uniqueIps.toLocaleString('fr-FR')}
                         </span>
-                        {' IPs uniques'}
+                         {' '}{t('fail2ban.stats.uniqueIps')}
                         {prevSummary && <TrendBadge curr={summary.uniqueIps} prev={prevSummary.uniqueIps} t={t} />}
                     </span>
                     {sep}
@@ -4691,7 +4691,7 @@ const StatsSummaryBanner: React.FC<{
                         <span style={{ color: C.orange, fontWeight: 600 }}>
                             {summary.totalFailures.toLocaleString('fr-FR')}
                         </span>
-                        {' tentatives'}
+                         {' '}{t('fail2ban.stats.attempts')}
                         {prevSummary && <TrendBadge curr={summary.totalFailures} prev={prevSummary.totalFailures} t={t} />}
                     </span>
                     {/* Top jail période */}
@@ -4699,7 +4699,7 @@ const StatsSummaryBanner: React.FC<{
                         <>
                             {sep}
                             <span style={{ fontSize: '.68rem', color: C.muted }}>
-                                Top jail :{' '}
+                                {t('fail2ban.stats.topJail')}{' '}
                                 <span
                                     style={{
                                         fontFamily: 'monospace',
@@ -4709,7 +4709,7 @@ const StatsSummaryBanner: React.FC<{
                                 >
                                     {topJail.jail}
                                 </span>
-                                <span style={{ color: C.muted }}> ({topJail.count.toLocaleString('fr-FR')} bans)</span>
+                                <span style={{ color: C.muted }}> ({topJail.count.toLocaleString('fr-FR')} {t('fail2ban.stats.bans')})</span>
                             </span>
                         </>
                     )}
@@ -4719,7 +4719,7 @@ const StatsSummaryBanner: React.FC<{
                             {sep}
                             <span style={{ fontSize: '.68rem', color: C.muted }}>
                                 <span style={{ color: C.muted }}>
-                                    {summary.expiredInPeriod.toLocaleString('fr-FR')} bans expirés
+                                    {summary.expiredInPeriod.toLocaleString('fr-FR')} {t('fail2ban.stats.bansExpired')}
                                 </span>
                             </span>
                         </>
@@ -4734,7 +4734,7 @@ const StatsSummaryBanner: React.FC<{
                                 fontStyle: 'italic',
                             }}
                         >
-                            vs période préc.
+                            {t('fail2ban.stats.vsPrevPeriod')}
                         </span>
                     )}
                 </div>
@@ -4753,7 +4753,7 @@ const StatsSummaryBanner: React.FC<{
                 >
                     {jailsWithBans.length > 0 && (
                         <>
-                            <span style={{ fontSize: '.65rem', color: C.muted, flexShrink: 0 }}>Bans actifs :</span>
+                            <span style={{ fontSize: '.65rem', color: C.muted, flexShrink: 0 }}>{t('fail2ban.stats.activeBans')}</span>
                             {jailsWithBans.slice(0, 6).map((j) => (
                                 <span
                                     key={j.jail}
@@ -4782,7 +4782,7 @@ const StatsSummaryBanner: React.FC<{
                             ))}
                             {jailsWithBans.length > 6 && (
                                 <span style={{ fontSize: '.62rem', color: C.muted }}>
-                                    +{jailsWithBans.length - 6} autres
+                                    {t('fail2ban.stats.moreOther', { count: jailsWithBans.length - 6 })}
                                 </span>
                             )}
                         </>
@@ -4791,7 +4791,7 @@ const StatsSummaryBanner: React.FC<{
                     {topDomain && !topsLoading && (
                         <>
                             {jailsWithBans.length > 0 && sep}
-                            <span style={{ fontSize: '.65rem', color: C.muted }}>Top domaine :</span>
+                            <span style={{ fontSize: '.65rem', color: C.muted }}>{t('fail2ban.stats.topDomain')}</span>
                             <span
                                 style={{
                                     display: 'inline-flex',
@@ -4853,9 +4853,9 @@ const StatsSummaryBanner: React.FC<{
                                         }}
                                     >
                                         <strong style={{ color: C.orange }}>
-                                            +{failuresDelta.toLocaleString('fr-FR')} tentatives
+                                            {t('fail2ban.stats.attemptsRisingValue', { delta: failuresDelta.toLocaleString('fr-FR') })}
                                         </strong>{' '}
-                                        de plus que la période précédente.
+                                        {t('fail2ban.stats.attemptsRisingMore')}
                                     </div>
                                     <div
                                         style={{
@@ -4864,9 +4864,9 @@ const StatsSummaryBanner: React.FC<{
                                             lineHeight: 1.5,
                                         }}
                                     >
-                                        Une hausse des tentatives sans ban correspondant peut indiquer des attaques sur
-                                        des services non couverts par fail2ban, ou un{' '}
-                                        <code style={{ color: '#e3b341' }}>maxretry</code> trop élevé.
+                                        {t('fail2ban.stats.attemptsRisingExplain')}{' '}
+                                        <code style={{ color: '#e3b341' }}>maxretry</code>{' '}
+                                        {t('fail2ban.stats.maxretryTooHigh')}
                                     </div>
                                 </div>
                             }
@@ -4899,12 +4899,12 @@ const StatsSummaryBanner: React.FC<{
                     {(jailsUnderPressure.length > 0 || failingIps.length > 0) && (
                         <>
                             {failuresTrendUp && sep}
-                            <span style={{ fontSize: '.65rem', color: C.muted, flexShrink: 0 }}>En cours :</span>
+                            <span style={{ fontSize: '.65rem', color: C.muted, flexShrink: 0 }}>{t('fail2ban.stats.inProgress')}</span>
                             {jailsUnderPressure.map((j) => (
                                 <F2bTooltip
                                     key={j.jail}
                                     title={j.jail}
-                                    body={`${j.currentlyFailed} tentative${j.currentlyFailed > 1 ? 's' : ''} en cours${j.maxretry ? ` (maxretry: ${j.maxretry})` : ''}${j.maxretry && j.currentlyFailed >= j.maxretry - 1 ? '\n⚠ Ban imminent' : ''}`}
+                                    bodyNode={<span>{t('fail2ban.stats.attempt', { count: j.currentlyFailed })}{j.maxretry ? ` (maxretry: ${j.maxretry})` : ''}{j.maxretry && j.currentlyFailed >= j.maxretry - 1 ? `\n⚠ ${t('fail2ban.stats.banImminent')}` : ''}</span>}
                                     color="orange"
                                 >
                                     <span
@@ -4925,7 +4925,7 @@ const StatsSummaryBanner: React.FC<{
                                         <AlertTriangle style={{ width: 8, height: 8 }} />
                                         {j.jail}
                                         <span style={{ color: C.text, fontWeight: 700 }}>{j.currentlyFailed}</span>
-                                        <span style={{ color: C.muted, fontSize: '.6rem' }}>tentatives</span>
+                                        <span style={{ color: C.muted, fontSize: '.6rem' }}>{t('fail2ban.stats.tentativesShort')}</span>
                                         {j.maxretry && j.currentlyFailed >= j.maxretry - 1 && (
                                             <span
                                                 style={{
@@ -4934,7 +4934,7 @@ const StatsSummaryBanner: React.FC<{
                                                     fontWeight: 700,
                                                 }}
                                             >
-                                                → ban imminent
+                                                → {t('fail2ban.stats.banImminent')}
                                             </span>
                                         )}
                                     </span>

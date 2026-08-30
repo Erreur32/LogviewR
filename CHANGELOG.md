@@ -5,6 +5,19 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.7] - 2026-08-30
+
+### For users
+
+- Added plugin icons (Apache, Nginx, Fail2ban) to Fail2ban page header, matching the home page header. Icons are visible when the corresponding plugin is enabled.
+
+### For developers
+
+- `Header.tsx`: extended active plugin icons row to also display on `fail2ban` page type (was only on `dashboard` and `log-analytics`).
+- `Fail2banPage.tsx`: replaced all hardcoded French strings in the mini stat card tooltips and labels (Jails actifs, Échecs actifs, Tot. échecs, IPs uniques, Expirés, IPs bannies) with `t()` calls. Added 37 new translation keys.
+- `TabStats.tsx` (`StatsSummaryBanner`): replaced hardcoded French strings (`Total bloqué`, `jail(s) actifs`, `bans cumulés BDD`, `Sur {period}`, `bans`, `IPs uniques`, `tentatives`, `Top jail`, `bans expirés`, `vs période préc.`) with `t()` calls.
+- Added ~74 new `fail2ban.stats.*` translation keys to both `fr.json` and `en.json` covering stats strip labels, tooltip descriptions, and meta text.
+
 ## [0.10.6] - 2026-08-30
 
 ### For developers

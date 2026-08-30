@@ -371,7 +371,7 @@ export const Header: React.FC<HeaderProps> = ({
   // Get active plugins for dashboard and log-analytics pages
   const { plugins } = usePluginStore();
   const activePlugins = useMemo(() => {
-    if (pageType !== 'dashboard' && pageType !== 'log-analytics') {
+    if (pageType !== 'dashboard' && pageType !== 'log-analytics' && pageType !== 'fail2ban') {
       return [];
     }
     return plugins.filter(p => p.enabled && (p.id === 'host-system' || p.id === 'nginx' || p.id === 'apache' || p.id === 'npm' || p.id === 'fail2ban'));
@@ -456,8 +456,8 @@ export const Header: React.FC<HeaderProps> = ({
         )}
       </div>
 
-      {/* Active Plugins Icons - Only for Dashboard and Log Analytics pages */}
-      {(pageType === 'dashboard' || pageType === 'log-analytics') && activePlugins.length > 0 && (
+      {/* Active Plugins Icons - Only for Dashboard, Log Analytics and Fail2ban pages */}
+      {(pageType === 'dashboard' || pageType === 'log-analytics' || pageType === 'fail2ban') && activePlugins.length > 0 && (
         <div className="flex items-center gap-3">
           {activePlugins
             .sort((a, b) => {

@@ -802,7 +802,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
 
     const MINI_CARD_TT = [
         {
-            ttTitle: 'Jails actifs',
+            ttTitle: t('fail2ban.stats.jailsActiveLabel'),
             ttBodyNode: (() => {
                 const topBanned = [...jails]
                     .filter((j) => j.currentlyBanned > 0)
@@ -818,10 +818,10 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                                 lineHeight: 1.1,
                             }}
                         >
-                            {jails.length} jail{jails.length !== 1 ? 's' : ''}
+                            {jails.length} {jails.length === 1 ? t('fail2ban.stats.jail_one') : t('fail2ban.stats.jail_other')}
                         </div>
                         <div style={{ fontSize: '.75rem', color: '#e6edf3', lineHeight: 1.5 }}>
-                            Jails déclarés dans la config fail2ban.
+                            {t('fail2ban.stats.jailsDeclared')}
                         </div>
                         <div
                             style={{
@@ -835,12 +835,12 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                             }}
                         >
                             <div>
-                                <span style={{ color: '#3fb950', fontWeight: 700 }}>{activeJails}</span> jail
-                                {activeJails !== 1 ? 's' : ''} avec activité (bans ou échecs actifs)
+                                <span style={{ color: '#3fb950', fontWeight: 700 }}>{activeJails}</span>{' '}
+                                {t('fail2ban.stats.jailsWithActivity', { count: activeJails })}
                             </div>
                             <div>
-                                <span style={{ color: '#8b949e' }}>{jails.length - activeJails}</span> jail
-                                {jails.length - activeJails !== 1 ? 's' : ''} inactifs
+                                <span style={{ color: '#8b949e' }}>{jails.length - activeJails}</span>{' '}
+                                {t('fail2ban.stats.inactive', { count: jails.length - activeJails })}
                             </div>
                             {topBanned.length > 0 && (
                                 <div
@@ -850,7 +850,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                                         paddingTop: '.18rem',
                                     }}
                                 >
-                                    <div style={{ color: '#8b949e', marginBottom: '.12rem' }}>Top bans actifs :</div>
+                                    <div style={{ color: '#8b949e', marginBottom: '.12rem' }}>{t('fail2ban.stats.topBansActive')}</div>
                                     {topBanned.map((j) => (
                                         <div
                                             key={j.jail}
@@ -863,8 +863,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                                         >
                                             <span style={{ fontFamily: 'monospace', color: '#e6edf3' }}>{j.jail}</span>
                                             <span style={{ color: '#e86a65', fontWeight: 700 }}>
-                                                {j.currentlyBanned} ban
-                                                {j.currentlyBanned !== 1 ? 's' : ''}
+                                                {j.currentlyBanned}{' '}{t('fail2ban.stats.ban', { count: j.currentlyBanned })}
                                             </span>
                                         </div>
                                     ))}
@@ -899,7 +898,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                                 </strong>
                             </>
                         ) : (
-                            ' (stable)'
+                            ' ' + t('fail2ban.stats.meta.stable')
                         )}
                     </span>
                 ) : undefined,
@@ -907,26 +906,27 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
             ttColor: 'cyan' as const,
         },
         {
-            ttTitle: 'Échecs actifs',
+            ttTitle: t('fail2ban.stats.activeFailuresLabel'),
             ttBodyNode: statTtBody(
                 totalFailed,
-                'tentatives',
+                t('fail2ban.stats.attempts'),
                 '#e3b341',
-                'Tentatives échouées en cours (fenêtre findtime) — IPs pas encore bannies.',
+                t('fail2ban.stats.desc.activeFailures'),
             ),
             ttColor: 'orange' as const,
         },
         {
-            ttTitle: `Tot. échecs (${periodLabel})`,
+            ttTitle: t('fail2ban.stats.totalFailuresPeriod', { period: periodLabel }),
             ttBodyNode: statTtBody(
                 periodSummary?.totalFailures ?? 0,
-                'tentatives',
+                t('fail2ban.stats.attempts'),
                 '#e3b341',
-                `Somme des échecs enregistrés lors des bans sur la période ${periodLabel} (colonne failures dans f2b_events).`,
+                t('fail2ban.stats.desc.totalFailures', { period: periodLabel }),
                 prevPeriodSummary !== null && periodSummary !== null ? (
                     <span>
-                        Période précédente :{' '}
-                        <strong style={{ color: '#8b949e' }}>{prevPeriodSummary.totalFailures}</strong> échecs
+                        {t('fail2ban.stats.meta.prevPeriod')}{' '}
+                        <strong style={{ color: '#8b949e' }}>{prevPeriodSummary.totalFailures}</strong>{' '}
+                        {t('fail2ban.stats.attempts')}
                         {periodSummary.totalFailures !== prevPeriodSummary.totalFailures ? (
                             <>
                                 {' '}
@@ -943,7 +943,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                                 </strong>
                             </>
                         ) : (
-                            ' (stable)'
+                            ' ' + t('fail2ban.stats.meta.stable')
                         )}
                     </span>
                 ) : undefined,
@@ -951,16 +951,17 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
             ttColor: 'orange' as const,
         },
         {
-            ttTitle: `IPs uniques (${periodLabel})`,
+            ttTitle: t('fail2ban.stats.uniqueIpsPeriod', { period: periodLabel }),
             ttBodyNode: statTtBody(
                 uniqueIpsPeriod,
-                'IPs distinctes',
+                t('fail2ban.stats.units.ips'),
                 '#bc8cff',
-                `IPs distinctes ayant déclenché au moins un ban sur la période ${periodLabel} (f2b_events).`,
+                t('fail2ban.stats.desc.uniqueIps', { period: periodLabel }),
                 prevPeriodSummary !== null && periodSummary !== null ? (
                     <span>
-                        Période précédente : <strong style={{ color: '#8b949e' }}>{prevPeriodSummary.uniqueIps}</strong>{' '}
-                        IPs
+                        {t('fail2ban.stats.meta.prevPeriod')}{' '}
+                        <strong style={{ color: '#8b949e' }}>{prevPeriodSummary.uniqueIps}</strong>{' '}
+                        {t('fail2ban.stats.units.ips')}
                         {periodSummary.uniqueIps !== prevPeriodSummary.uniqueIps ? (
                             <>
                                 {' '}
@@ -977,7 +978,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                                 </strong>
                             </>
                         ) : (
-                            ' (stable)'
+                            ' ' + t('fail2ban.stats.meta.stable')
                         )}
                     </span>
                 ) : undefined,
@@ -985,23 +986,24 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
             ttColor: 'purple' as const,
         },
         {
-            ttTitle: `Expirés (${periodLabel})`,
+            ttTitle: t('fail2ban.stats.expiredPeriod', { period: periodLabel }),
             ttBodyNode: statTtBody(
                 periodSummary?.expiredInPeriod ?? expiredLast24h,
-                'unbans',
+                t('fail2ban.stats.units.unbans'),
                 '#3fb950',
-                `Bans dont la durée a expiré sur la période ${periodLabel} (calculé via timeofban+bantime).`,
+                t('fail2ban.stats.desc.expiredBans', { period: periodLabel }),
                 prevPeriodSummary !== null && periodSummary !== null ? (
                     <span>
-                        Période précédente :{' '}
-                        <strong style={{ color: '#8b949e' }}>{prevPeriodSummary.expiredInPeriod}</strong> expirés
+                        {t('fail2ban.stats.meta.prevPeriod')}{' '}
+                        <strong style={{ color: '#8b949e' }}>{prevPeriodSummary.expiredInPeriod}</strong>{' '}
+                        {t('fail2ban.stats.units.unbans')}
                         {periodSummary.expiredInPeriod !== prevPeriodSummary.expiredInPeriod ? (
                             <>
                                 {' '}
                                 → <strong style={{ color: '#3fb950' }}>{periodSummary.expiredInPeriod}</strong>
                             </>
                         ) : (
-                            ' (stable)'
+                            ' ' + t('fail2ban.stats.meta.stable')
                         )}
                     </span>
                 ) : undefined,
@@ -1009,23 +1011,25 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
             ttColor: 'green' as const,
         },
         {
-            ttTitle: 'IPs bannies (BDD)',
+            ttTitle: t('fail2ban.stats.ipBannedDB'),
             ttBodyNode: statTtBody(
                 uniqueIpsTotal,
-                'IPs uniques',
+                t('fail2ban.stats.units.ips'),
                 '#e86a65',
-                "Total IPs distinctes bannies dans f2b_events (base de données locale) — depuis l'installation.",
+                t('fail2ban.stats.desc.ipBannedDB'),
                 <span>
                     {prevStats?.uniqueIpsTotal !== undefined && trend(uniqueIpsTotal, prevStats.uniqueIpsTotal) && (
                         <span>
-                            Dernier refresh : {prevStats.uniqueIpsTotal} →{' '}
+                            {t('fail2ban.stats.meta.lastRefresh')} : {prevStats.uniqueIpsTotal} →{' '}
                             <strong style={{ color: '#e86a65' }}>{uniqueIpsTotal}</strong>{' '}
                             {trend(uniqueIpsTotal, prevStats.uniqueIpsTotal)}
                             <br />
                         </span>
                     )}
-                    <span style={{ color: '#8b949e' }}>Inclut bans expirés · bans actifs : {totalBanned}</span>
-                </span>,
+                    <span style={{ color: '#8b949e' }}>
+                        {t('fail2ban.stats.meta.includesExpired', { count: totalBanned })}
+                    </span>
+                </span>
             ),
             ttColor: 'red' as const,
         },
@@ -1046,7 +1050,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
             {(
                 [
                     {
-                        label: 'Jails actifs',
+                        label: t('fail2ban.stats.jailsActiveLabel'),
                         value: jails.length,
                         icon: <Shield style={{ width: 14, height: 14 }} />,
                         color: '#58a6ff',
@@ -1108,7 +1112,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                             prevPeriodBans === null ? undefined : periodBans > prevPeriodBans ? '#e86a65' : '#3fb950',
                     },
                     {
-                        label: 'Échecs actifs',
+                        label: t('fail2ban.stats.activeFailuresLabel'),
                         value: totalFailed,
                         icon: <AlertTriangle style={{ width: 14, height: 14 }} />,
                         color: '#e3b341',
@@ -1117,7 +1121,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                         trendCol: failedTrend?.col,
                     },
                     {
-                        label: `Tot. échecs (${periodLabel})`,
+                        label: t('fail2ban.stats.totalFailuresPeriod', { period: periodLabel }),
                         value: periodSummary?.totalFailures ?? 0,
                         icon: <AlertTriangle style={{ width: 14, height: 14 }} />,
                         color: '#e3b341',
@@ -1138,7 +1142,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                                 : undefined,
                     },
                     {
-                        label: `IPs uniques (${periodLabel})`,
+                        label: t('fail2ban.stats.uniqueIpsPeriod', { period: periodLabel }),
                         value: uniqueIpsPeriod,
                         icon: <Shield style={{ width: 14, height: 14 }} />,
                         color: '#bc8cff',
@@ -1159,7 +1163,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                                 : undefined,
                     },
                     {
-                        label: `Expirés (${periodLabel})`,
+                        label: t('fail2ban.stats.expiredPeriod', { period: periodLabel }),
                         value: periodSummary?.expiredInPeriod ?? expiredLast24h,
                         icon: <CheckCircle style={{ width: 14, height: 14 }} />,
                         color: '#3fb950',
@@ -1175,7 +1179,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                         trendCol: '#3fb950',
                     },
                     {
-                        label: 'IPs bannies (BDD)',
+                        label: t('fail2ban.stats.ipBannedDB'),
                         value: uniqueIpsTotal,
                         icon: <Ban style={{ width: 14, height: 14 }} />,
                         color: '#e86a65',
@@ -2248,7 +2252,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                         >
                             <span style={{ flexShrink: 0 }}>{refreshBusy ? '↻' : '↻'}</span>
                             {refreshBusy ? (
-                                <span style={{ fontFamily: 'monospace', color: '#555d69' }}>refresh…</span>
+                                <span style={{ fontFamily: 'monospace', color: '#555d69' }}>{t('fail2ban.status.refreshing')}</span>
                             ) : lastRefreshed > 0 ? (
                                 <>
                                     <span
@@ -2287,9 +2291,9 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                     >
                         <AlertTriangle style={{ width: 13, height: 13, flexShrink: 0, marginTop: 2 }} />
                         <div style={{ minWidth: 0, flex: 1 }}>
-                            <strong>Source indisponible</strong>
+                            <strong>{t('fail2ban.status.sourceUnavailable')}</strong>
                             {' — '}
-                            {status.error ?? 'fail2ban-client et SQLite inaccessibles'}
+                            {status.error ?? t('fail2ban.status.unavailableHint')}
                             {'. '}
                             <code style={{ fontFamily: 'monospace', fontSize: '.75rem' }}>
                                 sudo chmod 660 /var/run/fail2ban/fail2ban.sock
