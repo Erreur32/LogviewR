@@ -1085,7 +1085,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                                     textOverflow: 'ellipsis',
                                 }}
                             >
-                                BDD depuis{' '}
+                                {t('fail2ban.stats.dbSince')}{' '}
                                 {new Date(firstEventAt * 1000).toLocaleDateString('fr-FR', {
                                     day: '2-digit',
                                     month: 'short',
@@ -1744,13 +1744,13 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                                                     <span
                                                         title={
                                                             id === 'config'
-                                                                ? `${badge} warning${badge > 1 ? 's' : ''} — voir onglet Config`
+                                                                ? t('fail2ban.views.configWarnings', { count: badge })
                                                                 : id === 'jails'
-                                                                  ? `${badge} jail${badge > 1 ? 's' : ''} configuré${badge > 1 ? 's' : ''}`
+                                                                  ? t('fail2ban.views.jailsConfigured', { count: badge })
                                                                   : id === 'blocklists'
-                                                                    ? `${badge} liste${badge > 1 ? 's' : ''} active${badge > 1 ? 's' : ''}`
+                                                                    ? t('fail2ban.views.blocklistsActive', { count: badge })
                                                                     : id === 'ipset'
-                                                                      ? `${badge} set${badge > 1 ? 's' : ''} ipset`
+                                                                      ? t('fail2ban.views.ipsetSets', { count: badge })
                                                                       : String(badge)
                                                         }
                                                         style={{
@@ -1904,7 +1904,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                                     title={t('fail2ban.stats.activeFailures')}
                                     bodyNode={statTtBody(
                                         totalFailed,
-                                        'tentatives',
+                                        t('fail2ban.stats.attempts'),
                                         '#e3b341',
                                         t('fail2ban.stats.activeFailuresDesc'),
                                     )}
@@ -1914,7 +1914,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                                     <Chip color={totalFailed > 0 ? 'orange' : 'muted'}>
                                         <AlertTriangle style={{ width: 11, height: 11 }} />{' '}
                                         <strong>{totalFailed}</strong>
-                                        <span style={{ fontWeight: 400, color: '#8b949e' }}> échecs</span>
+                                        <span style={{ fontWeight: 400, color: '#8b949e' }}> {t('fail2ban.stats.echecs')}</span>
                                     </Chip>
                                 </F2bTooltip>
                                 {/* 2. Bans du jour */}
@@ -1927,14 +1927,13 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                                                     <span style={{ color: '#e86a65', fontWeight: 700 }}>
                                                         {bansToday.count}
                                                     </span>{' '}
-                                                    ban{bansToday.count !== 1 ? 's' : ''} depuis minuit
+                                                     ban{bansToday.count !== 1 ? 's' : ''} {t('fail2ban.stats.bansSinceMidnight', { count: bansToday.count })}
                                                 </div>
                                                 <div>
                                                     <span style={{ color: '#58a6ff', fontWeight: 700 }}>
                                                         {bansToday.uniqIps}
                                                     </span>{' '}
-                                                    IP{bansToday.uniqIps !== 1 ? 's' : ''} unique
-                                                    {bansToday.uniqIps !== 1 ? 's' : ''}
+                                                     {t('fail2ban.stats.uniqueIp', { count: bansToday.uniqIps })}
                                                 </div>
                                                 <div
                                                     style={{
@@ -1946,8 +1945,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                                                     <span style={{ color: '#e86a65', fontWeight: 700 }}>
                                                         {totalBanned}
                                                     </span>{' '}
-                                                    IP{totalBanned !== 1 ? 's' : ''} actuellement bannie
-                                                    {totalBanned !== 1 ? 's' : ''}
+                                                     {t('fail2ban.stats.ipBannedNow', { count: totalBanned })}
                                                 </div>
                                                 <div
                                                     style={{
@@ -1956,7 +1954,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                                                         marginTop: '.15rem',
                                                     }}
                                                 >
-                                                    ↻ refresh toutes les 60s
+                                                    {t('fail2ban.stats.refresh60s')}
                                                 </div>
                                             </div>
                                         }
@@ -1975,14 +1973,14 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                                                 }}
                                             />{' '}
                                             <strong>{bansToday.count}</strong>
-                                            <span style={{ fontWeight: 400, color: '#8b949e' }}> bans/jour</span>
+                                             <span style={{ fontWeight: 400, color: '#8b949e' }}> {t('fail2ban.stats.bansPerDay')}</span>
                                         </Chip>
                                     </F2bTooltip>
                                 )}
                                 {/* 3. Jail le plus actif sur la période */}
                                 {topJailByPeriod && (topJailByPeriod.bansInPeriod ?? 0) > 0 && (
                                     <F2bTooltip
-                                        title={`Top jail (${periodLabel})`}
+                                        title={t('fail2ban.stats.topJailPeriod', { period: periodLabel })}
                                         bodyNode={
                                             <div>
                                                 <div
@@ -2000,7 +1998,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                                                     <strong style={{ color: '#e3b341' }}>
                                                         {topJailByPeriod.bansInPeriod}
                                                     </strong>{' '}
-                                                    bans sur la période {periodLabel}
+                                                     {t('fail2ban.stats.bansOnPeriod', { period: periodLabel })}
                                                 </div>
                                                 {topJailByPeriod.currentlyBanned > 0 && (
                                                     <div
@@ -2010,10 +2008,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                                                             marginTop: '.15rem',
                                                         }}
                                                     >
-                                                        {topJailByPeriod.currentlyBanned} IP
-                                                        {topJailByPeriod.currentlyBanned > 1 ? 's' : ''} actuellement
-                                                        bannie
-                                                        {topJailByPeriod.currentlyBanned > 1 ? 's' : ''}
+                                                        {t('fail2ban.stats.ipBannedNow', { count: topJailByPeriod.currentlyBanned })}
                                                     </div>
                                                 )}
                                             </div>
@@ -2064,7 +2059,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                                                         opacity: 0.7,
                                                     }}
                                                 >
-                                                    jail{activeJails !== 1 ? 's' : ''}
+                                                     {t('fail2ban.stats.jail', { count: activeJails })}
                                                 </span>
                                             </div>
                                             {activeJailsList.length > 0 ? (
@@ -2097,12 +2092,12 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                                                             </span>
                                                             {j.currentlyBanned > 0 && (
                                                                 <span style={{ color: '#e86a65', fontWeight: 700 }}>
-                                                                    {j.currentlyBanned} bannis
+                                                                    {j.currentlyBanned} {t('fail2ban.stats.bannis')}
                                                                 </span>
                                                             )}
                                                             {j.currentlyFailed > 0 && (
                                                                 <span style={{ color: '#e3b341' }}>
-                                                                    {j.currentlyFailed} échecs
+                                                                    {j.currentlyFailed} {t('fail2ban.stats.echecs')}
                                                                 </span>
                                                             )}
                                                         </div>
@@ -2116,7 +2111,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                                                         marginTop: '.2rem',
                                                     }}
                                                 >
-                                                    Aucun jail avec activité
+                                                    {t('fail2ban.stats.noJailActivity')}
                                                 </div>
                                             )}
                                         </div>
@@ -2126,7 +2121,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                                 >
                                     <Chip color={activeJails > 0 ? 'green' : 'muted'}>
                                         <Activity style={{ width: 11, height: 11 }} /> <strong>{activeJails}</strong>
-                                        <span style={{ fontWeight: 400, color: '#8b949e' }}> jails actifs</span>
+                                         <span style={{ fontWeight: 400, color: '#8b949e' }}> {t('fail2ban.stats.jailsActiveLabel')}</span>
                                     </Chip>
                                 </F2bTooltip>
                                 {/* 5. Bans actifs + BDD */}
@@ -2139,9 +2134,9 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                                                 bddTotal,
                                                 'IPs',
                                                 '#e86a65',
-                                                "Total IPs distinctes bannies dans f2b_events depuis l'installation. Inclut les bans expirés.",
+                                                 t('fail2ban.stats.tooltips.bannedIpsDesc'),
                                                 <span>
-                                                    Bans actifs en ce moment :{' '}
+                                                    {t('fail2ban.stats.activeBansNow')}{' '}
                                                     <strong style={{ color: '#e86a65' }}>{totalBanned}</strong>
                                                 </span>,
                                             )}
@@ -2156,7 +2151,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                                                 >
                                                     {totalBanned}
                                                 </strong>
-                                                <span style={{ fontWeight: 400, color: '#8b949e' }}> actifs</span>
+                                                 <span style={{ fontWeight: 400, color: '#8b949e' }}> {t('fail2ban.stats.active')}</span>
                                                 <span
                                                     style={{
                                                         color: '#484f58',
@@ -2168,7 +2163,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                                                 </span>
                                                 <Database style={{ width: 11, height: 11 }} />{' '}
                                                 <strong>{bddTotal}</strong>
-                                                <span style={{ fontWeight: 400, color: '#8b949e' }}> BDD</span>
+                                                 <span style={{ fontWeight: 400, color: '#8b949e' }}> {t('fail2ban.stats.db')}</span>
                                             </Chip>
                                         </F2bTooltip>
                                     );

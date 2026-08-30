@@ -5,6 +5,14 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.8] - 2026-08-30
+
+### For developers
+
+- `Fail2banPage.tsx`: replaced all remaining hardcoded French strings in the stats strip chips/tooltips with `t()` calls (bans/jour, bans depuis minuit, IPs uniques, IP actuellement bannie, refresh toutes les 60s, Top jail, bans actifs, actif/BDD labels, tab badge tooltips).
+- `TabStats.tsx`: replaced remaining hardcoded French strings (ipsAtRisk, noLegitimateBanned, blockedUpstream, ipsRefusedKernel, failingJailTooltip, HeatmapSection labels) with `t()` calls.
+- Added ~30 new `fail2ban.stats.*` and `fail2ban.views.*` translation keys to both `fr.json` and `en.json`.
+
 ## [0.10.7] - 2026-08-30
 
 ### For users

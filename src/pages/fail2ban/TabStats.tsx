@@ -1019,7 +1019,7 @@ const IpSetsSection: React.FC<{
         <SCard
             icon={<Database style={{ width: 14, height: 14 }} />}
             color={C.purple}
-            title="IPSets"
+            title={t('fail2ban.stats.ipsets')}
             sub={
                 !loading && !error && total > 0 ? (
                     <span style={{ color: C.purple, fontWeight: 600 }}>{total} IPs</span>
@@ -4100,7 +4100,7 @@ const SafeBannedSection: React.FC<{ onIpClick?: (ip: string) => void }> = ({ onI
     const fmtExpiry = (ban: SafeHit) => {
         if (ban.bantime === -1) return '∞ permanent';
         const remaining = ban.timeofban + ban.bantime - now;
-        if (remaining <= 0) return 'expiré';
+        if (remaining <= 0) return t('fail2ban.stats.expired');
         if (remaining < 3600) return `${Math.round(remaining / 60)}m`;
         if (remaining < 86400) return `${Math.round(remaining / 3600)}h`;
         return `${Math.round(remaining / 86400)}j`;
@@ -4112,7 +4112,7 @@ const SafeBannedSection: React.FC<{ onIpClick?: (ip: string) => void }> = ({ onI
                 <span style={{ color: C.green, fontWeight: 600 }}>OK</span>
             ) : (
                 <span style={{ color: C.red, fontWeight: 600 }}>
-                    {hits.length} IP{hits.length > 1 ? 's' : ''} à risque
+                    {t('fail2ban.stats.ipsAtRisk', { count: hits.length })}
                 </span>
             )
         ) : undefined;
@@ -4162,7 +4162,7 @@ const SafeBannedSection: React.FC<{ onIpClick?: (ip: string) => void }> = ({ onI
                     }}
                 >
                     <span style={{ fontSize: '1rem' }}>✓</span>
-                    Aucune IP légitime connue n'est actuellement bannie.
+                    {t('fail2ban.stats.noLegitimateBanned')}
                 </div>
             )}
             {!loading && !error && hits.length > 0 && (
@@ -4540,10 +4540,9 @@ const StatsSummaryBanner: React.FC<{
                                         }}
                                     >
                                         <strong style={{ color: C.purple }}>
-                                            {ipsetTotal.toLocaleString('fr-FR')} IPs
+                                            {ipsetTotal.toLocaleString()} {t('fail2ban.stats.ips')}
                                         </strong>{' '}
-                                        bloquées <em>en amont</em> via {ipsetSetCount} set
-                                        {ipsetSetCount > 1 ? 's' : ''} IPSet.
+                                         {t('fail2ban.stats.blockedUpstream')} {ipsetSetCount} {t('fail2ban.stats.set', { count: ipsetSetCount })} IPSet.
                                     </div>
                                     <div
                                         style={{
@@ -4552,8 +4551,7 @@ const StatsSummaryBanner: React.FC<{
                                             lineHeight: 1.5,
                                         }}
                                     >
-                                        Ces IPs sont refusées au niveau noyau <strong>avant</strong> d'atteindre
-                                        fail2ban — c'est une couche de protection supplémentaire, pas une menace active.
+                                         {t('fail2ban.stats.ipsRefusedKernel')} <strong>{t('fail2ban.stats.beforeF2bPart1')}</strong> {t('fail2ban.stats.beforeF2bPart2')}
                                     </div>
                                     {ipsetSets.slice(0, 5).map((s) => (
                                         <div
@@ -4606,7 +4604,7 @@ const StatsSummaryBanner: React.FC<{
                                         padding: '.05rem .3rem',
                                     }}
                                 >
-                                    {ipsetSetCount} set{ipsetSetCount > 1 ? 's' : ''} IPSet
+                                    {ipsetSetCount} {t('fail2ban.stats.set', { count: ipsetSetCount })} IPSet
                                 </span>
                             </span>
                         </F2bTooltip>
@@ -4945,7 +4943,7 @@ const StatsSummaryBanner: React.FC<{
                                 <F2bTooltip
                                     key={`${f.jail}:${f.ip}`}
                                     title={f.ip}
-                                    body={`Jail : ${f.jail}\n${f.count} tentative${f.count > 1 ? 's' : ''} (5 dernières min)`}
+                                    body={t('fail2ban.stats.failingJailTooltip', { jail: f.jail, count: f.count })}
                                     color="red"
                                 >
                                     <span
@@ -5487,7 +5485,7 @@ export const TabStats: React.FC<TabStatsProps> = ({
                     color={C.red}
                     barRgb="232,106,101"
                     cellRgb="232,106,101"
-                    label="ban"
+                    label={t('fail2ban.stats.labels.ban')}
                     days={days}
                     onDaysChange={onDaysChange}
                     data={topsData}
@@ -5502,7 +5500,7 @@ export const TabStats: React.FC<TabStatsProps> = ({
                     color={C.orange}
                     barRgb="227,179,65"
                     cellRgb="227,179,65"
-                    label="tentative"
+                    label={t('fail2ban.stats.labels.attempt')}
                     days={days}
                     onDaysChange={onDaysChange}
                     data={topsData}

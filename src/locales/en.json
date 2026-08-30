@@ -1959,7 +1959,11 @@
       "map": "Map",
       "collapse": "Collapse",
       "expand": "Expand",
-      "trackerBadge": "{{active}} active bans (DB) · {{total}} total history"
+      "trackerBadge": "{{active}} active bans (DB) · {{total}} total history",
+      "configWarnings": "{{count}} warning{{count > 1 ? \"s\" : \"\"}} — see Config tab",
+      "jailsConfigured": "{{count}} jail configured",
+      "blocklistsActive": "{{count}} active list{{count > 1 ? \"s\" : \"\"}}",
+      "ipsetSets": "{{count}} ipset set{{count > 1 ? \"s\" : \"\"}}"
     },
     "config": {
       "sqlitePath": "SQLite path",
@@ -2550,7 +2554,8 @@
       "tooltips": {
         "dailyBans": "Daily bans",
         "activeJails": "Active jails",
-        "bannedIps": "Banned IPs (DB)"
+        "bannedIps": "Banned IPs (DB)",
+        "bannedIpsDesc": "Total distinct IPs banned in f2b_events since installation. Includes expired bans."
       },
       "ttMethodAllIps": "All unique IPs (DB history)",
       "ttMethodScanLog": "IPs from scan logs",
@@ -2559,7 +2564,7 @@
       "ipsInJail": " IPs in jail",
       "entries": "entries",
       "otherSets": "{{n}} other sets",
-      "blockedUpstream": "IPs blocked upstream",
+      "blockedUpstream": "blocked upstream via",
       "jailBanInfo": {
         "sourceLabel": "Source:",
         "currentlyBanned": "Currently banned",
@@ -2593,7 +2598,7 @@
       "distributionPeriod": "Distribution period",
       "domain": "Domain",
       "domainsDataUnavailable": "Domain data unavailable",
-      "expired": "Expired",
+      "expired": "expired",
       "expiry": "Expiry",
       "globalCount": "Global count",
       "history": "History",
@@ -2695,7 +2700,7 @@
       "ipCurrently": "IP currently",
       "inJail": "in jail",
       "topJailBans": "Top jail bans",
-      "topJailPeriod": "Top jail period",
+      "topJailPeriod": "Top jail ({{period}})",
       "bansNow": "Active bans right now:",
       "period": "period",
       "noJailActivity": "No jail with activity",
@@ -2746,7 +2751,44 @@
         "active": "active",
         "db": "DB"
       },
-      "expiredPeriod": "Expired ({{period}})"
+      "expiredPeriod": "Expired ({{period}})",
+      "echecs": "failures",
+      "bansPerDay": "bans/day",
+      "bansToday": "ban since midnight",
+      "bansTodayPlural": "bans since midnight",
+      "ipUnique": "unique IP",
+      "ipUniquePlural": "unique IPs",
+      "ipCurrentlyBanned": "IP currently banned",
+      "ipCurrentlyBannedPlural": "IPs currently banned",
+      "refresh60s": "↻ refresh every 60s",
+      "bansOnPeriod": "bans on period {{period}}",
+      "jailLabel": "jail",
+      "jailsLabel": "jails",
+      "bannis": "banned",
+      "activeBansNow": "Active bans right now:",
+      "db": "DB",
+      "bansSinceMidnight_one": "ban since midnight",
+      "bansSinceMidnight_other": "bans since midnight",
+      "uniqueIp_one": "unique IP",
+      "uniqueIp_other": "unique IPs",
+      "ipBannedNow_one": "IP currently banned",
+      "ipBannedNow_other": "IPs currently banned",
+      "ipsAtRisk_one": "{{count}} IP at risk",
+      "ipsAtRisk_other": "{{count}} IPs at risk",
+      "noLegitimateBanned": "No known legitimate IP is currently banned.",
+      "ipsets": "IPSets",
+      "ipsRefusedKernel": "These IPs are refused at the kernel level",
+      "beforeF2b": "before reaching fail2ban — this is an extra protection layer, not an active threat.",
+      "ips": "IPs",
+      "set_one": "set",
+      "set_other": "sets",
+      "beforeF2bPart1": "before",
+      "beforeF2bPart2": "reaching fail2ban — this is an extra protection layer, not an active threat.",
+      "failingJailTooltip": "Jail: {{jail}}\n{{count}} attempt{{count > 1 ? \"s\" : \"\"}} (last 5 min)",
+      "labels": {
+        "ban": "ban",
+        "attempt": "attempt"
+      }
     },
     "networkRaw": {
       "loading": "Loading…",
