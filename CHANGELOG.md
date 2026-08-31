@@ -5,6 +5,16 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.9] - 2026-08-31
+
+### For users
+
+- Home page: History bloc is now collapsible (collapsed by default).
+
+### For developers
+
+- `LogHistoryCard.tsx`: added collapsible header with `ChevronUp`/`ChevronDown` icon, new `defaultExpanded` prop (default: `false`).
+
 ## [0.10.8] - 2026-08-30
 
 ### For developers
