@@ -9,10 +9,7 @@
 
 import { McpActionAuditRepository } from '../database/models/McpActionAudit.js';
 import { isMcpEnabled, touchHeartbeat, MCP_DISABLED_MESSAGE } from './mcpConfig.js';
-
-export function mcpActor(): string {
-    return process.env.LOGVIEWR_MCP_ACTOR || 'unknown-mcp-agent';
-}
+import { getMcpContext } from './requestContext.js';
 
 export interface GatedParams {
     confirm?: boolean;
@@ -50,7 +47,8 @@ export async function runGatedAction<T>(
     params: GatedParams,
     fn: () => Promise<T>
 ): Promise<GatedActionResult<T>> {
-    const actor = mcpActor();
+    const context = getMcpContext();
+    const actor = context.actor;
 
     if (!isMcpEnabled()) {
         McpActionAuditRepository.create({
@@ -61,6 +59,19 @@ export async function runGatedAction<T>(
             result: 'rejected_disabled',
         });
         return { ok: false, error: MCP_DISABLED_MESSAGE };
+    }
+
+    // runGatedAction is only ever called by write tools, a read-only scope (HTTP tokens
+    // created without read_write) must never be able to reach fn(), dry-run included.
+    if (context.scope !== 'read_write') {
+        McpActionAuditRepository.create({
+            actor,
+            toolName,
+            params,
+            confirmed: false,
+            result: 'rejected_insufficient_scope',
+        });
+        return { ok: false, error: `${toolName} requires the read_write scope, this token is scoped to read-only access.` };
     }
 
     if (params.dryRun === true) {

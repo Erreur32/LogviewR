@@ -12,12 +12,12 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Bot, Loader2, RefreshCw, CheckCircle, XCircle, AlertTriangle, Info, ShieldAlert, BookOpen } from 'lucide-react';
+import { Bot, Loader2, RefreshCw, CheckCircle, XCircle, AlertTriangle, Info, ShieldAlert, BookOpen, Key, Copy, Trash2, Globe } from 'lucide-react';
 import { Section, SettingRow } from './SettingsSection';
 import { api } from '../api/client';
 import { useNotificationStore } from '../stores/notificationStore';
 
-type McpSubTab = 'overview' | 'audit' | 'threats';
+type McpSubTab = 'overview' | 'audit' | 'threats' | 'tokens';
 
 interface McpStatus {
     enabled: boolean;
@@ -48,12 +48,32 @@ interface McpThreatCluster {
     [key: string]: unknown;
 }
 
+type McpTokenScope = 'read' | 'read_write';
+
+interface McpApiTokenRecord {
+    id: number;
+    name: string;
+    tokenPrefix: string;
+    scope: McpTokenScope;
+    createdBy: string;
+    createdAt: number;
+    expiresAt: number;
+    lastUsedAt: number | null;
+    revokedAt: number | null;
+}
+
+interface McpHttpConfig {
+    httpEnabled: boolean;
+    allowedIps: string[];
+}
+
 const RESULT_BADGE: Record<string, { color: string; labelKey: string }> = {
     success: { color: 'bg-emerald-500/15 text-emerald-400 border-emerald-700/40', labelKey: 'mcp.audit.resultSuccess' },
     error: { color: 'bg-red-500/15 text-red-400 border-red-700/40', labelKey: 'mcp.audit.resultError' },
     rejected_unconfirmed: { color: 'bg-amber-500/15 text-amber-400 border-amber-700/40', labelKey: 'mcp.audit.resultRejectedUnconfirmed' },
     rejected_disabled: { color: 'bg-gray-500/15 text-gray-400 border-gray-700/40', labelKey: 'mcp.audit.resultRejectedDisabled' },
     rejected_rate_limited: { color: 'bg-orange-500/15 text-orange-400 border-orange-700/40', labelKey: 'mcp.audit.resultRejectedRateLimited' },
+    rejected_insufficient_scope: { color: 'bg-pink-500/15 text-pink-400 border-pink-700/40', labelKey: 'mcp.audit.resultRejectedInsufficientScope' },
     dry_run: { color: 'bg-cyan-500/15 text-cyan-400 border-cyan-700/40', labelKey: 'mcp.audit.resultDryRun' },
 };
 
@@ -76,6 +96,9 @@ const OverviewTab: React.FC = () => {
     const [status, setStatus] = useState<McpStatus | null>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [httpConfig, setHttpConfig] = useState<McpHttpConfig | null>(null);
+    const [httpSaving, setHttpSaving] = useState(false);
+    const [allowlistDraft, setAllowlistDraft] = useState('');
 
     const loadStatus = useCallback(async () => {
         try {
@@ -88,7 +111,19 @@ const OverviewTab: React.FC = () => {
         }
     }, [addAction, t]);
 
-    useEffect(() => { loadStatus(); }, [loadStatus]);
+    const loadHttpConfig = useCallback(async () => {
+        try {
+            const res = await api.get<McpHttpConfig>('/api/mcp/http-config');
+            if (res.success && res.result) {
+                setHttpConfig(res.result);
+                setAllowlistDraft(res.result.allowedIps.join(', '));
+            }
+        } catch {
+            addAction(t('mcp.loadError'), false);
+        }
+    }, [addAction, t]);
+
+    useEffect(() => { loadStatus(); loadHttpConfig(); }, [loadStatus, loadHttpConfig]);
 
     const toggleEnabled = async () => {
         if (!status) return;
@@ -106,6 +141,44 @@ const OverviewTab: React.FC = () => {
             addAction(t('mcp.saveError'), false);
         } finally {
             setSaving(false);
+        }
+    };
+
+    const toggleHttpEnabled = async () => {
+        if (!httpConfig) return;
+        const next = !httpConfig.httpEnabled;
+        setHttpSaving(true);
+        try {
+            const res = await api.post<McpHttpConfig>('/api/mcp/http-config', { httpEnabled: next });
+            if (res.success && res.result) {
+                setHttpConfig(res.result);
+                addAction(t('mcp.saveSuccess'), true);
+            } else {
+                addAction(t('mcp.saveError'), false);
+            }
+        } catch {
+            addAction(t('mcp.saveError'), false);
+        } finally {
+            setHttpSaving(false);
+        }
+    };
+
+    const saveAllowlist = async () => {
+        setHttpSaving(true);
+        try {
+            const ips = allowlistDraft.split(',').map((s) => s.trim()).filter(Boolean);
+            const res = await api.post<McpHttpConfig>('/api/mcp/http-config', { allowedIps: ips });
+            if (res.success && res.result) {
+                setHttpConfig(res.result);
+                setAllowlistDraft(res.result.allowedIps.join(', '));
+                addAction(t('mcp.saveSuccess'), true);
+            } else {
+                addAction(t('mcp.saveError'), false);
+            }
+        } catch {
+            addAction(t('mcp.saveError'), false);
+        } finally {
+            setHttpSaving(false);
         }
     };
 
@@ -176,6 +249,69 @@ const OverviewTab: React.FC = () => {
                                 <p className="text-xs text-gray-400 whitespace-pre-line">{t('mcp.overview.enableGuideSteps')}</p>
                                 <p className="text-xs text-gray-500 italic">{t('mcp.overview.enableGuideDocLink')}</p>
                             </div>
+                        </div>
+                    </div>
+                )}
+            </Section>
+
+            <Section title={t('mcp.overview.httpTitle')} icon={Globe} iconColor="cyan">
+                <div className="space-y-4">
+                    <SettingRow
+                        label={t('mcp.overview.httpEnabledLabel')}
+                        description={t('mcp.overview.httpEnabledDesc')}
+                    >
+                        <div className="flex items-center gap-3">
+                            <button
+                                type="button"
+                                disabled={httpSaving || !httpConfig}
+                                onClick={toggleHttpEnabled}
+                                className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none disabled:opacity-50 ${
+                                    httpConfig?.httpEnabled ? 'bg-cyan-500' : 'bg-gray-700'
+                                }`}
+                            >
+                                <span
+                                    className={`inline-block h-5 w-5 transform rounded-full bg-gray-100 shadow transition duration-200 ${
+                                        httpConfig?.httpEnabled ? 'translate-x-5' : 'translate-x-0'
+                                    }`}
+                                />
+                            </button>
+                            <span className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded-full font-medium ${
+                                httpConfig?.httpEnabled ? 'bg-emerald-500/15 text-emerald-400' : 'bg-gray-700/40 text-gray-500'
+                            }`}>
+                                {httpConfig?.httpEnabled ? <CheckCircle size={11} /> : <XCircle size={11} />}
+                                {httpConfig?.httpEnabled ? t('mcp.overview.httpStatusEnabled') : t('mcp.overview.httpStatusDisabled')}
+                            </span>
+                        </div>
+                    </SettingRow>
+
+                    <SettingRow
+                        label={t('mcp.overview.httpAllowlistLabel')}
+                        description={t('mcp.overview.httpAllowlistDesc')}
+                    >
+                        <div className="flex items-center gap-2 w-full max-w-md">
+                            <input
+                                type="text"
+                                value={allowlistDraft}
+                                onChange={(e) => setAllowlistDraft(e.target.value)}
+                                placeholder={t('mcp.overview.httpAllowlistPlaceholder')}
+                                className="flex-1 px-3 py-1.5 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-xs placeholder-gray-500 focus:outline-none focus:border-cyan-500"
+                            />
+                            <button
+                                onClick={saveAllowlist}
+                                disabled={httpSaving}
+                                className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-xs rounded-lg transition-colors disabled:opacity-50 whitespace-nowrap"
+                            >
+                                {t('mcp.overview.httpAllowlistSave')}
+                            </button>
+                        </div>
+                    </SettingRow>
+                </div>
+
+                {httpConfig?.httpEnabled && httpConfig.allowedIps.length === 0 && (
+                    <div className="mt-4 p-3 bg-amber-900/10 border border-amber-700/30 rounded-lg">
+                        <div className="flex items-start gap-2">
+                            <AlertTriangle size={14} className="text-amber-400 mt-0.5 flex-shrink-0" />
+                            <p className="text-xs text-gray-400">{t('mcp.overview.httpAllowlistWarning')}</p>
                         </div>
                     </div>
                 )}
@@ -338,6 +474,212 @@ const AuditTab: React.FC = () => {
     );
 };
 
+const TokensTab: React.FC = () => {
+    const { t } = useTranslation();
+    const { addAction } = useNotificationStore();
+    const [tokens, setTokens] = useState<McpApiTokenRecord[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [creating, setCreating] = useState(false);
+    const [name, setName] = useState('');
+    const [scope, setScope] = useState<McpTokenScope>('read');
+    const [expiresInDays, setExpiresInDays] = useState(90);
+    const [newToken, setNewToken] = useState<string | null>(null);
+    const [copied, setCopied] = useState(false);
+
+    const loadTokens = useCallback(async () => {
+        setLoading(true);
+        try {
+            const res = await api.get<{ tokens: McpApiTokenRecord[] }>('/api/mcp/tokens');
+            if (res.success && res.result) setTokens(res.result.tokens);
+        } catch {
+            addAction(t('mcp.loadError'), false);
+        } finally {
+            setLoading(false);
+        }
+    }, [addAction, t]);
+
+    useEffect(() => { loadTokens(); }, [loadTokens]);
+
+    const createToken = async () => {
+        if (!name.trim()) return;
+        setCreating(true);
+        try {
+            const res = await api.post<{ token: McpApiTokenRecord & { token: string } }>('/api/mcp/tokens', {
+                name: name.trim(),
+                scope,
+                expiresInDays,
+            });
+            if (res.success && res.result) {
+                setNewToken(res.result.token.token);
+                setName('');
+                addAction(t('mcp.tokens.createSuccess'), true);
+                loadTokens();
+            } else {
+                addAction(t('mcp.tokens.createError'), false);
+            }
+        } catch {
+            addAction(t('mcp.tokens.createError'), false);
+        } finally {
+            setCreating(false);
+        }
+    };
+
+    const revokeToken = async (id: number) => {
+        try {
+            const res = await api.delete<{ revoked: boolean }>(`/api/mcp/tokens/${id}`);
+            if (res.success) {
+                addAction(t('mcp.tokens.revokeSuccess'), true);
+                loadTokens();
+            } else {
+                addAction(t('mcp.tokens.revokeError'), false);
+            }
+        } catch {
+            addAction(t('mcp.tokens.revokeError'), false);
+        }
+    };
+
+    const copyToken = () => {
+        if (!newToken) return;
+        navigator.clipboard.writeText(newToken);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
+
+    const formatDate = (ms: number) => new Date(ms).toLocaleDateString('fr-FR', {
+        day: '2-digit', month: '2-digit', year: 'numeric'
+    });
+
+    return (
+        <div className="space-y-6">
+            <Section title={t('mcp.tokens.createTitle')} icon={Key} iconColor="violet">
+                {newToken ? (
+                    <div className="p-4 bg-emerald-900/10 border border-emerald-700/30 rounded-lg space-y-3">
+                        <p className="text-xs font-medium text-emerald-300">{t('mcp.tokens.newTokenTitle')}</p>
+                        <p className="text-xs text-gray-400">{t('mcp.tokens.newTokenWarning')}</p>
+                        <div className="flex items-center gap-2">
+                            <code className="flex-1 px-3 py-2 bg-[#0d1117] border border-gray-700 rounded-lg text-xs text-emerald-300 font-mono break-all">
+                                {newToken}
+                            </code>
+                            <button
+                                onClick={copyToken}
+                                className="flex items-center gap-1.5 px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white text-xs rounded-lg transition-colors whitespace-nowrap"
+                            >
+                                <Copy size={12} />
+                                {copied ? t('mcp.tokens.copied') : t('mcp.tokens.copyButton')}
+                            </button>
+                        </div>
+                        <button
+                            onClick={() => setNewToken(null)}
+                            className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-xs rounded-lg transition-colors"
+                        >
+                            {t('mcp.tokens.doneButton')}
+                        </button>
+                    </div>
+                ) : (
+                    <div className="space-y-3">
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <input
+                                type="text"
+                                value={name}
+                                onChange={(e) => setName(e.target.value)}
+                                placeholder={t('mcp.tokens.namePlaceholder')}
+                                className="w-48 px-3 py-1.5 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-xs placeholder-gray-500 focus:outline-none focus:border-violet-500"
+                            />
+                            <select
+                                value={scope}
+                                onChange={(e) => setScope(e.target.value as McpTokenScope)}
+                                className="px-3 py-1.5 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-xs focus:outline-none focus:border-violet-500"
+                            >
+                                <option value="read">{t('mcp.tokens.scopeRead')}</option>
+                                <option value="read_write">{t('mcp.tokens.scopeReadWrite')}</option>
+                            </select>
+                            <input
+                                type="number"
+                                min={1}
+                                max={365}
+                                value={expiresInDays}
+                                onChange={(e) => setExpiresInDays(Number.parseInt(e.target.value, 10) || 90)}
+                                className="w-24 px-3 py-1.5 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-xs focus:outline-none focus:border-violet-500"
+                            />
+                            <span className="text-xs text-gray-500">{t('mcp.tokens.expiryLabel')}</span>
+                            <button
+                                onClick={createToken}
+                                disabled={creating || !name.trim()}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white text-xs rounded-lg transition-colors disabled:opacity-50"
+                            >
+                                {creating ? <Loader2 size={12} className="animate-spin" /> : <Key size={12} />}
+                                {t('mcp.tokens.createButton')}
+                            </button>
+                        </div>
+                        <p className="text-xs text-gray-500">{t('mcp.tokens.expiryDesc')}</p>
+                    </div>
+                )}
+            </Section>
+
+            <Section title={t('mcp.tokens.listTitle')} icon={Bot} iconColor="cyan">
+                {loading ? (
+                    <div className="flex items-center justify-center py-12">
+                        <Loader2 size={24} className="text-gray-400 animate-spin" />
+                    </div>
+                ) : tokens.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                        <Info size={28} className="mx-auto mb-2" />
+                        <p className="text-sm">{t('mcp.tokens.empty')}</p>
+                    </div>
+                ) : (
+                    <div className="space-y-2">
+                        {tokens.map((tok) => {
+                            const isRevoked = tok.revokedAt !== null;
+                            const isExpired = !isRevoked && tok.expiresAt < Date.now();
+                            return (
+                                <div key={tok.id} className="p-3 bg-[#1a1a1a] rounded-lg border border-gray-800 flex items-center justify-between gap-2 flex-wrap">
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-sm font-medium text-white">{tok.name}</span>
+                                            <code className="text-xs text-gray-500 font-mono">{tok.tokenPrefix}...</code>
+                                            <span className={`text-xs px-2 py-0.5 rounded border ${
+                                                tok.scope === 'read_write'
+                                                    ? 'bg-amber-500/15 text-amber-400 border-amber-700/40'
+                                                    : 'bg-gray-500/15 text-gray-400 border-gray-700/40'
+                                            }`}>
+                                                {tok.scope === 'read_write' ? t('mcp.tokens.scopeReadWrite') : t('mcp.tokens.scopeRead')}
+                                            </span>
+                                            {isRevoked && (
+                                                <span className="text-xs px-2 py-0.5 rounded border bg-red-500/15 text-red-400 border-red-700/40">
+                                                    {t('mcp.tokens.revoked')}
+                                                </span>
+                                            )}
+                                            {isExpired && (
+                                                <span className="text-xs px-2 py-0.5 rounded border bg-gray-500/15 text-gray-400 border-gray-700/40">
+                                                    {t('mcp.tokens.expired')}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="text-xs text-gray-500 mt-1">
+                                            {t('mcp.tokens.columnExpires')}: {formatDate(tok.expiresAt)}
+                                            {' · '}
+                                            {t('mcp.tokens.columnLastUsed')}: {tok.lastUsedAt ? formatDate(tok.lastUsedAt) : t('mcp.tokens.lastUsedNever')}
+                                        </div>
+                                    </div>
+                                    {!isRevoked && (
+                                        <button
+                                            onClick={() => revokeToken(tok.id)}
+                                            className="flex items-center gap-1.5 px-3 py-1.5 bg-red-900/20 hover:bg-red-900/40 text-red-400 text-xs rounded-lg transition-colors border border-red-800/40"
+                                        >
+                                            <Trash2 size={12} />
+                                            {t('mcp.tokens.revokeButton')}
+                                        </button>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </Section>
+        </div>
+    );
+};
+
 const ThreatsTab: React.FC = () => {
     const { t } = useTranslation();
     const { addAction } = useNotificationStore();
@@ -428,6 +770,7 @@ export const McpSection: React.FC = () => {
 
     const tabs: { id: McpSubTab; label: string }[] = [
         { id: 'overview', label: t('mcp.subTabs.overview') },
+        { id: 'tokens', label: t('mcp.subTabs.tokens') },
         { id: 'audit', label: t('mcp.subTabs.audit') },
         { id: 'threats', label: t('mcp.subTabs.threats') },
     ];
@@ -451,6 +794,7 @@ export const McpSection: React.FC = () => {
             </div>
 
             {subTab === 'overview' && <OverviewTab />}
+            {subTab === 'tokens' && <TokensTab />}
             {subTab === 'audit' && <AuditTab />}
             {subTab === 'threats' && <ThreatsTab />}
         </div>

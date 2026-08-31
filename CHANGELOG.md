@@ -5,6 +5,24 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] - 2026-08-31
+
+### For users
+
+- MCP server: added a remote HTTP transport, so agents running outside the container (e.g. opencode) can connect to the MCP server over the network, not just via local stdio. Off by default.
+- Settings → MCP: new "Accès distant HTTP" toggle and IP allowlist field (Vue d'ensemble tab), and a new "Jetons d'accès" tab to create, list, and revoke the bearer tokens (`read` or `read_write` scope) required to authenticate remote agents.
+
+### For developers
+
+- `server/mcp/httpTransport.ts`: new `/mcp` route mounted in the main Express app, using the MCP SDK's `StreamableHTTPServerTransport` in stateless mode (fresh `McpServer` per request, no session to hijack or replay).
+- `server/mcp/httpAuth.ts`: new `requireMcpToken` middleware, in order: `mcp_enabled` + `mcp_http_enabled` gate (503/`-32001`), IP allowlist (403/`-32002`), bearer token validity (401/`-32003`). Dedicated rate limit (60 req/min/IP).
+- `server/mcp/ipAllowlist.ts`: dependency-free IPv4/IPv6 CIDR matcher for the allowlist.
+- `server/database/models/McpApiToken.ts`: new `mcp_api_tokens` table/repository, `lvr_mcp_...` tokens shown once at creation, stored as SHA-256 hash, verified with `crypto.timingSafeEqual`, default 90-day expiry (max 365).
+- `server/mcp/requestContext.ts`: `AsyncLocalStorage`-based per-request actor/scope, so `auditGate.ts` records `http:<token name>` as the actor for HTTP calls (vs the existing `LOGVIEWR_MCP_ACTOR` env var for stdio), and rejects write tools called with a `read`-scoped token before they run (`rejected_insufficient_scope`).
+- Security hardening: `/mcp`'s IP allowlist and rate limiter resolve the caller's IP via `resolveClientIp()` instead of Express's `req.ip`, which would otherwise trust a client-supplied `X-Forwarded-For` header (the app sets `trust proxy: true` globally for unrelated reasons) and let a remote attacker spoof their way past the allowlist. `X-Forwarded-For` is now only honored when the direct TCP peer is itself a trusted reverse proxy (loopback by default, extendable via `MCP_TRUSTED_PROXY_IPS`); a caller not behind a trusted proxy has its own real socket address checked instead.
+- `docker-compose.yml`: documented `MCP_HTTP_ALLOWED_IPS` and `MCP_TRUSTED_PROXY_IPS` env vars.
+- `Docs/MCP_SERVER.md`: new sections covering the HTTP transport architecture, connecting from Claude Code/Desktop and opencode, the security checklist, and troubleshooting.
+
 ## [0.10.9] - 2026-08-31
 
 ### For users

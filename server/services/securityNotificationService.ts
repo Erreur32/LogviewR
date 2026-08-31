@@ -22,7 +22,8 @@ export type SecurityEventType =
     | 'user_disabled'
     | 'user_enabled'
     | 'new_ip_login'
-    | 'jwt_secret_warning';
+    | 'jwt_secret_warning'
+    | 'mcp_auth_failed';
 
 export interface SecurityNotification {
     type: SecurityEventType;
@@ -247,6 +248,20 @@ class SecurityNotificationService {
             userId,
             username,
             metadata: { enabled, changedBy }
+        });
+    }
+
+    /**
+     * Notify about a rejected MCP HTTP authentication attempt (invalid/expired token, or IP outside the allowlist)
+     */
+    async notifyMcpAuthFailed(reason: string, ipAddress?: string): Promise<void> {
+        await this.notify({
+            type: 'mcp_auth_failed',
+            severity: 'warning',
+            title: 'Authentification MCP distante refusée',
+            message: `Tentative d'accès au serveur MCP distant refusée: ${reason}`,
+            ipAddress,
+            metadata: { reason }
         });
     }
 

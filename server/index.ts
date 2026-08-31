@@ -36,6 +36,8 @@ import securityRoutes from './routes/security.js';
 import logViewerRoutes from './routes/log-viewer.js';
 import settingsRoutes from './routes/settings.js';
 import mcpRoutes from './routes/mcp.js';
+import mcpHttpTransport from './mcp/httpTransport.js';
+import { isMcpHttpEnabled, getMcpHttpAllowedIps } from './mcp/mcpConfig.js';
 import { securityNotificationService } from './services/securityNotificationService.js';
 import { logger } from './utils/logger.js';
 import { logBuffer } from './utils/logBuffer.js';
@@ -227,6 +229,12 @@ app.use('/api/system', systemServerRoutes);
 // app.use('/api/connection', connectionRoutes); // Removed: Freebox-specific routes
 app.use('/api/settings', settingsRoutes);
 app.use('/api/mcp', mcpRoutes);
+// Remote HTTP MCP transport, off by default (mcp_http_enabled), gated by requireMcpToken inside the router.
+// Not a /api/* route: it speaks MCP's own JSON-RPC 2.0 wire format, not LogviewR's { success, result } envelope.
+app.use('/mcp', mcpHttpTransport);
+if (isMcpHttpEnabled() && getMcpHttpAllowedIps().length === 0) {
+    logger.warn('Server', 'MCP HTTP remote access is enabled with no IP allowlist configured, restrict access via MCP_HTTP_ALLOWED_IPS or Settings > MCP, and always terminate TLS at a reverse proxy before exposing /mcp beyond localhost.');
+}
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/updates', updatesRoutes);
 app.use('/api/debug', debugRoutes);
@@ -603,7 +611,7 @@ server.listen(port, host, () => {
   };
 
   // Read app version from package.json
-  let appVersion = '0.10.9'; // Default fallback
+  let appVersion = '0.11.0'; // Default fallback
   try {
     const packageJsonPath = path.join(__dirname, '..', 'package.json');
     const packageJson = JSON.parse(fsSync.readFileSync(packageJsonPath, 'utf8'));

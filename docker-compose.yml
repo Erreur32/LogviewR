@@ -17,6 +17,12 @@
 #   Traefik             : url = "http://127.0.0.1:7500"
 #   To change port: set PORT=8080 in .env and update reverse proxy
 #
+#   If you enable the MCP HTTP transport (/mcp, see Docs/MCP_SERVER.md), it is
+#   served on this same port and therefore through this same reverse proxy.
+#   TLS is not terminated by LogviewR itself, exposing /mcp beyond localhost
+#   without TLS at the proxy sends bearer tokens in cleartext. Keep MCP HTTP
+#   disabled (default) unless you actually need a remote agent to connect.
+#
 # ===========================================
 
 services:
@@ -42,6 +48,15 @@ services:
       # Override via TZ=... in your .env if your host is not in Europe/Paris.
       TZ: ${TZ:-Europe/Paris}
       # PUBLIC_URL: https://dashboard.example.com
+      # MCP_HTTP_ALLOWED_IPS: 192.168.1.50,10.0.0.0/24  # infra-level floor for the /mcp
+      #   HTTP transport's IP allowlist, merged with the allowlist set in Settings → MCP.
+      #   Only read if MCP_HTTP_ALLOWED_IPS is set here, has no effect on its own, the
+      #   HTTP transport itself is still off by default (mcp_http_enabled, from the UI).
+      # MCP_TRUSTED_PROXY_IPS: 10.0.0.5  # only needed if your reverse proxy for /mcp runs
+      #   on a DIFFERENT machine than this container (loopback is trusted by default,
+      #   which covers the common case of a proxy on the same host / network_mode: host).
+      #   Without this, X-Forwarded-For from an untrusted proxy is ignored and the /mcp
+      #   IP allowlist above checks the proxy's own IP instead of the real client's.
 
     group_add:
       - "${ADM_GID:-4}"           # adm group (GID 4) — read /var/log files; override if your host's adm GID differs

@@ -11,8 +11,17 @@ import { Router } from 'express';
 import expressRateLimit from 'express-rate-limit';
 import { requireAuth, requireAdmin, type AuthenticatedRequest } from '../middleware/authMiddleware.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
-import { isMcpEnabled, setMcpEnabled, getLastSeenAt } from '../mcp/mcpConfig.js';
+import {
+    isMcpEnabled,
+    setMcpEnabled,
+    getLastSeenAt,
+    isMcpHttpEnabled,
+    setMcpHttpEnabled,
+    getMcpHttpAllowedIps,
+    setMcpHttpAllowedIps,
+} from '../mcp/mcpConfig.js';
 import { McpActionAuditRepository, type McpAuditResult } from '../database/models/McpActionAudit.js';
+import { McpApiTokenRepository, MCP_TOKEN_MAX_EXPIRY_DAYS, type McpTokenScope } from '../database/models/McpApiToken.js';
 import { attackCorrelationService } from '../services/attackCorrelationService.js';
 
 const router = Router();
@@ -75,6 +84,80 @@ router.get('/threats', asyncHandler(async (req: AuthenticatedRequest, res) => {
     const windowHours = Number.parseFloat(req.query.windowHours as string) || 6;
     const clusters = await attackCorrelationService.getActiveThreats(windowHours);
     res.json({ success: true, result: { windowHours, clusters } });
+}));
+
+// GET /api/mcp/http-config
+router.get('/http-config', asyncHandler(async (_req: AuthenticatedRequest, res) => {
+    res.json({
+        success: true,
+        result: {
+            httpEnabled: isMcpHttpEnabled(),
+            allowedIps: getMcpHttpAllowedIps(),
+        },
+    });
+}));
+
+// POST /api/mcp/http-config
+router.post('/http-config', asyncHandler(async (req: AuthenticatedRequest, res) => {
+    if (typeof req.body?.httpEnabled === 'boolean') {
+        setMcpHttpEnabled(req.body.httpEnabled);
+    }
+    if (Array.isArray(req.body?.allowedIps)) {
+        const ips = req.body.allowedIps.filter((ip: unknown): ip is string => typeof ip === 'string');
+        setMcpHttpAllowedIps(ips);
+    }
+    res.json({
+        success: true,
+        result: {
+            httpEnabled: isMcpHttpEnabled(),
+            allowedIps: getMcpHttpAllowedIps(),
+        },
+    });
+}));
+
+// GET /api/mcp/tokens
+router.get('/tokens', asyncHandler(async (_req: AuthenticatedRequest, res) => {
+    const tokens = McpApiTokenRepository.list();
+    res.json({ success: true, result: { tokens } });
+}));
+
+// POST /api/mcp/tokens
+router.post('/tokens', asyncHandler(async (req: AuthenticatedRequest, res) => {
+    const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
+    const scope: McpTokenScope = req.body?.scope === 'read_write' ? 'read_write' : 'read';
+    const expiresInDays = Number.isFinite(req.body?.expiresInDays) ? Number(req.body.expiresInDays) : undefined;
+
+    if (!name) {
+        res.status(400).json({ success: true, result: { ok: false, error: 'Token name is required.' } });
+        return;
+    }
+    if (expiresInDays !== undefined && (expiresInDays < 1 || expiresInDays > MCP_TOKEN_MAX_EXPIRY_DAYS)) {
+        res.status(400).json({
+            success: true,
+            result: { ok: false, error: `expiresInDays must be between 1 and ${MCP_TOKEN_MAX_EXPIRY_DAYS}.` },
+        });
+        return;
+    }
+
+    const created = McpApiTokenRepository.create({
+        name,
+        scope,
+        createdBy: req.user?.username || 'unknown-admin',
+        expiresInDays,
+    });
+
+    res.json({ success: true, result: { token: created } });
+}));
+
+// DELETE /api/mcp/tokens/:id
+router.delete('/tokens/:id', asyncHandler(async (req: AuthenticatedRequest, res) => {
+    const id = Number.parseInt(req.params.id, 10);
+    if (Number.isNaN(id)) {
+        res.status(400).json({ success: true, result: { ok: false, error: 'Invalid token id.' } });
+        return;
+    }
+    const revoked = McpApiTokenRepository.revoke(id);
+    res.json({ success: true, result: { revoked } });
 }));
 
 export default router;

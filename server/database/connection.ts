@@ -390,6 +390,25 @@ export function initializeDatabase(): void {
         CREATE INDEX IF NOT EXISTS idx_mcp_audit_actor ON mcp_action_audit(actor, created_at)
     `);
 
+    // Dedicated MCP HTTP API tokens (headless remote clients, never the browser session JWT)
+    database.exec(`
+        CREATE TABLE IF NOT EXISTS mcp_api_tokens (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            name          TEXT    NOT NULL,
+            token_hash    TEXT    NOT NULL,
+            token_prefix  TEXT    NOT NULL,
+            scope         TEXT    NOT NULL DEFAULT 'read',
+            created_by    TEXT    NOT NULL,
+            created_at    INTEGER NOT NULL DEFAULT (strftime('%s','now')),
+            expires_at    INTEGER NOT NULL,
+            last_used_at  INTEGER,
+            revoked_at    INTEGER
+        )
+    `);
+    database.exec(`
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_mcp_tokens_hash ON mcp_api_tokens(token_hash)
+    `);
+
     // Log sources table (configuration for log sources: Apache, Nginx, System, etc.)
     database.exec(`
         CREATE TABLE IF NOT EXISTS log_sources (
