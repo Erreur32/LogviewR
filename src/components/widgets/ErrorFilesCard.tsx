@@ -39,6 +39,14 @@ export interface ErrorFileSummary {
         debug: UniqueErrorSample[];
     };
     topErrors: UniqueErrorSample[];
+    suspiciousFindings?: SuspiciousFinding[];
+}
+
+/** 403/401, injection-pattern, and bruteforce findings (access log plugins only, when securityCheckEnabled). */
+export interface SuspiciousFinding {
+    category: string;
+    count: number;
+    sample: string;
 }
 
 /** Reported when a file could not be read or parsed (I/O or parse error). */
@@ -78,6 +86,12 @@ const WEB_PLUGINS = ['apache', 'nginx', 'npm'];
 const PLUGIN_ORDER = ['host-system', 'apache', 'npm', 'nginx'];
 /** When progress list has more than this many steps, show collapsed with expand toggle (no scroll). */
 const PROGRESS_COLLAPSE_THRESHOLD = 5;
+
+/** Maps a SuspiciousFinding category (raw or "injection:<sub>") to its i18n key. */
+function suspiciousCategoryKey(category: string): string {
+    const sub = category.startsWith('injection:') ? category.slice('injection:'.length) : category;
+    return `dashboard.suspiciousCategory.${sub}`;
+}
 
 export const ErrorFilesCard: React.FC<ErrorFilesCardProps> = ({ onOpenFile, onNavigateToAnalysis, osType }) => {
     const { t } = useTranslation();
@@ -585,9 +599,67 @@ export const ErrorFilesCard: React.FC<ErrorFilesCardProps> = ({ onOpenFile, onNa
                                                                             {(file.countWarnTag ?? 0) > 0 && (
                                                                                 <span className="text-xs text-amber-400 bg-amber-500/20 px-1.5 py-0.5 rounded">{t('dashboard.badgeWarn')}: {file.countWarnTag}</span>
                                                                             )}
+                                                                            {(file.suspiciousFindings?.length ?? 0) > 0 && (
+                                                                                <span className="text-xs text-red-300 bg-red-600/30 px-1.5 py-0.5 rounded font-semibold">
+                                                                                    ⚠ {t('dashboard.badgeSuspicious')}: {file.suspiciousFindings!.reduce((sum, f) => sum + f.count, 0)}
+                                                                                </span>
+                                                                            )}
                                                                         </div>
-                                                                        {!SEVERITY_ORDER.some((sev) => (file.uniqueErrorsBySeverity[sev]?.length ?? 0) > 0) && (
+                                                                        {!SEVERITY_ORDER.some((sev) => (file.uniqueErrorsBySeverity[sev]?.length ?? 0) > 0) && (file.topErrors?.length ?? 0) === 0 && (
                                                                             <p className="text-xs text-gray-500 italic">{t('dashboard.errorDetailComingSoon')}</p>
+                                                                        )}
+                                                                        {(file.topErrors?.length ?? 0) > 0 && (
+                                                                            <div>
+                                                                                <p className="text-xs font-medium text-gray-400 mb-1">
+                                                                                    {t('dashboard.errorSummaryTopErrorsTitle')} ({file.topErrors.length})
+                                                                                </p>
+                                                                                <ul className="space-y-0.5">
+                                                                                    {file.topErrors.slice(0, 5).map((sample, i) => {
+                                                                                        const levelColor = sample.level === 'error'
+                                                                                            ? 'text-red-400'
+                                                                                            : sample.level === 'warn'
+                                                                                                ? 'text-amber-400'
+                                                                                                : sample.level === 'info'
+                                                                                                    ? 'text-blue-400'
+                                                                                                    : 'text-gray-400';
+                                                                                        return (
+                                                                                            <li
+                                                                                                key={`top-${i}-${sample.message.slice(0, 40)}`}
+                                                                                                className="text-xs text-gray-300 font-mono pl-2 border-l-2 border-cyan-600/60"
+                                                                                            >
+                                                                                                <span className="flex items-start gap-1">
+                                                                                                    <span className="text-gray-500 shrink-0">×{sample.count}</span>
+                                                                                                    <span className={`shrink-0 uppercase text-[10px] font-semibold ${levelColor}`}>{sample.level}</span>
+                                                                                                    <span className="truncate flex-1" title={sample.message}>{sample.message}</span>
+                                                                                                </span>
+                                                                                            </li>
+                                                                                        );
+                                                                                    })}
+                                                                                </ul>
+                                                                            </div>
+                                                                        )}
+                                                                        {(file.suspiciousFindings?.length ?? 0) > 0 && (
+                                                                            <div>
+                                                                                <p className="text-xs font-medium text-red-400 mb-1">
+                                                                                    {t('dashboard.badgeSuspicious')} ({file.suspiciousFindings!.length})
+                                                                                </p>
+                                                                                <ul className="space-y-0.5">
+                                                                                    {file.suspiciousFindings!.map((finding, i) => (
+                                                                                        <li
+                                                                                            key={`suspicious-${i}-${finding.category}`}
+                                                                                            className="text-xs text-gray-300 font-mono pl-2 border-l-2 border-red-500/60"
+                                                                                        >
+                                                                                            <span className="flex items-start gap-1">
+                                                                                                <span className="text-gray-500 shrink-0">×{finding.count}</span>
+                                                                                                <span className="shrink-0 uppercase text-[10px] font-semibold text-red-400">
+                                                                                                    {t(suspiciousCategoryKey(finding.category))}
+                                                                                                </span>
+                                                                                                <span className="truncate flex-1" title={finding.sample}>{finding.sample}</span>
+                                                                                            </span>
+                                                                                        </li>
+                                                                                    ))}
+                                                                                </ul>
+                                                                            </div>
                                                                         )}
                                                                         {SEVERITY_ORDER.map((sev) => {
                                                                             const arr = file.uniqueErrorsBySeverity[sev];

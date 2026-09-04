@@ -26,6 +26,18 @@ export interface ErrorAnalysisConfig {
     useExternalSecurityBases: boolean;
     /** Placeholder: include .tar.gz/.tgz in scan (not used yet; archives are always excluded) */
     analyzeArchives: boolean;
+    /** Max unique (deduplicated) messages kept per severity in the detailed breakdown */
+    maxUniqueMessagesPerSeverity: number;
+    /** Max entries kept in the global top-errors list (all severities combined) */
+    maxTopErrors: number;
+    /** Flag 403/401 responses as suspicious findings (requires securityCheckEnabled) */
+    suspiciousDetect403: boolean;
+    /** Flag injection-pattern URLs (XSS, SQLi, path traversal, ...) as suspicious findings */
+    suspiciousDetectInjection: boolean;
+    /** Flag repeated 401/403 from the same IP as a bruteforce finding */
+    suspiciousDetectBruteforce: boolean;
+    /** Number of 401/403 responses from a single IP before it is flagged as bruteforce */
+    suspiciousBruteforceThreshold: number;
 }
 
 const CONFIG_KEY = 'error_analysis_config';
@@ -42,7 +54,13 @@ export const DEFAULT_ERROR_ANALYSIS_CONFIG: ErrorAnalysisConfig = {
     securityCheckEnabled: true,
     securityCheckDepth: 'normal',
     useExternalSecurityBases: false,
-    analyzeArchives: false
+    analyzeArchives: false,
+    maxUniqueMessagesPerSeverity: 20,
+    maxTopErrors: 10,
+    suspiciousDetect403: true,
+    suspiciousDetectInjection: true,
+    suspiciousDetectBruteforce: true,
+    suspiciousBruteforceThreshold: 5
 };
 
 /** Map depth to effective lines per file when depth overrides (optional; can use linesPerFile only) */
@@ -95,7 +113,13 @@ function mergeWithDefaults(partial: Partial<ErrorAnalysisConfig>): ErrorAnalysis
             ? (partial.securityCheckDepth as SecurityCheckDepth)
             : def.securityCheckDepth,
         useExternalSecurityBases: partial.useExternalSecurityBases ?? def.useExternalSecurityBases,
-        analyzeArchives: partial.analyzeArchives ?? def.analyzeArchives
+        analyzeArchives: partial.analyzeArchives ?? def.analyzeArchives,
+        maxUniqueMessagesPerSeverity: clamp(partial.maxUniqueMessagesPerSeverity ?? def.maxUniqueMessagesPerSeverity, 1, 100),
+        maxTopErrors: clamp(partial.maxTopErrors ?? def.maxTopErrors, 1, 50),
+        suspiciousDetect403: partial.suspiciousDetect403 ?? def.suspiciousDetect403,
+        suspiciousDetectInjection: partial.suspiciousDetectInjection ?? def.suspiciousDetectInjection,
+        suspiciousDetectBruteforce: partial.suspiciousDetectBruteforce ?? def.suspiciousDetectBruteforce,
+        suspiciousBruteforceThreshold: clamp(partial.suspiciousBruteforceThreshold ?? def.suspiciousBruteforceThreshold, 3, 50)
     };
 }
 

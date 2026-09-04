@@ -3791,6 +3791,10 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     securityCheckDepth: 'light' | 'normal' | 'deep';
     useExternalSecurityBases: boolean;
     analyzeArchives: boolean;
+    suspiciousDetect403: boolean;
+    suspiciousDetectInjection: boolean;
+    suspiciousDetectBruteforce: boolean;
+    suspiciousBruteforceThreshold: number;
   }>({
     errorSummaryEnabled: false,
     enabledPlugins: ['host-system'],
@@ -3800,7 +3804,11 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     securityCheckEnabled: true,
     securityCheckDepth: 'normal',
     useExternalSecurityBases: false,
-    analyzeArchives: false
+    analyzeArchives: false,
+    suspiciousDetect403: true,
+    suspiciousDetectInjection: true,
+    suspiciousDetectBruteforce: true,
+    suspiciousBruteforceThreshold: 5
   });
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisSaving, setAnalysisSaving] = useState(false);
@@ -3830,7 +3838,11 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             securityCheckEnabled: analysisRes.result.securityCheckEnabled !== false,
             securityCheckDepth: analysisRes.result.securityCheckDepth ?? 'normal',
             useExternalSecurityBases: analysisRes.result.useExternalSecurityBases === true,
-            analyzeArchives: analysisRes.result.analyzeArchives === true
+            analyzeArchives: analysisRes.result.analyzeArchives === true,
+            suspiciousDetect403: analysisRes.result.suspiciousDetect403 !== false,
+            suspiciousDetectInjection: analysisRes.result.suspiciousDetectInjection !== false,
+            suspiciousDetectBruteforce: analysisRes.result.suspiciousDetectBruteforce !== false,
+            suspiciousBruteforceThreshold: analysisRes.result.suspiciousBruteforceThreshold ?? 5
           });
           analysisJustLoadedRef.current = true;
         } else if (!analysisRes.success && !cancelled) {
@@ -4400,15 +4412,37 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                               onChange={(enabled) => setAnalysisConfig((prev) => ({ ...prev, securityCheckEnabled: enabled }))}
                             />
                           </SettingRow>
-                          <p className="text-xs text-amber-400/90 pl-1">{t('analysis.suspiciousOptionsComingSoon')}</p>
-                          <SettingRow label={t('analysis.suspiciousOption403')} description="">
-                            <Toggle enabled={false} onChange={() => {}} disabled />
+                          <SettingRow label={t('analysis.suspiciousOption403')} description={t('analysis.suspiciousOption403Desc')}>
+                            <Toggle
+                              enabled={analysisConfig.suspiciousDetect403}
+                              onChange={(enabled) => setAnalysisConfig((prev) => ({ ...prev, suspiciousDetect403: enabled }))}
+                              disabled={!analysisConfig.securityCheckEnabled}
+                            />
                           </SettingRow>
-                          <SettingRow label={t('analysis.suspiciousOptionInjection')} description="">
-                            <Toggle enabled={false} onChange={() => {}} disabled />
+                          <SettingRow label={t('analysis.suspiciousOptionInjection')} description={t('analysis.suspiciousOptionInjectionDesc')}>
+                            <Toggle
+                              enabled={analysisConfig.suspiciousDetectInjection}
+                              onChange={(enabled) => setAnalysisConfig((prev) => ({ ...prev, suspiciousDetectInjection: enabled }))}
+                              disabled={!analysisConfig.securityCheckEnabled}
+                            />
                           </SettingRow>
-                          <SettingRow label={t('analysis.suspiciousOptionBruteforce')} description="">
-                            <Toggle enabled={false} onChange={() => {}} disabled />
+                          <SettingRow label={t('analysis.suspiciousOptionBruteforce')} description={t('analysis.suspiciousOptionBruteforceDesc')}>
+                            <Toggle
+                              enabled={analysisConfig.suspiciousDetectBruteforce}
+                              onChange={(enabled) => setAnalysisConfig((prev) => ({ ...prev, suspiciousDetectBruteforce: enabled }))}
+                              disabled={!analysisConfig.securityCheckEnabled}
+                            />
+                          </SettingRow>
+                          <SettingRow label={t('analysis.suspiciousBruteforceThreshold')} description={t('analysis.suspiciousBruteforceThresholdDesc')}>
+                            <input
+                              type="number"
+                              min={3}
+                              max={50}
+                              value={analysisConfig.suspiciousBruteforceThreshold}
+                              onChange={(e) => setAnalysisConfig((prev) => ({ ...prev, suspiciousBruteforceThreshold: Math.max(3, Math.min(50, Number.parseInt(e.target.value, 10) || 3)) }))}
+                              disabled={!analysisConfig.securityCheckEnabled || !analysisConfig.suspiciousDetectBruteforce}
+                              className="w-24 px-2 py-1.5 rounded-lg bg-theme-tertiary border border-theme-border text-theme-primary text-sm disabled:opacity-50"
+                            />
                           </SettingRow>
                           <SettingRow label={t('analysis.securityCheckDepth')} description={t('analysis.securityCheckDepthDesc')}>
                             <select

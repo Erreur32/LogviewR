@@ -786,6 +786,7 @@ router.post('/error-summary/analyze-file', async (req, res) => {
             res.status(400).json({ success: false, error: 'pluginId and filePath required' });
             return;
         }
+        validatePathSafe(filePath);
         const pluginConfig = PluginConfigRepository.findByPluginId(pluginId);
         const readCompressed = (pluginConfig?.settings?.readCompressed as boolean) ?? false;
         const { summary, error } = await analyzeSingleFile(pluginId, filePath, readCompressed);

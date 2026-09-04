@@ -17,7 +17,9 @@ import { pluginManager } from './pluginManager.js';
 import { logReaderService } from './logReaderService.js';
 import { PluginConfigRepository } from '../database/models/PluginConfig.js';
 import { logger } from '../utils/logger.js';
-import { getErrorAnalysisConfig, DEPTH_TO_LINES } from '../config/errorAnalysisConfig.js';
+import { getErrorAnalysisConfig, DEPTH_TO_LINES, type ErrorAnalysisConfig } from '../config/errorAnalysisConfig.js';
+import { normalizeErrorMessage } from '../utils/errorMessageNormalizer.js';
+import { analyzeSuspiciousActivity, type SuspiciousFinding } from './suspiciousActivityDetector.js';
 
 function isLogSourcePlugin(plugin: unknown): plugin is LogSourcePlugin {
     return (
@@ -43,10 +45,26 @@ function getEffectiveBasePath(pluginId: string, plugin: LogSourcePlugin): string
 export type LineLevelSource = 'tag' | '4xx' | '5xx' | '3xx';
 
 /**
+ * Plugins whose log lines can contain genuine HTTP status codes (access/error logs).
+ * Other plugins (host-system: syslog, cloud-init, custom scripts...) commonly contain
+ * unrelated 3-digit numbers (byte counts, ids, ports) that must not be misread as 3xx/4xx/5xx.
+ */
+const HTTP_STATUS_CODE_PLUGIN_IDS = new Set(['apache', 'nginx', 'npm']);
+
+function pluginHasHttpStatusCodes(pluginId: string): boolean {
+    return HTTP_STATUS_CODE_PLUGIN_IDS.has(pluginId);
+}
+
+/**
  * Fast level detection on a raw log line with breakdown (tag vs status code).
  * Used to produce per-file counts for badges: 4xx/5xx (Apache) and error/warn tags (NPM/Nginx).
+ * `allowStatusCodes` must be false for plugins whose logs are not HTTP access/error logs,
+ * to avoid misreading arbitrary 3-digit numbers as HTTP status codes.
  */
-function countLevelFromRawLineBreakdown(line: string): { level: 'error' | 'warn'; source: LineLevelSource } | null {
+function countLevelFromRawLineBreakdown(
+    line: string,
+    allowStatusCodes: boolean
+): { level: 'error' | 'warn'; source: LineLevelSource } | null {
     const lower = line.trim();
     if (!lower) return null;
     // Apache/Nginx/NPM style: [error], [warn]
@@ -55,13 +73,15 @@ function countLevelFromRawLineBreakdown(line: string): { level: 'error' | 'warn'
     // System logs (syslog, journald, auth): level=error, "error:", "ERR", etc.
     if (/\b(?:error|err|crit|critical|alert|emerg|emergency)\b/i.test(lower)) return { level: 'error', source: 'tag' };
     if (/\b(?:warn|warning)\b/i.test(lower)) return { level: 'warn', source: 'tag' };
-    // HTTP status codes (access/error logs)
-    const statusMatch = lower.match(/\s(5\d{2}|4\d{2}|3\d{2})(?:\s|"|$)/);
-    if (statusMatch) {
-        const code = statusMatch[1];
-        if (code.startsWith('5')) return { level: 'error', source: '5xx' };
-        if (code.startsWith('4')) return { level: 'error', source: '4xx' };
-        if (code.startsWith('3')) return { level: 'warn', source: '3xx' };
+    // HTTP status codes (access/error logs) — only meaningful for HTTP-serving plugins.
+    if (allowStatusCodes) {
+        const statusMatch = lower.match(/\s(5\d{2}|4\d{2}|3\d{2})(?:\s|"|$)/);
+        if (statusMatch) {
+            const code = statusMatch[1];
+            if (code.startsWith('5')) return { level: 'error', source: '5xx' };
+            if (code.startsWith('4')) return { level: 'error', source: '4xx' };
+            if (code.startsWith('3')) return { level: 'warn', source: '3xx' };
+        }
     }
     return null;
 }
@@ -69,10 +89,10 @@ function countLevelFromRawLineBreakdown(line: string): { level: 'error' | 'warn'
 type ErrorBucketCounts = { '4xx': number; '5xx': number; '3xx': number; errorTag: number; warnTag: number };
 
 /** Aggregate error/warn line counts per bucket (status bands + tag levels). */
-function countErrorsByBucket(logLines: Array<{ line: string }>): ErrorBucketCounts {
+function countErrorsByBucket(logLines: Array<{ line: string }>, allowStatusCodes: boolean): ErrorBucketCounts {
     const counts: ErrorBucketCounts = { '4xx': 0, '5xx': 0, '3xx': 0, errorTag: 0, warnTag: 0 };
     for (const logLine of logLines) {
-        const r = countLevelFromRawLineBreakdown(logLine.line);
+        const r = countLevelFromRawLineBreakdown(logLine.line, allowStatusCodes);
         if (!r) continue;
         if (r.source === '4xx' || r.source === '5xx' || r.source === '3xx') {
             counts[r.source]++;
@@ -112,6 +132,113 @@ export interface ErrorFileSummary {
         debug: UniqueErrorSample[];
     };
     topErrors: UniqueErrorSample[];
+    /** 403/401, injection-pattern, and bruteforce findings (access log plugins only, when securityCheckEnabled). */
+    suspiciousFindings?: SuspiciousFinding[];
+}
+
+type SeverityBucket = 'error' | 'warn' | 'info' | 'debug';
+
+interface AggregatedError {
+    level: SeverityBucket;
+    sampleMessage: string;
+    count: number;
+}
+
+/** Normalize a raw parser/regex level string (error, err, crit, warning, notice...) into one of the 4 display buckets. */
+function normalizeLevelBucket(rawLevel: string | undefined): SeverityBucket {
+    const l = (rawLevel || '').toLowerCase();
+    if (['error', 'err', 'crit', 'critical', 'alert', 'emerg', 'emergency'].includes(l)) return 'error';
+    if (['warn', 'warning'].includes(l)) return 'warn';
+    if (l === 'debug') return 'debug';
+    return 'info';
+}
+
+/**
+ * Extract a clean (message, level) pair for a line already flagged as error/warn
+ * by countLevelFromRawLineBreakdown. Prefers the plugin's structured parser
+ * (clean message, precise level); falls back to the raw line + raw level when
+ * the plugin cannot parse it.
+ */
+function extractMessageAndLevel(
+    line: string,
+    rawLevel: 'error' | 'warn',
+    plugin: LogSourcePlugin,
+    logType: string
+): { message: string; level: SeverityBucket } {
+    try {
+        const parsed = plugin.parseLogLine(line, logType);
+        if (parsed?.message?.trim()) {
+            return {
+                message: parsed.message.trim().slice(0, 500),
+                level: parsed.level ? normalizeLevelBucket(parsed.level) : rawLevel
+            };
+        }
+    } catch {
+        // Fall through to raw-line fallback below.
+    }
+    return { message: line.trim().slice(0, 500), level: rawLevel };
+}
+
+/**
+ * Deduplicate error/warn lines by normalized fingerprint (see errorMessageNormalizer.ts)
+ * and produce the per-severity + global top-N breakdown for the dashboard detail view.
+ * Only lines already classified as error/warn by countLevelFromRawLineBreakdown are
+ * considered, so this never diverges from the Phase 1 badge counts (count4xx, countErrorTag...).
+ */
+function aggregateUniqueErrors(
+    logLines: Array<{ line: string }>,
+    plugin: LogSourcePlugin,
+    logType: string,
+    maxPerSeverity: number,
+    maxTop: number,
+    allowStatusCodes: boolean
+): { uniqueErrorsBySeverity: ErrorFileSummary['uniqueErrorsBySeverity']; topErrors: UniqueErrorSample[] } {
+    const bySeverity: Record<SeverityBucket, Map<string, AggregatedError>> = {
+        error: new Map(),
+        warn: new Map(),
+        info: new Map(),
+        debug: new Map()
+    };
+    const global = new Map<string, AggregatedError>();
+
+    for (const logLine of logLines) {
+        const raw = countLevelFromRawLineBreakdown(logLine.line, allowStatusCodes);
+        if (!raw) continue;
+
+        const { message, level } = extractMessageAndLevel(logLine.line, raw.level, plugin, logType);
+        const key = normalizeErrorMessage(message);
+        if (!key) continue;
+
+        const existing = bySeverity[level].get(key);
+        if (existing) {
+            existing.count++;
+        } else {
+            bySeverity[level].set(key, { level, sampleMessage: message, count: 1 });
+        }
+
+        const globalExisting = global.get(key);
+        if (globalExisting) {
+            globalExisting.count++;
+        } else {
+            global.set(key, { level, sampleMessage: message, count: 1 });
+        }
+    }
+
+    const toSamples = (map: Map<string, AggregatedError>, limit: number): UniqueErrorSample[] =>
+        [...map.values()]
+            .sort((a, b) => b.count - a.count)
+            .slice(0, limit)
+            .map((e) => ({ message: e.sampleMessage, level: e.level, count: e.count }));
+
+    return {
+        uniqueErrorsBySeverity: {
+            error: toSamples(bySeverity.error, maxPerSeverity),
+            warn: toSamples(bySeverity.warn, maxPerSeverity),
+            info: toSamples(bySeverity.info, maxPerSeverity),
+            debug: toSamples(bySeverity.debug, maxPerSeverity)
+        },
+        topErrors: toSamples(global, maxTop)
+    };
 }
 
 /** Reported when a file could not be read or parsed (I/O or parse error), distinct from errors found inside the log. */
@@ -257,8 +384,10 @@ const PARALLEL_FILE_LIMIT = 6;
 async function processOneFile(
     file: { path: string; type: string; size: number },
     pluginId: string,
+    plugin: LogSourcePlugin,
     linesPerFile: number,
     readCompressed: boolean,
+    config: ErrorAnalysisConfig,
     onProgress?: ErrorSummaryProgressCallback
 ): Promise<{ summary: ErrorFileSummary | null; error: AnalysisErrorEntry | null }> {
     const fileName = file.path.split('/').pop() ?? file.path;
@@ -276,14 +405,31 @@ async function processOneFile(
 
         onProgress?.(`Comptage: ${fileName} (${logLines.length} lignes)`, { pluginId, filePath: file.path });
 
-        const counts = countErrorsByBucket(logLines);
+        const allowStatusCodes = pluginHasHttpStatusCodes(pluginId);
+        const counts = countErrorsByBucket(logLines, allowStatusCodes);
         const { '4xx': count4xx, '5xx': count5xx, '3xx': count3xx, errorTag: countErrorTag, warnTag: countWarnTag } = counts;
         const errorCount = count4xx + count5xx + count3xx + countErrorTag + countWarnTag;
 
-        if (errorCount === 0) {
+        // Suspicious activity can appear on lines with no error/warn status (e.g. a 200 response
+        // carrying an XSS payload in the URL), so this pass must run even when errorCount is 0.
+        const suspiciousFindings =
+            allowStatusCodes && config.securityCheckEnabled
+                ? analyzeSuspiciousActivity(logLines, plugin, file.type, config)
+                : [];
+
+        if (errorCount === 0 && suspiciousFindings.length === 0) {
             onProgress?.(`Ignoré (0 erreur): ${fileName}`, { pluginId, filePath: file.path });
             return { summary: null, error: null };
         }
+
+        const { uniqueErrorsBySeverity, topErrors } = aggregateUniqueErrors(
+            logLines,
+            plugin,
+            file.type,
+            config.maxUniqueMessagesPerSeverity,
+            config.maxTopErrors,
+            allowStatusCodes
+        );
 
         const summary: ErrorFileSummary = {
             pluginId,
@@ -297,8 +443,9 @@ async function processOneFile(
             count3xx: count3xx || undefined,
             countErrorTag: countErrorTag || undefined,
             countWarnTag: countWarnTag || undefined,
-            uniqueErrorsBySeverity: { error: [], warn: [], info: [], debug: [] },
-            topErrors: []
+            uniqueErrorsBySeverity,
+            topErrors,
+            suspiciousFindings: suspiciousFindings.length > 0 ? suspiciousFindings : undefined
         };
         onProgress?.(`Lu et validé: ${fileName} (${formatFileSize(file.size)}, ${errorCount} erreurs)`, { pluginId, filePath: file.path });
         return { summary, error: null };
@@ -391,7 +538,7 @@ async function computeErrorSummary(onProgress?: ErrorSummaryProgressCallback): P
         for (let i = 0; i < errorFiles.length; i += PARALLEL_FILE_LIMIT) {
             const batch = errorFiles.slice(i, i + PARALLEL_FILE_LIMIT);
             const results = await Promise.all(
-                batch.map((file) => processOneFile(file, pluginId, linesPerFile, readCompressed, onProgress))
+                batch.map((file) => processOneFile(file, pluginId, plugin, linesPerFile, readCompressed, config, onProgress))
             );
             for (const { summary, error } of results) {
                 if (summary) files.push(summary);
@@ -414,20 +561,14 @@ export async function analyzeSingleFile(
     readCompressed: boolean
 ): Promise<{ summary: ErrorFileSummary | null; error: string | null }> {
     const fileName = filePath.split('/').pop() ?? filePath;
-    let count4xx = 0;
-    let count5xx = 0;
-    let count3xx = 0;
-    let countErrorTag = 0;
-    let countWarnTag = 0;
-    let fileSize = 0;
-    let logType = 'error';
+    const logType = 'error';
 
     try {
         const fileInfo = await logReaderService.getFileInfo(filePath);
         if (!fileInfo.exists || !fileInfo.readable) {
             return { summary: null, error: 'File not found or not readable' };
         }
-        fileSize = fileInfo.size;
+        const fileSize = fileInfo.size;
 
         const lines = await logReaderService.readLogFile(filePath, {
             maxLines: 0,
@@ -435,16 +576,20 @@ export async function analyzeSingleFile(
             readCompressed
         });
 
-        for (const logLine of lines) {
-            const r = countLevelFromRawLineBreakdown(logLine.line);
-            if (!r) continue;
-            if (r.source === '4xx') count4xx++;
-            else if (r.source === '5xx') count5xx++;
-            else if (r.source === '3xx') count3xx++;
-            else if (r.source === 'tag' && r.level === 'error') countErrorTag++;
-            else if (r.source === 'tag' && r.level === 'warn') countWarnTag++;
-        }
+        const allowStatusCodes = pluginHasHttpStatusCodes(pluginId);
+        const counts = countErrorsByBucket(lines, allowStatusCodes);
+        const { '4xx': count4xx, '5xx': count5xx, '3xx': count3xx, errorTag: countErrorTag, warnTag: countWarnTag } = counts;
         const errorCount = count4xx + count5xx + count3xx + countErrorTag + countWarnTag;
+
+        const plugin = pluginManager.getPlugin(pluginId);
+        const config = getErrorAnalysisConfig();
+        const uniqueDetail = isLogSourcePlugin(plugin)
+            ? aggregateUniqueErrors(lines, plugin, logType, config.maxUniqueMessagesPerSeverity, config.maxTopErrors, allowStatusCodes)
+            : { uniqueErrorsBySeverity: { error: [], warn: [], info: [], debug: [] }, topErrors: [] };
+        const suspiciousFindings =
+            isLogSourcePlugin(plugin) && allowStatusCodes && config.securityCheckEnabled
+                ? analyzeSuspiciousActivity(lines, plugin, logType, config)
+                : [];
 
         const summary: ErrorFileSummary = {
             pluginId,
@@ -458,8 +603,9 @@ export async function analyzeSingleFile(
             count3xx: count3xx || undefined,
             countErrorTag: countErrorTag || undefined,
             countWarnTag: countWarnTag || undefined,
-            uniqueErrorsBySeverity: { error: [], warn: [], info: [], debug: [] },
-            topErrors: []
+            uniqueErrorsBySeverity: uniqueDetail.uniqueErrorsBySeverity,
+            topErrors: uniqueDetail.topErrors,
+            suspiciousFindings: suspiciousFindings.length > 0 ? suspiciousFindings : undefined
         };
         return { summary, error: null };
     } catch (e) {

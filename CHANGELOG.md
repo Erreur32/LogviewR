@@ -5,6 +5,25 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0] - 2026-09-04
+
+### For users
+
+- Dashboard → Fichiers d'erreurs: the "Détection d'entrées suspectes" toggles in Settings ("Marquer 403/401", "Marquer tentatives d'injection", "Marquer schémas brute-force") are now fully functional — they were previously disabled placeholders with no backend logic. Suspicious findings (403/401 responses, XSS/SQLi/path-traversal/etc. payloads in URLs, repeated 401/403 from a single IP) now appear as a "Suspect" badge and a detail breakdown on Apache/Nginx/NPM access log entries.
+- New numeric setting for the bruteforce threshold (default 5, 3-50 range), only editable when the bruteforce toggle is on.
+
+### For developers
+
+- `server/utils/attackPatterns.ts`: new canonical, categorized injection-pattern module (path traversal, XSS, SQLi, code/command injection, sensitive-file, admin-probe), promoted from the previously dead-code prototype in `AnalysisService.ts` (left untouched, out of scope).
+- `server/services/suspiciousActivityDetector.ts`: new `analyzeSuspiciousActivity()`, a single pass over already-loaded access log lines (via `plugin.parseLogLine()`), gated per-category by the 3 config toggles, with an in-memory per-IP counter for bruteforce detection. Runs independently of the error/warn line classification, since a malicious payload can ride on a 200 response.
+- `server/config/errorAnalysisConfig.ts`: 4 new clamped config fields (`suspiciousDetect403`, `suspiciousDetectInjection`, `suspiciousDetectBruteforce`, `suspiciousBruteforceThreshold`), all subordinate to the existing `securityCheckEnabled` master toggle.
+- `server/services/errorSummaryService.ts`: wired into `processOneFile()`/`analyzeSingleFile()`; also gained per-file unique-error aggregation/dedup (`normalizeErrorMessage()` in new `server/utils/errorMessageNormalizer.ts`) and restricted HTTP-status-code parsing to access-log plugins (`apache`/`nginx`/`npm`) to stop host-system logs from misreading arbitrary 3-digit numbers as status codes.
+- `src/components/widgets/ErrorFilesCard.tsx`: "Suspect" badge + per-category finding list (samples truncated to 200 chars).
+- `src/pages/SettingsPage.tsx`: the 3 toggles + threshold field now read/write real state instead of being hardcoded off.
+- New tests: `server/services/__tests__/suspiciousActivityDetector.test.ts`, `server/utils/__tests__/`.
+- `server/routes/log-viewer.ts`: added a missing `validatePathSafe()` call on `POST /error-summary/analyze-file`.
+- i18n: new/updated keys in `analysis.*` and `dashboard.suspiciousCategory.*` (both `fr.json` and `en.json`, parity verified).
+
 ## [0.11.0] - 2026-08-31
 
 ### For users
