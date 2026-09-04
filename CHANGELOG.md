@@ -5,6 +5,18 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.1] - 2026-09-04
+
+### For users
+
+- No user-visible change.
+
+### For developers
+
+- Security: bumped `mysql2` to `^3.24.3` (fixes GHSA-3f6p-5ww8-9rcr auth-downgrade plaintext-credential leak and GHSA-rgwj-5xj2-c3m3 decompression-bomb DoS).
+- Security: forced `browserslist` >=4.28.7 (GHSA-73wf-gq98-2v4g), `qs` >=6.16.0 (GHSA-4mjr-xmp4-gh2g, GHSA-x5fp-wj9c-mxmx) and `postcss-selector-parser` >=6.1.4 <7 (GHSA-w9m9-85wc-3x92) via `package.json` `overrides`, closing all 6 open Dependabot alerts without a major-version jump.
+- CI: removed the OpenSSF `Scorecard analysis` workflow — it was permanently failing because its Docker image pull from `gcr.io` now requires GCP billing on OpenSSF's project, unrelated to this repo. Also dropped the corresponding badge from `README.md`/`README.fr.md`.
+
 ## [0.12.0] - 2026-09-04
 
 ### For users
