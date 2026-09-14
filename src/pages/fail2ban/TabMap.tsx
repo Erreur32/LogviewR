@@ -244,9 +244,9 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker, onIpClick, refres
         try {
             const map = L.map(mapContainerRef.current, { zoomControl: true }).setView([26, 12], 3);
             mapRef.current = map;
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-                attribution: '© <a href="https://www.openstreetmap.org/copyright">OSM</a> © <a href="https://carto.com/">CARTO</a>',
-                subdomains: 'abcd', maxZoom: 20,
+            L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+                attribution: '© <a href="https://www.esri.com/">Esri</a>, HERE, Garmin, © <a href="https://www.openstreetmap.org/copyright">OSM</a> contributors',
+                maxZoom: 18,
             }).addTo(map);
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const MCG = (L as any).markerClusterGroup ?? (window as any).L?.markerClusterGroup;

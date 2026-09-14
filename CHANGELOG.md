@@ -5,6 +5,16 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.3] - 2026-09-14
+
+### For users
+
+- Fail2ban → Carte (Map): fixed the basemap tiles displaying an "API key required" watermark. CARTO deprecated free/anonymous access to its `dark_all` basemap tiles; switched to Esri's free `World_Dark_Gray_Base` tile service (no API key required). This is a separate, second fix on top of v0.12.2's geolocation-provider migration.
+
+### For developers
+
+- `src/pages/fail2ban/TabMap.tsx`: replaced the Leaflet `L.tileLayer` CARTO URL (`basemaps.cartocdn.com/dark_all`) with Esri ArcGIS REST (`services.arcgisonline.com/.../World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}`, note y-before-x tile order) and updated attribution.
+
 ## [0.12.2] - 2026-09-14
 
 ### For users
