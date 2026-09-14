@@ -5,6 +5,16 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.4] - 2026-09-14
+
+### For users
+
+- Fail2ban → Carte (Map): fixed the map rendering entirely black after the v0.12.3 update. The Content-Security-Policy `img-src` directive still only allowed the old CARTO tile domain and blocked the new Esri tile domain, silently dropping every tile image.
+
+### For developers
+
+- `server/index.ts`: updated the CSP `img-src` directive, replacing `https://*.basemaps.cartocdn.com` with `https://services.arcgisonline.com` to match the tile provider switched in v0.12.3.
+
 ## [0.12.3] - 2026-09-14
 
 ### For users

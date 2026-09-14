@@ -168,7 +168,7 @@ app.use((_req, res, next) => {
         res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
     }
     // CSP — restrict sources while allowing Leaflet tiles, GitHub API, and WebSocket connections
-    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' https://way.myoueb.fr; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://*.basemaps.cartocdn.com https://*.tile.openstreetmap.org https://icons.duckduckgo.com https://www.google.com; connect-src 'self' ws: wss: https://api.github.com https://way.myoueb.fr; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'");
+    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' https://way.myoueb.fr; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://services.arcgisonline.com https://*.tile.openstreetmap.org https://icons.duckduckgo.com https://www.google.com; connect-src 'self' ws: wss: https://api.github.com https://way.myoueb.fr; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'");
     next();
 });
 
@@ -611,7 +611,7 @@ server.listen(port, host, () => {
   };
 
   // Read app version from package.json
-  let appVersion = '0.12.3'; // Default fallback
+  let appVersion = '0.12.4'; // Default fallback
   try {
     const packageJsonPath = path.join(__dirname, '..', 'package.json');
     const packageJson = JSON.parse(fsSync.readFileSync(packageJsonPath, 'utf8'));
