@@ -5,6 +5,18 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.5] - 2026-09-14
+
+### For users
+
+- Security: fixed CI Snyk security scans failing due to an expired token, then addressed the vulnerabilities they surfaced (dependency and Docker image hardening). No user-visible behavior change.
+
+### For developers
+
+- `package-lock.json`: bumped `fast-uri` (transitive dep via `@modelcontextprotocol/sdk` → `ajv`) from 3.1.6 to 3.1.7, fixing two high-severity CVEs (authority injection via `recomposeAuthority`, host confusion in `parse()`).
+- `Dockerfile`: removed `npm`/`npx`/`corepack` from the final runtime image. They were never invoked at runtime (`CMD` runs `tsx` directly) but shipped their own vulnerable bundled dependencies (`tar`, `sigstore`, `@sigstore/verify`, `brace-expansion`), flagged by Snyk Container scans.
+- CI: `SNYK_TOKEN` GitHub Actions secret regenerated (previous token expired, causing all three `snyk-*` jobs to fail with `SNYK-0005 Authentication error`).
+
 ## [0.12.4] - 2026-09-14
 
 ### For users

@@ -56,6 +56,11 @@ RUN echo "node ALL=(root) NOPASSWD: /usr/sbin/iptables, /usr/sbin/iptables-save,
 # Créer le répertoire data avec les bonnes permissions
 RUN mkdir -p /app/data && chown -R node:node /app
 
+# 🔒 Retirer npm/npx/corepack de l'image finale : inutilisés au runtime (CMD lance tsx
+# directement) et npm embarque ses propres dépendances (tar, sigstore, brace-expansion)
+# régulièrement signalées comme vulnérables par les scans de sécurité.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack /usr/local/lib/node_modules/corepack
+
 # Créer les répertoires de montage pour les volumes host (évite les erreurs de montage)
 # Ces répertoires seront montés par docker-compose avec les volumes du host
 RUN mkdir -p /host/logs /host/proc /host/sys /host/etc /host/usr/bin
