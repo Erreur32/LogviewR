@@ -12,6 +12,11 @@ permissions: {}
 
 jobs:
   snyk-code:
+    # Disabled 2026-09-14: Snyk Code (SAST) is not enabled on the erreur32
+    # Snyk organization (SNYK-CODE-0005 "Snyk Code is not enabled"), a plan/
+    # config issue on Snyk's side, not a code or CI bug. Re-enable once
+    # Snyk Code is activated at Settings > Snyk Code on app.snyk.io.
+    if: false
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
