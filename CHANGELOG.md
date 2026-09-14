@@ -5,6 +5,19 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.2] - 2026-09-14
+
+### For users
+
+- Fail2ban → Carte (Map): fixed the map not displaying — the geolocation provider (`ipwho.is`) was returning `429 Rate limit exceeded` for this server's IP. Switched to `freeipapi.com`.
+
+### For developers
+
+- `server/services/ipLookupService.ts`, `server/services/fail2banSyncService.ts`, `server/plugins/fail2ban/Fail2banPlugin.ts`: migrated all geo lookups (`/map/resolve/:ip`, `/map/server-geo`, `/geo/:ip`, background sync resolver) from `ipwho.is` to `https://free.freeipapi.com/api/json/{ip}` (HTTPS, no key).
+- `fail2banSyncService.ts`: bumped `GEO_REQ_DELAY` from 200ms to 1100ms — `freeipapi.com`'s free tier caps at 60 req/min, unlike `ipwho.is`'s more permissive limit.
+- Response field mapping updated for the new provider's shape (`countryName`/`countryCode`/`cityName`/`regionName`/`asnOrganization` instead of `country`/`country_code`/`city`/`region`/`connection.org`).
+- i18n: updated `ipwho.is` references in `fr.json`/`en.json` tooltips and footer strings to `freeipapi.com`.
+
 ## [0.12.1] - 2026-09-04
 
 ### For users

@@ -1219,7 +1219,7 @@
     },
     "ipModal": {
       "fetchError": "Impossible de récupérer les informations pour cette IP. Vérifiez que le serveur est accessible.",
-      "footer": "Informations réseau · données géo via ipwho.is · WHOIS via registre"
+      "footer": "Informations réseau · données géo via freeipapi.com · WHOIS via registre"
     },
     "banModal": {
       "title": "Bannir une IP",
@@ -1719,7 +1719,7 @@
       "carte": {
         "title": "Carte mondiale",
         "desc": "Distribution géographique des bans",
-        "tech": "Géoloc. ipwho.is · cache 30 jours"
+        "tech": "Géoloc. freeipapi.com · cache 30 jours"
       },
       "ban": {
         "title": "Ban Manager",
@@ -2193,7 +2193,7 @@
       "ipSource": "IP",
       "ipSourceTooltip": "Adresse IP source de l'attaque. Cliquer pour ouvrir le modal détail : whois, géolocalisation, historique, ipset…",
       "country": "Pays",
-      "countryTooltip": "Pays d'origine de l'IP depuis le cache géo ipwho.is (TTL 30 jours). Vide si l'IP n'a pas encore été géolocalisée.",
+      "countryTooltip": "Pays d'origine de l'IP depuis le cache géo freeipapi.com (TTL 30 jours). Vide si l'IP n'a pas encore été géolocalisée.",
       "jail": "Jail",
       "jailTooltip": "Nom de la jail fail2ban qui a déclenché l'événement. La jail définit les règles de détection (filter) et d'action (ban/unban).",
       "attemptsCount": "Tentatives",

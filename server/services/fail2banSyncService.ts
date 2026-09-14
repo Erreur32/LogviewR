@@ -6,7 +6,7 @@
  *
  * Runs every 60s. Inserts only new rows (dedup via f2b_rowid UNIQUE index).
  *
- * After each sync, resolves geo for new IPs via ipwho.is (HTTPS, no key).
+ * After each sync, resolves geo for new IPs via freeipapi.com (HTTPS, no key).
  * Sequential calls with delay. Results stored in f2b_ip_geo so the map
  * loads instantly with no progressive resolution delay.
  */
@@ -19,7 +19,7 @@ import { webhookDispatchService } from './WebhookDispatchService.js';
 
 const SYNC_INTERVAL_MS = 60_000;
 const GEO_BATCH_SIZE   = 20;    // process IPs in chunks for progress reporting
-const GEO_REQ_DELAY    = 200;   // ms between sequential requests (fair use)
+const GEO_REQ_DELAY    = 1100;  // ms between sequential requests (freeipapi.com free tier: 60 req/min)
 const GEO_TTL          = 30 * 86400; // 30 days
 
 interface F2bBanRow {
@@ -48,16 +48,15 @@ function domainFromMatches(dataJson: string | null | undefined): string {
     return '';
 }
 
-interface IpWhoIsResult {
-    ip: string;
-    success: boolean;
-    country?: string;
-    country_code?: string;
-    region?: string;
-    city?: string;
+interface FreeIpApiResult {
+    ipAddress?: string;
+    countryName?: string;
+    countryCode?: string;
+    regionName?: string;
+    cityName?: string;
     latitude?: number;
     longitude?: number;
-    connection?: { org?: string; isp?: string; asn?: number };
+    asnOrganization?: string;
 }
 
 export type SyncPhase = 'idle' | 'syncing' | 'backfilling' | 'geo' | 'done';
@@ -266,7 +265,7 @@ export class Fail2banSyncService {
 
     /**
      * Resolve geo for all IPs in f2b_events not yet in f2b_ip_geo (or with expired cache).
-     * Uses ipwho.is - sequential HTTPS calls with delay between each.
+     * Uses freeipapi.com - sequential HTTPS calls with delay between each.
      * Fire & forget — errors are logged but don't block sync.
      */
     private async resolveUnknownGeo(showStatus = false): Promise<void> {
@@ -301,13 +300,13 @@ export class Fail2banSyncService {
             for (let i = 0; i < ips.length; i++) {
                 try {
                     const res = await globalThis.fetch(
-                        `https://ipwho.is/${ips[i]}`,
+                        `https://free.freeipapi.com/api/json/${ips[i]}`,
                         { signal: AbortSignal.timeout(5000) }
                     );
-                    const r = await res.json() as IpWhoIsResult;
-                    if (r.success && typeof r.latitude === 'number') {
+                    const r = await res.json() as FreeIpApiResult;
+                    if (typeof r.latitude === 'number') {
                         const ts = Math.floor(Date.now() / 1000);
-                        upsert.run(r.ip ?? ips[i], r.latitude, r.longitude ?? 0, r.country ?? '', r.country_code ?? '', r.region ?? '', r.city ?? '', r.connection?.org ?? '', ts);
+                        upsert.run(r.ipAddress ?? ips[i], r.latitude, r.longitude ?? 0, r.countryName ?? '', r.countryCode ?? '', r.regionName ?? '', r.cityName ?? '', r.asnOrganization ?? '', ts);
                         resolved++;
                     }
                 } catch (e) {

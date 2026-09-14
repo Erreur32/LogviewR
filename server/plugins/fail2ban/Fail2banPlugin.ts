@@ -2276,17 +2276,16 @@ export class Fail2banPlugin extends BasePlugin {
             if (cached && now - cached.ts <= TTL) {
                 return res.json({ success: true, result: { ok: true, lat: cached.lat, lng: cached.lng, country: cached.country, countryCode: cached.countryCode, region: cached.region, city: cached.city, org: cached.org } });
             }
-            // Resolve via ipwho.is (HTTPS, no key)
+            // Resolve via freeipapi.com (HTTPS, no key)
             try {
-                const r = await globalThis.fetch(`https://ipwho.is/${ip}`, { signal: AbortSignal.timeout(5000) });
+                const r = await globalThis.fetch(`https://free.freeipapi.com/api/json/${ip}`, { signal: AbortSignal.timeout(5000) });
                 const data = await r.json() as Record<string, unknown>;
-                if (data.success === true && typeof data.latitude === 'number' && typeof data.longitude === 'number') {
-                    const conn = (data.connection ?? {}) as Record<string, unknown>;
-                    const geo = { lat: data.latitude as number, lng: data.longitude as number, country: String(data.country ?? ''), countryCode: String(data.country_code ?? ''), region: String(data.region ?? ''), city: String(data.city ?? ''), org: String(conn.org ?? '') };
+                if (typeof data.latitude === 'number' && typeof data.longitude === 'number') {
+                    const geo = { lat: data.latitude as number, lng: data.longitude as number, country: String(data.countryName ?? ''), countryCode: String(data.countryCode ?? ''), region: String(data.regionName ?? ''), city: String(data.cityName ?? ''), org: String(data.asnOrganization ?? '') };
                     appDb.prepare('INSERT OR REPLACE INTO f2b_ip_geo (ip, lat, lng, country, countryCode, region, city, org, ts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(ip, geo.lat, geo.lng, geo.country, geo.countryCode, geo.region, geo.city, geo.org, now);
                     return res.json({ success: true, result: { ok: true, ...geo } });
                 }
-                res.json({ success: true, result: { ok: false, error: String(data.message ?? 'ipwho.is returned non-success') } });
+                res.json({ success: true, result: { ok: false, error: 'freeipapi.com returned no data' } });
             } catch (e) {
                 res.json({ success: true, result: { ok: false, error: String(e) } });
             }
@@ -2304,12 +2303,12 @@ export class Fail2banPlugin extends BasePlugin {
                 return res.json({ success: true, result: { ok: true, lat: cached.lat, lng: cached.lng, country: cached.country, countryCode: cached.countryCode, city: cached.city } });
             }
             try {
-                const r = await globalThis.fetch('https://ipwho.is/', { signal: AbortSignal.timeout(5000) });
+                const r = await globalThis.fetch('https://free.freeipapi.com/api/json/', { signal: AbortSignal.timeout(5000) });
                 const data = await r.json() as Record<string, unknown>;
-                if (data.success === true && typeof data.latitude === 'number' && typeof data.longitude === 'number') {
+                if (typeof data.latitude === 'number' && typeof data.longitude === 'number') {
                     appDb.prepare(`INSERT OR REPLACE INTO f2b_ip_geo (ip,lat,lng,country,countryCode,region,city,org,ts) VALUES (?,?,?,?,?,?,?,?,?)`)
-                        .run(CACHE_KEY, data.latitude, data.longitude, data.country ?? '', data.country_code ?? '', data.region ?? '', data.city ?? '', '', now);
-                    return res.json({ success: true, result: { ok: true, lat: data.latitude, lng: data.longitude, country: data.country, countryCode: data.country_code, city: data.city } });
+                        .run(CACHE_KEY, data.latitude, data.longitude, data.countryName ?? '', data.countryCode ?? '', data.regionName ?? '', data.cityName ?? '', '', now);
+                    return res.json({ success: true, result: { ok: true, lat: data.latitude, lng: data.longitude, country: data.countryName, countryCode: data.countryCode, city: data.cityName } });
                 }
             } catch { /* fallback below */ }
             // Fallback: Paris (neutral default)
@@ -3226,22 +3225,22 @@ export class Fail2banPlugin extends BasePlugin {
             }});
         }));
 
-        // GET /geo/:ip - geolocation via ipwho.is (HTTPS, no key needed)
+        // GET /geo/:ip - geolocation via freeipapi.com (HTTPS, no key needed)
         router.get('/geo/:ip', requireAuth, asyncHandler(async (req, res) => {
             if (!this.isEnabled()) throw createError('Plugin disabled', 503, 'PLUGIN_DISABLED');
             const ip = req.params.ip;
             if (!/^[\d:.a-fA-F]{2,45}$/.test(ip)) throw createError('Invalid IP', 400, 'BAD_PARAM');
             try {
-                const r = await globalThis.fetch(`https://ipwho.is/${ip}`, { signal: AbortSignal.timeout(5000) });
+                const r = await globalThis.fetch(`https://free.freeipapi.com/api/json/${ip}`, { signal: AbortSignal.timeout(5000) });
                 const data = await r.json() as Record<string, unknown>;
-                const conn = (data.connection ?? {}) as Record<string, unknown>;
+                const ok = typeof data.latitude === 'number';
                 const geo = {
-                    status: data.success === true ? 'success' : 'fail',
-                    country: data.country, countryCode: data.country_code,
-                    city: data.city, org: conn.org, isp: conn.isp,
-                    as: conn.asn != null ? `AS${conn.asn}` : '', query: data.ip,
+                    status: ok ? 'success' : 'fail',
+                    country: data.countryName, countryCode: data.countryCode,
+                    city: data.cityName, org: data.asnOrganization, isp: data.asnOrganization,
+                    as: data.asn != null ? `AS${data.asn}` : '', query: data.ipAddress,
                 };
-                res.json({ success: true, result: { ok: data.success === true, geo } });
+                res.json({ success: true, result: { ok, geo } });
             } catch (e) {
                 res.json({ success: true, result: { ok: false, error: String(e) } });
             }

@@ -138,26 +138,25 @@ export function checkKnownProvider(ip: string): KnownProvider | null {
     return null;
 }
 
-// ── Geo lookup (ipwho.is - HTTPS, no key) ────────────────────────────────────
+// ── Geo lookup (freeipapi.com - HTTPS, no key) ───────────────────────────────
 
 export async function fetchGeo(ip: string): Promise<GeoInfo | null> {
     try {
         const r = await globalThis.fetch(
-            `https://ipwho.is/${ip}`,
+            `https://free.freeipapi.com/api/json/${ip}`,
             { signal: AbortSignal.timeout(5000) }
         );
         const data = await r.json() as Record<string, unknown>;
-        if (data.success !== true) return null;
-        const conn = (data.connection ?? {}) as Record<string, unknown>;
+        if (typeof data.latitude !== 'number') return null;
         return {
             status: 'success',
-            country: String(data.country ?? ''),
-            countryCode: String(data.country_code ?? ''),
-            city: String(data.city ?? ''),
-            org: String(conn.org ?? ''),
-            isp: String(conn.isp ?? ''),
-            as: conn.asn != null ? `AS${conn.asn}` : '',
-            query: String(data.ip ?? ip),
+            country: String(data.countryName ?? ''),
+            countryCode: String(data.countryCode ?? ''),
+            city: String(data.cityName ?? ''),
+            org: String(data.asnOrganization ?? ''),
+            isp: String(data.asnOrganization ?? ''),
+            as: data.asn != null ? `AS${data.asn}` : '',
+            query: String(data.ipAddress ?? ip),
         };
     } catch { return null; }
 }
