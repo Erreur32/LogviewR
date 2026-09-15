@@ -10,7 +10,7 @@ import type { LogSourcePlugin, LogFileInfo, ParsedLogEntry } from '../base/LogSo
 import type { PluginStats } from '../base/PluginInterface.js';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import { globToRegex } from '../../utils/globToRegex.js';
+import { globToLogRegex } from '../../utils/globToRegex.js';
 
 export interface NginxPluginConfig {
     basePath: string;
@@ -59,7 +59,7 @@ export class NginxLogPlugin extends BasePlugin implements LogSourcePlugin {
             const actualBasePath = this.convertToDockerPath(basePath);
 
             // Convert glob patterns to regex patterns
-            const regexPatterns = patterns.map(p => globToRegex(p));
+            const regexPatterns = patterns.map(p => globToLogRegex(p));
 
             const scanDirectory = async (dir: string): Promise<void> => {
                 try {

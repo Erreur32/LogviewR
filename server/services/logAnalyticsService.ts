@@ -14,7 +14,10 @@ import { logger } from '../utils/logger.js';
 
 /** Web access log plugins only (NPM, Apache). Nginx excluded for now - focus on NPM first. */
 const LOG_SOURCE_PLUGINS = ['npm', 'apache'] as const;
-const MAX_FILES_TOTAL = 20;
+// 20 was plenty for a handful of vhosts, but multi-vhost Apache installs (one access.log
+// per site) can have hundreds of matching files; round-robin selection (selectFilesRoundRobin)
+// distributes this cap across vhosts fairly, so it's raised to give real per-vhost depth.
+const MAX_FILES_TOTAL = 100;
 
 /**
  * Tail-cap per file scaled to the requested period. Keeps memory bounded on short windows
@@ -149,6 +152,45 @@ function isCompressedFile(path: string): boolean {
     return /\.(gz|bz2|xz)$/i.test(path);
 }
 
+/** Strip rotation suffixes (.N, .gz/.bz2/.xz, or both) so a file groups with its own rotation history. */
+function rotationFamilyKey(filePath: string): string {
+    return filePath.replace(/\.\d+(\.(?:gz|bz2|xz))?$/i, '').replace(/\.(?:gz|bz2|xz)$/i, '');
+}
+
+/**
+ * Select up to `limit` files, favoring breadth across distinct log "families" (e.g. one
+ * access.log per vhost) over depth in a single family. A flat most-recent-first sort would
+ * let a handful of frequently-touched files (e.g. every vhost's *current* access.log, all
+ * modified "today") crowd out every family's older rotations, capping effective history at
+ * ~1 day on multi-vhost installs regardless of the requested date range or readCompressed
+ * setting. Round-robining each family's own rotations (newest first) guarantees every family
+ * gets a fair share of the cap instead of all-or-nothing.
+ */
+function selectFilesRoundRobin(files: LogFileInfo[], limit: number): LogFileInfo[] {
+    const families = new Map<string, LogFileInfo[]>();
+    for (const f of files) {
+        const key = rotationFamilyKey(f.path);
+        const arr = families.get(key);
+        if (arr) arr.push(f); else families.set(key, [f]);
+    }
+    for (const arr of families.values()) {
+        arr.sort((a, b) => (b.modified instanceof Date ? b.modified.getTime() : 0) - (a.modified instanceof Date ? a.modified.getTime() : 0));
+    }
+    const familyArrays = Array.from(families.values());
+    const selected: LogFileInfo[] = [];
+    for (let round = 0; selected.length < limit; round++) {
+        let addedAny = false;
+        for (const arr of familyArrays) {
+            if (round >= arr.length) continue;
+            selected.push(arr[round]);
+            addedAny = true;
+            if (selected.length >= limit) break;
+        }
+        if (!addedAny) break;
+    }
+    return selected;
+}
+
 function hasAccessFields(entry: ParsedAccessEntry): boolean {
     return (
         (typeof entry.ip === 'string' || typeof entry.status === 'number') &&
@@ -200,14 +242,15 @@ async function collectParsedEntries(
             const patterns = plugin.getDefaultFilePatterns();
             const scannedFiles = await plugin.scanLogFiles(basePath, patterns);
 
-            const accessFiles = scannedFiles
-                .filter(
-                    (f) =>
-                        (f.type || 'access') === 'access' &&
-                        (canReadCompressed || !isCompressedFile(f.path))
-                )
-                .sort((a, b) => (b.modified instanceof Date ? b.modified.getTime() : 0) - (a.modified instanceof Date ? a.modified.getTime() : 0))
-                .slice(0, fileScope === 'latest' ? 1 : Math.ceil(MAX_FILES_TOTAL / pluginIds.length));
+            const matchedFiles = scannedFiles.filter(
+                (f) => (f.type || 'access') === 'access' && (canReadCompressed || !isCompressedFile(f.path))
+            );
+            const perPluginLimit = Math.ceil(MAX_FILES_TOTAL / pluginIds.length);
+            const accessFiles = fileScope === 'latest'
+                ? matchedFiles
+                    .sort((a, b) => (b.modified instanceof Date ? b.modified.getTime() : 0) - (a.modified instanceof Date ? a.modified.getTime() : 0))
+                    .slice(0, 1)
+                : selectFilesRoundRobin(matchedFiles, perPluginLimit);
 
             for (const file of accessFiles) {
                 planned.push({ pluginId, file, readCompressed });
@@ -399,7 +442,6 @@ export function computeTimeseries(
 ): AnalyticsTimeseriesBucket[] {
     const bucketMs =
         bucket === 'minute' ? 60 * 1000 : bucket === 'hour' ? 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
-    const sliceLen = bucket === 'minute' ? 16 : bucket === 'hour' ? 13 : 10;
     const countMap = new Map<string, number>();
     const visitorsMap = new Map<string, Set<string>>();
     const statusMap = new Map<string, AnalyticsStatusGroups>();
@@ -409,7 +451,12 @@ export function computeTimeseries(
         const ts = toDate(e.timestamp);
         if (!ts) continue;
         const key = Math.floor(ts.getTime() / bucketMs) * bucketMs;
-        const label = new Date(key).toISOString().slice(0, sliceLen);
+        // Full ISO string (with the "Z" suffix) — unambiguous UTC instant. The previous
+        // `.slice(0, 10|13|16)` cut off the "Z", turning the label into a bare/offset-less
+        // datetime string; the frontend's `new Date(label)` then parsed it as browser-LOCAL
+        // time instead of UTC, silently shifting every hour/minute bucket by the browser's
+        // UTC offset (e.g. +2h in CEST) — charts showed real data under the wrong time label.
+        const label = new Date(key).toISOString();
         countMap.set(label, (countMap.get(label) ?? 0) + 1);
         if (e.ip) {
             let set = visitorsMap.get(label);

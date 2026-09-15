@@ -1109,6 +1109,8 @@
     "peakHoursTitle": "Peak hours",
     "dayOfWeekTitle": "Traffic by day of week",
     "hourDayHeatmapTitle": "Hour / Day heatmap",
+    "filteredGroupLabel": "Filtered by the selected period",
+    "fixedWindowGroupLabel": "Fixed window — last 12 months, independent of the period selected above",
     "httpCodesPanel": "HTTP Codes",
     "httpMethodsAndDomainPanel": "HTTP Methods & Codes by domain",
     "statusTrendsTitle": "HTTP status trends",

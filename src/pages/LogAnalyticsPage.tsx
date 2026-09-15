@@ -110,7 +110,9 @@ function resolveDateRange(timeRange: TimeRangeKey, customFrom: string, customTo:
         case '24h':
             return { from: new Date(to.getTime() - 24 * 60 * 60 * 1000), to, bucketHour: 'hour' };
         case '7d':
-            return { from: new Date(to.getTime() - 7 * 24 * 60 * 60 * 1000), to, bucketHour: 'day' };
+            // Hour buckets (168 points) instead of day (7 points) — matches the resolution
+            // already used for custom ranges up to 48h, gives smoother curves past 1 day.
+            return { from: new Date(to.getTime() - 7 * 24 * 60 * 60 * 1000), to, bucketHour: 'hour' };
         case '30d':
             return { from: new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000), to, bucketHour: 'day' };
         default: {
@@ -660,7 +662,8 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
 
     const getCurrentBucket = (): 'minute' | 'hour' | 'day' => {
         if (timeRange === '1h') return 'minute';
-        if (timeRange === '24h') return 'hour';
+        if (timeRange === '24h' || timeRange === '7d') return 'hour';
+        if (timeRange === 'custom') return bucketForCustomRange(new Date(customTo).getTime() - new Date(customFrom).getTime());
         return 'day';
     };
 
@@ -706,11 +709,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
         for (const b of timeseries) {
             if (b.count === 0) continue;
             try {
-                let s = b.label;
-                if (s.length === 10) s += 'T00:00:00';
-                else if (s.length === 13) s += ':00:00';
-                else if (s.length === 16) s += ':00';
-                const d = new Date(s);
+                const d = new Date(b.label);
                 if (Number.isNaN(d.getTime())) continue;
                 const jsDay = d.getDay();
                 byDay[jsDay === 0 ? 6 : jsDay - 1] += b.count;
@@ -1183,10 +1182,15 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                             </div>
                         </div>
 
-                        {/* Day of Week + Peak Hours + Calendar Heatmap + Hour×Day Heatmap */}
+                        {/* Group A: stats + Peak hours — all filtered by the header's period selector */}
                         {trimmedTimeseries.length > 0 && (
-                            <div id="section-hour-day" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24 flex flex-col gap-6">
-                                {/* Stats tiles row — 6 across at top so the heatmap below gets full width */}
+                            <div id="section-filtered-stats" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24 flex flex-col gap-6">
+                                <div className="flex items-center gap-2 text-[.68rem] text-gray-500 uppercase tracking-wider">
+                                    <span>{t('logAnalytics.filteredGroupLabel')}</span>
+                                    <PeriodBadge label={periodLabel} />
+                                </div>
+
+                                {/* Stats tiles row — 6 across */}
                                 {timeseriesStats && (
                                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
                                         {[
@@ -1206,57 +1210,67 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                     </div>
                                 )}
 
-                                {/* 2×2 grid: Day of week | Peak hours  /  Calendar heatmap | Hour×Day heatmap */}
+                                {/* Peak hours — default: aggregates hour-of-day over the selected period; toggle: last 24h live */}
+                                <div>
+                                    <SectionHeading
+                                        {...headingCommon}
+                                        extras={<LiveToggle live={peakHoursLive} onToggle={() => setPeakHoursLive((v) => !v)} window="24H" />}
+                                        hidePeriod={peakHoursLive}
+                                    >
+                                        {t('logAnalytics.peakHoursTitle')}
+                                    </SectionHeading>
+                                    <PeakHoursChart
+                                        data={(() => {
+                                            const src = peakHoursLive && live24h ? live24h.hourOfDay : hourOfDay;
+                                            const arr = src.length === 24 ? src : new Array(24).fill(0);
+                                            return arr.map((count, h) => ({
+                                                label: `2000-01-01T${String(h).padStart(2, '0')}`,
+                                                count
+                                            }));
+                                        })()}
+                                        noDataText={t('logAnalytics.noData')}
+                                        requestsLabel={t('logAnalytics.requests')}
+                                    />
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Group B: Day of week + Calendar heatmap + Hour×Day heatmap — fixed 12-month window */}
+                        {trimmedTimeseries.length > 0 && (
+                            <div id="section-hour-day" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24 flex flex-col gap-6">
+                                <div className="flex items-center gap-2 text-[.68rem] text-gray-500 uppercase tracking-wider">
+                                    <span>{t('logAnalytics.fixedWindowGroupLabel')}</span>
+                                </div>
+
+                                {/* Day of week — full width, optional 24H live toggle */}
+                                <div>
+                                    <SectionHeading
+                                        {...headingCommon}
+                                        hidePeriod
+                                        extras={<WindowSwitch live={dayOfWeekLive} onToggle={() => setDayOfWeekLive((v) => !v)} window="24H" />}
+                                    >
+                                        {t('logAnalytics.dayOfWeekTitle')}
+                                    </SectionHeading>
+                                    <DayOfWeekChart
+                                        data={dayOfWeekLive && live24h
+                                            // Live mode: feed 7 synthetic day entries so the chart's date parser maps each bar to a weekday.
+                                            ? live24h.dayOfWeek.map((count, dayIdx) => ({
+                                                label: `2000-01-0${3 + dayIdx}`,
+                                                count
+                                            }))
+                                            : calendarBuckets.map((b) => ({ label: b.label, count: b.count }))
+                                        }
+                                        noDataText={t('logAnalytics.noData')}
+                                        dayLabels={[
+                                            t('logAnalytics.monday'), t('logAnalytics.tuesday'), t('logAnalytics.wednesday'),
+                                            t('logAnalytics.thursday'), t('logAnalytics.friday'), t('logAnalytics.saturday'), t('logAnalytics.sunday')
+                                        ]}
+                                        requestsLabel={t('logAnalytics.requests')}
+                                    />
+                                </div>
+
+                                {/* Calendar heatmap | Hour×Day heatmap — side by side, matched height */}
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                    {/* Day of week — fixed 12-month window with optional 24H live toggle */}
-                                    <div>
-                                        <SectionHeading
-                                            {...headingCommon}
-                                            hidePeriod
-                                            extras={<WindowSwitch live={dayOfWeekLive} onToggle={() => setDayOfWeekLive((v) => !v)} window="24H" />}
-                                        >
-                                            {t('logAnalytics.dayOfWeekTitle')}
-                                        </SectionHeading>
-                                        <DayOfWeekChart
-                                            data={dayOfWeekLive && live24h
-                                                // Live mode: feed 7 synthetic day entries so the chart's date parser maps each bar to a weekday.
-                                                ? live24h.dayOfWeek.map((count, dayIdx) => ({
-                                                    label: `2000-01-0${3 + dayIdx}`,
-                                                    count
-                                                }))
-                                                : calendarBuckets.map((b) => ({ label: b.label, count: b.count }))
-                                            }
-                                            noDataText={t('logAnalytics.noData')}
-                                            dayLabels={[
-                                                t('logAnalytics.monday'), t('logAnalytics.tuesday'), t('logAnalytics.wednesday'),
-                                                t('logAnalytics.thursday'), t('logAnalytics.friday'), t('logAnalytics.saturday'), t('logAnalytics.sunday')
-                                            ]}
-                                            requestsLabel={t('logAnalytics.requests')}
-                                        />
-                                    </div>
-                                    {/* Peak hours — default: aggregates hour-of-day over the selected period; toggle: last 24h live */}
-                                    <div>
-                                        <SectionHeading
-                                            {...headingCommon}
-                                            extras={<LiveToggle live={peakHoursLive} onToggle={() => setPeakHoursLive((v) => !v)} window="24H" />}
-                                            hidePeriod={peakHoursLive}
-                                        >
-                                            {t('logAnalytics.peakHoursTitle')}
-                                        </SectionHeading>
-                                        <PeakHoursChart
-                                            data={(() => {
-                                                const src = peakHoursLive && live24h ? live24h.hourOfDay : hourOfDay;
-                                                const arr = src.length === 24 ? src : new Array(24).fill(0);
-                                                return arr.map((count, h) => ({
-                                                    label: `2000-01-01T${String(h).padStart(2, '0')}`,
-                                                    count
-                                                }));
-                                            })()}
-                                            noDataText={t('logAnalytics.noData')}
-                                            requestsLabel={t('logAnalytics.requests')}
-                                        />
-                                    </div>
-                                    {/* Calendar heatmap — fixed 12-month window */}
                                     <div className="min-w-0">
                                         <SectionHeading {...headingCommon} hidePeriod extras={<FixedWindowBadge />}>{t('logAnalytics.heatmapTitle')}</SectionHeading>
                                         <HeatmapChart
@@ -1268,7 +1282,6 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                             ]}
                                         />
                                     </div>
-                                    {/* Hour×Day heatmap — default: 12-month average; toggle: last 7 days live */}
                                     <div>
                                         <SectionHeading
                                             {...headingCommon}
