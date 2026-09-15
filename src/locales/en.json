@@ -1683,6 +1683,7 @@
       "ipset": "IPSet",
       "nftables": "NFTables",
       "blocklists": "Blocklists",
+      "coherence": "Coherence",
       "config": "Config",
       "backup": "Backup",
       "audit": "Audit",
@@ -1742,6 +1743,10 @@
       "ipset": {
         "title": "IPSet",
         "desc": "Active IP sets (f2b-*, blacklist…)"
+      },
+      "coherence": {
+        "title": "Firewall coherence",
+        "desc": "Audit fail2ban vs iptables vs ipset"
       },
       "config": {
         "title": "Configuration",
@@ -3291,6 +3296,23 @@
       "notInstalledCheck2": "is enabled in docker-compose.yml and that ipset is installed in the container.",
       "confirmDestroy": "Permanently delete ipset \"{{name}}\" and all its entries?\n\nThis action is irreversible.",
       "selectSet": "Select a set to view its entries."
+    },
+    "coherence": {
+      "title": "Firewall coherence audit",
+      "description": "Compares fail2ban jail configuration with the actual state of iptables, ipset and nftables. Read-only diagnostic: no command is executed automatically, only fix suggestions are provided.",
+      "runAudit": "Run audit",
+      "critical": "Critical",
+      "warning": "Warning",
+      "info": "Info",
+      "jailsChecked": "Jails checked",
+      "jailsSkipped": "Skipped jails (action not firewall-related): {{list}}",
+      "allClear": "No inconsistency detected between fail2ban, iptables and ipset.",
+      "issuesTitle": "Detected issues",
+      "all": "All",
+      "copy": "Copy",
+      "copied": "Copied",
+      "copyFix": "Copy fix command",
+      "loadError": "Unable to load coherence audit."
     },
     "iptables": {
       "rollbackAuto": "Automatic rollback in",

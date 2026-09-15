@@ -23,6 +23,7 @@ import {
     Database,
     Map as MapIcon,
     Archive,
+    ShieldCheck,
 } from 'lucide-react';
 import { api } from '../api/client';
 import fail2banIcon from '../icons/fail2ban.svg';
@@ -44,6 +45,7 @@ import { TabNetworkRaw } from './fail2ban/TabNetworkRaw';
 import { TabIPSet } from './fail2ban/TabIPSet';
 import { TabIPTables } from './fail2ban/TabIPTables';
 import { TabBlocklists } from './fail2ban/TabBlocklists';
+import { TabCoherence } from './fail2ban/TabCoherence';
 import { TabFileList } from './fail2ban/TabFileList';
 import { BanHistoryChart } from './fail2ban/BanHistoryChart';
 import { fetchTopsPrevTotalBans } from './fail2ban/fail2banTopsPrevFlight';
@@ -129,6 +131,12 @@ const NAV_GROUPS = [
                 icon: Ban,
                 color: '#e86a65',
             },
+            {
+                id: 'coherence' as TabId,
+                labelKey: 'fail2ban.tabs.coherence',
+                icon: ShieldCheck,
+                color: '#3fb950',
+            },
         ],
     },
     {
@@ -163,38 +171,6 @@ const NAV_GROUPS = [
 ];
 
 // ── Age formatter — defined inside component to capture t() ──────────────────
-
-// ── Topbar chip (PHP .chip style) ─────────────────────────────────────────────
-
-const CHIP_COLORS: Record<string, { color: string; border: string }> = {
-    blue: { color: '#58a6ff', border: 'rgba(88,166,255,.45)' },
-    red: { color: '#e86a65', border: 'rgba(232,106,101,.45)' },
-    orange: { color: '#e3b341', border: 'rgba(227,179,65,.45)' },
-    green: { color: '#3fb950', border: 'rgba(63,185,80,.45)' },
-};
-
-const Chip: React.FC<{ color: string; children: React.ReactNode }> = ({ color, children }) => {
-    const c = CHIP_COLORS[color] ?? CHIP_COLORS.blue;
-    return (
-        <span
-            style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '.3rem',
-                padding: '.18rem .6rem',
-                borderRadius: 4,
-                fontSize: '.73rem',
-                fontWeight: 600,
-                border: `1px solid ${c.border}`,
-                color: c.color,
-                background: 'transparent',
-                whiteSpace: 'nowrap',
-            }}
-        >
-            {children}
-        </span>
-    );
-};
 
 // ── Sparkline ─────────────────────────────────────────────────────────────────
 
@@ -238,6 +214,7 @@ const VALID_TABS = new Set<TabId>([
     'iptables',
     'ipset',
     'blocklists',
+    'coherence',
     'config',
     'audit',
     'aide',
@@ -1421,6 +1398,15 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
             ),
             color: 'purple',
         },
+        coherence: {
+            title: t('fail2ban.navTt.coherence.title'),
+            bodyNode: (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
+                    <div style={{ color: C.muted }}>{t('fail2ban.navTt.coherence.desc')}</div>
+                </div>
+            ),
+            color: 'green',
+        },
         config: {
             title: t('fail2ban.navTt.config.title'),
             bodyNode: (
@@ -1897,279 +1883,6 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                             flexWrap: 'wrap',
                         }}
                     >
-                        {status?.ok && (
-                            <>
-                                {/* 1. Échecs actifs */}
-                                <F2bTooltip
-                                    title={t('fail2ban.stats.activeFailures')}
-                                    bodyNode={statTtBody(
-                                        totalFailed,
-                                        t('fail2ban.stats.attempts'),
-                                        '#e3b341',
-                                        t('fail2ban.stats.activeFailuresDesc'),
-                                    )}
-                                    color="orange"
-                                    placement="bottom"
-                                >
-                                    <Chip color={totalFailed > 0 ? 'orange' : 'muted'}>
-                                        <AlertTriangle style={{ width: 11, height: 11 }} />{' '}
-                                        <strong>{totalFailed}</strong>
-                                        <span style={{ fontWeight: 400, color: '#8b949e' }}> {t('fail2ban.stats.echecs')}</span>
-                                    </Chip>
-                                </F2bTooltip>
-                                {/* 2. Bans du jour */}
-                                {bansToday !== null && (
-                                 <F2bTooltip
-                                 title={t('fail2ban.stats.tooltips.dailyBans')}
-                                 bodyNode={
-                                 <div style={{ fontSize: '.78rem', lineHeight: 1.6 }}>
-                                                <div>
-                                                    <span style={{ color: '#e86a65', fontWeight: 700 }}>
-                                                        {bansToday.count}
-                                                    </span>{' '}
-                                                     ban{bansToday.count !== 1 ? 's' : ''} {t('fail2ban.stats.bansSinceMidnight', { count: bansToday.count })}
-                                                </div>
-                                                <div>
-                                                    <span style={{ color: '#58a6ff', fontWeight: 700 }}>
-                                                        {bansToday.uniqIps}
-                                                    </span>{' '}
-                                                     {t('fail2ban.stats.uniqueIp', { count: bansToday.uniqIps })}
-                                                </div>
-                                                <div
-                                                    style={{
-                                                        marginTop: '.25rem',
-                                                        paddingTop: '.25rem',
-                                                        borderTop: '1px solid #30363d',
-                                                    }}
-                                                >
-                                                    <span style={{ color: '#e86a65', fontWeight: 700 }}>
-                                                        {totalBanned}
-                                                    </span>{' '}
-                                                     {t('fail2ban.stats.ipBannedNow', { count: totalBanned })}
-                                                </div>
-                                                <div
-                                                    style={{
-                                                        color: '#8b949e',
-                                                        fontSize: '.7rem',
-                                                        marginTop: '.15rem',
-                                                    }}
-                                                >
-                                                    {t('fail2ban.stats.refresh60s')}
-                                                </div>
-                                            </div>
-                                        }
-                                        color="red"
-                                        placement="bottom"
-                                    >
-                                        <Chip color="red">
-                                            <span
-                                                style={{
-                                                    width: 6,
-                                                    height: 6,
-                                                    borderRadius: '50%',
-                                                    background: bansToday.count > 0 ? '#e86a65' : '#3fb950',
-                                                    display: 'inline-block',
-                                                    flexShrink: 0,
-                                                }}
-                                            />{' '}
-                                            <strong>{bansToday.count}</strong>
-                                             <span style={{ fontWeight: 400, color: '#8b949e' }}> {t('fail2ban.stats.bansPerDay')}</span>
-                                        </Chip>
-                                    </F2bTooltip>
-                                )}
-                                {/* 3. Jail le plus actif sur la période */}
-                                {topJailByPeriod && (topJailByPeriod.bansInPeriod ?? 0) > 0 && (
-                                    <F2bTooltip
-                                        title={t('fail2ban.stats.topJailPeriod', { period: periodLabel })}
-                                        bodyNode={
-                                            <div>
-                                                <div
-                                                    style={{
-                                                        fontFamily: 'monospace',
-                                                        fontWeight: 700,
-                                                        fontSize: '.88rem',
-                                                        color: '#e3b341',
-                                                        marginBottom: '.2rem',
-                                                    }}
-                                                >
-                                                    {topJailByPeriod.jail}
-                                                </div>
-                                                <div style={{ fontSize: '.72rem', color: '#e6edf3' }}>
-                                                    <strong style={{ color: '#e3b341' }}>
-                                                        {topJailByPeriod.bansInPeriod}
-                                                    </strong>{' '}
-                                                     {t('fail2ban.stats.bansOnPeriod', { period: periodLabel })}
-                                                </div>
-                                                {topJailByPeriod.currentlyBanned > 0 && (
-                                                    <div
-                                                        style={{
-                                                            fontSize: '.7rem',
-                                                            color: '#e86a65',
-                                                            marginTop: '.15rem',
-                                                        }}
-                                                    >
-                                                        {t('fail2ban.stats.ipBannedNow', { count: topJailByPeriod.currentlyBanned })}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        }
-                                        color="orange"
-                                        placement="bottom"
-                                    >
-                                        <Chip color="orange">
-                                            <Shield style={{ width: 11, height: 11 }} />{' '}
-                                            <span
-                                                style={{
-                                                    fontFamily: 'monospace',
-                                                    maxWidth: 90,
-                                                    overflow: 'hidden',
-                                                    textOverflow: 'ellipsis',
-                                                    display: 'inline-block',
-                                                    verticalAlign: 'bottom',
-                                                }}
-                                            >
-                                                {topJailByPeriod.jail}
-                                            </span>
-                                            <span style={{ fontWeight: 400, color: '#8b949e' }}>
-                                                {' '}
-                                                ×{topJailByPeriod.bansInPeriod}
-                                            </span>
-                                        </Chip>
-                                    </F2bTooltip>
-                                )}
-                                {/* 4. Jails actifs — tooltip liste les jails avec activité */}
-                                <F2bTooltip
-                                 title={t('fail2ban.stats.tooltips.activeJails')}
-                                 bodyNode={
-                                        <div>
-                                            <div
-                                                style={{
-                                                    fontSize: '1.1rem',
-                                                    fontWeight: 800,
-                                                    color: '#3fb950',
-                                                    lineHeight: 1.1,
-                                                    marginBottom: '.3rem',
-                                                }}
-                                            >
-                                                {activeJails}{' '}
-                                                <span
-                                                    style={{
-                                                        fontSize: '.68rem',
-                                                        fontWeight: 600,
-                                                        opacity: 0.7,
-                                                    }}
-                                                >
-                                                     {t('fail2ban.stats.jail', { count: activeJails })}
-                                                </span>
-                                            </div>
-                                            {activeJailsList.length > 0 ? (
-                                                <div
-                                                    style={{
-                                                        display: 'flex',
-                                                        flexDirection: 'column',
-                                                        gap: '.18rem',
-                                                        marginTop: '.25rem',
-                                                    }}
-                                                >
-                                                    {activeJailsList.map((j) => (
-                                                        <div
-                                                            key={j.jail}
-                                                            style={{
-                                                                display: 'flex',
-                                                                alignItems: 'center',
-                                                                gap: '.4rem',
-                                                                fontSize: '.72rem',
-                                                            }}
-                                                        >
-                                                            <span
-                                                                style={{
-                                                                    fontFamily: 'monospace',
-                                                                    color: '#e6edf3',
-                                                                    flex: 1,
-                                                                }}
-                                                            >
-                                                                {j.jail}
-                                                            </span>
-                                                            {j.currentlyBanned > 0 && (
-                                                                <span style={{ color: '#e86a65', fontWeight: 700 }}>
-                                                                    {j.currentlyBanned} {t('fail2ban.stats.bannis')}
-                                                                </span>
-                                                            )}
-                                                            {j.currentlyFailed > 0 && (
-                                                                <span style={{ color: '#e3b341' }}>
-                                                                    {j.currentlyFailed} {t('fail2ban.stats.echecs')}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            ) : (
-                                                <div
-                                                    style={{
-                                                        fontSize: '.72rem',
-                                                        color: '#8b949e',
-                                                        marginTop: '.2rem',
-                                                    }}
-                                                >
-                                                    {t('fail2ban.stats.noJailActivity')}
-                                                </div>
-                                            )}
-                                        </div>
-                                    }
-                                    color="green"
-                                    placement="bottom"
-                                >
-                                    <Chip color={activeJails > 0 ? 'green' : 'muted'}>
-                                        <Activity style={{ width: 11, height: 11 }} /> <strong>{activeJails}</strong>
-                                         <span style={{ fontWeight: 400, color: '#8b949e' }}> {t('fail2ban.stats.jailsActiveLabel')}</span>
-                                    </Chip>
-                                </F2bTooltip>
-                                {/* 5. Bans actifs + BDD */}
-                                {(() => {
-                                    const bddTotal = trackerTotal ?? uniqueIpsTotal;
-                                    return (
-                                        <F2bTooltip
-                                         title={t('fail2ban.stats.tooltips.bannedIps')}
-                                         bodyNode={statTtBody(
-                                                bddTotal,
-                                                'IPs',
-                                                '#e86a65',
-                                                 t('fail2ban.stats.tooltips.bannedIpsDesc'),
-                                                <span>
-                                                    {t('fail2ban.stats.activeBansNow')}{' '}
-                                                    <strong style={{ color: '#e86a65' }}>{totalBanned}</strong>
-                                                </span>,
-                                            )}
-                                            color="red"
-                                            placement="bottom"
-                                        >
-                                            <Chip color="red">
-                                                <strong
-                                                    style={{
-                                                        color: totalBanned > 0 ? '#e86a65' : '#8b949e',
-                                                    }}
-                                                >
-                                                    {totalBanned}
-                                                </strong>
-                                                 <span style={{ fontWeight: 400, color: '#8b949e' }}> {t('fail2ban.stats.active')}</span>
-                                                <span
-                                                    style={{
-                                                        color: '#484f58',
-                                                        margin: '0 .2rem',
-                                                        fontWeight: 400,
-                                                    }}
-                                                >
-                                                    ·
-                                                </span>
-                                                <Database style={{ width: 11, height: 11 }} />{' '}
-                                                <strong>{bddTotal}</strong>
-                                                 <span style={{ fontWeight: 400, color: '#8b949e' }}> {t('fail2ban.stats.db')}</span>
-                                            </Chip>
-                                        </F2bTooltip>
-                                    );
-                                })()}
-                            </>
-                        )}
                         {actionMsg && (
                             <div
                                 style={{
@@ -2403,6 +2116,10 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                             uniqueIpsTotal={uniqueIpsTotal}
                             firstEventAt={firstEventAt}
                             activeJails={activeJails}
+                            activeJailsList={activeJailsList}
+                            bansToday={bansToday}
+                            topJailByPeriod={topJailByPeriod}
+                            trackerTotal={trackerTotal}
                             days={statsDays}
                             onDaysChange={setStatsDays}
                             onIpClick={(ip) => setSelectedIp(ip)}
@@ -2411,6 +2128,7 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                     {tab === 'iptables' && <TabIPTables />}
                     {tab === 'ipset' && <TabIPSet onIpClick={(ip) => setSelectedIp(ip)} />}
                     {tab === 'blocklists' && <TabBlocklists />}
+                    {tab === 'coherence' && <TabCoherence />}
                     {tab === 'config' && (
                         <TabConfig
                             onWarningsChange={setDbFragPct}

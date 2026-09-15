@@ -1683,6 +1683,7 @@
       "ipset": "IPSet",
       "nftables": "NFTables",
       "blocklists": "Blocklists",
+      "coherence": "Cohérence",
       "config": "Config",
       "backup": "Backup",
       "audit": "Audit",
@@ -1742,6 +1743,10 @@
       "ipset": {
         "title": "IPSet",
         "desc": "Sets d'IPs actifs (f2b-*, blacklist…)"
+      },
+      "coherence": {
+        "title": "Cohérence pare-feu",
+        "desc": "Audit fail2ban ↔ iptables ↔ ipset"
       },
       "config": {
         "title": "Configuration",
@@ -3291,6 +3296,23 @@
       "notInstalledCheck2": "est activé dans docker-compose.yml et qu'ipset est installé dans le container.",
       "confirmDestroy": "Supprimer définitivement l'ipset \"{{name}}\" et toutes ses entrées ?\n\nCette action est irréversible.",
       "selectSet": "Sélectionnez un set pour voir ses entrées."
+    },
+    "coherence": {
+      "title": "Audit de cohérence pare-feu",
+      "description": "Compare la configuration des jails fail2ban avec l'état réel d'iptables, ipset et nftables. Diagnostic en lecture seule : aucune commande n'est exécutée automatiquement, seules des suggestions de correction sont proposées.",
+      "runAudit": "Lancer l'audit",
+      "critical": "Critique",
+      "warning": "Avertissement",
+      "info": "Info",
+      "jailsChecked": "Jails vérifiées",
+      "jailsSkipped": "Jails ignorées (action non liée au pare-feu) : {{list}}",
+      "allClear": "Aucune incohérence détectée entre fail2ban, iptables et ipset.",
+      "issuesTitle": "Incohérences détectées",
+      "all": "Toutes",
+      "copy": "Copier",
+      "copied": "Copié",
+      "copyFix": "Copier la commande de correction",
+      "loadError": "Impossible de charger l'audit de cohérence."
     },
     "iptables": {
       "rollbackAuto": "Rollback automatique dans",
