@@ -18,11 +18,11 @@ interface SyncStatus {
 }
 
 const PHASE_COLORS: Record<SyncPhase, { bar: string; border: string; bg: string; dot: string }> = {
-    idle:        { bar: '#3fb950', border: 'rgba(63,185,80,.3)',   bg: 'rgba(63,185,80,.06)',   dot: '#3fb950' },
-    syncing:     { bar: '#58a6ff', border: 'rgba(88,166,255,.35)', bg: 'rgba(88,166,255,.08)',  dot: '#58a6ff' },
-    backfilling: { bar: '#e3b341', border: 'rgba(227,179,65,.35)', bg: 'rgba(227,179,65,.08)',  dot: '#e3b341' },
-    geo:         { bar: '#bc8cff', border: 'rgba(188,140,255,.35)', bg: 'rgba(188,140,255,.08)', dot: '#bc8cff' },
-    done:        { bar: '#3fb950', border: 'rgba(63,185,80,.35)',  bg: 'rgba(63,185,80,.08)',   dot: '#3fb950' },
+    idle:        { bar: '#3fb950', border: 'rgba(63,185,80,.3)',   bg: '#161b22', dot: '#3fb950' },
+    syncing:     { bar: '#58a6ff', border: 'rgba(88,166,255,.35)', bg: '#161b22', dot: '#58a6ff' },
+    backfilling: { bar: '#e3b341', border: 'rgba(227,179,65,.35)', bg: '#161b22', dot: '#e3b341' },
+    geo:         { bar: '#bc8cff', border: 'rgba(188,140,255,.35)', bg: '#161b22', dot: '#bc8cff' },
+    done:        { bar: '#3fb950', border: 'rgba(63,185,80,.35)',  bg: '#161b22', dot: '#3fb950' },
 };
 
 const PHASE_ICONS: Record<SyncPhase, string> = {
@@ -39,6 +39,8 @@ export const SyncProgressBanner: React.FC = () => {
     const [animProgress, setAnimProgress] = useState(0);
     const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    // Tracks visibility without the stale-closure issue setInterval callbacks have with state.
+    const visibleRef = useRef(false);
 
     useEffect(() => {
         const poll = async () => {
@@ -51,15 +53,17 @@ export const SyncProgressBanner: React.FC = () => {
                     if (hideTimer.current) { clearTimeout(hideTimer.current); hideTimer.current = null; }
                     setStatus(s);
                     setVisible(true);
+                    visibleRef.current = true;
                     // Active sync: poll fast (2s)
                     if (pollRef.current) clearInterval(pollRef.current);
                     pollRef.current = setInterval(poll, 2_000);
-                } else if (visible) {
+                } else if (visibleRef.current) {
                     // Sync just finished: hide after brief pause
                     if (!hideTimer.current) {
                         hideTimer.current = setTimeout(() => {
                             setVisible(false);
                             setStatus(null);
+                            visibleRef.current = false;
                             hideTimer.current = null;
                         }, 2_000);
                     }
