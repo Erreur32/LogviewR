@@ -5,6 +5,21 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.0] - 2026-09-15
+
+### For users
+
+- Fail2ban: new "Cohérence" tab audits consistency between fail2ban, iptables and ipset (detects jails with active bans missing their firewall rule, orphaned firewall rules, and ipset mismatches). Diagnostics only — no command is executed automatically, fix suggestions are shown as copyable commands.
+- Fail2ban: the stat chips (failed attempts, bans/day, top jail, active jails, banned/DB totals) now only appear on the Stats tab instead of on every tab's header.
+
+### For developers
+
+- `server/plugins/fail2ban/FirewallAuditService.ts`: new read-only audit service comparing jail.conf/jail.local/jail.d state against live `iptables`/`ipset` output, with unit tests (`__tests__/FirewallAuditService.test.ts`).
+- `server/plugins/fail2ban/jailConfigParser.ts`: new parser for fail2ban jail config files (`%(key)s` interpolation) and action.d templates (`<tag>` substitution).
+- `src/pages/fail2ban/TabCoherence.tsx`: new tab UI for the audit, following the existing dark-theme card/tooltip conventions.
+- `src/pages/fail2ban/TabStats.tsx`: added `HeaderStatsChips`, reusing the shared `Badge` component instead of the page-local `Chip`.
+- `src/pages/Fail2banPage.tsx`: removed the now-unused `Chip`/`CHIP_COLORS` header chip block.
+
 ## [0.12.5] - 2026-09-14
 
 ### For users
