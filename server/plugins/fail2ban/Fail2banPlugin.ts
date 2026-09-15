@@ -259,17 +259,6 @@ function clampJailInt(v: number | string | undefined, def: number, min: number, 
     return n;
 }
 
-/**
- * Resolve the jail.d/<name>.local path, guaranteeing the result stays inside jail.d
- * (defense in depth on top of the [a-zA-Z0-9._-] jailName allowlist already applied by callers).
- */
-function resolveJailLocalPath(confBase: string, jailName: string): string | null {
-    const jailDir = path.resolve(confBase, 'jail.d');
-    const candidate = path.resolve(jailDir, `${jailName}.local`);
-    if (candidate !== jailDir && !candidate.startsWith(jailDir + path.sep)) return null;
-    return candidate;
-}
-
 /** Validate POST /jails body. Returns either a parsed plan or a user-facing error. */
 function validateJailPayload(body: JailFormBody, confBase: string): { ok: true; plan: JailPlan } | { ok: false; error: string } {
     const name = String(body.name ?? '').trim().toLowerCase();
@@ -1347,8 +1336,11 @@ export class Fail2banPlugin extends BasePlugin {
             const jailMeta = parseJailConfigs(confBase);
             const meta = jailMeta[jailName] ?? {};
             // Also read jail.d/<name>.local for current local overrides
-            const localPath = resolveJailLocalPath(confBase, jailName);
-            if (!localPath) return res.json({ success: true, result: { ok: false, error: 'Jail invalide' } });
+            const jailDDir = path.resolve(confBase, 'jail.d');
+            const localPath = path.resolve(jailDDir, `${jailName}.local`);
+            if (localPath !== jailDDir && !localPath.startsWith(jailDDir + path.sep)) {
+                return res.json({ success: true, result: { ok: false, error: 'Jail invalide' } });
+            }
             let localContent = '';
             try { localContent = fs.readFileSync(localPath, 'utf8'); } catch { /* no local file */ }
             // Parse local overrides
@@ -1385,8 +1377,11 @@ export class Fail2banPlugin extends BasePlugin {
                 ignoreip?: string; usedns?: string; logpath?: string; port?: string;
             };
             const confBase = this.resolveDockerPathSync('/etc/fail2ban');
-            const localPath = resolveJailLocalPath(confBase, jailName);
-            if (!localPath) return res.json({ success: true, result: { ok: false, error: 'Jail invalide' } });
+            const jailDDir = path.resolve(confBase, 'jail.d');
+            const localPath = path.resolve(jailDDir, `${jailName}.local`);
+            if (localPath !== jailDDir && !localPath.startsWith(jailDDir + path.sep)) {
+                return res.json({ success: true, result: { ok: false, error: 'Jail invalide' } });
+            }
             // Build content
             const lines: string[] = [`[${jailName}]`, ''];
             if (bantime  !== undefined) lines.push(`bantime  = ${bantime}`);
