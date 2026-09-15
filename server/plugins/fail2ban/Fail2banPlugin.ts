@@ -1336,9 +1336,9 @@ export class Fail2banPlugin extends BasePlugin {
             const jailMeta = parseJailConfigs(confBase);
             const meta = jailMeta[jailName] ?? {};
             // Also read jail.d/<name>.local for current local overrides
-            const jailDDir = path.resolve(confBase, 'jail.d');
+            const jailDDir = path.resolve(confBase, 'jail.d') + path.sep;
             const localPath = path.resolve(jailDDir, `${jailName}.local`);
-            if (localPath !== jailDDir && !localPath.startsWith(jailDDir + path.sep)) {
+            if (!localPath.startsWith(jailDDir)) {
                 return res.json({ success: true, result: { ok: false, error: 'Jail invalide' } });
             }
             let localContent = '';
@@ -1377,9 +1377,9 @@ export class Fail2banPlugin extends BasePlugin {
                 ignoreip?: string; usedns?: string; logpath?: string; port?: string;
             };
             const confBase = this.resolveDockerPathSync('/etc/fail2ban');
-            const jailDDir = path.resolve(confBase, 'jail.d');
+            const jailDDir = path.resolve(confBase, 'jail.d') + path.sep;
             const localPath = path.resolve(jailDDir, `${jailName}.local`);
-            if (localPath !== jailDDir && !localPath.startsWith(jailDDir + path.sep)) {
+            if (!localPath.startsWith(jailDDir)) {
                 return res.json({ success: true, result: { ok: false, error: 'Jail invalide' } });
             }
             // Build content
