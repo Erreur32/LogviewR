@@ -38,6 +38,8 @@ export interface ErrorAnalysisConfig {
     suspiciousDetectBruteforce: boolean;
     /** Number of 401/403 responses from a single IP before it is flagged as bruteforce */
     suspiciousBruteforceThreshold: number;
+    /** IPs excluded from all suspicious-activity checks (internal scanners, WAF, healthchecks) */
+    suspiciousIpAllowlist: string[];
 }
 
 const CONFIG_KEY = 'error_analysis_config';
@@ -60,7 +62,8 @@ export const DEFAULT_ERROR_ANALYSIS_CONFIG: ErrorAnalysisConfig = {
     suspiciousDetect403: true,
     suspiciousDetectInjection: true,
     suspiciousDetectBruteforce: true,
-    suspiciousBruteforceThreshold: 5
+    suspiciousBruteforceThreshold: 5,
+    suspiciousIpAllowlist: []
 };
 
 /** Map depth to effective lines per file when depth overrides (optional; can use linesPerFile only) */
@@ -119,8 +122,20 @@ function mergeWithDefaults(partial: Partial<ErrorAnalysisConfig>): ErrorAnalysis
         suspiciousDetect403: partial.suspiciousDetect403 ?? def.suspiciousDetect403,
         suspiciousDetectInjection: partial.suspiciousDetectInjection ?? def.suspiciousDetectInjection,
         suspiciousDetectBruteforce: partial.suspiciousDetectBruteforce ?? def.suspiciousDetectBruteforce,
-        suspiciousBruteforceThreshold: clamp(partial.suspiciousBruteforceThreshold ?? def.suspiciousBruteforceThreshold, 3, 50)
+        suspiciousBruteforceThreshold: clamp(partial.suspiciousBruteforceThreshold ?? def.suspiciousBruteforceThreshold, 3, 50),
+        suspiciousIpAllowlist: sanitizeIpAllowlist(partial.suspiciousIpAllowlist ?? def.suspiciousIpAllowlist)
     };
+}
+
+const MAX_ALLOWLIST_ENTRIES = 200;
+
+function sanitizeIpAllowlist(list: string[]): string[] {
+    if (!Array.isArray(list)) return [];
+    const cleaned = list
+        .filter((ip): ip is string => typeof ip === 'string')
+        .map((ip) => ip.trim())
+        .filter(Boolean);
+    return [...new Set(cleaned)].slice(0, MAX_ALLOWLIST_ENTRIES);
 }
 
 function clamp(n: number, min: number, max: number): number {

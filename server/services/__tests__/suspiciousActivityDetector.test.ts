@@ -33,7 +33,8 @@ const BASE_CONFIG = {
     suspiciousDetectInjection: true,
     suspiciousDetectBruteforce: true,
     suspiciousBruteforceThreshold: 5,
-    maxTopErrors: 10
+    maxTopErrors: 10,
+    suspiciousIpAllowlist: [] as string[]
 };
 
 describe('analyzeSuspiciousActivity', () => {
@@ -105,6 +106,26 @@ describe('analyzeSuspiciousActivity', () => {
         const findings = analyzeSuspiciousActivity(lines(...raw), plugin, 'access', config);
         assert.ok(!findings.some((f) => f.category === 'access-denied-403'));
         assert.ok(findings.some((f) => f.category === 'injection:xss'));
+    });
+
+    it('ignores 403/injection/bruteforce hits from an allowlisted IP', () => {
+        const raw = [
+            makeLine('9.9.9.9', 403, '/private'),
+            makeLine('9.9.9.9', 200, '/search?q=<script>x</script>'),
+            ...Array.from({ length: 5 }, () => makeLine('9.9.9.9', 401, '/login')),
+        ];
+        const config = { ...BASE_CONFIG, suspiciousIpAllowlist: ['9.9.9.9'] };
+        const findings = analyzeSuspiciousActivity(lines(...raw), plugin, 'access', config);
+        assert.deepEqual(findings, []);
+    });
+
+    it('still flags a non-allowlisted IP when another one is allowlisted', () => {
+        const raw = [makeLine('1.2.3.4', 403, '/private'), makeLine('9.9.9.9', 403, '/private')];
+        const config = { ...BASE_CONFIG, suspiciousIpAllowlist: ['9.9.9.9'] };
+        const findings = analyzeSuspiciousActivity(lines(...raw), plugin, 'access', config);
+        const finding = findings.find((f) => f.category === 'access-denied-403');
+        assert.ok(finding);
+        assert.equal(finding!.count, 1);
     });
 
     it('returns nothing when all three toggles are off', () => {

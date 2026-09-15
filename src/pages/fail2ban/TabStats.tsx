@@ -3227,7 +3227,7 @@ const TopsSection: React.FC<{
         return (
             <>
                 {TT.sep()}
-                {TT.section('Fichiers logs NPM')}
+                {TT.section(t('fail2ban.stats.ttNpmLogFiles'))}
                 {[...byDir.entries()].map(([dir, list]) => (
                     <div key={dir} style={{ marginBottom: '.25rem' }}>
                         {list.map((f) => (

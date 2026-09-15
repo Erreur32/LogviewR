@@ -853,15 +853,17 @@ export const Fail2banPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
             ttColor: 'blue' as const,
         },
         {
-            ttTitle: `Bans (${periodLabel})`,
+            ttTitle: t('fail2ban.stats.totalBansPeriod', { period: periodLabel }),
             ttBodyNode: statTtBody(
                 periodBans,
-                'bans',
+                t('fail2ban.stats.units.bans'),
                 '#39c5cf',
-                `Total bans enregistrés sur la fenêtre ${periodLabel} (données du graphique).`,
+                t('fail2ban.stats.desc.totalBans', { period: periodLabel }),
                 prevPeriodBans !== null ? (
                     <span>
-                        Période précédente : <strong style={{ color: '#8b949e' }}>{prevPeriodBans}</strong> bans
+                        {t('fail2ban.stats.meta.prevPeriod')}{' '}
+                        <strong style={{ color: '#8b949e' }}>{prevPeriodBans}</strong>{' '}
+                        {t('fail2ban.stats.ban', { count: prevPeriodBans })}
                         {periodBans !== prevPeriodBans ? (
                             <>
                                 {' '}

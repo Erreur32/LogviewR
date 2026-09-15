@@ -3795,6 +3795,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     suspiciousDetectInjection: boolean;
     suspiciousDetectBruteforce: boolean;
     suspiciousBruteforceThreshold: number;
+    suspiciousIpAllowlist: string[];
   }>({
     errorSummaryEnabled: false,
     enabledPlugins: ['host-system'],
@@ -3808,8 +3809,10 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     suspiciousDetect403: true,
     suspiciousDetectInjection: true,
     suspiciousDetectBruteforce: true,
-    suspiciousBruteforceThreshold: 5
+    suspiciousBruteforceThreshold: 5,
+    suspiciousIpAllowlist: []
   });
+  const [suspiciousIpAllowlistDraft, setSuspiciousIpAllowlistDraft] = useState('');
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisSaving, setAnalysisSaving] = useState(false);
   const [analysisMessage, setAnalysisMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -3842,8 +3845,10 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             suspiciousDetect403: analysisRes.result.suspiciousDetect403 !== false,
             suspiciousDetectInjection: analysisRes.result.suspiciousDetectInjection !== false,
             suspiciousDetectBruteforce: analysisRes.result.suspiciousDetectBruteforce !== false,
-            suspiciousBruteforceThreshold: analysisRes.result.suspiciousBruteforceThreshold ?? 5
+            suspiciousBruteforceThreshold: analysisRes.result.suspiciousBruteforceThreshold ?? 5,
+            suspiciousIpAllowlist: analysisRes.result.suspiciousIpAllowlist ?? []
           });
+          setSuspiciousIpAllowlistDraft((analysisRes.result.suspiciousIpAllowlist ?? []).join('\n'));
           analysisJustLoadedRef.current = true;
         } else if (!analysisRes.success && !cancelled) {
           setAnalysisMessage({ type: 'error', text: 'Failed to load analysis config' });
@@ -4442,6 +4447,26 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                               onChange={(e) => setAnalysisConfig((prev) => ({ ...prev, suspiciousBruteforceThreshold: Math.max(3, Math.min(50, Number.parseInt(e.target.value, 10) || 3)) }))}
                               disabled={!analysisConfig.securityCheckEnabled || !analysisConfig.suspiciousDetectBruteforce}
                               className="w-24 px-2 py-1.5 rounded-lg bg-theme-tertiary border border-theme-border text-theme-primary text-sm disabled:opacity-50"
+                            />
+                          </SettingRow>
+                          <SettingRow label={t('analysis.suspiciousIpAllowlist')} description={t('analysis.suspiciousIpAllowlistDesc')}>
+                            <textarea
+                              value={suspiciousIpAllowlistDraft}
+                              onChange={(e) => setSuspiciousIpAllowlistDraft(e.target.value)}
+                              onBlur={() => {
+                                const parsed = [...new Set(
+                                  suspiciousIpAllowlistDraft
+                                    .split(/[\n,]/)
+                                    .map((ip) => ip.trim())
+                                    .filter(Boolean)
+                                )];
+                                setSuspiciousIpAllowlistDraft(parsed.join('\n'));
+                                setAnalysisConfig((prev) => ({ ...prev, suspiciousIpAllowlist: parsed }));
+                              }}
+                              disabled={!analysisConfig.securityCheckEnabled}
+                              placeholder={t('analysis.suspiciousIpAllowlistPlaceholder')}
+                              rows={3}
+                              className="w-full px-2 py-1.5 rounded-lg bg-theme-tertiary border border-theme-border text-theme-primary text-sm font-mono disabled:opacity-50"
                             />
                           </SettingRow>
                           <SettingRow label={t('analysis.securityCheckDepth')} description={t('analysis.securityCheckDepthDesc')}>

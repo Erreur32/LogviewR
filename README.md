@@ -334,10 +334,6 @@ create 640 root adm
 
 ---
 
-## 🗒️ Known TODO
-
-- **i18n: Fail2ban page tooltips** - hover/tooltip text on `/fail2ban` (`F2bTooltip` `body=`/`bodyNode=` props, `TT` helpers in `src/pages/fail2ban/helpers.tsx`) still needs a translation review; not yet audited for hardcoded French strings.
-
 ## 📋 Release workflow preferences
 
 Always follow the full pre-push checklist from CLAUDE.md — never skip steps.

@@ -7,14 +7,17 @@
 
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
+import { CustomLogParser } from '../../plugins/host-system/CustomLogParser.js';
 
-// Set env before any module imports that read it
 process.env.DATABASE_PATH = ':memory:';
 process.env.NODE_ENV = 'test';
 
-import { PluginConfigRepository } from '../../database/models/PluginConfig.js';
-import { initializeDatabase, getDatabase, closeDatabase } from '../../database/connection.js';
-import { CustomLogParser } from '../../plugins/host-system/CustomLogParser.js';
+// Dynamic import: connection.ts resolves its DB path once at module-evaluation
+// time, and static imports are hoisted ahead of the env assignment above — a
+// dynamic import is the only way to guarantee the env var is read first
+// (otherwise these tests run against the real dev database, see connection.ts).
+const { PluginConfigRepository } = await import('../../database/models/PluginConfig.js');
+const { initializeDatabase, getDatabase, closeDatabase } = await import('../../database/connection.js');
 
 // ── Helpers (same logic as in logParserService) ─────────────────────────────
 

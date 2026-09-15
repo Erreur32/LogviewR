@@ -1423,11 +1423,11 @@ export const TabConfig: React.FC<{
                                 {syncLoading ? (
                                     <span style={{ fontSize: '.72rem', color: C.muted }}>{t('fail2ban.config.verification')}</span>
                                 ) : syncOk ? (
-                                    <F2bTooltip color="green" title="Synchronisation — OK" width={340} bodyNode={<>
-                                        {TT.section('État', '#3fb950')}
-                                        {TT.ok('fail2ban.sqlite3 → dashboard.db synchronisés')}
+                                    <F2bTooltip color="green" title={t('fail2ban.config.syncCheckOk')} width={340} bodyNode={<>
+                                        {TT.section(t('fail2ban.config.ttSyncStatus'), '#3fb950')}
+                                        {TT.ok(t('fail2ban.config.ttSyncSynced'))}
                                         {TT.sep()}
-                                        {TT.section('Fonctionnement')}
+                                        {TT.section(t('fail2ban.config.ttSyncFunctioning'))}
                                         {TT.info(t('fail2ban.config.syncServiceRunning'))}
                                         {TT.info(t('fail2ban.config.syncFeedsHistory'))}
                                     </>}>
@@ -1438,7 +1438,7 @@ export const TabConfig: React.FC<{
                                         {TT.section(t('fail2ban.config.syncProblem'), '#e3b341')}
                                         {TT.warn(t('fail2ban.config.syncBetween'))}
                                         {TT.sep()}
-                                        {TT.section('Actions')}
+                                        {TT.section(t('fail2ban.config.ttSyncActions'))}
                                         {TT.info(t('fail2ban.config.syncNextCycle'))}
                                         {TT.info(t('fail2ban.config.syncServiceActive'))}
                                     </>}>
@@ -1608,28 +1608,28 @@ export const TabConfig: React.FC<{
                             <span style={{ fontWeight: 600, fontSize: '.9rem' }}>Pare-feu — Netfilter <span style={{ fontWeight: 400, color: C.orange, fontSize: '.72rem' }}>(optionnel)</span></span>
                             {fwErrCount > 0 && (
                                 <WarnBadge count={fwErrCount}
-                                    tip={FW_CHECKS_CFG.filter(c => fwStatuses[c.key] === 'error').map(c => `${c.label} inaccessible`).join(' · ') + ' — NET_ADMIN + network_mode: host requis'} />
+                                    tip={FW_CHECKS_CFG.filter(c => fwStatuses[c.key] === 'error').map(c => t('fail2ban.config.ttFwCheckInaccessible', { label: c.label })).join(' · ') + t('fail2ban.config.ttFwRequiresSuffix')} />
                             )}
                             <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '.5rem' }}>
                                 {fwOkAll ? (
-                                    <F2bTooltip color="green" title="Pare-feu Netfilter — OK" width={340} bodyNode={<>
-                                        {TT.section('Outils accessibles', '#3fb950')}
-                                        {TT.ok('IPTables  —  règles netfilter via iptables-save')}
-                                        {TT.ok('IPSet     —  sets blacklist / f2b-*')}
-                                        {TT.ok('NFTables  —  ruleset nftables du host')}
+                                    <F2bTooltip color="green" title={t('fail2ban.config.ttFwOkTitle')} width={340} bodyNode={<>
+                                        {TT.section(t('fail2ban.config.ttFwToolsAccessible'), '#3fb950')}
+                                        {TT.ok(t('fail2ban.config.ttFwIptablesDesc'))}
+                                        {TT.ok(t('fail2ban.config.ttFwIpsetDesc'))}
+                                        {TT.ok(t('fail2ban.config.ttFwNftablesDesc'))}
                                         {TT.sep()}
-                                        {TT.info('Requiert : network_mode: host + NET_ADMIN')}
+                                        {TT.info(t('fail2ban.config.ttFwRequires'))}
                                     </>}>
                                         <HBadge color={C.green} bg="rgba(63,185,80,.12)" border="rgba(63,185,80,.3)" icon={<CheckCircle style={{ width: 10, height: 10 }} />}>OK</HBadge>
                                     </F2bTooltip>
                                 ) : fwErrCount > 0 ? (
-                                    <F2bTooltip color="orange" title="Pare-feu Netfilter — Non disponible" width={360} bodyNode={<>
-                                        {TT.section('Prérequis manquants', '#e3b341')}
-                                        {TT.warn('network_mode: host  dans docker-compose.yml')}
-                                        {TT.warn('cap_add: [ NET_ADMIN ]  dans docker-compose.yml')}
+                                    <F2bTooltip color="orange" title={t('fail2ban.config.ttFwNotAvailableTitle')} width={360} bodyNode={<>
+                                        {TT.section(t('fail2ban.config.ttFwMissingPrereq'), '#e3b341')}
+                                        {TT.warn(t('fail2ban.config.ttFwNetworkModeWarn'))}
+                                        {TT.warn(t('fail2ban.config.ttFwCapAddWarn'))}
                                         {TT.sep()}
-                                        {TT.section('Impact')}
-                                        {TT.info('Onglets IPTables / IPSet / NFTables limités')}
+                                        {TT.section(t('fail2ban.config.ttFwImpact'))}
+                                        {TT.info(t('fail2ban.config.ttFwImpactTabsLimited'))}
                                     </>}>
                                         <HBadge color={C.orange} bg="rgba(227,179,65,.12)" border="rgba(227,179,65,.3)" icon={<AlertTriangle style={{ width: 10, height: 10 }} />}>{fwErrCount} inaccessible{fwErrCount > 1 ? 's' : ''}</HBadge>
                                     </F2bTooltip>

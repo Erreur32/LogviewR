@@ -24,6 +24,7 @@ type SuspiciousDetectorConfig = Pick<
     | 'suspiciousDetectBruteforce'
     | 'suspiciousBruteforceThreshold'
     | 'maxTopErrors'
+    | 'suspiciousIpAllowlist'
 >;
 
 interface AggregatedFinding {
@@ -45,6 +46,7 @@ export function analyzeSuspiciousActivity(
 
     const buckets = new Map<string, AggregatedFinding>();
     const ipAttemptCounts = new Map<string, number>();
+    const allowedIps = new Set(config.suspiciousIpAllowlist);
 
     const record = (category: string, sample: string): void => {
         const existing = buckets.get(category);
@@ -67,6 +69,8 @@ export function analyzeSuspiciousActivity(
         const status = typeof entry.status === 'number' ? entry.status : undefined;
         const url = typeof entry.url === 'string' ? entry.url : undefined;
         const ip = typeof entry.ip === 'string' ? entry.ip : undefined;
+
+        if (ip && allowedIps.has(ip)) continue;
 
         if (config.suspiciousDetect403 && (status === 403 || status === 401)) {
             record(status === 403 ? 'access-denied-403' : 'auth-required-401', url ?? logLine.line.trim());
