@@ -20,8 +20,10 @@ interface FirewallIssue {
     severity: IssueSeverity;
     category: IssueCategory;
     jail?: string;
-    message: string;
-    fix?: string;
+    messageKey: string;
+    messageParams?: Record<string, string | number>;
+    fixKey?: string;
+    fixParams?: Record<string, string | number>;
 }
 
 interface FirewallAuditResult {
@@ -62,7 +64,10 @@ const CopyButton: React.FC<{ text: string }> = ({ text }) => {
 };
 
 const IssueRow: React.FC<{ issue: FirewallIssue }> = ({ issue }) => {
+    const { t } = useTranslation();
     const s = SEVERITY_STYLE[issue.severity];
+    const message = t(`fail2ban.coherence.issues.${issue.messageKey}`, issue.messageParams);
+    const fix = issue.fixKey ? t(`fail2ban.coherence.fixes.${issue.fixKey}`, issue.fixParams) : undefined;
     return (
         <div style={{ borderBottom: `1px solid ${C.border}`, padding: '.6rem 1rem' }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: '.6rem' }}>
@@ -76,13 +81,13 @@ const IssueRow: React.FC<{ issue: FirewallIssue }> = ({ issue }) => {
                         )}
                         <span style={{ fontSize: '.68rem', color: s.color, textTransform: 'uppercase', letterSpacing: '.04em', fontWeight: 600 }}>{issue.category}</span>
                     </div>
-                    <div style={{ fontSize: '.82rem', color: C.text, marginTop: '.25rem', lineHeight: 1.5 }}>{issue.message}</div>
-                    {issue.fix && (
+                    <div style={{ fontSize: '.82rem', color: C.text, marginTop: '.25rem', lineHeight: 1.5 }}>{message}</div>
+                    {fix && (
                         <div style={{ marginTop: '.4rem', borderRadius: 4, border: `1px solid ${s.border}`, background: s.bg, overflow: 'hidden' }}>
                             <div style={{ display: 'flex', alignItems: 'center', padding: '.2rem .5rem', borderBottom: `1px solid ${s.border}` }}>
-                                <CopyButton text={issue.fix} />
+                                <CopyButton text={fix} />
                             </div>
-                            <pre style={{ margin: 0, fontSize: '.72rem', fontFamily: 'monospace', color: C.text, padding: '.4rem .6rem', whiteSpace: 'pre-wrap', lineHeight: 1.55 }}>{issue.fix}</pre>
+                            <pre style={{ margin: 0, fontSize: '.72rem', fontFamily: 'monospace', color: C.text, padding: '.4rem .6rem', whiteSpace: 'pre-wrap', lineHeight: 1.55 }}>{fix}</pre>
                         </div>
                     )}
                 </div>

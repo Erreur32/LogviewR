@@ -3312,7 +3312,33 @@
       "copy": "Copier",
       "copied": "Copié",
       "copyFix": "Copier la commande de correction",
-      "loadError": "Impossible de charger l'audit de cohérence."
+      "loadError": "Impossible de charger l'audit de cohérence.",
+      "issues": {
+        "chainMissing": "La chaîne iptables \"{{chain}}\" attendue pour le jail \"{{jail}}\" (action {{banaction}}) est absente.",
+        "noJumpRule": "Aucune règle ne redirige le trafic vers la chaîne \"{{chain}}\" — le jail \"{{jail}}\" ne bloque rien malgré des IP bannies.",
+        "ipMissingInChain": "L'IP {{ip}} est bannie par fail2ban (jail \"{{jail}}\") mais aucune règle iptables ne la bloque dans \"{{chain}}\".",
+        "ipOrphanInChain": "L'IP {{ip}} est bloquée dans \"{{chain}}\" mais fail2ban (jail \"{{jail}}\") ne la connaît plus (règle probablement orpheline).",
+        "ipsetMissing": "L'ipset \"{{set}}\" attendu pour le jail \"{{jail}}\" (action {{banaction}}) n'existe pas.",
+        "ipsetNotReferenced_one": "L'ipset \"{{set}}\" ({{count}} entrée) existe mais aucune règle iptables/nftables ne le référence (--match-set) — les IP bannies ne sont pas bloquées.",
+        "ipsetNotReferenced_other": "L'ipset \"{{set}}\" ({{count}} entrées) existe mais aucune règle iptables/nftables ne le référence (--match-set) — les IP bannies ne sont pas bloquées.",
+        "ipMissingInIpset": "L'IP {{ip}} est bannie par fail2ban (jail \"{{jail}}\") mais absente de l'ipset \"{{set}}\".",
+        "ipOrphanInIpset": "L'IP {{ip}} est présente dans l'ipset \"{{set}}\" mais fail2ban (jail \"{{jail}}\") ne la connaît plus (entrée orpheline).",
+        "nftablesUnverified": "Le jail \"{{jail}}\" bannit via nftables (table \"f2b-table\", ensemble nommé généralement \"addr-set-{{jail}}\" ou \"addr-set-default\"). L'audit ne lit que iptables-save/ipset et ne peut pas confirmer avec certitude que les IP bannies par ce jail sont bien dans l'ensemble nft — vérifiez manuellement avec la commande ci-dessous.",
+        "orphanIpsetGlobal_one": "L'ipset \"{{set}}\" ({{count}} entrée) n'est référencé par aucune règle iptables/nftables — vérifiez s'il est encore utilisé (liste Data-Shield ou set obsolète).",
+        "orphanIpsetGlobal_other": "L'ipset \"{{set}}\" ({{count}} entrées) n'est référencé par aucune règle iptables/nftables — vérifiez s'il est encore utilisé (liste Data-Shield ou set obsolète).",
+        "danglingRule": "La règle iptables \"{{rule}}\" référence l'ipset \"{{set}}\" qui n'existe pas — règle probablement en erreur ou inopérante."
+      },
+      "fixes": {
+        "reloadJail": "sudo fail2ban-client reload {{jail}}",
+        "noJumpRule": "sudo fail2ban-client reload {{jail}}\n# ou manuellement :\nsudo iptables -I {{parentChain}} -j {{chain}}",
+        "banIp": "sudo fail2ban-client set {{jail}} banip {{ip}}",
+        "ipOrphanInChain": "sudo iptables -D {{chain}} -s {{ip}} -j DROP   # adapter la cible exacte à la règle réelle (DROP/REJECT)",
+        "ipsetNotReferenced": "sudo fail2ban-client reload {{jail}}   # recrée la règle associée à l'action {{banaction}}\n# ou manuellement :\nsudo iptables -I {{parentChain}} -m set --match-set {{set}} src -j DROP",
+        "delFromIpset": "sudo ipset del {{set}} {{ip}}",
+        "nftablesUnverified": "sudo nft list table inet f2b-table\n# cherchez un \"elements\" contenant les IP listées par :\nsudo fail2ban-client status {{jail}}",
+        "orphanIpsetGlobal": "sudo iptables -I INPUT -m set --match-set {{set}} src -j DROP   # si ce set doit bloquer du trafic\n# sinon, s'il est obsolète :\nsudo ipset destroy {{set}}",
+        "danglingRule": "sudo ipset create {{set}} hash:ip family inet   # recrée le set attendu\n# ou, si la règle est obsolète :\nsudo iptables -D {{chain}} -m set --match-set {{set}} src -j DROP"
+      }
     },
     "iptables": {
       "rollbackAuto": "Rollback automatique dans",

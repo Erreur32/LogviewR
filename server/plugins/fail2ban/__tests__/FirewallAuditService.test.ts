@@ -227,7 +227,8 @@ COMMIT
         const ipIssue = result.issues.find(i => i.category === 'ip-mismatch');
         assert.ok(ipIssue);
         assert.equal(ipIssue?.severity, 'critical');
-        assert.match(ipIssue!.fix ?? '', /fail2ban-client set sshd banip 5\.5\.5\.5/);
+        assert.equal(ipIssue?.fixKey, 'banIp');
+        assert.deepEqual(ipIssue?.fixParams, { jail: 'sshd', ip: '5.5.5.5' });
     });
 
     it('flags an orphan ipset when populated but never matched by a firewall rule', async () => {

@@ -6,7 +6,7 @@
  * Modelled after fail2ban TabStats HeatmapSection.
  */
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 export interface HourDayDataPoint {
@@ -38,6 +38,34 @@ export const HourDayHeatmap: React.FC<HourDayHeatmapProps> = ({
 }) => {
     const [tip, setTip] = useState<{ x: number; y: number; content: React.ReactNode } | null>(null);
 
+    // Row height is derived the same way the calendar heatmap (HeatmapChart) sizes its cells from
+    // container width, using its ~52-week column count as the reference divisor — this keeps both
+    // heatmaps the same overall height in the 2×2 dashboard grid regardless of viewport width.
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [containerWidth, setContainerWidth] = useState(0);
+    useEffect(() => {
+        const el = containerRef.current;
+        if (!el) return;
+        let rafId = 0;
+        const applyWidth = (w: number) => setContainerWidth((prev) => (Math.abs(prev - w) >= 2 ? w : prev));
+        const scheduleWidth = (w: number) => {
+            if (rafId) cancelAnimationFrame(rafId);
+            rafId = requestAnimationFrame(() => applyWidth(w));
+        };
+        const ro = new ResizeObserver((entries) => scheduleWidth(entries[0]?.contentRect.width ?? 0));
+        ro.observe(el);
+        return () => { if (rafId) cancelAnimationFrame(rafId); ro.disconnect(); };
+    }, []);
+    const REF_WEEK_COLUMNS = 52;
+    const { rowHeight, rowGap } = (() => {
+        if (containerWidth <= 0) return { rowHeight: 14, rowGap: 3 };
+        const available = Math.max(0, containerWidth - 32 - 4);
+        const stepF = available / REF_WEEK_COLUMNS;
+        const rh = Math.max(4, Math.min(14, Math.floor(stepF * 0.82)));
+        const gap = Math.max(1, Math.min(3, Math.floor(stepF - rh)));
+        return { rowHeight: rh, rowGap: gap };
+    })();
+
     const { grid, maxCount } = useMemo(() => {
         const g: number[][] = Array.from({ length: 7 }, () => new Array(24).fill(0));
         for (const d of data) {
@@ -61,8 +89,8 @@ export const HourDayHeatmap: React.FC<HourDayHeatmapProps> = ({
     }
 
     return (
-        <div>
-            <div style={{ display: 'inline-grid', gridTemplateColumns: '32px repeat(24, 1fr)', gap: 3, width: '100%' }}>
+        <div ref={containerRef}>
+            <div style={{ display: 'inline-grid', gridTemplateColumns: '32px repeat(24, 1fr)', gap: rowGap, width: '100%' }}>
                 {/* header: hour labels */}
                 <div />
                 {Array.from({ length: 24 }, (_, h) => (
@@ -92,7 +120,7 @@ export const HourDayHeatmap: React.FC<HourDayHeatmapProps> = ({
                                 <div
                                     key={hr}
                                     style={{
-                                        aspectRatio: '1', minHeight: 18,
+                                        height: rowHeight,
                                         background: bg, border: bord,
                                         borderRadius: 3,
                                         transition: 'transform .1s',

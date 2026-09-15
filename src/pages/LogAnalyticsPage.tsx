@@ -168,6 +168,35 @@ const LiveToggle: React.FC<{ live: boolean; onToggle: () => void; window: LiveWi
     );
 };
 
+/** Exclusive 2-button switch between the 12-month aggregate and a shorter "live" window (24h or 7d). */
+const WindowSwitch: React.FC<{ live: boolean; onToggle: () => void; window: LiveWindow; fixedLabel?: string }> = ({ live, onToggle, window, fixedLabel = '12 mois' }) => {
+    const base = 'text-[.6rem] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded border transition-colors';
+    const activeCls = 'border-emerald-500/50 bg-emerald-500/15 text-emerald-300';
+    const inactiveCls = 'border-gray-700/50 bg-gray-800/20 text-gray-600 hover:text-gray-400';
+    return (
+        <div className="flex items-center gap-1">
+            <button
+                type="button"
+                onClick={() => { if (live) onToggle(); }}
+                className={`${base} ${!live ? activeCls : inactiveCls}`}
+                title="Moyenne sur 12 mois"
+                aria-pressed={!live}
+            >
+                {fixedLabel}
+            </button>
+            <button
+                type="button"
+                onClick={() => { if (!live) onToggle(); }}
+                className={`${base} ${live ? activeCls : inactiveCls}`}
+                title={`Afficher les dernières ${LIVE_WINDOW_LONG[window]} (live)`}
+                aria-pressed={live}
+            >
+                {window}
+            </button>
+        </div>
+    );
+};
+
 interface SectionHeadingProps {
     children: React.ReactNode;
     sourceLabel: string;
@@ -1184,10 +1213,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                         <SectionHeading
                                             {...headingCommon}
                                             hidePeriod
-                                            extras={<>
-                                                <FixedWindowBadge label={dayOfWeekLive ? 'Live 24h' : '12 mois'} />
-                                                <LiveToggle live={dayOfWeekLive} onToggle={() => setDayOfWeekLive((v) => !v)} window="24H" />
-                                            </>}
+                                            extras={<WindowSwitch live={dayOfWeekLive} onToggle={() => setDayOfWeekLive((v) => !v)} window="24H" />}
                                         >
                                             {t('logAnalytics.dayOfWeekTitle')}
                                         </SectionHeading>
@@ -1247,10 +1273,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                         <SectionHeading
                                             {...headingCommon}
                                             hidePeriod
-                                            extras={<>
-                                                <FixedWindowBadge label={hourDayLive ? 'Live 7j' : '12 mois'} />
-                                                <LiveToggle live={hourDayLive} onToggle={() => setHourDayLive((v) => !v)} window="SEMAINE" />
-                                            </>}
+                                            extras={<WindowSwitch live={hourDayLive} onToggle={() => setHourDayLive((v) => !v)} window="SEMAINE" />}
                                         >
                                             {t('logAnalytics.hourDayHeatmapTitle')}
                                         </SectionHeading>

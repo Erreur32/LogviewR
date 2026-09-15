@@ -5,6 +5,20 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.1] - 2026-09-15
+
+### For users
+
+- Fail2ban → Cohérence: all audit issue and fix-command messages are now fully translated (previously hardcoded in French regardless of the selected UI language).
+- Log Analytics: the "12 mois / 24H" and "12 mois / SEMAINE" window filters on the Day-of-week and Hour×Day heatmap charts now behave as a proper exclusive toggle — clicking one greys out the other, instead of both appearing selected at once.
+- Log Analytics: the calendar heatmap and Hour×Day heatmap charts are now rendered at a consistent height for a cleaner side-by-side layout.
+
+### For developers
+
+- `server/plugins/fail2ban/FirewallAuditService.ts`: `FirewallIssue.message`/`.fix` replaced with `messageKey`/`messageParams` and `fixKey`/`fixParams`; `src/pages/fail2ban/TabCoherence.tsx` renders them via `t(...)`. New keys under `fail2ban.coherence.issues.*` / `fail2ban.coherence.fixes.*` in `en.json`/`fr.json` (with `_one`/`_other` plural forms for entry counts).
+- `src/pages/LogAnalyticsPage.tsx`: replaced the `FixedWindowBadge` + `LiveToggle` pair with a new `WindowSwitch` component (two mutually-exclusive buttons) for the day-of-week and hour×day heatmap sections.
+- `src/components/widgets/HourDayHeatmap.tsx`: row height is now computed from container width using the same ~52-column reference divisor as `HeatmapChart`'s cell-size formula (previously `aspect-ratio: 1` over 24 columns, which produced much taller cells).
+
 ## [0.14.0] - 2026-09-15
 
 ### For users

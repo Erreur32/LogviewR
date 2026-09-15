@@ -20,8 +20,12 @@ export interface FirewallIssue {
     severity: IssueSeverity;
     category: IssueCategory;
     jail?: string;
-    message: string;
-    fix?: string;
+    /** i18n key under fail2ban.coherence.issues.* — frontend renders it via t(messageKey, messageParams). */
+    messageKey: string;
+    messageParams?: Record<string, string | number>;
+    /** i18n key under fail2ban.coherence.fixes.* — same interpolation, frontend renders it via t(fixKey, fixParams). */
+    fixKey?: string;
+    fixParams?: Record<string, string | number>;
 }
 
 export interface FirewallAuditResult {
@@ -213,8 +217,8 @@ export async function auditFirewallCoherence(deps: AuditDeps): Promise<FirewallA
             if (!dump.chains.has(chainName)) {
                 addIssue({
                     severity: 'critical', jail, category: 'chain',
-                    message: `La chaîne iptables "${chainName}" attendue pour le jail "${jail}" (action ${meta?.banaction}) est absente.`,
-                    fix: `sudo fail2ban-client reload ${jail}`,
+                    messageKey: 'chainMissing', messageParams: { chain: chainName, jail, banaction: meta?.banaction ?? '' },
+                    fixKey: 'reloadJail', fixParams: { jail },
                 });
                 continue;
             }
@@ -222,8 +226,8 @@ export async function auditFirewallCoherence(deps: AuditDeps): Promise<FirewallA
             if (!hasJump) {
                 addIssue({
                     severity: 'critical', jail, category: 'jump',
-                    message: `Aucune règle ne redirige le trafic vers la chaîne "${chainName}" — le jail "${jail}" ne bloque rien malgré des IP bannies.`,
-                    fix: `sudo fail2ban-client reload ${jail}\n# ou manuellement :\nsudo iptables -I ${mech.parentChain ?? 'INPUT'} -j ${chainName}`,
+                    messageKey: 'noJumpRule', messageParams: { chain: chainName, jail },
+                    fixKey: 'noJumpRule', fixParams: { jail, parentChain: mech.parentChain ?? 'INPUT', chain: chainName },
                 });
             }
             const kernelIps = new Set(dump.rules.filter(r => r.chain === chainName && r.sourceIp).map(r => r.sourceIp!));
@@ -231,8 +235,8 @@ export async function auditFirewallCoherence(deps: AuditDeps): Promise<FirewallA
                 if (!kernelIps.has(ip)) {
                     addIssue({
                         severity: 'critical', jail, category: 'ip-mismatch',
-                        message: `L'IP ${ip} est bannie par fail2ban (jail "${jail}") mais aucune règle iptables ne la bloque dans "${chainName}".`,
-                        fix: `sudo fail2ban-client set ${jail} banip ${ip}`,
+                        messageKey: 'ipMissingInChain', messageParams: { ip, jail, chain: chainName },
+                        fixKey: 'banIp', fixParams: { jail, ip },
                     });
                 }
             }
@@ -240,8 +244,8 @@ export async function auditFirewallCoherence(deps: AuditDeps): Promise<FirewallA
                 if (!bannedIps.has(ip)) {
                     addIssue({
                         severity: 'warning', jail, category: 'ip-mismatch',
-                        message: `L'IP ${ip} est bloquée dans "${chainName}" mais fail2ban (jail "${jail}") ne la connaît plus (règle probablement orpheline).`,
-                        fix: `sudo iptables -D ${chainName} -s ${ip} -j DROP   # adapter la cible exacte à la règle réelle (DROP/REJECT)`,
+                        messageKey: 'ipOrphanInChain', messageParams: { ip, chain: chainName, jail },
+                        fixKey: 'ipOrphanInChain', fixParams: { chain: chainName, ip },
                     });
                 }
             }
@@ -251,8 +255,8 @@ export async function auditFirewallCoherence(deps: AuditDeps): Promise<FirewallA
             if (!set) {
                 addIssue({
                     severity: 'critical', jail, category: 'ipset',
-                    message: `L'ipset "${setName}" attendu pour le jail "${jail}" (action ${meta?.banaction}) n'existe pas.`,
-                    fix: `sudo fail2ban-client reload ${jail}`,
+                    messageKey: 'ipsetMissing', messageParams: { set: setName, jail, banaction: meta?.banaction ?? '' },
+                    fixKey: 'reloadJail', fixParams: { jail },
                 });
                 continue;
             }
@@ -261,8 +265,8 @@ export async function auditFirewallCoherence(deps: AuditDeps): Promise<FirewallA
             if (!referenced) {
                 addIssue({
                     severity: 'critical', jail, category: 'orphan-ipset',
-                    message: `L'ipset "${setName}" (${set.entries} entrée(s)) existe mais aucune règle iptables/nftables ne le référence (--match-set) — les IP bannies ne sont pas bloquées.`,
-                    fix: `sudo fail2ban-client reload ${jail}   # recrée la règle associée à l'action ${meta?.banaction}\n# ou manuellement :\nsudo iptables -I ${mech.parentChain ?? 'INPUT'} -m set --match-set ${setName} src -j DROP`,
+                    messageKey: 'ipsetNotReferenced', messageParams: { set: setName, count: set.entries, jail },
+                    fixKey: 'ipsetNotReferenced', fixParams: { jail, banaction: meta?.banaction ?? '', parentChain: mech.parentChain ?? 'INPUT', set: setName },
                 });
             }
             if (set.entries > 0) {
@@ -273,8 +277,8 @@ export async function auditFirewallCoherence(deps: AuditDeps): Promise<FirewallA
                         if (!kernelIps.has(ip)) {
                             addIssue({
                                 severity: 'critical', jail, category: 'ip-mismatch',
-                                message: `L'IP ${ip} est bannie par fail2ban (jail "${jail}") mais absente de l'ipset "${setName}".`,
-                                fix: `sudo fail2ban-client set ${jail} banip ${ip}`,
+                                messageKey: 'ipMissingInIpset', messageParams: { ip, jail, set: setName },
+                                fixKey: 'banIp', fixParams: { jail, ip },
                             });
                         }
                     }
@@ -282,8 +286,8 @@ export async function auditFirewallCoherence(deps: AuditDeps): Promise<FirewallA
                         if (!bannedIps.has(ip)) {
                             addIssue({
                                 severity: 'warning', jail, category: 'ip-mismatch',
-                                message: `L'IP ${ip} est présente dans l'ipset "${setName}" mais fail2ban (jail "${jail}") ne la connaît plus (entrée orpheline).`,
-                                fix: `sudo ipset del ${setName} ${ip}`,
+                                messageKey: 'ipOrphanInIpset', messageParams: { ip, set: setName, jail },
+                                fixKey: 'delFromIpset', fixParams: { set: setName, ip },
                             });
                         }
                     }
@@ -293,8 +297,8 @@ export async function auditFirewallCoherence(deps: AuditDeps): Promise<FirewallA
             if (!nftRes.ok || !nftText.includes(jail)) {
                 addIssue({
                     severity: 'info', jail, category: 'unsupported',
-                    message: `Le jail "${jail}" bannit via nftables (table "f2b-table", ensemble nommé généralement "addr-set-${jail}" ou "addr-set-default"). L'audit ne lit que iptables-save/ipset et ne peut pas confirmer avec certitude que les IP bannies par ce jail sont bien dans l'ensemble nft — vérifiez manuellement avec la commande ci-dessous.`,
-                    fix: `sudo nft list table inet f2b-table\n# cherchez un "elements" contenant les IP listées par :\nsudo fail2ban-client status ${jail}`,
+                    messageKey: 'nftablesUnverified', messageParams: { jail },
+                    fixKey: 'nftablesUnverified', fixParams: { jail },
                 });
             }
         }
@@ -307,8 +311,8 @@ export async function auditFirewallCoherence(deps: AuditDeps): Promise<FirewallA
         if (!referenced) {
             addIssue({
                 severity: 'warning', category: 'orphan-ipset',
-                message: `L'ipset "${name}" (${set.entries} entrée(s)) n'est référencé par aucune règle iptables/nftables — vérifiez s'il est encore utilisé (liste Data-Shield ou set obsolète).`,
-                fix: `sudo iptables -I INPUT -m set --match-set ${name} src -j DROP   # si ce set doit bloquer du trafic\n# sinon, s'il est obsolète :\nsudo ipset destroy ${name}`,
+                messageKey: 'orphanIpsetGlobal', messageParams: { set: name, count: set.entries },
+                fixKey: 'orphanIpsetGlobal', fixParams: { set: name },
             });
         }
     }
@@ -320,8 +324,8 @@ export async function auditFirewallCoherence(deps: AuditDeps): Promise<FirewallA
         danglingSeen.add(r.matchSet);
         addIssue({
             severity: 'critical', category: 'dangling-rule',
-            message: `La règle iptables "${r.raw}" référence l'ipset "${r.matchSet}" qui n'existe pas — règle probablement en erreur ou inopérante.`,
-            fix: `sudo ipset create ${r.matchSet} hash:ip family inet   # recrée le set attendu\n# ou, si la règle est obsolète :\nsudo iptables -D ${r.chain} -m set --match-set ${r.matchSet} src -j DROP`,
+            messageKey: 'danglingRule', messageParams: { rule: r.raw, set: r.matchSet },
+            fixKey: 'danglingRule', fixParams: { set: r.matchSet, chain: r.chain },
         });
     }
 
