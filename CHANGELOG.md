@@ -5,6 +5,17 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.0] - 2026-09-15
+
+### For users
+
+- Fail2ban: the sync/geo progress banner at the top of the page could get stuck on screen forever after a sync completed, instead of disappearing a few seconds later.
+- Fail2ban: the same banner now has an opaque background instead of a translucent one, so page content behind it no longer shows through.
+
+### For developers
+
+- `src/pages/fail2ban/SyncProgressBanner.tsx`: `poll()` read the `visible` state from a stale closure captured once at mount, so the hide branch (`else if (visible)`) never ran once the banner had been shown. Tracked visibility via a ref (`visibleRef`) instead. Also replaced the low-alpha `rgba(...)` backgrounds with a solid `#161b22` across all phases.
+
 ## [0.13.0] - 2026-09-15
 
 ### For users
