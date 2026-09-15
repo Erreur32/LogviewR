@@ -293,7 +293,8 @@ export async function auditFirewallCoherence(deps: AuditDeps): Promise<FirewallA
             if (!nftRes.ok || !nftText.includes(jail)) {
                 addIssue({
                     severity: 'info', jail, category: 'unsupported',
-                    message: `Le jail "${jail}" utilise une action nftables — vérification automatique limitée. Confirmez manuellement la présence d'une règle pour "${jail}" dans la ruleset nft.`,
+                    message: `Le jail "${jail}" bannit via nftables (table "f2b-table", ensemble nommé généralement "addr-set-${jail}" ou "addr-set-default"). L'audit ne lit que iptables-save/ipset et ne peut pas confirmer avec certitude que les IP bannies par ce jail sont bien dans l'ensemble nft — vérifiez manuellement avec la commande ci-dessous.`,
+                    fix: `sudo nft list table inet f2b-table\n# cherchez un "elements" contenant les IP listées par :\nsudo fail2ban-client status ${jail}`,
                 });
             }
         }

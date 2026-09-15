@@ -11,10 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Fail2ban: the sync/geo progress banner at the top of the page could get stuck on screen forever after a sync completed, instead of disappearing a few seconds later.
 - Fail2ban: the same banner now has an opaque background instead of a translucent one, so page content behind it no longer shows through.
+- Fail2ban → Cohérence: the info message shown for jails using an nftables ban action ("vérification automatique limitée") is now clearer and includes a copyable command to verify the ban manually.
 
 ### For developers
 
 - `src/pages/fail2ban/SyncProgressBanner.tsx`: `poll()` read the `visible` state from a stale closure captured once at mount, so the hide branch (`else if (visible)`) never ran once the banner had been shown. Tracked visibility via a ref (`visibleRef`) instead. Also replaced the low-alpha `rgba(...)` backgrounds with a solid `#161b22` across all phases.
+- `server/plugins/fail2ban/FirewallAuditService.ts`: the `nftables` mechanism info issue now names the expected table/set (`f2b-table` / `addr-set-<jail>`) and sets a `fix` field (`nft list table inet f2b-table` + `fail2ban-client status <jail>`) so it renders with the same copy-to-clipboard UI as other issues.
 
 ## [0.13.0] - 2026-09-15
 
