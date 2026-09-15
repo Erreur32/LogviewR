@@ -6,8 +6,10 @@
  * Modelled after fail2ban TabStats HeatmapSection.
  */
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import React, { useMemo, useState } from 'react';
+import { useContainerWidth } from '../../hooks/useContainerWidth';
+import { fitHeatmapCellSize } from './heatmapCellSize';
+import { HeatmapLegend, HeatmapTooltip } from './HeatmapShared';
 
 export interface HeatmapDataPoint {
     label: string;
@@ -91,27 +93,7 @@ export const HeatmapChart: React.FC<HeatmapChartProps> = ({
     const total = useMemo(() => cells.reduce((s, c) => s + c.count, 0), [cells]);
 
     // Responsive: compute cell size from container width so the heatmap fits without horizontal scroll.
-    const containerRef = useRef<HTMLDivElement>(null);
-    const [containerWidth, setContainerWidth] = useState(0);
-
-    useEffect(() => {
-        const el = containerRef.current;
-        if (!el) return;
-        let rafId = 0;
-        // Threshold update — ignore sub-2px changes to avoid re-renders during window drag.
-        const applyWidth = (w: number) => setContainerWidth((prev) => (Math.abs(prev - w) >= 2 ? w : prev));
-        const scheduleWidth = (w: number) => {
-            if (rafId) cancelAnimationFrame(rafId);
-            rafId = requestAnimationFrame(() => applyWidth(w));
-        };
-        const onResize = (entries: ResizeObserverEntry[]) => scheduleWidth(entries[0]?.contentRect.width ?? 0);
-        const ro = new ResizeObserver(onResize);
-        ro.observe(el);
-        return () => {
-            if (rafId) cancelAnimationFrame(rafId);
-            ro.disconnect();
-        };
-    }, []);
+    const [containerRef, containerWidth] = useContainerWidth<HTMLDivElement>();
 
     if (!data.length || cells.length === 0) {
         return <div ref={containerRef} className="h-32 flex items-center justify-center text-gray-500 text-sm">{noDataText}</div>;
@@ -122,14 +104,7 @@ export const HeatmapChart: React.FC<HeatmapChartProps> = ({
     const padRight = 4;
 
     // Fit weeks into the available width; clamp cell size to [4..14] to stay readable.
-    const { cellSize, cellGap } = (() => {
-        if (containerWidth <= 0 || weeks <= 0) return { cellSize: 14, cellGap: 3 };
-        const available = Math.max(0, containerWidth - labelW - padRight);
-        const stepF = available / weeks;
-        const cs = Math.max(4, Math.min(14, Math.floor(stepF * 0.82)));
-        const gap = Math.max(1, Math.min(3, Math.floor(stepF - cs)));
-        return { cellSize: cs, cellGap: gap };
-    })();
+    const { cellSize, cellGap } = fitHeatmapCellSize(containerWidth, weeks, labelW + padRight);
 
     const step      = cellSize + cellGap;
     const svgWidth  = labelW + weeks * step + padRight;
@@ -195,36 +170,8 @@ export const HeatmapChart: React.FC<HeatmapChartProps> = ({
                 {cells.map((cell, i) => renderCell(cell, i))}
             </svg>
 
-            {/* legend */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', marginTop: '.5rem', fontSize: '.68rem', color: '#6b7280' }}>
-                <span>Moins</span>
-                {[0, 0.25, 0.5, 0.75, 1].map(v => (
-                    <div key={v} style={{
-                        width: 13, height: 13,
-                        background: v === 0 ? '#1f2937' : `rgba(${cellRgb},${(0.15 + v * 0.85).toFixed(2)})`,
-                        borderRadius: 2, flexShrink: 0,
-                    }} />
-                ))}
-                <span>Plus</span>
-            </div>
-
-            {/* follow-mouse tooltip */}
-            {tip && createPortal(
-                <div style={{
-                    position: 'fixed', left: tip.x, top: tip.y - 14,
-                    transform: 'translate(-50%, -100%)',
-                    zIndex: 10050, pointerEvents: 'none',
-                    background: '#161b22',
-                    border: `1px solid rgba(${cellRgb},.45)`,
-                    borderLeft: `4px solid rgba(${cellRgb},.9)`,
-                    borderRadius: 8, padding: '.5rem .75rem',
-                    boxShadow: '0 8px 28px rgba(0,0,0,.6)',
-                    minWidth: 150,
-                }}>
-                    {tip.content}
-                </div>,
-                document.body
-            )}
+            <HeatmapLegend cellRgb={cellRgb} />
+            <HeatmapTooltip tip={tip} cellRgb={cellRgb} />
         </div>
     );
 };

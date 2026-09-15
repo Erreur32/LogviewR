@@ -5,6 +5,12 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.2] - 2026-09-15
+
+### For developers
+
+- `src/components/widgets/HeatmapChart.tsx` / `HourDayHeatmap.tsx`: extracted the duplicated container-width `ResizeObserver` logic and cell-size clamp formula (introduced in v0.14.1 to match the two charts' heights) into shared `useContainerWidth` (`src/hooks/`) and `fitHeatmapCellSize` (`src/components/widgets/heatmapCellSize.ts`) — fixes the SonarCloud quality gate failure (new code duplication 10.5%, threshold 3%). Also extracted the two charts' near-identical legend and follow-mouse tooltip markup into `HeatmapLegend`/`HeatmapTooltip` (`src/components/widgets/HeatmapShared.tsx`).
+
 ## [0.14.1] - 2026-09-15
 
 ### For users

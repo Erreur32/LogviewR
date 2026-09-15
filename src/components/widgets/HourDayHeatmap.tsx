@@ -6,8 +6,10 @@
  * Modelled after fail2ban TabStats HeatmapSection.
  */
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import React, { useMemo, useState } from 'react';
+import { useContainerWidth } from '../../hooks/useContainerWidth';
+import { fitHeatmapCellSize } from './heatmapCellSize';
+import { HeatmapLegend, HeatmapTooltip } from './HeatmapShared';
 
 export interface HourDayDataPoint {
     label: string;
@@ -41,30 +43,9 @@ export const HourDayHeatmap: React.FC<HourDayHeatmapProps> = ({
     // Row height is derived the same way the calendar heatmap (HeatmapChart) sizes its cells from
     // container width, using its ~52-week column count as the reference divisor — this keeps both
     // heatmaps the same overall height in the 2×2 dashboard grid regardless of viewport width.
-    const containerRef = useRef<HTMLDivElement>(null);
-    const [containerWidth, setContainerWidth] = useState(0);
-    useEffect(() => {
-        const el = containerRef.current;
-        if (!el) return;
-        let rafId = 0;
-        const applyWidth = (w: number) => setContainerWidth((prev) => (Math.abs(prev - w) >= 2 ? w : prev));
-        const scheduleWidth = (w: number) => {
-            if (rafId) cancelAnimationFrame(rafId);
-            rafId = requestAnimationFrame(() => applyWidth(w));
-        };
-        const ro = new ResizeObserver((entries) => scheduleWidth(entries[0]?.contentRect.width ?? 0));
-        ro.observe(el);
-        return () => { if (rafId) cancelAnimationFrame(rafId); ro.disconnect(); };
-    }, []);
+    const [containerRef, containerWidth] = useContainerWidth<HTMLDivElement>();
     const REF_WEEK_COLUMNS = 52;
-    const { rowHeight, rowGap } = (() => {
-        if (containerWidth <= 0) return { rowHeight: 14, rowGap: 3 };
-        const available = Math.max(0, containerWidth - 32 - 4);
-        const stepF = available / REF_WEEK_COLUMNS;
-        const rh = Math.max(4, Math.min(14, Math.floor(stepF * 0.82)));
-        const gap = Math.max(1, Math.min(3, Math.floor(stepF - rh)));
-        return { rowHeight: rh, rowGap: gap };
-    })();
+    const { cellSize: rowHeight, cellGap: rowGap } = fitHeatmapCellSize(containerWidth, REF_WEEK_COLUMNS);
 
     const { grid, maxCount } = useMemo(() => {
         const g: number[][] = Array.from({ length: 7 }, () => new Array(24).fill(0));
@@ -160,39 +141,8 @@ export const HourDayHeatmap: React.FC<HourDayHeatmapProps> = ({
                 ))}
             </div>
 
-            {/* legend */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', marginTop: '.6rem', fontSize: '.68rem', color: '#6b7280' }}>
-                <span>Moins</span>
-                {[0, 0.25, 0.5, 0.75, 1].map(v => (
-                    <div
-                        key={v}
-                        style={{
-                            width: 14, height: 14,
-                            background: v === 0 ? '#1f2937' : `rgba(${cellRgb},${(0.12 + v * 0.88).toFixed(2)})`,
-                            borderRadius: 3, flexShrink: 0,
-                        }}
-                    />
-                ))}
-                <span>Plus</span>
-            </div>
-
-            {/* follow-mouse tooltip */}
-            {tip && createPortal(
-                <div style={{
-                    position: 'fixed', left: tip.x, top: tip.y - 14,
-                    transform: 'translate(-50%, -100%)',
-                    zIndex: 10050, pointerEvents: 'none',
-                    background: '#161b22',
-                    border: `1px solid rgba(${cellRgb},.45)`,
-                    borderLeft: `4px solid rgba(${cellRgb},.9)`,
-                    borderRadius: 8, padding: '.5rem .75rem',
-                    boxShadow: '0 8px 28px rgba(0,0,0,.6)',
-                    minWidth: 140,
-                }}>
-                    {tip.content}
-                </div>,
-                document.body
-            )}
+            <HeatmapLegend cellRgb={cellRgb} />
+            <HeatmapTooltip tip={tip} cellRgb={cellRgb} />
         </div>
     );
 };
