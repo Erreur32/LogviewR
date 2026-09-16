@@ -28,7 +28,8 @@ import {
     Trophy,
     CheckCircle2,
     XCircle,
-    Zap
+    Zap,
+    Loader2
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../api/client';
@@ -215,15 +216,18 @@ interface SectionHeadingProps {
     periodLabel: string;
     hidePeriod?: boolean;
     extras?: React.ReactNode;
+    /** Shows a small spinner next to the title while this section's data is still being fetched/refreshed. */
+    loading?: boolean;
 }
 
 const SectionHeading: React.FC<SectionHeadingProps> = ({
-    children, sourceLabel, sourceColorClass, periodLabel, hidePeriod, extras
+    children, sourceLabel, sourceColorClass, periodLabel, hidePeriod, extras, loading
 }) => (
     <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2.5">
         <span>{children}</span>
         <SourceBadge label={sourceLabel} colorClass={sourceColorClass} />
         {!hidePeriod && <PeriodBadge label={periodLabel} />}
+        {loading && <Loader2 size={14} className="text-emerald-500/70 animate-spin" aria-hidden />}
         {extras}
     </h3>
 );
@@ -238,7 +242,9 @@ const TopPanel: React.FC<{
     scrollWhenCollapsed?: boolean;
     twoColumns?: boolean;
     sourceBadge?: React.ReactNode;
-}> = ({ title, items, maxKeyLength = 40, showBar = true, maxVisibleWithoutScroll, scrollWhenCollapsed = true, twoColumns = false, sourceBadge }) => {
+    /** Shown while items is still empty because the underlying fetch hasn't resolved yet (distinct from a genuinely empty result). */
+    loading?: boolean;
+}> = ({ title, items, maxKeyLength = 40, showBar = true, maxVisibleWithoutScroll, scrollWhenCollapsed = true, twoColumns = false, sourceBadge, loading }) => {
     const { t } = useTranslation();
     const [hoveredItem, setHoveredItem] = useState<AnalyticsTopItem | null>(null);
     const [tooltipRect, setTooltipRect] = useState<DOMRect | null>(null);
@@ -274,8 +280,15 @@ const TopPanel: React.FC<{
             <div className="flex flex-col min-h-0">
                 <div className={listMaxHeight ? `${listMaxHeight} overflow-y-auto` : ''}>
                     {items.length === 0 ? (
-                        <div className="px-4 py-6 text-sm text-gray-500 text-center">
-                            {t('logAnalytics.noData')}
+                        <div className="px-4 py-6 text-sm text-gray-500 text-center flex items-center justify-center gap-2">
+                            {loading ? (
+                                <>
+                                    <Loader2 size={14} className="text-emerald-500/70 animate-spin" />
+                                    {t('logAnalytics.loadingData')}
+                                </>
+                            ) : (
+                                t('logAnalytics.noData')
+                            )}
                         </div>
                     ) : (
                         <ul className={twoColumns ? 'grid grid-cols-2 gap-x-6' : 'divide-y divide-gray-800/50'}>
@@ -696,7 +709,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
     const sourceLabel = getPluginLabel(pluginId);
     const sourceColorClass = pluginColorMap[pluginId] ?? 'bg-gray-500/15 text-gray-400 border-gray-500/30';
     const periodLabel = getPeriodLabel();
-    const headingCommon = { sourceLabel, sourceColorClass, periodLabel };
+    const headingCommon = { sourceLabel, sourceColorClass, periodLabel, loading: isLoading };
 
     /**
      * Format timeseries axis labels: no year, "h" for hour (instead of "T").
@@ -848,6 +861,20 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
         );
     };
 
+    /** Empty-state placeholder that distinguishes "still fetching" from "genuinely no data" — avoids a confusing flash of "no data" while the full scan is still in flight (e.g. HTTP/Tops tab sections not covered by the DB-first quick preview). */
+    const NoDataOrLoading: React.FC = () => (
+        <div className="h-32 flex flex-col items-center justify-center gap-2 text-gray-500 text-sm">
+            {isLoading ? (
+                <>
+                    <Loader2 size={18} className="text-emerald-500/60 animate-spin" />
+                    <span>{t('logAnalytics.loadingData')}</span>
+                </>
+            ) : (
+                t('logAnalytics.noData')
+            )}
+        </div>
+    );
+
     /** Softer, less vivid colors for HTTP status bars. */
     const getStatusColor = (key: string): string => {
         if (/^2\d{2}$/.test(key)) return '#047857';
@@ -877,9 +904,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
             <div className="bg-[#121212] rounded-xl border border-gray-800 p-6">
                 <h3 className="text-lg font-semibold text-white mb-4">{title}</h3>
                 {items.length === 0 ? (
-                    <div className="h-32 flex items-center justify-center text-gray-500 text-sm">
-                        {t('logAnalytics.noData')}
-                    </div>
+                    <NoDataOrLoading />
                 ) : (
                     <div className="space-y-2">
                         {items.slice(0, 12).map((item, idx) => (
@@ -1236,9 +1261,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                         showGrid
                                     />
                                 ) : (
-                                    <div className="h-32 flex items-center justify-center text-gray-500 text-sm">
-                                        {t('logAnalytics.noData')}
-                                    </div>
+                                    <NoDataOrLoading />
                                 )}
                             </div>
                             <div id="section-unique-visitors" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
@@ -1258,9 +1281,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                         showGrid
                                     />
                                 ) : (
-                                    <div className="h-32 flex items-center justify-center text-gray-500 text-sm">
-                                        {t('logAnalytics.noData')}
-                                    </div>
+                                    <NoDataOrLoading />
                                 )}
                             </div>
                         </div>
@@ -1297,6 +1318,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                 <div>
                                     <SectionHeading
                                         {...headingCommon}
+                                        loading={peakHoursLive ? isCalendarLoading : isLoading}
                                         extras={<LiveToggle live={peakHoursLive} onToggle={() => setPeakHoursLive((v) => !v)} window="24H" />}
                                         hidePeriod={peakHoursLive}
                                     >
@@ -1311,7 +1333,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                                 count
                                             }));
                                         })()}
-                                        noDataText={t('logAnalytics.noData')}
+                                        noDataText={(peakHoursLive ? isCalendarLoading : isLoading) ? t('logAnalytics.loadingData') : t('logAnalytics.noData')}
                                         requestsLabel={t('logAnalytics.requests')}
                                     />
                                 </div>
@@ -1329,6 +1351,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                 <div>
                                     <SectionHeading
                                         {...headingCommon}
+                                        loading={isCalendarLoading}
                                         hidePeriod
                                         extras={<WindowSwitch live={dayOfWeekLive} onToggle={() => setDayOfWeekLive((v) => !v)} window="24H" />}
                                     >
@@ -1343,7 +1366,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                             }))
                                             : calendarBuckets.map((b) => ({ label: b.label, count: b.count }))
                                         }
-                                        noDataText={t('logAnalytics.noData')}
+                                        noDataText={isCalendarLoading ? t('logAnalytics.loadingData') : t('logAnalytics.noData')}
                                         dayLabels={[
                                             t('logAnalytics.monday'), t('logAnalytics.tuesday'), t('logAnalytics.wednesday'),
                                             t('logAnalytics.thursday'), t('logAnalytics.friday'), t('logAnalytics.saturday'), t('logAnalytics.sunday')
@@ -1355,10 +1378,10 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                 {/* Calendar heatmap | Hour×Day heatmap — side by side, matched height */}
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                     <div className="min-w-0">
-                                        <SectionHeading {...headingCommon} hidePeriod extras={<FixedWindowBadge />}>{t('logAnalytics.heatmapTitle')}</SectionHeading>
+                                        <SectionHeading {...headingCommon} loading={isCalendarLoading} hidePeriod extras={<FixedWindowBadge />}>{t('logAnalytics.heatmapTitle')}</SectionHeading>
                                         <HeatmapChart
                                             data={calendarBuckets.map((b) => ({ label: b.label, count: b.count }))}
-                                            noDataText={t('logAnalytics.noData')}
+                                            noDataText={isCalendarLoading ? t('logAnalytics.loadingData') : t('logAnalytics.noData')}
                                             dayLabels={[
                                                 t('logAnalytics.monday'), t('logAnalytics.tuesday'), t('logAnalytics.wednesday'),
                                                 t('logAnalytics.thursday'), t('logAnalytics.friday'), t('logAnalytics.saturday'), t('logAnalytics.sunday')
@@ -1368,6 +1391,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                     <div>
                                         <SectionHeading
                                             {...headingCommon}
+                                            loading={isCalendarLoading}
                                             hidePeriod
                                             extras={<WindowSwitch live={hourDayLive} onToggle={() => setHourDayLive((v) => !v)} window="SEMAINE" />}
                                         >
@@ -1381,7 +1405,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                                     count
                                                 }))
                                             )}
-                                            noDataText={t('logAnalytics.noData')}
+                                            noDataText={isCalendarLoading ? t('logAnalytics.loadingData') : t('logAnalytics.noData')}
                                             dayLabels={[
                                                 t('logAnalytics.monday'), t('logAnalytics.tuesday'), t('logAnalytics.wednesday'),
                                                 t('logAnalytics.thursday'), t('logAnalytics.friday'), t('logAnalytics.saturday'), t('logAnalytics.sunday')
@@ -1401,7 +1425,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                     data={trimmedTimeseries}
                                     height={180}
                                     formatLabel={(l) => formatTsLabel(l, getCurrentBucket())}
-                                    noDataText={t('logAnalytics.noData')}
+                                    noDataText={isLoading ? t('logAnalytics.loadingData') : t('logAnalytics.noData')}
                                     xAxisTicks={6}
                                 />
                             </div>
@@ -1424,9 +1448,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                     />
                                 </div>
                             ) : (
-                                <div className="h-32 flex items-center justify-center text-gray-500 text-sm">
-                                    {t('logAnalytics.noData')}
-                                </div>
+                                <NoDataOrLoading />
                             )}
                         </div>
 
@@ -1454,7 +1476,12 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                         {activeTab === 'http' && (
                         <>
                         {/* Bot vs Human */}
-                        {botVsHuman && (botVsHuman.bots > 0 || botVsHuman.humans > 0) && (
+                        {isLoading && !botVsHuman ? (
+                            <div id="section-bot-detection" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
+                                <SectionHeading {...headingCommon}>{t('logAnalytics.botDetectionTitle')}</SectionHeading>
+                                <NoDataOrLoading />
+                            </div>
+                        ) : botVsHuman && (botVsHuman.bots > 0 || botVsHuman.humans > 0) && (
                             <div id="section-bot-detection" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
                                 <SectionHeading {...headingCommon}>{t('logAnalytics.botDetectionTitle')}</SectionHeading>
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1500,9 +1527,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                             tableLayout
                                         />
                                     ) : (
-                                        <div className="h-32 flex items-center justify-center text-gray-500 text-sm">
-                                            {t('logAnalytics.noData')}
-                                        </div>
+                                        <NoDataOrLoading />
                                     )}
                                 </div>
                                 <div>
@@ -1572,7 +1597,12 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                         </div>
 
                         {/* Top 404 URLs */}
-                        {notFoundUrls.length > 0 && (
+                        {isLoading && notFoundUrls.length === 0 ? (
+                            <div id="section-top404" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
+                                <SectionHeading {...headingCommon}>{t('logAnalytics.top404Title')}</SectionHeading>
+                                <NoDataOrLoading />
+                            </div>
+                        ) : notFoundUrls.length > 0 && (
                             <div id="section-top404" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
                                 <SectionHeading {...headingCommon}>{t('logAnalytics.top404Title')}</SectionHeading>
                                 <DualBarChart
@@ -1586,7 +1616,12 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                         )}
 
                         {/* Response Time Distribution */}
-                        {responseTimeDist && (
+                        {isLoading && !responseTimeDist ? (
+                            <div id="section-response-time" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
+                                <SectionHeading {...headingCommon}>{t('logAnalytics.responseTimeTitle')}</SectionHeading>
+                                <NoDataOrLoading />
+                            </div>
+                        ) : responseTimeDist && (
                             <div id="section-response-time" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
                                 <SectionHeading {...headingCommon}>{t('logAnalytics.responseTimeTitle')}</SectionHeading>
                                 <ResponseTimeChart
@@ -1596,7 +1631,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                     p99={responseTimeDist.p99}
                                     max={responseTimeDist.max}
                                     buckets={responseTimeDist.buckets}
-                                    noDataText={t('logAnalytics.noData')}
+                                    noDataText={isLoading ? t('logAnalytics.loadingData') : t('logAnalytics.noData')}
                                 />
                             </div>
                         )}
@@ -1620,9 +1655,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                         tableLayout
                                     />
                                 ) : (
-                                    <div className="h-32 flex items-center justify-center text-gray-500 text-sm">
-                                        {t('logAnalytics.noData')}
-                                    </div>
+                                    <NoDataOrLoading />
                                 )}
                             </div>
                             <div id="section-virtual-hosts" className="bg-[#121212] rounded-xl border border-gray-800 p-6">
@@ -1636,9 +1669,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                         tableLayout
                                     />
                                 ) : (
-                                    <div className="h-32 flex items-center justify-center text-gray-500 text-sm">
-                                        {t('logAnalytics.noData')}
-                                    </div>
+                                    <NoDataOrLoading />
                                 )}
                             </div>
                         </div>
@@ -1655,9 +1686,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                     tableLayout
                                 />
                             ) : (
-                                <div className="h-32 flex items-center justify-center text-gray-500 text-sm">
-                                    {t('logAnalytics.noData')}
-                                </div>
+                                <NoDataOrLoading />
                             )}
                         </div>
 
@@ -1689,9 +1718,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                     </table>
                                 </div>
                             ) : (
-                                <div className="h-32 flex items-center justify-center text-gray-500 text-sm">
-                                    {t('logAnalytics.noData')}
-                                </div>
+                                <NoDataOrLoading />
                             )}
                         </div>
 
@@ -1701,6 +1728,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                 <TopPanel
                                     title={t('logAnalytics.topUrls')}
                                     items={topUrls}
+                                    loading={isLoading && topUrls.length === 0}
                                     maxKeyLength={80}
                                     maxVisibleWithoutScroll={5}
                                     scrollWhenCollapsed={false}
@@ -1709,6 +1737,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                 <TopPanel
                                     title={t('logAnalytics.topReferrers')}
                                     items={topReferrers}
+                                    loading={isLoading && topReferrers.length === 0}
                                     maxKeyLength={80}
                                     maxVisibleWithoutScroll={5}
                                     scrollWhenCollapsed={false}
@@ -1719,6 +1748,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                 <TopPanel
                                     title={t('logAnalytics.topIps')}
                                     items={topIps}
+                                    loading={isLoading && topIps.length === 0}
                                     maxVisibleWithoutScroll={5}
                                     scrollWhenCollapsed={false}
                                     sourceBadge={<SourceBadge label={sourceLabel} colorClass={sourceColorClass} />}
@@ -1726,6 +1756,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                 <TopPanel
                                     title={t('logAnalytics.topStatus')}
                                     items={topStatus}
+                                    loading={isLoading && topStatus.length === 0}
                                     maxVisibleWithoutScroll={5}
                                     scrollWhenCollapsed={false}
                                     sourceBadge={<SourceBadge label={sourceLabel} colorClass={sourceColorClass} />}
@@ -1733,6 +1764,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                 <TopPanel
                                     title={t('logAnalytics.topBrowsers')}
                                     items={topBrowsers}
+                                    loading={isLoading && topBrowsers.length === 0}
                                     maxKeyLength={25}
                                     maxVisibleWithoutScroll={5}
                                     scrollWhenCollapsed={false}
@@ -1743,6 +1775,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                 <TopPanel
                                     title={t('logAnalytics.topUserAgents')}
                                     items={topUserAgents}
+                                    loading={isLoading && topUserAgents.length === 0}
                                     maxKeyLength={50}
                                     maxVisibleWithoutScroll={5}
                                     scrollWhenCollapsed={false}

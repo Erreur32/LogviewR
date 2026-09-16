@@ -1006,6 +1006,7 @@
     "liveRefreshTip": "Rescanner les logs d'aujourd'hui maintenant au lieu d'attendre le prochain rollup automatique (toutes les 15 min)",
     "quickPreview": "Aperçu instantané",
     "quickPreviewTip": "Affichage des données en base pendant que le scan complet tourne ({{rollup}} jour(s) depuis la base, {{scanned}} jour(s) en cours de scan)",
+    "loadingData": "Chargement...",
     "loading": "Chargement des statistiques...",
     "loadError": "Erreur lors du chargement des statistiques",
     "scanningFiles": "Analyse des fichiers de logs...",

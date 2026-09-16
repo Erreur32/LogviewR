@@ -1006,6 +1006,7 @@
     "liveRefreshTip": "Re-scan today's logs now instead of waiting for the next automatic rollup (every 15 min)",
     "quickPreview": "Instant preview",
     "quickPreviewTip": "Showing database data while the full scan runs ({{rollup}} day(s) from the database, {{scanned}} day(s) being scanned)",
+    "loadingData": "Loading...",
     "loading": "Loading statistics...",
     "loadError": "Error loading statistics",
     "scanningFiles": "Scanning log files...",
