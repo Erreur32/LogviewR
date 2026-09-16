@@ -5,6 +5,7 @@
  */
 
 import { Router } from 'express';
+import expressRateLimit from 'express-rate-limit';
 import * as fs from 'node:fs/promises';
 import * as fsSync from 'node:fs';
 import * as path from 'node:path';
@@ -46,6 +47,18 @@ function getLogViewerMaxLines(): number {
 
 // All routes require authentication
 router.use(requireAuth);
+
+// Rate limit: generous enough for the 800ms progress-polling loops used by both the analytics
+// page and the error-summary card (75 req/min each on their own) plus normal interactive use,
+// while still blocking a scripted flood against the heavier scan/analytics endpoints.
+const logViewerRateLimit = expressRateLimit({
+    windowMs: 60_000,
+    max: 150,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, error: { code: 'RATE_LIMITED', message: 'Too many requests' } }
+});
+router.use(logViewerRateLimit);
 
 /**
  * Normalize file path to get the base log file path
