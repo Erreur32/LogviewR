@@ -22,6 +22,7 @@ import {
     LOG_SOURCE_PLUGINS,
     collectParsedEntries,
     computeTop,
+    isStaticFileUrl,
     type ParsedAccessEntry,
     type AnalyticsTopItem
 } from './logAnalyticsService.js';
@@ -33,11 +34,15 @@ export interface DailyStatsAggregate {
     count: number;
     uniqueIps: number;
     totalBytes: number;
+    /** All 4xx, including 404 (matches AnalyticsStatusGroups.s4xx semantics). */
+    status4xx: number;
+    /** Subset of status4xx: requests that returned exactly 404. */
+    status404: number;
     status2xx: number;
     status3xx: number;
-    status4xx: number;
     status5xx: number;
     statusOther: number;
+    staticFiles: number;
     topUrls: AnalyticsTopItem[];
     topIps: AnalyticsTopItem[];
     topReferers: AnalyticsTopItem[];
@@ -59,7 +64,8 @@ function dayBounds(daysAgo: number): { start: Date; end: Date; label: string } {
 export function aggregateEntries(entries: ParsedAccessEntry[]): DailyStatsAggregate {
     const agg: DailyStatsAggregate = {
         count: 0, uniqueIps: 0, totalBytes: 0,
-        status2xx: 0, status3xx: 0, status4xx: 0, status5xx: 0, statusOther: 0,
+        status2xx: 0, status3xx: 0, status4xx: 0, status404: 0, status5xx: 0, statusOther: 0,
+        staticFiles: 0,
         topUrls: [], topIps: [], topReferers: [], topUserAgents: []
     };
     const ips = new Set<string>();
@@ -68,12 +74,16 @@ export function aggregateEntries(entries: ParsedAccessEntry[]): DailyStatsAggreg
         agg.count++;
         if (e.ip) ips.add(e.ip);
         if (typeof e.size === 'number') agg.totalBytes += e.size;
+        if (isStaticFileUrl(e.url)) agg.staticFiles++;
 
         const status = e.status;
         if (status === undefined) { agg.statusOther++; }
         else if (status >= 200 && status < 300) agg.status2xx++;
         else if (status >= 300 && status < 400) agg.status3xx++;
-        else if (status >= 400 && status < 500) agg.status4xx++;
+        else if (status >= 400 && status < 500) {
+            agg.status4xx++;
+            if (status === 404) agg.status404++;
+        }
         else if (status >= 500 && status < 600) agg.status5xx++;
         else agg.statusOther++;
     }
@@ -132,10 +142,10 @@ export class LogAnalyticsRollupService {
     private upsert(date: string, pluginId: string, agg: DailyStatsAggregate): void {
         getDatabase().prepare(`
             INSERT INTO log_daily_stats
-                (date, plugin_id, count, unique_ips, total_bytes, status_2xx, status_3xx, status_4xx, status_5xx, status_other,
-                 top_urls, top_ips, top_referers, top_user_agents, updated_at)
-            VALUES (@date, @pluginId, @count, @uniqueIps, @totalBytes, @status2xx, @status3xx, @status4xx, @status5xx, @statusOther,
-                 @topUrls, @topIps, @topReferers, @topUserAgents, strftime('%s','now'))
+                (date, plugin_id, count, unique_ips, total_bytes, status_2xx, status_3xx, status_4xx, status_404, status_5xx, status_other,
+                 static_files, top_urls, top_ips, top_referers, top_user_agents, updated_at)
+            VALUES (@date, @pluginId, @count, @uniqueIps, @totalBytes, @status2xx, @status3xx, @status4xx, @status404, @status5xx, @statusOther,
+                 @staticFiles, @topUrls, @topIps, @topReferers, @topUserAgents, strftime('%s','now'))
             ON CONFLICT(date, plugin_id) DO UPDATE SET
                 count = excluded.count,
                 unique_ips = excluded.unique_ips,
@@ -143,8 +153,10 @@ export class LogAnalyticsRollupService {
                 status_2xx = excluded.status_2xx,
                 status_3xx = excluded.status_3xx,
                 status_4xx = excluded.status_4xx,
+                status_404 = excluded.status_404,
                 status_5xx = excluded.status_5xx,
                 status_other = excluded.status_other,
+                static_files = excluded.static_files,
                 top_urls = excluded.top_urls,
                 top_ips = excluded.top_ips,
                 top_referers = excluded.top_referers,
@@ -153,8 +165,8 @@ export class LogAnalyticsRollupService {
         `).run({
             date, pluginId,
             count: agg.count, uniqueIps: agg.uniqueIps, totalBytes: agg.totalBytes,
-            status2xx: agg.status2xx, status3xx: agg.status3xx, status4xx: agg.status4xx,
-            status5xx: agg.status5xx, statusOther: agg.statusOther,
+            status2xx: agg.status2xx, status3xx: agg.status3xx, status4xx: agg.status4xx, status404: agg.status404,
+            status5xx: agg.status5xx, statusOther: agg.statusOther, staticFiles: agg.staticFiles,
             topUrls: JSON.stringify(agg.topUrls), topIps: JSON.stringify(agg.topIps),
             topReferers: JSON.stringify(agg.topReferers), topUserAgents: JSON.stringify(agg.topUserAgents)
         });
@@ -166,19 +178,19 @@ export class LogAnalyticsRollupService {
         const rows = (
             pluginId && pluginId !== 'all'
                 ? db.prepare(`
-                    SELECT date, plugin_id, count, unique_ips, total_bytes, status_2xx, status_3xx, status_4xx, status_5xx, status_other,
-                           top_urls, top_ips, top_referers, top_user_agents
+                    SELECT date, plugin_id, count, unique_ips, total_bytes, status_2xx, status_3xx, status_4xx, status_404, status_5xx, status_other,
+                           static_files, top_urls, top_ips, top_referers, top_user_agents
                     FROM log_daily_stats WHERE plugin_id = ? AND date >= ? AND date <= ? ORDER BY date ASC
                 `).all(pluginId, fromDate, toDate)
                 : db.prepare(`
-                    SELECT date, plugin_id, count, unique_ips, total_bytes, status_2xx, status_3xx, status_4xx, status_5xx, status_other,
-                           top_urls, top_ips, top_referers, top_user_agents
+                    SELECT date, plugin_id, count, unique_ips, total_bytes, status_2xx, status_3xx, status_4xx, status_404, status_5xx, status_other,
+                           static_files, top_urls, top_ips, top_referers, top_user_agents
                     FROM log_daily_stats WHERE date >= ? AND date <= ? ORDER BY date ASC
                 `).all(fromDate, toDate)
         ) as {
             date: string; plugin_id: string; count: number; unique_ips: number; total_bytes: number;
-            status_2xx: number; status_3xx: number; status_4xx: number; status_5xx: number; status_other: number;
-            top_urls: string; top_ips: string; top_referers: string; top_user_agents: string;
+            status_2xx: number; status_3xx: number; status_4xx: number; status_404: number; status_5xx: number; status_other: number;
+            static_files: number; top_urls: string; top_ips: string; top_referers: string; top_user_agents: string;
         }[];
 
         const parseTop = (json: string): AnalyticsTopItem[] => {
@@ -190,7 +202,8 @@ export class LogAnalyticsRollupService {
 
         return rows.map((r) => ({
             date: r.date, pluginId: r.plugin_id, count: r.count, uniqueIps: r.unique_ips, totalBytes: r.total_bytes,
-            status2xx: r.status_2xx, status3xx: r.status_3xx, status4xx: r.status_4xx, status5xx: r.status_5xx, statusOther: r.status_other,
+            status2xx: r.status_2xx, status3xx: r.status_3xx, status4xx: r.status_4xx, status404: r.status_404,
+            status5xx: r.status_5xx, statusOther: r.status_other, staticFiles: r.static_files,
             topUrls: parseTop(r.top_urls), topIps: parseTop(r.top_ips),
             topReferers: parseTop(r.top_referers), topUserAgents: parseTop(r.top_user_agents)
         }));

@@ -23,6 +23,7 @@ import { generateRegexFromLogLine } from '../services/regexGeneratorService.js';
 import { APACHE_ACCESS_VHOST_COMBINED_REGEX } from '../plugins/apache/ApacheParser.js';
 import { APACHE_REGEX_KEYS, getApacheRegexKeyForPath, NPM_REGEX_KEYS, getNpmRegexKeyForPath, NGINX_REGEX_KEYS, getNginxRegexKeyForPath } from '../services/logParserService.js';
 import { getAllAnalyticsWithMeta, getCalendarAnalyticsWithMeta, getLogAnalyticsProgress } from '../services/logAnalyticsService.js';
+import { getHybridAnalytics } from '../services/logAnalyticsHybridService.js';
 import { getErrorSummaryWithMeta, getErrorSummaryProgress, invalidateErrorSummaryCache, analyzeSingleFile } from '../services/errorSummaryService.js';
 import { getErrorAnalysisConfig } from '../config/errorAnalysisConfig.js';
 import { searchAllLogs } from '../services/logSearchService.js';
@@ -1614,6 +1615,45 @@ router.get('/analytics/calendar', async (req, res) => {
                 ok: false,
                 error: error instanceof Error ? error.message : String(error)
             }
+        });
+    }
+});
+
+/**
+ * GET /api/log-viewer/analytics/rollup
+ * DB-first analytics from `log_daily_stats` (overview, day-bucketed timeseries, top-20
+ * urls/ips/referrer/ua), with an automatic raw-log-scan fallback for days the rollup
+ * doesn't cover yet (older than the rollup's start). Not a full replacement for
+ * /analytics — see HybridAnalyticsResult's doc comment for exactly what it covers.
+ *
+ * Query params:
+ * - pluginId: optional, filter by plugin (npm, apache, all) or omit for all
+ * - from/to: optional ISO date strings (default: last 30 days)
+ * - live: optional 'true'/'1' — re-scan today instead of reading its (up to 15 min stale) rollup row
+ * - topLimit: optional, max items per top list (default 20, max 50)
+ */
+router.get('/analytics/rollup', async (req, res) => {
+    try {
+        const { pluginId, from, to, live, topLimit } = req.query as {
+            pluginId?: string; from?: string; to?: string; live?: string; topLimit?: string;
+        };
+        const toDate = to ? new Date(to) : new Date();
+        const fromDate = from ? new Date(from) : new Date(toDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+        if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) {
+            res.json({ success: true, result: { ok: false, error: 'Invalid from/to date' } });
+            return;
+        }
+
+        const result = await getHybridAnalytics(pluginId, fromDate, toDate, {
+            live: live === 'true' || live === '1',
+            topLimit: topLimit ? Number.parseInt(topLimit, 10) : undefined
+        });
+        res.json({ success: true, result });
+    } catch (error) {
+        logger.error('LogViewer', 'Error getting rollup analytics:', error);
+        res.json({
+            success: true,
+            result: { ok: false, error: error instanceof Error ? error.message : String(error) }
         });
     }
 });

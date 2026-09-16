@@ -528,7 +528,7 @@ function extractReferringSiteDomain(referer: string | undefined): string {
 /**
  * Check if URL points to a static file (common extensions).
  */
-function isStaticFileUrl(url: string | undefined): boolean {
+export function isStaticFileUrl(url: string | undefined): boolean {
     if (!url || url === '-') return false;
     const ext = url.split('?')[0].toLowerCase();
     return /\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|map|webp|avif)$/.test(ext);

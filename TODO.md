@@ -44,11 +44,11 @@ Combines the DB-first idea (raised 2026-09-16) with a page/tab reorganization th
 - [ ] KPI bar vs. "Group A" stats tiles (total/unique/avg-day/avg-hour/peak-day/peak-hour) in the old `section-filtered-stats` also overlap partially — revisit when building the merged Overview tab, don't necessarily keep both as-is
 
 **Suggested execution order** (user left this to the assistant's judgment):
-1. Extend `log_daily_stats` schema (JSON top-N columns) + extend `logAnalyticsRollupService.ts` to compute/store them, bump cycle to 15 min
-2. Backend read path: DB-first for covered dates, automatic raw-scan fallback for dates before the rollup existed, "today" live-completion merge
-3. Wire `LogAnalyticsPage.tsx` (still in its current monolithic form) onto the new DB-first path + add the "live" refresh button
-4. Only then do the tab reorg + cc37 component extraction (items #1/#2) together — merging widgets and splitting into `<OverviewTab>`/`<TopsTab>`/`<HttpSecurityTab>` is the same piece of work at that point, no reason to do it twice
-5. Item #2's fixed-window/global-filter sync becomes easier once step 2 gives flexible date-range DB queries
+1. [x] **DONE (2026-09-16, commit `6314490`)** — Extend `log_daily_stats` schema (JSON top-N columns) + extend `logAnalyticsRollupService.ts` to compute/store them, bump cycle to 15 min
+2. [x] **DONE (2026-09-16)** — Backend read path: `server/services/logAnalyticsHybridService.ts` (`getHybridAnalytics()`), DB-first for covered dates, automatic raw-scan fallback (grouped into contiguous ranges) for dates the rollup doesn't cover, `live` option re-scans today instead of trusting its (up to 15-min-stale) rollup row. New route `GET /api/log-viewer/analytics/rollup`. Also added `status_404`/`static_files` columns to the rollup (needed so the KPI bar's "Not Found"/"Static Files" tiles can be DB-first too). Covers only what the rollup stores (overview, day-bucketed timeseries, top-20 urls/ips/referrer/ua) — NOT a drop-in replacement for `getAllAnalytics()`'s full `AnalyticsResult` (no per-item visitors, no method/protocol breakdown, no bot detection, no response time). Tests: `logAnalyticsHybridService.test.ts` (4 cases: fully-covered, partial-coverage fallback, live-refresh, no-plugin-resolved). Not yet consumed by the frontend.
+3. [ ] Wire `LogAnalyticsPage.tsx` (still in its current monolithic form) onto the new DB-first path + add the "live" refresh button
+4. [ ] Only then do the tab reorg + cc37 component extraction (items #1/#2) together — merging widgets and splitting into `<OverviewTab>`/`<TopsTab>`/`<HttpSecurityTab>` is the same piece of work at that point, no reason to do it twice
+5. [ ] Item #2's fixed-window/global-filter sync becomes easier once step 2 gives flexible date-range DB queries
 
 ### 3. Fail2ban tooltip i18n audit — DONE (2026-09-15)
 Fixed: `TabConfig.tsx` (sync + Netfilter tooltips, incl. `WarnBadge` hover tip), `TabStats.tsx` ("Fichiers logs NPM"), `Fail2banPage.tsx` (the "Bans (period)" mini-card tooltip, which was fully hardcoded unlike its 5 siblings). All other `F2bTooltip`/`TT` usages across the fail2ban files were already using `t()`. Keys added to `en.json`/`fr.json`. `README.md` "Known TODO" entry removed. `npx tsc` 0 errors, tests pass.

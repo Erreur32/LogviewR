@@ -473,6 +473,11 @@ export function initializeDatabase(): void {
     for (const col of ['top_urls', 'top_ips', 'top_referers', 'top_user_agents']) {
         try { database.exec(`ALTER TABLE log_daily_stats ADD COLUMN ${col} TEXT NOT NULL DEFAULT '[]'`); } catch { /* already exists */ }
     }
+    // Migration: status_404 (subset of status_4xx) and static_files, so the Overview KPI bar's
+    // "notFound"/"staticFiles" tiles can be served from the rollup too, matching computeOverview().
+    for (const col of ['status_404', 'static_files']) {
+        try { database.exec(`ALTER TABLE log_daily_stats ADD COLUMN ${col} INTEGER NOT NULL DEFAULT 0`); } catch { /* already exists */ }
+    }
 
     // Create indexes for better performance
     database.exec(`
