@@ -96,11 +96,22 @@ Raised 2026-09-15: `way.myoueb.fr` endpoints returned 404 (`/api/track`, `/api/s
 ### 9. Show file size next to the pagination "lines per page / X lines total" line (`/log/*` pages) — DONE (2026-09-16)
 - [x] Added `· {formatFileSize(fileSize)}` (guarded on `fileSize !== undefined && fileSize > 0`, same prop already in scope) right after the `t('logViewer.linesPerPage')` / `t('logViewer.linesTotal', ...)` span at `LogTable.tsx:1153` — plain inline text (`text-gray-600`), not badge-styled, to match the rest of that pagination row.
 
-### 10. Optimize `particle-waves` animated background (perf)
-Raised 2026-09-16 after spotting recurring Chrome "[Violation] 'requestAnimationFrame' handler took Nms" warnings on `/log-analytics`. Root cause confirmed unrelated to log-analytics: `ParticleWavesCanvas` in `src/components/AnimatedBackground.tsx:698` (the "particle-waves" decorative background variant) recomputes a ~6400-point 3D grid (perspective projection) and re-sorts it by depth on every single frame, uncapped by `requestAnimationFrame`. Happens on any page where this background variant is active, not specific to log-analytics.
+### 10. Optimize animated backgrounds (perf) — audit done 2026-09-16, no code changed yet
+Raised after spotting recurring Chrome "[Violation] 'requestAnimationFrame' handler took Nms" warnings on `/log-analytics`. Root cause confirmed unrelated to log-analytics: it's `src/components/AnimatedBackground.tsx`'s decorative background variants, happens on any page. Audited all canvas-based variants (13 total in `FULL_ID_TO_VISUAL`) for the same anti-patterns (large per-frame grid, full-array sort/O(n²) every frame, no FPS cap) — findings below, ordered by priority. Nothing coded yet, per explicit request to audit-only first.
 
-- [ ] Reduce grid density (currently `distance = 5` over a ~400×400 field → ~6400 points every frame)
-- [ ] Avoid the full `Array.prototype.sort()` by depth every frame (e.g. only re-sort periodically, or skip depth-sorting since `globalCompositeOperation = 'screen'` is additive and mostly order-independent)
+**High priority (comparable or worse than the original particle-waves finding):**
+- [ ] `ParticleWavesCanvas` (`animation.80.particle-waves`, ~line 698) — ~6400-point 3D grid (`distance=5` over ~400×400) recomputed **and** `Array.prototype.sort()`-by-depth every frame, no FPS cap. The original finding.
+- [ ] `BitOceanCanvas` (`animation.95.bit-ocean`, ~line 2144) — same scale: 80×80 = 6400-vertex grid (`gridSize=400`, `spacing=5`), each vertex runs a noise() calculation every frame, no FPS cap. No sort, so slightly cheaper than particle-waves, but same order of magnitude.
+- [ ] `PlaystationCanvas` (`animation.72.playstation-3-bg-style`, ~line 996) — heaviest per-frame grid of all variants: 129×129 (`gridRes=128`) ≈ 16,641 points, each cell draws 2 triangles with a full normal/lighting calculation done **twice** per cell (once "general", once again per-triangle — looks like leftover/redundant computation, not intentional). Already has partial mitigation: `targetFPS` (default 60) + `enableAnimationTimeout` (default true, freezes the animation entirely after 5s) — real-world impact is capped unless a user disables the timeout via animation parameters.
+
+**Lower priority (moderate cost, no FPS cap either):**
+- [ ] `ParticulesLineCanvas` (`animation.93.particules-line`, ~line 823) — fixed 16×12=192 particles, O(n²) pairwise link-distance check (~18k `Math.hypot` calls/frame). Real but much smaller than the grid-based ones above.
+
+**Already mitigated, low priority:** `AuroraCanvas`/`AuroraV2Canvas`/`AlienBlackoutCanvas` all have the same `targetFPS`+`enableAnimationTimeout` (5s auto-freeze) pattern as Playstation built in.
+
+**Not a concern:** `HomeAssistantParticlesCanvas` (50 particles), `CanvasRibbons` (3 waves × 120 lines), `CssDarkParticles` (pure CSS animation, no canvas/rAF), `StarsCanvas`/`SpaceCanvas`/`SidelinedCanvas` (moderate particle counts, no grid/sort/O(n²) pattern found).
+
+- [ ] When picked up: for the grid-based ones (particle-waves, bit-ocean, playstation), reduce point density and/or add the same `targetFPS`/`enableAnimationTimeout` pattern the Aurora/AlienBlackout variants already use, consistently across all variants instead of ad hoc per-animation.
 - [ ] Not urgent, independent of the `/log-analytics` DB-first work — pick up whenever background-animation performance is worth revisiting
 
 ## Notes / non-blocking
