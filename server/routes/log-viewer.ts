@@ -46,12 +46,13 @@ function getLogViewerMaxLines(): number {
 }
 
 
-// All routes require authentication
-router.use(requireAuth);
-
-// Rate limit: generous enough for the 800ms progress-polling loops used by both the analytics
-// page and the error-summary card (75 req/min each on their own) plus normal interactive use,
-// while still blocking a scripted flood against the heavier scan/analytics endpoints.
+// Rate limit BEFORE requireAuth: requireAuth short-circuits (401, no next()) on a missing/
+// invalid token, so middleware registered after it never runs for failed-auth requests —
+// placing the limiter first ensures brute-force/credential-guessing attempts against the auth
+// check itself are throttled too, not just requests from already-authenticated callers.
+// Generous enough for the 800ms progress-polling loops used by both the analytics page and the
+// error-summary card (75 req/min each on their own) plus normal interactive use, while still
+// blocking a scripted flood against the heavier scan/analytics endpoints.
 const logViewerRateLimit = expressRateLimit({
     windowMs: 60_000,
     max: 150,
@@ -59,13 +60,16 @@ const logViewerRateLimit = expressRateLimit({
     legacyHeaders: false,
     // Keyed on resolveClientIp (proxy-aware, spoof-resistant), not the default req.ip, which
     // inherits the app-wide permissive `trust proxy: true` setting (server/index.ts) — without
-    // this, an authenticated caller could evade their own rate limit by sending a fake
-    // X-Forwarded-For header. Same pattern as server/mcp/httpAuth.ts's mcpHttpRateLimit.
+    // this, a caller could evade their own rate limit by sending a fake X-Forwarded-For header.
+    // Same pattern as server/mcp/httpAuth.ts's mcpHttpRateLimit.
     keyGenerator: (req) => resolveClientIp(req),
     validate: { trustProxy: false },
     message: { success: false, error: { code: 'RATE_LIMITED', message: 'Too many requests' } }
 });
 router.use(logViewerRateLimit);
+
+// All routes require authentication
+router.use(requireAuth);
 
 /**
  * Normalize file path to get the base log file path
