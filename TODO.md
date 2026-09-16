@@ -93,11 +93,8 @@ Raised 2026-09-15: `way.myoueb.fr` endpoints returned 404 (`/api/track`, `/api/s
 - [ ] Deferred by user (2026-09-15): re-enable later, not now
 - [ ] When picked back up: enable Snyk Code in Settings > Snyk Code on app.snyk.io (if plan allows), then flip `if: false` → normal condition in `.github/workflows/snyk.yml`
 
-### 9. Show file size next to the pagination "lines per page / X lines total" line (`/log/*` pages)
-Raised 2026-09-16, not started. `LogTable.tsx` already receives a `fileSize` prop and displays it via `formatFileSize()` in the header stats bar (`src/components/log-viewer/LogTable.tsx:1072-1077`, next to "total lines"/"valid lines" badges). The pagination bar's compact `{linesPerPage} / {linesTotal}` line (`LogTable.tsx:1153`) doesn't show it.
-
-- [ ] Add the file size (reuse `formatFileSize(fileSize)`, same `fileSize` prop already in scope) next to the `t('logViewer.linesPerPage')` / `t('logViewer.linesTotal', ...)` span at `LogTable.tsx:1153`
-- [ ] Decide on separator/format consistent with the existing badge style at line ~1072, or a plain inline text to match the rest of that pagination row (unlike the header stats bar, this row isn't badge-styled)
+### 9. Show file size next to the pagination "lines per page / X lines total" line (`/log/*` pages) — DONE (2026-09-16)
+- [x] Added `· {formatFileSize(fileSize)}` (guarded on `fileSize !== undefined && fileSize > 0`, same prop already in scope) right after the `t('logViewer.linesPerPage')` / `t('logViewer.linesTotal', ...)` span at `LogTable.tsx:1153` — plain inline text (`text-gray-600`), not badge-styled, to match the rest of that pagination row.
 
 ### 10. Optimize `particle-waves` animated background (perf)
 Raised 2026-09-16 after spotting recurring Chrome "[Violation] 'requestAnimationFrame' handler took Nms" warnings on `/log-analytics`. Root cause confirmed unrelated to log-analytics: `ParticleWavesCanvas` in `src/components/AnimatedBackground.tsx:698` (the "particle-waves" decorative background variant) recomputes a ~6400-point 3D grid (perspective projection) and re-sorts it by depth on every single frame, uncapped by `requestAnimationFrame`. Happens on any page where this background variant is active, not specific to log-analytics.

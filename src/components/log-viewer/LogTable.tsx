@@ -1151,6 +1151,9 @@ const formatCellValue = (log: LogEntry, column: string): React.ReactNode => {
                         <option value={1000}>1000</option>
                     </select>
                     <span>{t('logViewer.linesPerPage')} / {t('logViewer.linesTotal', { count: nonEmptyLogs.length })}</span>
+                    {fileSize !== undefined && fileSize > 0 && (
+                        <span className="text-gray-600">· {formatFileSize(fileSize)}</span>
+                    )}
                 </div>
 
                 {/* Centered search input */}
