@@ -101,6 +101,9 @@ Aide*
 mynetwork_app/
 Fail2ban-web/
 
+# Personal dev-only backlog (not for commit)
+TODO.md
+
 # Backup files
 *.backup
 *.bak

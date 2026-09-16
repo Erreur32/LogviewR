@@ -1618,13 +1618,14 @@ router.get('/analytics/progress', (req, res) => {
 
 /**
  * GET /api/log-viewer/analytics/calendar
- * Calendar-heatmap data over a fixed sliding window (default 365d).
- * Independent of the page's timeRange selector. Always forces includeCompressed=true.
+ * Calendar-heatmap / day-of-week / hour×day data over a sliding window (default 365d).
+ * The client syncs windowDays with its timeRange selector when it's 7d/30d, otherwise
+ * falls back to 7d. Always forces includeCompressed=true.
  */
 router.get('/analytics/calendar', async (req, res) => {
     try {
         const { pluginId, windowDays, force } = req.query as { pluginId?: string; windowDays?: string; force?: string };
-        const parsedWindow = windowDays ? Math.max(30, Math.min(Number.parseInt(windowDays, 10) || 365, 730)) : 365;
+        const parsedWindow = windowDays ? Math.max(7, Math.min(Number.parseInt(windowDays, 10) || 365, 730)) : 365;
         const { result, fromCache, cacheAgeMs } = await getCalendarAnalyticsWithMeta({
             pluginId,
             windowDays: parsedWindow,

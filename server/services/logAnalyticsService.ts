@@ -1028,11 +1028,9 @@ export interface AnalyticsResult {
         responseTime: AnalyticsResponseTimeDistribution | null;
     };
     top: {
-        urls: AnalyticsTopItem[];
         ips: AnalyticsTopItem[];
         status: AnalyticsTopItem[];
         ua: AnalyticsTopItem[];
-        referrer: AnalyticsTopItem[];
         browser: AnalyticsTopItem[];
         host: AnalyticsTopItem[];
         referringSites: AnalyticsTopItemWithVisitors[];
@@ -1112,11 +1110,9 @@ export async function getAllAnalytics(
             responseTime: computeResponseTimeDistribution(entries)
         },
         top: {
-            urls: computeTop(entries, 'urls', topLimit),
             ips: computeTop(entries, 'ips', topLimit),
             status: computeTop(entries, 'status', topLimit),
             ua: computeTop(entries, 'ua', topLimit),
-            referrer: computeTop(entries, 'referrer', topLimit),
             browser: computeTop(entries, 'browser', topLimit),
             host: computeTop(entries, 'host', topLimit),
             referringSites: computeTopWithVisitors(entries, 'referringSite', topLimit),
@@ -1369,9 +1365,10 @@ function buildCalendarBuckets(entries: ParsedAccessEntry[], fromDate: Date, endD
 }
 
 /**
- * Fetch calendar-heatmap analytics over a fixed 12-month sliding window.
- * Independent of the page's timeRange selector: the heatmap always shows the same year-long grid
- * so seasonal patterns remain visible regardless of what the rest of the dashboard is filtering on.
+ * Fetch calendar-heatmap analytics over a sliding window (caller-supplied `windowDays`,
+ * default 365 = 12 months). The client syncs this with the page's timeRange selector when
+ * it's 7d/30d, so seasonal patterns over the full year are only guaranteed when the caller
+ * asks for the default/longer window.
  */
 export async function getCalendarAnalytics(
     pluginId?: string,

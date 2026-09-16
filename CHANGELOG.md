@@ -5,6 +5,23 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.5] - 2026-09-16
+
+### For users
+
+- `/log-analytics` reorganized into 3 tabs: "Vue d'ensemble" (was "Graphiques"), "Top / Classements" (unchanged), "HTTP / Sécurité" (was "HTTP").
+- The KPI stats bar now only appears on "Vue d'ensemble" instead of on every tab.
+- "Distribution temporelle", "Visiteurs uniques" and "Requêtes dans le temps" — 3 widgets that plotted the same data — are now one widget with a bar/curve toggle and an optional "afficher visiteurs" line.
+- "Tendance des codes HTTP" and "Codes HTTP" — 2 views of the same status breakdown — are now one widget with an instant-snapshot/trend toggle.
+- Dropped the small "Top URLs"/"Top Référents" panels on "Top / Classements" (they duplicated the more detailed "Fichiers demandés"/"URLs référentes" tables just below). Top 404 moved from "HTTP / Sécurité" to "Top / Classements".
+- Day of Week / Calendar Heatmap / Hour×Day Heatmap now sync their window with the period selector when it's 7 jours/30 jours, instead of always showing a fixed 12 months; the group label now says whether the window is aligned with your selection or a fallback (period too short).
+
+### For developers
+
+- `LogAnalyticsPage.tsx` (1927 lines, cognitive complexity ~37 — the last Critical SonarCloud issue on this file) split into `src/pages/log-analytics/{OverviewTab,TopsTab,HttpSecurityTab}.tsx`, with shared presentational components and pure helpers extracted to `shared.tsx`/`utils.ts`. Parent keeps all fetch/state logic unchanged; each tab receives data via props only.
+- Removed the now-dead `top.urls`/`top.referrer` computation from the full-scan service (`server/services/logAnalyticsService.ts`) — was only feeding the now-removed duplicate panels; the DB-first rollup's own `urls`/`referrer` fields are untouched.
+- `GET /analytics/calendar`: `windowDays` floor lowered from 30 to 7; cache key now includes the window (was keyed on plugin only).
+
 ## [0.14.4] - 2026-09-16
 
 ### For users

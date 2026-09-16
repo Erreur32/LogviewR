@@ -31,11 +31,9 @@ export interface AnalyticsApiResponse {
         responseTime?: AnalyticsResponseTimeDistribution | null;
     };
     top: {
-        urls: AnalyticsTopItem[];
         ips: AnalyticsTopItem[];
         status: AnalyticsTopItem[];
         ua: AnalyticsTopItem[];
-        referrer: AnalyticsTopItem[];
         browser?: AnalyticsTopItem[];
         host?: AnalyticsTopItem[];
         referringSites?: AnalyticsTopItemWithVisitors[];
