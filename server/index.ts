@@ -197,12 +197,17 @@ import ipLookupRoutes from './routes/ipLookup.js';
 // Initialize database purge service (loads configs from database)
 import { initializePurgeService } from './services/databasePurgeService.js';
 import { mqttService } from './services/MqttService.js';
+import { logAnalyticsRollupService } from './services/logAnalyticsRollupService.js';
 
 // Initialize database purge service (after database is initialized and routes are imported)
 initializePurgeService();
 
 // Initialize MQTT service (starts if enabled in config)
 mqttService.initialize().catch(err => logger.error('Server', 'MQTT init failed:', err));
+
+// Start daily log-analytics rollup (persists count/unique IPs/bytes/status groups per day,
+// independent of raw log file retention)
+logAnalyticsRollupService.start();
 
 app.use('/api/users', usersRoutes);
 app.use('/api/plugins', pluginsRoutes);
@@ -611,7 +616,7 @@ server.listen(port, host, () => {
   };
 
   // Read app version from package.json
-  let appVersion = '0.14.2'; // Default fallback
+  let appVersion = '0.14.3'; // Default fallback
   try {
     const packageJsonPath = path.join(__dirname, '..', 'package.json');
     const packageJson = JSON.parse(fsSync.readFileSync(packageJsonPath, 'utf8'));

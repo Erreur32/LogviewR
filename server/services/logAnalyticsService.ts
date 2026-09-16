@@ -13,7 +13,7 @@ import type { LogSourcePlugin, LogFileInfo } from '../plugins/base/LogSourcePlug
 import { logger } from '../utils/logger.js';
 
 /** Web access log plugins only (NPM, Apache). Nginx excluded for now - focus on NPM first. */
-const LOG_SOURCE_PLUGINS = ['npm', 'apache'] as const;
+export const LOG_SOURCE_PLUGINS = ['npm', 'apache'] as const;
 // 20 was plenty for a handful of vhosts, but multi-vhost Apache installs (one access.log
 // per site) can have hundreds of matching files; round-robin selection (selectFilesRoundRobin)
 // distributes this cap across vhosts fairly, so it's raised to give real per-vhost depth.
@@ -116,7 +116,7 @@ export interface AnalyticsStatusByHostItem {
     uniqueVisitors: number;
 }
 
-interface ParsedAccessEntry {
+export interface ParsedAccessEntry {
     ip?: string;
     status?: number;
     size?: number;
@@ -214,7 +214,7 @@ export type IncludeCompressedOption = boolean;
  * - fileScope 'all': up to MAX_FILES_TOTAL files per plugin (includes rotated .1, .2, etc.)
  * - includeCompressed: when true and plugin has readCompressed enabled, include .gz/.bz2/.xz files
  */
-async function collectParsedEntries(
+export async function collectParsedEntries(
     pluginIds: string[],
     dateFrom?: Date,
     dateTo?: Date,
@@ -1010,6 +1010,24 @@ export interface AnalyticsResult {
 }
 
 /**
+ * Resolve which enabled log-source plugin(s) to query for a given filter value
+ * (`undefined`/`'all'` = every enabled plugin, otherwise just that one if it's enabled).
+ * Shared by every entry point that takes a `pluginId` filter (analytics, calendar, rollup).
+ */
+export function resolveLogSourcePluginIds(pluginId?: string): string[] {
+    const enabledPluginIds = LOG_SOURCE_PLUGINS.filter((id) => {
+        const cfg = PluginConfigRepository.findByPluginId(id);
+        return cfg?.enabled === true;
+    });
+
+    const isLogSourceId = (id: string): id is (typeof LOG_SOURCE_PLUGINS)[number] =>
+        (LOG_SOURCE_PLUGINS as readonly string[]).includes(id);
+
+    if (!pluginId || pluginId === 'all') return enabledPluginIds;
+    return isLogSourceId(pluginId) && enabledPluginIds.includes(pluginId) ? [pluginId] : [];
+}
+
+/**
  * Main entry: fetch all analytics for the given plugin filter and time range.
  * Returns overview, timeseries, and top metrics in one pass (single parse).
  */
@@ -1025,20 +1043,7 @@ export async function getAllAnalytics(
         onProgress?: (event: LogAnalyticsProgressEvent) => void;
     }
 ): Promise<AnalyticsResult> {
-    const enabledPluginIds = LOG_SOURCE_PLUGINS.filter((id) => {
-        const cfg = PluginConfigRepository.findByPluginId(id);
-        return cfg?.enabled === true;
-    });
-
-    const isLogSourceId = (id: string): id is (typeof LOG_SOURCE_PLUGINS)[number] =>
-        (LOG_SOURCE_PLUGINS as readonly string[]).includes(id);
-
-    const pluginIds =
-        !pluginId || pluginId === 'all'
-            ? enabledPluginIds
-            : isLogSourceId(pluginId) && enabledPluginIds.includes(pluginId)
-              ? [pluginId]
-              : [];
+    const pluginIds = resolveLogSourcePluginIds(pluginId);
 
     // Auto-enable compressed reads for long windows (>26h) so rotated .gz files contribute.
     // Still gated by each plugin's own `readCompressed` setting inside collectParsedEntries.
@@ -1340,22 +1345,7 @@ export async function getCalendarAnalytics(
     const windowEnd = new Date();
     const fromDate = new Date(windowEnd.getTime() - windowDays * 24 * 60 * 60 * 1000);
 
-    const enabledPluginIds = LOG_SOURCE_PLUGINS.filter((id) => {
-        const cfg = PluginConfigRepository.findByPluginId(id);
-        return cfg?.enabled === true;
-    });
-
-    const isLogSourceId = (id: string): id is (typeof LOG_SOURCE_PLUGINS)[number] =>
-        (LOG_SOURCE_PLUGINS as readonly string[]).includes(id);
-
-    let pluginIds: string[];
-    if (!pluginId || pluginId === 'all') {
-        pluginIds = enabledPluginIds;
-    } else if (isLogSourceId(pluginId) && enabledPluginIds.includes(pluginId)) {
-        pluginIds = [pluginId];
-    } else {
-        pluginIds = [];
-    }
+    const pluginIds = resolveLogSourcePluginIds(pluginId);
 
     const { entries, filesAnalyzed } = await collectParsedEntries(
         pluginIds,

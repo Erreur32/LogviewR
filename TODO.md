@@ -32,12 +32,14 @@ Fixed: `TabConfig.tsx` (sync + Netfilter tooltips, incl. `WarnBadge` hover tip),
 ### 4. Suspicious-IP allowlist (Error logs detection) — DONE (2026-09-16)
 `suspiciousIpAllowlist: string[]` added to `ErrorAnalysisConfig`, sanitized/capped at 200 entries. `analyzeSuspiciousActivity()` skips any line whose IP is allowlisted, across all 3 check categories (403/401, injection, bruteforce). UI: textarea in Settings > Analysis (draft-state + parse-on-blur pattern). 2 new unit tests. i18n fr/en added. `npx tsc` 0 errors, `npm run test:run` 76/76.
 
-### 5. Daily rollup table for long-term log stats
-Proposed 2026-09-15, accepted in principle, not started. Would remove the structural dependency on raw log files (rotation/retention/multi-vhost) for long-term stats.
+### 5. Daily rollup table for long-term log stats — DONE (2026-09-16)
+Proposed 2026-09-15, implemented 2026-09-16. Removes the structural dependency on raw log files (rotation/retention/multi-vhost) for long-term stats, in preparation for item #1/#2 above.
 
-- [ ] Table `log_daily_stats` (date, plugin_id, count, unique_ips, total_bytes, status groups)
-- [ ] Periodic feeder service, same pattern as `Fail2banSyncService`
-- [ ] Estimated volume: ~365 rows/year/plugin — negligible
+- [x] Table `log_daily_stats` (date, plugin_id, count, unique_ips, total_bytes, status groups) — `server/database/connection.ts`
+- [x] Periodic feeder service, same pattern as `Fail2banSyncService` — `server/services/logAnalyticsRollupService.ts` (every 30 min, recomputes today + yesterday only, no retroactive backfill)
+- [x] Unit tests (aggregation math, upsert idempotency, filtered reads) — `server/services/__tests__/logAnalyticsRollupService.test.ts`
+- [ ] Not yet wired into `getCalendarAnalytics`/`LogAnalyticsPage` — deferred to the item #1/#2 refactor session
+- Estimated volume: ~365 rows/year/plugin — negligible
 
 ### 6. NPM database ACL fix on host `myoueb`
 Code-side fix already shipped (explicit warning instead of silent "0 bans"). Root cause is host permissions, out of repo scope — needs manual action on the `myoueb` host itself.
@@ -64,6 +66,12 @@ Raised 2026-09-15: `way.myoueb.fr` endpoints returned 404 (`/api/track`, `/api/s
 
 - [ ] Deferred by user (2026-09-15): re-enable later, not now
 - [ ] When picked back up: enable Snyk Code in Settings > Snyk Code on app.snyk.io (if plan allows), then flip `if: false` → normal condition in `.github/workflows/snyk.yml`
+
+### 9. Show file size next to the pagination "lines per page / X lines total" line (`/log/*` pages)
+Raised 2026-09-16, not started. `LogTable.tsx` already receives a `fileSize` prop and displays it via `formatFileSize()` in the header stats bar (`src/components/log-viewer/LogTable.tsx:1072-1077`, next to "total lines"/"valid lines" badges). The pagination bar's compact `{linesPerPage} / {linesTotal}` line (`LogTable.tsx:1153`) doesn't show it.
+
+- [ ] Add the file size (reuse `formatFileSize(fileSize)`, same `fileSize` prop already in scope) next to the `t('logViewer.linesPerPage')` / `t('logViewer.linesTotal', ...)` span at `LogTable.tsx:1153`
+- [ ] Decide on separator/format consistent with the existing badge style at line ~1072, or a plain inline text to match the rest of that pagination row (unlike the header stats bar, this row isn't badge-styled)
 
 ## Notes / non-blocking
 

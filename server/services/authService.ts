@@ -54,8 +54,9 @@ export class AuthService {
         // Load persisted revoked tokens from database
         this.loadRevokedTokens();
 
-        // Periodically clean up expired entries from the token blacklist (every 10 min)
-        setInterval(() => this.cleanupRevokedTokens(), 10 * 60 * 1000);
+        // Periodically clean up expired entries from the token blacklist (every 10 min).
+        // unref(): background maintenance timer — must not keep the process (or test runner) alive.
+        setInterval(() => this.cleanupRevokedTokens(), 10 * 60 * 1000).unref();
     }
 
     /**

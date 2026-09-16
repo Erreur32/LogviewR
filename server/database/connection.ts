@@ -450,6 +450,25 @@ export function initializeDatabase(): void {
         )
     `);
 
+    // Daily rollup of log-analytics stats (count/unique IPs/bytes/status groups per plugin).
+    // Populated going forward by logAnalyticsRollupService; no retroactive backfill since
+    // raw log rotation already destroyed that history — this table exists to stop that from
+    // happening again for future days.
+    database.exec(`CREATE TABLE IF NOT EXISTS log_daily_stats (
+        date         TEXT    NOT NULL,
+        plugin_id    TEXT    NOT NULL,
+        count        INTEGER NOT NULL DEFAULT 0,
+        unique_ips   INTEGER NOT NULL DEFAULT 0,
+        total_bytes  INTEGER NOT NULL DEFAULT 0,
+        status_2xx   INTEGER NOT NULL DEFAULT 0,
+        status_3xx   INTEGER NOT NULL DEFAULT 0,
+        status_4xx   INTEGER NOT NULL DEFAULT 0,
+        status_5xx   INTEGER NOT NULL DEFAULT 0,
+        status_other INTEGER NOT NULL DEFAULT 0,
+        updated_at   INTEGER NOT NULL DEFAULT (strftime('%s','now')),
+        PRIMARY KEY (date, plugin_id)
+    )`);
+
     // Create indexes for better performance
     database.exec(`
         CREATE INDEX IF NOT EXISTS idx_logs_user_id ON logs(user_id);

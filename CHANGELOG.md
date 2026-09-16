@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed `VITE_ANALYTICS_*` build-arg plumbing from `Dockerfile`, `.github/workflows/docker-publish.yml`, `docker-compose.local.yml`, and the injection block in `src/main.tsx`.
 - `server/config/errorAnalysisConfig.ts`: new `suspiciousIpAllowlist: string[]` field (sanitized, deduped, capped at 200 entries). `server/services/suspiciousActivityDetector.ts` now skips any log line whose IP is allowlisted before applying the 403/401, injection, or brute-force checks.
 - Fixed a test-isolation bug in `server/services/__tests__/logParserService.test.ts`: ESM import hoisting froze `connection.ts`'s DB path to the real dev database before the test's `DATABASE_PATH=':memory:'` override could run, so `npm run test:run` was silently wiping the real `plugin_configs` table. Switched to the dynamic-`import()` pattern already used in `server/mcp/__tests__/*.test.ts`.
+- New `log_daily_stats` table + `server/services/logAnalyticsRollupService.ts`: persists a daily summary (count, unique IPs, bytes, status-code groups) per log-source plugin every 30 min, so long-term stats stop depending on raw log files still being present on disk. No retroactive backfill — accumulates going forward only. Not yet wired into `/log-analytics`; groundwork for the upcoming `LogAnalyticsPage` refactor.
+- Extracted `resolveLogSourcePluginIds()` in `logAnalyticsService.ts`, deduplicating plugin-filter logic previously copy-pasted in `getAllAnalytics`/`getCalendarAnalytics`.
+- Fixed a latent bug in `authService.ts`: the token-blacklist cleanup `setInterval` (every 10 min) was missing `.unref()`, so any process importing it transitively (e.g. a test reaching into the plugin manager) would hang indefinitely instead of exiting once its work was done.
 
 ## [0.14.2] - 2026-09-15
 
