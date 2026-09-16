@@ -412,6 +412,10 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
     /** True once the current query's full scan result has been applied — guards against a late
      *  quick-fetch response (network jitter) overwriting more complete full-scan data. */
     const fullDataArrivedRef = useRef(false);
+    /** True once the full raw-scan fetch has been requested (not necessarily resolved) for the
+     *  current filter set — lets the "http"/"tops" tabs defer it until first visited instead of
+     *  scanning eagerly for tabs the user may never open. Reset whenever filters change. */
+    const hasRequestedFullDataRef = useRef(false);
     const [progressFiles, setProgressFiles] = useState<AnalyticsProgressFile[]>([]);
     const [progressPhase, setProgressPhase] = useState<AnalyticsProgressResponse['phase']>('idle');
     const [error, setError] = useState<string | null>(null);
@@ -606,10 +610,29 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
         }
     }, [pluginId, enabledLogPlugins, timeRange, customFrom, customTo]);
 
+    // Lazy per-tab loading: the DB-first quick preview + calendar fetch already cover the
+    // "Graphes" tab almost entirely (overview/timeseries/bandwidth/status trends come from
+    // log_daily_stats). Only "Peak hours" (non-live) needs the full raw-scan, so it's still
+    // fetched eagerly when landing on "Graphes". The "HTTP"/"Tops" tabs depend entirely on
+    // fields the rollup doesn't store (methods, bot detection, response time, virtual hosts,
+    // referrer/requested-files tables) — deferred until the user actually opens one of them,
+    // instead of forcing a full log scan on every page load regardless of what's viewed.
     useEffect(() => {
+        hasRequestedFullDataRef.current = false;
         fetchQuickAnalytics();
-        fetchAnalytics();
+        if (activeTab === 'graphs') {
+            hasRequestedFullDataRef.current = true;
+            fetchAnalytics();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [fetchQuickAnalytics, fetchAnalytics]);
+
+    useEffect(() => {
+        if (activeTab !== 'graphs' && !hasRequestedFullDataRef.current) {
+            hasRequestedFullDataRef.current = true;
+            fetchAnalytics();
+        }
+    }, [activeTab, fetchAnalytics]);
 
     // Poll progress while the main section is doing its first-ever load, so the user
     // sees which files are being scanned instead of a bare spinner.
