@@ -5,6 +5,27 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.4] - 2026-09-16
+
+### For users
+
+- `/log-analytics`: the "Graphes" tab now also loads instantly from the daily rollup; the full raw-log scan only kicks in when you actually open the "HTTP" or "Top" tab (or click "Refresh"), instead of running on every page load regardless of which tab you look at.
+- New compact progress bar (below the header) while "Refresh" or "Live" is working, so there's visual feedback beyond the button's own spinner.
+- The "Refresh" button now pulses when the full data for the current view hasn't loaded yet, and both "Refresh" and "Live" have clearer tooltips explaining the difference (full raw-log scan vs. a fast today-only database read).
+- Redesigned the "Top / Classements" and "HTTP" tabs: numbered rank badges (gold/silver/bronze for the top 3), gradient bars, monospace text for URLs/IPs/UAs, zebra-striped tables, and an HTTP-method color badge on the requested-files table.
+- Fixed horizontal scrolling and misaligned progress bars on the Referring Sites / Virtual Hosts / Referrer URLs / HTTP Codes / HTTP codes by domain / Top 404 tables.
+- Added a clickable legend on the "Status Trends" chart (HTTP tab) to filter 2xx/3xx/4xx/5xx in/out of the graph.
+- Loading indicators (spinners, skeletons) added throughout the Graphs/HTTP/Top tabs so sections that are still loading no longer show a confusing "no data" flash.
+- `/log/*` pages: file size now also shown next to the "lines per page / total lines" line in the pagination bar, not just the header stats bar.
+
+### For developers
+
+- New `server/services/logAnalyticsHybridService.ts` wired into `LogAnalyticsPage.tsx` via `fetchQuickAnalytics()`; `fullDataArrivedRef` guards against the fast preview overwriting a full-scan result that already landed.
+- Lazy per-tab full-scan loading: `hasRequestedFullDataRef`/`isInitialMountRef` defer `fetchAnalytics()` until a tab that needs it (not covered by the rollup) is actually opened, instead of firing eagerly on mount for every tab.
+- Security review on the new `/analytics/rollup` route: date range capped at 400 days (`enumerateDays`/`groupConsecutiveDays` had no bound of their own), `topLimit` now falls back to its default instead of propagating `NaN`/negative values.
+- `server/routes/log-viewer.ts` (all 41 routes) now has `express-rate-limit` (150 req/min) — it was the only route file with authenticated endpoints missing it. Limit set higher than the project's usual 30 req/min because two 800ms progress-polling loops (analytics + error-summary) already use ~75 req/min each on their own.
+- New shared `RankBadge` component (`src/components/widgets/RankBadge.tsx`) used across `TopPanel`, `DualBarChart`, the HTTP distribution chart, and the requested-files/top-bots lists.
+
 ## [0.14.3] - 2026-09-16
 
 ### For users
