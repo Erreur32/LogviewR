@@ -9,9 +9,11 @@ Not user-facing — internal tracking only, ignored by CHANGELOG.md.
 Only remaining Critical SonarCloud issue. Deferred since v0.9.0 ("trop compliqué pour le résultat" in one release).
 Marked with a `// Note:` comment at the component declaration (`src/pages/LogAnalyticsPage.tsx:334`).
 
-- [ ] Extract `<GraphsTab>` — timeline, unique visitors, day-of-week, peak hours, calendar heatmap, hour×day heatmap, status trends, bandwidth, bot detection
-- [ ] Extract `<HttpTab>` — HTTP codes panel, methods & codes by domain
-- [ ] Extract `<TopsTab>` — top 404, response time, referring sites, virtual hosts, referrer URLs, requested files
+**Superseded by the validated plan in item #2bis** — the 3-tab split below (`<GraphsTab>`/`<HttpTab>`/`<TopsTab>`) is replaced by `<OverviewTab>`/`<TopsTab>`/`<HttpSecurityTab>` per the 2026-09-16 reorg decision (merges redundant widgets, moves Top 404 into Tops). Left here for history; follow #2bis for the actual extraction shape.
+
+- [ ] Extract `<OverviewTab>` — KPI bar, merged requests-over-time, merged HTTP-codes, bandwidth, day-of-week, peak hours, calendar heatmap, hour×day heatmap
+- [ ] Extract `<HttpSecurityTab>` — bot vs human detection, methods & codes by domain
+- [ ] Extract `<TopsTab>` — top 404, response time, referring sites, virtual hosts, referrer URLs, requested files, top IPs/status/browsers/UA panels
 - [ ] Each tab receives data via props only, no new state duplication — parent keeps `fetchAnalytics`/`fetchCalendar`/state
 - [ ] Do not mark the Sonar issue "Won't Fix" — legitimate code smell, leave Open until done
 
@@ -23,6 +25,30 @@ Accepted by user 2026-09-15, not started. Day of Week / Calendar Heatmap / Hour�
 - [ ] When global filter = 7j/30j → use that window; when 1h/24h (too short) → fall back to 7j
 - [ ] Make `FixedWindowBadge` / "Fenêtre fixe" group label dynamic instead of hardcoded "12 mois"
 - [ ] Best done together with item #1 (same component)
+
+### 2bis. DB-first rendering for /log-analytics + tab reorganization — design validated 2026-09-16, not started
+Combines the DB-first idea (raised 2026-09-16) with a page/tab reorganization the user asked to settle first, before touching the cc37 refactor (item #1/#2). Design discussed and validated by the user 2026-09-16; implementation not started.
+
+**DB-first decisions (validated):**
+- `log_daily_stats` gets enriched with JSON columns for top URLs/IPs/referers/user-agents per day (top 20 each — small enough to not matter for DB size, can raise later if needed)
+- `logAnalyticsRollupService` cycle lowered from 30 min → **15 min**
+- "Live" button scope: **today only** (completes what the 15-min-stale rollup hasn't caught up on yet) — not a full custom-range override
+- Dates before the rollup existed: **automatic fallback** to the current raw-log-scan behavior, no "no data" dead end
+- Rollup-backed data serves the fixed-window/period-filtered aggregate widgets instantly; anything needing full per-line detail (methods & codes by domain, bot detection) still needs a scan
+
+**Tab reorganization (validated), found while auditing the current 3 tabs (Graphs/HTTP/Tops) for redundancy:**
+- Found real duplication, not just a cc37 complexity artifact: "Distribution temporelle" + "Visiteurs uniques" + "Requêtes dans le temps" are 3 widgets plotting the *same* `trimmedTimeseries` count/visitors series; "Tendance des codes HTTP" + "Codes HTTP" + "Top codes HTTP" are 3 views of the same 2xx/3xx/4xx/5xx breakdown; "Top URLs"/"Top Référents" small panels duplicate the "Requested Files"/"Referrer URLs" detailed tables covering the same data.
+- [ ] New tab **"Vue d'ensemble"**: KPI bar, ONE merged requests-over-time widget (bar/curve toggle + optional unique-visitors line, replacing the 3 redundant ones), ONE merged HTTP-codes widget (snapshot/trend toggle, replacing the 3 redundant ones), bandwidth, day-of-week/peak-hours/calendar-heatmap/hour×day-heatmap (unchanged, already well-organized into "filtered by period" vs "fixed window" groups) — this tab becomes fully rollup-backed, always instant
+- [ ] New tab **"Top / Classements"**: one representation per category, no duplicate formats — keep the **detailed tables/dual-bar-charts** for URLs and referrers (they carry hits+visitors+bytes+method/protocol, more info than the small panels), drop their small-`TopPanel` duplicates; **keep the compact `TopPanel` format** for IPs/status/browsers/user-agents since no detailed-table equivalent exists for them (not worth building one just for uniformity); **Top 404 moves here** from the HTTP tab (it's a "top list" like the others, no strong reason it was split out)
+- [ ] Tab **"HTTP / Sécurité"** (renamed from "HTTP"): keeps Bot vs Human detection + Methods & codes by domain — the two diagnostics that don't reduce well to a daily JSON blob (per-domain breakdown is high-cardinality), most likely to keep needing a live scan
+- [ ] KPI bar vs. "Group A" stats tiles (total/unique/avg-day/avg-hour/peak-day/peak-hour) in the old `section-filtered-stats` also overlap partially — revisit when building the merged Overview tab, don't necessarily keep both as-is
+
+**Suggested execution order** (user left this to the assistant's judgment):
+1. Extend `log_daily_stats` schema (JSON top-N columns) + extend `logAnalyticsRollupService.ts` to compute/store them, bump cycle to 15 min
+2. Backend read path: DB-first for covered dates, automatic raw-scan fallback for dates before the rollup existed, "today" live-completion merge
+3. Wire `LogAnalyticsPage.tsx` (still in its current monolithic form) onto the new DB-first path + add the "live" refresh button
+4. Only then do the tab reorg + cc37 component extraction (items #1/#2) together — merging widgets and splitting into `<OverviewTab>`/`<TopsTab>`/`<HttpSecurityTab>` is the same piece of work at that point, no reason to do it twice
+5. Item #2's fixed-window/global-filter sync becomes easier once step 2 gives flexible date-range DB queries
 
 ### 3. Fail2ban tooltip i18n audit — DONE (2026-09-15)
 Fixed: `TabConfig.tsx` (sync + Netfilter tooltips, incl. `WarnBadge` hover tip), `TabStats.tsx` ("Fichiers logs NPM"), `Fail2banPage.tsx` (the "Bans (period)" mini-card tooltip, which was fully hardcoded unlike its 5 siblings). All other `F2bTooltip`/`TT` usages across the fail2ban files were already using `t()`. Keys added to `en.json`/`fr.json`. `README.md` "Known TODO" entry removed. `npx tsc` 0 errors, tests pass.

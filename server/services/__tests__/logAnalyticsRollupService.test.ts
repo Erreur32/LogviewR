@@ -44,6 +44,20 @@ describe('aggregateEntries', () => {
         assert.equal(agg.count, 0);
         assert.equal(agg.uniqueIps, 0);
         assert.equal(agg.totalBytes, 0);
+        assert.deepEqual(agg.topUrls, []);
+    });
+
+    it('computes top URLs/IPs/referers/user-agents, most frequent first', () => {
+        const agg = aggregateEntries([
+            { ip: '1.1.1.1', url: '/a', referer: 'https://ref-a.com', userAgent: 'curl/8.0', status: 200 },
+            { ip: '1.1.1.1', url: '/a', referer: 'https://ref-a.com', userAgent: 'curl/8.0', status: 200 },
+            { ip: '2.2.2.2', url: '/b', referer: 'https://ref-b.com', userAgent: 'Mozilla/5.0', status: 200 }
+        ]);
+
+        assert.deepEqual(agg.topUrls[0], { key: '/a', count: 2, percent: 67 });
+        assert.deepEqual(agg.topIps[0], { key: '1.1.1.1', count: 2, percent: 67 });
+        assert.deepEqual(agg.topReferers[0], { key: 'https://ref-a.com', count: 2, percent: 67 });
+        assert.deepEqual(agg.topUserAgents[0], { key: 'curl/8.0', count: 2, percent: 67 });
     });
 });
 
@@ -94,5 +108,21 @@ describe('LogAnalyticsRollupService upsert + getDailyStats', () => {
 
         const allPlugins = LogAnalyticsRollupService.getDailyStats(undefined, '2026-09-15', '2026-09-16');
         assert.equal(allPlugins.length, 2);
+    });
+
+    it('round-trips top-N JSON columns through upsert and getDailyStats', () => {
+        const service = new LogAnalyticsRollupService() as unknown as {
+            upsert: (date: string, pluginId: string, agg: ReturnType<typeof aggregateEntries>) => void;
+        };
+
+        service.upsert('2026-09-16', 'apache', aggregateEntries([
+            { ip: '1.1.1.1', url: '/a', status: 200 },
+            { ip: '1.1.1.1', url: '/a', status: 200 },
+            { ip: '2.2.2.2', url: '/b', status: 200 }
+        ]));
+
+        const [row] = LogAnalyticsRollupService.getDailyStats('apache', '2026-09-16', '2026-09-16');
+        assert.deepEqual(row.topUrls, [{ key: '/a', count: 2, percent: 67 }, { key: '/b', count: 1, percent: 33 }]);
+        assert.deepEqual(row.topIps, [{ key: '1.1.1.1', count: 2, percent: 67 }, { key: '2.2.2.2', count: 1, percent: 33 }]);
     });
 });
