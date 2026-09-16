@@ -615,7 +615,9 @@ const ParticleWavesCanvas: React.FC<{
 
     // Paramètres exacts selon package.yaml (avec paramètres configurables)
     const pointSize = particleSize;
-    const distance = 5;
+    // 8 instead of 5: ~2500 points/frame instead of ~6400 (400x400 field), still dense
+    // enough visually, cuts the heaviest cost of this animation by more than half.
+    const distance = 8;
     const height = waveHeight;
     const waveSpeed = baseSpeedValue;
     
@@ -736,8 +738,9 @@ const ParticleWavesCanvas: React.FC<{
         };
       }).filter((p): p is { x: number; y: number; w: number; color: [number, number, number, number]; z3d: number } => p !== null);
 
-      // Trier par profondeur (z) pour dessiner les plus lointaines en premier
-      projected.sort((a, b) => b.z3d - a.z3d);
+      // No depth sort: ctx.globalCompositeOperation is 'screen' (additive) below, which is
+      // order-independent, so sorting ~2500 points by depth every frame bought nothing
+      // visually while being one of the heaviest parts of this animation's frame cost.
 
       // Dessiner les particules avec pointSize exact : (u_size / gl_Position.w) * 100.0
       // où u_size = (h / 400) * pointSize * dpi
@@ -1141,47 +1144,14 @@ const PlaystationCanvas: React.FC<{
           const p3 = points[i][j + 1];
           const p4 = points[i + 1][j + 1];
           
-          // Calculer la normale en 3D (simulation de dFdx/dFdy du fragment shader)
-          // Utiliser les coordonnées 3D du monde pour un calcul plus précis
-          const v1 = {
-            x: p2.worldX - p1.worldX,
-            y: p2.worldY - p1.worldY,
-            z: p2.worldZ - p1.worldZ
-          };
-          const v2 = {
-            x: p3.worldX - p1.worldX,
-            y: p3.worldY - p1.worldY,
-            z: p3.worldZ - p1.worldZ
-          };
-          
-          // Produit vectoriel pour obtenir la normale
-          const normal = {
-            x: v1.y * v2.z - v1.z * v2.y,
-            y: v1.z * v2.x - v1.x * v2.z,
-            z: v1.x * v2.y - v1.y * v2.x
-          };
-          
-          // Normaliser la normale
-          const len = Math.sqrt(normal.x * normal.x + normal.y * normal.y + normal.z * normal.z);
-          if (len > 0.0001) {
-            normal.x /= len;
-            normal.y /= len;
-            normal.z /= len;
-          }
-          
-          // Calculer l'éclairage (comme dans le fragment shader)
-          // c = 1.0 - dot(normal, up)
-          const dotProduct = normal.x * up.x + normal.y * up.y + normal.z * up.z;
-          let c = 1.0 - dotProduct;
-          // c = (1.0 - cos(c * c)) / 3.0
-          c = (1.0 - Math.cos(c * c)) / 3.0;
-          const alpha = c * 1.5;
-          
-          if (alpha > 0.01) {
-            const finalAlpha = Math.min(alpha, 1.0);
-            
-            // Calculer l'alpha pour chaque triangle séparément pour plus de précision
-            // Triangle 1
+          // Calculer l'alpha pour chaque triangle séparément (dFdx/dFdy du fragment shader).
+          // Each triangle's own normal/lighting is computed independently below — an earlier
+          // "general" normal+alpha pre-check here duplicated the exact same math as Triangle 1
+          // (same p1/p2/p3 vertices) purely to gate whether to draw *both* triangles, which
+          // also meant Triangle 2 could be wrongly skipped whenever Triangle 1's normal faced
+          // away from "up" even if Triangle 2's own normal didn't. Removed: cheaper (one less
+          // normal/normalize/dot/cos per cell, out of 128x128) and no longer has that bug.
+          // Triangle 1
             const v1_t1 = {
               x: p2.worldX - p1.worldX,
               y: p2.worldY - p1.worldY,
@@ -1254,10 +1224,9 @@ const PlaystationCanvas: React.FC<{
               ctx.closePath();
               ctx.fill();
             }
-          }
         }
       }
-      
+
       ctx.globalCompositeOperation = 'source-over';
     };
 
@@ -2142,7 +2111,9 @@ const BitOceanCanvas: React.FC<{
   const pointSize = Math.max(1, Math.min(5, customPointSize));
 
   const gridSize = 400;
-  const spacing = 5;
+  // 8 instead of 5: ~2500 points/frame instead of ~6400, each already doing a noise()
+  // calculation + projection per point every frame with no FPS cap.
+  const spacing = 8;
   const verticesRef = useRef<Array<{ x: number; z: number }>>([]);
   const colorRef = useRef({
     r: 0, g: 0, b: 255,
