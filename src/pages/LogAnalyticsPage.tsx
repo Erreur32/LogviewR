@@ -935,6 +935,9 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
         );
     };
 
+    /** Same "still fetching" vs "genuinely no data" distinction as NoDataOrLoading below, for chart widgets that take a plain `noDataText` string prop instead of a component. */
+    const noDataOrLoadingText = (loading: boolean): string => (loading ? t('logAnalytics.loadingData') : t('logAnalytics.noData'));
+
     /** Empty-state placeholder that distinguishes "still fetching" from "genuinely no data" — avoids a confusing flash of "no data" while the full scan is still in flight (e.g. HTTP/Tops tab sections not covered by the DB-first quick preview). */
     const NoDataOrLoading: React.FC = () => (
         <div className="h-32 flex flex-col items-center justify-center gap-2 text-gray-500 text-sm">
@@ -1012,6 +1015,12 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
             </div>
         );
     };
+
+    // Compact progress bar (Refresh/Live) — null pct means no per-file granularity yet
+    // (e.g. live scan just started), rendered as an indeterminate pulse instead of 0%.
+    const showLoadingProgressBar = (isLoading || isLiveRefreshing) && !(isLoading && overview === null);
+    const loadingDoneCount = progressFiles.filter((f) => f.status === 'done' || f.status === 'error').length;
+    const loadingPct = progressFiles.length > 0 ? Math.round((loadingDoneCount / progressFiles.length) * 100) : null;
 
     return (
         <div className="min-h-screen text-gray-300 overflow-x-hidden">
@@ -1155,31 +1164,27 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                 </div>
             </header>
 
-            {(isLoading || isLiveRefreshing) && !(isLoading && overview === null) && (() => {
-                const doneCount = progressFiles.filter((f) => f.status === 'done' || f.status === 'error').length;
-                const pct = progressFiles.length > 0 ? Math.round((doneCount / progressFiles.length) * 100) : null;
-                return (
-                    <div className="max-w-[1920px] mx-auto px-4 md:px-6 pt-3">
-                        <div className="flex items-center gap-2 text-[11px] text-gray-500 mb-1">
-                            <Loader2 size={12} className="animate-spin text-emerald-500 shrink-0" />
-                            <span className="truncate">
-                                {isLiveRefreshing
-                                    ? t('logAnalytics.liveRefresh')
-                                    : progressPhase === 'aggregating'
-                                        ? t('logAnalytics.aggregatingResults')
-                                        : t('logAnalytics.scanningFiles')}
-                            </span>
-                            {pct != null && <span className="ml-auto tabular-nums shrink-0">{pct}%</span>}
-                        </div>
-                        <div className="h-1 bg-gray-800/60 rounded-full overflow-hidden">
-                            <div
-                                className={`h-full bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-full transition-[width] duration-300 ${pct == null ? 'animate-pulse w-1/3' : ''}`}
-                                style={pct != null ? { width: `${pct}%` } : undefined}
-                            />
-                        </div>
+            {showLoadingProgressBar && (
+                <div className="max-w-[1920px] mx-auto px-4 md:px-6 pt-3">
+                    <div className="flex items-center gap-2 text-[11px] text-gray-500 mb-1">
+                        <Loader2 size={12} className="animate-spin text-emerald-500 shrink-0" />
+                        <span className="truncate">
+                            {isLiveRefreshing
+                                ? t('logAnalytics.liveRefresh')
+                                : progressPhase === 'aggregating'
+                                    ? t('logAnalytics.aggregatingResults')
+                                    : t('logAnalytics.scanningFiles')}
+                        </span>
+                        {loadingPct != null && <span className="ml-auto tabular-nums shrink-0">{loadingPct}%</span>}
                     </div>
-                );
-            })()}
+                    <div className="h-1 bg-gray-800/60 rounded-full overflow-hidden">
+                        <div
+                            className={`h-full bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-full transition-[width] duration-300 ${loadingPct == null ? 'animate-pulse w-1/3' : ''}`}
+                            style={loadingPct != null ? { width: `${loadingPct}%` } : undefined}
+                        />
+                    </div>
+                </div>
+            )}
 
             <div className="p-4 md:p-6 max-w-[1920px] mx-auto space-y-6">
                 {error && (
@@ -1443,7 +1448,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                                 count
                                             }));
                                         })()}
-                                        noDataText={(peakHoursLive ? isCalendarLoading : isLoading) ? t('logAnalytics.loadingData') : t('logAnalytics.noData')}
+                                        noDataText={noDataOrLoadingText((peakHoursLive ? isCalendarLoading : isLoading))}
                                         requestsLabel={t('logAnalytics.requests')}
                                     />
                                 </div>
@@ -1476,7 +1481,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                             }))
                                             : calendarBuckets.map((b) => ({ label: b.label, count: b.count }))
                                         }
-                                        noDataText={isCalendarLoading ? t('logAnalytics.loadingData') : t('logAnalytics.noData')}
+                                        noDataText={noDataOrLoadingText(isCalendarLoading)}
                                         dayLabels={[
                                             t('logAnalytics.monday'), t('logAnalytics.tuesday'), t('logAnalytics.wednesday'),
                                             t('logAnalytics.thursday'), t('logAnalytics.friday'), t('logAnalytics.saturday'), t('logAnalytics.sunday')
@@ -1491,7 +1496,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                         <SectionHeading {...headingCommon} loading={isCalendarLoading} hidePeriod extras={<FixedWindowBadge />}>{t('logAnalytics.heatmapTitle')}</SectionHeading>
                                         <HeatmapChart
                                             data={calendarBuckets.map((b) => ({ label: b.label, count: b.count }))}
-                                            noDataText={isCalendarLoading ? t('logAnalytics.loadingData') : t('logAnalytics.noData')}
+                                            noDataText={noDataOrLoadingText(isCalendarLoading)}
                                             dayLabels={[
                                                 t('logAnalytics.monday'), t('logAnalytics.tuesday'), t('logAnalytics.wednesday'),
                                                 t('logAnalytics.thursday'), t('logAnalytics.friday'), t('logAnalytics.saturday'), t('logAnalytics.sunday')
@@ -1515,7 +1520,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                                     count
                                                 }))
                                             )}
-                                            noDataText={isCalendarLoading ? t('logAnalytics.loadingData') : t('logAnalytics.noData')}
+                                            noDataText={noDataOrLoadingText(isCalendarLoading)}
                                             dayLabels={[
                                                 t('logAnalytics.monday'), t('logAnalytics.tuesday'), t('logAnalytics.wednesday'),
                                                 t('logAnalytics.thursday'), t('logAnalytics.friday'), t('logAnalytics.saturday'), t('logAnalytics.sunday')
@@ -1535,7 +1540,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                     data={trimmedTimeseries}
                                     height={180}
                                     formatLabel={(l) => formatTsLabel(l, getCurrentBucket())}
-                                    noDataText={isLoading ? t('logAnalytics.loadingData') : t('logAnalytics.noData')}
+                                    noDataText={noDataOrLoadingText(isLoading)}
                                     xAxisTicks={6}
                                 />
                             </div>
@@ -1753,7 +1758,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                     p99={responseTimeDist.p99}
                                     max={responseTimeDist.max}
                                     buckets={responseTimeDist.buckets}
-                                    noDataText={isLoading ? t('logAnalytics.loadingData') : t('logAnalytics.noData')}
+                                    noDataText={noDataOrLoadingText(isLoading)}
                                 />
                             </div>
                         )}
