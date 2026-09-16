@@ -129,7 +129,7 @@ export const DualBarChart: React.FC<DualBarChartProps> = ({
                     </span>
                 )}
             </div>
-            <div className={tableLayout ? 'overflow-x-auto' : ''}>
+            <div>
             {data.slice(0, 15).map((item, idx) => {
                 const isHovered = hoveredKey === item.key;
                 const countPct = scalePct(item.count);
@@ -151,17 +151,20 @@ export const DualBarChart: React.FC<DualBarChartProps> = ({
                     >
                         <RankBadge rank={idx} />
                         <span
-                            className="text-[13px] font-mono text-gray-400 group-hover:text-gray-200 truncate text-left shrink-0 transition-colors"
+                            className="text-[13px] font-mono text-gray-400 group-hover:text-gray-200 truncate text-left"
                             style={
                                 tableLayout
-                                    ? { width: labelWidth ?? Math.min(maxKeyLength * 7, 220) }
-                                    : { maxWidth: labelWidth ?? maxKeyLength * 6 }
+                                    // Fixed `width` (not maxWidth) gives every row the same flex-basis, so
+                                    // label columns line up across rows; omitting flex-shrink:0 still lets
+                                    // the browser shrink it (down to minWidth) instead of overflowing.
+                                    ? { width: labelWidth ?? Math.min(maxKeyLength * 7, 220), minWidth: 60 }
+                                    : { maxWidth: labelWidth ?? maxKeyLength * 6, flexShrink: 0 }
                             }
                             title={item.key}
                         >
                             {item.key}
                         </span>
-                        <div className={`flex gap-3 flex-1 min-w-0 ${tableLayout ? 'justify-end min-w-[120px]' : ''}`}>
+                        <div className={`flex gap-3 flex-1 min-w-0 ${tableLayout ? 'justify-end min-w-0' : ''}`}>
                             {/* hits: bar + external value on the right (value is always fully readable) */}
                             <div className="flex items-center gap-2 flex-1 min-w-0">
                                 <div
