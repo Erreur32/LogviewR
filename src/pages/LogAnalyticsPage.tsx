@@ -416,6 +416,14 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
      *  current filter set — lets the "http"/"tops" tabs defer it until first visited instead of
      *  scanning eagerly for tabs the user may never open. Reset whenever filters change. */
     const hasRequestedFullDataRef = useRef(false);
+    /** True until the very first render's effects have run — skips the initial auto-fetch so
+     *  landing on the default "Graphes" tab is just as lazy as landing on any other tab would
+     *  be. Once false (any later tab switch or filter change), fetches proceed normally. */
+    const isInitialMountRef = useRef(true);
+    /** Reactive counterpart to fullDataArrivedRef — drives the "Refresh" button's attention
+     *  animation while the full scan for the current view hasn't run yet (lazy tabs, or the
+     *  default "Graphes" tab's Peak Hours widget before any tab switch/refresh). */
+    const [fullDataReady, setFullDataReady] = useState(false);
     const [progressFiles, setProgressFiles] = useState<AnalyticsProgressFile[]>([]);
     const [progressPhase, setProgressPhase] = useState<AnalyticsProgressResponse['phase']>('idle');
     const [error, setError] = useState<string | null>(null);
@@ -495,6 +503,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
 
     const fetchAnalytics = useCallback(async (force = false) => {
         fullDataArrivedRef.current = false;
+        setFullDataReady(false);
         const isPluginEnabled =
             pluginId === 'all'
                 ? enabledLogPlugins.length > 0
@@ -503,6 +512,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
             resetAnalyticsState();
             setIsLoading(false);
             setError(null);
+            setFullDataReady(true);
             return;
         }
 
@@ -521,6 +531,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
             if (cached) {
                 applyAnalyticsResult(cached);
                 fullDataArrivedRef.current = true;
+                setFullDataReady(true);
                 setError(null);
                 setIsLoading(false);
                 return;
@@ -547,6 +558,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
             if (res.success && res.result) {
                 applyAnalyticsResult(res.result);
                 fullDataArrivedRef.current = true;
+                setFullDataReady(true);
                 setCachedAnalytics(cacheKey, res.result);
             } else {
                 resetAnalyticsState();
@@ -610,25 +622,24 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
         }
     }, [pluginId, enabledLogPlugins, timeRange, customFrom, customTo]);
 
-    // Lazy per-tab loading: the DB-first quick preview + calendar fetch already cover the
-    // "Graphes" tab almost entirely (overview/timeseries/bandwidth/status trends come from
-    // log_daily_stats). Only "Peak hours" (non-live) needs the full raw-scan, so it's still
-    // fetched eagerly when landing on "Graphes". The "HTTP"/"Tops" tabs depend entirely on
-    // fields the rollup doesn't store (methods, bot detection, response time, virtual hosts,
-    // referrer/requested-files tables) — deferred until the user actually opens one of them,
-    // instead of forcing a full log scan on every page load regardless of what's viewed.
+    // Lazy loading, same rule for all 3 tabs: the DB-first quick preview + calendar fetch
+    // already cover almost everything ("Graphes": overview/timeseries/bandwidth/status trends;
+    // "HTTP"/"Tops": only their small top-4 panels). The full raw-scan fetch is deferred until
+    // the user actually lands on a tab that needs it, instead of firing on every page load
+    // regardless of what's viewed — including the default "Graphes" tab, whose only full-scan
+    // dependent widget is "Heures de pointe" (non-live mode; its "Live" toggle uses the
+    // calendar fetch instead and stays instant either way).
     useEffect(() => {
         hasRequestedFullDataRef.current = false;
         fetchQuickAnalytics();
-        if (activeTab === 'graphs') {
-            hasRequestedFullDataRef.current = true;
-            fetchAnalytics();
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [fetchQuickAnalytics, fetchAnalytics]);
+    }, [fetchQuickAnalytics]);
 
     useEffect(() => {
-        if (activeTab !== 'graphs' && !hasRequestedFullDataRef.current) {
+        if (isInitialMountRef.current) {
+            isInitialMountRef.current = false;
+            return;
+        }
+        if (!hasRequestedFullDataRef.current) {
             hasRequestedFullDataRef.current = true;
             fetchAnalytics();
         }
@@ -1084,7 +1095,10 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                             <button
                                 onClick={() => { fetchAnalytics(true); fetchCalendar(true); }}
                                 disabled={isLoading || isCalendarLoading}
-                                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-medium text-white shadow-lg shadow-emerald-900/20 transition-all duration-200 hover:shadow-emerald-900/30"
+                                title={!fullDataReady && !isLoading ? t('logAnalytics.refreshNeededTip') : t('logAnalytics.refreshTip')}
+                                className={`flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-medium text-white shadow-lg shadow-emerald-900/20 transition-all duration-200 hover:shadow-emerald-900/30 ${
+                                    !fullDataReady && !isLoading ? 'ring-2 ring-emerald-400/70 animate-pulse' : ''
+                                }`}
                             >
                                 <RefreshCw size={16} className={isLoading || isCalendarLoading ? 'animate-spin' : ''} />
                                 {t('logAnalytics.refresh')}
