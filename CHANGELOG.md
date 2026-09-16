@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed the Rybbit analytics tracking script entirely — its endpoints had gone silently dead (404), so it was just dead weight; nothing is loaded or tracked anymore.
 - Fail2ban: the remaining hardcoded French tooltips (sync status, Netfilter firewall checks, NPM log files list, and the "Bans" mini-card) are now fully translated when English is selected.
 - Settings → Analysis: new "Excluded IPs" field lets you exclude specific IPs (internal scanners, WAF, healthchecks) from all suspicious-activity checks (403/401, injection, brute-force), avoiding recurring false positives.
+- `/log-analytics` now shows an instant preview (KPIs, charts, top lists) from the daily rollup while the full scan is still loading, and a new "Live" button refreshes just today's data on demand instead of forcing a full raw-log scan.
 
 ### For developers
 
@@ -21,6 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - New `log_daily_stats` table + `server/services/logAnalyticsRollupService.ts`: persists a daily summary (count, unique IPs, bytes, status-code groups) per log-source plugin every 30 min, so long-term stats stop depending on raw log files still being present on disk. No retroactive backfill — accumulates going forward only. Not yet wired into `/log-analytics`; groundwork for the upcoming `LogAnalyticsPage` refactor.
 - Extracted `resolveLogSourcePluginIds()` in `logAnalyticsService.ts`, deduplicating plugin-filter logic previously copy-pasted in `getAllAnalytics`/`getCalendarAnalytics`.
 - Fixed a latent bug in `authService.ts`: the token-blacklist cleanup `setInterval` (every 10 min) was missing `.unref()`, so any process importing it transitively (e.g. a test reaching into the plugin manager) would hang indefinitely instead of exiting once its work was done.
+- `log_daily_stats` now also stores top-20 URLs/IPs/referers/user-agents as JSON per day, and the rollup cycle dropped from 30 to 15 min for fresher "today" data.
+- New `server/services/logAnalyticsHybridService.ts` (`getHybridAnalytics()`): DB-first read path for `/log-analytics`, serving from `log_daily_stats` for covered dates and automatically falling back to a raw-log scan (grouped into contiguous ranges) for dates the rollup doesn't cover yet; a `live` option re-scans today instead of trusting its up-to-15-min-stale rollup row. New route `GET /api/log-viewer/analytics/rollup`.
+- `LogAnalyticsPage.tsx`: wired onto the new hybrid read path via `fetchQuickAnalytics()`, with a `fullDataArrivedRef` guard preventing the fast preview from overwriting data once the full raw-scan fetch resolves.
 
 ## [0.14.2] - 2026-09-15
 
