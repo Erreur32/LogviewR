@@ -1643,10 +1643,20 @@ router.get('/analytics/rollup', async (req, res) => {
             res.json({ success: true, result: { ok: false, error: 'Invalid from/to date' } });
             return;
         }
+        // enumerateDays()/groupConsecutiveDays() in the hybrid service iterate the range
+        // day-by-day in memory with no cap of their own — reject absurdly wide ranges here
+        // instead of letting a single request build a multi-million-entry array.
+        const MAX_RANGE_DAYS = 400;
+        const rangeDays = (toDate.getTime() - fromDate.getTime()) / (24 * 60 * 60 * 1000);
+        if (rangeDays > MAX_RANGE_DAYS) {
+            res.json({ success: true, result: { ok: false, error: `Date range too wide (max ${MAX_RANGE_DAYS} days)` } });
+            return;
+        }
 
+        const parsedTopLimit = topLimit ? Number.parseInt(topLimit, 10) : undefined;
         const result = await getHybridAnalytics(pluginId, fromDate, toDate, {
             live: live === 'true' || live === '1',
-            topLimit: topLimit ? Number.parseInt(topLimit, 10) : undefined
+            topLimit: parsedTopLimit && parsedTopLimit > 0 ? parsedTopLimit : undefined
         });
         res.json({ success: true, result });
     } catch (error) {
