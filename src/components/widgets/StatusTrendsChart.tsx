@@ -60,7 +60,16 @@ export const StatusTrendsChart: React.FC<StatusTrendsChartProps> = ({
     const uid = useId().replaceAll(/:/g, '');
     const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
     const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
+    const [hiddenSeries, setHiddenSeries] = useState<Set<string>>(new Set());
     const svgRef = useRef<SVGSVGElement>(null);
+
+    const toggleSeries = (key: string) => {
+        setHiddenSeries((prev) => {
+            const next = new Set(prev);
+            if (next.has(key)) next.delete(key); else next.add(key);
+            return next;
+        });
+    };
 
     const hasData = useMemo(
         () => data.some((b) => b.statusGroups && (b.statusGroups.s2xx + b.statusGroups.s3xx + b.statusGroups.s4xx + b.statusGroups.s5xx) > 0),
@@ -74,14 +83,16 @@ export const StatusTrendsChart: React.FC<StatusTrendsChartProps> = ({
     const { areas, maxTotal } = useMemo(() => {
         if (n < 2) return { areas: [], maxTotal: 0 };
 
+        const visibleKeys = SERIES_CONFIG.filter((s) => !hiddenSeries.has(s.key));
         const totals = data.map((b) => {
             const g = b.statusGroups;
-            return g ? g.s2xx + g.s3xx + g.s4xx + g.s5xx : 0;
+            if (!g) return 0;
+            return visibleKeys.reduce((sum, s) => sum + g[s.key], 0);
         });
         const maxT = Math.max(...totals, 1);
 
         const baselines = new Array(n).fill(0);
-        const renderOrder = [...SERIES_CONFIG].reverse();
+        const renderOrder = [...visibleKeys].reverse();
         const result: { key: string; color: string; gradient: string[]; d: string }[] = [];
 
         for (const series of renderOrder) {
@@ -107,7 +118,7 @@ export const StatusTrendsChart: React.FC<StatusTrendsChartProps> = ({
         }
 
         return { areas: result, maxTotal: maxT };
-    }, [data, height, n]);
+    }, [data, height, n, hiddenSeries]);
 
     const xTickIndices = useMemo(() => {
         if (n < 2) return [];
@@ -145,18 +156,27 @@ export const StatusTrendsChart: React.FC<StatusTrendsChartProps> = ({
 
     const hoveredBucket = hoveredIdx != null ? data[hoveredIdx] : null;
     const hoveredTotal = hoveredBucket?.statusGroups
-        ? hoveredBucket.statusGroups.s2xx + hoveredBucket.statusGroups.s3xx + hoveredBucket.statusGroups.s4xx + hoveredBucket.statusGroups.s5xx
+        ? SERIES_CONFIG.reduce((sum, s) => sum + (hiddenSeries.has(s.key) ? 0 : hoveredBucket.statusGroups![s.key]), 0)
         : 0;
 
     return (
         <div>
             <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs mb-3">
-                {SERIES_CONFIG.map((s) => (
-                    <div key={s.key} className="flex items-center gap-1.5">
-                        <div className="w-2.5 h-2.5 rounded-full ring-1 ring-white/10" style={{ backgroundColor: s.color }} />
-                        <span className="text-gray-400">{seriesLabels[s.key]}</span>
-                    </div>
-                ))}
+                {SERIES_CONFIG.map((s) => {
+                    const isHidden = hiddenSeries.has(s.key);
+                    return (
+                        <button
+                            key={s.key}
+                            type="button"
+                            onClick={() => toggleSeries(s.key)}
+                            className={`flex items-center gap-1.5 select-none transition-opacity hover:opacity-80 ${isHidden ? 'opacity-40' : ''}`}
+                            title={isHidden ? `Afficher ${seriesLabels[s.key]}` : `Masquer ${seriesLabels[s.key]}`}
+                        >
+                            <div className="w-2.5 h-2.5 rounded-full ring-1 ring-white/10" style={{ backgroundColor: s.color }} />
+                            <span className={`text-gray-400 ${isHidden ? 'line-through' : ''}`}>{seriesLabels[s.key]}</span>
+                        </button>
+                    );
+                })}
             </div>
 
             <div className="relative">
@@ -286,7 +306,7 @@ export const StatusTrendsChart: React.FC<StatusTrendsChartProps> = ({
                             </span>
                         </div>
                         <div className="space-y-1">
-                            {hoveredBucket.statusGroups && SERIES_CONFIG.map((s) => {
+                            {hoveredBucket.statusGroups && SERIES_CONFIG.filter((s) => !hiddenSeries.has(s.key)).map((s) => {
                                 const val = hoveredBucket.statusGroups![s.key];
                                 const pct = hoveredTotal > 0 ? ((val / hoveredTotal) * 100).toFixed(1) : '0.0';
                                 return (
