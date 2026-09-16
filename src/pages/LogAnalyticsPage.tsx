@@ -6,7 +6,7 @@
  * and method/status distribution charts.
  */
 
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
     ChevronLeft,
@@ -27,7 +27,8 @@ import {
     Shield,
     Trophy,
     CheckCircle2,
-    XCircle
+    XCircle,
+    Zap
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../api/client';
@@ -80,6 +81,14 @@ function formatBytes(bytes: number): string {
     const sizes = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
+}
+
+/** Response shape of GET /api/log-viewer/analytics/rollup — see HybridAnalyticsResult server-side. */
+interface QuickAnalyticsResult {
+    overview: AnalyticsOverview;
+    timeseries: AnalyticsTimeseriesBucket[];
+    top: { urls: AnalyticsTopItem[]; ips: AnalyticsTopItem[]; referrer: AnalyticsTopItem[]; ua: AnalyticsTopItem[] };
+    coverage: { rollupDates: string[]; scannedDates: string[]; liveRefreshed: boolean };
 }
 
 interface AnalyticsProgressFile {
@@ -384,6 +393,12 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
 
     const [isLoading, setIsLoading] = useState(true);
     const [isCalendarLoading, setIsCalendarLoading] = useState(true);
+    /** DB-first preview (log_daily_stats rollup) shown instantly while the full scan below is in flight. */
+    const [quickCoverage, setQuickCoverage] = useState<QuickAnalyticsResult['coverage'] | null>(null);
+    const [isLiveRefreshing, setIsLiveRefreshing] = useState(false);
+    /** True once the current query's full scan result has been applied — guards against a late
+     *  quick-fetch response (network jitter) overwriting more complete full-scan data. */
+    const fullDataArrivedRef = useRef(false);
     const [progressFiles, setProgressFiles] = useState<AnalyticsProgressFile[]>([]);
     const [progressPhase, setProgressPhase] = useState<AnalyticsProgressResponse['phase']>('idle');
     const [error, setError] = useState<string | null>(null);
@@ -462,6 +477,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
     }, []);
 
     const fetchAnalytics = useCallback(async (force = false) => {
+        fullDataArrivedRef.current = false;
         const isPluginEnabled =
             pluginId === 'all'
                 ? enabledLogPlugins.length > 0
@@ -487,6 +503,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
             const cached = getCachedAnalytics(cacheKey);
             if (cached) {
                 applyAnalyticsResult(cached);
+                fullDataArrivedRef.current = true;
                 setError(null);
                 setIsLoading(false);
                 return;
@@ -512,6 +529,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
 
             if (res.success && res.result) {
                 applyAnalyticsResult(res.result);
+                fullDataArrivedRef.current = true;
                 setCachedAnalytics(cacheKey, res.result);
             } else {
                 resetAnalyticsState();
@@ -532,9 +550,53 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
         }
     }, [pluginId, enabledLogPlugins, timeRange, customFrom, customTo, fileScope, includeCompressed, t, resetAnalyticsState, applyAnalyticsResult]);
 
+    /**
+     * DB-first preview: reads `log_daily_stats` (instant) instead of re-parsing raw log files.
+     * Only covers overview/timeseries/top-urls-ips-referrer-ua (see QuickAnalyticsResult) — the
+     * full `fetchAnalytics` above remains the authoritative source and always overwrites this
+     * once it lands. `live=true` (the "Live" button) re-scans today instead of trusting its
+     * possibly-up-to-15-min-stale rollup row.
+     */
+    const fetchQuickAnalytics = useCallback(async (live = false) => {
+        const isPluginEnabled =
+            pluginId === 'all'
+                ? enabledLogPlugins.length > 0
+                : enabledLogPlugins.some((p) => p.id === pluginId);
+        if (!isPluginEnabled) return;
+
+        const { from, to } = resolveDateRange(timeRange, customFrom, customTo);
+        const pluginParam = `&pluginId=${encodeURIComponent(pluginId)}`;
+        const liveParam = live ? '&live=true' : '';
+
+        if (live) setIsLiveRefreshing(true);
+        try {
+            const res = await api.get<QuickAnalyticsResult>(
+                `/api/log-viewer/analytics/rollup?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}${pluginParam}${liveParam}`
+            );
+            if (res.success && res.result && Array.isArray(res.result.timeseries)) {
+                setQuickCoverage(res.result.coverage);
+                // Never clobber a full-scan result that already arrived (e.g. cache hit resolving
+                // before this network round-trip does) — this is only a fast preview.
+                if (!fullDataArrivedRef.current) {
+                    setOverview(res.result.overview);
+                    setTimeseries(res.result.timeseries);
+                    setTopUrls(res.result.top.urls);
+                    setTopIps(res.result.top.ips);
+                    setTopReferrers(res.result.top.referrer);
+                    setTopUserAgents(res.result.top.ua);
+                }
+            }
+        } catch {
+            /* silent — fetchAnalytics is the authoritative source, this is just a fast preview */
+        } finally {
+            if (live) setIsLiveRefreshing(false);
+        }
+    }, [pluginId, enabledLogPlugins, timeRange, customFrom, customTo]);
+
     useEffect(() => {
+        fetchQuickAnalytics();
         fetchAnalytics();
-    }, [fetchAnalytics]);
+    }, [fetchQuickAnalytics, fetchAnalytics]);
 
     // Poll progress while the main section is doing its first-ever load, so the user
     // sees which files are being scanned instead of a bare spinner.
@@ -963,6 +1025,15 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                             </label>
                             <div className="h-6 w-px bg-gray-700/60" aria-hidden />
                             <button
+                                onClick={() => fetchQuickAnalytics(true)}
+                                disabled={isLiveRefreshing}
+                                title={t('logAnalytics.liveRefreshTip')}
+                                className="flex items-center gap-2 px-3 py-2 bg-[#121212] hover:bg-gray-800 border border-gray-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-medium text-amber-300 transition-all duration-200"
+                            >
+                                <Zap size={16} className={isLiveRefreshing ? 'animate-pulse' : ''} />
+                                {t('logAnalytics.liveRefresh')}
+                            </button>
+                            <button
                                 onClick={() => { fetchAnalytics(true); fetchCalendar(true); }}
                                 disabled={isLoading || isCalendarLoading}
                                 className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-medium text-white shadow-lg shadow-emerald-900/20 transition-all duration-200 hover:shadow-emerald-900/30"
@@ -1058,6 +1129,18 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                             {statsKpiVisible ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
                                             {statsKpiVisible ? t('logAnalytics.statsKpiHide') : t('logAnalytics.statsKpiShow')}
                                         </button>
+                                    )}
+                                    {isLoading && overview !== null && quickCoverage && (
+                                        <span
+                                            className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] text-amber-300 bg-amber-500/10 border border-amber-500/30 cursor-help"
+                                            title={t('logAnalytics.quickPreviewTip', {
+                                                rollup: quickCoverage.rollupDates.length,
+                                                scanned: quickCoverage.scannedDates.length
+                                            })}
+                                        >
+                                            <Zap size={11} />
+                                            {t('logAnalytics.quickPreview')}
+                                        </span>
                                     )}
                                 </div>
                                 <div className="flex items-center gap-2">
