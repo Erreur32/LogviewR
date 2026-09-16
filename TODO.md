@@ -99,6 +99,13 @@ Raised 2026-09-16, not started. `LogTable.tsx` already receives a `fileSize` pro
 - [ ] Add the file size (reuse `formatFileSize(fileSize)`, same `fileSize` prop already in scope) next to the `t('logViewer.linesPerPage')` / `t('logViewer.linesTotal', ...)` span at `LogTable.tsx:1153`
 - [ ] Decide on separator/format consistent with the existing badge style at line ~1072, or a plain inline text to match the rest of that pagination row (unlike the header stats bar, this row isn't badge-styled)
 
+### 10. Optimize `particle-waves` animated background (perf)
+Raised 2026-09-16 after spotting recurring Chrome "[Violation] 'requestAnimationFrame' handler took Nms" warnings on `/log-analytics`. Root cause confirmed unrelated to log-analytics: `ParticleWavesCanvas` in `src/components/AnimatedBackground.tsx:698` (the "particle-waves" decorative background variant) recomputes a ~6400-point 3D grid (perspective projection) and re-sorts it by depth on every single frame, uncapped by `requestAnimationFrame`. Happens on any page where this background variant is active, not specific to log-analytics.
+
+- [ ] Reduce grid density (currently `distance = 5` over a ~400×400 field → ~6400 points every frame)
+- [ ] Avoid the full `Array.prototype.sort()` by depth every frame (e.g. only re-sort periodically, or skip depth-sorting since `globalCompositeOperation = 'screen'` is additive and mostly order-independent)
+- [ ] Not urgent, independent of the `/log-analytics` DB-first work — pick up whenever background-animation performance is worth revisiting
+
 ## Notes / non-blocking
 
 - **Fixed 2026-09-15**: `server/services/__tests__/logParserService.test.ts` used static imports for `connection.js`/`PluginConfig.js` after setting `DATABASE_PATH=':memory:'` — due to ESM import hoisting, the DB path froze to the real `data/dashboard.db` before the env var took effect, so `npm run test:run` was silently wiping the real `plugin_configs` table (Apache/NPM/etc configs) on every run. Fixed with the dynamic-`import()` pattern already used in `server/mcp/__tests__/*.test.ts`. **Any new test file touching `server/database/connection.ts` must use dynamic imports after the env assignment, never static ones.**
