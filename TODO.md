@@ -47,19 +47,17 @@ Code-side fix already shipped (explicit warning instead of silent "0 bans"). Roo
 
 ## Low priority / decisions needed
 
-### 7. Remove Rybbit analytics tracking — full ripout, in progress
-Raised 2026-09-15: `way.myoueb.fr` endpoints now 404 (`/api/track`, `/api/site/tracking-config/...`) — the injected script (`src/main.tsx:76-80`, confirmed still present) is dead weight.
+### 7. Remove Rybbit analytics tracking — DONE (2026-09-16)
+Raised 2026-09-15: `way.myoueb.fr` endpoints returned 404 (`/api/track`, `/api/site/tracking-config/...`) — the injected script was dead weight. Decision made 2026-09-15: full ripout, not just a runtime opt-out.
 
-Decision made (2026-09-15): **full ripout**, not just a runtime opt-out.
-
-- [x] Remove injection block in `src/main.tsx` (lines ~76-80)
+- [x] Remove injection block in `src/main.tsx` (was lines ~76-80)
 - [x] Clean up `Dockerfile` `ARG VITE_ANALYTICS_HOST`/`ARG VITE_ANALYTICS_SITE_ID` + `ENV` declarations
 - [x] Clean up `.github/workflows/docker-publish.yml` build-args
 - [x] Clean up `docker-compose.local.yml` build.args
 - [x] `npx tsc` (0 errors) + `npm run test:run` (74/74) after removal
-- [ ] Remove GitHub secrets `VITE_ANALYTICS_HOST`/`VITE_ANALYTICS_SITE_ID` (`gh secret delete`) — needs explicit confirmation before deleting
-- [ ] CHANGELOG.md entry — deferred by user (2026-09-15), do later
-- [ ] Commit these changes
+- [x] Code changes committed (`dff0976`, 2026-09-16, not yet pushed)
+- [x] Remove GitHub secrets `VITE_ANALYTICS_HOST`/`VITE_ANALYTICS_SITE_ID` — deleted 2026-09-16 with explicit user confirmation, verified gone via `gh secret list`
+- [x] CHANGELOG.md entry — added under `[0.14.3]` (2026-09-16), not yet committed, version not bumped via `scripts/update-version.sh` yet
 
 ### 8. Snyk Code (SAST) job disabled — to re-enable later
 `snyk-code` job in `.github/workflows/snyk.yml` has `if: false` (confirmed) — disabled 2026-09-14 because Snyk Code isn't enabled on the `erreur32` Snyk org/plan.
@@ -72,4 +70,3 @@ Decision made (2026-09-15): **full ripout**, not just a runtime opt-out.
 - **Fixed 2026-09-15**: `server/services/__tests__/logParserService.test.ts` used static imports for `connection.js`/`PluginConfig.js` after setting `DATABASE_PATH=':memory:'` — due to ESM import hoisting, the DB path froze to the real `data/dashboard.db` before the env var took effect, so `npm run test:run` was silently wiping the real `plugin_configs` table (Apache/NPM/etc configs) on every run. Fixed with the dynamic-`import()` pattern already used in `server/mcp/__tests__/*.test.ts`. **Any new test file touching `server/database/connection.ts` must use dynamic imports after the env assignment, never static ones.**
 - `HostSystemFilesManager.tsx` has intentionally duplicated types (`SystemBaseFileType`/`AutoDetectedFileType`) vs. `HostSystemLogPlugin.ts` — deliberate, not a bug, since no `src/` file imports from `server/`. Must be kept manually in sync if a new type (e.g. another fail2ban variant) is added server-side.
 - Manual browser test never run for the `host-system` fail2ban.log feature (columns `timestamp/level/jail/action/ip/message`, color badges Ban=red/Unban=green/Found=amber).
-- `setInterval` WAL checkpoint (`server/database/dbConfig.ts`) isn't `unref()`'d, which prevents `tsx --test` from exiting cleanly. Cosmetic, doesn't affect test validity.

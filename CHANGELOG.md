@@ -5,6 +5,20 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.3] - 2026-09-16
+
+### For users
+
+- Removed the Rybbit analytics tracking script entirely — its endpoints had gone silently dead (404), so it was just dead weight; nothing is loaded or tracked anymore.
+- Fail2ban: the remaining hardcoded French tooltips (sync status, Netfilter firewall checks, NPM log files list, and the "Bans" mini-card) are now fully translated when English is selected.
+- Settings → Analysis: new "Excluded IPs" field lets you exclude specific IPs (internal scanners, WAF, healthchecks) from all suspicious-activity checks (403/401, injection, brute-force), avoiding recurring false positives.
+
+### For developers
+
+- Removed `VITE_ANALYTICS_*` build-arg plumbing from `Dockerfile`, `.github/workflows/docker-publish.yml`, `docker-compose.local.yml`, and the injection block in `src/main.tsx`.
+- `server/config/errorAnalysisConfig.ts`: new `suspiciousIpAllowlist: string[]` field (sanitized, deduped, capped at 200 entries). `server/services/suspiciousActivityDetector.ts` now skips any log line whose IP is allowlisted before applying the 403/401, injection, or brute-force checks.
+- Fixed a test-isolation bug in `server/services/__tests__/logParserService.test.ts`: ESM import hoisting froze `connection.ts`'s DB path to the real dev database before the test's `DATABASE_PATH=':memory:'` override could run, so `npm run test:run` was silently wiping the real `plugin_configs` table. Switched to the dynamic-`import()` pattern already used in `server/mcp/__tests__/*.test.ts`.
+
 ## [0.14.2] - 2026-09-15
 
 ### For developers
