@@ -20,6 +20,7 @@ import { logger } from '../utils/logger.js';
 import { compileSafeRegex } from '../utils/safeRegex.js';
 import { AppConfigRepository } from '../database/models/AppConfig.js';
 import { requireAuth } from '../middleware/authMiddleware.js';
+import { resolveClientIp } from '../utils/clientIp.js';
 import { generateRegexFromLogLine } from '../services/regexGeneratorService.js';
 import { APACHE_ACCESS_VHOST_COMBINED_REGEX } from '../plugins/apache/ApacheParser.js';
 import { APACHE_REGEX_KEYS, getApacheRegexKeyForPath, NPM_REGEX_KEYS, getNpmRegexKeyForPath, NGINX_REGEX_KEYS, getNginxRegexKeyForPath } from '../services/logParserService.js';
@@ -56,6 +57,12 @@ const logViewerRateLimit = expressRateLimit({
     max: 150,
     standardHeaders: true,
     legacyHeaders: false,
+    // Keyed on resolveClientIp (proxy-aware, spoof-resistant), not the default req.ip, which
+    // inherits the app-wide permissive `trust proxy: true` setting (server/index.ts) — without
+    // this, an authenticated caller could evade their own rate limit by sending a fake
+    // X-Forwarded-For header. Same pattern as server/mcp/httpAuth.ts's mcpHttpRateLimit.
+    keyGenerator: (req) => resolveClientIp(req),
+    validate: { trustProxy: false },
     message: { success: false, error: { code: 'RATE_LIMITED', message: 'Too many requests' } }
 });
 router.use(logViewerRateLimit);
