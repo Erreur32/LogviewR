@@ -257,6 +257,12 @@ async function planFilesToScan(
     return planned;
 }
 
+function isWithinDateRange(ts: Date | null, dateFrom?: Date, dateTo?: Date): boolean {
+    if (dateFrom && ts && ts < dateFrom) return false;
+    if (dateTo && ts && ts > dateTo) return false;
+    return true;
+}
+
 /** Reads and parses a single planned file into access-log entries within [dateFrom, dateTo] (processing phase of collectParsedEntries). */
 async function parsePlannedFile(
     pluginId: string,
@@ -278,8 +284,7 @@ async function parsePlannedFile(
         if (!hasAccessFields(p)) continue;
 
         const ts = toDate(p.timestamp);
-        if (dateFrom && ts && ts < dateFrom) continue;
-        if (dateTo && ts && ts > dateTo) continue;
+        if (!isWithinDateRange(ts, dateFrom, dateTo)) continue;
 
         const ext = p as { host?: string; vhost?: string; protocol?: string; responseTime?: number };
         entries.push({

@@ -1024,11 +1024,14 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
     const showLoadingProgressBar = (isLoading || isLiveRefreshing) && !(isLoading && overview === null);
     const loadingDoneCount = progressFiles.filter((f) => f.status === 'done' || f.status === 'error').length;
     const loadingPct = progressFiles.length > 0 ? Math.round((loadingDoneCount / progressFiles.length) * 100) : null;
-    const loadingProgressLabel = isLiveRefreshing
-        ? t('logAnalytics.liveRefresh')
-        : progressPhase === 'aggregating'
-            ? t('logAnalytics.aggregatingResults')
-            : t('logAnalytics.scanningFiles');
+    let loadingProgressLabel: string;
+    if (isLiveRefreshing) {
+        loadingProgressLabel = t('logAnalytics.liveRefresh');
+    } else if (progressPhase === 'aggregating') {
+        loadingProgressLabel = t('logAnalytics.aggregatingResults');
+    } else {
+        loadingProgressLabel = t('logAnalytics.scanningFiles');
+    }
 
     return (
         <div className="min-h-screen text-gray-300 overflow-x-hidden">
