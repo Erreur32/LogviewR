@@ -4454,7 +4454,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                               value={suspiciousIpAllowlistDraft}
                               onChange={(e) => setSuspiciousIpAllowlistDraft(e.target.value)}
                               onBlur={() => {
-                                const parsed = [...new Set(
+                                const parsed: string[] = [...new Set(
                                   suspiciousIpAllowlistDraft
                                     .split(/[\n,]/)
                                     .map((ip) => ip.trim())

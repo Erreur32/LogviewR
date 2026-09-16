@@ -119,6 +119,39 @@ export function checkpointWAL(): void {
 }
 
 /**
+ * Daily rollup of log-analytics stats (count/unique IPs/bytes/status groups per plugin).
+ * Populated going forward by logAnalyticsRollupService; no retroactive backfill since
+ * raw log rotation already destroyed that history — this table exists to stop that from
+ * happening again for future days.
+ */
+function initializeLogDailyStatsTable(database: Database.Database): void {
+    database.exec(`CREATE TABLE IF NOT EXISTS log_daily_stats (
+        date         TEXT    NOT NULL,
+        plugin_id    TEXT    NOT NULL,
+        count        INTEGER NOT NULL DEFAULT 0,
+        unique_ips   INTEGER NOT NULL DEFAULT 0,
+        total_bytes  INTEGER NOT NULL DEFAULT 0,
+        status_2xx   INTEGER NOT NULL DEFAULT 0,
+        status_3xx   INTEGER NOT NULL DEFAULT 0,
+        status_4xx   INTEGER NOT NULL DEFAULT 0,
+        status_5xx   INTEGER NOT NULL DEFAULT 0,
+        status_other INTEGER NOT NULL DEFAULT 0,
+        updated_at   INTEGER NOT NULL DEFAULT (strftime('%s','now')),
+        PRIMARY KEY (date, plugin_id)
+    )`);
+    // Migration: top-20-per-category JSON columns ({key,count,percent}[]), added after the
+    // initial table so the Tops tab can be DB-first too, not just the KPI/graph widgets.
+    for (const col of ['top_urls', 'top_ips', 'top_referers', 'top_user_agents']) {
+        try { database.exec(`ALTER TABLE log_daily_stats ADD COLUMN ${col} TEXT NOT NULL DEFAULT '[]'`); } catch { /* already exists */ }
+    }
+    // Migration: status_404 (subset of status_4xx) and static_files, so the Overview KPI bar's
+    // "notFound"/"staticFiles" tiles can be served from the rollup too, matching computeOverview().
+    for (const col of ['status_404', 'static_files']) {
+        try { database.exec(`ALTER TABLE log_daily_stats ADD COLUMN ${col} INTEGER NOT NULL DEFAULT 0`); } catch { /* already exists */ }
+    }
+}
+
+/**
  * Initialize database schema (create tables if they don't exist)
  */
 export function initializeDatabase(): void {
@@ -450,34 +483,7 @@ export function initializeDatabase(): void {
         )
     `);
 
-    // Daily rollup of log-analytics stats (count/unique IPs/bytes/status groups per plugin).
-    // Populated going forward by logAnalyticsRollupService; no retroactive backfill since
-    // raw log rotation already destroyed that history — this table exists to stop that from
-    // happening again for future days.
-    database.exec(`CREATE TABLE IF NOT EXISTS log_daily_stats (
-        date         TEXT    NOT NULL,
-        plugin_id    TEXT    NOT NULL,
-        count        INTEGER NOT NULL DEFAULT 0,
-        unique_ips   INTEGER NOT NULL DEFAULT 0,
-        total_bytes  INTEGER NOT NULL DEFAULT 0,
-        status_2xx   INTEGER NOT NULL DEFAULT 0,
-        status_3xx   INTEGER NOT NULL DEFAULT 0,
-        status_4xx   INTEGER NOT NULL DEFAULT 0,
-        status_5xx   INTEGER NOT NULL DEFAULT 0,
-        status_other INTEGER NOT NULL DEFAULT 0,
-        updated_at   INTEGER NOT NULL DEFAULT (strftime('%s','now')),
-        PRIMARY KEY (date, plugin_id)
-    )`);
-    // Migration: top-20-per-category JSON columns ({key,count,percent}[]), added after the
-    // initial table so the Tops tab can be DB-first too, not just the KPI/graph widgets.
-    for (const col of ['top_urls', 'top_ips', 'top_referers', 'top_user_agents']) {
-        try { database.exec(`ALTER TABLE log_daily_stats ADD COLUMN ${col} TEXT NOT NULL DEFAULT '[]'`); } catch { /* already exists */ }
-    }
-    // Migration: status_404 (subset of status_4xx) and static_files, so the Overview KPI bar's
-    // "notFound"/"staticFiles" tiles can be served from the rollup too, matching computeOverview().
-    for (const col of ['status_404', 'static_files']) {
-        try { database.exec(`ALTER TABLE log_daily_stats ADD COLUMN ${col} INTEGER NOT NULL DEFAULT 0`); } catch { /* already exists */ }
-    }
+    initializeLogDailyStatsTable(database);
 
     // Create indexes for better performance
     database.exec(`

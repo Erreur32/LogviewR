@@ -166,7 +166,8 @@ function rotationFamilyKey(filePath: string): string {
  * setting. Round-robining each family's own rotations (newest first) guarantees every family
  * gets a fair share of the cap instead of all-or-nothing.
  */
-function selectFilesRoundRobin(files: LogFileInfo[], limit: number): LogFileInfo[] {
+/** Groups files by rotation family and sorts each family newest-first. */
+function groupFilesByFamily(files: LogFileInfo[]): LogFileInfo[][] {
     const families = new Map<string, LogFileInfo[]>();
     for (const f of files) {
         const key = rotationFamilyKey(f.path);
@@ -176,17 +177,19 @@ function selectFilesRoundRobin(files: LogFileInfo[], limit: number): LogFileInfo
     for (const arr of families.values()) {
         arr.sort((a, b) => (b.modified instanceof Date ? b.modified.getTime() : 0) - (a.modified instanceof Date ? a.modified.getTime() : 0));
     }
-    const familyArrays = Array.from(families.values());
+    return Array.from(families.values());
+}
+
+function selectFilesRoundRobin(files: LogFileInfo[], limit: number): LogFileInfo[] {
+    const familyArrays = groupFilesByFamily(files);
+    const maxRounds = Math.max(0, ...familyArrays.map((arr) => arr.length));
     const selected: LogFileInfo[] = [];
-    for (let round = 0; selected.length < limit; round++) {
-        let addedAny = false;
+    for (let round = 0; round < maxRounds && selected.length < limit; round++) {
         for (const arr of familyArrays) {
             if (round >= arr.length) continue;
             selected.push(arr[round]);
-            addedAny = true;
             if (selected.length >= limit) break;
         }
-        if (!addedAny) break;
     }
     return selected;
 }
@@ -208,25 +211,14 @@ function toDate(ts: Date | string | undefined): Date | null {
 export type FileScopeOption = 'latest' | 'all';
 export type IncludeCompressedOption = boolean;
 
-/**
- * Collect and parse access logs from plugin(s), then aggregate into analytics data.
- * - fileScope 'latest': only the most recent file per plugin (access.log or access.log.1)
- * - fileScope 'all': up to MAX_FILES_TOTAL files per plugin (includes rotated .1, .2, etc.)
- * - includeCompressed: when true and plugin has readCompressed enabled, include .gz/.bz2/.xz files
- */
-export async function collectParsedEntries(
-    pluginIds: string[],
-    dateFrom?: Date,
-    dateTo?: Date,
-    options?: { fileScope?: FileScopeOption; includeCompressed?: boolean; onProgress?: (event: LogAnalyticsProgressEvent) => void }
-): Promise<{ entries: ParsedAccessEntry[]; filesAnalyzed: number }> {
-    const allEntries: ParsedAccessEntry[] = [];
-    let filesAnalyzed = 0;
-    const fileScope = options?.fileScope ?? 'all';
-    const includeCompressed = options?.includeCompressed ?? false;
-    const onProgress = options?.onProgress;
+type PlannedFile = { pluginId: string; file: LogFileInfo; readCompressed: boolean };
 
-    type PlannedFile = { pluginId: string; file: LogFileInfo; readCompressed: boolean };
+/** Resolves, scans, and selects which files to read for each plugin (planning phase of collectParsedEntries). */
+async function planFilesToScan(
+    pluginIds: string[],
+    fileScope: FileScopeOption,
+    includeCompressed: boolean
+): Promise<PlannedFile[]> {
     const planned: PlannedFile[] = [];
 
     for (const pluginId of pluginIds) {
@@ -246,11 +238,13 @@ export async function collectParsedEntries(
                 (f) => (f.type || 'access') === 'access' && (canReadCompressed || !isCompressedFile(f.path))
             );
             const perPluginLimit = Math.ceil(MAX_FILES_TOTAL / pluginIds.length);
-            const accessFiles = fileScope === 'latest'
-                ? matchedFiles
-                    .sort((a, b) => (b.modified instanceof Date ? b.modified.getTime() : 0) - (a.modified instanceof Date ? a.modified.getTime() : 0))
-                    .slice(0, 1)
-                : selectFilesRoundRobin(matchedFiles, perPluginLimit);
+            let accessFiles: LogFileInfo[];
+            if (fileScope === 'latest') {
+                matchedFiles.sort((a, b) => (b.modified instanceof Date ? b.modified.getTime() : 0) - (a.modified instanceof Date ? a.modified.getTime() : 0));
+                accessFiles = matchedFiles.slice(0, 1);
+            } else {
+                accessFiles = selectFilesRoundRobin(matchedFiles, perPluginLimit);
+            }
 
             for (const file of accessFiles) {
                 planned.push({ pluginId, file, readCompressed });
@@ -259,6 +253,71 @@ export async function collectParsedEntries(
             logger.warn('LogAnalytics', `Failed to scan plugin ${pluginId}:`, err);
         }
     }
+
+    return planned;
+}
+
+/** Reads and parses a single planned file into access-log entries within [dateFrom, dateTo] (processing phase of collectParsedEntries). */
+async function parsePlannedFile(
+    pluginId: string,
+    file: LogFileInfo,
+    readCompressed: boolean,
+    tailCap: number,
+    dateFrom?: Date,
+    dateTo?: Date
+): Promise<ParsedAccessEntry[]> {
+    const entries: ParsedAccessEntry[] = [];
+    const lines = await logReaderService.readLastLines(file.path, tailCap, {
+        readCompressed: readCompressed && isCompressedFile(file.path)
+    });
+
+    for (const logLine of lines) {
+        const parsed = logParserService.parseLogLine(pluginId, logLine.line, 'access', file.path);
+        if (!parsed) continue;
+        const p = parsed as ParsedAccessEntry;
+        if (!hasAccessFields(p)) continue;
+
+        const ts = toDate(p.timestamp);
+        if (dateFrom && ts && ts < dateFrom) continue;
+        if (dateTo && ts && ts > dateTo) continue;
+
+        const ext = p as { host?: string; vhost?: string; protocol?: string; responseTime?: number };
+        entries.push({
+            ip: p.ip,
+            status: p.status,
+            size: typeof p.size === 'number' ? p.size : 0,
+            url: p.url,
+            userAgent: p.userAgent,
+            referer: p.referer,
+            method: p.method,
+            host: ext.host ?? ext.vhost,
+            protocol: ext.protocol,
+            timestamp: p.timestamp,
+            responseTime: typeof ext.responseTime === 'number' ? ext.responseTime : undefined
+        });
+    }
+    return entries;
+}
+
+/**
+ * Collect and parse access logs from plugin(s), then aggregate into analytics data.
+ * - fileScope 'latest': only the most recent file per plugin (access.log or access.log.1)
+ * - fileScope 'all': up to MAX_FILES_TOTAL files per plugin (includes rotated .1, .2, etc.)
+ * - includeCompressed: when true and plugin has readCompressed enabled, include .gz/.bz2/.xz files
+ */
+export async function collectParsedEntries(
+    pluginIds: string[],
+    dateFrom?: Date,
+    dateTo?: Date,
+    options?: { fileScope?: FileScopeOption; includeCompressed?: boolean; onProgress?: (event: LogAnalyticsProgressEvent) => void }
+): Promise<{ entries: ParsedAccessEntry[]; filesAnalyzed: number }> {
+    const allEntries: ParsedAccessEntry[] = [];
+    let filesAnalyzed = 0;
+    const fileScope = options?.fileScope ?? 'all';
+    const includeCompressed = options?.includeCompressed ?? false;
+    const onProgress = options?.onProgress;
+
+    const planned = await planFilesToScan(pluginIds, fileScope, includeCompressed);
 
     // Process smallest files first across all plugins: cheap files finish fast so the
     // progress UI fills up quickly instead of stalling on the very first large file.
@@ -281,39 +340,10 @@ export async function collectParsedEntries(
         const fileName = file.path.split('/').pop() ?? file.path;
         try {
             onProgress?.({ type: 'update', pluginId, fileName, status: 'reading' });
-
             // Tail from the end of the file: recent entries come first, which matches
             // how users think of "7d of logs" (the last 7 days, not the first 5000 lines).
-            const lines = await logReaderService.readLastLines(file.path, tailCap, {
-                readCompressed: readCompressed && isCompressedFile(file.path)
-            });
-
-            for (const logLine of lines) {
-                const parsed = logParserService.parseLogLine(pluginId, logLine.line, 'access', file.path);
-                if (!parsed) continue;
-                const p = parsed as ParsedAccessEntry;
-                if (!hasAccessFields(p)) continue;
-
-                const ts = toDate(p.timestamp);
-                if (dateFrom && ts && ts < dateFrom) continue;
-                if (dateTo && ts && ts > dateTo) continue;
-
-                const ext = p as { host?: string; vhost?: string; protocol?: string; responseTime?: number };
-                allEntries.push({
-                    ip: p.ip,
-                    status: p.status,
-                    size: typeof p.size === 'number' ? p.size : 0,
-                    url: p.url,
-                    userAgent: p.userAgent,
-                    referer: p.referer,
-                    method: p.method,
-                    host: ext.host ?? ext.vhost,
-                    protocol: ext.protocol,
-                    timestamp: p.timestamp,
-                    responseTime: typeof ext.responseTime === 'number' ? ext.responseTime : undefined
-                });
-            }
-
+            const entries = await parsePlannedFile(pluginId, file, readCompressed, tailCap, dateFrom, dateTo);
+            allEntries.push(...entries);
             filesAnalyzed++;
             onProgress?.({ type: 'update', pluginId, fileName, status: 'done' });
         } catch (err) {

@@ -64,7 +64,7 @@ function enumerateDays(fromDate: Date, toDate: Date): string[] {
 /** Groups a sorted-or-unsorted list of day labels into contiguous [start, end] ranges. */
 function groupConsecutiveDays(days: string[]): { start: string; end: string }[] {
     if (days.length === 0) return [];
-    const sorted = [...days].sort();
+    const sorted = [...days].sort((a, b) => a.localeCompare(b));
     const ranges: { start: string; end: string }[] = [];
     let rangeStart = sorted[0];
     let prev = sorted[0];
@@ -125,7 +125,7 @@ export async function getHybridAnalytics(
         };
     }
 
-    const rows = LogAnalyticsRollupService.getDailyStats(pluginId, requestedDays[0], requestedDays[requestedDays.length - 1]);
+    const rows = LogAnalyticsRollupService.getDailyStats(pluginId, requestedDays[0], requestedDays.at(-1)!);
     const rowsByDate = new Map<string, DailyStatsRow[]>();
     for (const row of rows) {
         const arr = rowsByDate.get(row.date);

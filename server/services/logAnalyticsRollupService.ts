@@ -61,6 +61,17 @@ function dayBounds(daysAgo: number): { start: Date; end: Date; label: string } {
     return { start, end, label: start.toISOString().slice(0, 10) };
 }
 
+type StatusBucket = 'status2xx' | 'status3xx' | 'status4xx' | 'status5xx' | 'statusOther';
+
+function statusBucket(status: number | undefined): StatusBucket {
+    if (status === undefined) return 'statusOther';
+    if (status >= 200 && status < 300) return 'status2xx';
+    if (status >= 300 && status < 400) return 'status3xx';
+    if (status >= 400 && status < 500) return 'status4xx';
+    if (status >= 500 && status < 600) return 'status5xx';
+    return 'statusOther';
+}
+
 export function aggregateEntries(entries: ParsedAccessEntry[]): DailyStatsAggregate {
     const agg: DailyStatsAggregate = {
         count: 0, uniqueIps: 0, totalBytes: 0,
@@ -76,16 +87,9 @@ export function aggregateEntries(entries: ParsedAccessEntry[]): DailyStatsAggreg
         if (typeof e.size === 'number') agg.totalBytes += e.size;
         if (isStaticFileUrl(e.url)) agg.staticFiles++;
 
-        const status = e.status;
-        if (status === undefined) { agg.statusOther++; }
-        else if (status >= 200 && status < 300) agg.status2xx++;
-        else if (status >= 300 && status < 400) agg.status3xx++;
-        else if (status >= 400 && status < 500) {
-            agg.status4xx++;
-            if (status === 404) agg.status404++;
-        }
-        else if (status >= 500 && status < 600) agg.status5xx++;
-        else agg.statusOther++;
+        const bucket = statusBucket(e.status);
+        agg[bucket]++;
+        if (bucket === 'status4xx' && e.status === 404) agg.status404++;
     }
 
     agg.uniqueIps = ips.size;

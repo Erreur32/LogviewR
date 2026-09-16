@@ -97,8 +97,8 @@ export const DonutChart: React.FC<DonutChartProps> = ({
                 )}
             </div>
             <div className="space-y-3 flex-1 min-w-0">
-                {arcs.map((arc, i) => (
-                    <div key={i} className="min-w-0">
+                {arcs.map((arc) => (
+                    <div key={arc.label} className="min-w-0">
                         <div className="flex items-center gap-2 mb-1">
                             <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: arc.color, boxShadow: `0 0 6px ${arc.color}80` }} />
                             <span className="text-sm text-gray-300 truncate">{arc.label}</span>

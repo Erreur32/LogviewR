@@ -366,6 +366,95 @@ const TopPanel: React.FC<{
     );
 };
 
+/** Empty-state placeholder that distinguishes "still fetching" from "genuinely no data" — avoids a confusing flash of "no data" while the full scan is still in flight (e.g. HTTP/Tops tab sections not covered by the DB-first quick preview). */
+const NoDataOrLoading: React.FC<{ loading?: boolean }> = ({ loading }) => {
+    const { t } = useTranslation();
+    return (
+        <div className="h-32 flex flex-col items-center justify-center gap-2 text-gray-500 text-sm">
+            {loading ? (
+                <>
+                    <Loader2 size={18} className="text-emerald-500/60 animate-spin" />
+                    <span>{t('logAnalytics.loadingData')}</span>
+                </>
+            ) : (
+                t('logAnalytics.noData')
+            )}
+        </div>
+    );
+};
+
+/** Badge color by HTTP method — matches the palette used for status codes elsewhere on the page. */
+function getMethodColor(method: string): string {
+    switch (method.toUpperCase()) {
+        case 'GET': return 'text-sky-300 bg-sky-500/10 border-sky-500/30';
+        case 'POST': return 'text-emerald-300 bg-emerald-500/10 border-emerald-500/30';
+        case 'PUT':
+        case 'PATCH': return 'text-amber-300 bg-amber-500/10 border-amber-500/30';
+        case 'DELETE': return 'text-red-300 bg-red-500/10 border-red-500/30';
+        default: return 'text-gray-400 bg-gray-500/10 border-gray-500/30';
+    }
+}
+
+const RequestedFileTableRow: React.FC<{
+    item: AnalyticsTopUrlItem;
+    formatBytes: (bytes: number) => string;
+    idx: number;
+}> = ({ item, formatBytes, idx }) => {
+    const [hovered, setHovered] = useState(false);
+    const [tooltipRect, setTooltipRect] = useState<DOMRect | null>(null);
+    return (
+        <tr
+            className={`border-t border-gray-800/60 hover:bg-white/[0.03] transition-colors ${idx % 2 === 1 ? 'bg-white/[0.015]' : ''}`}
+            onMouseEnter={(e) => {
+                setHovered(true);
+                setTooltipRect(e.currentTarget.getBoundingClientRect());
+            }}
+            onMouseLeave={() => {
+                setHovered(false);
+                setTooltipRect(null);
+            }}
+        >
+            <td className="py-1.5 min-w-[200px] max-w-[500px] relative">
+                <div className="flex items-center gap-2 min-w-0">
+                    <RankBadge rank={idx} />
+                    <div className="font-mono text-[13px] text-gray-300 truncate">{item.key}</div>
+                </div>
+                {hovered && tooltipRect && createPortal(
+                    <div
+                        className="fixed z-[99999] px-3 py-2.5 border border-gray-700 rounded-lg shadow-xl text-sm pointer-events-none"
+                        style={{
+                            left: tooltipRect.left,
+                            top: tooltipRect.bottom + 4,
+                            backgroundColor: 'rgb(17, 24, 39)'
+                        }}
+                    >
+                        <div className="font-medium text-white break-all mb-1.5">{item.key}</div>
+                        <div className="text-gray-300">Hits: {item.count}</div>
+                        <div className="text-emerald-600">Visitors: {item.uniqueVisitors}</div>
+                        {item.txAmount != null && item.txAmount > 0 && (
+                            <div className="text-purple-300 mt-0.5">Traffic: {formatBytes(item.txAmount)}</div>
+                        )}
+                    </div>,
+                    document.body
+                )}
+            </td>
+            <td className="py-1.5 text-right text-white font-semibold tabular-nums">{item.count.toLocaleString()}</td>
+            <td className="py-1.5 text-right text-emerald-400 tabular-nums">{item.uniqueVisitors.toLocaleString()}</td>
+            <td className="py-1.5 text-right text-purple-300 tabular-nums">{formatBytes(item.txAmount ?? 0)}</td>
+            <td className="py-1.5 text-center">
+                {item.method ? (
+                    <span className={`inline-block px-1.5 py-0.5 rounded border text-[11px] font-mono font-medium ${getMethodColor(item.method)}`}>
+                        {item.method}
+                    </span>
+                ) : (
+                    <span className="text-gray-600">-</span>
+                )}
+            </td>
+            <td className="py-1.5 text-center text-gray-400 font-mono text-xs">{item.protocol ?? '-'}</td>
+        </tr>
+    );
+};
+
 // Note: cognitive complexity ≈37 (Sonar threshold 15). Extracting each tab
 // (Graphs / HTTP / Tops) into its own component is the planned refactor.
 export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) => {
@@ -863,94 +952,8 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
         }
     };
 
-    /** Badge color by HTTP method — matches the palette used for status codes elsewhere on the page. */
-    const getMethodColor = (method: string): string => {
-        switch (method.toUpperCase()) {
-            case 'GET': return 'text-sky-300 bg-sky-500/10 border-sky-500/30';
-            case 'POST': return 'text-emerald-300 bg-emerald-500/10 border-emerald-500/30';
-            case 'PUT':
-            case 'PATCH': return 'text-amber-300 bg-amber-500/10 border-amber-500/30';
-            case 'DELETE': return 'text-red-300 bg-red-500/10 border-red-500/30';
-            default: return 'text-gray-400 bg-gray-500/10 border-gray-500/30';
-        }
-    };
-
-    const RequestedFileTableRow: React.FC<{
-        item: AnalyticsTopUrlItem;
-        formatBytes: (bytes: number) => string;
-        idx: number;
-    }> = ({ item, formatBytes, idx }) => {
-        const [hovered, setHovered] = useState(false);
-        const [tooltipRect, setTooltipRect] = useState<DOMRect | null>(null);
-        return (
-            <tr
-                className={`border-t border-gray-800/60 hover:bg-white/[0.03] transition-colors ${idx % 2 === 1 ? 'bg-white/[0.015]' : ''}`}
-                onMouseEnter={(e) => {
-                    setHovered(true);
-                    setTooltipRect(e.currentTarget.getBoundingClientRect());
-                }}
-                onMouseLeave={() => {
-                    setHovered(false);
-                    setTooltipRect(null);
-                }}
-            >
-                <td className="py-1.5 min-w-[200px] max-w-[500px] relative">
-                    <div className="flex items-center gap-2 min-w-0">
-                        <RankBadge rank={idx} />
-                        <div className="font-mono text-[13px] text-gray-300 truncate">{item.key}</div>
-                    </div>
-                    {hovered && tooltipRect && createPortal(
-                        <div
-                            className="fixed z-[99999] px-3 py-2.5 border border-gray-700 rounded-lg shadow-xl text-sm pointer-events-none"
-                            style={{
-                                left: tooltipRect.left,
-                                top: tooltipRect.bottom + 4,
-                                backgroundColor: 'rgb(17, 24, 39)'
-                            }}
-                        >
-                            <div className="font-medium text-white break-all mb-1.5">{item.key}</div>
-                            <div className="text-gray-300">Hits: {item.count}</div>
-                            <div className="text-emerald-600">Visitors: {item.uniqueVisitors}</div>
-                            {item.txAmount != null && item.txAmount > 0 && (
-                                <div className="text-purple-300 mt-0.5">Traffic: {formatBytes(item.txAmount)}</div>
-                            )}
-                        </div>,
-                        document.body
-                    )}
-                </td>
-                <td className="py-1.5 text-right text-white font-semibold tabular-nums">{item.count.toLocaleString()}</td>
-                <td className="py-1.5 text-right text-emerald-400 tabular-nums">{item.uniqueVisitors.toLocaleString()}</td>
-                <td className="py-1.5 text-right text-purple-300 tabular-nums">{formatBytes(item.txAmount ?? 0)}</td>
-                <td className="py-1.5 text-center">
-                    {item.method ? (
-                        <span className={`inline-block px-1.5 py-0.5 rounded border text-[11px] font-mono font-medium ${getMethodColor(item.method)}`}>
-                            {item.method}
-                        </span>
-                    ) : (
-                        <span className="text-gray-600">-</span>
-                    )}
-                </td>
-                <td className="py-1.5 text-center text-gray-400 font-mono text-xs">{item.protocol ?? '-'}</td>
-            </tr>
-        );
-    };
-
     /** Same "still fetching" vs "genuinely no data" distinction as NoDataOrLoading below, for chart widgets that take a plain `noDataText` string prop instead of a component. */
     const noDataOrLoadingText = (loading: boolean): string => (loading ? t('logAnalytics.loadingData') : t('logAnalytics.noData'));
-
-    /** Empty-state placeholder that distinguishes "still fetching" from "genuinely no data" — avoids a confusing flash of "no data" while the full scan is still in flight (e.g. HTTP/Tops tab sections not covered by the DB-first quick preview). */
-    const NoDataOrLoading: React.FC = () => (
-        <div className="h-32 flex flex-col items-center justify-center gap-2 text-gray-500 text-sm">
-            {isLoading ? (
-                <>
-                    <Loader2 size={18} className="text-emerald-500/60 animate-spin" />
-                    <span>{t('logAnalytics.loadingData')}</span>
-                </>
-            ) : (
-                t('logAnalytics.noData')
-            )}
-        </div>
-    );
 
     /** Softer, less vivid colors for HTTP status bars. */
     const getStatusColor = (key: string): string => {
@@ -981,7 +984,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
             <div className="bg-[#121212] rounded-xl border border-gray-800 p-6">
                 <h3 className="text-lg font-semibold text-white mb-4">{title}</h3>
                 {items.length === 0 ? (
-                    <NoDataOrLoading />
+                    <NoDataOrLoading loading={isLoading} />
                 ) : (
                     <div className="space-y-2.5">
                         {items.slice(0, 12).map((item, idx) => (
@@ -1021,6 +1024,11 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
     const showLoadingProgressBar = (isLoading || isLiveRefreshing) && !(isLoading && overview === null);
     const loadingDoneCount = progressFiles.filter((f) => f.status === 'done' || f.status === 'error').length;
     const loadingPct = progressFiles.length > 0 ? Math.round((loadingDoneCount / progressFiles.length) * 100) : null;
+    const loadingProgressLabel = isLiveRefreshing
+        ? t('logAnalytics.liveRefresh')
+        : progressPhase === 'aggregating'
+            ? t('logAnalytics.aggregatingResults')
+            : t('logAnalytics.scanningFiles');
 
     return (
         <div className="min-h-screen text-gray-300 overflow-x-hidden">
@@ -1168,13 +1176,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                 <div className="max-w-[1920px] mx-auto px-4 md:px-6 pt-3">
                     <div className="flex items-center gap-2 text-[11px] text-gray-500 mb-1">
                         <Loader2 size={12} className="animate-spin text-emerald-500 shrink-0" />
-                        <span className="truncate">
-                            {isLiveRefreshing
-                                ? t('logAnalytics.liveRefresh')
-                                : progressPhase === 'aggregating'
-                                    ? t('logAnalytics.aggregatingResults')
-                                    : t('logAnalytics.scanningFiles')}
-                        </span>
+                        <span className="truncate">{loadingProgressLabel}</span>
                         {loadingPct != null && <span className="ml-auto tabular-nums shrink-0">{loadingPct}%</span>}
                     </div>
                     <div className="h-1 bg-gray-800/60 rounded-full overflow-hidden">
@@ -1376,7 +1378,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                         showGrid
                                     />
                                 ) : (
-                                    <NoDataOrLoading />
+                                    <NoDataOrLoading loading={isLoading} />
                                 )}
                             </div>
                             <div id="section-unique-visitors" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
@@ -1396,7 +1398,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                         showGrid
                                     />
                                 ) : (
-                                    <NoDataOrLoading />
+                                    <NoDataOrLoading loading={isLoading} />
                                 )}
                             </div>
                         </div>
@@ -1563,7 +1565,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                     />
                                 </div>
                             ) : (
-                                <NoDataOrLoading />
+                                <NoDataOrLoading loading={isLoading} />
                             )}
                         </div>
 
@@ -1594,7 +1596,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                         {isLoading && !botVsHuman ? (
                             <div id="section-bot-detection" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
                                 <SectionHeading {...headingCommon}>{t('logAnalytics.botDetectionTitle')}</SectionHeading>
-                                <NoDataOrLoading />
+                                <NoDataOrLoading loading={isLoading} />
                             </div>
                         ) : botVsHuman && (botVsHuman.bots > 0 || botVsHuman.humans > 0) && (
                             <div id="section-bot-detection" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
@@ -1616,7 +1618,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                             <div className="space-y-1 max-h-48 overflow-y-auto -mx-1.5">
                                                 {botVsHuman.topBots.map((bot, idx) => (
                                                     <div
-                                                        key={idx}
+                                                        key={bot.key}
                                                         className="flex items-center gap-2 text-sm px-1.5 py-1 rounded-md border-l-2 border-transparent hover:border-gray-500/70 hover:bg-white/[0.03] transition-colors"
                                                     >
                                                         <RankBadge rank={idx} />
@@ -1646,7 +1648,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                             tableLayout
                                         />
                                     ) : (
-                                        <NoDataOrLoading />
+                                        <NoDataOrLoading loading={isLoading} />
                                     )}
                                 </div>
                                 <div>
@@ -1727,7 +1729,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                         {isLoading && notFoundUrls.length === 0 ? (
                             <div id="section-top404" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
                                 <SectionHeading {...headingCommon}>{t('logAnalytics.top404Title')}</SectionHeading>
-                                <NoDataOrLoading />
+                                <NoDataOrLoading loading={isLoading} />
                             </div>
                         ) : notFoundUrls.length > 0 && (
                             <div id="section-top404" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
@@ -1746,7 +1748,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                         {isLoading && !responseTimeDist ? (
                             <div id="section-response-time" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
                                 <SectionHeading {...headingCommon}>{t('logAnalytics.responseTimeTitle')}</SectionHeading>
-                                <NoDataOrLoading />
+                                <NoDataOrLoading loading={isLoading} />
                             </div>
                         ) : responseTimeDist && (
                             <div id="section-response-time" className="bg-[#121212] rounded-xl border border-gray-800 p-6 scroll-mt-24">
@@ -1782,7 +1784,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                         tableLayout
                                     />
                                 ) : (
-                                    <NoDataOrLoading />
+                                    <NoDataOrLoading loading={isLoading} />
                                 )}
                             </div>
                             <div id="section-virtual-hosts" className="bg-[#121212] rounded-xl border border-gray-800 p-6">
@@ -1796,7 +1798,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                         tableLayout
                                     />
                                 ) : (
-                                    <NoDataOrLoading />
+                                    <NoDataOrLoading loading={isLoading} />
                                 )}
                             </div>
                         </div>
@@ -1813,7 +1815,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                     tableLayout
                                 />
                             ) : (
-                                <NoDataOrLoading />
+                                <NoDataOrLoading loading={isLoading} />
                             )}
                         </div>
 
@@ -1846,7 +1848,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                     </table>
                                 </div>
                             ) : (
-                                <NoDataOrLoading />
+                                <NoDataOrLoading loading={isLoading} />
                             )}
                         </div>
 
