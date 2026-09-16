@@ -670,7 +670,10 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
             })
             .catch(() => {});
     }, []);
-    usePolling(pollProgress, { enabled: isLoading && overview === null, interval: 800 });
+    // Also polled (not just on the very first load) so the compact progress bar can reflect
+    // "Refresh" and "Live" button activity too — collectParsedEntries() updates the same
+    // server-side progress tracker regardless of which endpoint triggered the scan.
+    usePolling(pollProgress, { enabled: isLoading || isLiveRefreshing, interval: 800 });
 
     /**
      * Calendar heatmap + day-of-week chart use a fixed 12-month sliding window,
@@ -1151,6 +1154,32 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                     </div>
                 </div>
             </header>
+
+            {(isLoading || isLiveRefreshing) && !(isLoading && overview === null) && (() => {
+                const doneCount = progressFiles.filter((f) => f.status === 'done' || f.status === 'error').length;
+                const pct = progressFiles.length > 0 ? Math.round((doneCount / progressFiles.length) * 100) : null;
+                return (
+                    <div className="max-w-[1920px] mx-auto px-4 md:px-6 pt-3">
+                        <div className="flex items-center gap-2 text-[11px] text-gray-500 mb-1">
+                            <Loader2 size={12} className="animate-spin text-emerald-500 shrink-0" />
+                            <span className="truncate">
+                                {isLiveRefreshing
+                                    ? t('logAnalytics.liveRefresh')
+                                    : progressPhase === 'aggregating'
+                                        ? t('logAnalytics.aggregatingResults')
+                                        : t('logAnalytics.scanningFiles')}
+                            </span>
+                            {pct != null && <span className="ml-auto tabular-nums shrink-0">{pct}%</span>}
+                        </div>
+                        <div className="h-1 bg-gray-800/60 rounded-full overflow-hidden">
+                            <div
+                                className={`h-full bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-full transition-[width] duration-300 ${pct == null ? 'animate-pulse w-1/3' : ''}`}
+                                style={pct != null ? { width: `${pct}%` } : undefined}
+                            />
+                        </div>
+                    </div>
+                );
+            })()}
 
             <div className="p-4 md:p-6 max-w-[1920px] mx-auto space-y-6">
                 {error && (
