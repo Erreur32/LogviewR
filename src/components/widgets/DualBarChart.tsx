@@ -8,6 +8,13 @@
 
 import React, { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { RankBadge } from './RankBadge';
+
+/** Blends a 6-digit hex color into a 2-stop gradient string, for a bit more depth than a flat fill. */
+function barGradient(hex: string): string {
+    const clean = /^#[0-9a-fA-F]{6}$/.test(hex) ? hex : '#6b7280';
+    return `linear-gradient(90deg, ${clean}99, ${clean})`;
+}
 
 export interface DualBarItem {
     key: string;
@@ -130,7 +137,9 @@ export const DualBarChart: React.FC<DualBarChartProps> = ({
                 return (
                     <div
                         key={item.key}
-                        className={`flex items-center gap-4 group relative ${tableLayout ? 'table-row-like' : ''}`}
+                        className={`flex items-center gap-3 group relative rounded-md px-1.5 py-1 -mx-1.5 border-l-2 border-transparent transition-colors duration-150 ${
+                            isHovered ? 'bg-white/[0.03] border-emerald-500/70' : ''
+                        } ${tableLayout ? 'table-row-like' : ''}`}
                         onMouseEnter={(e) => {
                             setHoveredKey(item.key);
                             setTooltipRect(e.currentTarget.getBoundingClientRect());
@@ -140,8 +149,9 @@ export const DualBarChart: React.FC<DualBarChartProps> = ({
                             setTooltipRect(null);
                         }}
                     >
+                        <RankBadge rank={idx} />
                         <span
-                            className="text-sm text-gray-400 truncate text-left shrink-0"
+                            className="text-[13px] font-mono text-gray-400 group-hover:text-gray-200 truncate text-left shrink-0 transition-colors"
                             style={
                                 tableLayout
                                     ? { width: labelWidth ?? Math.min(maxKeyLength * 7, 220) }
@@ -155,23 +165,23 @@ export const DualBarChart: React.FC<DualBarChartProps> = ({
                             {/* hits: bar + external value on the right (value is always fully readable) */}
                             <div className="flex items-center gap-2 flex-1 min-w-0">
                                 <div
-                                    className="h-5 rounded overflow-hidden border border-gray-700/40 flex-1 min-w-0 bg-gray-800/30"
+                                    className="h-4 rounded-full overflow-hidden flex-1 min-w-0 bg-gray-800/50"
                                     title={`${hitsLabel}: ${item.count.toLocaleString()}`}
                                 >
                                     <div
-                                        className="h-full rounded-l transition-opacity origin-left"
+                                        className="h-full rounded-full transition-[width,opacity] origin-left"
                                         style={{
                                             width: `${countPct}%`,
                                             minWidth: item.count > 0 ? 3 : 0,
-                                            backgroundColor: getColor(item.key),
-                                            opacity: isHovered ? 1 : 0.9,
+                                            background: barGradient(getColor(item.key)),
+                                            opacity: isHovered ? 1 : 0.88,
                                             animation: 'barGrow 0.5s ease-out forwards',
                                             animationDelay: `${idx * 40}ms`
                                         }}
                                     />
                                 </div>
                                 <span
-                                    className="text-xs font-medium text-white tabular-nums shrink-0 text-right"
+                                    className="text-xs font-semibold text-white tabular-nums shrink-0 text-right"
                                     style={{ minWidth: 56 }}
                                 >
                                     {item.count > 0 ? item.count.toLocaleString() : '—'}
@@ -180,23 +190,23 @@ export const DualBarChart: React.FC<DualBarChartProps> = ({
                             {/* visitors: same layout — bar + external value */}
                             <div className="flex items-center gap-2 flex-1 min-w-0">
                                 <div
-                                    className="h-5 rounded overflow-hidden border border-gray-700/40 flex-1 min-w-0 bg-gray-800/30"
+                                    className="h-4 rounded-full overflow-hidden flex-1 min-w-0 bg-gray-800/50"
                                     title={`${visitorsLabel}: ${item.uniqueVisitors.toLocaleString()}`}
                                 >
                                     <div
-                                        className="h-full rounded-l transition-opacity origin-left"
+                                        className="h-full rounded-full transition-[width,opacity] origin-left"
                                         style={{
                                             width: `${visitorsPct}%`,
                                             minWidth: item.uniqueVisitors > 0 ? 3 : 0,
-                                            backgroundColor: visitorsColor,
-                                            opacity: isHovered ? 1 : 0.9,
+                                            background: barGradient(visitorsColor),
+                                            opacity: isHovered ? 1 : 0.88,
                                             animation: 'barGrow 0.5s ease-out forwards',
                                             animationDelay: `${idx * 40}ms`
                                         }}
                                     />
                                 </div>
                                 <span
-                                    className="text-xs font-medium text-emerald-300 tabular-nums shrink-0 text-right"
+                                    className="text-xs font-semibold text-emerald-300 tabular-nums shrink-0 text-right"
                                     style={{ minWidth: 48 }}
                                 >
                                     {item.uniqueVisitors > 0 ? item.uniqueVisitors.toLocaleString() : '—'}

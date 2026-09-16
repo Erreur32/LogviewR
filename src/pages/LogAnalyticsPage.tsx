@@ -43,6 +43,7 @@ import { HourDayHeatmap } from '../components/widgets/HourDayHeatmap';
 import { StatusTrendsChart } from '../components/widgets/StatusTrendsChart';
 import { DonutChart } from '../components/widgets/DonutChart';
 import { ResponseTimeChart } from '../components/widgets/ResponseTimeChart';
+import { RankBadge } from '../components/widgets/RankBadge';
 import type {
     AnalyticsOverview,
     AnalyticsTimeseriesBucket,
@@ -259,6 +260,11 @@ const TopPanel: React.FC<{
             <div className="flex items-center justify-between gap-2 px-4 py-2 text-sm font-semibold text-gray-300 border-b border-gray-800 bg-[#0f0f0f]">
                 <div className="flex items-center gap-2 min-w-0">
                     <h4 className="truncate min-w-0">{title}</h4>
+                    {items.length > 0 && (
+                        <span className="px-1.5 py-0.5 rounded-full bg-gray-800/80 text-[10px] text-gray-400 font-normal tabular-nums shrink-0">
+                            {items.length}
+                        </span>
+                    )}
                     {sourceBadge}
                 </div>
                 {canToggle && (
@@ -291,11 +297,11 @@ const TopPanel: React.FC<{
                             )}
                         </div>
                     ) : (
-                        <ul className={twoColumns ? 'grid grid-cols-2 gap-x-6' : 'divide-y divide-gray-800/50'}>
+                        <ul className={twoColumns ? 'grid grid-cols-2 gap-x-6' : 'divide-y divide-gray-800/40'}>
                             {displayItems.map((item, idx) => (
                                 <li
                                     key={`${item.key}-${idx}`}
-                                    className={`px-4 py-2.5 hover:bg-[#121212] relative ${twoColumns ? 'border-b border-gray-800/50' : ''}`}
+                                    className={`group px-3.5 py-2.5 relative border-l-2 border-transparent hover:border-emerald-500/70 hover:bg-emerald-500/[0.04] transition-colors duration-150 ${twoColumns ? 'border-b border-gray-800/40' : ''}`}
                                     onMouseEnter={(e) => {
                                         setHoveredItem(item);
                                         setTooltipRect(e.currentTarget.getBoundingClientRect());
@@ -305,23 +311,30 @@ const TopPanel: React.FC<{
                                         setTooltipRect(null);
                                     }}
                                 >
-                                    <div className="flex items-center justify-between gap-2">
-                                        <span className="text-sm text-gray-300 truncate flex-1 min-w-0">
-                                            {item.key}
-                                        </span>
-                                        <span className="text-sm font-medium text-white shrink-0">
-                                            {item.count}
+                                    <div className="flex items-center justify-between gap-2.5">
+                                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                                            <RankBadge rank={idx} />
+                                            <span className="text-[13px] font-mono text-gray-300 truncate group-hover:text-gray-100 transition-colors">
+                                                {item.key}
+                                            </span>
+                                        </div>
+                                        <span className="text-sm font-semibold text-white shrink-0 tabular-nums">
+                                            {item.count.toLocaleString()}
                                             {item.percent != null && (
-                                                <span className="text-gray-500 ml-1">({item.percent}%)</span>
+                                                <span className="text-gray-500 font-normal ml-1">({item.percent}%)</span>
                                             )}
                                         </span>
                                     </div>
                                     {showBar && item.percent != null && (
-                                        <div className="mt-1.5 h-2 bg-gray-800/80 rounded overflow-hidden border border-gray-700/30">
+                                        <div className="mt-1.5 ml-7 h-1.5 bg-gray-800/60 rounded-full overflow-hidden">
                                             <div
-                                                className="h-full bg-emerald-700/80 rounded-l origin-left"
+                                                className="h-full rounded-full origin-left"
                                                 style={{
                                                     width: `${(item.percent / maxPct) * 100}%`,
+                                                    minWidth: item.percent > 0 ? 3 : 0,
+                                                    background: idx === 0
+                                                        ? 'linear-gradient(90deg, #059669, #34d399)'
+                                                        : 'linear-gradient(90deg, #047857a0, #10b981)',
                                                     animation: 'barGrow 0.4s ease-out forwards',
                                                     animationDelay: `${idx * 30}ms`
                                                 }}
@@ -847,15 +860,28 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
         }
     };
 
+    /** Badge color by HTTP method — matches the palette used for status codes elsewhere on the page. */
+    const getMethodColor = (method: string): string => {
+        switch (method.toUpperCase()) {
+            case 'GET': return 'text-sky-300 bg-sky-500/10 border-sky-500/30';
+            case 'POST': return 'text-emerald-300 bg-emerald-500/10 border-emerald-500/30';
+            case 'PUT':
+            case 'PATCH': return 'text-amber-300 bg-amber-500/10 border-amber-500/30';
+            case 'DELETE': return 'text-red-300 bg-red-500/10 border-red-500/30';
+            default: return 'text-gray-400 bg-gray-500/10 border-gray-500/30';
+        }
+    };
+
     const RequestedFileTableRow: React.FC<{
         item: AnalyticsTopUrlItem;
         formatBytes: (bytes: number) => string;
-    }> = ({ item, formatBytes }) => {
+        idx: number;
+    }> = ({ item, formatBytes, idx }) => {
         const [hovered, setHovered] = useState(false);
         const [tooltipRect, setTooltipRect] = useState<DOMRect | null>(null);
         return (
             <tr
-                className="border-b border-gray-800/50"
+                className={`border-t border-gray-800/60 hover:bg-white/[0.03] transition-colors ${idx % 2 === 1 ? 'bg-white/[0.015]' : ''}`}
                 onMouseEnter={(e) => {
                     setHovered(true);
                     setTooltipRect(e.currentTarget.getBoundingClientRect());
@@ -866,7 +892,10 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                 }}
             >
                 <td className="py-1.5 min-w-[200px] max-w-[500px] relative">
-                    <div className="text-gray-300 truncate">{item.key}</div>
+                    <div className="flex items-center gap-2 min-w-0">
+                        <RankBadge rank={idx} />
+                        <div className="font-mono text-[13px] text-gray-300 truncate">{item.key}</div>
+                    </div>
                     {hovered && tooltipRect && createPortal(
                         <div
                             className="fixed z-[99999] px-3 py-2.5 border border-gray-700 rounded-lg shadow-xl text-sm pointer-events-none"
@@ -886,11 +915,19 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                         document.body
                     )}
                 </td>
-                <td className="py-1.5 text-right text-white">{item.count}</td>
-                <td className="py-1.5 text-right text-emerald-400">{item.uniqueVisitors}</td>
-                <td className="py-1.5 text-right text-purple-300">{formatBytes(item.txAmount ?? 0)}</td>
-                <td className="py-1.5 text-center text-gray-400">{item.method ?? '-'}</td>
-                <td className="py-1.5 text-center text-gray-400">{item.protocol ?? '-'}</td>
+                <td className="py-1.5 text-right text-white font-semibold tabular-nums">{item.count.toLocaleString()}</td>
+                <td className="py-1.5 text-right text-emerald-400 tabular-nums">{item.uniqueVisitors.toLocaleString()}</td>
+                <td className="py-1.5 text-right text-purple-300 tabular-nums">{formatBytes(item.txAmount ?? 0)}</td>
+                <td className="py-1.5 text-center">
+                    {item.method ? (
+                        <span className={`inline-block px-1.5 py-0.5 rounded border text-[11px] font-mono font-medium ${getMethodColor(item.method)}`}>
+                            {item.method}
+                        </span>
+                    ) : (
+                        <span className="text-gray-600">-</span>
+                    )}
+                </td>
+                <td className="py-1.5 text-center text-gray-400 font-mono text-xs">{item.protocol ?? '-'}</td>
             </tr>
         );
     };
@@ -940,23 +977,30 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                 {items.length === 0 ? (
                     <NoDataOrLoading />
                 ) : (
-                    <div className="space-y-2">
+                    <div className="space-y-2.5">
                         {items.slice(0, 12).map((item, idx) => (
-                            <div key={item.key} className="flex items-center gap-3 min-h-0">
-                                <span className="text-sm text-gray-400 shrink-0 whitespace-nowrap" style={{ minWidth: labelMinWidth }}>{item.key}</span>
-                                <div className="flex-1 min-w-0 h-3 bg-gray-800/80 rounded overflow-hidden border border-gray-600/40">
+                            <div key={item.key} className="flex items-center gap-3 min-h-0 group">
+                                <RankBadge rank={idx} />
+                                <span
+                                    className="text-sm font-mono text-gray-400 group-hover:text-gray-200 shrink-0 whitespace-nowrap transition-colors"
+                                    style={{ minWidth: labelMinWidth }}
+                                >
+                                    {item.key}
+                                </span>
+                                <div className="flex-1 min-w-0 h-4 bg-gray-800/50 rounded-full overflow-hidden">
                                     <div
-                                        className="h-full rounded-l origin-left"
+                                        className="h-full rounded-full origin-left"
                                         style={{
                                             width: `${(item.count / maxCount) * 100}%`,
-                                            backgroundColor: getColor(item.key),
+                                            minWidth: item.count > 0 ? 3 : 0,
+                                            background: `linear-gradient(90deg, ${getColor(item.key)}99, ${getColor(item.key)})`,
                                             animation: 'barGrow 0.5s ease-out forwards',
                                             animationDelay: `${idx * 40}ms`
                                         }}
                                     />
                                 </div>
-                                <span className="text-sm font-medium text-white shrink-0 whitespace-nowrap min-w-[5.5rem] text-right">
-                                    {item.count} ({item.percent}%)
+                                <span className="text-sm font-semibold text-white shrink-0 whitespace-nowrap min-w-[5.5rem] text-right tabular-nums">
+                                    {item.count.toLocaleString()} <span className="text-gray-500 font-normal">({item.percent}%)</span>
                                 </span>
                             </div>
                         ))}
@@ -1535,11 +1579,15 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                             <h4 className="text-sm font-semibold text-gray-400 mb-3">
                                                 {t('logAnalytics.topBotsTitle')}
                                             </h4>
-                                            <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                                            <div className="space-y-1 max-h-48 overflow-y-auto -mx-1.5">
                                                 {botVsHuman.topBots.map((bot, idx) => (
-                                                    <div key={idx} className="flex items-center gap-2 text-sm">
-                                                        <span className="text-gray-400 truncate flex-1 min-w-0" title={bot.key}>{bot.key}</span>
-                                                        <span className="text-white font-medium shrink-0">{bot.count}</span>
+                                                    <div
+                                                        key={idx}
+                                                        className="flex items-center gap-2 text-sm px-1.5 py-1 rounded-md border-l-2 border-transparent hover:border-gray-500/70 hover:bg-white/[0.03] transition-colors"
+                                                    >
+                                                        <RankBadge rank={idx} />
+                                                        <span className="font-mono text-[13px] text-gray-400 truncate flex-1 min-w-0" title={bot.key}>{bot.key}</span>
+                                                        <span className="text-white font-semibold shrink-0 tabular-nums">{bot.count.toLocaleString()}</span>
                                                     </div>
                                                 ))}
                                             </div>
@@ -1569,20 +1617,28 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                 </div>
                                 <div>
                                     {statusWithVisitors.length > 0 && (
-                                        <table className="w-full text-sm">
+                                        <table className="w-full text-sm border-separate border-spacing-0">
                                             <thead>
-                                                <tr className="text-gray-500 border-b border-gray-700">
-                                                    <th className="text-left py-2">{t('logAnalytics.total')}</th>
-                                                    <th className="text-right py-2">{t('logAnalytics.hits')}</th>
-                                                    <th className="text-right py-2">{t('logAnalytics.visitors')}</th>
+                                                <tr className="text-[11px] text-gray-500 uppercase tracking-wide">
+                                                    <th className="text-left py-2 font-medium">{t('logAnalytics.total')}</th>
+                                                    <th className="text-right py-2 font-medium">{t('logAnalytics.hits')}</th>
+                                                    <th className="text-right py-2 font-medium">{t('logAnalytics.visitors')}</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {statusWithVisitors.slice(0, 10).map((item) => (
-                                                    <tr key={item.key} className="border-b border-gray-800/50">
-                                                        <td className="py-1.5 text-gray-300">{item.key}</td>
-                                                        <td className="py-1.5 text-right text-white">{item.count}</td>
-                                                        <td className="py-1.5 text-right text-emerald-400">{item.uniqueVisitors}</td>
+                                                {statusWithVisitors.slice(0, 10).map((item, idx) => (
+                                                    <tr
+                                                        key={item.key}
+                                                        className={`border-t border-gray-800/60 hover:bg-white/[0.03] transition-colors ${idx % 2 === 1 ? 'bg-white/[0.015]' : ''}`}
+                                                    >
+                                                        <td className="py-1.5">
+                                                            <span className="inline-flex items-center gap-1.5">
+                                                                <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: getStatusColor(item.key) }} />
+                                                                <span className="font-mono text-gray-300">{item.key}</span>
+                                                            </span>
+                                                        </td>
+                                                        <td className="py-1.5 text-right text-white font-semibold tabular-nums">{item.count.toLocaleString()}</td>
+                                                        <td className="py-1.5 text-right text-emerald-400 tabular-nums">{item.uniqueVisitors.toLocaleString()}</td>
                                                     </tr>
                                                 ))}
                                             </tbody>
@@ -1732,15 +1788,15 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                             <SectionHeading {...headingCommon}>{t('logAnalytics.requestedFiles')}</SectionHeading>
                             {urlsWithExtras.length > 0 ? (
                                 <div className="overflow-x-auto">
-                                    <table className="w-full text-sm">
+                                    <table className="w-full text-sm border-separate border-spacing-0">
                                         <thead>
-                                            <tr className="text-gray-500 border-b border-gray-700">
-                                                <th className="text-left py-2">{t('logAnalytics.topUrls')}</th>
-                                                <th className="text-right py-2">{t('logAnalytics.hits')}</th>
-                                                <th className="text-right py-2">{t('logAnalytics.visitors')}</th>
-                                                <th className="text-right py-2">{t('logAnalytics.txAmount')}</th>
-                                                <th className="text-center py-2">{t('logAnalytics.method')}</th>
-                                                <th className="text-center py-2">{t('logAnalytics.protocol')}</th>
+                                            <tr className="text-[11px] text-gray-500 uppercase tracking-wide">
+                                                <th className="text-left py-2 font-medium">{t('logAnalytics.topUrls')}</th>
+                                                <th className="text-right py-2 font-medium">{t('logAnalytics.hits')}</th>
+                                                <th className="text-right py-2 font-medium">{t('logAnalytics.visitors')}</th>
+                                                <th className="text-right py-2 font-medium">{t('logAnalytics.txAmount')}</th>
+                                                <th className="text-center py-2 font-medium">{t('logAnalytics.method')}</th>
+                                                <th className="text-center py-2 font-medium">{t('logAnalytics.protocol')}</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -1749,6 +1805,7 @@ export const LogAnalyticsPage: React.FC<LogAnalyticsPageProps> = ({ onBack }) =>
                                                     key={`${item.key}-${idx}`}
                                                     item={item}
                                                     formatBytes={formatBytes}
+                                                    idx={idx}
                                                 />
                                             ))}
                                         </tbody>
