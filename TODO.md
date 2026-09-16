@@ -96,23 +96,19 @@ Raised 2026-09-15: `way.myoueb.fr` endpoints returned 404 (`/api/track`, `/api/s
 ### 9. Show file size next to the pagination "lines per page / X lines total" line (`/log/*` pages) — DONE (2026-09-16)
 - [x] Added `· {formatFileSize(fileSize)}` (guarded on `fileSize !== undefined && fileSize > 0`, same prop already in scope) right after the `t('logViewer.linesPerPage')` / `t('logViewer.linesTotal', ...)` span at `LogTable.tsx:1153` — plain inline text (`text-gray-600`), not badge-styled, to match the rest of that pagination row.
 
-### 10. Optimize animated backgrounds (perf) — audit done 2026-09-16, no code changed yet
-Raised after spotting recurring Chrome "[Violation] 'requestAnimationFrame' handler took Nms" warnings on `/log-analytics`. Root cause confirmed unrelated to log-analytics: it's `src/components/AnimatedBackground.tsx`'s decorative background variants, happens on any page. Audited all canvas-based variants (13 total in `FULL_ID_TO_VISUAL`) for the same anti-patterns (large per-frame grid, full-array sort/O(n²) every frame, no FPS cap) — findings below, ordered by priority. Nothing coded yet, per explicit request to audit-only first.
+### 10. Optimize animated backgrounds (perf) — high-priority items DONE (2026-09-16)
+Raised after spotting recurring Chrome "[Violation] 'requestAnimationFrame' handler took Nms" warnings on `/log-analytics`. Root cause confirmed unrelated to log-analytics: it's `src/components/AnimatedBackground.tsx`'s decorative background variants, happens on any page. Audited all canvas-based variants (13 total in `FULL_ID_TO_VISUAL`) for the same anti-patterns (large per-frame grid, full-array sort/O(n²) every frame, no FPS cap).
 
-**High priority (comparable or worse than the original particle-waves finding):**
-- [ ] `ParticleWavesCanvas` (`animation.80.particle-waves`, ~line 698) — ~6400-point 3D grid (`distance=5` over ~400×400) recomputed **and** `Array.prototype.sort()`-by-depth every frame, no FPS cap. The original finding.
-- [ ] `BitOceanCanvas` (`animation.95.bit-ocean`, ~line 2144) — same scale: 80×80 = 6400-vertex grid (`gridSize=400`, `spacing=5`), each vertex runs a noise() calculation every frame, no FPS cap. No sort, so slightly cheaper than particle-waves, but same order of magnitude.
-- [ ] `PlaystationCanvas` (`animation.72.playstation-3-bg-style`, ~line 996) — heaviest per-frame grid of all variants: 129×129 (`gridRes=128`) ≈ 16,641 points, each cell draws 2 triangles with a full normal/lighting calculation done **twice** per cell (once "general", once again per-triangle — looks like leftover/redundant computation, not intentional). Already has partial mitigation: `targetFPS` (default 60) + `enableAnimationTimeout` (default true, freezes the animation entirely after 5s) — real-world impact is capped unless a user disables the timeout via animation parameters.
+- [x] `ParticleWavesCanvas` — grid spacing 5→8 (~6400→~2500 points/frame), removed the per-frame depth sort (additive `screen` blending is order-independent, the sort bought nothing visually)
+- [x] `BitOceanCanvas` — grid spacing 5→8, same ~6400→~2500 point reduction
+- [x] `PlaystationCanvas` — removed a redundant "general" normal/lighting calc per grid cell (128×128) that duplicated Triangle 1's own math just to gate drawing; also fixed a latent bug where Triangle 2 could be wrongly skipped when only Triangle 1's normal faced away from "up"
 
-**Lower priority (moderate cost, no FPS cap either):**
-- [ ] `ParticulesLineCanvas` (`animation.93.particules-line`, ~line 823) — fixed 16×12=192 particles, O(n²) pairwise link-distance check (~18k `Math.hypot` calls/frame). Real but much smaller than the grid-based ones above.
+**Lower priority, not done (moderate cost, no FPS cap either):**
+- [ ] `ParticulesLineCanvas` (`animation.93.particules-line`) — fixed 16×12=192 particles, O(n²) pairwise link-distance check (~18k `Math.hypot` calls/frame). Real but much smaller than the grid-based ones above; left as-is.
 
-**Already mitigated, low priority:** `AuroraCanvas`/`AuroraV2Canvas`/`AlienBlackoutCanvas` all have the same `targetFPS`+`enableAnimationTimeout` (5s auto-freeze) pattern as Playstation built in.
+**Already mitigated, no action needed:** `AuroraCanvas`/`AuroraV2Canvas`/`AlienBlackoutCanvas` have `targetFPS`+`enableAnimationTimeout` (5s auto-freeze) built in. `HomeAssistantParticlesCanvas` (50 particles), `CanvasRibbons` (3×120 lines), `CssDarkParticles` (pure CSS, no canvas/rAF), `StarsCanvas`/`SpaceCanvas`/`SidelinedCanvas` (moderate counts, no grid/sort/O(n²) pattern) — not a concern.
 
-**Not a concern:** `HomeAssistantParticlesCanvas` (50 particles), `CanvasRibbons` (3 waves × 120 lines), `CssDarkParticles` (pure CSS animation, no canvas/rAF), `StarsCanvas`/`SpaceCanvas`/`SidelinedCanvas` (moderate particle counts, no grid/sort/O(n²) pattern found).
-
-- [ ] When picked up: for the grid-based ones (particle-waves, bit-ocean, playstation), reduce point density and/or add the same `targetFPS`/`enableAnimationTimeout` pattern the Aurora/AlienBlackout variants already use, consistently across all variants instead of ad hoc per-animation.
-- [ ] Not urgent, independent of the `/log-analytics` DB-first work — pick up whenever background-animation performance is worth revisiting
+- [ ] If picked up again: consider adding the same `targetFPS`/`enableAnimationTimeout` pattern to particle-waves/bit-ocean/particules-line for consistency (currently only Aurora/AuroraV2/AlienBlackout/Playstation have it).
 
 ## Notes / non-blocking
 
