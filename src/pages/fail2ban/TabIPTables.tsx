@@ -12,6 +12,15 @@ interface IptRule { num: number; pkts: string; bytes: string; target: string; pr
 interface IptChain { name: string; policy: string; rules: IptRule[] }
 interface RollbackStatus { pending: boolean; deadline: number | null }
 
+/** Shared ACCEPT/DROP-REJECT/LOG/other color mapping for iptables targets (raw-view colorizer + table's TargetBadge). */
+function iptTargetColor(target: string): string {
+    const t = target.toUpperCase();
+    if (t === 'ACCEPT') return '#3fb950';
+    if (t === 'DROP' || t === 'REJECT') return '#e86a65';
+    if (t === 'LOG') return '#e3b341';
+    return '#bc8cff';
+}
+
 // ── Colorizer (raw view) ───────────────────────────────────────────────────────
 
 type Token = { text: string; color?: string; bold?: boolean };
@@ -37,7 +46,7 @@ function colorizeIptLine(line: string): Token[] {
         const p = parts[i];
         if (p.trim() === '') { tokens.push({ text: p }); i++; continue; }
         if (i >= 2 && parts[i - 2]?.trim() === '-j') {
-            const color = p === 'ACCEPT' ? '#3fb950' : (p === 'DROP' || p === 'REJECT') ? '#e86a65' : p === 'LOG' ? '#e3b341' : '#bc8cff';
+            const color = iptTargetColor(p);
             tokens.push({ text: p, color, bold: true }); i++; continue;
         }
         if (i >= 2 && (parts[i - 2]?.trim() === '-A' || parts[i - 2]?.trim() === '-I' || parts[i - 2]?.trim() === '-D')) {
@@ -94,8 +103,8 @@ function RollbackBanner({ countdown, onConfirm, onRollback, loading, error }: { 
 
 function TargetBadge({ target }: { target: string }) {
     const t = target.toUpperCase();
-    const color = t === 'ACCEPT' ? '#3fb950' : (t === 'DROP' || t === 'REJECT') ? '#e86a65' : '#bc8cff';
-    const bg    = t === 'ACCEPT' ? 'rgba(63,185,80,.12)' : (t === 'DROP' || t === 'REJECT') ? 'rgba(232,106,101,.12)' : 'rgba(188,140,255,.1)';
+    const color = iptTargetColor(t);
+    const bg    = t === 'ACCEPT' ? 'rgba(63,185,80,.12)' : (t === 'DROP' || t === 'REJECT') ? 'rgba(232,106,101,.12)' : t === 'LOG' ? 'rgba(227,179,65,.12)' : 'rgba(188,140,255,.1)';
     return <span style={{ background: bg, color, border: `1px solid ${color}40`, borderRadius: 3, padding: '.08rem .38rem', fontSize: '.74rem', fontWeight: 700, fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{target}</span>;
 }
 

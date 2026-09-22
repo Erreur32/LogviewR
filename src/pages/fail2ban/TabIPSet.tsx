@@ -98,6 +98,43 @@ function SetList({ sets, selected, onSelect, loading, onDestroy }: {
 
 const PAGE_SIZE = 30;
 
+// ── Pagination (shared between the top and bottom bars) ────────────────────────
+
+const IpSetPagination: React.FC<{
+    page: number;
+    setPage: React.Dispatch<React.SetStateAction<number>>;
+    totalPages: number;
+    totalItems: number;
+    topPadding?: boolean;
+}> = ({ page, setPage, totalPages, totalItems, topPadding = false }) => {
+    if (totalPages <= 1) return null;
+    return (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '.35rem', flexWrap: 'wrap', ...(topPadding ? { paddingTop: '.25rem' } : {}) }}>
+            <button onClick={() => setPage(0)} disabled={page === 0}
+                style={{ background: 'none', border: '1px solid #30363d', color: page === 0 ? '#555d69' : '#8b949e', borderRadius: 4, cursor: page === 0 ? 'default' : 'pointer', padding: '.18rem .45rem', fontSize: '.72rem' }}>«</button>
+            <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
+                style={{ background: 'none', border: '1px solid #30363d', color: page === 0 ? '#555d69' : '#8b949e', borderRadius: 4, cursor: page === 0 ? 'default' : 'pointer', padding: '.18rem .45rem', fontSize: '.72rem' }}>‹</button>
+            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                const start = Math.max(0, Math.min(page - 2, totalPages - 5));
+                const p = start + i;
+                return (
+                    <button key={p} onClick={() => setPage(p)}
+                        style={{ background: p === page ? 'rgba(188,140,255,.15)' : 'none', border: `1px solid ${p === page ? 'rgba(188,140,255,.4)' : '#30363d'}`, color: p === page ? '#bc8cff' : '#8b949e', borderRadius: 4, cursor: 'pointer', padding: '.18rem .5rem', fontSize: '.72rem', fontWeight: p === page ? 700 : 400, minWidth: 30 }}>
+                        {p + 1}
+                    </button>
+                );
+            })}
+            <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page === totalPages - 1}
+                style={{ background: 'none', border: '1px solid #30363d', color: page === totalPages - 1 ? '#555d69' : '#8b949e', borderRadius: 4, cursor: page === totalPages - 1 ? 'default' : 'pointer', padding: '.18rem .45rem', fontSize: '.72rem' }}>›</button>
+            <button onClick={() => setPage(totalPages - 1)} disabled={page === totalPages - 1}
+                style={{ background: 'none', border: '1px solid #30363d', color: page === totalPages - 1 ? '#555d69' : '#8b949e', borderRadius: 4, cursor: page === totalPages - 1 ? 'default' : 'pointer', padding: '.18rem .45rem', fontSize: '.72rem' }}>»</button>
+            <span style={{ fontSize: '.7rem', color: '#555d69', marginLeft: '.25rem' }}>
+                {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, totalItems)} / {totalItems.toLocaleString()}
+            </span>
+        </div>
+    );
+};
+
 // ── Entries Panel (right panel) ────────────────────────────────────────────────
 
 function EntriesPanel({ setName, onEntryDeleted, onIpClick }: { setName: string; onEntryDeleted: () => void; onIpClick?: (ip: string) => void }) {
@@ -290,31 +327,7 @@ function EntriesPanel({ setName, onEntryDeleted, onIpClick }: { setName: string;
                 )}
 
                 {/* Pagination — top */}
-                {totalPages > 1 && (
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '.35rem', flexWrap: 'wrap' }}>
-                        <button onClick={() => setPage(0)} disabled={page === 0}
-                            style={{ background: 'none', border: '1px solid #30363d', color: page === 0 ? '#555d69' : '#8b949e', borderRadius: 4, cursor: page === 0 ? 'default' : 'pointer', padding: '.18rem .45rem', fontSize: '.72rem' }}>«</button>
-                        <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
-                            style={{ background: 'none', border: '1px solid #30363d', color: page === 0 ? '#555d69' : '#8b949e', borderRadius: 4, cursor: page === 0 ? 'default' : 'pointer', padding: '.18rem .45rem', fontSize: '.72rem' }}>‹</button>
-                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                            const start = Math.max(0, Math.min(page - 2, totalPages - 5));
-                            const p = start + i;
-                            return (
-                                <button key={p} onClick={() => setPage(p)}
-                                    style={{ background: p === page ? 'rgba(188,140,255,.15)' : 'none', border: `1px solid ${p === page ? 'rgba(188,140,255,.4)' : '#30363d'}`, color: p === page ? '#bc8cff' : '#8b949e', borderRadius: 4, cursor: 'pointer', padding: '.18rem .5rem', fontSize: '.72rem', fontWeight: p === page ? 700 : 400, minWidth: 30 }}>
-                                    {p + 1}
-                                </button>
-                            );
-                        })}
-                        <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page === totalPages - 1}
-                            style={{ background: 'none', border: '1px solid #30363d', color: page === totalPages - 1 ? '#555d69' : '#8b949e', borderRadius: 4, cursor: page === totalPages - 1 ? 'default' : 'pointer', padding: '.18rem .45rem', fontSize: '.72rem' }}>›</button>
-                        <button onClick={() => setPage(totalPages - 1)} disabled={page === totalPages - 1}
-                            style={{ background: 'none', border: '1px solid #30363d', color: page === totalPages - 1 ? '#555d69' : '#8b949e', borderRadius: 4, cursor: page === totalPages - 1 ? 'default' : 'pointer', padding: '.18rem .45rem', fontSize: '.72rem' }}>»</button>
-                        <span style={{ fontSize: '.7rem', color: '#555d69', marginLeft: '.25rem' }}>
-                            {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, filtered.length)} / {filtered.length.toLocaleString()}
-                        </span>
-                    </div>
-                )}
+                <IpSetPagination page={page} setPage={setPage} totalPages={totalPages} totalItems={filtered.length} />
 
                 {/* Entries table */}
                 {loading && <div style={{ color: '#8b949e', fontSize: '.82rem' }}>{t('fail2ban.ipset.loading')}</div>}
@@ -356,43 +369,7 @@ function EntriesPanel({ setName, onEntryDeleted, onIpClick }: { setName: string;
                 )}
 
                 {/* Pagination */}
-                {totalPages > 1 && (
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '.35rem', paddingTop: '.25rem', flexWrap: 'wrap' }}>
-                        <button onClick={() => setPage(0)} disabled={page === 0}
-                            style={{ background: 'none', border: '1px solid #30363d', color: page === 0 ? '#555d69' : '#8b949e', borderRadius: 4, cursor: page === 0 ? 'default' : 'pointer', padding: '.18rem .45rem', fontSize: '.72rem' }}>
-                            «
-                        </button>
-                        <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
-                            style={{ background: 'none', border: '1px solid #30363d', color: page === 0 ? '#555d69' : '#8b949e', borderRadius: 4, cursor: page === 0 ? 'default' : 'pointer', padding: '.18rem .45rem', fontSize: '.72rem' }}>
-                            ‹
-                        </button>
-
-                        {/* Page buttons — show window of 5 around current */}
-                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                            const start = Math.max(0, Math.min(page - 2, totalPages - 5));
-                            const p = start + i;
-                            return (
-                                <button key={p} onClick={() => setPage(p)}
-                                    style={{ background: p === page ? 'rgba(188,140,255,.15)' : 'none', border: `1px solid ${p === page ? 'rgba(188,140,255,.4)' : '#30363d'}`, color: p === page ? '#bc8cff' : '#8b949e', borderRadius: 4, cursor: 'pointer', padding: '.18rem .5rem', fontSize: '.72rem', fontWeight: p === page ? 700 : 400, minWidth: 30 }}>
-                                    {p + 1}
-                                </button>
-                            );
-                        })}
-
-                        <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page === totalPages - 1}
-                            style={{ background: 'none', border: '1px solid #30363d', color: page === totalPages - 1 ? '#555d69' : '#8b949e', borderRadius: 4, cursor: page === totalPages - 1 ? 'default' : 'pointer', padding: '.18rem .45rem', fontSize: '.72rem' }}>
-                            ›
-                        </button>
-                        <button onClick={() => setPage(totalPages - 1)} disabled={page === totalPages - 1}
-                            style={{ background: 'none', border: '1px solid #30363d', color: page === totalPages - 1 ? '#555d69' : '#8b949e', borderRadius: 4, cursor: page === totalPages - 1 ? 'default' : 'pointer', padding: '.18rem .45rem', fontSize: '.72rem' }}>
-                            »
-                        </button>
-
-                        <span style={{ fontSize: '.7rem', color: '#555d69', marginLeft: '.25rem' }}>
-                            {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, filtered.length)} / {filtered.length.toLocaleString()}
-                        </span>
-                    </div>
-                )}
+                <IpSetPagination page={page} setPage={setPage} totalPages={totalPages} totalItems={filtered.length} topPadding />
             </div>
         </div>
     );

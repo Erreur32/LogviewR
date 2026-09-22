@@ -564,19 +564,18 @@ const ShellCommand: React.FC<{ cmd: string }> = ({ cmd }) => {
     );
 };
 
-const VacuumAlert: React.FC<{ fragPct: number; dbPath: string; onDone: () => void }> = ({ fragPct, dbPath, onDone }) => {
+const VacuumAlert: React.FC<{ fragPct: number; endpoint: string; description: string; dbPath?: string; onDone: () => void }> = ({ fragPct, endpoint, description, dbPath, onDone }) => {
     const { t } = useTranslation();
     const [state, setState] = useState<'idle' | 'running' | 'done' | 'error' | 'docker'>('idle');
     const [errMsg, setErrMsg] = useState('');
-    const cmd = `sqlite3 ${dbPath} 'VACUUM'`;
     const run = async () => {
         setState('running');
         try {
-            const res = await api.post<{ ok: boolean; error?: string; dockerReadOnly?: boolean }>('/api/plugins/fail2ban/config/sqlite-vacuum');
+            const res = await api.post<{ ok: boolean; error?: string; dockerReadOnly?: boolean }>(`/api/plugins/fail2ban/config/${endpoint}`);
             if (res.success && res.result?.ok) { setState('done'); onDone(); }
-            else if (res.success && res.result?.dockerReadOnly) {
+            else if (dbPath && res.success && res.result?.dockerReadOnly) {
                 setState('docker');
-            } else {
+            } else if (dbPath) {
                 const httpMsg = res.error?.message ?? '';
                 const is404 = httpMsg.includes('404') || res.error?.code === 'INVALID_RESPONSE';
                 const isAuth = httpMsg.includes('401') || httpMsg.includes('403');
@@ -585,6 +584,9 @@ const VacuumAlert: React.FC<{ fragPct: number; dbPath: string; onDone: () => voi
                     isAuth ? t('fail2ban.errors.permissionDenied') :
                     res.result?.error ?? (httpMsg || t('fail2ban.errors.unknown'))
                 );
+                setState('error');
+            } else {
+                setErrMsg(res.result?.error ?? res.error?.message ?? t('fail2ban.errors.unknown'));
                 setState('error');
             }
         } catch (e: unknown) {
@@ -598,7 +600,7 @@ const VacuumAlert: React.FC<{ fragPct: number; dbPath: string; onDone: () => voi
             <div style={{ flex: 1 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', flexWrap: 'wrap' }}>
                     <span style={{ fontWeight: 600 }}>Fragmentation élevée ({fragPct}%)</span>
-                    <span style={{ color: C.muted }}>— compresse la DB et libère l'espace disque inutilisé</span>
+                    <span style={{ color: C.muted }}>— {description}</span>
                     {state === 'done' && (
                         <span style={{ color: C.green, display: 'inline-flex', alignItems: 'center', gap: '.3rem' }}>
                             <CheckCircle style={{ width: 11, height: 11 }} /> VACUUM terminé
@@ -621,53 +623,7 @@ const VacuumAlert: React.FC<{ fragPct: number; dbPath: string; onDone: () => voi
                         En attendant, lancez manuellement sur l'hôte :
                     </div>
                 )}
-                <ShellCommand cmd={cmd} />
-            </div>
-        </div>
-    );
-};
-
-// ── VacuumAlert for dashboard.db ──────────────────────────────────────────────
-
-const DashboardVacuumAlert: React.FC<{ fragPct: number; onDone: () => void }> = ({ fragPct, onDone }) => {
-    const { t } = useTranslation();
-    const [state, setState] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
-    const [errMsg, setErrMsg] = useState('');
-    const run = async () => {
-        setState('running');
-        try {
-            const res = await api.post<{ ok: boolean; error?: string }>('/api/plugins/fail2ban/config/dashboard-vacuum');
-            if (res.success && res.result?.ok) { setState('done'); onDone(); }
-            else {
-                setErrMsg(res.result?.error ?? res.error?.message ?? t('fail2ban.errors.unknown'));
-                setState('error');
-            }
-        } catch (e: unknown) {
-            setState('error');
-            setErrMsg(e instanceof Error ? e.message : t('fail2ban.errors.connectionError'));
-        }
-    };
-    return (
-        <div style={{ fontSize: '.75rem', color: C.orange, marginTop: '.25rem', display: 'flex', alignItems: 'flex-start', gap: '.5rem', background: 'rgba(227,179,65,.06)', border: '1px solid rgba(227,179,65,.25)', borderRadius: 6, padding: '.6rem .75rem' }}>
-            <AlertTriangle style={{ width: 13, height: 13, marginTop: 1, flexShrink: 0 }} />
-            <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', flexWrap: 'wrap' }}>
-                    <span style={{ fontWeight: 600 }}>Fragmentation élevée ({fragPct}%)</span>
-                    <span style={{ color: C.muted }}>— compresse dashboard.db et libère l'espace inutilisé</span>
-                    {state === 'done' && (
-                        <span style={{ color: C.green, display: 'inline-flex', alignItems: 'center', gap: '.3rem' }}>
-                            <CheckCircle style={{ width: 11, height: 11 }} /> VACUUM terminé
-                        </span>
-                    )}
-                    {state === 'error' && <span style={{ color: C.red }}>{errMsg}</span>}
-                    {state !== 'done' && (
-                        <Btn onClick={run} loading={state === 'running'} small
-                            bg="rgba(227,179,65,.15)" color={C.orange} border="rgba(227,179,65,.4)">
-                            <HardDrive style={{ width: 11, height: 11 }} />
-                            {state === 'running' ? t('fail2ban.config.vacuumEnCours') : 'Lancer VACUUM'}
-                        </Btn>
-                    )}
-                </div>
+                {dbPath && <ShellCommand cmd={`sqlite3 ${dbPath} 'VACUUM'`} />}
             </div>
         </div>
     );
@@ -1233,7 +1189,7 @@ export const TabConfig: React.FC<{
                                                 ))}
                                             </div>
                                             {dbInfo.fragPct > 20 && (
-                                                <VacuumAlert fragPct={dbInfo.fragPct} dbPath={cfg.dbfile} onDone={() => { void loadParsed(); }} />
+                                                <VacuumAlert fragPct={dbInfo.fragPct} endpoint="sqlite-vacuum" description="compresse la DB et libère l'espace disque inutilisé" dbPath={cfg.dbfile} onDone={() => { void loadParsed(); }} />
                                             )}
                                         </div>
                                     ) : (
@@ -1585,7 +1541,7 @@ export const TabConfig: React.FC<{
                                         </div>
                                     ))}
                                     {!fragOk && (
-                                        <DashboardVacuumAlert fragPct={db.fragPct} onDone={() => { void loadParsed(); }} />
+                                        <VacuumAlert fragPct={db.fragPct} endpoint="dashboard-vacuum" description="compresse dashboard.db et libère l'espace inutilisé" onDone={() => { void loadParsed(); }} />
                                     )}
                                 </>);
                             })() : (

@@ -26,7 +26,7 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
-import { card, PERIODS, F2bTooltip, TT, fmtPeriodLabel, Badge } from './helpers';
+import { card, PERIODS, F2bTooltip, TT, fmtPeriodLabel, Badge, fmtBanExpiry } from './helpers';
 import type { F2bTtColor } from './helpers';
 import { api } from '../../api/client';
 import { usePolling } from '../../hooks/usePolling';
@@ -252,14 +252,7 @@ const DomainDetailModal: React.FC<{
         const p = (n: number) => String(n).padStart(2, '0');
         return `${p(d.getDate())}/${p(d.getMonth() + 1)} ${p(d.getHours())}:${p(d.getMinutes())}`;
     };
-    const fmtExpiry = (ban: DomainDetailBan) => {
-        if (ban.bantime === -1) return '∞';
-        const rem = ban.timeofban + ban.bantime - now;
-        if (rem <= 0) return t('fail2ban.stats.expired');
-        if (rem < 3600) return `${Math.round(rem / 60)}m`;
-        if (rem < 86400) return `${Math.round(rem / 3600)}h`;
-        return `${Math.round(rem / 86400)}j`;
-    };
+    const fmtExpiry = (ban: DomainDetailBan) => fmtBanExpiry(ban, now, t);
 
     const periodLabel = fmtPeriodLabel(days, t);
     const bans = data?.bans ?? [];
@@ -4099,14 +4092,7 @@ const SafeBannedSection: React.FC<{ onIpClick?: (ip: string) => void }> = ({ onI
     const allClear = !loading && !error && hits.length === 0;
     const now = Math.floor(Date.now() / 1000);
 
-    const fmtExpiry = (ban: SafeHit) => {
-        if (ban.bantime === -1) return '∞ permanent';
-        const remaining = ban.timeofban + ban.bantime - now;
-        if (remaining <= 0) return t('fail2ban.stats.expired');
-        if (remaining < 3600) return `${Math.round(remaining / 60)}m`;
-        if (remaining < 86400) return `${Math.round(remaining / 3600)}h`;
-        return `${Math.round(remaining / 86400)}j`;
-    };
+    const fmtExpiry = (ban: SafeHit) => fmtBanExpiry(ban, now, t, '∞ permanent');
 
     const titleSub =
         !loading && !error ? (

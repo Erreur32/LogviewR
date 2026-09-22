@@ -816,25 +816,64 @@ const DbImportPanel: React.FC = () => {
 
 // ── IPTables Backup Panel ─────────────────────────────────────────────────────
 
-const IptBackupPanel: React.FC = () => {
+// ── Rules Backup Panel (iptables/ipset — shared, parameterized by kind) ────────
+
+interface RulesBackupConfig {
+    endpoint: 'iptables' | 'ipset';
+    icon: React.ComponentType<{ style?: React.CSSProperties }>;
+    accentColor: string;
+    accentBg: string;
+    accentBorder: string;
+    titleKey: string;
+    badgeLabel: string;
+    emptyKey: string;
+    confirmKey: string;
+    restoreBodyKey: string;
+}
+
+const RULES_BACKUP_CONFIG: Record<'iptables' | 'ipset', RulesBackupConfig> = {
+    iptables: {
+        endpoint: 'iptables',
+        icon: Save,
+        accentColor: C.cyan, accentBg: 'rgba(57,197,207,.12)', accentBorder: 'rgba(57,197,207,.25)',
+        titleKey: 'fail2ban.backup.iptablesBackups',
+        badgeLabel: 'iptables-save',
+        emptyKey: 'fail2ban.backup.noIptablesBackup',
+        confirmKey: 'fail2ban.backup.restoreRulesConfirm',
+        restoreBodyKey: 'fail2ban.backup.restoreRules',
+    },
+    ipset: {
+        endpoint: 'ipset',
+        icon: Layers,
+        accentColor: C.purple, accentBg: 'rgba(188,140,255,.12)', accentBorder: 'rgba(188,140,255,.25)',
+        titleKey: 'fail2ban.backup.ipsetBackups',
+        badgeLabel: 'ipset save',
+        emptyKey: 'fail2ban.backup.noIpsetBackup',
+        confirmKey: 'fail2ban.backup.restoreSetsConfirm',
+        restoreBodyKey: 'fail2ban.backup.restoreSets',
+    },
+};
+
+const RulesBackupPanel: React.FC<{ kind: 'iptables' | 'ipset' }> = ({ kind }) => {
+    const cfg = RULES_BACKUP_CONFIG[kind];
     const { t } = useTranslation();
     const [backups, setBackups]     = useState<IptBackupEntry[]>([]);
     const [loading, setLoading]     = useState(false);
     const [creating, setCreating]   = useState(false);
     const [label, setLabel]         = useState('');
     const [msg, setMsg]             = useState<{ ok: boolean; text: string } | null>(null);
-    const [restoring, setRestoring]   = useState<string | null>(null);
-    const [deleting, setDeleting]     = useState<string | null>(null);
+    const [restoring, setRestoring] = useState<string | null>(null);
+    const [deleting, setDeleting]   = useState<string | null>(null);
     const [downloading, setDownloading] = useState<string | null>(null);
 
     const fetchBackups = useCallback(async () => {
         setLoading(true);
         try {
-            const res = await api.get<{ ok: boolean; backups: IptBackupEntry[] }>('/api/plugins/fail2ban/iptables/backups');
+            const res = await api.get<{ ok: boolean; backups: IptBackupEntry[] }>(`/api/plugins/fail2ban/${cfg.endpoint}/backups`);
             if (res.success && res.result?.ok) setBackups(res.result.backups);
             else setMsg({ ok: false, text: res.error?.message ?? t('fail2ban.errors.unknown') });
         } finally { setLoading(false); }
-    }, [t]);
+    }, [t, cfg.endpoint]);
 
     useEffect(() => { fetchBackups(); }, [fetchBackups]);
 
@@ -842,7 +881,7 @@ const IptBackupPanel: React.FC = () => {
         setCreating(true); setMsg(null);
         try {
             const res = await api.post<{ ok: boolean; filename?: string; error?: string }>(
-                '/api/plugins/fail2ban/iptables/backup', { label: label.trim() || undefined }
+                `/api/plugins/fail2ban/${cfg.endpoint}/backup`, { label: label.trim() || undefined }
             );
             if (res.success && res.result?.ok) {
                 setMsg({ ok: true, text: `${t('fail2ban.messages.saved')} ${res.result.filename}` });
@@ -854,11 +893,11 @@ const IptBackupPanel: React.FC = () => {
     };
 
     const restore = async (filename: string) => {
-        if (!confirm(t('fail2ban.backup.restoreRulesConfirm', { filename }))) return;
+        if (!confirm(t(cfg.confirmKey, { filename }))) return;
         setRestoring(filename); setMsg(null);
         try {
             const res = await api.post<{ ok: boolean; output?: string; error?: string }>(
-                `/api/plugins/fail2ban/iptables/restore/${encodeURIComponent(filename)}`, {}
+                `/api/plugins/fail2ban/${cfg.endpoint}/restore/${encodeURIComponent(filename)}`, {}
             );
             if (res.success && res.result?.ok) setMsg({ ok: true, text: `${t('fail2ban.backup.restored')} ${filename}` });
             else setMsg({ ok: false, text: res.result?.error ?? t('fail2ban.errors.unknown') });
@@ -869,7 +908,7 @@ const IptBackupPanel: React.FC = () => {
         if (!confirm(t('fail2ban.backup.deleteSnapshotConfirm', { filename }))) return;
         setDeleting(filename); setMsg(null);
         try {
-            const res = await api.delete<{ ok?: boolean; error?: string }>(`/api/plugins/fail2ban/iptables/backup/${encodeURIComponent(filename)}`);
+            const res = await api.delete<{ ok?: boolean; error?: string }>(`/api/plugins/fail2ban/${cfg.endpoint}/backup/${encodeURIComponent(filename)}`);
             if (res.success) fetchBackups();
             else setMsg({ ok: false, text: res.result?.error ?? res.error?.message ?? t('fail2ban.errors.unknown') });
         } finally { setDeleting(null); }
@@ -877,7 +916,7 @@ const IptBackupPanel: React.FC = () => {
 
     const download = async (filename: string) => {
         setDownloading(filename);
-        try { await downloadFile(`/api/plugins/fail2ban/iptables/backup/${encodeURIComponent(filename)}/download`, filename); }
+        try { await downloadFile(`/api/plugins/fail2ban/${cfg.endpoint}/backup/${encodeURIComponent(filename)}/download`, filename); }
         finally { setDownloading(null); }
     };
 
@@ -885,12 +924,14 @@ const IptBackupPanel: React.FC = () => {
     const fmtDate = (ts: number) => new Date(ts).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
     const inputStyle: React.CSSProperties = { background: '#161b22', border: '1px solid #30363d', borderBottom: '1px solid #555', borderRadius: 4, color: '#e6edf3', fontSize: '.8rem', padding: '.35rem .6rem', outline: 'none', boxShadow: 'inset 0 2px 4px rgba(0,0,0,.55), inset 0 1px 0 rgba(0,0,0,.4), inset 0 -1px 0 rgba(255,255,255,.04)' };
 
+    const Icon = cfg.icon;
+
     return (
         <div style={{ ...card, height: '100%', display: 'flex', flexDirection: 'column', borderTop: `2px solid ${C.green}` }}>
             <div style={cardH}>
-                <Save style={{ width: 14, height: 14, color: C.cyan }} />
-                <span style={{ fontWeight: 600, fontSize: '.9rem' }}>{t('fail2ban.backup.iptablesBackups')}</span>
-                <span style={{ marginLeft: 'auto', fontSize: '.68rem', padding: '.1rem .45rem', borderRadius: 4, background: 'rgba(57,197,207,.12)', color: C.cyan, border: '1px solid rgba(57,197,207,.25)' }}>iptables-save</span>
+                <Icon style={{ width: 14, height: 14, color: cfg.accentColor }} />
+                <span style={{ fontWeight: 600, fontSize: '.9rem' }}>{t(cfg.titleKey)}</span>
+                <span style={{ marginLeft: 'auto', fontSize: '.68rem', padding: '.1rem .45rem', borderRadius: 4, background: cfg.accentBg, color: cfg.accentColor, border: `1px solid ${cfg.accentBorder}` }}>{cfg.badgeLabel}</span>
             </div>
             <div style={{ ...cardB, display: 'flex', flexDirection: 'column', gap: '.75rem', flex: 1 }}>
                 <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
@@ -913,7 +954,7 @@ const IptBackupPanel: React.FC = () => {
                     </div>
                 )}
                 {loading && <div style={{ color: '#8b949e', fontSize: '.82rem' }}>{t('fail2ban.messages.loadingData')}</div>}
-                {!loading && backups.length === 0 && <div style={{ color: '#555d69', fontSize: '.8rem' }}>{t('fail2ban.backup.noIptablesBackup')}</div>}
+                {!loading && backups.length === 0 && <div style={{ color: '#555d69', fontSize: '.8rem' }}>{t(cfg.emptyKey)}</div>}
                 {backups.length > 0 && (
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.78rem' }}>
                         <thead>
@@ -940,157 +981,7 @@ const IptBackupPanel: React.FC = () => {
                                                 <Download style={{ width: 11, height: 11 }} />
                                             </button>
                                         </F2bTooltip>
-                                        <F2bTooltip title={t('fail2ban.backup.restore')} body={t('fail2ban.backup.restoreRules')} color="orange">
-                                            <button onClick={() => { void restore(b.filename); }} disabled={restoring === b.filename}
-                                                style={{ background: 'rgba(227,179,65,.1)', border: '1px solid rgba(227,179,65,.25)', color: C.orange, borderRadius: 4, cursor: 'pointer', padding: '.2rem .45rem', marginRight: '.35rem', display: 'inline-flex', alignItems: 'center' }}>
-                                                <RotateCcw style={{ width: 11, height: 11 }} />
-                                            </button>
-                                        </F2bTooltip>
-                                        <F2bTooltip title={t('fail2ban.backup.delete')} body={t('fail2ban.backup.deleteSnapshot')} color="red">
-                                            <button onClick={() => { void del(b.filename); }} disabled={deleting === b.filename}
-                                                style={{ background: 'rgba(232,106,101,.08)', border: '1px solid rgba(232,106,101,.2)', color: C.red, borderRadius: 4, cursor: 'pointer', padding: '.2rem .45rem', display: 'inline-flex', alignItems: 'center' }}>
-                                                <Trash2 style={{ width: 11, height: 11 }} />
-                                            </button>
-                                        </F2bTooltip>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                )}
-            </div>
-        </div>
-    );
-};
-
-// ── IPSet Backup Panel ────────────────────────────────────────────────────────
-
-const IpsetBackupPanel: React.FC = () => {
-    const { t } = useTranslation();
-    const [backups, setBackups]     = useState<IptBackupEntry[]>([]);
-    const [loading, setLoading]     = useState(false);
-    const [creating, setCreating]   = useState(false);
-    const [label, setLabel]         = useState('');
-    const [msg, setMsg]             = useState<{ ok: boolean; text: string } | null>(null);
-    const [restoring, setRestoring]     = useState<string | null>(null);
-    const [deleting, setDeleting]       = useState<string | null>(null);
-    const [downloading, setDownloading] = useState<string | null>(null);
-
-    const fetchBackups = useCallback(async () => {
-        setLoading(true);
-        try {
-            const res = await api.get<{ ok: boolean; backups: IptBackupEntry[] }>('/api/plugins/fail2ban/ipset/backups');
-            if (res.success && res.result?.ok) setBackups(res.result.backups);
-            else setMsg({ ok: false, text: res.error?.message ?? t('fail2ban.errors.unknown') });
-        } finally { setLoading(false); }
-    }, [t]);
-
-    useEffect(() => { fetchBackups(); }, [fetchBackups]);
-
-    const createBackup = async () => {
-        setCreating(true); setMsg(null);
-        try {
-            const res = await api.post<{ ok: boolean; filename?: string; error?: string }>(
-                '/api/plugins/fail2ban/ipset/backup', { label: label.trim() || undefined }
-            );
-            if (res.success && res.result?.ok) {
-                setMsg({ ok: true, text: `${t('fail2ban.messages.saved')} ${res.result.filename}` });
-                setLabel(''); fetchBackups();
-            } else {
-                setMsg({ ok: false, text: res.result?.error ?? t('fail2ban.errors.unknown') });
-            }
-        } finally { setCreating(false); }
-    };
-
-    const restore = async (filename: string) => {
-        if (!confirm(t('fail2ban.backup.restoreSetsConfirm', { filename }))) return;
-        setRestoring(filename); setMsg(null);
-        try {
-            const res = await api.post<{ ok: boolean; output?: string; error?: string }>(
-                `/api/plugins/fail2ban/ipset/restore/${encodeURIComponent(filename)}`, {}
-            );
-            if (res.success && res.result?.ok) setMsg({ ok: true, text: `${t('fail2ban.backup.restored')} ${filename}` });
-            else setMsg({ ok: false, text: res.result?.error ?? t('fail2ban.errors.unknown') });
-        } finally { setRestoring(null); }
-    };
-
-    const del = async (filename: string) => {
-        if (!confirm(t('fail2ban.backup.deleteSnapshotConfirm', { filename }))) return;
-        setDeleting(filename);
-        setMsg(null);
-        try {
-            const res = await api.delete<{ ok?: boolean; error?: string }>(`/api/plugins/fail2ban/ipset/backup/${encodeURIComponent(filename)}`);
-            if (res.success) fetchBackups();
-            else setMsg({ ok: false, text: res.result?.error ?? res.error?.message ?? t('fail2ban.errors.unknown') });
-        } finally { setDeleting(null); }
-    };
-
-    const download = async (filename: string) => {
-        setDownloading(filename);
-        try { await downloadFile(`/api/plugins/fail2ban/ipset/backup/${encodeURIComponent(filename)}/download`, filename); }
-        finally { setDownloading(null); }
-    };
-
-    const fmtSize = (b: number) => b > 1024 ? `${(b / 1024).toFixed(1)} KB` : `${b} B`;
-    const fmtDate = (ts: number) => new Date(ts).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-    const inputStyle: React.CSSProperties = { background: '#161b22', border: '1px solid #30363d', borderBottom: '1px solid #555', borderRadius: 4, color: '#e6edf3', fontSize: '.8rem', padding: '.35rem .6rem', outline: 'none', boxShadow: 'inset 0 2px 4px rgba(0,0,0,.55), inset 0 1px 0 rgba(0,0,0,.4), inset 0 -1px 0 rgba(255,255,255,.04)' };
-
-    return (
-        <div style={{ ...card, height: '100%', display: 'flex', flexDirection: 'column', borderTop: `2px solid ${C.green}` }}>
-            <div style={cardH}>
-                <Layers style={{ width: 14, height: 14, color: C.purple }} />
-                <span style={{ fontWeight: 600, fontSize: '.9rem' }}>{t('fail2ban.backup.ipsetBackups')}</span>
-                <span style={{ marginLeft: 'auto', fontSize: '.68rem', padding: '.1rem .45rem', borderRadius: 4, background: 'rgba(188,140,255,.12)', color: C.purple, border: '1px solid rgba(188,140,255,.25)' }}>ipset save</span>
-            </div>
-            <div style={{ ...cardB, display: 'flex', flexDirection: 'column', gap: '.75rem', flex: 1 }}>
-                <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
-                    <input value={label} onChange={e => setLabel(e.target.value)} placeholder="Label (optionnel)"
-                        style={{ ...inputStyle, flex: 1 }}
-                        onKeyDown={e => { if (e.key === 'Enter') createBackup(); }} />
-                    <button onClick={createBackup} disabled={creating} style={{
-                        background: 'rgba(63,185,80,.12)', border: `1px solid rgba(63,185,80,.3)`, color: C.green,
-                        borderRadius: 4, cursor: creating ? 'default' : 'pointer',
-                        padding: '.35rem .85rem', fontSize: '.8rem', fontWeight: 600,
-                        display: 'flex', alignItems: 'center', gap: '.35rem', opacity: creating ? .6 : 1,
-                    }}>
-                        <Save style={{ width: 12, height: 12 }} /> {t('fail2ban.backup.saveNow')}
-                    </button>
-                </div>
-                {msg && (
-                    <div style={{ fontSize: '.78rem', color: msg.ok ? C.green : C.red, display: 'flex', gap: '.4rem', alignItems: 'center' }}>
-                        {msg.ok ? <CheckCircle style={{ width: 12, height: 12 }} /> : <AlertTriangle style={{ width: 12, height: 12 }} />}
-                        {msg.text}
-                    </div>
-                )}
-                {loading && <div style={{ color: '#8b949e', fontSize: '.82rem' }}>{t('fail2ban.messages.loadingData')}</div>}
-                {!loading && backups.length === 0 && <div style={{ color: '#555d69', fontSize: '.8rem' }}>{t('fail2ban.backup.noIpsetBackup')}</div>}
-                {backups.length > 0 && (
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.78rem' }}>
-                        <thead>
-                            <tr style={{ borderBottom: '1px solid #30363d', color: '#8b949e', fontSize: '.68rem', textTransform: 'uppercase', letterSpacing: '.05em' }}>
-                                <th style={{ textAlign: 'left', padding: '.3rem .5rem .3rem 0' }}>Fichier</th>
-                                <th style={{ textAlign: 'right', padding: '.3rem .5rem' }}>Taille</th>
-                                <th style={{ textAlign: 'right', padding: '.3rem .5rem' }}>Date</th>
-                                <th style={{ textAlign: 'right', padding: '.3rem 0 .3rem .5rem' }}>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {backups.map(b => (
-                                <tr key={b.filename}
-                                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,.02)'}
-                                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
-                                    style={{ borderBottom: '1px solid #21262d' }}>
-                                    <td style={{ padding: '.45rem .5rem .45rem 0', fontFamily: 'monospace', color: '#c9d1d9', fontSize: '.74rem', wordBreak: 'break-all' }}>{b.filename}</td>
-                                    <td style={{ padding: '.45rem .5rem', textAlign: 'right', color: '#8b949e', whiteSpace: 'nowrap' }}>{fmtSize(b.size)}</td>
-                                    <td style={{ padding: '.45rem .5rem', textAlign: 'right', color: '#8b949e', whiteSpace: 'nowrap' }}>{fmtDate(b.ts)}</td>
-                                    <td style={{ padding: '.45rem 0 .45rem .5rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                        <F2bTooltip title={t('fail2ban.backup.download')} body={t('fail2ban.backup.downloadFile')} color="green">
-                                            <button onClick={() => { void download(b.filename); }} disabled={downloading === b.filename}
-                                                style={{ background: 'rgba(63,185,80,.1)', border: '1px solid rgba(63,185,80,.25)', color: C.green, borderRadius: 4, cursor: 'pointer', padding: '.2rem .45rem', marginRight: '.35rem', display: 'inline-flex', alignItems: 'center' }}>
-                                                <Download style={{ width: 11, height: 11 }} />
-                                            </button>
-                                        </F2bTooltip>
-                                        <F2bTooltip title={t('fail2ban.backup.restore')} body={t('fail2ban.backup.restoreSets')} color="orange">
+                                        <F2bTooltip title={t('fail2ban.backup.restore')} body={t(cfg.restoreBodyKey)} color="orange">
                                             <button onClick={() => { void restore(b.filename); }} disabled={restoring === b.filename}
                                                 style={{ background: 'rgba(227,179,65,.1)', border: '1px solid rgba(227,179,65,.25)', color: C.orange, borderRadius: 4, cursor: 'pointer', padding: '.2rem .45rem', marginRight: '.35rem', display: 'inline-flex', alignItems: 'center' }}>
                                                 <RotateCcw style={{ width: 11, height: 11 }} />
@@ -1176,7 +1067,7 @@ export const TabBackup: React.FC = () => {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', alignItems: 'stretch' }}>
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                     {iptAvail === null && <div style={{ color: C.muted, fontSize: '.8rem', padding: '.5rem' }}>{t('fail2ban.messages.loadingData')}</div>}
-                    {iptAvail === true  && <IptBackupPanel />}
+                    {iptAvail === true  && <RulesBackupPanel kind="iptables" />}
                     {iptAvail === false && (
                         <UnavailablePanel tool="IPTables" color={C.cyan}
                             icon={<Shield style={{ width: 14, height: 14 }} />} />
@@ -1184,7 +1075,7 @@ export const TabBackup: React.FC = () => {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                     {ipsetAvail === null && <div style={{ color: C.muted, fontSize: '.8rem', padding: '.5rem' }}>{t('fail2ban.messages.loadingData')}</div>}
-                    {ipsetAvail === true  && <IpsetBackupPanel />}
+                    {ipsetAvail === true  && <RulesBackupPanel kind="ipset" />}
                     {ipsetAvail === false && (
                         <UnavailablePanel tool="IPSet" color={C.purple}
                             icon={<Layers style={{ width: 14, height: 14 }} />} />

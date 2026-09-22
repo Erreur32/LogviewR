@@ -22,6 +22,18 @@ export const fmtSecs = (s: number, t: TFunction): string => {
 /** Strips a filter/action file's ".conf" or ".local" extension to get its base name. */
 export const stripConfExt = (name: string): string => name.replace(/\.(conf|local)$/, '');
 
+/** Formats the remaining time before a ban expires ("expired" / "12m" / "3h" / "2j" / permanentLabel). */
+export function fmtBanExpiry(
+    ban: { timeofban: number; bantime: number }, now: number, t: TFunction, permanentLabel = '∞',
+): string {
+    if (ban.bantime === -1) return permanentLabel;
+    const rem = ban.timeofban + ban.bantime - now;
+    if (rem <= 0) return t('fail2ban.stats.expired');
+    if (rem < 3600) return `${Math.round(rem / 60)}m`;
+    if (rem < 86400) return `${Math.round(rem / 3600)}h`;
+    return `${Math.round(rem / 86400)}j`;
+}
+
 /** "Copied!" flag that auto-resets after `ms`, clearing its timer on unmount/re-flash. */
 export function useCopiedFlash(ms: number): [boolean, () => void] {
     const [copied, setCopied] = useState(false);
