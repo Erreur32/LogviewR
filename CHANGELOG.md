@@ -5,6 +5,16 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.9] - 2026-09-22
+
+### For users
+
+- The fail2ban "Événements" (events) table was missing the gear icon to open a jail's configuration — present on the jails table view but forgotten here. Added as a new column on the far right, same as the jails table.
+
+### For developers
+
+- Extracted the gear-icon button (`JailConfigModal` trigger) into a shared `JailConfigGearButton` component (`helpers.tsx`), reused by `JailsTableView` and the new `TabJailsEvents` column instead of duplicating the button markup.
+
 ## [0.14.8] - 2026-09-22
 
 ### For users
