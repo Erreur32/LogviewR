@@ -28,6 +28,45 @@ interface ListState {
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
+/** Toggle-button color/icon: updating=muted spinner, else enabled=green dot, disabled=gray ring. */
+function toggleColor(updating: boolean, enabled: boolean): string {
+  if (updating) return '#555d69';
+  return enabled ? '#3fb950' : '#484f58';
+}
+function toggleIcon(updating: boolean, enabled: boolean): string {
+  if (updating) return '⟳';
+  return enabled ? '●' : '○';
+}
+
+/** Direction badge label (list row) — short form. */
+function directionBadgeLabel(d: ListDirection, t: TFunction): string {
+  if (d === 'in') return t('fail2ban.blocklists.dirIn');
+  if (d === 'out') return t('fail2ban.blocklists.dirOut');
+  return t('fail2ban.blocklists.dirBoth');
+}
+
+/** Direction picker button label — long form (Input/Output/In+Out). */
+function directionButtonLabel(d: ListDirection, t: TFunction): string {
+  if (d === 'in') return t('fail2ban.blocklists.dirInput');
+  if (d === 'out') return t('fail2ban.blocklists.dirOutput');
+  return t('fail2ban.blocklists.dirInOut');
+}
+
+/** Direction badge style (list row): out=orange, both=purple, else(in)=green. */
+function directionBadgeStyle(d: ListDirection): { bg: string; border: string; color: string } {
+  if (d === 'out') return { bg: 'rgba(227,179,65,.1)', border: 'rgba(227,179,65,.3)', color: '#e3b341' };
+  if (d === 'both') return { bg: 'rgba(188,140,255,.1)', border: 'rgba(188,140,255,.3)', color: '#bc8cff' };
+  return { bg: 'rgba(63,185,80,.07)', border: 'rgba(63,185,80,.2)', color: '#3fb950' };
+}
+
+/** Direction picker button style — inactive is neutral gray, active follows directionBadgeStyle's hues at higher opacity. */
+function directionButtonStyle(d: ListDirection, active: boolean): { bg: string; border: string; color: string } {
+  if (!active) return { bg: 'rgba(139,148,158,.08)', border: '#30363d', color: '#8b949e' };
+  if (d === 'out') return { bg: 'rgba(227,179,65,.2)', border: 'rgba(227,179,65,.5)', color: '#e3b341' };
+  if (d === 'both') return { bg: 'rgba(188,140,255,.2)', border: 'rgba(188,140,255,.5)', color: '#bc8cff' };
+  return { bg: 'rgba(63,185,80,.12)', border: 'rgba(63,185,80,.4)', color: '#3fb950' };
+}
+
 function fmtAge(iso: string | null, t: TFunction): string {
   if (!iso) return t('fail2ban.blocklists.ageNotLoaded');
   const diff = Date.now() - new Date(iso).getTime();
@@ -219,12 +258,12 @@ export const TabBlocklists: React.FC = () => {
             title={list.enabled ? t('fail2ban.blocklists.disable') : t('fail2ban.blocklists.enable')}
             style={{
               background: 'none', border: 'none', padding: 0,
-              color: list.updating ? '#555d69' : list.enabled ? '#3fb950' : '#484f58',
+              color: toggleColor(list.updating, list.enabled),
               fontSize: '1rem', lineHeight: 1, cursor: list.updating ? 'default' : 'pointer',
               flexShrink: 0, width: 16, textAlign: 'center',
             }}
           >
-            {list.updating ? '⟳' : list.enabled ? '●' : '○'}
+            {toggleIcon(list.updating, list.enabled)}
           </button>
 
           {/* Name + description */}
@@ -252,11 +291,11 @@ export const TabBlocklists: React.FC = () => {
           {/* Direction badge */}
           <span style={{
             fontSize: '.68rem', fontWeight: 600, borderRadius: 3, padding: '.05rem .35rem', flexShrink: 0,
-            background: list.direction === 'out' ? 'rgba(227,179,65,.1)' : list.direction === 'both' ? 'rgba(188,140,255,.1)' : 'rgba(63,185,80,.07)',
-            border: `1px solid ${list.direction === 'out' ? 'rgba(227,179,65,.3)' : list.direction === 'both' ? 'rgba(188,140,255,.3)' : 'rgba(63,185,80,.2)'}`,
-            color: list.direction === 'out' ? '#e3b341' : list.direction === 'both' ? '#bc8cff' : '#3fb950',
+            background: directionBadgeStyle(list.direction).bg,
+            border: `1px solid ${directionBadgeStyle(list.direction).border}`,
+            color: directionBadgeStyle(list.direction).color,
           }}>
-            {list.direction === 'in' ? t('fail2ban.blocklists.dirIn') : list.direction === 'out' ? t('fail2ban.blocklists.dirOut') : t('fail2ban.blocklists.dirBoth')}
+            {directionBadgeLabel(list.direction, t)}
           </span>
 
           {/* Source link */}
@@ -434,12 +473,12 @@ export const TabBlocklists: React.FC = () => {
                 <button key={d} type="button" onClick={() => setNewDirection(d)}
                   style={{
                     padding: '.2rem .7rem', borderRadius: 4, fontSize: '.78rem', cursor: 'pointer',
-                    background: newDirection === d ? (d === 'out' ? 'rgba(227,179,65,.2)' : d === 'both' ? 'rgba(188,140,255,.2)' : 'rgba(63,185,80,.12)') : 'rgba(139,148,158,.08)',
-                    border: `1px solid ${newDirection === d ? (d === 'out' ? 'rgba(227,179,65,.5)' : d === 'both' ? 'rgba(188,140,255,.5)' : 'rgba(63,185,80,.4)') : '#30363d'}`,
-                    color: newDirection === d ? (d === 'out' ? '#e3b341' : d === 'both' ? '#bc8cff' : '#3fb950') : '#8b949e',
+                    background: directionButtonStyle(d, newDirection === d).bg,
+                    border: `1px solid ${directionButtonStyle(d, newDirection === d).border}`,
+                    color: directionButtonStyle(d, newDirection === d).color,
                     fontWeight: newDirection === d ? 600 : 400,
                   }}>
-                  {d === 'in' ? t('fail2ban.blocklists.dirInput') : d === 'out' ? t('fail2ban.blocklists.dirOutput') : t('fail2ban.blocklists.dirInOut')}
+                  {directionButtonLabel(d, t)}
                 </button>
               ))}
             </div>
