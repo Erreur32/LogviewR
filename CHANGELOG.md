@@ -5,6 +5,19 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.7] - 2026-09-22
+
+### For users
+
+- Security fix: the fail2ban map's IP popup could render unescaped geo-IP data (city, region, country, organization, jail names) as raw HTML instead of plain text. It's now built safely and can no longer inject markup.
+- Several fail2ban screens (iptables rollback, backup panels, filter/jail editors) now show an error message instead of silently doing nothing when an action fails.
+- Fixed a French label that was displayed as literal `{t(...)}` text instead of being translated on the fail2ban map.
+
+### For developers
+
+- Code-quality pass across `src/pages/fail2ban/`: removed dead code, deduplicated several near-identical components (backup panels, DB vacuum alerts, iptables/nftables color helpers), fixed unsafe non-null assertions and a couple of `any` casts, extracted ~72 nested ternaries into named helpers, translated a few hardcoded French strings, and bounded the previously-unbounded module-level UI caches (`cacheUtils.ts`, max 200 entries with FIFO eviction). Bulk ban/ipset operations (`TabBanManager.tsx`) now run with bounded concurrency (5 at a time) instead of one request at a time.
+- Adopted a mandatory pull-request workflow going forward — no more direct pushes to `main`.
+
 ## [0.14.6] - 2026-09-22
 
 ### For users
