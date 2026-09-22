@@ -3,14 +3,14 @@ import { createPortal } from 'react-dom';
 import { CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
-import { getAppLanguage } from '../../i18n';
 
 // ── Formatters ────────────────────────────────────────────────────────────────
 
-export const fmtTs = (ts: number) =>
-    new Date(ts * 1000).toLocaleString(getAppLanguage(), {
-        day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
-    });
+export const fmtTs = (ts: number) => {
+    const d = new Date(ts * 1000);
+    const p = (n: number) => String(n).padStart(2, '0');
+    return `${p(d.getDate())}/${p(d.getMonth() + 1)} ${p(d.getHours())}:${p(d.getMinutes())}`;
+};
 
 export const fmtSecs = (s: number, t: TFunction): string => {
     if (s < 0) return t('fail2ban.helpers.permanent');
