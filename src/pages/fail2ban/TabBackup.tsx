@@ -124,7 +124,11 @@ const SnapshotTable: React.FC<SnapshotTableProps> = ({
 }) => {
     const { t } = useTranslation();
     const fmtSize = (b: number) => b > 1024 ? `${(b / 1024).toFixed(1)} KB` : `${b} B`;
-    const fmtDate = (ts: number) => new Date(ts).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    const fmtDate = (ts: number) => {
+        const d = new Date(ts);
+        const p = (n: number) => String(n).padStart(2, '0');
+        return `${p(d.getDate())}/${p(d.getMonth() + 1)} ${p(d.getHours())}:${p(d.getMinutes())}`;
+    };
 
     if (snapshots.length === 0) return <div style={{ color: '#555d69', fontSize: '.8rem' }}>{emptyLabel}</div>;
 

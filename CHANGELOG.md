@@ -5,6 +5,16 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.8] - 2026-09-22
+
+### For users
+
+- Fixed the date column on the fail2ban backup panels (config/DB/iptables/ipset snapshots), which could show a comma and US-style ordering (e.g. `09/22, 06:49`) depending on the server's locale support.
+
+### For developers
+
+- `TabBackup.tsx`: `SnapshotTable.fmtDate` no longer relies on `Date.prototype.toLocaleString`, which isn't reliably formatted the same way across Node/Docker runtimes. It now builds the `DD/MM HH:MM` string manually.
+
 ## [0.14.7] - 2026-09-22
 
 ### For users
