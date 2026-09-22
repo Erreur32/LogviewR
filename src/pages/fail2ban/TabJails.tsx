@@ -12,7 +12,7 @@ import {
     Settings, Terminal, Clock, Plus,
 } from 'lucide-react';
 import { api } from '../../api/client';
-import { card, cardH, Badge, StatusDot, fmtSecs, fmtTs, F2bTooltip, type F2bTtColor } from './helpers';
+import { card, cardH, Badge, StatusDot, JailConfigGearButton, fmtSecs, fmtTs, F2bTooltip, type F2bTtColor } from './helpers';
 import { ConfEditorModal } from './ConfEditorModal';
 import type { ConfEditorTarget } from './ConfEditorModal';
 import { JailConfigModal } from './JailConfigModal';
@@ -889,14 +889,10 @@ const JailsTableView: React.FC<{
                                         <td style={{ padding: '.5rem .6rem', textAlign: 'center' }}>
                                             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '.35rem' }}>
                                                 {!isInactive && (
-                                                    <button
-                                                        onClick={e => { e.stopPropagation(); setConfigJail(j.jail); }}
+                                                    <JailConfigGearButton
                                                         title={t('fail2ban.jails.editJailConfig')}
-                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '.1rem', display: 'flex', alignItems: 'center', color: '#8b949e', borderRadius: 3, lineHeight: 0 }}
-                                                        onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = '#58a6ff'}
-                                                        onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = '#8b949e'}>
-                                                        <Settings style={{ width: 12, height: 12 }} />
-                                                    </button>
+                                                        onClick={() => setConfigJail(j.jail)}
+                                                    />
                                                 )}
                                                 {!isInactive && <ChevronRight style={{ width: 12, height: 12, color: '#8b949e', transform: isOpen ? 'rotate(90deg)' : undefined, transition: 'transform .15s' }} />}
                                             </div>
@@ -1152,6 +1148,7 @@ export const TabJailsEvents: React.FC<{ onIpClick?: (ip: string) => void; days?:
     const [page, setPage]              = useState(0);
     const [sortCol, setSortCol]        = useState<SortCol>('date');
     const [sortDir, setSortDir]        = useState<SortDir>('desc');
+    const [configJail, setConfigJail]  = useState<string | null>(null);
 
     // Inject shimmer keyframes once
     useEffect(() => {
@@ -1330,6 +1327,7 @@ export const TabJailsEvents: React.FC<{ onIpClick?: (ip: string) => void; days?:
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '.6rem' }}>
+            {configJail && <JailConfigModal jailName={configJail} isActive onClose={() => setConfigJail(null)} />}
             {/* ── Toolbar unique ── */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', flexWrap: 'wrap', padding: '.4rem .6rem', background: '#161b22', border: '1px solid #30363d', borderRadius: 7 }}>
                 {/* Title */}
@@ -1428,6 +1426,7 @@ export const TabJailsEvents: React.FC<{ onIpClick?: (ip: string) => void; days?:
                                 {thS('failures', t('fail2ban.jails.attemptsCount'), t('fail2ban.jails.attemptsTooltip'), 'center', 'orange')}
                                 {thS('domain',   t('fail2ban.jails.domain'),     t('fail2ban.jails.domainTooltip'), 'left', 'cyan')}
                                 {thS('log',      t('fail2ban.jails.log'),        t('fail2ban.jails.logTooltip'), 'left', 'muted')}
+                                <th style={{ padding: '.45rem .75rem', borderBottom: '1px solid #30363d', width: 20 }} />
                             </tr>
                         </thead>
                         <tbody>
@@ -1535,6 +1534,9 @@ export const TabJailsEvents: React.FC<{ onIpClick?: (ip: string) => void; days?:
                                                 ) : <span style={{ color: '#30363d', fontSize: '.7rem' }}>—</span>}
                                             </span>
                                         )}
+                                    </td>
+                                    <td style={{ padding: '.45rem .6rem', textAlign: 'center' }}>
+                                        <JailConfigGearButton title={t('fail2ban.jails.editJailConfig')} onClick={() => setConfigJail(b.jail)} />
                                     </td>
                                 </tr>
                                 );

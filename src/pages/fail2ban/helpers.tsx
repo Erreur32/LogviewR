@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
+import { CheckCircle, XCircle, AlertTriangle, Settings } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 
@@ -142,6 +142,19 @@ export const StatusDot: React.FC<{ banned: number; failed: number }> = ({ banned
         }} />
     );
 };
+
+// ── Jail config gear button (opens JailConfigModal) ──────────────────────────
+
+export const JailConfigGearButton: React.FC<{ title: string; onClick: () => void }> = ({ title, onClick }) => (
+    <button
+        onClick={e => { e.stopPropagation(); onClick(); }}
+        title={title}
+        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '.1rem', display: 'inline-flex', alignItems: 'center', color: '#8b949e', borderRadius: 3, lineHeight: 0 }}
+        onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = '#58a6ff'}
+        onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = '#8b949e'}>
+        <Settings style={{ width: 12, height: 12 }} />
+    </button>
+);
 
 // ── F2bTooltip — PHP jd-tt style tooltip ─────────────────────────────────────
 // Replicates .jd-tt-root / .jd-tt-box / .jd-tt--{color} from Fail2ban-web CSS.
