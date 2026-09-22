@@ -21,9 +21,8 @@ import type { JailStatus, BanEntry, AttemptEntry } from './types';
 import { DomainInitial } from './DomainInitial';
 import { FlagImg } from './FlagImg';
 import { useNotificationStore } from '../../stores/notificationStore';
+import { getCached as getCachedRaw, setCached } from './cacheUtils';
 
-// ── Module-level cache (survives tab navigation) ──────────────────────────────
-const _cache: Record<string, { data: unknown; ts: number }> = {};
 const CACHE_TTL  = 30_000;
 const ENRICH_TTL = 300_000; // 5 min — jail configs rarely change
 function isValidIpOrCidr(s: string): boolean {
@@ -36,9 +35,8 @@ function isValidIpOrCidr(s: string): boolean {
     if (m6 && m6[1].includes(':')) return +m6[2] <= 128;
     return false;
 }
-function getCached<T>(key: string): T | null { const e = _cache[key]; return (e && Date.now() - e.ts < CACHE_TTL) ? e.data as T : null; }
-function getCachedTTL<T>(key: string, ttl: number): T | null { const e = _cache[key]; return (e && Date.now() - e.ts < ttl) ? e.data as T : null; }
-function setCached(key: string, data: unknown) { _cache[key] = { data, ts: Date.now() }; }
+function getCached<T>(key: string): T | null { return getCachedRaw<T>(key, CACHE_TTL); }
+const getCachedTTL = getCachedRaw;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -1180,7 +1178,7 @@ export const TabJailsEvents: React.FC<{ onIpClick?: (ip: string) => void; days?:
                     jail_domains: res.result.jail_domains ?? {},
                 };
                 setCached(bansKey, bansData);
-                _cache['audit:enrich'] = { data: enrichData, ts: Date.now() };
+                setCached('audit:enrich', enrichData);
                 setBans(bansData);
                 setEnrich(enrichData);
             } else if (!cachedBans) {

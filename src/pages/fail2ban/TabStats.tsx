@@ -35,9 +35,8 @@ import { TabJailsEvents } from './TabJails';
 import { primeTopsPrevTotalFromFullFetch } from './fail2banTopsPrevFlight';
 import { dispatchTabLoaded } from '../../utils/tabTimer';
 import { DomainInitial } from './DomainInitial';
+import { getCached as getCachedRaw, setCached } from './cacheUtils';
 
-// ── Module-level cache (survives tab navigation) ──────────────────────────────
-const _cache: Record<string, { data: unknown; ts: number }> = {};
 /** Adaptive TTL: recent data expires fast, old data stays cached longer */
 function getCacheTtl(days: number): number {
     if (days <= 0) return 600_000; // all-time: 10min
@@ -46,11 +45,7 @@ function getCacheTtl(days: number): number {
     return 600_000; // 30j, 6m, 1an: 10min
 }
 function getCached<T>(key: string, days = 7): T | null {
-    const e = _cache[key];
-    return e && Date.now() - e.ts < getCacheTtl(days) ? (e.data as T) : null;
-}
-function setCached(key: string, data: unknown) {
-    _cache[key] = { data, ts: Date.now() };
+    return getCachedRaw<T>(key, getCacheTtl(days));
 }
 
 // ── Palette ───────────────────────────────────────────────────────────────────

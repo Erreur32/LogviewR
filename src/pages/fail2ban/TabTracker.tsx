@@ -7,12 +7,10 @@ import type { TrackerEntry } from './types';
 import { GeoInfo } from './types';
 import { FlagImg } from './FlagImg';
 import { getAppLanguage } from '../../i18n';
+import { getCached as getCachedRaw, setCached } from './cacheUtils';
 
-// ── Module-level cache (survives tab navigation) ──────────────────────────────
-const _cache: Record<string, { data: unknown; ts: number }> = {};
 const CACHE_TTL = 30_000;
-function getCached<T>(key: string): T | null { const e = _cache[key]; return (e && Date.now() - e.ts < CACHE_TTL) ? e.data as T : null; }
-function setCached(key: string, data: unknown) { _cache[key] = { data, ts: Date.now() }; }
+function getCached<T>(key: string): T | null { return getCachedRaw<T>(key, CACHE_TTL); }
 
 type SortCol = 'ip' | 'bans' | 'unbans' | 'failures' | 'jails' | 'last';
 type SortDir = 'asc' | 'desc';
