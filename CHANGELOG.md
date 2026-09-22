@@ -5,6 +5,16 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.6] - 2026-09-22
+
+### For users
+
+- Fail2ban "Historique des bans" chart (jails tab + stats tab): removed the buggy curve display, now bars-only. The line/bar toggle button is gone since there's only one mode left.
+
+### For developers
+
+- `BanHistoryChart.tsx`: removed the `LineChart` sub-component, the `mode` state, and the associated `chartLine`/`chartLineDesc`/`chartBar`/`chartBarDesc` i18n keys (fr/en) — `BarChart` is now rendered unconditionally.
+
 ## [0.14.5] - 2026-09-16
 
 ### For users

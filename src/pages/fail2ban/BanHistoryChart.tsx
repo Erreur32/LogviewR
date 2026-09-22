@@ -215,213 +215,6 @@ function allDates(history: HistoryEntry[]): string[] {
     return history.map((h) => h.date);
 }
 
-// ── Multi-series Line chart ───────────────────────────────────────────────────
-const LineChart: React.FC<{
-    history: HistoryEntry[];
-    histMax: number;
-    byJail: Record<string, Record<string, number>>;
-    jailNames: string[];
-    hidden: Set<string>;
-    isHourly?: boolean;
-    days?: number;
-    nowSlotFrac?: number; // fractional position of "now" within the last slot
-}> = ({ history, histMax, byJail, jailNames, hidden, isHourly = false, days = 30, nowSlotFrac = 0 }) => {
-    if (history.length === 0) return null;
-    const H = 170;
-    const padL = 4;
-    const padR = 4;
-    const padT = 12;
-    const padB = 20;
-
-    const [tip, setTip] = useState<TooltipData>(null);
-    const wrapRef = useRef<HTMLDivElement>(null);
-    const [W, setW] = useState(700);
-    useEffect(() => {
-        const el = wrapRef.current;
-        if (!el) return;
-        const measure = () => setW(el.clientWidth || 700);
-        measure();
-        const ro = new ResizeObserver(measure);
-        ro.observe(el);
-        return () => ro.disconnect();
-    }, []);
-
-    const innerW = W - padL - padR;
-    const innerH = H - padT - padB;
-
-    const dates = allDates(history);
-    const n = Math.max(dates.length - 1, 1);
-    const visibleJails = jailNames.filter((j) => !hidden.has(j));
-
-    const maxVal = Math.max(histMax, 1);
-    const xOf = (i: number) => padL + (i / n) * innerW;
-    const yOf = (v: number) => padT + innerH - Math.min((v / maxVal) * innerH, innerH);
-
-    const ticks = yTicks(maxVal);
-    const xIdxs = xLabelIndices(dates.length, labelCountForDays(days, isHourly));
-
-    const handleEnter = useCallback((e: React.MouseEvent, jail: string, date: string, value: number, color: string) => {
-        if (!wrapRef.current) return;
-        const rect = wrapRef.current.getBoundingClientRect();
-        setTip({
-            x: e.clientX - rect.left,
-            y: e.clientY - rect.top,
-            jail,
-            date,
-            value,
-            color,
-        });
-    }, []);
-
-    return (
-        <div ref={wrapRef} style={{ position: 'relative' }} onMouseLeave={() => setTip(null)}>
-            <svg
-                viewBox={`0 0 ${W} ${H}`}
-                style={{ width: '100%', height: H, display: 'block' }}
-                preserveAspectRatio="none"
-            >
-                {/* Grid lines + Y labels */}
-                {ticks.map(({ val, frac }) => {
-                    const y = padT + innerH * (1 - frac);
-                    return (
-                        <g key={val}>
-                            <line
-                                x1={padL}
-                                x2={W - padR}
-                                y1={y}
-                                y2={y}
-                                stroke="rgba(128,128,128,.13)"
-                                strokeWidth={frac === 0 ? 1 : 0.5}
-                            />
-                            {frac > 0 && (
-                                <g>
-                                    <rect
-                                        x={padL + 1}
-                                        y={y - 10}
-                                        width={22}
-                                        height={10}
-                                        fill="rgba(13,17,23,.6)"
-                                        rx={2}
-                                    />
-                                    <text
-                                        x={padL + 12}
-                                        y={y - 2}
-                                        fontSize={8}
-                                        fontFamily="'ui-monospace','SFMono-Regular','Menlo',monospace"
-                                        fill="rgba(139,148,158,.85)"
-                                        textAnchor="middle"
-                                    >
-                                        {val}
-                                    </text>
-                                </g>
-                            )}
-                        </g>
-                    );
-                })}
-
-                {/* Per-jail area + line */}
-                {visibleJails.map((jail) => {
-                    const color = jailColor(jail, jailNames);
-                    const pts = dates.map((dt, i) => `${xOf(i)},${yOf(byJail[jail]?.[dt] ?? 0)}`);
-                    const areaPts = [...pts, `${xOf(dates.length - 1)},${yOf(0)}`, `${xOf(0)},${yOf(0)}`].join(' ');
-                    return (
-                        <g key={jail}>
-                            <polygon points={areaPts} fill={color} opacity={0.07} />
-                            <polyline
-                                points={pts.join(' ')}
-                                fill="none"
-                                stroke={color}
-                                strokeWidth={1.6}
-                                strokeLinejoin="round"
-                                strokeLinecap="round"
-                                opacity={0.9}
-                            />
-                            {dates.map((dt, i) => {
-                                const v = byJail[jail]?.[dt] ?? 0;
-                                const cx = xOf(i);
-                                const cy = yOf(v);
-                                return v > 0 ? (
-                                    <g key={i}>
-                                        <circle
-                                            cx={cx}
-                                            cy={cy}
-                                            r={2.5}
-                                            fill={color}
-                                            stroke="#0d1117"
-                                            strokeWidth={1}
-                                            opacity={0.95}
-                                        />
-                                        <circle
-                                            cx={cx}
-                                            cy={cy}
-                                            r={8}
-                                            fill="transparent"
-                                            style={{ cursor: 'crosshair' }}
-                                            onMouseEnter={(e) => handleEnter(e, jail, dt, v, color)}
-                                            onMouseMove={(e) => handleEnter(e, jail, dt, v, color)}
-                                        />
-                                    </g>
-                                ) : null;
-                            })}
-                        </g>
-                    );
-                })}
-
-                {/* Fallback: single total line when no jail data */}
-                {visibleJails.length === 0 && (
-                    <polyline
-                        points={dates.map((_, i) => `${xOf(i)},${yOf(history[i]?.count ?? 0)}`).join(' ')}
-                        fill="none"
-                        stroke="#e86a65"
-                        strokeWidth={1.6}
-                        strokeLinejoin="round"
-                        strokeLinecap="round"
-                    />
-                )}
-
-                {/* X-axis labels — hourly mode: every 2 hours, format "Xh" */}
-                {isHourly
-                    ? dates.map((d, i) => {
-                          if (!d.endsWith(':00')) return null;
-                          const hour = Number.parseInt(d.slice(0, 2), 10);
-                          if (hour % 2 !== 0) return null;
-                          const anchor = i === 0 ? 'start' : 'middle';
-                          return (
-                              <text
-                                  key={i}
-                                  x={xOf(i)}
-                                  y={H - 3}
-                                  fontSize={8}
-                                  fontFamily="'ui-monospace','SFMono-Regular','Menlo',monospace"
-                                  fill="rgba(139,148,158,.7)"
-                                  textAnchor={anchor}
-                              >
-                                  {`${hour}h`}
-                              </text>
-                          );
-                      })
-                    : xIdxs.map((i) => {
-                          const anchor = i === 0 ? 'start' : i === dates.length - 1 ? 'end' : 'middle';
-                          return (
-                              <text
-                                  key={i}
-                                  x={xOf(i)}
-                                  y={H - 3}
-                                  fontSize={8}
-                                  fontFamily="'ui-monospace','SFMono-Regular','Menlo',monospace"
-                                  fill="rgba(139,148,158,.7)"
-                                  textAnchor={anchor}
-                              >
-                                  {dates[i]?.slice(5) ?? ''}
-                              </text>
-                          );
-                      })}
-            </svg>
-            <ChartTooltip data={tip} cw={W} ch={H} isHourly={isHourly} />
-        </div>
-    );
-};
-
 // ── Multi-series Bar chart ────────────────────────────────────────────────────
 const BarChart: React.FC<{
     history: HistoryEntry[];
@@ -698,7 +491,6 @@ export const BanHistoryChart: React.FC<BanHistoryChartProps> = ({
     loading = false,
 }) => {
     const { t } = useTranslation();
-    const [mode, setMode] = useState<'bar' | 'line'>('line');
     const [collapsed, setCollapsed] = useState(false);
     const [hidden, setHidden] = useState<Set<string>>(new Set());
 
@@ -773,19 +565,6 @@ export const BanHistoryChart: React.FC<BanHistoryChartProps> = ({
                         </button>
                     </F2bTooltip>
                 ))}
-            </div>
-            <div style={{ width: 1, height: 14, background: '#30363d', flexShrink: 0 }} />
-            <div style={{ display: 'flex', gap: '.2rem' }}>
-                <F2bTooltip title={t('fail2ban.stats.chartLine')} body={t('fail2ban.stats.chartLineDesc')} color="blue">
-                    <button onClick={() => setMode('line')} style={periodBtnStyle(mode === 'line')}>
-                        ∿ {t('fail2ban.stats.chartLine')}
-                    </button>
-                </F2bTooltip>
-                <F2bTooltip title={t('fail2ban.stats.chartBar')} body={t('fail2ban.stats.chartBarDesc')} color="blue">
-                    <button onClick={() => setMode('bar')} style={periodBtnStyle(mode === 'bar')}>
-                        ▐▌ {t('fail2ban.stats.chartBar')}
-                    </button>
-                </F2bTooltip>
             </div>
         </div>
     );
@@ -879,19 +658,8 @@ export const BanHistoryChart: React.FC<BanHistoryChartProps> = ({
                 >
                     {t('fail2ban.history.noBans')}
                 </div>
-            ) : mode === 'bar' ? (
-                <BarChart
-                    history={histSlice}
-                    histMax={effectiveMax}
-                    byJail={byJail}
-                    jailNames={jailNames}
-                    hidden={hidden}
-                    isHourly={isHourly}
-                    days={days}
-                    nowSlotFrac={nowSlotFrac}
-                />
             ) : (
-                <LineChart
+                <BarChart
                     history={histSlice}
                     histMax={effectiveMax}
                     byJail={byJail}
