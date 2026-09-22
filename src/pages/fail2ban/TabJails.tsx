@@ -1133,7 +1133,7 @@ const EVENT_TYPE_BADGE: Record<'ban' | 'unban', React.ReactNode> = {
     unban:   <span style={{ color: '#3fb950', fontSize: '.78rem', fontWeight: 600 }}>🔓 unban</span>,
 };
 
-export const TabJailsEvents: React.FC<{ onIpClick?: (ip: string) => void; days?: number }> = ({ onIpClick, days }) => {
+export const TabJailsEvents: React.FC<{ onIpClick?: (ip: string) => void; days?: number; jails?: JailStatus[] }> = ({ onIpClick, days, jails = [] }) => {
     const { t } = useTranslation();
     const { addAction } = useNotificationStore();
     const [bans, setBans]              = useState<BanEntry[]>(() => getCached<BanEntry[]>(`audit:bans:${days ?? 0}`) ?? []);
@@ -1148,7 +1148,8 @@ export const TabJailsEvents: React.FC<{ onIpClick?: (ip: string) => void; days?:
     const [page, setPage]              = useState(0);
     const [sortCol, setSortCol]        = useState<SortCol>('date');
     const [sortDir, setSortDir]        = useState<SortDir>('desc');
-    const [configJail, setConfigJail]  = useState<string | null>(null);
+    const [configJail, setConfigJail]  = useState<{ name: string; active: boolean } | null>(null);
+    const activeJailNames = useMemo(() => new Set(jails.map(j => j.jail)), [jails]);
 
     // Inject shimmer keyframes once
     useEffect(() => {
@@ -1327,7 +1328,7 @@ export const TabJailsEvents: React.FC<{ onIpClick?: (ip: string) => void; days?:
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '.6rem' }}>
-            {configJail && <JailConfigModal jailName={configJail} isActive onClose={() => setConfigJail(null)} />}
+            {configJail && <JailConfigModal jailName={configJail.name} isActive={configJail.active} onClose={() => setConfigJail(null)} />}
             {/* ── Toolbar unique ── */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', flexWrap: 'wrap', padding: '.4rem .6rem', background: '#161b22', border: '1px solid #30363d', borderRadius: 7 }}>
                 {/* Title */}
@@ -1536,7 +1537,7 @@ export const TabJailsEvents: React.FC<{ onIpClick?: (ip: string) => void; days?:
                                         )}
                                     </td>
                                     <td style={{ padding: '.45rem .6rem', textAlign: 'center' }}>
-                                        <JailConfigGearButton title={t('fail2ban.jails.editJailConfig')} onClick={() => setConfigJail(b.jail)} />
+                                        <JailConfigGearButton title={t('fail2ban.jails.editJailConfig')} onClick={() => setConfigJail({ name: b.jail, active: activeJailNames.has(b.jail) })} />
                                     </td>
                                 </tr>
                                 );
@@ -1681,7 +1682,7 @@ export const TabJails: React.FC<TabJailsProps> = ({
             )}
             {/* TabJailsEvents reste monté pour éviter le scroll-to-top au changement de vue */}
             <div style={{ display: view === 'events' ? undefined : 'none' }}>
-                <TabJailsEvents onIpClick={onIpClick} />
+                <TabJailsEvents onIpClick={onIpClick} jails={jails} />
             </div>
         </div>
     );
