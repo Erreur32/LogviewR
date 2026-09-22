@@ -2137,6 +2137,8 @@
       "npmMissingStats": "NPM non configuré — Top Domaines (onglet Stats) ne fonctionnera pas.",
       "vacuumEnCours": "VACUUM en cours…",
       "launcherVacuum": "Lancer VACUUM",
+      "vacuumFail2banDescription": "compresse la DB et libère l'espace disque inutilisé",
+      "vacuumDashboardDescription": "compresse dashboard.db et libère l'espace inutilisé",
       "fragWarning": "Fragmentation : {{pct}}% — VACUUM recommandé",
       "sectionFail2banConfig": "Configuration Fail2ban",
       "sectionFail2banDb": "Base de données Fail2ban",

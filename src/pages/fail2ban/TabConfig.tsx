@@ -1206,7 +1206,7 @@ export const TabConfig: React.FC<{
                                                 ))}
                                             </div>
                                             {dbInfo.fragPct > 20 && (
-                                                <VacuumAlert fragPct={dbInfo.fragPct} endpoint="sqlite-vacuum" description="compresse la DB et libère l'espace disque inutilisé" dbPath={cfg.dbfile} onDone={() => { void loadParsed(); }} />
+                                                <VacuumAlert fragPct={dbInfo.fragPct} endpoint="sqlite-vacuum" description={t('fail2ban.config.vacuumFail2banDescription')} dbPath={cfg.dbfile} onDone={() => { void loadParsed(); }} />
                                             )}
                                         </div>
                                     ) : (
@@ -1560,7 +1560,7 @@ export const TabConfig: React.FC<{
                                         </div>
                                     ))}
                                     {!fragOk && (
-                                        <VacuumAlert fragPct={db.fragPct} endpoint="dashboard-vacuum" description="compresse dashboard.db et libère l'espace inutilisé" onDone={() => { void loadParsed(); }} />
+                                        <VacuumAlert fragPct={db.fragPct} endpoint="dashboard-vacuum" description={t('fail2ban.config.vacuumDashboardDescription')} onDone={() => { void loadParsed(); }} />
                                     )}
                                 </>);
                             })() : (

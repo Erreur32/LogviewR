@@ -909,7 +909,7 @@ const RulesBackupPanel: React.FC<{ kind: 'iptables' | 'ipset' }> = ({ kind }) =>
         setDeleting(filename); setMsg(null);
         try {
             const res = await api.delete<{ ok?: boolean; error?: string }>(`/api/plugins/fail2ban/${cfg.endpoint}/backup/${encodeURIComponent(filename)}`);
-            if (res.success) fetchBackups();
+            if (res.success) void fetchBackups();
             else setMsg({ ok: false, text: res.result?.error ?? res.error?.message ?? t('fail2ban.errors.unknown') });
         } finally { setDeleting(null); }
     };

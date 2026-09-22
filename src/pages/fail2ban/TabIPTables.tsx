@@ -514,7 +514,7 @@ const IPTablesContent: React.FC = () => {
     const confirmRollback = async () => {
         setRollbackError(null);
         const res = await api.post<{ ok?: boolean; error?: string }>('/api/plugins/fail2ban/iptables/rollback/confirm', {});
-        if (res.success) setRollback({ pending: false, deadline: null });
+        if (res.success && res.result?.ok !== false) setRollback({ pending: false, deadline: null });
         else setRollbackError(res.result?.error ?? res.error?.message ?? t('fail2ban.iptables.rollbackError'));
     };
 

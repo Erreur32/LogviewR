@@ -106,6 +106,7 @@ export const NewFilterModal: React.FC<NewFilterModalProps> = ({ onClose, onCreat
     const resetToBlank = () => {
         setDuplicateFrom('');
         setContent(BLANK_TEMPLATE);
+        setContentError(null);
     };
 
     const submitEnabled = formValid && !saving && result?.ok !== true;

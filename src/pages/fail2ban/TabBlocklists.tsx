@@ -67,6 +67,18 @@ function directionButtonStyle(d: ListDirection, active: boolean): { bg: string; 
   return { bg: 'rgba(63,185,80,.12)', border: 'rgba(63,185,80,.4)', color: '#3fb950' };
 }
 
+/** Ready-to-spread CSS for the direction badge — computes directionBadgeStyle() once instead of per-property. */
+function directionBadgeCss(d: ListDirection): { background: string; border: string; color: string } {
+  const s = directionBadgeStyle(d);
+  return { background: s.bg, border: `1px solid ${s.border}`, color: s.color };
+}
+
+/** Ready-to-spread CSS for the direction picker button — computes directionButtonStyle() once instead of per-property. */
+function directionButtonCss(d: ListDirection, active: boolean): { background: string; border: string; color: string } {
+  const s = directionButtonStyle(d, active);
+  return { background: s.bg, border: `1px solid ${s.border}`, color: s.color };
+}
+
 function fmtAge(iso: string | null, t: TFunction): string {
   if (!iso) return t('fail2ban.blocklists.ageNotLoaded');
   const diff = Date.now() - new Date(iso).getTime();
@@ -291,9 +303,7 @@ export const TabBlocklists: React.FC = () => {
           {/* Direction badge */}
           <span style={{
             fontSize: '.68rem', fontWeight: 600, borderRadius: 3, padding: '.05rem .35rem', flexShrink: 0,
-            background: directionBadgeStyle(list.direction).bg,
-            border: `1px solid ${directionBadgeStyle(list.direction).border}`,
-            color: directionBadgeStyle(list.direction).color,
+            ...directionBadgeCss(list.direction),
           }}>
             {directionBadgeLabel(list.direction, t)}
           </span>
@@ -473,9 +483,7 @@ export const TabBlocklists: React.FC = () => {
                 <button key={d} type="button" onClick={() => setNewDirection(d)}
                   style={{
                     padding: '.2rem .7rem', borderRadius: 4, fontSize: '.78rem', cursor: 'pointer',
-                    background: directionButtonStyle(d, newDirection === d).bg,
-                    border: `1px solid ${directionButtonStyle(d, newDirection === d).border}`,
-                    color: directionButtonStyle(d, newDirection === d).color,
+                    ...directionButtonCss(d, newDirection === d),
                     fontWeight: newDirection === d ? 600 : 400,
                   }}>
                   {directionButtonLabel(d, t)}

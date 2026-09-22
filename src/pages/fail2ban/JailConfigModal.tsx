@@ -8,7 +8,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
     X, Save, Square, Play, Settings, Terminal,
-    Shield, ChevronDown, ChevronRight, Plus, Trash2, CheckCircle, XCircle,
+    Shield, Plus, Trash2, CheckCircle, XCircle,
     Zap, RefreshCw,
 } from 'lucide-react';
 import { api } from '../../api/client';
