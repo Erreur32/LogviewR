@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useTranslation } from 'react-i18next';
 import { Shield, Trash2, RotateCcw, Plus, AlertTriangle, CheckCircle, Network, Code, Table2, ChevronDown, ChevronRight, Archive, Server } from 'lucide-react';
 import { api } from '../../api/client';
-import { card, cardH, cardB, F2bTooltip } from './helpers';
+import { card, cardH, cardB, F2bTooltip, iptTargetColor, iptTargetBg, iptPolicyColor } from './helpers';
 import { TabNFTables } from './TabNFTables';
 import { getAppLanguage } from '../../i18n';
 
@@ -23,7 +23,7 @@ function colorizeIptLine(line: string): Token[] {
     if (line.startsWith(':')) {
         const m = line.match(/^:(\S+)\s+(\S+)(.*)$/);
         if (m) {
-            const polColor = m[2] === 'DROP' || m[2] === 'REJECT' ? '#e86a65' : m[2] === 'ACCEPT' ? '#3fb950' : '#e3b341';
+            const polColor = iptPolicyColor(m[2]);
             return [{ text: ':', color: '#8b949e' }, { text: m[1], color: '#58a6ff', bold: true }, { text: ' ' }, { text: m[2], color: polColor, bold: true }, { text: m[3] ?? '', color: '#555d69' }];
         }
         return [{ text: line, color: '#58a6ff' }];
@@ -37,7 +37,7 @@ function colorizeIptLine(line: string): Token[] {
         const p = parts[i];
         if (p.trim() === '') { tokens.push({ text: p }); i++; continue; }
         if (i >= 2 && parts[i - 2]?.trim() === '-j') {
-            const color = p === 'ACCEPT' ? '#3fb950' : (p === 'DROP' || p === 'REJECT') ? '#e86a65' : p === 'LOG' ? '#e3b341' : '#bc8cff';
+            const color = iptTargetColor(p);
             tokens.push({ text: p, color, bold: true }); i++; continue;
         }
         if (i >= 2 && (parts[i - 2]?.trim() === '-A' || parts[i - 2]?.trim() === '-I' || parts[i - 2]?.trim() === '-D')) {
@@ -59,26 +59,33 @@ function ColorLine({ line }: { line: string }) {
 
 // ── Rollback Banner ────────────────────────────────────────────────────────────
 
-function RollbackBanner({ countdown, onConfirm, onRollback, loading }: { countdown: number; onConfirm: () => void; onRollback: () => void; loading: boolean }) {
+function RollbackBanner({ countdown, onConfirm, onRollback, loading, error }: { countdown: number; onConfirm: () => void; onRollback: () => void; loading: boolean; error: string | null }) {
     const { t } = useTranslation();
     return (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', background: 'rgba(232,106,101,.08)', border: '1px solid rgba(232,106,101,.3)', borderRadius: 6, padding: '.6rem .85rem', flexWrap: 'wrap' }}>
-            <AlertTriangle style={{ width: 14, height: 14, color: '#e86a65', flexShrink: 0 }} />
-            <div style={{ flex: 1 }}>
-                <span style={{ fontSize: '.82rem', color: '#e86a65', fontWeight: 600 }}>{t('fail2ban.iptables.rollbackAuto')} </span>
-                <span style={{ fontSize: '.95rem', fontWeight: 800, color: '#e86a65', fontFamily: 'monospace' }}>{countdown}s</span>
-                <span style={{ fontSize: '.76rem', color: '#8b949e', marginLeft: '.5rem' }}>{t('fail2ban.iptables.rollbackPrompt')}</span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '.4rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', background: 'rgba(232,106,101,.08)', border: '1px solid rgba(232,106,101,.3)', borderRadius: 6, padding: '.6rem .85rem', flexWrap: 'wrap' }}>
+                <AlertTriangle style={{ width: 14, height: 14, color: '#e86a65', flexShrink: 0 }} />
+                <div style={{ flex: 1 }}>
+                    <span style={{ fontSize: '.82rem', color: '#e86a65', fontWeight: 600 }}>{t('fail2ban.iptables.rollbackAuto')} </span>
+                    <span style={{ fontSize: '.95rem', fontWeight: 800, color: '#e86a65', fontFamily: 'monospace' }}>{countdown}s</span>
+                    <span style={{ fontSize: '.76rem', color: '#8b949e', marginLeft: '.5rem' }}>{t('fail2ban.iptables.rollbackPrompt')}</span>
+                </div>
+                <F2bTooltip title={t('fail2ban.iptables.confirmTitle')} body={t('fail2ban.iptables.confirmBody')} color="green">
+                    <button onClick={onConfirm} style={{ background: 'rgba(63,185,80,.12)', border: '1px solid rgba(63,185,80,.3)', color: '#3fb950', borderRadius: 4, cursor: 'pointer', padding: '.25rem .65rem', fontSize: '.78rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '.3rem' }}>
+                        <CheckCircle style={{ width: 12, height: 12 }} /> {t('fail2ban.iptables.confirmBtn')}
+                    </button>
+                </F2bTooltip>
+                <F2bTooltip title={t('fail2ban.iptables.rollbackTitle')} body={t('fail2ban.iptables.rollbackBody')} color="red">
+                    <button onClick={onRollback} disabled={loading} style={{ background: 'rgba(232,106,101,.12)', border: '1px solid rgba(232,106,101,.3)', color: '#e86a65', borderRadius: 4, cursor: loading ? 'default' : 'pointer', padding: '.25rem .65rem', fontSize: '.78rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '.3rem', opacity: loading ? .6 : 1 }}>
+                        <RotateCcw style={{ width: 12, height: 12 }} /> {t('fail2ban.iptables.rollbackBtn')}
+                    </button>
+                </F2bTooltip>
             </div>
-            <F2bTooltip title={t('fail2ban.iptables.confirmTitle')} body={t('fail2ban.iptables.confirmBody')} color="green">
-                <button onClick={onConfirm} style={{ background: 'rgba(63,185,80,.12)', border: '1px solid rgba(63,185,80,.3)', color: '#3fb950', borderRadius: 4, cursor: 'pointer', padding: '.25rem .65rem', fontSize: '.78rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '.3rem' }}>
-                    <CheckCircle style={{ width: 12, height: 12 }} /> {t('fail2ban.iptables.confirmBtn')}
-                </button>
-            </F2bTooltip>
-            <F2bTooltip title={t('fail2ban.iptables.rollbackTitle')} body={t('fail2ban.iptables.rollbackBody')} color="red">
-                <button onClick={onRollback} disabled={loading} style={{ background: 'rgba(232,106,101,.12)', border: '1px solid rgba(232,106,101,.3)', color: '#e86a65', borderRadius: 4, cursor: loading ? 'default' : 'pointer', padding: '.25rem .65rem', fontSize: '.78rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '.3rem', opacity: loading ? .6 : 1 }}>
-                    <RotateCcw style={{ width: 12, height: 12 }} /> {t('fail2ban.iptables.rollbackBtn')}
-                </button>
-            </F2bTooltip>
+            {error && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', fontSize: '.76rem', color: '#e86a65', padding: '0 .2rem' }}>
+                    <AlertTriangle style={{ width: 11, height: 11, flexShrink: 0 }} /> {error}
+                </div>
+            )}
         </div>
     );
 }
@@ -87,8 +94,8 @@ function RollbackBanner({ countdown, onConfirm, onRollback, loading }: { countdo
 
 function TargetBadge({ target }: { target: string }) {
     const t = target.toUpperCase();
-    const color = t === 'ACCEPT' ? '#3fb950' : (t === 'DROP' || t === 'REJECT') ? '#e86a65' : '#bc8cff';
-    const bg    = t === 'ACCEPT' ? 'rgba(63,185,80,.12)' : (t === 'DROP' || t === 'REJECT') ? 'rgba(232,106,101,.12)' : 'rgba(188,140,255,.1)';
+    const color = iptTargetColor(t);
+    const bg    = iptTargetBg(t);
     return <span style={{ background: bg, color, border: `1px solid ${color}40`, borderRadius: 3, padding: '.08rem .38rem', fontSize: '.74rem', fontWeight: 700, fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{target}</span>;
 }
 
@@ -112,7 +119,7 @@ function ChainCard({ chain, onDelete, deleting, hiddenDockerRules, onToggleDocke
     const [sortKey, setSortKey]     = useState<SortKey>('num');
     const [sortAsc, setSortAsc]     = useState(true);
 
-    const pc = chain.policy === 'DROP' || chain.policy === 'REJECT' ? '#e86a65' : chain.policy === 'ACCEPT' ? '#3fb950' : '#e3b341';
+    const pc = iptPolicyColor(chain.policy);
 
     const sortedRules = useMemo(() => {
         const rules = [...chain.rules];
@@ -251,13 +258,6 @@ const TABLES = ['filter', 'nat', 'mangle', 'raw'];
 // Patterns for Docker detection (chain names + bridge interfaces)
 const DOCKER_CHAIN_RE = /^DOCKER/i;
 const DOCKER_IFACE_RE = /^!?(br-[0-9a-f]+|docker\d*|veth[0-9a-f]+)$/i;
-
-function hasDockerContent(chains: IptChain[]): boolean {
-    return chains.some(c =>
-        DOCKER_CHAIN_RE.test(c.name) ||
-        c.rules.some(r => DOCKER_IFACE_RE.test(r.iface_in) || DOCKER_IFACE_RE.test(r.iface_out))
-    );
-}
 
 function applyDockerFilter(chains: IptChain[]): { visible: IptChain[]; hiddenRules: number; hiddenChains: number; perChainHidden: Record<string, number> } {
     let hiddenRules = 0;
@@ -478,6 +478,7 @@ const IPTablesContent: React.FC = () => {
     const [rollback, setRollback] = useState<RollbackStatus>({ pending: false, deadline: null });
     const [countdown, setCountdown] = useState(0);
     const [actionLoading, setActionLoading] = useState(false);
+    const [rollbackError, setRollbackError] = useState<string | null>(null);
     const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     const fetchRollback = useCallback(async () => {
@@ -511,22 +512,28 @@ const IPTablesContent: React.FC = () => {
     }, []);
 
     const confirmRollback = async () => {
-        await api.post('/api/plugins/fail2ban/iptables/rollback/confirm', {});
-        setRollback({ pending: false, deadline: null });
+        setRollbackError(null);
+        const res = await api.post<{ ok?: boolean; error?: string }>('/api/plugins/fail2ban/iptables/rollback/confirm', {});
+        if (res.success && res.result?.ok !== false) setRollback({ pending: false, deadline: null });
+        else setRollbackError(res.result?.error ?? res.error?.message ?? t('fail2ban.iptables.rollbackError'));
     };
 
     const doRollback = async () => {
-        setActionLoading(true);
+        setActionLoading(true); setRollbackError(null);
         try {
             const res = await api.post<{ ok: boolean; output?: string; error?: string }>('/api/plugins/fail2ban/iptables/rollback/now', {});
-            setRollback({ pending: false, deadline: null });
-            if (res.success && res.result?.ok) setRefreshToken(k => k + 1);
+            if (res.success && res.result?.ok) {
+                setRollback({ pending: false, deadline: null });
+                setRefreshToken(k => k + 1);
+            } else {
+                setRollbackError(res.result?.error ?? res.error?.message ?? t('fail2ban.iptables.rollbackError'));
+            }
         } finally { setActionLoading(false); }
     };
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            {rollback.pending && <RollbackBanner countdown={countdown} onConfirm={confirmRollback} onRollback={doRollback} loading={actionLoading} />}
+            {rollback.pending && <RollbackBanner countdown={countdown} onConfirm={confirmRollback} onRollback={doRollback} loading={actionLoading} error={rollbackError} />}
             <RulesetViewer refreshToken={refreshToken} onAction={handleAction} />
             <RuleBuilder onAction={handleAction} />
             <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.6rem .85rem', background: 'rgba(57,197,207,.05)', border: '1px solid rgba(57,197,207,.2)', borderRadius: 6, fontSize: '.8rem', color: '#8b949e' }}>

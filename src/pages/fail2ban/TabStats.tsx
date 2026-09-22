@@ -26,7 +26,7 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
-import { card, PERIODS, F2bTooltip, TT, fmtPeriodLabel, Badge } from './helpers';
+import { card, PERIODS, F2bTooltip, TT, fmtPeriodLabel, Badge, fmtBanExpiry } from './helpers';
 import type { F2bTtColor } from './helpers';
 import { api } from '../../api/client';
 import { usePolling } from '../../hooks/usePolling';
@@ -35,9 +35,8 @@ import { TabJailsEvents } from './TabJails';
 import { primeTopsPrevTotalFromFullFetch } from './fail2banTopsPrevFlight';
 import { dispatchTabLoaded } from '../../utils/tabTimer';
 import { DomainInitial } from './DomainInitial';
+import { getCached as getCachedRaw, setCached } from './cacheUtils';
 
-// ── Module-level cache (survives tab navigation) ──────────────────────────────
-const _cache: Record<string, { data: unknown; ts: number }> = {};
 /** Adaptive TTL: recent data expires fast, old data stays cached longer */
 function getCacheTtl(days: number): number {
     if (days <= 0) return 600_000; // all-time: 10min
@@ -46,11 +45,7 @@ function getCacheTtl(days: number): number {
     return 600_000; // 30j, 6m, 1an: 10min
 }
 function getCached<T>(key: string, days = 7): T | null {
-    const e = _cache[key];
-    return e && Date.now() - e.ts < getCacheTtl(days) ? (e.data as T) : null;
-}
-function setCached(key: string, data: unknown) {
-    _cache[key] = { data, ts: Date.now() };
+    return getCachedRaw<T>(key, getCacheTtl(days));
 }
 
 // ── Palette ───────────────────────────────────────────────────────────────────
@@ -81,6 +76,20 @@ const btnStyle = (active: boolean, color = C.blue): React.CSSProperties => ({
     background: active ? `${color}1e` : 'transparent',
     color: active ? color : C.muted,
 });
+
+/** SVG text-anchor for an axis label at index i of n — edges align outward, middle stays centered. */
+function edgeAnchor(i: number, n: number): 'start' | 'end' | 'middle' {
+    if (i === 0) return 'start';
+    if (i === n - 1) return 'end';
+    return 'middle';
+}
+
+/** Failure-count severity color: >=20 red, >=5 orange, else muted. */
+function failureSeverityColor(n: number): string {
+    if (n >= 20) return C.red;
+    if (n >= 5) return C.orange;
+    return C.muted;
+}
 
 /** Returns elapsed seconds since a timestamp, re-renders every 10s */
 function useElapsed(ts: number | undefined): number | null {
@@ -159,8 +168,7 @@ const SCard: React.FC<{
                 style={{
                     background: C.bg2,
                     padding: '.65rem 1rem',
-                    borderBottom:
-                        open && !collapsible ? `1px solid ${C.border}` : open ? `1px solid ${C.border}` : 'none',
+                    borderBottom: open ? `1px solid ${C.border}` : 'none',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '.5rem',
@@ -252,14 +260,7 @@ const DomainDetailModal: React.FC<{
         const p = (n: number) => String(n).padStart(2, '0');
         return `${p(d.getDate())}/${p(d.getMonth() + 1)} ${p(d.getHours())}:${p(d.getMinutes())}`;
     };
-    const fmtExpiry = (ban: DomainDetailBan) => {
-        if (ban.bantime === -1) return '∞';
-        const rem = ban.timeofban + ban.bantime - now;
-        if (rem <= 0) return t('fail2ban.stats.expired');
-        if (rem < 3600) return `${Math.round(rem / 60)}m`;
-        if (rem < 86400) return `${Math.round(rem / 3600)}h`;
-        return `${Math.round(rem / 86400)}j`;
-    };
+    const fmtExpiry = (ban: DomainDetailBan) => fmtBanExpiry(ban, now, t);
 
     const periodLabel = fmtPeriodLabel(days, t);
     const bans = data?.bans ?? [];
@@ -563,7 +564,7 @@ const DomainDetailModal: React.FC<{
                                                 padding: '.35rem .75rem',
                                                 textAlign: 'center',
                                                 fontWeight: 700,
-                                                color: b.failures >= 20 ? C.red : b.failures >= 5 ? C.orange : C.muted,
+                                                color: failureSeverityColor(b.failures),
                                             }}
                                         >
                                             {b.failures}
@@ -828,7 +829,7 @@ const HistChart: React.FC<{
                                     y={VH - 1}
                                     fontSize={8}
                                     fill="rgba(128,128,128,.5)"
-                                    textAnchor={i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'}
+                                    textAnchor={edgeAnchor(i, n)}
                                 >
                                     {xLabel(dt)}
                                 </text>
@@ -975,7 +976,9 @@ const IpSetsSection: React.FC<{
     const barSets = sets.filter((s) => s.entries > 0);
     const maxEntries = Math.max(...barSets.map((s) => s.entries), 1);
     const total = sets.reduce((s, x) => s + x.entries, 0);
-    const barCols = sets.length <= 4 ? 1 : sets.length <= 8 ? 2 : 3;
+    let barCols = 3;
+    if (sets.length <= 4) barCols = 1;
+    else if (sets.length <= 8) barCols = 2;
 
     // IPSet pie toggle
     const [hiddenSets, setHiddenSets] = useState<Set<string>>(new Set());
@@ -1273,8 +1276,8 @@ const IpSetsSection: React.FC<{
                                                         <title>
                                                             {t('fail2ban.stats.clickToHide', {
                                                                 name: s.name,
-                                                                count: `${s.entries} IPs (${s.pct}%)`,
-                                                            } as any) as string}
+                                                                detail: `${s.entries} IPs (${s.pct}%)`,
+                                                            })}
                                                         </title>
                                                     </path>
                                                 ))}
@@ -1626,8 +1629,8 @@ const TopCard: React.FC<{
                                         <title>
                                             {t('fail2ban.stats.clickToHide', {
                                                 name: s.label,
-                                                count: `${s.count} (${s.pct}%)`,
-                                            } as any) as string}
+                                                detail: `${s.count} (${s.pct}%)`,
+                                            })}
                                         </title>
                                     </path>
                                 ))}
@@ -2371,6 +2374,10 @@ const HeatmapSection: React.FC<{
         content: React.ReactNode;
     } | null>(null);
 
+    let tooltipColorName: 'red' | 'orange' | 'blue' = 'blue';
+    if (color === C.red) tooltipColorName = 'red';
+    else if (color === C.orange) tooltipColorName = 'orange';
+
     const titleTooltipBody =
         total === 0 ? (
             <div style={{ fontSize: '.78rem', color: C.muted }}>
@@ -2467,7 +2474,7 @@ const HeatmapSection: React.FC<{
                 sub={`(${periodLabel})`}
                 titleTooltip={{
                     bodyNode: titleTooltipBody,
-                    color: color === C.red ? 'red' : color === C.orange ? 'orange' : 'blue',
+                    color: tooltipColorName,
                 }}
                 right={<PeriodBtns days={days} color={color} onChange={onDaysChange} />}
                 collapsible
@@ -3077,6 +3084,23 @@ const HeatmapSection: React.FC<{
 
 // ── Tops section ──────────────────────────────────────────────────────────────
 const TOP_LIMITS = [15, 25, 50, 0];
+
+const IpChip: React.FC<{ ip: string; color?: string }> = ({ ip, color = C.green }) => (
+    <span
+        style={{
+            fontFamily: 'monospace',
+            fontSize: '.72rem',
+            background: `${color}18`,
+            color,
+            border: `1px solid ${color}33`,
+            borderRadius: 4,
+            padding: '.1rem .35rem',
+            whiteSpace: 'nowrap' as const,
+        }}
+    >
+        {ip}
+    </span>
+);
 
 const TopsSection: React.FC<{
     days: number;
@@ -3748,22 +3772,6 @@ const WhitelistStatsSection: React.FC = () => {
     const global = data?.globalIps ?? [];
     const perJail = data?.perJail ?? [];
 
-    const IpChip: React.FC<{ ip: string; color?: string }> = ({ ip, color = C.green }) => (
-        <span
-            style={{
-                fontFamily: 'monospace',
-                fontSize: '.72rem',
-                background: `${color}18`,
-                color,
-                border: `1px solid ${color}33`,
-                borderRadius: 4,
-                padding: '.1rem .35rem',
-                whiteSpace: 'nowrap' as const,
-            }}
-        >
-            {ip}
-        </span>
-    );
 
     return (
         <SCard
@@ -4098,14 +4106,7 @@ const SafeBannedSection: React.FC<{ onIpClick?: (ip: string) => void }> = ({ onI
     const allClear = !loading && !error && hits.length === 0;
     const now = Math.floor(Date.now() / 1000);
 
-    const fmtExpiry = (ban: SafeHit) => {
-        if (ban.bantime === -1) return '∞ permanent';
-        const remaining = ban.timeofban + ban.bantime - now;
-        if (remaining <= 0) return t('fail2ban.stats.expired');
-        if (remaining < 3600) return `${Math.round(remaining / 60)}m`;
-        if (remaining < 86400) return `${Math.round(remaining / 3600)}h`;
-        return `${Math.round(remaining / 86400)}j`;
-    };
+    const fmtExpiry = (ban: SafeHit) => fmtBanExpiry(ban, now, t, '∞ permanent');
 
     const titleSub =
         !loading && !error ? (
@@ -4807,7 +4808,7 @@ const StatsSummaryBanner: React.FC<{
                                 <Globe style={{ width: 8, height: 8 }} />
                                 <span style={{ fontFamily: 'monospace' }}>{topDomain.domain}</span>
                                 <span style={{ color: C.text, fontWeight: 700 }}>{topDomain.count}</span>
-                                <span style={{ color: C.muted }}>bans</span>
+                                <span style={{ color: C.muted }}>{t('fail2ban.stats.bans')}</span>
                                 {topDomain.failures != null && topDomain.failures > 0 && (
                                     <span style={{ color: C.orange, fontSize: '.6rem' }}>
                                         · {topDomain.failures} tentatives
@@ -5433,7 +5434,7 @@ export const TabStats: React.FC<TabStatsProps> = ({
                         {totalBanned} IPs
                     </div>
                     <div style={{ fontSize: '.75rem', color: '#e6edf3', lineHeight: 1.5 }}>
-                        IPs <strong>actuellement</strong> en jail — snapshot en temps réel de fail2ban.
+                        IPs <strong>{t('fail2ban.stats.jailBanInfo.currentlyWord')}</strong>{t('fail2ban.stats.jailBanInfo.currentlyExplain')}
                     </div>
                     <div
                         style={{
@@ -5733,7 +5734,7 @@ export const TabStats: React.FC<TabStatsProps> = ({
                                     {[
                                         t('fail2ban.labels.jail'),
                                         t('fail2ban.status.bansActive'),
-                                        'Total',
+                                        t('fail2ban.labels.totalBans'),
                                         t('fail2ban.status.expired24h'),
                                         t('fail2ban.status.failuresCurrent'),
                                         t('fail2ban.labels.failures'),

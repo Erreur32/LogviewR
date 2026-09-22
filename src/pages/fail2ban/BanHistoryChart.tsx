@@ -224,8 +224,7 @@ const BarChart: React.FC<{
     hidden: Set<string>;
     isHourly?: boolean;
     days?: number;
-    nowSlotFrac?: number;
-}> = ({ history, histMax, byJail, jailNames, hidden, isHourly = false, days = 30, nowSlotFrac = 0 }) => {
+}> = ({ history, histMax, byJail, jailNames, hidden, isHourly = false, days = 30 }) => {
     const H = 170;
     const padL = 4;
     const padR = 4;
@@ -458,7 +457,7 @@ const SLOT_SECS = 1800; // 30-min slots for 24h mode
  * Slots are labeled "HH:MM" and run from oldest (left) to newest (right).
  * Also returns nowFrac: fractional position of current time within the last slot (0-1).
  */
-function buildRollingSlots(history: HistoryEntry[], slotBase?: number): { slots: HistoryEntry[]; nowSlotFrac: number } {
+function buildRollingSlots(history: HistoryEntry[], slotBase?: number): { slots: HistoryEntry[] } {
     const nowSecs = Math.floor(Date.now() / 1000);
     const rawBase = slotBase ?? nowSecs - 86400;
     // Align to 30-min boundary so slot labels always land on HH:00 / HH:30
@@ -471,10 +470,7 @@ function buildRollingSlots(history: HistoryEntry[], slotBase?: number): { slots:
         const label = `${String(ts.getHours()).padStart(2, '0')}:${String(ts.getMinutes()).padStart(2, '0')}`;
         return { date: label, count: map[label] ?? 0 };
     });
-    // How far into the last slot are we? (0 = start, 1 = full)
-    const elapsed = (nowSecs - base) % SLOT_SECS;
-    const nowSlotFrac = elapsed / SLOT_SECS;
-    return { slots, nowSlotFrac };
+    return { slots };
 }
 
 export const BanHistoryChart: React.FC<BanHistoryChartProps> = ({
@@ -513,9 +509,9 @@ export const BanHistoryChart: React.FC<BanHistoryChartProps> = ({
     const isHourly = granularity === 'hour';
     const periodLabel = fmtPeriodLabel(days, t);
     // For 24h: rolling 30-min slots ending at "now"; otherwise last 60 days
-    const { slots: rollingSlots, nowSlotFrac } = isHourly
+    const { slots: rollingSlots } = isHourly
         ? buildRollingSlots(history, slotBase)
-        : { slots: [], nowSlotFrac: 0 };
+        : { slots: [] };
     const histSlice = isHourly ? rollingSlots : history.slice(-60);
 
     // Recompute max from visible jails only so Y-axis adapts when a jail is hidden.
@@ -667,7 +663,6 @@ export const BanHistoryChart: React.FC<BanHistoryChartProps> = ({
                     hidden={hidden}
                     isHourly={isHourly}
                     days={days}
-                    nowSlotFrac={nowSlotFrac}
                 />
             )}
         </div>

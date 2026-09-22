@@ -1,4 +1,4 @@
-import React, { useState, useRef, useLayoutEffect } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -18,6 +18,60 @@ export const fmtSecs = (s: number, t: TFunction): string => {
     if (s >= 3600)  return t('fail2ban.helpers.hours', { n: Math.floor(s / 3600) });
     return t('fail2ban.helpers.minutes', { n: Math.floor(s / 60) });
 };
+
+/** Strips a filter/action file's ".conf" or ".local" extension to get its base name. */
+export const stripConfExt = (name: string): string => name.replace(/\.(conf|local)$/, '');
+
+/** Shared ACCEPT/DROP-REJECT/LOG/other color mapping for iptables/nftables targets (case-insensitive). */
+export function iptTargetColor(target: string): string {
+    const t = target.toUpperCase();
+    if (t === 'ACCEPT') return '#3fb950';
+    if (t === 'DROP' || t === 'REJECT') return '#e86a65';
+    if (t === 'LOG') return '#e3b341';
+    return '#bc8cff';
+}
+
+/** Background rgba matching iptTargetColor's cases, for badge fills. */
+export function iptTargetBg(target: string): string {
+    const t = target.toUpperCase();
+    if (t === 'ACCEPT') return 'rgba(63,185,80,.12)';
+    if (t === 'DROP' || t === 'REJECT') return 'rgba(232,106,101,.12)';
+    if (t === 'LOG') return 'rgba(227,179,65,.12)';
+    return 'rgba(188,140,255,.1)';
+}
+
+/** iptables chain-policy color: DROP/REJECT=red, ACCEPT=green, else (e.g. QUEUE)=orange. */
+export function iptPolicyColor(policy: string): string {
+    const p = policy.toUpperCase();
+    if (p === 'DROP' || p === 'REJECT') return '#e86a65';
+    if (p === 'ACCEPT') return '#3fb950';
+    return '#e3b341';
+}
+
+/** Formats the remaining time before a ban expires ("expired" / "12m" / "3h" / "2j" / permanentLabel). */
+export function fmtBanExpiry(
+    ban: { timeofban: number; bantime: number }, now: number, t: TFunction, permanentLabel = '∞',
+): string {
+    if (ban.bantime === -1) return permanentLabel;
+    const rem = ban.timeofban + ban.bantime - now;
+    if (rem <= 0) return t('fail2ban.stats.expired');
+    if (rem < 3600) return `${Math.round(rem / 60)}m`;
+    if (rem < 86400) return `${Math.round(rem / 3600)}h`;
+    return `${Math.round(rem / 86400)}j`;
+}
+
+/** "Copied!" flag that auto-resets after `ms`, clearing its timer on unmount/re-flash. */
+export function useCopiedFlash(ms: number): [boolean, () => void] {
+    const [copied, setCopied] = useState(false);
+    const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
+    const flash = useCallback(() => {
+        setCopied(true);
+        if (timerRef.current) clearTimeout(timerRef.current);
+        timerRef.current = setTimeout(() => setCopied(false), ms);
+    }, [ms]);
+    return [copied, flash];
+}
 
 // ── Shared card styles (PHP-style dark theme) ────────────────────────────────
 
@@ -77,8 +131,10 @@ export const Badge: React.FC<{ color: BadgeColor; children: React.ReactNode }> =
 
 export const StatusDot: React.FC<{ banned: number; failed: number }> = ({ banned, failed }) => {
     const { t } = useTranslation();
-    const color = banned > 0 ? '#e86a65' : failed > 0 ? '#e3b341' : '#3fb950';
-    const title = banned > 0 ? t('fail2ban.status.bansActive') : failed > 0 ? t('fail2ban.status.failuresCurrent') : 'OK';
+    let color = '#3fb950';
+    let title = 'OK';
+    if (banned > 0) { color = '#e86a65'; title = t('fail2ban.status.bansActive'); }
+    else if (failed > 0) { color = '#e3b341'; title = t('fail2ban.status.failuresCurrent'); }
     return (
         <span title={title} style={{
             display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
@@ -124,7 +180,7 @@ export const F2bTooltip: React.FC<F2bTooltipProps> = ({
     const [pos, setPos] = useState({ left: 0, top: 0 });
     const [below, setBelow] = useState(false);
     const [ready, setReady] = useState(false);
-    const triggerRef = useRef<HTMLDivElement & HTMLSpanElement>(null);
+    const triggerRef = useRef<HTMLDivElement | HTMLSpanElement>(null);
     const boxRef = useRef<HTMLDivElement>(null);
 
     const accent = TT_ACCENT[color];

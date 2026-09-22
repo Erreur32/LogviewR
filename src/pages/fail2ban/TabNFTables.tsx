@@ -12,7 +12,8 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { Server, RefreshCw, AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../../api/client';
-import { card, cardH, cardB } from './helpers';
+import { card, cardH, cardB, iptTargetColor } from './helpers';
+import { getAppLanguage } from '../../i18n';
 
 // ── NFT colorizer ──────────────────────────────────────────────────────────────
 
@@ -57,7 +58,7 @@ function colorizeNftLine(line: string): Token[] {
 
         // Targets (accept/drop/etc.)
         if (NFT_TARGETS.has(lc)) {
-            const color = lc === 'accept' ? '#3fb950' : (lc === 'drop' || lc === 'reject') ? '#e86a65' : lc === 'log' ? '#e3b341' : '#bc8cff';
+            const color = iptTargetColor(lc);
             tokens.push({ text: w, color, bold: true }); continue;
         }
         // Structure keywords (table, chain, …)
@@ -164,7 +165,7 @@ export const TabNFTables: React.FC = () => {
                         <span style={{ fontSize: '.7rem', color: '#555d69', fontFamily: 'monospace', fontWeight: 400 }}>nft list ruleset</span>
                     </span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
-                        {lastLoaded > 0 && !loading && <span style={{ fontSize: '.67rem', color: '#555d69' }}>{new Date(lastLoaded).toLocaleTimeString('fr-FR')}</span>}
+                        {lastLoaded > 0 && !loading && <span style={{ fontSize: '.67rem', color: '#555d69' }}>{new Date(lastLoaded).toLocaleTimeString(getAppLanguage())}</span>}
                         <button onClick={fetchRules} disabled={loading}
                             style={{ background: 'none', border: '1px solid #30363d', borderRadius: 4, color: '#8b949e', cursor: loading ? 'default' : 'pointer', padding: '.12rem .4rem', display: 'flex', alignItems: 'center' }}>
                             <RefreshCw style={{ width: 12, height: 12 }} />

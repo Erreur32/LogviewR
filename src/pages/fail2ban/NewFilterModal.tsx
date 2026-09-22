@@ -39,20 +39,23 @@ failregex = ^.*your pattern with <HOST>.*$
 ignoreregex =
 `;
 
-function loadFilters(setFilters: (files: string[]) => void, setLoading: (b: boolean) => void): void {
-    api.get<{ ok: boolean; files: string[] }>('/api/plugins/fail2ban/filters')
+function loadFilters(setFilters: (files: string[]) => void, setLoading: (b: boolean) => void, setError: (s: string | null) => void): void {
+    api.get<{ ok: boolean; files: string[]; error?: string }>('/api/plugins/fail2ban/filters')
         .then(res => {
             if (res.success && res.result?.ok) {
                 setFilters(res.result.files.slice().sort((a, b) => a.localeCompare(b)));
+            } else {
+                setError(res.result?.error ?? res.error?.message ?? null);
             }
             setLoading(false);
         });
 }
 
-function loadFilterContent(name: string, setContent: (s: string) => void, setLoading: (b: boolean) => void): void {
-    api.get<{ ok: boolean; content: string }>(`/api/plugins/fail2ban/filters/${encodeURIComponent(name)}`)
+function loadFilterContent(name: string, setContent: (s: string) => void, setLoading: (b: boolean) => void, setError: (s: string | null) => void): void {
+    api.get<{ ok: boolean; content: string; error?: string }>(`/api/plugins/fail2ban/filters/${encodeURIComponent(name)}`)
         .then(res => {
             if (res.success && res.result?.ok) setContent(res.result.content);
+            else setError(res.result?.error ?? res.error?.message ?? null);
             setLoading(false);
         });
 }
@@ -61,25 +64,27 @@ export const NewFilterModal: React.FC<NewFilterModalProps> = ({ onClose, onCreat
     const { t } = useTranslation();
     const [filters, setFilters]         = useState<string[]>([]);
     const [filtersLoading, setFiltersLoading] = useState(true);
+    const [filtersError, setFiltersError] = useState<string | null>(null);
 
     const [name, setName]               = useState('');
     const [duplicateFrom, setDuplicateFrom] = useState('');
     const [content, setContent]         = useState(BLANK_TEMPLATE);
     const [contentLoading, setContentLoading] = useState(false);
+    const [contentError, setContentError] = useState<string | null>(null);
 
     const [saving, setSaving]           = useState(false);
     const [result, setResult]           = useState<CreateResult | null>(null);
 
     // Load existing filters for the duplicate dropdown
     useEffect(() => {
-        loadFilters(setFilters, setFiltersLoading);
+        loadFilters(setFilters, setFiltersLoading, setFiltersError);
     }, []);
 
     // When duplicate source changes, fetch its content
     useEffect(() => {
         if (!duplicateFrom) return;
-        setContentLoading(true);
-        loadFilterContent(duplicateFrom, setContent, setContentLoading);
+        setContentLoading(true); setContentError(null);
+        loadFilterContent(duplicateFrom, setContent, setContentLoading, setContentError);
     }, [duplicateFrom]);
 
     const nameValid = /^[a-z0-9_-]{1,48}$/.test(name);
@@ -101,6 +106,7 @@ export const NewFilterModal: React.FC<NewFilterModalProps> = ({ onClose, onCreat
     const resetToBlank = () => {
         setDuplicateFrom('');
         setContent(BLANK_TEMPLATE);
+        setContentError(null);
     };
 
     const submitEnabled = formValid && !saving && result?.ok !== true;
@@ -130,6 +136,7 @@ export const NewFilterModal: React.FC<NewFilterModalProps> = ({ onClose, onCreat
                             {filters.map(f => <option key={f} value={f}>{f}</option>)}
                         </select>
                         <div style={hintStyle}>{t('fail2ban.newFilter.duplicateHint')}</div>
+                        {filtersError && <NameInvalidHint text={t('fail2ban.newFilter.listLoadError')} />}
                     </div>
                 </div>
 
@@ -145,6 +152,7 @@ export const NewFilterModal: React.FC<NewFilterModalProps> = ({ onClose, onCreat
                 <textarea value={content} onChange={e => setContent(e.target.value)} disabled={contentLoading}
                     style={{ ...inputStyle, minHeight: 240, resize: 'vertical', lineHeight: 1.55, fontSize: '.78rem', padding: '.6rem .75rem' }} />
                 <div style={hintStyle}>{t('fail2ban.newFilter.contentHint')}</div>
+                {contentError && <NameInvalidHint text={t('fail2ban.newFilter.contentLoadError')} />}
 
                 {!nameValid && name && <NameInvalidHint text={t('fail2ban.newFilter.nameInvalid')} />}
             </div>

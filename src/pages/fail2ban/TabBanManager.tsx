@@ -19,6 +19,23 @@ interface TabBanManagerProps {
 interface IpsetEntry { name: string; entries: number }
 interface BulkResult { ip: string; ok: boolean; error?: string }
 
+/** Max simultaneous requests for bulk operations — avoids flooding fail2ban-client/ipset with hundreds of concurrent shell calls. */
+const BULK_CONCURRENCY = 5;
+
+/** Runs `task` over `items` with at most `concurrency` in flight at once, preserving input order in the result. */
+async function runInBatches<T, R>(items: T[], concurrency: number, task: (item: T) => Promise<R>): Promise<R[]> {
+    const results: R[] = new Array(items.length);
+    let nextIndex = 0;
+    async function worker() {
+        while (nextIndex < items.length) {
+            const i = nextIndex++;
+            results[i] = await task(items[i]);
+        }
+    }
+    await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, worker));
+    return results;
+}
+
 // ── IP / CIDR validation ───────────────────────────────────────────────────────
 
 function isValidIpOrCidr(v: string): boolean {
@@ -335,12 +352,11 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
         const lines = bulkIps.split('\n').map(l => l.trim()).filter(Boolean);
         if (!lines.length || !bulkJail) return;
         setBulkLoading(true); setBulkResults([]);
-        const results: BulkResult[] = [];
-        for (const ip of lines) {
-            if (!isValidIpOrCidr(ip)) { results.push({ ip, ok: false, error: t('fail2ban.banManager.invalidFormat') }); continue; }
+        const results = await runInBatches(lines, BULK_CONCURRENCY, async (ip): Promise<BulkResult> => {
+            if (!isValidIpOrCidr(ip)) return { ip, ok: false, error: t('fail2ban.banManager.invalidFormat') };
             const res = await api.post<{ ok: boolean; error?: string }>('/api/plugins/fail2ban/ban', { jail: bulkJail, ip });
-            results.push({ ip, ok: !!(res.success && res.result?.ok), error: res.result?.error });
-        }
+            return { ip, ok: !!(res.success && res.result?.ok), error: res.result?.error };
+        });
         setBulkResults(results);
         setBulkLoading(false);
     };
@@ -389,12 +405,11 @@ export const TabBanManager: React.FC<TabBanManagerProps> = ({ jails, actionLoadi
         const entries = bulkIpsetList.split('\n').map(l => l.trim()).filter(Boolean);
         if (!entries.length || !bulkIpsetSet) return;
         setBulkIpsetLoad(true); setBulkIpsetResult([]);
-        const results: BulkResult[] = [];
-        for (const entry of entries) {
-            if (!isValidIpOrCidr(entry)) { results.push({ ip: entry, ok: false, error: t('fail2ban.banManager.invalidFormat') }); continue; }
+        const results = await runInBatches(entries, BULK_CONCURRENCY, async (entry): Promise<BulkResult> => {
+            if (!isValidIpOrCidr(entry)) return { ip: entry, ok: false, error: t('fail2ban.banManager.invalidFormat') };
             const res = await api.post<{ ok: boolean; error?: string }>('/api/plugins/fail2ban/ipset/add', { set: bulkIpsetSet, entry });
-            results.push({ ip: entry, ok: !!(res.success && res.result?.ok), error: res.result?.error });
-        }
+            return { ip: entry, ok: !!(res.success && res.result?.ok), error: res.result?.error };
+        });
         setBulkIpsetResult(results);
         setBulkIpsetLoad(false);
         loadIpsets();

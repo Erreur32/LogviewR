@@ -10,7 +10,7 @@
  *   - Fail2ban > Config tab:    NPM only
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Save, RefreshCw, CheckCircle, XCircle, Stethoscope, Database, Network, Eye, EyeOff } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -30,6 +30,11 @@ interface NpmCheckResult {
     domains: number;
     jailMatches: number;
     source?: 'sqlite' | 'mysql';
+}
+
+/** Builds a failed NpmCheckResult — avoids repeating the zeroed-out fields at every failure site. */
+function npmCheckFailure(step: string, error: string): NpmCheckResult {
+    return { ok: false, step, error, resolvedPath: '', domains: 0, jailMatches: 0 };
 }
 
 interface NpmMysqlConfig {
@@ -132,7 +137,7 @@ export const Fail2banPathConfig: React.FC<Fail2banPathConfigProps> = ({
                 body: JSON.stringify({ settings: { sqliteDbPath: sqliteInput.trim() } }),
             });
             if (!res.ok) { setSqliteStatus('error'); setSqliteError(t('fail2ban.pathConfig.serverError')); return; }
-            onSqliteDbPathChange!(sqliteInput.trim());
+            onSqliteDbPathChange?.(sqliteInput.trim());
             await runSqliteCheck();
         } catch (e) {
             setSqliteStatus('error');
@@ -150,6 +155,8 @@ export const Fail2banPathConfig: React.FC<Fail2banPathConfigProps> = ({
     const [npmCheck, setNpmCheck]       = useState<NpmCheckResult | null>(null);
     const [npmChecking, setNpmChecking] = useState(false);
     const [showPass, setShowPass]       = useState(false);
+    const npmSavedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    useEffect(() => () => { if (npmSavedTimerRef.current) clearTimeout(npmSavedTimerRef.current); }, []);
     const [mysql, setMysql]             = useState<NpmMysqlConfig>({ host: '', port: '3306', user: 'npm', pass: '', db: 'npm' });
 
     useEffect(() => { if (npmDataPath !== undefined) setNpmInput(npmDataPath); }, [npmDataPath]);
@@ -188,10 +195,10 @@ export const Fail2banPathConfig: React.FC<Fail2banPathConfigProps> = ({
         // Validate MySQL fields before save
         if (npmDbType === 'mysql') {
             const port = Number.parseInt(mysql.port);
-            if (!mysql.host.trim()) { setNpmCheck({ ok: false, step: 'validate', error: t('fail2ban.pathConfig.mysqlHostRequired'), resolvedPath: '', domains: 0, jailMatches: 0 }); return; }
-            if (!mysql.user.trim()) { setNpmCheck({ ok: false, step: 'validate', error: t('fail2ban.pathConfig.mysqlUserRequired'), resolvedPath: '', domains: 0, jailMatches: 0 }); return; }
-            if (!mysql.db.trim())   { setNpmCheck({ ok: false, step: 'validate', error: t('fail2ban.pathConfig.mysqlDbRequired'), resolvedPath: '', domains: 0, jailMatches: 0 }); return; }
-            if (Number.isNaN(port) || port < 1 || port > 65535) { setNpmCheck({ ok: false, step: 'validate', error: t('fail2ban.pathConfig.mysqlPortInvalid'), resolvedPath: '', domains: 0, jailMatches: 0 }); return; }
+            if (!mysql.host.trim()) { setNpmCheck(npmCheckFailure('validate', t('fail2ban.pathConfig.mysqlHostRequired'))); return; }
+            if (!mysql.user.trim()) { setNpmCheck(npmCheckFailure('validate', t('fail2ban.pathConfig.mysqlUserRequired'))); return; }
+            if (!mysql.db.trim())   { setNpmCheck(npmCheckFailure('validate', t('fail2ban.pathConfig.mysqlDbRequired'))); return; }
+            if (Number.isNaN(port) || port < 1 || port > 65535) { setNpmCheck(npmCheckFailure('validate', t('fail2ban.pathConfig.mysqlPortInvalid'))); return; }
         }
         setNpmSaving(true);
         setNpmCheck(null);
@@ -212,9 +219,9 @@ export const Fail2banPathConfig: React.FC<Fail2banPathConfigProps> = ({
                 body: JSON.stringify({ settings }),
             });
             if (res.ok) {
-                onNpmDataPathChange!(npmInput.trim());
+                onNpmDataPathChange?.(npmInput.trim());
                 setNpmSaved(true);
-                setTimeout(() => setNpmSaved(false), 4000);
+                npmSavedTimerRef.current = setTimeout(() => setNpmSaved(false), 4000);
             }
         } catch { /* ignore */ }
         finally { setNpmSaving(false); }
@@ -229,10 +236,10 @@ export const Fail2banPathConfig: React.FC<Fail2banPathConfigProps> = ({
                 const data = await res.json();
                 setNpmCheck(data.result ?? data);
             } else {
-                setNpmCheck({ ok: false, step: 'request', error: t('fail2ban.pathConfig.networkError'), resolvedPath: '', domains: 0, jailMatches: 0 });
+                setNpmCheck(npmCheckFailure('request', t('fail2ban.pathConfig.networkError')));
             }
         } catch (e) {
-            setNpmCheck({ ok: false, step: 'request', error: e instanceof Error ? e.message : t('fail2ban.pathConfig.error'), resolvedPath: '', domains: 0, jailMatches: 0 });
+            setNpmCheck(npmCheckFailure('request', e instanceof Error ? e.message : t('fail2ban.pathConfig.error')));
         } finally {
             setNpmChecking(false);
         }

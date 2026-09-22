@@ -2,8 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Download, FileText, Pencil, X, Save, CheckCircle, AlertTriangle, Plus, Zap } from 'lucide-react';
 import { api } from '../../api/client';
-import { card, cardH } from './helpers';
+import { card, cardH, stripConfExt } from './helpers';
 import { getCached, setCached, deleteCached } from './cacheUtils';
+import { useNotificationStore } from '../../stores/notificationStore';
 import { NewFilterModal } from './NewFilterModal';
 import { NewJailModal } from './NewJailModal';
 import type { JailStatus } from './types';
@@ -45,15 +46,17 @@ const FilterModal: React.FC<FilterModalProps> = ({ name, jailsUsingIt, onClose, 
     const [saveError, setSaveError]   = useState<string | null>(null);
 
     useEffect(() => {
-        api.get<{ ok: boolean; content: string }>(`/api/plugins/fail2ban/filters/${encodeURIComponent(name)}`)
+        api.get<{ ok: boolean; content: string; error?: string }>(`/api/plugins/fail2ban/filters/${encodeURIComponent(name)}`)
             .then(res => {
                 if (res.success && res.result?.ok) {
                     setContent(res.result.content);
                     setEdited(res.result.content);
+                } else {
+                    setSaveError(res.result?.error ?? res.error?.message ?? t('fail2ban.errors.readError'));
                 }
                 setLoading(false);
             });
-    }, [name]);
+    }, [name, t]);
 
     const handleSave = async () => {
         setSaving(true); setSaveError(null); setResults(null);
@@ -163,6 +166,7 @@ const FilterModal: React.FC<FilterModalProps> = ({ name, jailsUsingIt, onClose, 
 
 export const TabFiltres: React.FC<TabFiltresProps> = ({ jails, onJailCreated }) => {
     const { t } = useTranslation();
+    const { addAction } = useNotificationStore();
     const [files, setFiles]       = useState<string[]>([]);
     const [loading, setLoading]   = useState(true);
     const [error, setError]       = useState<string | null>(null);
@@ -193,7 +197,7 @@ export const TabFiltres: React.FC<TabFiltresProps> = ({ jails, onJailCreated }) 
         for (const j of jails) {
             if (!j.filter) continue;
             // normalize: "sshd" matches "sshd.conf" and "sshd.local"
-            const base = j.filter.replace(/\.(conf|local)$/, '');
+            const base = stripConfExt(j.filter);
             if (!m[base]) m[base] = [];
             m[base].push(j.jail);
         }
@@ -202,7 +206,7 @@ export const TabFiltres: React.FC<TabFiltresProps> = ({ jails, onJailCreated }) 
 
     const rows: FilterRow[] = useMemo(() => {
         return files.map(name => {
-            const base = name.replace(/\.(conf|local)$/, '');
+            const base = stripConfExt(name);
             return { name, usedByJails: filterMap[base] ?? [] };
         });
     }, [files, filterMap]);
@@ -219,8 +223,11 @@ export const TabFiltres: React.FC<TabFiltresProps> = ({ jails, onJailCreated }) 
     const activeCount = rows.filter(r => r.usedByJails.length > 0).length;
 
     const downloadFilter = async (name: string) => {
-        const res = await api.get<{ ok: boolean; content: string }>(`/api/plugins/fail2ban/filters/${encodeURIComponent(name)}`);
-        if (!res.success || !res.result?.ok) return;
+        const res = await api.get<{ ok: boolean; content: string; error?: string }>(`/api/plugins/fail2ban/filters/${encodeURIComponent(name)}`);
+        if (!res.success || !res.result?.ok) {
+            addAction(res.result?.error ?? res.error?.message ?? t('fail2ban.errors.readError'), false);
+            return;
+        }
         const blob = new Blob([res.result.content], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a'); a.href = url; a.download = name;
@@ -304,15 +311,15 @@ export const TabFiltres: React.FC<TabFiltresProps> = ({ jails, onJailCreated }) 
             <div style={card}>
                 {/* Header */}
                 <div style={{ display: 'grid', gridTemplateColumns: '220px 56px minmax(0,1fr) auto', gap: 0, ...cardH, borderBottom: '1px solid #30363d', fontSize: '.68rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: '#8b949e' }}>
-                    <div>Filtre</div>
+                    <div>{t('fail2ban.filtres.colFiltre')}</div>
                     <div style={{ textAlign: 'center' }}>{t('fail2ban.labels.jails')}</div>
-                    <div>Utilisé par</div>
+                    <div>{t('fail2ban.filtres.colUsedBy')}</div>
                     <div />
                 </div>
 
                 {filtered.length === 0 && (
                     <div style={{ padding: '2rem', textAlign: 'center', color: '#8b949e', fontSize: '.85rem' }}>
-                        Aucun filtre ne correspond
+                        {t('fail2ban.filtres.noMatch')}
                     </div>
                 )}
 
@@ -354,7 +361,7 @@ export const TabFiltres: React.FC<TabFiltresProps> = ({ jails, onJailCreated }) 
                         {/* Actions */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: '.35rem', flexShrink: 0, paddingLeft: '.5rem' }}>
                             {row.usedByJails.length === 0 && (
-                                <button onClick={() => setActivateFor(row.name.replace(/\.(conf|local)$/, ''))}
+                                <button onClick={() => setActivateFor(stripConfExt(row.name))}
                                     title={t('fail2ban.newFilter.activateHint')}
                                     style={{ display: 'flex', alignItems: 'center', gap: '.3rem', padding: '.28rem .65rem', fontSize: '.75rem', borderRadius: 5, background: 'rgba(63,185,80,.1)', border: '1px solid rgba(63,185,80,.3)', color: '#3fb950', cursor: 'pointer', whiteSpace: 'nowrap', fontWeight: 600 }}>
                                     <Zap style={{ width: 11, height: 11 }} />{t('fail2ban.newFilter.activate')}

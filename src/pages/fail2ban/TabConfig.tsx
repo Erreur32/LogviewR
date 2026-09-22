@@ -7,8 +7,9 @@ import {
     Pencil, X, Layers, Network,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { api } from '../../api/client';
-import { card, cardH, cardB, F2bTooltip, TT } from './helpers';
+import { card, cardH, cardB, F2bTooltip, TT, useCopiedFlash } from './helpers';
 import { Fail2banPathConfig } from './Fail2banPathConfig';
 import { useNotificationStore } from '../../stores/notificationStore';
 
@@ -98,6 +99,21 @@ const C = {
     green: '#3fb950', blue: '#58a6ff', red: '#e86a65',
     orange: '#e3b341', purple: '#bc8cff', cyan: '#39c5cf',
 };
+
+/** Human-readable days hint for the dbpurgeage input ("~1 day" / "disabled" / ""). */
+function fmtPurgeAgeDays(fmPurgeage: string, t: TFunction): string {
+    const secs = Number.parseInt(fmPurgeage, 10);
+    if (secs > 0) return `≈ ${Math.round(secs / 86400)} ${t('fail2ban.config.jours')}`;
+    if (secs === 0) return t('fail2ban.config.desactive');
+    return '';
+}
+
+/** DB fragmentation severity (>40% red, >20% orange, else green) — shared by the fail2ban and dashboard DB cards. */
+function fragSeverity(pct: number): { color: string; bg: string; border: string; name: 'red' | 'orange' | 'green' } {
+    if (pct > 40) return { color: C.red, bg: 'rgba(232,106,101,.12)', border: 'rgba(232,106,101,.3)', name: 'red' };
+    if (pct > 20) return { color: C.orange, bg: 'rgba(227,179,65,.12)', border: 'rgba(227,179,65,.3)', name: 'orange' };
+    return { color: C.green, bg: 'rgba(63,185,80,.1)', border: 'rgba(63,185,80,.25)', name: 'green' };
+}
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
@@ -234,7 +250,7 @@ const RawFileViewer: React.FC<{
     onSaved?: (filename: string, content: string) => void;
 }> = ({ rawFiles, rawMtimes, rawTab, onTabChange, height = 480, onSaved }) => {
     const { t } = useTranslation();
-    const [copied, setCopied]       = useState(false);
+    const [copied, flashCopied]     = useCopiedFlash(1500);
     const [editMode, setEditMode]   = useState(false);
     const [editContent, setEditContent] = useState('');
     const [testing, setTesting]     = useState(false);
@@ -252,7 +268,7 @@ const RawFileViewer: React.FC<{
     const copyContent = () => {
         const src = editMode ? editContent : content;
         if (!src) return;
-        navigator.clipboard.writeText(src).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); });
+        navigator.clipboard.writeText(src).then(flashCopied);
     };
 
     const enterEdit = () => {
@@ -270,7 +286,7 @@ const RawFileViewer: React.FC<{
 
     const switchTab = (f: string) => {
         if (editMode && isDirty) {
-            if (!window.confirm('Des modifications non sauvegardées seront perdues. Continuer ?')) return;
+            if (!window.confirm(t('fail2ban.config.unsavedChangesConfirm'))) return;
         }
         exitEdit();
         onTabChange(f);
@@ -386,6 +402,9 @@ const RawFileViewer: React.FC<{
                     {FILES.map(f => {
                         const absent = rawFiles && rawFiles[f] === null;
                         const active = rawTab === f;
+                        let tabTextColor = '#e6edf3';
+                        if (active) tabTextColor = '#58a6ff';
+                        else if (absent) tabTextColor = '#555d69';
                         const canEdit = EDITABLE.has(f);
                         const mtime = rawMtimes?.[f as keyof RawMtimes];
                         const lineCount = rawFiles?.[f as keyof RawFiles]?.split('\n').length ?? null;
@@ -396,7 +415,7 @@ const RawFileViewer: React.FC<{
                             <button key={f} onClick={() => switchTab(f)} style={{
                                 textAlign: 'left', padding: '.4rem .75rem', fontSize: '.78rem',
                                 fontFamily: 'monospace', background: active ? 'rgba(88,166,255,.12)' : 'transparent',
-                                color: active ? '#58a6ff' : absent ? '#555d69' : '#e6edf3',
+                                color: tabTextColor,
                                 border: 'none', borderLeft: active ? '2px solid #58a6ff' : '2px solid transparent',
                                 cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '.15rem', alignItems: 'flex-start',
                             }}>
@@ -546,9 +565,9 @@ const RawFileViewer: React.FC<{
 };
 
 const ShellCommand: React.FC<{ cmd: string }> = ({ cmd }) => {
-    const [copied, setCopied] = useState(false);
+    const [copied, flashCopied] = useCopiedFlash(1500);
     const copy = () => {
-        navigator.clipboard.writeText(cmd).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); });
+        navigator.clipboard.writeText(cmd).then(flashCopied);
     };
     return (
         <div style={{ display: 'flex', alignItems: 'center', background: C.bg0, border: `1px solid ${C.border}`, borderRadius: 5, padding: '.3rem .6rem', gap: '.5rem', marginTop: '.4rem' }}>
@@ -564,19 +583,18 @@ const ShellCommand: React.FC<{ cmd: string }> = ({ cmd }) => {
     );
 };
 
-const VacuumAlert: React.FC<{ fragPct: number; dbPath: string; onDone: () => void }> = ({ fragPct, dbPath, onDone }) => {
+const VacuumAlert: React.FC<{ fragPct: number; endpoint: string; description: string; dbPath?: string; onDone: () => void }> = ({ fragPct, endpoint, description, dbPath, onDone }) => {
     const { t } = useTranslation();
     const [state, setState] = useState<'idle' | 'running' | 'done' | 'error' | 'docker'>('idle');
     const [errMsg, setErrMsg] = useState('');
-    const cmd = `sqlite3 ${dbPath} 'VACUUM'`;
     const run = async () => {
         setState('running');
         try {
-            const res = await api.post<{ ok: boolean; error?: string; dockerReadOnly?: boolean }>('/api/plugins/fail2ban/config/sqlite-vacuum');
+            const res = await api.post<{ ok: boolean; error?: string; dockerReadOnly?: boolean }>(`/api/plugins/fail2ban/config/${endpoint}`);
             if (res.success && res.result?.ok) { setState('done'); onDone(); }
-            else if (res.success && res.result?.dockerReadOnly) {
+            else if (dbPath && res.success && res.result?.dockerReadOnly) {
                 setState('docker');
-            } else {
+            } else if (dbPath) {
                 const httpMsg = res.error?.message ?? '';
                 const is404 = httpMsg.includes('404') || res.error?.code === 'INVALID_RESPONSE';
                 const isAuth = httpMsg.includes('401') || httpMsg.includes('403');
@@ -585,6 +603,9 @@ const VacuumAlert: React.FC<{ fragPct: number; dbPath: string; onDone: () => voi
                     isAuth ? t('fail2ban.errors.permissionDenied') :
                     res.result?.error ?? (httpMsg || t('fail2ban.errors.unknown'))
                 );
+                setState('error');
+            } else {
+                setErrMsg(res.result?.error ?? res.error?.message ?? t('fail2ban.errors.unknown'));
                 setState('error');
             }
         } catch (e: unknown) {
@@ -598,7 +619,7 @@ const VacuumAlert: React.FC<{ fragPct: number; dbPath: string; onDone: () => voi
             <div style={{ flex: 1 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', flexWrap: 'wrap' }}>
                     <span style={{ fontWeight: 600 }}>Fragmentation élevée ({fragPct}%)</span>
-                    <span style={{ color: C.muted }}>— compresse la DB et libère l'espace disque inutilisé</span>
+                    <span style={{ color: C.muted }}>— {description}</span>
                     {state === 'done' && (
                         <span style={{ color: C.green, display: 'inline-flex', alignItems: 'center', gap: '.3rem' }}>
                             <CheckCircle style={{ width: 11, height: 11 }} /> VACUUM terminé
@@ -621,53 +642,7 @@ const VacuumAlert: React.FC<{ fragPct: number; dbPath: string; onDone: () => voi
                         En attendant, lancez manuellement sur l'hôte :
                     </div>
                 )}
-                <ShellCommand cmd={cmd} />
-            </div>
-        </div>
-    );
-};
-
-// ── VacuumAlert for dashboard.db ──────────────────────────────────────────────
-
-const DashboardVacuumAlert: React.FC<{ fragPct: number; onDone: () => void }> = ({ fragPct, onDone }) => {
-    const { t } = useTranslation();
-    const [state, setState] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
-    const [errMsg, setErrMsg] = useState('');
-    const run = async () => {
-        setState('running');
-        try {
-            const res = await api.post<{ ok: boolean; error?: string }>('/api/plugins/fail2ban/config/dashboard-vacuum');
-            if (res.success && res.result?.ok) { setState('done'); onDone(); }
-            else {
-                setErrMsg(res.result?.error ?? res.error?.message ?? t('fail2ban.errors.unknown'));
-                setState('error');
-            }
-        } catch (e: unknown) {
-            setState('error');
-            setErrMsg(e instanceof Error ? e.message : t('fail2ban.errors.connectionError'));
-        }
-    };
-    return (
-        <div style={{ fontSize: '.75rem', color: C.orange, marginTop: '.25rem', display: 'flex', alignItems: 'flex-start', gap: '.5rem', background: 'rgba(227,179,65,.06)', border: '1px solid rgba(227,179,65,.25)', borderRadius: 6, padding: '.6rem .75rem' }}>
-            <AlertTriangle style={{ width: 13, height: 13, marginTop: 1, flexShrink: 0 }} />
-            <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', flexWrap: 'wrap' }}>
-                    <span style={{ fontWeight: 600 }}>Fragmentation élevée ({fragPct}%)</span>
-                    <span style={{ color: C.muted }}>— compresse dashboard.db et libère l'espace inutilisé</span>
-                    {state === 'done' && (
-                        <span style={{ color: C.green, display: 'inline-flex', alignItems: 'center', gap: '.3rem' }}>
-                            <CheckCircle style={{ width: 11, height: 11 }} /> VACUUM terminé
-                        </span>
-                    )}
-                    {state === 'error' && <span style={{ color: C.red }}>{errMsg}</span>}
-                    {state !== 'done' && (
-                        <Btn onClick={run} loading={state === 'running'} small
-                            bg="rgba(227,179,65,.15)" color={C.orange} border="rgba(227,179,65,.4)">
-                            <HardDrive style={{ width: 11, height: 11 }} />
-                            {state === 'running' ? t('fail2ban.config.vacuumEnCours') : 'Lancer VACUUM'}
-                        </Btn>
-                    )}
-                </div>
+                {dbPath && <ShellCommand cmd={`sqlite3 ${dbPath} 'VACUUM'`} />}
             </div>
         </div>
     );
@@ -967,7 +942,7 @@ export const TabConfig: React.FC<{
     };
 
     const doReset = async () => {
-        if (!window.confirm('Réinitialiser toutes les données fail2ban ?\n\nCela supprime : événements f2b_events, cache géo f2b_ip_geo, état de synchronisation.\nCette action est irréversible.')) return;
+        if (!window.confirm(t('fail2ban.config.resetConfirm'))) return;
         setResetting(true);
         const res = await api.post<{ ok: boolean }>('/api/plugins/fail2ban/config/maintenance/reset', {});
         setResetting(false);
@@ -1183,9 +1158,7 @@ export const TabConfig: React.FC<{
                                     )}
                                     <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '.35rem' }}>
                                         {dbInfo && (() => {
-                                            const fc = dbInfo.fragPct > 40 ? C.red : dbInfo.fragPct > 20 ? C.orange : C.green;
-                                            const bg = dbInfo.fragPct > 40 ? 'rgba(232,106,101,.12)' : dbInfo.fragPct > 20 ? 'rgba(227,179,65,.12)' : 'rgba(63,185,80,.1)';
-                                            const bd = dbInfo.fragPct > 40 ? 'rgba(232,106,101,.3)' : dbInfo.fragPct > 20 ? 'rgba(227,179,65,.3)' : 'rgba(63,185,80,.25)';
+                                            const { color: fc, bg, border: bd } = fragSeverity(dbInfo.fragPct);
                                             return (<>
                                                         <F2bTooltip color="blue" title={t('fail2ban.config.dbSizeTitleF2b')} width={300} bodyNode={<>
                                                             {TT.section(t('fail2ban.config.dbContentF2b'), '#58a6ff')}
@@ -1196,7 +1169,7 @@ export const TabConfig: React.FC<{
                                                         </>}>
                                                             <HBadge color={C.blue} bg="rgba(88,166,255,.1)" border="rgba(88,166,255,.25)">{dbInfo.sizeFmt}</HBadge>
                                                         </F2bTooltip>
-                                                        <F2bTooltip color={dbInfo.fragPct > 40 ? 'red' : dbInfo.fragPct > 20 ? 'orange' : 'green'} title={t('fail2ban.config.dbFragTitleF2b')} width={320} bodyNode={<>
+                                                        <F2bTooltip color={fragSeverity(dbInfo.fragPct).name} title={t('fail2ban.config.dbFragTitleF2b')} width={320} bodyNode={<>
                                                             {TT.section(t('fail2ban.config.dbFragMeasure'))}
                                                             {TT.info(t('fail2ban.config.dbFragMeasure') + `: ${dbInfo.fragPct}%`)}
                                                             {TT.sep()}
@@ -1233,7 +1206,7 @@ export const TabConfig: React.FC<{
                                                 ))}
                                             </div>
                                             {dbInfo.fragPct > 20 && (
-                                                <VacuumAlert fragPct={dbInfo.fragPct} dbPath={cfg.dbfile} onDone={() => { void loadParsed(); }} />
+                                                <VacuumAlert fragPct={dbInfo.fragPct} endpoint="sqlite-vacuum" description={t('fail2ban.config.vacuumFail2banDescription')} dbPath={cfg.dbfile} onDone={() => { void loadParsed(); }} />
                                             )}
                                         </div>
                                     ) : (
@@ -1309,7 +1282,7 @@ export const TabConfig: React.FC<{
                                                 onChange={e => { const v = e.target.value; if (v === '' || /^\d+$/.test(v)) setFmPurgeage(v); }}
                                                 style={{ ...inp, borderColor: fmPurgeage !== '' && (Number.isNaN(Number.parseInt(fmPurgeage, 10)) || Number.parseInt(fmPurgeage, 10) < 0) ? C.red : undefined }} placeholder="86400" />
                                             <div style={{ fontSize: '.65rem', color: C.muted, marginTop: 2 }}>
-                                                 {Number.parseInt(fmPurgeage, 10) > 0 ? `≈ ${Math.round(Number.parseInt(fmPurgeage, 10) / 86400)} ${t('fail2ban.config.jours')}` : Number.parseInt(fmPurgeage, 10) === 0 ? t('fail2ban.config.desactive') : ''}
+                                                 {fmtPurgeAgeDays(fmPurgeage, t)}
                                             </div>
                                         </div>
                                         <div>
@@ -1412,7 +1385,11 @@ export const TabConfig: React.FC<{
                         const synced   = syncStatus?.synced;
                         const syncOk   = synced === true;
                         const syncWarn = synced === false;
-                        const borderColor = syncLoading ? C.border : syncWarn ? 'rgba(227,179,65,.4)' : syncOk ? 'rgba(63,185,80,.25)' : C.border;
+                        let borderColor = C.border;
+                        if (!syncLoading) {
+                            if (syncWarn) borderColor = 'rgba(227,179,65,.4)';
+                            else if (syncOk) borderColor = 'rgba(63,185,80,.25)';
+                        }
                         return (
                     <div style={{ ...card, borderColor }}>
                         <div onClick={() => !syncLoading && setOpenSync(o => !o)}
@@ -1514,9 +1491,7 @@ export const TabConfig: React.FC<{
                             <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '.35rem' }}>
                                 {parsed?.appDbInfo && (() => {
                                     const db = parsed.appDbInfo;
-                                    const fc = db.fragPct > 40 ? C.red : db.fragPct > 20 ? C.orange : C.green;
-                                    const bg = db.fragPct > 40 ? 'rgba(232,106,101,.12)' : db.fragPct > 20 ? 'rgba(227,179,65,.12)' : 'rgba(63,185,80,.1)';
-                                    const bd = db.fragPct > 40 ? 'rgba(232,106,101,.3)'  : db.fragPct > 20 ? 'rgba(227,179,65,.3)'  : 'rgba(63,185,80,.25)';
+                                    const { color: fc, bg, border: bd } = fragSeverity(db.fragPct);
                                     return (<>
                                         <F2bTooltip color="blue" title={t('fail2ban.config.dbSizeTitleDash')} width={300} bodyNode={<>
                                             {TT.section(t('fail2ban.config.dbContentDash'), '#58a6ff')}
@@ -1527,7 +1502,7 @@ export const TabConfig: React.FC<{
                                         </>}>
                                             <HBadge color={C.blue} bg="rgba(88,166,255,.1)" border="rgba(88,166,255,.25)">{db.sizeFmt}</HBadge>
                                         </F2bTooltip>
-                                        <F2bTooltip color={db.fragPct > 40 ? 'red' : db.fragPct > 20 ? 'orange' : 'green'} title={t('fail2ban.config.dbFragTitleDash')} width={320} bodyNode={<>
+                                        <F2bTooltip color={fragSeverity(db.fragPct).name} title={t('fail2ban.config.dbFragTitleDash')} width={320} bodyNode={<>
                                             {TT.section(t('fail2ban.config.dbFragMeasure'))}
                                             {TT.info(t('fail2ban.config.dbFragMeasure') + `: ${db.fragPct}%`)}
                                             {TT.sep()}
@@ -1547,7 +1522,7 @@ export const TabConfig: React.FC<{
                             {parsed?.appDbInfo ? (() => {
                                 const db = parsed.appDbInfo;
                                 const fragOk = db.fragPct <= 20;
-                                const fragColor = db.fragPct > 40 ? C.red : db.fragPct > 20 ? C.orange : C.green;
+                                const fragColor = fragSeverity(db.fragPct).color;
                                 return (<>
                                     {/* Stats métriques */}
                                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '.4rem' }}>
@@ -1585,7 +1560,7 @@ export const TabConfig: React.FC<{
                                         </div>
                                     ))}
                                     {!fragOk && (
-                                        <DashboardVacuumAlert fragPct={db.fragPct} onDone={() => { void loadParsed(); }} />
+                                        <VacuumAlert fragPct={db.fragPct} endpoint="dashboard-vacuum" description={t('fail2ban.config.vacuumDashboardDescription')} onDone={() => { void loadParsed(); }} />
                                     )}
                                 </>);
                             })() : (

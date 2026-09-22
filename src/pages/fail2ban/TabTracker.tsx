@@ -7,12 +7,10 @@ import type { TrackerEntry } from './types';
 import { GeoInfo } from './types';
 import { FlagImg } from './FlagImg';
 import { getAppLanguage } from '../../i18n';
+import { getCached as getCachedRaw, setCached } from './cacheUtils';
 
-// ── Module-level cache (survives tab navigation) ──────────────────────────────
-const _cache: Record<string, { data: unknown; ts: number }> = {};
 const CACHE_TTL = 30_000;
-function getCached<T>(key: string): T | null { const e = _cache[key]; return (e && Date.now() - e.ts < CACHE_TTL) ? e.data as T : null; }
-function setCached(key: string, data: unknown) { _cache[key] = { data, ts: Date.now() }; }
+function getCached<T>(key: string): T | null { return getCachedRaw<T>(key, CACHE_TTL); }
 
 type SortCol = 'ip' | 'bans' | 'unbans' | 'failures' | 'jails' | 'last';
 type SortDir = 'asc' | 'desc';
@@ -70,7 +68,7 @@ export const TabTracker: React.FC<{ onIpClick?: (ip: string) => void; onTotalCha
     const [viewMode, setViewMode] = useState<'active' | 'history'>('active');
 
     // Geo cache: ip → GeoInfo (or null on error)
-    const geoCache = useRef<Map<string, GeoInfo | null>>(new Map());
+    const geoCache = useRef<Map<string, GeoInfo | null | undefined>>(new Map());
     const [geoData, setGeoData] = useState<Map<string, GeoInfo | null>>(new Map());
     const [geoLoading, setGeoLoading] = useState<Set<string>>(new Set());
 
@@ -175,7 +173,7 @@ export const TabTracker: React.FC<{ onIpClick?: (ip: string) => void; onTotalCha
     const fetchGeo = useCallback((ip: string) => {
         if (geoCache.current.has(ip)) return;
         // Mark as in-flight immediately (prevents duplicate requests)
-        geoCache.current.set(ip, undefined as any);
+        geoCache.current.set(ip, undefined);
         setGeoLoading(prev => new Set([...prev, ip]));
         api.get<{ ok: boolean; geo: GeoInfo }>(`/api/plugins/fail2ban/geo/${encodeURIComponent(ip)}`)
             .then(res => {
