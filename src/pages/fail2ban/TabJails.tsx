@@ -137,17 +137,8 @@ export const JailCard: React.FC<{
     const [ipFilter, setIpFilter] = useState('');
     const [editor, setEditor] = useState<ConfEditorTarget | null>(null);
     const [configOpen, setConfigOpen] = useState(false);
-    const [hostnames, setHostnames] = useState<Record<string, string>>({});
     const [logModal, setLogModal] = useState(false);
     const [recentBans, setRecentBans] = useState<BanEntry[]>([]);
-    const reloadKey = `reload-${jail.jail}`;
-
-    useEffect(() => {
-        if (!jail.bannedIps.length) return;
-        const ips = jail.bannedIps.join(',');
-        api.get<Record<string, string>>(`/api/plugins/fail2ban/dns/batch?ips=${encodeURIComponent(ips)}`)
-            .then(res => { if (res.success && res.result) setHostnames(res.result); });
-    }, [jail.bannedIps.join(',')]);
 
     useEffect(() => {
         const since = Math.floor(Date.now() / 1000) - 300;
@@ -401,7 +392,6 @@ const JailExpandedGrid: React.FC<{
     const [logsOpen, setLogsOpen]     = useState(false);
     const [hostnames, setHostnames]   = useState<Record<string, string>>({});
     const [editor, setEditor]         = useState<ConfEditorTarget | null>(null);
-    const reloadKey = `reload-${jail.jail}`;
 
     useEffect(() => {
         if (!jail.bannedIps.length) return;

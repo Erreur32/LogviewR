@@ -80,45 +80,6 @@ const inputFocus = {
     onBlur:  (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => { e.currentTarget.style.borderColor = '#30363d'; },
 };
 
-// ── Failregex collapsible ─────────────────────────────────────────────────────
-
-const FailregexSection: React.FC<{ jailName: string }> = ({ jailName }) => {
-    const { t } = useTranslation();
-    const [open, setOpen] = useState(false);
-    const [lines, setLines] = useState<string[]>([]);
-    const [loading, setLoading] = useState(false);
-
-    const load = useCallback(async () => {
-        setLoading(true);
-        // Try to get filter content from status, then read failregex
-        const res = await api.get<{ ok: boolean; bans: unknown[] }>(`/api/plugins/fail2ban/audit?limit=1&jail=${encodeURIComponent(jailName)}`);
-        // Fetch jail details via filter name stored in params
-        setLoading(false);
-    }, [jailName]);
-
-    const toggle = () => {
-        if (!open && lines.length === 0) load();
-        setOpen(o => !o);
-    };
-
-    return (
-        <div style={{ borderTop: '1px solid #30363d', marginTop: '.75rem' }}>
-            <button onClick={toggle} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '.4rem', padding: '.4rem 0', background: 'transparent', border: 'none', color: '#8b949e', cursor: 'pointer', fontSize: '.77rem' }}>
-                <Terminal style={{ width: 11, height: 11, flexShrink: 0 }} />
-                <span>{t('fail2ban.jailConfig.seeFailregex')}</span>
-                <span style={{ marginLeft: 'auto' }}>
-                    {open ? <ChevronDown style={{ width: 11, height: 11 }} /> : <ChevronRight style={{ width: 11, height: 11 }} />}
-                </span>
-            </button>
-            {open && (
-                <div style={{ color: '#8b949e', fontSize: '.77rem', fontStyle: 'italic', paddingBottom: '.5rem' }}>
-                    {t('fail2ban.jailConfig.openFilterHint')}
-                </div>
-            )}
-        </div>
-    );
-};
-
 // ── Param row ─────────────────────────────────────────────────────────────────
 
 const ParamRow: React.FC<{ label: string; hint: string; id: string; value: string; onChange: (v: string) => void; min?: number }> = ({ label, hint, id, value, onChange, min = -1 }) => {

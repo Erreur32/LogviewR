@@ -259,13 +259,6 @@ const TABLES = ['filter', 'nat', 'mangle', 'raw'];
 const DOCKER_CHAIN_RE = /^DOCKER/i;
 const DOCKER_IFACE_RE = /^!?(br-[0-9a-f]+|docker\d*|veth[0-9a-f]+)$/i;
 
-function hasDockerContent(chains: IptChain[]): boolean {
-    return chains.some(c =>
-        DOCKER_CHAIN_RE.test(c.name) ||
-        c.rules.some(r => DOCKER_IFACE_RE.test(r.iface_in) || DOCKER_IFACE_RE.test(r.iface_out))
-    );
-}
-
 function applyDockerFilter(chains: IptChain[]): { visible: IptChain[]; hiddenRules: number; hiddenChains: number; perChainHidden: Record<string, number> } {
     let hiddenRules = 0;
     let hiddenChains = 0;

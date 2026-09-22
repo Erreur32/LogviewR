@@ -2458,8 +2458,6 @@
       "actionsLabel": "Actions",
       "viewFilter": "Voir / éditer le filtre",
       "viewAction": "Voir / éditer l'action",
-      "seeFailregex": "Voir les failregex",
-      "openFilterHint": "Ouvrez le filtre via le badge ⚙ pour voir les failregex.",
       "portInvalid": "Port invalide — attendu : 22 | http | 80,443 | 8080:8090",
       "savedAndReloaded": "Paramètres sauvegardés et jail rechargé.",
       "confirmStop": "Arrêter le jail « {{jail}} » ?\n\nLes IPs actuellement bannies seront débloquées.",

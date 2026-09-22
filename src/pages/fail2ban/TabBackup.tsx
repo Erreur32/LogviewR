@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Archive, UploadCloud, AlertTriangle, CheckCircle, XCircle, FolderOpen, RefreshCw, Save, RotateCcw, Trash2, Layers, Shield, FileJson, Database, Download, Camera } from 'lucide-react';
+import { UploadCloud, AlertTriangle, CheckCircle, XCircle, FolderOpen, RefreshCw, Save, RotateCcw, Trash2, Layers, Shield, Database, Download, Camera } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../../api/client';
 import { card, cardH, cardB, F2bTooltip } from './helpers';
@@ -67,12 +67,6 @@ interface ConfigRestoreResult {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-function padZ(n: number) { return String(n).padStart(2, '0'); }
-function nowStamp() {
-    const d = new Date();
-    return `${d.getFullYear()}-${padZ(d.getMonth()+1)}-${padZ(d.getDate())}_${padZ(d.getHours())}${padZ(d.getMinutes())}${padZ(d.getSeconds())}`;
-}
 
 function authBearer() {
     return { Authorization: `Bearer ${localStorage.getItem('dashboard_user_token') ?? ''}` };

@@ -2459,8 +2459,6 @@
       "actionsLabel": "Actions",
       "viewFilter": "View / edit filter",
       "viewAction": "View / edit action",
-      "seeFailregex": "View the failregex",
-      "openFilterHint": "Open the filter via the ⚙ badge to see the failregex.",
       "portInvalid": "Invalid port — expected: 22 | http | 80,443 | 8080:8090",
       "savedAndReloaded": "Settings saved and jail reloaded.",
       "confirmStop": "Stop the jail '{{jail}}'?\n\nCurrently banned IPs will be unblocked.",
