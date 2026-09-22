@@ -9,11 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### For users
 
-- Fixed the date column on the fail2ban backup panels (config/DB/iptables/ipset snapshots), which could show a comma and US-style ordering (e.g. `09/22, 06:49`) depending on the server's locale support.
+- Fixed dates on the fail2ban backup panels, jails log file list and ban timestamps, which could show a comma and US-style ordering (e.g. `09/22, 06:49`) depending on the server's locale support.
 
 ### For developers
 
-- `TabBackup.tsx`: `SnapshotTable.fmtDate` no longer relies on `Date.prototype.toLocaleString`, which isn't reliably formatted the same way across Node/Docker runtimes. It now builds the `DD/MM HH:MM` string manually.
+- Same root cause across 3 spots, all switched from `Date.prototype.toLocaleString` (unreliable across Node/Docker runtimes) to manual `DD/MM HH:MM` string building: `TabBackup.tsx` (`SnapshotTable.fmtDate`), `helpers.tsx` (`fmtTs`, shared by several fail2ban tabs), `TabJails.tsx` (new local `fmtFileDate`, log file mtimes).
 
 ## [0.14.7] - 2026-09-22
 

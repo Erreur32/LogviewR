@@ -991,6 +991,13 @@ function fmtSize(b: number): string {
     return `${(b / 1024 / 1024).toFixed(1)}M`;
 }
 
+function fmtFileDate(ms: number, withYear = false): string {
+    const d = new Date(ms);
+    const p = (n: number) => String(n).padStart(2, '0');
+    const day = `${p(d.getDate())}/${p(d.getMonth() + 1)}${withYear ? `/${p(d.getFullYear() % 100)}` : ''}`;
+    return `${day} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
 export const TabJailsFiles: React.FC = () => {
     const { t } = useTranslation();
     const [files, setFiles]         = useState<LogFileInfo[]>([]);
@@ -1055,7 +1062,7 @@ export const TabJailsFiles: React.FC = () => {
                             style={{ width: '100%', textAlign: 'left', padding: '.4rem .75rem', background: selected === f.name ? 'rgba(88,166,255,.08)' : 'transparent', color: selected === f.name ? '#58a6ff' : '#e6edf3', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '.15rem' }}>
                             <span style={{ fontSize: '.79rem', fontFamily: 'monospace' }}>{f.name}</span>
                             <span style={{ fontSize: '.67rem', color: selected === f.name ? 'rgba(88,166,255,.7)' : '#6e7681', fontVariantNumeric: 'tabular-nums', display: 'flex', justifyContent: 'space-between' }}>
-                                <span>{new Date(f.mtime).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+                                <span>{fmtFileDate(f.mtime)}</span>
                                 <span>{fmtSize(f.size)}</span>
                             </span>
                         </button>
@@ -1070,7 +1077,7 @@ export const TabJailsFiles: React.FC = () => {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
                         {selectedFile && (
                             <span style={{ fontSize: '.68rem', color: '#6e7681', whiteSpace: 'nowrap' }}>
-                                {t('fail2ban.jails.modified')} {new Date(selectedFile.mtime).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                                {t('fail2ban.jails.modified')} {fmtFileDate(selectedFile.mtime, true)}
                             </span>
                         )}
                         {tailLoadedAt > 0 && !tailLoading && (
