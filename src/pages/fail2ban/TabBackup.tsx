@@ -115,11 +115,12 @@ interface SnapshotTableProps {
     onDelete: (filename: string) => void;
     emptyLabel: string;
     restoreBody?: string;
+    downloadBody?: string;
 }
 
 const SnapshotTable: React.FC<SnapshotTableProps> = ({
     snapshots, downloading, restoring, deleting,
-    onDownload, onRestore, onDelete, emptyLabel, restoreBody,
+    onDownload, onRestore, onDelete, emptyLabel, restoreBody, downloadBody,
 }) => {
     const { t } = useTranslation();
     const fmtSize = (b: number) => b > 1024 ? `${(b / 1024).toFixed(1)} KB` : `${b} B`;
@@ -147,7 +148,7 @@ const SnapshotTable: React.FC<SnapshotTableProps> = ({
                         <td style={{ padding: '.45rem .5rem', textAlign: 'right', color: '#8b949e', whiteSpace: 'nowrap' }}>{fmtSize(s.size)}</td>
                         <td style={{ padding: '.45rem .5rem', textAlign: 'right', color: '#8b949e', whiteSpace: 'nowrap' }}>{fmtDate(s.ts)}</td>
                         <td style={{ padding: '.45rem 0 .45rem .5rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                            <F2bTooltip title={t('fail2ban.backup.download')} body={t('fail2ban.backup.downloadSnapshot')} color="green">
+                            <F2bTooltip title={t('fail2ban.backup.download')} body={downloadBody ?? t('fail2ban.backup.downloadSnapshot')} color="green">
                                 <button onClick={() => onDownload(s.filename)} disabled={downloading === s.filename}
                                     style={{ background: 'rgba(63,185,80,.1)', border: '1px solid rgba(63,185,80,.25)', color: C.green, borderRadius: 4, cursor: 'pointer', padding: '.2rem .45rem', marginRight: '.35rem', display: 'inline-flex', alignItems: 'center', opacity: downloading === s.filename ? .5 : 1 }}>
                                     {downloading === s.filename ? <Spinner color={C.green} /> : <Download style={{ width: 11, height: 11 }} />}
@@ -962,6 +963,7 @@ const RulesBackupPanel: React.FC<{ kind: 'iptables' | 'ipset' }> = ({ kind }) =>
                         onDelete={filename => { void del(filename); }}
                         emptyLabel={t(cfg.emptyKey)}
                         restoreBody={t(cfg.restoreBodyKey)}
+                        downloadBody={t('fail2ban.backup.downloadFile')}
                     />
                 )}
             </div>

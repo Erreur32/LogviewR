@@ -80,6 +80,25 @@ const inputFocus = {
     onBlur:  (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => { e.currentTarget.style.borderColor = '#30363d'; },
 };
 
+/** Clickable filter/action badge that opens ConfEditorModal — keyboard-accessible (Enter/Space), single source of truth for the click target. */
+const EditorBadge: React.FC<{
+    target: ConfEditorTarget;
+    onOpen: (target: ConfEditorTarget) => void;
+    style: React.CSSProperties;
+    title: string;
+    children: React.ReactNode;
+}> = ({ target, onOpen, style, title, children }) => (
+    <span
+        onClick={() => onOpen(target)}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(target); } }}
+        role="button" tabIndex={0}
+        style={style}
+        title={title}
+    >
+        {children}
+    </span>
+);
+
 // ── Param row ─────────────────────────────────────────────────────────────────
 
 const ParamRow: React.FC<{ label: string; hint: string; id: string; value: string; onChange: (v: string) => void; min?: number }> = ({ label, hint, id, value, onChange, min = -1 }) => {
@@ -388,13 +407,11 @@ export const JailConfigModal: React.FC<JailConfigModalProps> = ({ jailName, isAc
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.5rem' }}>
                                     <span style={{ fontSize: '.8rem', color: '#8b949e', fontWeight: 600, minWidth: 90 }}>{t('fail2ban.jailConfig.filter')}</span>
                                     {params?.filter ? (
-                                        <span onClick={() => setEditor({ type: 'filter', name: params.filter, jails: [jailName] })}
-                                            role="button" tabIndex={0}
-                                            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setEditor({ type: 'filter', name: params.filter, jails: [jailName] }); } }}
+                                        <EditorBadge target={{ type: 'filter', name: params.filter, jails: [jailName] }} onOpen={setEditor}
                                             style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '.25rem', padding: '.18rem .5rem', borderRadius: 4, fontSize: '.78rem', background: 'rgba(63,185,80,.1)', border: '1px solid rgba(63,185,80,.35)', color: '#3fb950' }}
                                             title={t('fail2ban.jailConfig.viewFilter')}>
                                             ⚙ {params.filter}
-                                        </span>
+                                        </EditorBadge>
                                     ) : (
                                         <span style={{ color: '#8b949e', fontSize: '.78rem' }}>—</span>
                                     )}
@@ -406,18 +423,18 @@ export const JailConfigModal: React.FC<JailConfigModalProps> = ({ jailName, isAc
                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.3rem', flex: 1 }}>
                                         {(params?.actions?.length ?? 0) > 0
                                             ? params!.actions!.map(a => (
-                                                <span key={a} onClick={() => setEditor({ type: 'action', name: a, jails: [jailName] })}
+                                                <EditorBadge key={a} target={{ type: 'action', name: a, jails: [jailName] }} onOpen={setEditor}
                                                     style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '.25rem', padding: '.18rem .5rem', borderRadius: 4, fontSize: '.78rem', background: 'rgba(227,179,65,.1)', border: '1px solid rgba(227,179,65,.35)', color: '#e3b341' }}
                                                     title={t('fail2ban.jailConfig.viewAction')}>
                                                     ⚡ {a}
-                                                </span>
+                                                </EditorBadge>
                                             ))
                                             : params?.banaction
-                                                ? <span onClick={() => setEditor({ type: 'action', name: params.banaction!, jails: [jailName] })}
+                                                ? <EditorBadge target={{ type: 'action', name: params.banaction, jails: [jailName] }} onOpen={setEditor}
                                                     style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '.25rem', padding: '.18rem .5rem', borderRadius: 4, fontSize: '.78rem', background: 'rgba(232,106,101,.1)', border: '1px solid rgba(232,106,101,.35)', color: '#e86a65' }}
                                                     title={t('fail2ban.jailConfig.viewAction')}>
                                                     ⚡ {params.banaction}
-                                                  </span>
+                                                  </EditorBadge>
                                                 : <span style={{ color: '#8b949e', fontSize: '.78rem' }}>—</span>}
                                     </div>
                                 </div>
