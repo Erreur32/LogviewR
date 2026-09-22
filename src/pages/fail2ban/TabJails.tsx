@@ -5,6 +5,7 @@
  */
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import {
     Shield, Ban, Unlock, RotateCcw, AlertTriangle,
     LayoutGrid, Table2, ScrollText, List, ChevronRight, ChevronDown,
@@ -63,12 +64,62 @@ const STORAGE_KEY = 'logviewr-fail2ban-jails-view';
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
-const timingBadge = (label: string, value: string | number, color: string): React.ReactNode => (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.18rem', padding: '2px 6px', borderRadius: 4, fontSize: '.67rem', border: `1px solid rgba(${color === '#e86a65' ? '232,106,101' : color === '#e3b341' ? '227,179,65' : '88,166,255'},.3)`, background: `rgba(${color === '#e86a65' ? '232,106,101' : color === '#e3b341' ? '227,179,65' : '88,166,255'},.08)`, color }}>
-        <span style={{ color: '#8b949e' }}>{label}</span>
-        <strong>{value}</strong>
-    </span>
-);
+/** Threat-bar color from the currentlyFailed/maxretry ratio: <0.5 green, <1 orange, else red. */
+function threatBarColor(ratio: number): string {
+    if (ratio < .5) return '#3fb950';
+    if (ratio < 1) return '#e3b341';
+    return '#e86a65';
+}
+
+/** "Bans in period" label for the jails table/grid header — days<=0 means "all time". */
+function bansPeriodLabel(days: number, t: TFunction): string {
+    if (days <= 0) return t('fail2ban.periods.allShort');
+    if (days === 1) return t('fail2ban.periods.last24h');
+    if (days === 7) return t('fail2ban.periods.last7d');
+    if (days === 30) return t('fail2ban.periods.last30d');
+    if (days === 180) return t('fail2ban.periods.last6m');
+    if (days === 365) return t('fail2ban.periods.last1y');
+    return `${days}j`;
+}
+
+/** Bantime badge color by duration: permanent/1mo+=red, 1d+=orange, 1h+=blue, else green. */
+function bantimeBadgeColor(bantime: number): 'red' | 'orange' | 'blue' | 'green' {
+    if (bantime < 0 || bantime >= 86400 * 30) return 'red';
+    if (bantime >= 86400) return 'orange';
+    if (bantime >= 3600) return 'blue';
+    return 'green';
+}
+
+/** Jail-row Shield icon color: muted when inactive, red when actively banning, else blue. */
+function jailIconColor(currentlyBanned: number, inactive: boolean): string {
+    if (inactive) return '#8b949e';
+    return currentlyBanned > 0 ? '#e86a65' : '#58a6ff';
+}
+
+/** Jail state color: banned=red, failed=orange, else green (optionally muted when inactive). */
+function jailStateColor(currentlyBanned: number, currentlyFailed: number, inactive = false): string {
+    if (inactive) return '#8b949e';
+    if (currentlyBanned > 0) return '#e86a65';
+    if (currentlyFailed > 0) return '#e3b341';
+    return '#238636';
+}
+
+/** RGB triplet for the 3 hex colors used by timingBadge (falls back to blue). */
+function timingBadgeRgb(color: string): string {
+    if (color === '#e86a65') return '232,106,101';
+    if (color === '#e3b341') return '227,179,65';
+    return '88,166,255';
+}
+
+const timingBadge = (label: string, value: string | number, color: string): React.ReactNode => {
+    const rgb = timingBadgeRgb(color);
+    return (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.18rem', padding: '2px 6px', borderRadius: 4, fontSize: '.67rem', border: `1px solid rgba(${rgb},.3)`, background: `rgba(${rgb},.08)`, color }}>
+            <span style={{ color: '#8b949e' }}>{label}</span>
+            <strong>{value}</strong>
+        </span>
+    );
+};
 
 // ── Rules toggle (Règles de détection) ────────────────────────────────────────
 
@@ -167,12 +218,12 @@ export const JailCard: React.FC<{
     const hasThreat   = jail.currentlyFailed > 0 && (jail.maxretry ?? 0) > 0;
     const threatRatio = hasThreat ? Math.min(1, jail.currentlyFailed / jail.maxretry!) : 0;
     const threatPct   = Math.round(threatRatio * 100);
-    const threatColor = threatRatio < .5 ? '#3fb950' : threatRatio < 1 ? '#e3b341' : '#e86a65';
+    const threatColor = threatBarColor(threatRatio);
 
     const totalDisplay   = jail.totalBannedSqlite !== undefined ? jail.totalBannedSqlite : jail.totalBanned;
     const bansInPeriod   = jail.bansInPeriod;
     const filteredIps    = ipFilter ? jail.bannedIps.filter(ip => ip.includes(ipFilter)) : jail.bannedIps;
-    const stateColor     = jail.currentlyBanned > 0 ? '#e86a65' : jail.currentlyFailed > 0 ? '#e3b341' : '#238636';
+    const stateColor     = jailStateColor(jail.currentlyBanned, jail.currentlyFailed);
 
     return (
         <>
@@ -403,7 +454,7 @@ const JailExpandedGrid: React.FC<{
     const hasThreat   = jail.currentlyFailed > 0 && (jail.maxretry ?? 0) > 0;
     const threatRatio = hasThreat ? Math.min(1, jail.currentlyFailed / jail.maxretry!) : 0;
     const threatPct   = Math.round(threatRatio * 100);
-    const threatColor = threatRatio < .5 ? '#3fb950' : threatRatio < 1 ? '#e3b341' : '#e86a65';
+    const threatColor = threatBarColor(threatRatio);
 
     const totalDisplay = jail.totalBannedSqlite !== undefined ? jail.totalBannedSqlite : jail.totalBanned;
 
@@ -702,7 +753,7 @@ const JailsTableView: React.FC<{
         setEditor({ type: 'action', name, jails: [jailName] });
     };
 
-    const bansLabel = days <= 0 ? t('fail2ban.periods.allShort') : days === 1 ? t('fail2ban.periods.last24h') : days === 7 ? t('fail2ban.periods.last7d') : days === 30 ? t('fail2ban.periods.last30d') : days === 180 ? t('fail2ban.periods.last6m') : days === 365 ? t('fail2ban.periods.last1y') : `${days}j`;
+    const bansLabel = bansPeriodLabel(days, t);
 
     const filtered = jails;
 
@@ -776,7 +827,7 @@ const JailsTableView: React.FC<{
                             const isInactive = j.active === false;
                             const totalDisplay = j.totalBannedSqlite !== undefined ? j.totalBannedSqlite : j.totalBanned;
                             const portTokens = j.port ? j.port.split(/[\s,]+/).filter(Boolean) : [];
-                            const stateColor = isInactive ? '#8b949e' : j.currentlyBanned > 0 ? '#e86a65' : j.currentlyFailed > 0 ? '#e3b341' : '#238636';
+                            const stateColor = jailStateColor(j.currentlyBanned, j.currentlyFailed, isInactive);
                             return (
                                 <React.Fragment key={j.jail}>
                                     <tr
@@ -789,7 +840,7 @@ const JailsTableView: React.FC<{
                                         </td>
                                         <td style={{ padding: '.5rem .5rem', fontWeight: 600, whiteSpace: 'nowrap' }}>
                                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.4rem' }}>
-                                                <Shield style={{ width: 12, height: 12, color: isInactive ? '#8b949e' : j.currentlyBanned > 0 ? '#e86a65' : '#58a6ff', flexShrink: 0 }} />
+                                                <Shield style={{ width: 12, height: 12, color: jailIconColor(j.currentlyBanned, isInactive), flexShrink: 0 }} />
                                                 {j.jail}
                                                 {isInactive && <span style={{ fontSize: '.6rem', padding: '.05rem .3rem', borderRadius: 3, background: 'rgba(139,148,158,.15)', border: '1px solid #30363d', color: '#8b949e', fontWeight: 400 }}>{t('fail2ban.jails.inactiveBadge')}</span>}
                                             </span>
@@ -814,7 +865,7 @@ const JailsTableView: React.FC<{
                                         </td>
                                         <td style={{ padding: '.5rem .5rem', textAlign: 'center', whiteSpace: 'nowrap', color: '#58a6ff' }}>{totalDisplay || '—'}</td>
                                         <td style={{ padding: '.5rem .5rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                                            {j.bantime !== undefined ? <Badge color={j.bantime < 0 || j.bantime >= 86400 * 30 ? 'red' : j.bantime >= 86400 ? 'orange' : j.bantime >= 3600 ? 'blue' : 'green'}>{fmtSecs(j.bantime, t)}</Badge> : <span style={{ color: '#8b949e' }}>—</span>}
+                                            {j.bantime !== undefined ? <Badge color={bantimeBadgeColor(j.bantime)}>{fmtSecs(j.bantime, t)}</Badge> : <span style={{ color: '#8b949e' }}>—</span>}
                                         </td>
                                         <td style={{ padding: '.5rem .5rem', whiteSpace: 'nowrap' }}>
                                             {j.filter
@@ -1525,7 +1576,7 @@ export const TabJails: React.FC<TabJailsProps> = ({
     days = 1, onUnban, onBan, onReload, onIpClick, onJailCreated,
 }) => {
     const { t } = useTranslation();
-    const bansLabel = days <= 0 ? t('fail2ban.periods.allShort') : days === 1 ? t('fail2ban.periods.last24h') : days === 7 ? t('fail2ban.periods.last7d') : days === 30 ? t('fail2ban.periods.last30d') : days === 180 ? t('fail2ban.periods.last6m') : days === 365 ? t('fail2ban.periods.last1y') : `${days}j`;
+    const bansLabel = bansPeriodLabel(days, t);
     const [showAll, setShowAll]     = useState(false);
     const [jailFilter, setJailFilter] = useState('');
     const [showNewJail, setShowNewJail] = useState(false);

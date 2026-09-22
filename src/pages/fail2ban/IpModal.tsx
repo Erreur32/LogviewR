@@ -92,6 +92,20 @@ const isPlausibleIPv4 = (s: string) => {
     return p.length === 4 && p.every(n => /^\d{1,3}$/.test(n) && Number(n) <= 255);
 };
 
+/** Ban direction label — 'in'/'out' from the API, anything else means both directions applied. */
+function banDirectionLabel(direction: string): string {
+    if (direction === 'in') return 'IN';
+    if (direction === 'out') return 'OUT';
+    return 'IN+OUT';
+}
+
+/** Ban-count severity color: >=5 red, >=2 orange, else blue. */
+function banCountColor(n: number): string {
+    if (n >= 5) return '#e86a65';
+    if (n >= 2) return '#e3b341';
+    return '#58a6ff';
+}
+
 function tokenizeLogLine(raw: string, logType: LogType = 'other'): LogToken[] {
     if (!raw) return [];
     const tokens: LogToken[] = [];
@@ -719,7 +733,7 @@ export const IpModal: React.FC<{
                                                             border: `1px solid ${b.direction === 'out' ? 'rgba(227,179,65,.25)' : 'rgba(63,185,80,.2)'}`,
                                                             color: b.direction === 'out' ? '#e3b341' : '#8b949e',
                                                         }}>
-                                                            {b.direction === 'in' ? 'IN' : b.direction === 'out' ? 'OUT' : 'IN+OUT'}
+                                                            {banDirectionLabel(b.direction)}
                                                         </span>
                                                     </div>
                                                 ))}
@@ -850,7 +864,7 @@ export const IpModal: React.FC<{
                             </div>
                             <div style={{ ...cardB, gap: '.4rem' }}>
                                 <Row label={t('fail2ban.labels.totalBans')}>
-                                    <strong style={{ color: bans.length >= 5 ? '#e86a65' : bans.length >= 2 ? '#e3b341' : '#58a6ff', fontSize: '.95rem' }}>
+                                    <strong style={{ color: banCountColor(bans.length), fontSize: '.95rem' }}>
                                         {bans.length}
                                     </strong>
                                     {unbans.length > 0 && (

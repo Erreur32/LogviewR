@@ -82,6 +82,20 @@ const btnStyle = (active: boolean, color = C.blue): React.CSSProperties => ({
     color: active ? color : C.muted,
 });
 
+/** SVG text-anchor for an axis label at index i of n — edges align outward, middle stays centered. */
+function edgeAnchor(i: number, n: number): 'start' | 'end' | 'middle' {
+    if (i === 0) return 'start';
+    if (i === n - 1) return 'end';
+    return 'middle';
+}
+
+/** Failure-count severity color: >=20 red, >=5 orange, else muted. */
+function failureSeverityColor(n: number): string {
+    if (n >= 20) return C.red;
+    if (n >= 5) return C.orange;
+    return C.muted;
+}
+
 /** Returns elapsed seconds since a timestamp, re-renders every 10s */
 function useElapsed(ts: number | undefined): number | null {
     const [, setTick] = useState(0);
@@ -159,8 +173,7 @@ const SCard: React.FC<{
                 style={{
                     background: C.bg2,
                     padding: '.65rem 1rem',
-                    borderBottom:
-                        open && !collapsible ? `1px solid ${C.border}` : open ? `1px solid ${C.border}` : 'none',
+                    borderBottom: open ? `1px solid ${C.border}` : 'none',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '.5rem',
@@ -556,7 +569,7 @@ const DomainDetailModal: React.FC<{
                                                 padding: '.35rem .75rem',
                                                 textAlign: 'center',
                                                 fontWeight: 700,
-                                                color: b.failures >= 20 ? C.red : b.failures >= 5 ? C.orange : C.muted,
+                                                color: failureSeverityColor(b.failures),
                                             }}
                                         >
                                             {b.failures}
@@ -821,7 +834,7 @@ const HistChart: React.FC<{
                                     y={VH - 1}
                                     fontSize={8}
                                     fill="rgba(128,128,128,.5)"
-                                    textAnchor={i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'}
+                                    textAnchor={edgeAnchor(i, n)}
                                 >
                                     {xLabel(dt)}
                                 </text>
@@ -968,7 +981,9 @@ const IpSetsSection: React.FC<{
     const barSets = sets.filter((s) => s.entries > 0);
     const maxEntries = Math.max(...barSets.map((s) => s.entries), 1);
     const total = sets.reduce((s, x) => s + x.entries, 0);
-    const barCols = sets.length <= 4 ? 1 : sets.length <= 8 ? 2 : 3;
+    let barCols = 3;
+    if (sets.length <= 4) barCols = 1;
+    else if (sets.length <= 8) barCols = 2;
 
     // IPSet pie toggle
     const [hiddenSets, setHiddenSets] = useState<Set<string>>(new Set());
@@ -2364,6 +2379,10 @@ const HeatmapSection: React.FC<{
         content: React.ReactNode;
     } | null>(null);
 
+    let tooltipColorName: 'red' | 'orange' | 'blue' = 'blue';
+    if (color === C.red) tooltipColorName = 'red';
+    else if (color === C.orange) tooltipColorName = 'orange';
+
     const titleTooltipBody =
         total === 0 ? (
             <div style={{ fontSize: '.78rem', color: C.muted }}>
@@ -2460,7 +2479,7 @@ const HeatmapSection: React.FC<{
                 sub={`(${periodLabel})`}
                 titleTooltip={{
                     bodyNode: titleTooltipBody,
-                    color: color === C.red ? 'red' : color === C.orange ? 'orange' : 'blue',
+                    color: tooltipColorName,
                 }}
                 right={<PeriodBtns days={days} color={color} onChange={onDaysChange} />}
                 collapsible
