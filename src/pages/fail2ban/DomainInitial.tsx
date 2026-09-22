@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 /** Hash string → stable hue (0–359) */
 function domainHue(domain: string): number {
     let h = 0;
-    for (let i = 0; i < domain.length; i++) h = (h * 31 + domain.charCodeAt(i)) & 0xfffffff;
+    for (let i = 0; i < domain.length; i++) h = (h * 31 + domain.charCodeAt(i)) & 0xffffffff;
     return h % 360;
 }
 

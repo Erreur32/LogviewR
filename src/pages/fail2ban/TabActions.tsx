@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Download, FileText, Pencil, X, Save, CheckCircle, AlertTriangle, Zap } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../../api/client';
-import { card, cardH } from './helpers';
+import { card, cardH, stripConfExt } from './helpers';
 import { getCached, setCached } from './cacheUtils';
 import type { JailStatus } from './types';
 
@@ -185,7 +185,7 @@ export const TabActions: React.FC<TabActionsProps> = ({ jails }) => {
     const actionMap = useMemo(() => {
         const m: Record<string, Set<string>> = {};
         const add = (actionName: string, jail: string) => {
-            const base = actionName.replace(/\.(conf|local)$/, '');
+            const base = stripConfExt(actionName);
             if (!m[base]) m[base] = new Set();
             m[base].add(jail);
         };
@@ -200,7 +200,7 @@ export const TabActions: React.FC<TabActionsProps> = ({ jails }) => {
 
     const rows: ActionRow[] = useMemo(() => {
         return files.map(name => {
-            const base = name.replace(/\.(conf|local)$/, '');
+            const base = stripConfExt(name);
             return { name, usedByJails: actionMap[base] ?? [] };
         });
     }, [files, actionMap]);

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { HelpCircle, Copy, CheckCircle, ChevronDown, ChevronRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { useCopiedFlash } from './helpers';
 
 // ── Block types ───────────────────────────────────────────────────────────────
 
@@ -92,7 +93,7 @@ function doCopy(text: string, onDone: () => void) {
 
 const CodeBlock: React.FC<{ type: 'shell' | 'yaml' | 'conf'; code: string }> = ({ type, code }) => {
     const { t } = useTranslation();
-    const [copied, setCopied] = useState(false);
+    const [copied, flash] = useCopiedFlash(1400);
     const label = type === 'yaml' ? 'YAML' : type === 'conf' ? 'INI/CONF' : 'SHELL';
     const labelColor = type === 'yaml' ? '#e3b341' : type === 'conf' ? '#58a6ff' : '#39c5cf';
     return (
@@ -100,7 +101,7 @@ const CodeBlock: React.FC<{ type: 'shell' | 'yaml' | 'conf'; code: string }> = (
             <div style={{ display: 'flex', alignItems: 'center', padding: '.22rem .65rem', background: '#161b22', borderBottom: '1px solid #21262d' }}>
                 <span style={{ fontSize: '.62rem', fontFamily: 'monospace', color: labelColor, fontWeight: 700, letterSpacing: '.05em' }}>{label}</span>
                 <span style={{ flex: 1 }} />
-                <button onClick={() => doCopy(code, () => { setCopied(true); setTimeout(() => setCopied(false), 1400); })}
+                <button onClick={() => doCopy(code, flash)}
                     style={{ background: 'none', border: 'none', cursor: 'pointer', color: copied ? '#3fb950' : '#555d69', padding: 0, display: 'flex', alignItems: 'center', gap: '.3rem', fontSize: '.68rem' }}>
                     {copied ? <CheckCircle style={{ width: 11, height: 11 }} /> : <Copy style={{ width: 11, height: 11 }} />}
                     {copied ? t('fail2ban.aide.copied') : t('fail2ban.aide.copy')}
@@ -120,12 +121,12 @@ const CodeBlock: React.FC<{ type: 'shell' | 'yaml' | 'conf'; code: string }> = (
 // ── CmdList block (individually copyable commands) ────────────────────────────
 
 const CmdRow: React.FC<{ cmd: string; desc?: string }> = ({ cmd, desc }) => {
-    const [copied, setCopied] = useState(false);
+    const [copied, flash] = useCopiedFlash(1400);
     return (
         <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.3rem 0', borderBottom: '1px solid rgba(255,255,255,.03)' }}>
             <code style={{ flex: 1, fontFamily: 'monospace', fontSize: '.73rem', color: '#c9d1d9', background: '#0d1117', border: '1px solid #21262d', borderRadius: 4, padding: '.2rem .5rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cmd}</code>
             {desc && <span style={{ fontSize: '.71rem', color: '#8b949e', flexShrink: 0, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{desc}</span>}
-            <button onClick={() => doCopy(cmd, () => { setCopied(true); setTimeout(() => setCopied(false), 1400); })}
+            <button onClick={() => doCopy(cmd, flash)}
                 style={{ background: 'none', border: '1px solid #30363d', borderRadius: 3, cursor: 'pointer', color: copied ? '#3fb950' : '#555d69', padding: '.1rem .3rem', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
                 {copied ? <CheckCircle style={{ width: 10, height: 10 }} /> : <Copy style={{ width: 10, height: 10 }} />}
             </button>
@@ -137,9 +138,9 @@ const CmdRow: React.FC<{ cmd: string; desc?: string }> = ({ cmd, desc }) => {
 
 const CidrBadge: React.FC<{ cidr: string; color: string }> = ({ cidr, color }) => {
     const { t } = useTranslation();
-    const [copied, setCopied] = useState(false);
+    const [copied, flash] = useCopiedFlash(1200);
     return (
-        <button onClick={() => doCopy(cidr, () => { setCopied(true); setTimeout(() => setCopied(false), 1200); })}
+        <button onClick={() => doCopy(cidr, flash)}
             title={copied ? t('fail2ban.aide.copiedBang') : t('fail2ban.aide.copy')}
             style={{ fontFamily: 'monospace', fontSize: '.71rem', color: copied ? color : '#c9d1d9', background: '#161b22', border: `1px solid ${copied ? color : '#21262d'}`, borderRadius: 4, padding: '.12rem .4rem', cursor: 'pointer', transition: 'border-color .15s, color .15s', whiteSpace: 'nowrap' }}>
             {cidr}

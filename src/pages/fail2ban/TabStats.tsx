@@ -3078,6 +3078,23 @@ const HeatmapSection: React.FC<{
 // ── Tops section ──────────────────────────────────────────────────────────────
 const TOP_LIMITS = [15, 25, 50, 0];
 
+const IpChip: React.FC<{ ip: string; color?: string }> = ({ ip, color = C.green }) => (
+    <span
+        style={{
+            fontFamily: 'monospace',
+            fontSize: '.72rem',
+            background: `${color}18`,
+            color,
+            border: `1px solid ${color}33`,
+            borderRadius: 4,
+            padding: '.1rem .35rem',
+            whiteSpace: 'nowrap' as const,
+        }}
+    >
+        {ip}
+    </span>
+);
+
 const TopsSection: React.FC<{
     days: number;
     onDaysChange: (d: number) => void;
@@ -3748,22 +3765,6 @@ const WhitelistStatsSection: React.FC = () => {
     const global = data?.globalIps ?? [];
     const perJail = data?.perJail ?? [];
 
-    const IpChip: React.FC<{ ip: string; color?: string }> = ({ ip, color = C.green }) => (
-        <span
-            style={{
-                fontFamily: 'monospace',
-                fontSize: '.72rem',
-                background: `${color}18`,
-                color,
-                border: `1px solid ${color}33`,
-                borderRadius: 4,
-                padding: '.1rem .35rem',
-                whiteSpace: 'nowrap' as const,
-            }}
-        >
-            {ip}
-        </span>
-    );
 
     return (
         <SCard

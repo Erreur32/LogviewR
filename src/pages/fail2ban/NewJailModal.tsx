@@ -2,7 +2,7 @@
  * NewJailModal — create a new fail2ban jail in jail.d/<name>.local + reload.
  * Backend: POST /api/plugins/fail2ban/jails
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../../api/client';
 import {
@@ -10,6 +10,7 @@ import {
     ResultBanner, NameInvalidHint,
     inputStyle, labelStyle, hintStyle,
 } from './modalParts';
+import { stripConfExt } from './helpers';
 
 interface NewJailModalProps {
     onClose: () => void;
@@ -31,7 +32,7 @@ function loadFilterBases(setFilters: (bases: string[]) => void, setLoading: (b: 
         .then(res => {
             if (res.success && res.result?.ok) {
                 // Strip extension and dedup (sshd.conf + sshd.local → sshd)
-                const bases = Array.from(new Set(res.result.files.map(f => f.replace(/\.(conf|local)$/, ''))))
+                const bases = Array.from(new Set(res.result.files.map(f => stripConfExt(f))))
                     .sort((a, b) => a.localeCompare(b));
                 setFilters(bases);
             }
@@ -68,7 +69,7 @@ export const NewJailModal: React.FC<NewJailModalProps> = ({ onClose, onCreated, 
     const [filters, setFilters]   = useState<string[]>([]);
     const [filtersLoading, setFiltersLoading] = useState(true);
 
-    const initialFilter = (prefilledFilter ?? '').replace(/\.(conf|local)$/, '');
+    const initialFilter = stripConfExt(prefilledFilter ?? '');
     // Suggest a jail name based on the filter (sanitized to fit the same regex enforced server-side)
     const suggestedName = initialFilter.toLowerCase().replace(/[^a-z0-9_-]/g, '-').slice(0, 32);
     const [name, setName]         = useState(suggestedName);
@@ -83,10 +84,13 @@ export const NewJailModal: React.FC<NewJailModalProps> = ({ onClose, onCreated, 
 
     const [saving, setSaving]     = useState(false);
     const [result, setResult]     = useState<CreateResult | null>(null);
+    const createdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     useEffect(() => {
         loadFilterBases(setFilters, setFiltersLoading);
     }, []);
+
+    useEffect(() => () => { if (createdTimerRef.current) clearTimeout(createdTimerRef.current); }, []);
 
     const nameValid = isJailNameValid(name);
     const formValid = isJailFormValid({ name, filter, logpath, maxretry, findtime, bantime });
@@ -107,7 +111,7 @@ export const NewJailModal: React.FC<NewJailModalProps> = ({ onClose, onCreated, 
         if (res.success && res.result?.ok) {
             setResult(res.result);
             // Slight delay so user sees the success message before parent refreshes
-            setTimeout(() => onCreated(res.result?.jailName ?? name), 800);
+            createdTimerRef.current = setTimeout(() => onCreated(res.result?.jailName ?? name), 800);
         } else {
             setResult({ ok: false, error: res.result?.error ?? res.error?.message ?? t('fail2ban.newJail.errorUnknown') });
         }

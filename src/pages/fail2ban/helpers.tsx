@@ -1,4 +1,4 @@
-import React, { useState, useRef, useLayoutEffect } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -18,6 +18,22 @@ export const fmtSecs = (s: number, t: TFunction): string => {
     if (s >= 3600)  return t('fail2ban.helpers.hours', { n: Math.floor(s / 3600) });
     return t('fail2ban.helpers.minutes', { n: Math.floor(s / 60) });
 };
+
+/** Strips a filter/action file's ".conf" or ".local" extension to get its base name. */
+export const stripConfExt = (name: string): string => name.replace(/\.(conf|local)$/, '');
+
+/** "Copied!" flag that auto-resets after `ms`, clearing its timer on unmount/re-flash. */
+export function useCopiedFlash(ms: number): [boolean, () => void] {
+    const [copied, setCopied] = useState(false);
+    const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
+    const flash = useCallback(() => {
+        setCopied(true);
+        if (timerRef.current) clearTimeout(timerRef.current);
+        timerRef.current = setTimeout(() => setCopied(false), ms);
+    }, [ms]);
+    return [copied, flash];
+}
 
 // ── Shared card styles (PHP-style dark theme) ────────────────────────────────
 

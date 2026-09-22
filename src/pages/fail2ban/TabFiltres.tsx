@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Download, FileText, Pencil, X, Save, CheckCircle, AlertTriangle, Plus, Zap } from 'lucide-react';
 import { api } from '../../api/client';
-import { card, cardH } from './helpers';
+import { card, cardH, stripConfExt } from './helpers';
 import { getCached, setCached, deleteCached } from './cacheUtils';
 import { useNotificationStore } from '../../stores/notificationStore';
 import { NewFilterModal } from './NewFilterModal';
@@ -197,7 +197,7 @@ export const TabFiltres: React.FC<TabFiltresProps> = ({ jails, onJailCreated }) 
         for (const j of jails) {
             if (!j.filter) continue;
             // normalize: "sshd" matches "sshd.conf" and "sshd.local"
-            const base = j.filter.replace(/\.(conf|local)$/, '');
+            const base = stripConfExt(j.filter);
             if (!m[base]) m[base] = [];
             m[base].push(j.jail);
         }
@@ -206,7 +206,7 @@ export const TabFiltres: React.FC<TabFiltresProps> = ({ jails, onJailCreated }) 
 
     const rows: FilterRow[] = useMemo(() => {
         return files.map(name => {
-            const base = name.replace(/\.(conf|local)$/, '');
+            const base = stripConfExt(name);
             return { name, usedByJails: filterMap[base] ?? [] };
         });
     }, [files, filterMap]);
@@ -361,7 +361,7 @@ export const TabFiltres: React.FC<TabFiltresProps> = ({ jails, onJailCreated }) 
                         {/* Actions */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: '.35rem', flexShrink: 0, paddingLeft: '.5rem' }}>
                             {row.usedByJails.length === 0 && (
-                                <button onClick={() => setActivateFor(row.name.replace(/\.(conf|local)$/, ''))}
+                                <button onClick={() => setActivateFor(stripConfExt(row.name))}
                                     title={t('fail2ban.newFilter.activateHint')}
                                     style={{ display: 'flex', alignItems: 'center', gap: '.3rem', padding: '.28rem .65rem', fontSize: '.75rem', borderRadius: 5, background: 'rgba(63,185,80,.1)', border: '1px solid rgba(63,185,80,.3)', color: '#3fb950', cursor: 'pointer', whiteSpace: 'nowrap', fontWeight: 600 }}>
                                     <Zap style={{ width: 11, height: 11 }} />{t('fail2ban.newFilter.activate')}

@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../../api/client';
-import { card, cardH, cardB, F2bTooltip, TT } from './helpers';
+import { card, cardH, cardB, F2bTooltip, TT, useCopiedFlash } from './helpers';
 import { Fail2banPathConfig } from './Fail2banPathConfig';
 import { useNotificationStore } from '../../stores/notificationStore';
 
@@ -234,7 +234,7 @@ const RawFileViewer: React.FC<{
     onSaved?: (filename: string, content: string) => void;
 }> = ({ rawFiles, rawMtimes, rawTab, onTabChange, height = 480, onSaved }) => {
     const { t } = useTranslation();
-    const [copied, setCopied]       = useState(false);
+    const [copied, flashCopied]     = useCopiedFlash(1500);
     const [editMode, setEditMode]   = useState(false);
     const [editContent, setEditContent] = useState('');
     const [testing, setTesting]     = useState(false);
@@ -252,7 +252,7 @@ const RawFileViewer: React.FC<{
     const copyContent = () => {
         const src = editMode ? editContent : content;
         if (!src) return;
-        navigator.clipboard.writeText(src).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); });
+        navigator.clipboard.writeText(src).then(flashCopied);
     };
 
     const enterEdit = () => {
@@ -546,9 +546,9 @@ const RawFileViewer: React.FC<{
 };
 
 const ShellCommand: React.FC<{ cmd: string }> = ({ cmd }) => {
-    const [copied, setCopied] = useState(false);
+    const [copied, flashCopied] = useCopiedFlash(1500);
     const copy = () => {
-        navigator.clipboard.writeText(cmd).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); });
+        navigator.clipboard.writeText(cmd).then(flashCopied);
     };
     return (
         <div style={{ display: 'flex', alignItems: 'center', background: C.bg0, border: `1px solid ${C.border}`, borderRadius: 5, padding: '.3rem .6rem', gap: '.5rem', marginTop: '.4rem' }}>

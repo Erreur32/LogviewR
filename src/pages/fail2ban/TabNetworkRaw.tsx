@@ -3,6 +3,7 @@ import { AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../../api/client';
 import { card } from './helpers';
+import { getAppLanguage } from '../../i18n';
 
 interface TabNetworkRawProps {
     title: string;
@@ -34,7 +35,7 @@ export const TabNetworkRaw: React.FC<TabNetworkRawProps> = ({ title, endpoint, i
                 </h3>
                 {lastLoaded > 0 && !loading && (
                     <span style={{ marginLeft: 'auto', fontSize: '.68rem', color: '#8b949e', whiteSpace: 'nowrap' }}>
-                        ↻ {new Date(lastLoaded).toLocaleTimeString('fr-FR')}
+                        ↻ {new Date(lastLoaded).toLocaleTimeString(getAppLanguage())}
                     </span>
                 )}
                 {loading && (
