@@ -2656,7 +2656,7 @@
       "ttMethodAllIps": "All unique IPs (DB history)",
       "ttMethodScanLog": "IPs from scan logs",
       "ttMethodUniqueIps": "Unique IPs",
-      "clickToHide": "{{name}}: {{count}} — click to hide",
+      "clickToHide": "{{name}}: {{detail}} — click to hide",
       "ipsInJail": " IPs in jail",
       "entries": "entries",
       "otherSets": "{{n}} other sets",

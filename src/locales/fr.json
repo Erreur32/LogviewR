@@ -2655,7 +2655,7 @@
       "ttMethodAllIps": "Toutes les IPs uniques (historique BDD)",
       "ttMethodScanLog": "IPs depuis les logs de scan",
       "ttMethodUniqueIps": "IPs uniques",
-      "clickToHide": "{{name}} : {{count}} — cliquer pour masquer",
+      "clickToHide": "{{name}} : {{detail}} — cliquer pour masquer",
       "ipsInJail": " IPs en jail",
       "entries": "entrées",
       "otherSets": "{{n}} autres sets",

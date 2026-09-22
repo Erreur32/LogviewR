@@ -1266,8 +1266,8 @@ const IpSetsSection: React.FC<{
                                                         <title>
                                                             {t('fail2ban.stats.clickToHide', {
                                                                 name: s.name,
-                                                                count: `${s.entries} IPs (${s.pct}%)`,
-                                                            } as any) as string}
+                                                                detail: `${s.entries} IPs (${s.pct}%)`,
+                                                            })}
                                                         </title>
                                                     </path>
                                                 ))}
@@ -1619,8 +1619,8 @@ const TopCard: React.FC<{
                                         <title>
                                             {t('fail2ban.stats.clickToHide', {
                                                 name: s.label,
-                                                count: `${s.count} (${s.pct}%)`,
-                                            } as any) as string}
+                                                detail: `${s.count} (${s.pct}%)`,
+                                            })}
                                         </title>
                                     </path>
                                 ))}

@@ -74,8 +74,8 @@ interface TabMapProps {
 export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker, onIpClick, refreshKey }) => {
     const { t } = useTranslation();
     const mapContainerRef  = useRef<HTMLDivElement>(null);
-    const mapRef           = useRef<any>(null);       // Leaflet map instance
-    const clusterRef       = useRef<any>(null);       // MarkerCluster layer
+    const mapRef           = useRef<L.Map | null>(null);
+    const clusterRef       = useRef<L.MarkerClusterGroup | null>(null);
     const markerByIp       = useRef<Map<string, any>>(new Map());
     const metaByIp         = useRef<Map<string, { country: string; countryCode: string; region: string; jails: string[] }>>(new Map());
     const onGoToTrackerRef = useRef(onGoToTracker);

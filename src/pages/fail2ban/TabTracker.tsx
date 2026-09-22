@@ -70,7 +70,7 @@ export const TabTracker: React.FC<{ onIpClick?: (ip: string) => void; onTotalCha
     const [viewMode, setViewMode] = useState<'active' | 'history'>('active');
 
     // Geo cache: ip → GeoInfo (or null on error)
-    const geoCache = useRef<Map<string, GeoInfo | null>>(new Map());
+    const geoCache = useRef<Map<string, GeoInfo | null | undefined>>(new Map());
     const [geoData, setGeoData] = useState<Map<string, GeoInfo | null>>(new Map());
     const [geoLoading, setGeoLoading] = useState<Set<string>>(new Set());
 
@@ -175,7 +175,7 @@ export const TabTracker: React.FC<{ onIpClick?: (ip: string) => void; onTotalCha
     const fetchGeo = useCallback((ip: string) => {
         if (geoCache.current.has(ip)) return;
         // Mark as in-flight immediately (prevents duplicate requests)
-        geoCache.current.set(ip, undefined as any);
+        geoCache.current.set(ip, undefined);
         setGeoLoading(prev => new Set([...prev, ip]));
         api.get<{ ok: boolean; geo: GeoInfo }>(`/api/plugins/fail2ban/geo/${encodeURIComponent(ip)}`)
             .then(res => {

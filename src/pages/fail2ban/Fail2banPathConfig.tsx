@@ -137,7 +137,7 @@ export const Fail2banPathConfig: React.FC<Fail2banPathConfigProps> = ({
                 body: JSON.stringify({ settings: { sqliteDbPath: sqliteInput.trim() } }),
             });
             if (!res.ok) { setSqliteStatus('error'); setSqliteError(t('fail2ban.pathConfig.serverError')); return; }
-            onSqliteDbPathChange!(sqliteInput.trim());
+            onSqliteDbPathChange?.(sqliteInput.trim());
             await runSqliteCheck();
         } catch (e) {
             setSqliteStatus('error');
@@ -219,7 +219,7 @@ export const Fail2banPathConfig: React.FC<Fail2banPathConfigProps> = ({
                 body: JSON.stringify({ settings }),
             });
             if (res.ok) {
-                onNpmDataPathChange!(npmInput.trim());
+                onNpmDataPathChange?.(npmInput.trim());
                 setNpmSaved(true);
                 npmSavedTimerRef.current = setTimeout(() => setNpmSaved(false), 4000);
             }

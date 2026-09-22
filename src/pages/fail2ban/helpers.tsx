@@ -152,7 +152,7 @@ export const F2bTooltip: React.FC<F2bTooltipProps> = ({
     const [pos, setPos] = useState({ left: 0, top: 0 });
     const [below, setBelow] = useState(false);
     const [ready, setReady] = useState(false);
-    const triggerRef = useRef<HTMLDivElement & HTMLSpanElement>(null);
+    const triggerRef = useRef<HTMLDivElement | HTMLSpanElement>(null);
     const boxRef = useRef<HTMLDivElement>(null);
 
     const accent = TT_ACCENT[color];
