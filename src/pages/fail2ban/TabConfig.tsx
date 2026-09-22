@@ -7,6 +7,7 @@ import {
     Pencil, X, Layers, Network,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { api } from '../../api/client';
 import { card, cardH, cardB, F2bTooltip, TT, useCopiedFlash } from './helpers';
 import { Fail2banPathConfig } from './Fail2banPathConfig';
@@ -98,6 +99,21 @@ const C = {
     green: '#3fb950', blue: '#58a6ff', red: '#e86a65',
     orange: '#e3b341', purple: '#bc8cff', cyan: '#39c5cf',
 };
+
+/** Human-readable days hint for the dbpurgeage input ("~1 day" / "disabled" / ""). */
+function fmtPurgeAgeDays(fmPurgeage: string, t: TFunction): string {
+    const secs = Number.parseInt(fmPurgeage, 10);
+    if (secs > 0) return `≈ ${Math.round(secs / 86400)} ${t('fail2ban.config.jours')}`;
+    if (secs === 0) return t('fail2ban.config.desactive');
+    return '';
+}
+
+/** DB fragmentation severity (>40% red, >20% orange, else green) — shared by the fail2ban and dashboard DB cards. */
+function fragSeverity(pct: number): { color: string; bg: string; border: string; name: 'red' | 'orange' | 'green' } {
+    if (pct > 40) return { color: C.red, bg: 'rgba(232,106,101,.12)', border: 'rgba(232,106,101,.3)', name: 'red' };
+    if (pct > 20) return { color: C.orange, bg: 'rgba(227,179,65,.12)', border: 'rgba(227,179,65,.3)', name: 'orange' };
+    return { color: C.green, bg: 'rgba(63,185,80,.1)', border: 'rgba(63,185,80,.25)', name: 'green' };
+}
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
@@ -386,6 +402,9 @@ const RawFileViewer: React.FC<{
                     {FILES.map(f => {
                         const absent = rawFiles && rawFiles[f] === null;
                         const active = rawTab === f;
+                        let tabTextColor = '#e6edf3';
+                        if (active) tabTextColor = '#58a6ff';
+                        else if (absent) tabTextColor = '#555d69';
                         const canEdit = EDITABLE.has(f);
                         const mtime = rawMtimes?.[f as keyof RawMtimes];
                         const lineCount = rawFiles?.[f as keyof RawFiles]?.split('\n').length ?? null;
@@ -396,7 +415,7 @@ const RawFileViewer: React.FC<{
                             <button key={f} onClick={() => switchTab(f)} style={{
                                 textAlign: 'left', padding: '.4rem .75rem', fontSize: '.78rem',
                                 fontFamily: 'monospace', background: active ? 'rgba(88,166,255,.12)' : 'transparent',
-                                color: active ? '#58a6ff' : absent ? '#555d69' : '#e6edf3',
+                                color: tabTextColor,
                                 border: 'none', borderLeft: active ? '2px solid #58a6ff' : '2px solid transparent',
                                 cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '.15rem', alignItems: 'flex-start',
                             }}>
@@ -1139,9 +1158,7 @@ export const TabConfig: React.FC<{
                                     )}
                                     <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '.35rem' }}>
                                         {dbInfo && (() => {
-                                            const fc = dbInfo.fragPct > 40 ? C.red : dbInfo.fragPct > 20 ? C.orange : C.green;
-                                            const bg = dbInfo.fragPct > 40 ? 'rgba(232,106,101,.12)' : dbInfo.fragPct > 20 ? 'rgba(227,179,65,.12)' : 'rgba(63,185,80,.1)';
-                                            const bd = dbInfo.fragPct > 40 ? 'rgba(232,106,101,.3)' : dbInfo.fragPct > 20 ? 'rgba(227,179,65,.3)' : 'rgba(63,185,80,.25)';
+                                            const { color: fc, bg, border: bd } = fragSeverity(dbInfo.fragPct);
                                             return (<>
                                                         <F2bTooltip color="blue" title={t('fail2ban.config.dbSizeTitleF2b')} width={300} bodyNode={<>
                                                             {TT.section(t('fail2ban.config.dbContentF2b'), '#58a6ff')}
@@ -1152,7 +1169,7 @@ export const TabConfig: React.FC<{
                                                         </>}>
                                                             <HBadge color={C.blue} bg="rgba(88,166,255,.1)" border="rgba(88,166,255,.25)">{dbInfo.sizeFmt}</HBadge>
                                                         </F2bTooltip>
-                                                        <F2bTooltip color={dbInfo.fragPct > 40 ? 'red' : dbInfo.fragPct > 20 ? 'orange' : 'green'} title={t('fail2ban.config.dbFragTitleF2b')} width={320} bodyNode={<>
+                                                        <F2bTooltip color={fragSeverity(dbInfo.fragPct).name} title={t('fail2ban.config.dbFragTitleF2b')} width={320} bodyNode={<>
                                                             {TT.section(t('fail2ban.config.dbFragMeasure'))}
                                                             {TT.info(t('fail2ban.config.dbFragMeasure') + `: ${dbInfo.fragPct}%`)}
                                                             {TT.sep()}
@@ -1265,7 +1282,7 @@ export const TabConfig: React.FC<{
                                                 onChange={e => { const v = e.target.value; if (v === '' || /^\d+$/.test(v)) setFmPurgeage(v); }}
                                                 style={{ ...inp, borderColor: fmPurgeage !== '' && (Number.isNaN(Number.parseInt(fmPurgeage, 10)) || Number.parseInt(fmPurgeage, 10) < 0) ? C.red : undefined }} placeholder="86400" />
                                             <div style={{ fontSize: '.65rem', color: C.muted, marginTop: 2 }}>
-                                                 {Number.parseInt(fmPurgeage, 10) > 0 ? `≈ ${Math.round(Number.parseInt(fmPurgeage, 10) / 86400)} ${t('fail2ban.config.jours')}` : Number.parseInt(fmPurgeage, 10) === 0 ? t('fail2ban.config.desactive') : ''}
+                                                 {fmtPurgeAgeDays(fmPurgeage, t)}
                                             </div>
                                         </div>
                                         <div>
@@ -1368,7 +1385,11 @@ export const TabConfig: React.FC<{
                         const synced   = syncStatus?.synced;
                         const syncOk   = synced === true;
                         const syncWarn = synced === false;
-                        const borderColor = syncLoading ? C.border : syncWarn ? 'rgba(227,179,65,.4)' : syncOk ? 'rgba(63,185,80,.25)' : C.border;
+                        let borderColor = C.border;
+                        if (!syncLoading) {
+                            if (syncWarn) borderColor = 'rgba(227,179,65,.4)';
+                            else if (syncOk) borderColor = 'rgba(63,185,80,.25)';
+                        }
                         return (
                     <div style={{ ...card, borderColor }}>
                         <div onClick={() => !syncLoading && setOpenSync(o => !o)}
@@ -1470,9 +1491,7 @@ export const TabConfig: React.FC<{
                             <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '.35rem' }}>
                                 {parsed?.appDbInfo && (() => {
                                     const db = parsed.appDbInfo;
-                                    const fc = db.fragPct > 40 ? C.red : db.fragPct > 20 ? C.orange : C.green;
-                                    const bg = db.fragPct > 40 ? 'rgba(232,106,101,.12)' : db.fragPct > 20 ? 'rgba(227,179,65,.12)' : 'rgba(63,185,80,.1)';
-                                    const bd = db.fragPct > 40 ? 'rgba(232,106,101,.3)'  : db.fragPct > 20 ? 'rgba(227,179,65,.3)'  : 'rgba(63,185,80,.25)';
+                                    const { color: fc, bg, border: bd } = fragSeverity(db.fragPct);
                                     return (<>
                                         <F2bTooltip color="blue" title={t('fail2ban.config.dbSizeTitleDash')} width={300} bodyNode={<>
                                             {TT.section(t('fail2ban.config.dbContentDash'), '#58a6ff')}
@@ -1483,7 +1502,7 @@ export const TabConfig: React.FC<{
                                         </>}>
                                             <HBadge color={C.blue} bg="rgba(88,166,255,.1)" border="rgba(88,166,255,.25)">{db.sizeFmt}</HBadge>
                                         </F2bTooltip>
-                                        <F2bTooltip color={db.fragPct > 40 ? 'red' : db.fragPct > 20 ? 'orange' : 'green'} title={t('fail2ban.config.dbFragTitleDash')} width={320} bodyNode={<>
+                                        <F2bTooltip color={fragSeverity(db.fragPct).name} title={t('fail2ban.config.dbFragTitleDash')} width={320} bodyNode={<>
                                             {TT.section(t('fail2ban.config.dbFragMeasure'))}
                                             {TT.info(t('fail2ban.config.dbFragMeasure') + `: ${db.fragPct}%`)}
                                             {TT.sep()}
@@ -1503,7 +1522,7 @@ export const TabConfig: React.FC<{
                             {parsed?.appDbInfo ? (() => {
                                 const db = parsed.appDbInfo;
                                 const fragOk = db.fragPct <= 20;
-                                const fragColor = db.fragPct > 40 ? C.red : db.fragPct > 20 ? C.orange : C.green;
+                                const fragColor = fragSeverity(db.fragPct).color;
                                 return (<>
                                     {/* Stats métriques */}
                                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '.4rem' }}>
