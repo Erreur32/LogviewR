@@ -389,6 +389,8 @@ export const JailConfigModal: React.FC<JailConfigModalProps> = ({ jailName, isAc
                                     <span style={{ fontSize: '.8rem', color: '#8b949e', fontWeight: 600, minWidth: 90 }}>{t('fail2ban.jailConfig.filter')}</span>
                                     {params?.filter ? (
                                         <span onClick={() => setEditor({ type: 'filter', name: params.filter, jails: [jailName] })}
+                                            role="button" tabIndex={0}
+                                            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setEditor({ type: 'filter', name: params.filter, jails: [jailName] }); } }}
                                             style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '.25rem', padding: '.18rem .5rem', borderRadius: 4, fontSize: '.78rem', background: 'rgba(63,185,80,.1)', border: '1px solid rgba(63,185,80,.35)', color: '#3fb950' }}
                                             title={t('fail2ban.jailConfig.viewFilter')}>
                                             ⚙ {params.filter}

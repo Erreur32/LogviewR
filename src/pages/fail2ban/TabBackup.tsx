@@ -114,11 +114,12 @@ interface SnapshotTableProps {
     onRestore: (filename: string) => void;
     onDelete: (filename: string) => void;
     emptyLabel: string;
+    restoreBody?: string;
 }
 
 const SnapshotTable: React.FC<SnapshotTableProps> = ({
     snapshots, downloading, restoring, deleting,
-    onDownload, onRestore, onDelete, emptyLabel,
+    onDownload, onRestore, onDelete, emptyLabel, restoreBody,
 }) => {
     const { t } = useTranslation();
     const fmtSize = (b: number) => b > 1024 ? `${(b / 1024).toFixed(1)} KB` : `${b} B`;
@@ -152,7 +153,7 @@ const SnapshotTable: React.FC<SnapshotTableProps> = ({
                                     {downloading === s.filename ? <Spinner color={C.green} /> : <Download style={{ width: 11, height: 11 }} />}
                                 </button>
                             </F2bTooltip>
-                            <F2bTooltip title={t('fail2ban.backup.restore')} body={t('fail2ban.backup.restoreSnapshot')} color="orange">
+                            <F2bTooltip title={t('fail2ban.backup.restore')} body={restoreBody ?? t('fail2ban.backup.restoreSnapshot')} color="orange">
                                 <button onClick={() => onRestore(s.filename)} disabled={restoring === s.filename}
                                     style={{ background: 'rgba(227,179,65,.1)', border: '1px solid rgba(227,179,65,.25)', color: C.orange, borderRadius: 4, cursor: 'pointer', padding: '.2rem .45rem', marginRight: '.35rem', display: 'inline-flex', alignItems: 'center', opacity: restoring === s.filename ? .5 : 1 }}>
                                     {restoring === s.filename ? <Spinner color={C.orange} /> : <RotateCcw style={{ width: 11, height: 11 }} />}
@@ -920,8 +921,6 @@ const RulesBackupPanel: React.FC<{ kind: 'iptables' | 'ipset' }> = ({ kind }) =>
         finally { setDownloading(null); }
     };
 
-    const fmtSize = (b: number) => b > 1024 ? `${(b / 1024).toFixed(1)} KB` : `${b} B`;
-    const fmtDate = (ts: number) => new Date(ts).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
     const inputStyle: React.CSSProperties = { background: '#161b22', border: '1px solid #30363d', borderBottom: '1px solid #555', borderRadius: 4, color: '#e6edf3', fontSize: '.8rem', padding: '.35rem .6rem', outline: 'none', boxShadow: 'inset 0 2px 4px rgba(0,0,0,.55), inset 0 1px 0 rgba(0,0,0,.4), inset 0 -1px 0 rgba(255,255,255,.04)' };
 
     const Icon = cfg.icon;
@@ -954,50 +953,16 @@ const RulesBackupPanel: React.FC<{ kind: 'iptables' | 'ipset' }> = ({ kind }) =>
                     </div>
                 )}
                 {loading && <div style={{ color: '#8b949e', fontSize: '.82rem' }}>{t('fail2ban.messages.loadingData')}</div>}
-                {!loading && backups.length === 0 && <div style={{ color: '#555d69', fontSize: '.8rem' }}>{t(cfg.emptyKey)}</div>}
-                {backups.length > 0 && (
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.78rem' }}>
-                        <thead>
-                            <tr style={{ borderBottom: '1px solid #30363d', color: '#8b949e', fontSize: '.68rem', textTransform: 'uppercase', letterSpacing: '.05em' }}>
-                                <th style={{ textAlign: 'left', padding: '.3rem .5rem .3rem 0' }}>Fichier</th>
-                                <th style={{ textAlign: 'right', padding: '.3rem .5rem' }}>Taille</th>
-                                <th style={{ textAlign: 'right', padding: '.3rem .5rem' }}>Date</th>
-                                <th style={{ textAlign: 'right', padding: '.3rem 0 .3rem .5rem' }}>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {backups.map(b => (
-                                <tr key={b.filename}
-                                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,.02)'}
-                                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
-                                    style={{ borderBottom: '1px solid #21262d' }}>
-                                    <td style={{ padding: '.45rem .5rem .45rem 0', fontFamily: 'monospace', color: '#c9d1d9', fontSize: '.74rem', wordBreak: 'break-all' }}>{b.filename}</td>
-                                    <td style={{ padding: '.45rem .5rem', textAlign: 'right', color: '#8b949e', whiteSpace: 'nowrap' }}>{fmtSize(b.size)}</td>
-                                    <td style={{ padding: '.45rem .5rem', textAlign: 'right', color: '#8b949e', whiteSpace: 'nowrap' }}>{fmtDate(b.ts)}</td>
-                                    <td style={{ padding: '.45rem 0 .45rem .5rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                        <F2bTooltip title={t('fail2ban.backup.download')} body={t('fail2ban.backup.downloadFile')} color="green">
-                                            <button onClick={() => { void download(b.filename); }} disabled={downloading === b.filename}
-                                                style={{ background: 'rgba(63,185,80,.1)', border: '1px solid rgba(63,185,80,.25)', color: C.green, borderRadius: 4, cursor: 'pointer', padding: '.2rem .45rem', marginRight: '.35rem', display: 'inline-flex', alignItems: 'center' }}>
-                                                <Download style={{ width: 11, height: 11 }} />
-                                            </button>
-                                        </F2bTooltip>
-                                        <F2bTooltip title={t('fail2ban.backup.restore')} body={t(cfg.restoreBodyKey)} color="orange">
-                                            <button onClick={() => { void restore(b.filename); }} disabled={restoring === b.filename}
-                                                style={{ background: 'rgba(227,179,65,.1)', border: '1px solid rgba(227,179,65,.25)', color: C.orange, borderRadius: 4, cursor: 'pointer', padding: '.2rem .45rem', marginRight: '.35rem', display: 'inline-flex', alignItems: 'center' }}>
-                                                <RotateCcw style={{ width: 11, height: 11 }} />
-                                            </button>
-                                        </F2bTooltip>
-                                        <F2bTooltip title={t('fail2ban.backup.delete')} body={t('fail2ban.backup.deleteSnapshot')} color="red">
-                                            <button onClick={() => { void del(b.filename); }} disabled={deleting === b.filename}
-                                                style={{ background: 'rgba(232,106,101,.08)', border: '1px solid rgba(232,106,101,.2)', color: C.red, borderRadius: 4, cursor: 'pointer', padding: '.2rem .45rem', display: 'inline-flex', alignItems: 'center' }}>
-                                                <Trash2 style={{ width: 11, height: 11 }} />
-                                            </button>
-                                        </F2bTooltip>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                {!loading && (
+                    <SnapshotTable
+                        snapshots={backups}
+                        downloading={downloading} restoring={restoring} deleting={deleting}
+                        onDownload={filename => { void download(filename); }}
+                        onRestore={filename => { void restore(filename); }}
+                        onDelete={filename => { void del(filename); }}
+                        emptyLabel={t(cfg.emptyKey)}
+                        restoreBody={t(cfg.restoreBodyKey)}
+                    />
                 )}
             </div>
         </div>
