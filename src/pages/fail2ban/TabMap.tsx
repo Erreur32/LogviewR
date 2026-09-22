@@ -32,12 +32,18 @@ interface LiveEvent { ip: string; jail: string; timeofban: number; failures: num
 
 const FLAG_BASE = '/icons/country';
 
-/** Flag img tag — local SVG, for use in raw HTML strings */
-function flagImgHtml(code: string): string {
+/** Flag img element — local SVG, built via DOM (safe to use with untrusted country codes) */
+function flagImgEl(code: string): HTMLImageElement {
     const c = (code || '').toLowerCase().replaceAll(/[^a-z]/g, '');
-    const src = c.length === 2 ? `${FLAG_BASE}/${c}.svg` : `${FLAG_BASE}/xx.svg`;
     const fallback = `${FLAG_BASE}/xx.svg`;
-    return `<img src="${src}" width="20" height="15" style="vertical-align:middle;border-radius:2px;margin-right:.3rem" alt="${c.toUpperCase()}" onerror="this.src='${fallback}'">`;
+    const img = document.createElement('img');
+    img.src = c.length === 2 ? `${FLAG_BASE}/${c}.svg` : fallback;
+    img.width = 20;
+    img.height = 15;
+    img.style.cssText = 'vertical-align:middle;border-radius:2px;margin-right:.3rem';
+    img.alt = c.toUpperCase();
+    img.onerror = () => { img.src = fallback; };
+    return img;
 }
 
 
@@ -210,29 +216,57 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker, onIpClick, refres
     // ── Add a marker for an IP once geo is known ───────────────────────────────
     const addMarker = useCallback((point: MapPoint, geo: GeoData) => {
         if (!mapRef.current || markerByIp.current.has(point.ip)) return;
-        
+
         const marker = L.marker([geo.lat, geo.lng], { title: point.ip });
         const loc = [geo.city, geo.region, geo.country].filter(Boolean).join(', ') || '—';
-        const jailBadges = point.jails.map(j =>
-            `<span style="display:inline-block;padding:.1rem .35rem;border-radius:3px;font-size:.65rem;background:rgba(63,185,80,.15);color:#3fb950;border:1px solid rgba(63,185,80,.25);margin:.1rem">${j}</span>`
-        ).join(' ');
-        const popupHtml = `
-            <div style="min-width:220px;font-family:system-ui,sans-serif">
-                <div style="font-family:monospace;font-weight:700;color:#e86a65;font-size:.9rem;margin-bottom:.35rem">${point.ip}</div>
-                <div style="font-size:.78rem;color:#e6edf3;margin-bottom:.25rem;display:flex;align-items:center;gap:.3rem">${flagImgHtml(geo.countryCode)}${loc}</div>
-                ${geo.org ? `<div style="font-size:.72rem;color:#8b949e;margin-bottom:.35rem">${geo.org}</div>` : ''}
-                <div style="margin-bottom:.5rem">${jailBadges}</div>
-                <button class="f2b-map-ip-btn" data-ip="${point.ip}"
-                    style="width:100%;padding:.3rem .5rem;font-size:.75rem;border-radius:4px;background:rgba(232,106,101,.15);border:1px solid rgba(232,106,101,.3);color:#e86a65;cursor:pointer;font-weight:600">
-                    {t('fail2ban.map.ipDetails')}
-                </button>
-            </div>`;
-        marker.bindPopup(popupHtml, { maxWidth: 280, className: 'f2b-map-popup' });
+
+        // Safe popup — built via DOM (textContent), not an HTML string with API-sourced data
+        // (geo.city/region/country/org and point.jails all come from geo-IP lookups / jail
+        // config and must not be trusted as HTML — see XSS fix 2026-09-22).
+        const popupDiv = document.createElement('div');
+        popupDiv.style.cssText = 'min-width:220px;font-family:system-ui,sans-serif';
+
+        const ipEl = document.createElement('div');
+        ipEl.style.cssText = 'font-family:monospace;font-weight:700;color:#e86a65;font-size:.9rem;margin-bottom:.35rem';
+        ipEl.textContent = point.ip;
+        popupDiv.appendChild(ipEl);
+
+        const locEl = document.createElement('div');
+        locEl.style.cssText = 'font-size:.78rem;color:#e6edf3;margin-bottom:.25rem;display:flex;align-items:center;gap:.3rem';
+        locEl.appendChild(flagImgEl(geo.countryCode));
+        locEl.appendChild(document.createTextNode(loc));
+        popupDiv.appendChild(locEl);
+
+        if (geo.org) {
+            const orgEl = document.createElement('div');
+            orgEl.style.cssText = 'font-size:.72rem;color:#8b949e;margin-bottom:.35rem';
+            orgEl.textContent = geo.org;
+            popupDiv.appendChild(orgEl);
+        }
+
+        const jailsEl = document.createElement('div');
+        jailsEl.style.cssText = 'margin-bottom:.5rem';
+        for (const j of point.jails) {
+            const badge = document.createElement('span');
+            badge.style.cssText = 'display:inline-block;padding:.1rem .35rem;border-radius:3px;font-size:.65rem;background:rgba(63,185,80,.15);color:#3fb950;border:1px solid rgba(63,185,80,.25);margin:.1rem';
+            badge.textContent = j;
+            jailsEl.appendChild(badge);
+        }
+        popupDiv.appendChild(jailsEl);
+
+        const ipBtn = document.createElement('button');
+        ipBtn.className = 'f2b-map-ip-btn';
+        ipBtn.setAttribute('data-ip', point.ip);
+        ipBtn.style.cssText = 'width:100%;padding:.3rem .5rem;font-size:.75rem;border-radius:4px;background:rgba(232,106,101,.15);border:1px solid rgba(232,106,101,.3);color:#e86a65;cursor:pointer;font-weight:600';
+        ipBtn.textContent = t('fail2ban.map.ipDetails'); // was a literal, un-evaluated '{t(...)}' string — fixed alongside the XSS rewrite
+        popupDiv.appendChild(ipBtn);
+
+        marker.bindPopup(popupDiv, { maxWidth: 280, className: 'f2b-map-popup' });
         marker.on('popupopen', () => {
             const el = marker.getPopup()?.getElement();
             if (!el) return;
-            const ipBtn = (el as Element).querySelector('.f2b-map-ip-btn') as HTMLButtonElement | null;
-            if (ipBtn) ipBtn.onclick = () => onIpClickRef.current?.(point.ip);
+            const ipBtnEl = (el as Element).querySelector('.f2b-map-ip-btn') as HTMLButtonElement | null;
+            if (ipBtnEl) ipBtnEl.onclick = () => onIpClickRef.current?.(point.ip);
         });
         metaByIp.current.set(point.ip, { country: geo.country, countryCode: geo.countryCode, region: geo.region, jails: point.jails });
         markerByIp.current.set(point.ip, marker);
