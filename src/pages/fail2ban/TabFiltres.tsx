@@ -4,6 +4,7 @@ import { Download, FileText, Pencil, X, Save, CheckCircle, AlertTriangle, Plus, 
 import { api } from '../../api/client';
 import { card, cardH } from './helpers';
 import { getCached, setCached, deleteCached } from './cacheUtils';
+import { useNotificationStore } from '../../stores/notificationStore';
 import { NewFilterModal } from './NewFilterModal';
 import { NewJailModal } from './NewJailModal';
 import type { JailStatus } from './types';
@@ -45,15 +46,17 @@ const FilterModal: React.FC<FilterModalProps> = ({ name, jailsUsingIt, onClose, 
     const [saveError, setSaveError]   = useState<string | null>(null);
 
     useEffect(() => {
-        api.get<{ ok: boolean; content: string }>(`/api/plugins/fail2ban/filters/${encodeURIComponent(name)}`)
+        api.get<{ ok: boolean; content: string; error?: string }>(`/api/plugins/fail2ban/filters/${encodeURIComponent(name)}`)
             .then(res => {
                 if (res.success && res.result?.ok) {
                     setContent(res.result.content);
                     setEdited(res.result.content);
+                } else {
+                    setSaveError(res.result?.error ?? res.error?.message ?? t('fail2ban.errors.readError'));
                 }
                 setLoading(false);
             });
-    }, [name]);
+    }, [name, t]);
 
     const handleSave = async () => {
         setSaving(true); setSaveError(null); setResults(null);
@@ -163,6 +166,7 @@ const FilterModal: React.FC<FilterModalProps> = ({ name, jailsUsingIt, onClose, 
 
 export const TabFiltres: React.FC<TabFiltresProps> = ({ jails, onJailCreated }) => {
     const { t } = useTranslation();
+    const { addAction } = useNotificationStore();
     const [files, setFiles]       = useState<string[]>([]);
     const [loading, setLoading]   = useState(true);
     const [error, setError]       = useState<string | null>(null);
@@ -219,8 +223,11 @@ export const TabFiltres: React.FC<TabFiltresProps> = ({ jails, onJailCreated }) 
     const activeCount = rows.filter(r => r.usedByJails.length > 0).length;
 
     const downloadFilter = async (name: string) => {
-        const res = await api.get<{ ok: boolean; content: string }>(`/api/plugins/fail2ban/filters/${encodeURIComponent(name)}`);
-        if (!res.success || !res.result?.ok) return;
+        const res = await api.get<{ ok: boolean; content: string; error?: string }>(`/api/plugins/fail2ban/filters/${encodeURIComponent(name)}`);
+        if (!res.success || !res.result?.ok) {
+            addAction(res.result?.error ?? res.error?.message ?? t('fail2ban.errors.readError'), false);
+            return;
+        }
         const blob = new Blob([res.result.content], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a'); a.href = url; a.download = name;

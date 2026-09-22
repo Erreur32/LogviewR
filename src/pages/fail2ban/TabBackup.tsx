@@ -197,8 +197,9 @@ const ConfigSnapshotPanel: React.FC = () => {
         try {
             const res = await api.get<{ ok: boolean; snapshots: SnapshotEntry[] }>('/api/plugins/fail2ban/backup/snapshots');
             if (res.success && res.result?.ok) setSnapshots(res.result.snapshots);
+            else setMsg({ ok: false, text: res.error?.message ?? t('fail2ban.backup.serverError') });
         } finally { setLoading(false); }
-    }, []);
+    }, [t]);
 
     useEffect(() => { void fetchSnapshots(); }, [fetchSnapshots]);
 
@@ -241,9 +242,12 @@ const ConfigSnapshotPanel: React.FC = () => {
 
     const handleDelete = async (filename: string) => {
         if (!confirm(t('fail2ban.backup.deleteSnapshotConfirm', { filename }))) return;
-        setDeleting(filename);
-        try { await api.delete(`/api/plugins/fail2ban/backup/snapshot/${encodeURIComponent(filename)}`); void fetchSnapshots(); }
-        finally { setDeleting(null); }
+        setDeleting(filename); setMsg(null);
+        try {
+            const res = await api.delete<{ ok?: boolean; error?: string }>(`/api/plugins/fail2ban/backup/snapshot/${encodeURIComponent(filename)}`);
+            if (res.success) void fetchSnapshots();
+            else setMsg({ ok: false, text: res.result?.error ?? res.error?.message ?? t('fail2ban.backup.serverError') });
+        } finally { setDeleting(null); }
     };
 
     return (
@@ -501,8 +505,9 @@ const DbSnapshotPanel: React.FC = () => {
         try {
             const res = await api.get<{ ok: boolean; snapshots: SnapshotEntry[] }>('/api/plugins/fail2ban/db-snapshots');
             if (res.success && res.result?.ok) setSnapshots(res.result.snapshots);
+            else setMsg({ ok: false, text: res.error?.message ?? t('fail2ban.backup.serverError') });
         } finally { setLoading(false); }
-    }, []);
+    }, [t]);
 
     useEffect(() => { void fetchSnapshots(); }, [fetchSnapshots]);
 
@@ -546,9 +551,12 @@ const DbSnapshotPanel: React.FC = () => {
 
     const handleDelete = async (filename: string) => {
         if (!confirm(t('fail2ban.backup.deleteSnapshotConfirm', { filename }))) return;
-        setDeleting(filename);
-        try { await api.delete(`/api/plugins/fail2ban/db-snapshot/${encodeURIComponent(filename)}`); void fetchSnapshots(); }
-        finally { setDeleting(null); }
+        setDeleting(filename); setMsg(null);
+        try {
+            const res = await api.delete<{ ok?: boolean; error?: string }>(`/api/plugins/fail2ban/db-snapshot/${encodeURIComponent(filename)}`);
+            if (res.success) void fetchSnapshots();
+            else setMsg({ ok: false, text: res.result?.error ?? res.error?.message ?? t('fail2ban.backup.serverError') });
+        } finally { setDeleting(null); }
     };
 
     return (
@@ -830,8 +838,9 @@ const IptBackupPanel: React.FC = () => {
         try {
             const res = await api.get<{ ok: boolean; backups: IptBackupEntry[] }>('/api/plugins/fail2ban/iptables/backups');
             if (res.success && res.result?.ok) setBackups(res.result.backups);
+            else setMsg({ ok: false, text: res.error?.message ?? t('fail2ban.errors.unknown') });
         } finally { setLoading(false); }
-    }, []);
+    }, [t]);
 
     useEffect(() => { fetchBackups(); }, [fetchBackups]);
 
@@ -864,9 +873,12 @@ const IptBackupPanel: React.FC = () => {
 
     const del = async (filename: string) => {
         if (!confirm(t('fail2ban.backup.deleteSnapshotConfirm', { filename }))) return;
-        setDeleting(filename);
-        try { await api.delete(`/api/plugins/fail2ban/iptables/backup/${encodeURIComponent(filename)}`); fetchBackups(); }
-        finally { setDeleting(null); }
+        setDeleting(filename); setMsg(null);
+        try {
+            const res = await api.delete<{ ok?: boolean; error?: string }>(`/api/plugins/fail2ban/iptables/backup/${encodeURIComponent(filename)}`);
+            if (res.success) fetchBackups();
+            else setMsg({ ok: false, text: res.result?.error ?? res.error?.message ?? t('fail2ban.errors.unknown') });
+        } finally { setDeleting(null); }
     };
 
     const download = async (filename: string) => {
@@ -975,8 +987,9 @@ const IpsetBackupPanel: React.FC = () => {
         try {
             const res = await api.get<{ ok: boolean; backups: IptBackupEntry[] }>('/api/plugins/fail2ban/ipset/backups');
             if (res.success && res.result?.ok) setBackups(res.result.backups);
+            else setMsg({ ok: false, text: res.error?.message ?? t('fail2ban.errors.unknown') });
         } finally { setLoading(false); }
-    }, []);
+    }, [t]);
 
     useEffect(() => { fetchBackups(); }, [fetchBackups]);
 
@@ -1010,8 +1023,12 @@ const IpsetBackupPanel: React.FC = () => {
     const del = async (filename: string) => {
         if (!confirm(t('fail2ban.backup.deleteSnapshotConfirm', { filename }))) return;
         setDeleting(filename);
-        try { await api.delete(`/api/plugins/fail2ban/ipset/backup/${encodeURIComponent(filename)}`); fetchBackups(); }
-        finally { setDeleting(null); }
+        setMsg(null);
+        try {
+            const res = await api.delete<{ ok?: boolean; error?: string }>(`/api/plugins/fail2ban/ipset/backup/${encodeURIComponent(filename)}`);
+            if (res.success) fetchBackups();
+            else setMsg({ ok: false, text: res.result?.error ?? res.error?.message ?? t('fail2ban.errors.unknown') });
+        } finally { setDeleting(null); }
     };
 
     const download = async (filename: string) => {

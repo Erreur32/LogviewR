@@ -59,26 +59,33 @@ function ColorLine({ line }: { line: string }) {
 
 // ── Rollback Banner ────────────────────────────────────────────────────────────
 
-function RollbackBanner({ countdown, onConfirm, onRollback, loading }: { countdown: number; onConfirm: () => void; onRollback: () => void; loading: boolean }) {
+function RollbackBanner({ countdown, onConfirm, onRollback, loading, error }: { countdown: number; onConfirm: () => void; onRollback: () => void; loading: boolean; error: string | null }) {
     const { t } = useTranslation();
     return (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', background: 'rgba(232,106,101,.08)', border: '1px solid rgba(232,106,101,.3)', borderRadius: 6, padding: '.6rem .85rem', flexWrap: 'wrap' }}>
-            <AlertTriangle style={{ width: 14, height: 14, color: '#e86a65', flexShrink: 0 }} />
-            <div style={{ flex: 1 }}>
-                <span style={{ fontSize: '.82rem', color: '#e86a65', fontWeight: 600 }}>{t('fail2ban.iptables.rollbackAuto')} </span>
-                <span style={{ fontSize: '.95rem', fontWeight: 800, color: '#e86a65', fontFamily: 'monospace' }}>{countdown}s</span>
-                <span style={{ fontSize: '.76rem', color: '#8b949e', marginLeft: '.5rem' }}>{t('fail2ban.iptables.rollbackPrompt')}</span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '.4rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', background: 'rgba(232,106,101,.08)', border: '1px solid rgba(232,106,101,.3)', borderRadius: 6, padding: '.6rem .85rem', flexWrap: 'wrap' }}>
+                <AlertTriangle style={{ width: 14, height: 14, color: '#e86a65', flexShrink: 0 }} />
+                <div style={{ flex: 1 }}>
+                    <span style={{ fontSize: '.82rem', color: '#e86a65', fontWeight: 600 }}>{t('fail2ban.iptables.rollbackAuto')} </span>
+                    <span style={{ fontSize: '.95rem', fontWeight: 800, color: '#e86a65', fontFamily: 'monospace' }}>{countdown}s</span>
+                    <span style={{ fontSize: '.76rem', color: '#8b949e', marginLeft: '.5rem' }}>{t('fail2ban.iptables.rollbackPrompt')}</span>
+                </div>
+                <F2bTooltip title={t('fail2ban.iptables.confirmTitle')} body={t('fail2ban.iptables.confirmBody')} color="green">
+                    <button onClick={onConfirm} style={{ background: 'rgba(63,185,80,.12)', border: '1px solid rgba(63,185,80,.3)', color: '#3fb950', borderRadius: 4, cursor: 'pointer', padding: '.25rem .65rem', fontSize: '.78rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '.3rem' }}>
+                        <CheckCircle style={{ width: 12, height: 12 }} /> {t('fail2ban.iptables.confirmBtn')}
+                    </button>
+                </F2bTooltip>
+                <F2bTooltip title={t('fail2ban.iptables.rollbackTitle')} body={t('fail2ban.iptables.rollbackBody')} color="red">
+                    <button onClick={onRollback} disabled={loading} style={{ background: 'rgba(232,106,101,.12)', border: '1px solid rgba(232,106,101,.3)', color: '#e86a65', borderRadius: 4, cursor: loading ? 'default' : 'pointer', padding: '.25rem .65rem', fontSize: '.78rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '.3rem', opacity: loading ? .6 : 1 }}>
+                        <RotateCcw style={{ width: 12, height: 12 }} /> {t('fail2ban.iptables.rollbackBtn')}
+                    </button>
+                </F2bTooltip>
             </div>
-            <F2bTooltip title={t('fail2ban.iptables.confirmTitle')} body={t('fail2ban.iptables.confirmBody')} color="green">
-                <button onClick={onConfirm} style={{ background: 'rgba(63,185,80,.12)', border: '1px solid rgba(63,185,80,.3)', color: '#3fb950', borderRadius: 4, cursor: 'pointer', padding: '.25rem .65rem', fontSize: '.78rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '.3rem' }}>
-                    <CheckCircle style={{ width: 12, height: 12 }} /> {t('fail2ban.iptables.confirmBtn')}
-                </button>
-            </F2bTooltip>
-            <F2bTooltip title={t('fail2ban.iptables.rollbackTitle')} body={t('fail2ban.iptables.rollbackBody')} color="red">
-                <button onClick={onRollback} disabled={loading} style={{ background: 'rgba(232,106,101,.12)', border: '1px solid rgba(232,106,101,.3)', color: '#e86a65', borderRadius: 4, cursor: loading ? 'default' : 'pointer', padding: '.25rem .65rem', fontSize: '.78rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '.3rem', opacity: loading ? .6 : 1 }}>
-                    <RotateCcw style={{ width: 12, height: 12 }} /> {t('fail2ban.iptables.rollbackBtn')}
-                </button>
-            </F2bTooltip>
+            {error && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', fontSize: '.76rem', color: '#e86a65', padding: '0 .2rem' }}>
+                    <AlertTriangle style={{ width: 11, height: 11, flexShrink: 0 }} /> {error}
+                </div>
+            )}
         </div>
     );
 }
@@ -478,6 +485,7 @@ const IPTablesContent: React.FC = () => {
     const [rollback, setRollback] = useState<RollbackStatus>({ pending: false, deadline: null });
     const [countdown, setCountdown] = useState(0);
     const [actionLoading, setActionLoading] = useState(false);
+    const [rollbackError, setRollbackError] = useState<string | null>(null);
     const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     const fetchRollback = useCallback(async () => {
@@ -511,22 +519,28 @@ const IPTablesContent: React.FC = () => {
     }, []);
 
     const confirmRollback = async () => {
-        await api.post('/api/plugins/fail2ban/iptables/rollback/confirm', {});
-        setRollback({ pending: false, deadline: null });
+        setRollbackError(null);
+        const res = await api.post<{ ok?: boolean; error?: string }>('/api/plugins/fail2ban/iptables/rollback/confirm', {});
+        if (res.success) setRollback({ pending: false, deadline: null });
+        else setRollbackError(res.result?.error ?? res.error?.message ?? t('fail2ban.iptables.rollbackError'));
     };
 
     const doRollback = async () => {
-        setActionLoading(true);
+        setActionLoading(true); setRollbackError(null);
         try {
             const res = await api.post<{ ok: boolean; output?: string; error?: string }>('/api/plugins/fail2ban/iptables/rollback/now', {});
-            setRollback({ pending: false, deadline: null });
-            if (res.success && res.result?.ok) setRefreshToken(k => k + 1);
+            if (res.success && res.result?.ok) {
+                setRollback({ pending: false, deadline: null });
+                setRefreshToken(k => k + 1);
+            } else {
+                setRollbackError(res.result?.error ?? res.error?.message ?? t('fail2ban.iptables.rollbackError'));
+            }
         } finally { setActionLoading(false); }
     };
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            {rollback.pending && <RollbackBanner countdown={countdown} onConfirm={confirmRollback} onRollback={doRollback} loading={actionLoading} />}
+            {rollback.pending && <RollbackBanner countdown={countdown} onConfirm={confirmRollback} onRollback={doRollback} loading={actionLoading} error={rollbackError} />}
             <RulesetViewer refreshToken={refreshToken} onAction={handleAction} />
             <RuleBuilder onAction={handleAction} />
             <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.6rem .85rem', background: 'rgba(57,197,207,.05)', border: '1px solid rgba(57,197,207,.2)', borderRadius: 6, fontSize: '.8rem', color: '#8b949e' }}>

@@ -90,6 +90,7 @@ interface TestResult {
     total: number;
     matched: { line: string; host?: string }[];
     missed: string[];
+    error?: string;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -111,6 +112,7 @@ export const ConfEditorModal: React.FC<{ target: ConfEditorTarget; onClose: () =
     const [logLines,   setLogLines]   = useState('');
     const [testResult, setTestResult] = useState<TestResult | null>(null);
     const [testing,    setTesting]    = useState(false);
+    const [testError,  setTestError]  = useState<string | null>(null);
     const taRef = useRef<HTMLTextAreaElement>(null);
 
     useEffect(() => {
@@ -143,15 +145,16 @@ export const ConfEditorModal: React.FC<{ target: ConfEditorTarget; onClose: () =
     }, [baseUrl, draft, target.jails]);
 
     const handleTest = useCallback(async () => {
-        setTesting(true); setTestResult(null);
+        setTesting(true); setTestResult(null); setTestError(null);
         const failregex = extractFailregex(editMode ? draft : content);
         const res = await api.post<TestResult>(
             `/api/plugins/fail2ban/filters/${encodeURIComponent(fileName)}/test`,
             { failregex, log_lines: logLines }
         );
         if (res.success && res.result?.ok) setTestResult(res.result);
+        else setTestError(res.result?.error ?? res.error?.message ?? t('fail2ban.errors.unknown'));
         setTesting(false);
-    }, [editMode, draft, content, fileName, logLines]);
+    }, [editMode, draft, content, fileName, logLines, t]);
 
     return (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,.65)' }}
@@ -236,6 +239,11 @@ export const ConfEditorModal: React.FC<{ target: ConfEditorTarget; onClose: () =
                             style={{ ...btnBase, borderColor: 'rgba(57,197,207,.4)', background: 'rgba(57,197,207,.1)', color: '#39c5cf', opacity: (!logLines.trim() || testing) ? .5 : 1 }}>
                             <FlaskConical style={{ width: 12, height: 12 }} /> {testing ? t('fail2ban.confEditor.testing') : t('common.test')}
                         </button>
+                        {testError && (
+                            <div style={{ marginTop: '.5rem', display: 'flex', alignItems: 'center', gap: '.35rem', fontSize: '.76rem', color: '#e86a65' }}>
+                                <XCircle style={{ width: 12, height: 12, flexShrink: 0 }} /> {testError}
+                            </div>
+                        )}
                         {testResult && (
                             <div style={{ marginTop: '.65rem' }}>
                                 <div style={{ fontSize: '.76rem', marginBottom: '.4rem' }}>

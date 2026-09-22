@@ -19,6 +19,7 @@ import { NewJailModal } from './NewJailModal';
 import type { JailStatus, BanEntry, AttemptEntry } from './types';
 import { DomainInitial } from './DomainInitial';
 import { FlagImg } from './FlagImg';
+import { useNotificationStore } from '../../stores/notificationStore';
 
 // ── Module-level cache (survives tab navigation) ──────────────────────────────
 const _cache: Record<string, { data: unknown; ts: number }> = {};
@@ -1092,6 +1093,7 @@ const EVENT_TYPE_BADGE: Record<'ban' | 'unban', React.ReactNode> = {
 
 export const TabJailsEvents: React.FC<{ onIpClick?: (ip: string) => void; days?: number }> = ({ onIpClick, days }) => {
     const { t } = useTranslation();
+    const { addAction } = useNotificationStore();
     const [bans, setBans]              = useState<BanEntry[]>(() => getCached<BanEntry[]>(`audit:bans:${days ?? 0}`) ?? []);
     const [enrichment, setEnrich]      = useState<AuditEnrichment>(() => getCachedTTL<AuditEnrichment>('audit:enrich', ENRICH_TTL) ?? { jail_actions: {}, jail_logs: {}, jail_servers: {}, jail_domains: {} });
     const [loading, setLoading]        = useState(() => !getCached<BanEntry[]>(`audit:bans:${days ?? 0}`));
@@ -1117,7 +1119,7 @@ export const TabJailsEvents: React.FC<{ onIpClick?: (ip: string) => void; days?:
     const fetchAudit = useCallback(() => {
         const daysQ  = days && days > 0 ? `&days=${days}` : '';
         const bansKey = `audit:bans:${days ?? 0}`;
-        type AuditResult = { ok: boolean; bans: BanEntry[] } & AuditEnrichment;
+        type AuditResult = { ok: boolean; bans: BanEntry[]; error?: string } & AuditEnrichment;
 
         // Restore from separate caches immediately (bans 30s, enrich 5min)
         const cachedBans   = getCached<BanEntry[]>(bansKey);
@@ -1140,11 +1142,13 @@ export const TabJailsEvents: React.FC<{ onIpClick?: (ip: string) => void; days?:
                 _cache['audit:enrich'] = { data: enrichData, ts: Date.now() };
                 setBans(bansData);
                 setEnrich(enrichData);
+            } else if (!cachedBans) {
+                addAction(res.result?.error ?? res.error?.message ?? t('fail2ban.errors.readError'), false);
             }
             setLoading(false);
             setEnrichLd(false);
         });
-    }, [days]);
+    }, [days, addAction, t]);
 
     // Initial load + reload when days changes
     useEffect(() => { fetchAudit(); }, [fetchAudit]);
@@ -1166,17 +1170,19 @@ export const TabJailsEvents: React.FC<{ onIpClick?: (ip: string) => void; days?:
         const cached = getCached<AttemptEntry[]>(key);
         if (cached) { setAttempts(cached); return; }
         setAttemptsLoading(true);
-        api.get<{ ok: boolean; attempts: AttemptEntry[] }>(
+        api.get<{ ok: boolean; attempts: AttemptEntry[]; error?: string }>(
             `/api/plugins/fail2ban/audit/attempts?days=${days ?? 1}&limit=200`
         ).then(res => {
             if (res.success && res.result?.ok) {
                 const list = res.result.attempts ?? [];
                 setAttempts(list);
                 setCached(key, list);
+            } else {
+                addAction(res.result?.error ?? res.error?.message ?? t('fail2ban.errors.readError'), false);
             }
             setAttemptsLoading(false);
         });
-    }, [days]);
+    }, [days, addAction, t]);
 
     const toggleSort = (col: SortCol) => {
         if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
