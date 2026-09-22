@@ -4813,7 +4813,7 @@ const StatsSummaryBanner: React.FC<{
                                 <Globe style={{ width: 8, height: 8 }} />
                                 <span style={{ fontFamily: 'monospace' }}>{topDomain.domain}</span>
                                 <span style={{ color: C.text, fontWeight: 700 }}>{topDomain.count}</span>
-                                <span style={{ color: C.muted }}>bans</span>
+                                <span style={{ color: C.muted }}>{t('fail2ban.stats.bans')}</span>
                                 {topDomain.failures != null && topDomain.failures > 0 && (
                                     <span style={{ color: C.orange, fontSize: '.6rem' }}>
                                         · {topDomain.failures} tentatives
@@ -5439,7 +5439,7 @@ export const TabStats: React.FC<TabStatsProps> = ({
                         {totalBanned} IPs
                     </div>
                     <div style={{ fontSize: '.75rem', color: '#e6edf3', lineHeight: 1.5 }}>
-                        IPs <strong>actuellement</strong> en jail — snapshot en temps réel de fail2ban.
+                        IPs <strong>{t('fail2ban.stats.jailBanInfo.currentlyWord')}</strong>{t('fail2ban.stats.jailBanInfo.currentlyExplain')}
                     </div>
                     <div
                         style={{
@@ -5739,7 +5739,7 @@ export const TabStats: React.FC<TabStatsProps> = ({
                                     {[
                                         t('fail2ban.labels.jail'),
                                         t('fail2ban.status.bansActive'),
-                                        'Total',
+                                        t('fail2ban.labels.totalBans'),
                                         t('fail2ban.status.expired24h'),
                                         t('fail2ban.status.failuresCurrent'),
                                         t('fail2ban.labels.failures'),

@@ -2053,6 +2053,8 @@
       "saveAndCheck": "Sauvegarder et vérifier",
       "pathValid": "Chemin valide",
       "pathInvalid": "Chemin invalide",
+      "unsavedChangesConfirm": "Des modifications non sauvegardées seront perdues. Continuer ?",
+      "resetConfirm": "Réinitialiser toutes les données fail2ban ?\n\nCela supprime : événements f2b_events, cache géo f2b_ip_geo, état de synchronisation.\nCette action est irréversible.",
       "domainsFound": "domaines trouvés",
       "requiresFix": "Nécessite une correction",
       "serviceConfigSub": "Configuration du daemon, service et base officielle",
@@ -2667,7 +2669,9 @@
         "periodLabel": "Période :",
         "now": "maintenant",
         "ipCounted": " — une IP est comptée tant que son bantime n'a pas expiré et qu'elle n'a pas été débannie manuellement.",
-        "dbTotalNote": "≠ total cumulé BDD — ce chiffre baisse quand les bans expirent."
+        "dbTotalNote": "≠ total cumulé BDD — ce chiffre baisse quand les bans expirent.",
+        "currentlyWord": "actuellement",
+        "currentlyExplain": " en jail — snapshot en temps réel de fail2ban."
       },
       "dbDataSince": "Données BDD depuis le",
       "avgHourly": "Moyenne/heure",
@@ -3202,7 +3206,10 @@
       "reload": "Recharger :",
       "actifs": "Actifs",
       "tous": "Tous",
-      "filtrerFiltres": "Filtrer les filtres…"
+      "filtrerFiltres": "Filtrer les filtres…",
+      "colFiltre": "Filtre",
+      "colUsedBy": "Utilisé par",
+      "noMatch": "Aucun filtre ne correspond"
     },
     "fbActions": {
       "errorUnknown": "Erreur inconnue",

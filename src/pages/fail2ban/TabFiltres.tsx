@@ -311,15 +311,15 @@ export const TabFiltres: React.FC<TabFiltresProps> = ({ jails, onJailCreated }) 
             <div style={card}>
                 {/* Header */}
                 <div style={{ display: 'grid', gridTemplateColumns: '220px 56px minmax(0,1fr) auto', gap: 0, ...cardH, borderBottom: '1px solid #30363d', fontSize: '.68rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: '#8b949e' }}>
-                    <div>Filtre</div>
+                    <div>{t('fail2ban.filtres.colFiltre')}</div>
                     <div style={{ textAlign: 'center' }}>{t('fail2ban.labels.jails')}</div>
-                    <div>Utilisé par</div>
+                    <div>{t('fail2ban.filtres.colUsedBy')}</div>
                     <div />
                 </div>
 
                 {filtered.length === 0 && (
                     <div style={{ padding: '2rem', textAlign: 'center', color: '#8b949e', fontSize: '.85rem' }}>
-                        Aucun filtre ne correspond
+                        {t('fail2ban.filtres.noMatch')}
                     </div>
                 )}
 

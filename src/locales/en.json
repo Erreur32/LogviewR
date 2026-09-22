@@ -2054,6 +2054,8 @@
       "saveAndCheck": "Save and check",
       "pathValid": "Path valid",
       "pathInvalid": "Path invalid",
+      "unsavedChangesConfirm": "Unsaved changes will be lost. Continue?",
+      "resetConfirm": "Reset all fail2ban data?\n\nThis deletes: f2b_events, the f2b_ip_geo geo cache, and the sync state.\nThis action is irreversible.",
       "domainsFound": "domains found",
       "requiresFix": "Requires fix",
       "serviceConfigSub": "Daemon configuration, service, and official database",
@@ -2668,7 +2670,9 @@
         "periodLabel": "Period:",
         "now": "now",
         "ipCounted": " — an IP is counted as long as its bantime has not expired and it has not been manually unbanned.",
-        "dbTotalNote": "≠ total accumulated DB — this figure decreases when bans expire."
+        "dbTotalNote": "≠ total accumulated DB — this figure decreases when bans expire.",
+        "currentlyWord": "currently",
+        "currentlyExplain": " in jail — real-time snapshot from fail2ban."
       },
       "dbDataSince": "DB data since",
       "avgHourly": "Hourly average",
@@ -3203,7 +3207,10 @@
       "reload": "Reload:",
       "actifs": "Active",
       "tous": "All",
-      "filtrerFiltres": "Filter filters…"
+      "filtrerFiltres": "Filter filters…",
+      "colFiltre": "Filter",
+      "colUsedBy": "Used by",
+      "noMatch": "No filter matches"
     },
     "fbActions": {
       "errorUnknown": "Unknown error",

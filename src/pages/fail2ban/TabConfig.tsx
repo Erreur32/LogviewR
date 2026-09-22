@@ -286,7 +286,7 @@ const RawFileViewer: React.FC<{
 
     const switchTab = (f: string) => {
         if (editMode && isDirty) {
-            if (!window.confirm('Des modifications non sauvegardées seront perdues. Continuer ?')) return;
+            if (!window.confirm(t('fail2ban.config.unsavedChangesConfirm'))) return;
         }
         exitEdit();
         onTabChange(f);
@@ -942,7 +942,7 @@ export const TabConfig: React.FC<{
     };
 
     const doReset = async () => {
-        if (!window.confirm('Réinitialiser toutes les données fail2ban ?\n\nCela supprime : événements f2b_events, cache géo f2b_ip_geo, état de synchronisation.\nCette action est irréversible.')) return;
+        if (!window.confirm(t('fail2ban.config.resetConfirm'))) return;
         setResetting(true);
         const res = await api.post<{ ok: boolean }>('/api/plugins/fail2ban/config/maintenance/reset', {});
         setResetting(false);
