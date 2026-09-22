@@ -16,6 +16,13 @@ interface IpsetInfo { name: string; type: string; size: number; maxelem: number;
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
+/** Fill-bar color by usage percentage (>90% red, >70% orange, else purple). */
+function ipsetFillColor(pct: number): string {
+    if (pct > 90) return '#e86a65';
+    if (pct > 70) return '#e3b341';
+    return '#bc8cff';
+}
+
 function fmtSize(bytes: number): string {
     if (bytes >= 1048576) return `${(bytes / 1048576).toFixed(1)} MB`;
     if (bytes >= 1024)    return `${(bytes / 1024).toFixed(1)} KB`;
@@ -58,7 +65,7 @@ function SetList({ sets, selected, onSelect, loading, onDestroy }: {
                 {sets.map(s => {
                     const pct  = s.maxelem > 0 ? Math.min(100, Math.round(s.entries / s.maxelem * 100)) : 0;
                     const isSelected = s.name === selected;
-                    const barColor = pct >= 100 ? '#e86a65' : pct > 90 ? '#e86a65' : pct > 70 ? '#e3b341' : '#bc8cff';
+                    const barColor = ipsetFillColor(pct);
                     return (
                         <div key={s.name}
                             onClick={() => onSelect(s.name)}

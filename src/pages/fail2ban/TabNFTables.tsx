@@ -12,7 +12,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { Server, RefreshCw, AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../../api/client';
-import { card, cardH, cardB } from './helpers';
+import { card, cardH, cardB, iptTargetColor } from './helpers';
 import { getAppLanguage } from '../../i18n';
 
 // ── NFT colorizer ──────────────────────────────────────────────────────────────
@@ -58,7 +58,7 @@ function colorizeNftLine(line: string): Token[] {
 
         // Targets (accept/drop/etc.)
         if (NFT_TARGETS.has(lc)) {
-            const color = lc === 'accept' ? '#3fb950' : (lc === 'drop' || lc === 'reject') ? '#e86a65' : lc === 'log' ? '#e3b341' : '#bc8cff';
+            const color = iptTargetColor(lc);
             tokens.push({ text: w, color, bold: true }); continue;
         }
         // Structure keywords (table, chain, …)

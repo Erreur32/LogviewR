@@ -22,6 +22,15 @@ export const fmtSecs = (s: number, t: TFunction): string => {
 /** Strips a filter/action file's ".conf" or ".local" extension to get its base name. */
 export const stripConfExt = (name: string): string => name.replace(/\.(conf|local)$/, '');
 
+/** Shared ACCEPT/DROP-REJECT/LOG/other color mapping for iptables/nftables targets (case-insensitive). */
+export function iptTargetColor(target: string): string {
+    const t = target.toUpperCase();
+    if (t === 'ACCEPT') return '#3fb950';
+    if (t === 'DROP' || t === 'REJECT') return '#e86a65';
+    if (t === 'LOG') return '#e3b341';
+    return '#bc8cff';
+}
+
 /** Formats the remaining time before a ban expires ("expired" / "12m" / "3h" / "2j" / permanentLabel). */
 export function fmtBanExpiry(
     ban: { timeofban: number; bantime: number }, now: number, t: TFunction, permanentLabel = '∞',
@@ -105,8 +114,10 @@ export const Badge: React.FC<{ color: BadgeColor; children: React.ReactNode }> =
 
 export const StatusDot: React.FC<{ banned: number; failed: number }> = ({ banned, failed }) => {
     const { t } = useTranslation();
-    const color = banned > 0 ? '#e86a65' : failed > 0 ? '#e3b341' : '#3fb950';
-    const title = banned > 0 ? t('fail2ban.status.bansActive') : failed > 0 ? t('fail2ban.status.failuresCurrent') : 'OK';
+    let color = '#3fb950';
+    let title = 'OK';
+    if (banned > 0) { color = '#e86a65'; title = t('fail2ban.status.bansActive'); }
+    else if (failed > 0) { color = '#e3b341'; title = t('fail2ban.status.failuresCurrent'); }
     return (
         <span title={title} style={{
             display: 'inline-block', width: 8, height: 8, borderRadius: '50%',

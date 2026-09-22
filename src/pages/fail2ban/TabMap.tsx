@@ -32,6 +32,13 @@ interface LiveEvent { ip: string; jail: string; timeofban: number; failures: num
 
 const FLAG_BASE = '/icons/country';
 
+/** Short "time ago" label (12s / 5m / 2h) for live-event rows. */
+function fmtAgoShort(ago: number): string {
+    if (ago < 60) return `${ago}s`;
+    if (ago < 3600) return `${Math.floor(ago / 60)}m`;
+    return `${Math.floor(ago / 3600)}h`;
+}
+
 /** Flag img element — local SVG, built via DOM (safe to use with untrusted country codes) */
 function flagImgEl(code: string): HTMLImageElement {
     const c = (code || '').toLowerCase().replaceAll(/[^a-z]/g, '');
@@ -581,6 +588,10 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker, onIpClick, refres
     const rVals = Object.values(regionStats);
     const minR = Math.min(...rVals, 0); const maxR = Math.max(...rVals, 1);
 
+    let headerLabel = t('fail2ban.map.onMap', { count: total });
+    if (loading) headerLabel = t('fail2ban.map.loading');
+    else if (liveMode) headerLabel = t('fail2ban.map.modeLive');
+
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '.75rem', height: 'calc(100vh - 165px)', overflow: 'hidden' }}>
 
@@ -588,7 +599,7 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker, onIpClick, refres
             <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', flexShrink: 0 }}>
                 <MapIcon style={{ width: 15, height: 15, color: '#58a6ff' }} />
                 <span style={{ fontWeight: 600, fontSize: '.88rem', color: '#58a6ff' }}>
-                    {loading ? t('fail2ban.map.loading') : liveMode ? t('fail2ban.map.modeLive') : t('fail2ban.map.onMap', { count: total })}
+                    {headerLabel}
                 </span>
                 {!liveMode && !loading && total > 0 && mapReady && resolved < total && (
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.4rem', padding: '.18rem .6rem', borderRadius: 20, background: 'rgba(227,179,65,.1)', border: '1px solid rgba(227,179,65,.25)' }}>
@@ -697,7 +708,7 @@ export const TabMap: React.FC<TabMapProps> = ({ onGoToTracker, onIpClick, refres
                                     </div>
                                 ) : liveEvents.map((e, i) => {
                                     const ago = Math.floor(Date.now() / 1000) - e.timeofban;
-                                    const agoStr = ago < 60 ? `${ago}s` : ago < 3600 ? `${Math.floor(ago / 60)}m` : `${Math.floor(ago / 3600)}h`;
+                                    const agoStr = fmtAgoShort(ago);
                                     const isRecent = ago < 10;
                                     return (
                                         <div key={`${e.ip}-${e.timeofban}-${i}`}

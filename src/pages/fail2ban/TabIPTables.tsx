@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useTranslation } from 'react-i18next';
 import { Shield, Trash2, RotateCcw, Plus, AlertTriangle, CheckCircle, Network, Code, Table2, ChevronDown, ChevronRight, Archive, Server } from 'lucide-react';
 import { api } from '../../api/client';
-import { card, cardH, cardB, F2bTooltip } from './helpers';
+import { card, cardH, cardB, F2bTooltip, iptTargetColor } from './helpers';
 import { TabNFTables } from './TabNFTables';
 import { getAppLanguage } from '../../i18n';
 
@@ -11,15 +11,6 @@ import { getAppLanguage } from '../../i18n';
 interface IptRule { num: number; pkts: string; bytes: string; target: string; prot: string; iface_in: string; iface_out: string; source: string; dest: string; options: string }
 interface IptChain { name: string; policy: string; rules: IptRule[] }
 interface RollbackStatus { pending: boolean; deadline: number | null }
-
-/** Shared ACCEPT/DROP-REJECT/LOG/other color mapping for iptables targets (raw-view colorizer + table's TargetBadge). */
-function iptTargetColor(target: string): string {
-    const t = target.toUpperCase();
-    if (t === 'ACCEPT') return '#3fb950';
-    if (t === 'DROP' || t === 'REJECT') return '#e86a65';
-    if (t === 'LOG') return '#e3b341';
-    return '#bc8cff';
-}
 
 // ── Colorizer (raw view) ───────────────────────────────────────────────────────
 
