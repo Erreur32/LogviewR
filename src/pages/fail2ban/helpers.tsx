@@ -31,6 +31,23 @@ export function iptTargetColor(target: string): string {
     return '#bc8cff';
 }
 
+/** Background rgba matching iptTargetColor's cases, for badge fills. */
+export function iptTargetBg(target: string): string {
+    const t = target.toUpperCase();
+    if (t === 'ACCEPT') return 'rgba(63,185,80,.12)';
+    if (t === 'DROP' || t === 'REJECT') return 'rgba(232,106,101,.12)';
+    if (t === 'LOG') return 'rgba(227,179,65,.12)';
+    return 'rgba(188,140,255,.1)';
+}
+
+/** iptables chain-policy color: DROP/REJECT=red, ACCEPT=green, else (e.g. QUEUE)=orange. */
+export function iptPolicyColor(policy: string): string {
+    const p = policy.toUpperCase();
+    if (p === 'DROP' || p === 'REJECT') return '#e86a65';
+    if (p === 'ACCEPT') return '#3fb950';
+    return '#e3b341';
+}
+
 /** Formats the remaining time before a ban expires ("expired" / "12m" / "3h" / "2j" / permanentLabel). */
 export function fmtBanExpiry(
     ban: { timeofban: number; bantime: number }, now: number, t: TFunction, permanentLabel = '∞',

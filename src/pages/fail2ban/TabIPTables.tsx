@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useTranslation } from 'react-i18next';
 import { Shield, Trash2, RotateCcw, Plus, AlertTriangle, CheckCircle, Network, Code, Table2, ChevronDown, ChevronRight, Archive, Server } from 'lucide-react';
 import { api } from '../../api/client';
-import { card, cardH, cardB, F2bTooltip, iptTargetColor } from './helpers';
+import { card, cardH, cardB, F2bTooltip, iptTargetColor, iptTargetBg, iptPolicyColor } from './helpers';
 import { TabNFTables } from './TabNFTables';
 import { getAppLanguage } from '../../i18n';
 
@@ -23,7 +23,7 @@ function colorizeIptLine(line: string): Token[] {
     if (line.startsWith(':')) {
         const m = line.match(/^:(\S+)\s+(\S+)(.*)$/);
         if (m) {
-            const polColor = m[2] === 'DROP' || m[2] === 'REJECT' ? '#e86a65' : m[2] === 'ACCEPT' ? '#3fb950' : '#e3b341';
+            const polColor = iptPolicyColor(m[2]);
             return [{ text: ':', color: '#8b949e' }, { text: m[1], color: '#58a6ff', bold: true }, { text: ' ' }, { text: m[2], color: polColor, bold: true }, { text: m[3] ?? '', color: '#555d69' }];
         }
         return [{ text: line, color: '#58a6ff' }];
@@ -95,7 +95,7 @@ function RollbackBanner({ countdown, onConfirm, onRollback, loading, error }: { 
 function TargetBadge({ target }: { target: string }) {
     const t = target.toUpperCase();
     const color = iptTargetColor(t);
-    const bg    = t === 'ACCEPT' ? 'rgba(63,185,80,.12)' : (t === 'DROP' || t === 'REJECT') ? 'rgba(232,106,101,.12)' : t === 'LOG' ? 'rgba(227,179,65,.12)' : 'rgba(188,140,255,.1)';
+    const bg    = iptTargetBg(t);
     return <span style={{ background: bg, color, border: `1px solid ${color}40`, borderRadius: 3, padding: '.08rem .38rem', fontSize: '.74rem', fontWeight: 700, fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{target}</span>;
 }
 
@@ -119,7 +119,7 @@ function ChainCard({ chain, onDelete, deleting, hiddenDockerRules, onToggleDocke
     const [sortKey, setSortKey]     = useState<SortKey>('num');
     const [sortAsc, setSortAsc]     = useState(true);
 
-    const pc = chain.policy === 'DROP' || chain.policy === 'REJECT' ? '#e86a65' : chain.policy === 'ACCEPT' ? '#3fb950' : '#e3b341';
+    const pc = iptPolicyColor(chain.policy);
 
     const sortedRules = useMemo(() => {
         const rules = [...chain.rules];
