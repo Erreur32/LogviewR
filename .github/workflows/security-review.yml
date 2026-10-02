@@ -9,6 +9,8 @@ on:
 
 jobs:
   security:
+    # Dependabot PRs get no Actions secrets (empty CLAUDE_API_KEY), skip them.
+    if: github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

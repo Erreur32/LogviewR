@@ -13,6 +13,8 @@ permissions:
 
 jobs:
   sonarcloud:
+    # Dependabot PRs get no Actions secrets (empty SONAR_TOKEN), skip them.
+    if: github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

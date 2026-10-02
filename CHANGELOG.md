@@ -5,6 +5,17 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.10] - 2026-10-02
+
+### For users
+
+- Security update of several third-party dependencies: `ip-address` (IPv6 NAT64 range not recognized, could allow SSRF/trust-boundary bypass, GHSA-2vr4-cq9g-pvrc), `brace-expansion` (CPU/stack denial of service), `fast-uri` (inconsistent host normalization) and `hono` (XSS in JSX boundary components). No behavior change.
+
+### For developers
+
+- `package.json` override for `ip-address` raised from `>=10.3.1` to `>=10.5.1`, so a vulnerable version can't come back through a transitive dependency. Lockfile now resolves `ip-address` 10.7.2, `brace-expansion` 1.1.21, `fast-uri` 3.1.8, `hono` 4.13.12 (`npm audit`: 0 vulnerabilities).
+- CI: the `sonarcloud`, `snyk-deps`, `snyk-docker` and `security` (Claude security review) jobs are now skipped on Dependabot PRs (`if: github.actor != 'dependabot[bot]'`). Dependabot PRs get no Actions secrets, so these jobs always failed with an empty token instead of reporting anything useful. CI tests, Docker build and CodeQL still run on them.
+
 ## [0.14.9] - 2026-09-22
 
 ### For users

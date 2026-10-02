@@ -41,6 +41,9 @@ jobs:
           sarif_file: snyk-code.sarif
 
   snyk-deps:
+    # Dependabot PRs get no Actions secrets, so SNYK_TOKEN is empty and the
+    # scan fails with 401. Skip instead of reporting a false failure.
+    if: github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -64,6 +67,7 @@ jobs:
           sarif_file: snyk-deps.sarif
 
   snyk-docker:
+    if: github.actor != 'dependabot[bot]'  # no SNYK_TOKEN on Dependabot PRs
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:

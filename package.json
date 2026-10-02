@@ -1,7 +1,7 @@
 {
   "name": "logviewr",
   "private": true,
-  "version": "0.14.9",
+  "version": "0.14.10",
   "type": "module",
   "scripts": {
     "predev": "lsof -ti:3005 2>/dev/null | xargs -r kill -9; lsof -ti:5175 2>/dev/null | xargs -r kill -9; true",
@@ -72,7 +72,7 @@
   },
   "overrides": {
     "tar": ">=7.5.21",
-    "ip-address": ">=10.3.1",
+    "ip-address": ">=10.5.1",
     "shell-quote": ">=1.9.0",
     "browserslist": ">=4.28.7",
     "qs": ">=6.16.0",
