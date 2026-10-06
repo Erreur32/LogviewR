@@ -76,6 +76,6 @@
     "shell-quote": ">=1.9.0",
     "browserslist": ">=4.28.7",
     "qs": ">=6.16.0",
-    "postcss-selector-parser": ">=6.1.4 <7"
+    "postcss-selector-parser": ">=7.1.6"
   }
 }

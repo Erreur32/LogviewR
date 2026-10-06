@@ -11,7 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Security: `source-map-js` 1.2.1 → 1.2.2 (CVE-2026-93749, denial of service from malicious indexed source maps), lockfile only, transitive dependency of `postcss`. Replaces Dependabot PR #30, which also jumped `tailwindcss` from v3 to v4 and broke the Docker build.
 - `.github/dependabot.yml`: Dependabot security PRs no longer propose a `tailwindcss` major version (v4 is a migration, not a bump). Routine version-update PRs stay disabled (`open-pull-requests-limit: 0`).
-- Known, not fixed here: `braces`, `micromatch`, `chokidar`, `fast-glob`, `postcss-nested` and `postcss-selector-parser` advisories, all pulled in by `tailwindcss` 3. Build-time only (devDependencies, removed from the Docker image by `npm prune --production`), and the only way to clear them is the Tailwind v4 migration. `braces` has no fixed version at all.
+- Security: `postcss-selector-parser` 6.1.4 → 7.1.6 (CVE-2026-104844, quadratic parsing of flat selectors), via the `overrides` entry in `package.json`. Tailwind 3 works with v7: the generated CSS is byte-identical.
+- Known, not fixed here: `braces`, `micromatch`, `chokidar`, `fast-glob` and `postcss-nested` advisories, all pulled in by `tailwindcss` 3. Build-time only (devDependencies, removed from the Docker image by `npm prune --production`), and the only way to clear them is the Tailwind v4 migration. `braces` has no fixed version at all.
 
 ## [0.15.0] - 2026-10-06
 
