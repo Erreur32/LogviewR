@@ -238,7 +238,7 @@ app.use('/api/mcp', mcpRoutes);
 // Not a /api/* route: it speaks MCP's own JSON-RPC 2.0 wire format, not LogviewR's { success, result } envelope.
 app.use('/mcp', mcpHttpTransport);
 if (isMcpHttpEnabled() && getMcpHttpAllowedIps().length === 0) {
-    logger.warn('Server', 'MCP HTTP remote access is enabled with no IP allowlist configured, restrict access via MCP_HTTP_ALLOWED_IPS or Settings > MCP, and always terminate TLS at a reverse proxy before exposing /mcp beyond localhost.');
+    logger.warn('Server', 'MCP HTTP remote access is enabled with no IP allowlist configured: /mcp only accepts loopback and private LAN ranges. Set MCP_HTTP_ALLOWED_IPS or Settings > MCP to restrict further, and always terminate TLS at a reverse proxy before exposing /mcp beyond localhost.');
 }
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/updates', updatesRoutes);
@@ -616,7 +616,7 @@ server.listen(port, host, () => {
   };
 
   // Read app version from package.json
-  let appVersion = '0.14.10'; // Default fallback
+  let appVersion = '0.15.0'; // Default fallback
   try {
     const packageJsonPath = path.join(__dirname, '..', 'package.json');
     const packageJson = JSON.parse(fsSync.readFileSync(packageJsonPath, 'utf8'));

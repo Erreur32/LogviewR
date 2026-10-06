@@ -23,9 +23,11 @@ const { requireMcpToken } = await import('../httpAuth.js');
 const { getMcpContext } = await import('../requestContext.js');
 
 function fakeReq(
-    overrides: { ip?: string; remoteAddress?: string; xForwardedFor?: string; authorization?: string } = {}
+    overrides: { ip?: string; remoteAddress?: string; xForwardedFor?: string; authorization?: string; origin?: string; host?: string } = {}
 ) {
     const headers: Record<string, string> = {};
+    if (overrides.origin) headers.origin = overrides.origin;
+    if (overrides.host) headers.host = overrides.host;
     if (overrides.authorization) headers.authorization = overrides.authorization;
     if (overrides.xForwardedFor) headers['x-forwarded-for'] = overrides.xForwardedFor;
     return {
@@ -241,5 +243,49 @@ describe('requireMcpToken', () => {
         assert.equal(nextCalled, false);
         assert.equal(res.statusCode, 401);
         assert.equal(res.body.error.code, -32003);
+    });
+
+    it('falls back to private ranges only when no allowlist is configured', async () => {
+        const publicReq = fakeReq({ ip: '203.0.113.5' });
+        const publicRes = fakeRes();
+        await requireMcpToken(publicReq, publicRes, () => {});
+        assert.equal(publicRes.statusCode, 403);
+        assert.equal(publicRes.body.error.code, -32002);
+
+        // A LAN client passes the IP gate and fails on the missing token instead.
+        const lanRes = fakeRes();
+        await requireMcpToken(fakeReq({ ip: '192.168.1.20' }), lanRes, () => {});
+        assert.equal(lanRes.statusCode, 401);
+    });
+
+    it('rejects a browser request carrying a foreign Origin (DNS rebinding)', async () => {
+        const req = fakeReq({ origin: 'http://evil.example', host: 'logviewr.lan:3005' });
+        const res = fakeRes();
+        let nextCalled = false;
+
+        await requireMcpToken(req, res, () => { nextCalled = true; });
+
+        assert.equal(nextCalled, false);
+        assert.equal(res.statusCode, 403);
+        assert.match(res.body.error.message, /Origin/);
+    });
+
+    it('rejects a rebinding request even when Origin matches Host', async () => {
+        // After DNS rebinding, the attacker's page is "same-origin": both headers carry its hostname.
+        const res = fakeRes();
+        await requireMcpToken(fakeReq({ origin: 'http://evil.example:3005', host: 'evil.example:3005' }), res, () => {});
+        assert.equal(res.statusCode, 403);
+    });
+
+    it('accepts an Origin listed in MCP_HTTP_ALLOWED_ORIGINS', async () => {
+        process.env.MCP_HTTP_ALLOWED_ORIGINS = 'https://agent.example.lan';
+        try {
+            const res = fakeRes();
+            await requireMcpToken(fakeReq({ origin: 'https://agent.example.lan' }), res, () => {});
+            // Passed the Origin gate, failed on the missing token instead.
+            assert.equal(res.statusCode, 401);
+        } finally {
+            delete process.env.MCP_HTTP_ALLOWED_ORIGINS;
+        }
     });
 });

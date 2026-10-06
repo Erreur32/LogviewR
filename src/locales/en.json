@@ -433,7 +433,8 @@
       "overview": "Overview",
       "tokens": "Access tokens",
       "audit": "Audit",
-      "threats": "Active threats"
+      "threats": "Active threats",
+      "approvals": "Approvals"
     },
     "overview": {
       "enabledLabel": "MCP server enabled",
@@ -459,10 +460,20 @@
       "httpStatusEnabled": "Enabled",
       "httpStatusDisabled": "Disabled",
       "httpAllowlistLabel": "IP allowlist",
-      "httpAllowlistDesc": "IPs or CIDR ranges allowed to reach /mcp, comma separated. Leave empty to allow any IP (not recommended beyond localhost).",
+      "httpAllowlistDesc": "IPs or CIDR ranges allowed to reach /mcp, comma separated. When empty, only loopback and private ranges (127.0.0.0/8, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, fc00::/7) are accepted. For access from the internet, add the wanted IPs explicitly.",
       "httpAllowlistPlaceholder": "e.g. 192.168.1.10, 10.0.0.0/24",
       "httpAllowlistSave": "Save",
-      "httpAllowlistWarning": "The HTTP transport is enabled with no IP allowlist configured: any IP can attempt to authenticate. Restrict access above or via the MCP_HTTP_ALLOWED_IPS variable."
+      "httpAllowlistWarning": "No allowlist configured: /mcp only accepts local and private networks (LAN, loopback). Add explicit IPs if a remote client needs to connect.",
+      "writeTitle": "Write actions (fail2ban)",
+      "writeEnabledLabel": "Allow write actions",
+      "writeEnabledDesc": "Lets MCP agents ban/unban IPs and start/stop jails. Off by default. Over stdio the client must also set LOGVIEWR_MCP_SCOPE=read_write, over HTTP the token needs the read/write scope.",
+      "approvalModeLabel": "Human approval",
+      "approvalModeDesc": "Actions queued in the Approvals tab: nothing runs until an admin approves them here.",
+      "approvalModeWeakening": "Weakening actions (unban, stop a jail), recommended",
+      "approvalModeAll": "Every write action",
+      "approvalModeNone": "None (the agent's confirm:true is enough)",
+      "promptInjectionNote": "Logs contain text written by attackers (User-Agent, URLs, whois). An agent reading them can be manipulated through indirect prompt injection, and confirm:true is filled in by the agent itself. Human approval is the only reliable protection for sensitive actions.",
+      "approvalNoneWarning": "Writes enabled without human approval: a crafted log line could make the agent unban an IP or stop a jail. Not recommended."
     },
     "tokens": {
       "createTitle": "Create an access token",
@@ -511,7 +522,12 @@
       "columnResult": "Result",
       "columnParams": "Params",
       "empty": "No actions recorded",
-      "loadMore": "Load more"
+      "loadMore": "Load more",
+      "resultRejectedWriteDisabled": "Writes disabled",
+      "resultRejectedGuardrail": "Blocked by guardrail",
+      "resultRejectedPendingLimit": "Approval queue full",
+      "resultRejectedByAdmin": "Rejected by admin",
+      "resultPendingApproval": "Awaiting approval"
     },
     "threats": {
       "title": "Detected active threats",
@@ -520,6 +536,32 @@
       "ipsLabel": "IPs",
       "jailsLabel": "Jails",
       "orgLabel": "Organization"
+    },
+    "approvals": {
+      "pendingTitle": "Actions awaiting approval",
+      "intro": "These actions were requested by an MCP agent. Check that they match something you actually asked for: an agent may have been manipulated by log content. Approving runs exactly the parameters shown, after guardrails are checked again. Without a decision, a request expires after 30 minutes.",
+      "empty": "No pending actions",
+      "approve": "Approve",
+      "reject": "Reject",
+      "jail": "Jail",
+      "reason": "Reason",
+      "reasonUntrusted": "provided by the agent, untrusted",
+      "weakeningWarning": "This action lowers protection: make sure you initiated it.",
+      "expiresAt": "expires at {{time}}",
+      "approveSuccess": "Action approved and executed",
+      "rejectSuccess": "Action rejected",
+      "decisionError": "Could not apply the decision",
+      "historyTitle": "Decision history",
+      "historyEmpty": "No decisions yet",
+      "decidedBy": "by {{user}}",
+      "status": {
+        "pending": "Pending",
+        "executing": "Running",
+        "executed": "Executed",
+        "failed": "Failed",
+        "rejected": "Rejected",
+        "expired": "Expired"
+      }
     }
   },
   "exporter": {

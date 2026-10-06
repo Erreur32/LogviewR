@@ -14,6 +14,11 @@ export type McpAuditResult =
     | 'rejected_disabled'
     | 'rejected_rate_limited'
     | 'rejected_insufficient_scope'
+    | 'rejected_write_disabled'
+    | 'rejected_guardrail'
+    | 'rejected_pending_limit'
+    | 'rejected_by_admin'
+    | 'pending_approval'
     | 'dry_run';
 
 export interface McpActionAuditEntry {

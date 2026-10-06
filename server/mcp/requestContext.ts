@@ -22,12 +22,15 @@ export function runWithMcpContext<T>(context: McpRequestContext, fn: () => T): T
     return storage.run(context, fn);
 }
 
-/** Falls back to the stdio env var with full read_write scope when no HTTP context is active. */
+/**
+ * Falls back to the stdio env vars when no HTTP context is active. The stdio scope is read-only
+ * unless the MCP client config explicitly sets LOGVIEWR_MCP_SCOPE=read_write.
+ */
 export function getMcpContext(): McpRequestContext {
     const ctx = storage.getStore();
     if (ctx) return ctx;
     return {
         actor: process.env.LOGVIEWR_MCP_ACTOR || 'unknown-mcp-agent',
-        scope: 'read_write',
+        scope: process.env.LOGVIEWR_MCP_SCOPE === 'read_write' ? 'read_write' : 'read',
     };
 }

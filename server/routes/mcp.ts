@@ -1,10 +1,12 @@
 /**
  * MCP admin routes
  *
- * Read-only observability + the enable/disable flag for LogviewR's MCP
- * server. The MCP process is a separate stdio process started by the user's
- * MCP client — these routes never talk to it directly, they only read/write
- * the shared SQLite state (app_config, mcp_action_audit) it also touches.
+ * Read-only observability + the enable/disable flags for LogviewR's MCP
+ * server, plus the human approval queue for MCP write actions. The MCP
+ * process is a separate stdio process started by the user's MCP client:
+ * these routes never talk to it directly, they only read/write the shared
+ * SQLite state (app_config, mcp_action_audit, mcp_pending_actions) it also
+ * touches. Approving is only possible here (admin session), never via MCP.
  */
 
 import { Router } from 'express';
@@ -19,7 +21,16 @@ import {
     setMcpHttpEnabled,
     getMcpHttpAllowedIps,
     setMcpHttpAllowedIps,
+    isMcpWriteEnabled,
+    setMcpWriteEnabled,
+    getMcpApprovalMode,
+    setMcpApprovalMode,
+    MCP_APPROVAL_MODES,
+    type McpApprovalMode,
 } from '../mcp/mcpConfig.js';
+import { McpPendingActionRepository } from '../database/models/McpPendingAction.js';
+import { approvePendingAction, rejectPendingAction } from '../mcp/pendingApproval.js';
+import { resolveClientIp } from '../utils/clientIp.js';
 import { McpActionAuditRepository, type McpAuditResult } from '../database/models/McpActionAudit.js';
 import { McpApiTokenRepository, MCP_TOKEN_MAX_EXPIRY_DAYS, type McpTokenScope } from '../database/models/McpApiToken.js';
 import { attackCorrelationService } from '../services/attackCorrelationService.js';
@@ -31,10 +42,19 @@ const mcpRateLimit = expressRateLimit({
     max: 30,
     standardHeaders: true,
     legacyHeaders: false,
+    // Spoof-resistant key, the default req.ip trusts any X-Forwarded-For under the app-wide `trust proxy`.
+    keyGenerator: (req) => resolveClientIp(req),
+    validate: { trustProxy: false },
     message: { success: false, error: { code: 'RATE_LIMITED', message: 'Too many requests' } },
 });
 
 router.use(mcpRateLimit, requireAuth, requireAdmin);
+
+function adminName(req: AuthenticatedRequest): string {
+    return req.user?.username || 'unknown-admin';
+}
+
+const INVALID_ID_RESULT = { success: true, result: { ok: false, error: 'Invalid id.' } };
 
 // GET /api/mcp/config
 router.get('/config', asyncHandler(async (_req: AuthenticatedRequest, res) => {
@@ -56,9 +76,44 @@ router.get('/status', asyncHandler(async (_req: AuthenticatedRequest, res) => {
         result: {
             enabled: isMcpEnabled(),
             lastSeenAt: getLastSeenAt(),
+            pendingCount: McpPendingActionRepository.countOpen(),
             ...stats,
         },
     });
+}));
+
+// GET /api/mcp/write-config
+router.get('/write-config', asyncHandler(async (_req: AuthenticatedRequest, res) => {
+    res.json({ success: true, result: { writeEnabled: isMcpWriteEnabled(), approvalMode: getMcpApprovalMode() } });
+}));
+
+// POST /api/mcp/write-config
+router.post('/write-config', asyncHandler(async (req: AuthenticatedRequest, res) => {
+    if (typeof req.body?.writeEnabled === 'boolean') setMcpWriteEnabled(req.body.writeEnabled);
+    if (MCP_APPROVAL_MODES.includes(req.body?.approvalMode)) setMcpApprovalMode(req.body.approvalMode as McpApprovalMode);
+    res.json({ success: true, result: { writeEnabled: isMcpWriteEnabled(), approvalMode: getMcpApprovalMode() } });
+}));
+
+// GET /api/mcp/pending
+router.get('/pending', asyncHandler(async (req: AuthenticatedRequest, res) => {
+    const status = req.query.status === 'pending' ? 'pending' : undefined;
+    const limit = Number.parseInt(req.query.limit as string, 10) || 50;
+    const actions = McpPendingActionRepository.list({ status, limit });
+    res.json({ success: true, result: { actions, pendingCount: McpPendingActionRepository.countOpen() } });
+}));
+
+// POST /api/mcp/pending/:id/approve
+router.post('/pending/:id/approve', asyncHandler(async (req: AuthenticatedRequest, res) => {
+    const id = Number.parseInt(req.params.id, 10);
+    if (Number.isNaN(id)) { res.json(INVALID_ID_RESULT); return; }
+    res.json({ success: true, result: await approvePendingAction(id, adminName(req)) });
+}));
+
+// POST /api/mcp/pending/:id/reject
+router.post('/pending/:id/reject', asyncHandler(async (req: AuthenticatedRequest, res) => {
+    const id = Number.parseInt(req.params.id, 10);
+    if (Number.isNaN(id)) { res.json(INVALID_ID_RESULT); return; }
+    res.json({ success: true, result: rejectPendingAction(id, adminName(req)) });
 }));
 
 // GET /api/mcp/audit

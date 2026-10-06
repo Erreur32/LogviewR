@@ -7,15 +7,18 @@
  *
  * Layers enforced here, in order:
  *   1. mcp_enabled AND mcp_http_enabled (dedicated kill switch, off by default)
- *   2. IP allowlist (if configured: DB + MCP_HTTP_ALLOWED_IPS env)
- *   3. Bearer token: hashed lookup, expiry, revocation (McpApiTokenRepository)
+ *   2. Origin header check (DNS rebinding guard)
+ *   3. IP allowlist (DB + MCP_HTTP_ALLOWED_IPS env; private ranges only when none is configured)
+ *   4. Bearer token: hashed lookup, expiry, revocation (McpApiTokenRepository)
  * A failure at any layer is logged via securityNotificationService for
  * brute-force visibility, and the request never reaches the MCP transport.
  */
 
 import type { Request, Response, NextFunction } from 'express';
 import expressRateLimit from 'express-rate-limit';
-import { isMcpEnabled, isMcpHttpEnabled, getMcpHttpAllowedIps, getMcpTrustedProxyIps } from './mcpConfig.js';
+import {
+    isMcpEnabled, isMcpHttpEnabled, getEffectiveMcpHttpAllowedIps, getMcpHttpAllowedOrigins, getMcpTrustedProxyIps,
+} from './mcpConfig.js';
 import { McpApiTokenRepository } from '../database/models/McpApiToken.js';
 import { isIpAllowed } from './ipAllowlist.js';
 import { runWithMcpContext } from './requestContext.js';
@@ -55,6 +58,16 @@ function resolveClientIp(req: Request): string {
     return directPeer;
 }
 
+/**
+ * DNS rebinding guard required by the MCP Streamable HTTP spec. Comparing Origin to Host is not
+ * enough: after a rebinding both carry the attacker's hostname. Browsers send Origin on every
+ * POST while native MCP clients never do, so any Origin must be explicitly allowed.
+ */
+function isOriginAllowed(req: Request): boolean {
+    const origin = req.headers.origin;
+    return !origin || getMcpHttpAllowedOrigins().includes(origin);
+}
+
 /** Dedicated rate limit for /mcp, independent of the confirmed-write limit inside auditGate.ts. */
 export const mcpHttpRateLimit = expressRateLimit({
     windowMs: 60_000,
@@ -76,8 +89,14 @@ export async function requireMcpToken(req: McpTokenRequest, res: Response, next:
         return;
     }
 
-    const allowlist = getMcpHttpAllowedIps();
-    if (!isIpAllowed(ip, allowlist)) {
+    if (!isOriginAllowed(req)) {
+        logger.warn('McpHttp', `Rejected /mcp request with foreign Origin ${String(req.headers.origin)} from ${ip}`);
+        await securityNotificationService.notifyMcpAuthFailed('foreign Origin header (possible DNS rebinding)', ip).catch(() => {});
+        jsonRpcError(res, 403, -32002, 'Origin not allowed.');
+        return;
+    }
+
+    if (!isIpAllowed(ip, getEffectiveMcpHttpAllowedIps())) {
         logger.warn('McpHttp', `Rejected /mcp request from disallowed IP ${ip}`);
         await securityNotificationService.notifyMcpAuthFailed('IP address not in allowlist', ip).catch(() => {});
         jsonRpcError(res, 403, -32002, 'IP address not allowed.');

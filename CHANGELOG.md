@@ -5,6 +5,30 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.0] - 2026-10-06
+
+### For users
+
+- MCP security hardening against indirect prompt injection (a malicious User-Agent, URL or whois record read by an AI agent, asking it to unban an IP or stop a jail).
+- **Behavior change:** MCP write actions (ban/unban, start/stop jail) are now **off by default**. Turn them on in Settings → MCP → "Actions d'écriture". Over stdio, the client config must also set `LOGVIEWR_MCP_SCOPE=read_write` (stdio sessions are now read-only by default).
+- New **Approbations** tab in Settings → MCP: by default, unban and jail-stop requests from an agent are queued and only run once an admin approves them there (badge with the number of pending requests, 30-minute expiry). The approval mode can be set to "weakening actions" (default), "all writes" or "none".
+- Guardrails on agent actions: an agent can no longer ban a private/LAN/loopback IP or an IP from your trusted list, nor unban an IP that is part of an active attack in the last 24h. Bans still run without approval in the default mode: if you reach your server from outside, add your public IP to the trusted list (Settings → Analysis) or choose the "all writes" approval mode (see the README and `Docs/MCP_SERVER.md`).
+- **Behavior change:** the remote `/mcp` endpoint with an empty IP allowlist now only accepts local and private networks (it used to accept any IP). Add explicit IPs for a remote client.
+- `/mcp` now rejects requests sent by a web browser unless their origin is explicitly allowed (DNS rebinding protection). Regular MCP clients are not affected.
+
+### For developers
+
+- `server/mcp/writeActions.ts`: write-tool param guardrails (`net.isIP`, jail name regex, never-ban ranges, trusted allowlist, active-threat check before unban) and a single executor registry shared by the MCP tools and the approval route.
+- `mcp_pending_actions` table + `McpPendingActionRepository` (lazy expiry, atomic `pending → executing` claim against double execution, duplicate-request dedupe, max 20 open). `server/mcp/pendingApproval.ts` executes approved actions in the Express process with the stored params, re-checking guardrails first. New admin routes `GET/POST /api/mcp/write-config`, `GET /api/mcp/pending`, `POST /api/mcp/pending/:id/approve|reject`. New read tool `mcp_pending_status`, there is deliberately no MCP tool able to approve.
+- `auditGate.ts`: new layers (`mcp_write_enabled`, guardrails, approval queue) and audit results `rejected_write_disabled`, `rejected_guardrail`, `rejected_pending_limit`, `rejected_by_admin`, `pending_approval`. `requestContext.ts`: stdio scope from `LOGVIEWR_MCP_SCOPE`, `read` by default.
+- `buildServer.ts`: one McpServer factory for stdio and HTTP, with server `instructions` warning that log content is untrusted. `log_search`, `f2b_lookup_ip` and `f2b_get_active_threats` prefix their JSON with an untrusted-data notice. IP params validated as IP literals in the tool schemas.
+- `httpAuth.ts`: any `Origin` header must be listed in `MCP_HTTP_ALLOWED_ORIGINS` (an Origin/Host comparison would not stop rebinding) and default private-range allowlist (`MCP_DEFAULT_PRIVATE_RANGES`) when none is configured.
+- `ipLookupService.ts`: `runWhois`/`fetchGeo` refuse non-IP input (blocks `whois` option injection and request-path injection), path segment URL-encoded.
+- `log_search.pluginIds` bounded (max 20 entries of 64 chars), mitigation for SNYK-JS-ZOD-20510278 (zod array validation without limit, all versions affected, no fix released yet).
+- `/api/mcp/*` admin rate limiter now keyed on `resolveClientIp()` instead of the spoofable default `req.ip`.
+- Tests: `auditGate.test.ts` rewritten (scope default, write kill switch, guardrails, approval queue, expiry, reject-once, claim-once), `httpAuth.test.ts` +4 (private-range default, foreign Origin, rebinding with matching Host, allowed Origin).
+- `Docs/MCP_SERVER.md`: new "Prompt injection and write actions" section, gate order, Approvals tab, troubleshooting.
+
 ## [0.14.10] - 2026-10-02
 
 ### For users
