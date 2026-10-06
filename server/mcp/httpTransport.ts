@@ -15,28 +15,15 @@
  */
 
 import { Router } from 'express';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { registerFail2banReadTools } from './tools/fail2banReadTools.js';
-import { registerFail2banWriteTools } from './tools/fail2banWriteTools.js';
-import { registerLogSearchTools } from './tools/logSearchTools.js';
-import { registerMcpResources } from './resources.js';
+import { buildLogviewrMcpServer } from './buildServer.js';
 import { requireMcpToken, mcpHttpRateLimit } from './httpAuth.js';
 import { logger } from '../utils/logger.js';
-
-function buildServer(): McpServer {
-    const server = new McpServer({ name: 'logviewr', version: '1.0.0' });
-    registerFail2banReadTools(server);
-    registerFail2banWriteTools(server);
-    registerLogSearchTools(server);
-    registerMcpResources(server);
-    return server;
-}
 
 const router = Router();
 
 router.post('/', mcpHttpRateLimit, requireMcpToken, async (req, res) => {
-    const server = buildServer();
+    const server = buildLogviewrMcpServer();
     try {
         const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
         res.on('close', () => {

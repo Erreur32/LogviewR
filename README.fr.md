@@ -304,6 +304,7 @@ create 640 root adm
 ### Guides
 
 - **[Serveur MCP](Docs/MCP_SERVER.md)** : piloter fail2ban et interroger les logs depuis un agent IA (Claude Code, Claude Desktop, etc.)
+  - ⚠️ Dans le mode de validation par défaut, les bans demandés par un agent passent sans validation humaine. Si vous accédez à votre serveur depuis l'extérieur, ajoutez votre IP publique à la liste de confiance (Paramètres > Analyse) ou passez le mode de validation MCP sur « toutes les écritures », sinon un agent manipulé pourrait bannir votre propre IP. Voir [Prompt injection and write actions](Docs/MCP_SERVER.md#prompt-injection-and-write-actions).
 - **[Log Analytics](Docs/LOG_ANALYTICS.md)** : architecture et flux de données du tableau de bord analytique
 - **[Variables d'environnement](Docs/VARIABLES_ENVIRONNEMENT.fr.md)** : référence complète, par mode d'exécution
 - **[Configuration UniFi Controller](Docs/CONFIGURATION_UNIFI.fr.md)** : configurer le plugin UniFi

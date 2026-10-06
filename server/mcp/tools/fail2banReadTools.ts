@@ -12,7 +12,8 @@ import { getDatabase } from '../../database/connection.js';
 import { getF2banMetrics } from '../../services/metricsService.js';
 import { attackCorrelationService } from '../../services/attackCorrelationService.js';
 import { lookupIp } from '../../services/ipLookupService.js';
-import { jsonResult, errorResult, withMcpGuard } from '../mcpConfig.js';
+import { jsonResult, untrustedJsonResult, errorResult, withMcpGuard } from '../mcpConfig.js';
+import { ipLiteralSchema } from '../writeActions.js';
 
 const WHOIS_TTL_SECONDS = 7 * 86400;
 
@@ -96,7 +97,7 @@ export function registerFail2banReadTools(server: McpServer): void {
         'f2b_lookup_ip',
         {
             description: 'Look up geo/whois/reverse-DNS info for an IP. Reads cached geo/whois first; falls back to a live whois lookup (and caches it) when the cache is stale or missing.',
-            inputSchema: { ip: z.string().min(2) },
+            inputSchema: { ip: ipLiteralSchema },
         },
         withMcpGuard(async ({ ip }) => {
             const db = getDatabase();
@@ -121,10 +122,10 @@ export function registerFail2banReadTools(server: McpServer): void {
                     whois = { ...live.whois, ts: now };
                     whoisSource = 'live';
                 }
-                return jsonResult({ ip, geo, whois: whois ?? null, whoisSource, hostname: live.hostname, knownProvider: live.knownProvider });
+                return untrustedJsonResult({ ip, geo, whois: whois ?? null, whoisSource, hostname: live.hostname, knownProvider: live.knownProvider });
             }
 
-            return jsonResult({ ip, geo, whois, whoisSource });
+            return untrustedJsonResult({ ip, geo, whois, whoisSource });
         })
     );
 
@@ -136,7 +137,7 @@ export function registerFail2banReadTools(server: McpServer): void {
         },
         withMcpGuard(async ({ windowHours }) => {
             const clusters = await attackCorrelationService.getActiveThreats(windowHours ?? 6);
-            return jsonResult({ windowHours: windowHours ?? 6, clusters });
+            return untrustedJsonResult({ windowHours: windowHours ?? 6, clusters });
         })
     );
 }

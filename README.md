@@ -7,7 +7,7 @@
 
 <img src="LogviewR_banner.svg" alt="LogviewR" width="512" height="256" />
 
-![LogviewR](https://img.shields.io/badge/LogviewR-0.14.10-111827?style=for-the-badge)
+![LogviewR](https://img.shields.io/badge/LogviewR-0.15.0-111827?style=for-the-badge)
 ![Status](https://img.shields.io/badge/Status-DEVELOPMENT-374151?style=for-the-badge)
 ![Docker](https://img.shields.io/badge/Docker-Ready-1f2937?style=for-the-badge&logo=docker&logoColor=38bdf8)
 ![React](https://img.shields.io/badge/React-19-111827?style=for-the-badge&logo=react&logoColor=38bdf8)
@@ -305,6 +305,7 @@ create 640 root adm
 ### Guides
 
 - **[MCP Server](Docs/MCP_SERVER.md)** - control fail2ban and query logs from an AI agent (Claude Code, Claude Desktop, etc.)
+  - ⚠️ With the default approval mode, agent bans run without human approval. If you reach your server from outside, add your public IP to the trusted list (Settings > Analysis) or set the MCP approval mode to "all writes", otherwise a manipulated agent could ban your own IP. See [Prompt injection and write actions](Docs/MCP_SERVER.md#prompt-injection-and-write-actions).
 - **[Log Analytics](Docs/LOG_ANALYTICS.md)** - architecture and data flow of the analytics dashboard
 - **[Environment variables](Docs/VARIABLES_ENVIRONNEMENT.md)** - full reference, per execution mode
 - **[UniFi Controller setup](Docs/CONFIGURATION_UNIFI.md)** - configuring the UniFi plugin

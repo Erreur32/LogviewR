@@ -442,6 +442,25 @@ export function initializeDatabase(): void {
         CREATE UNIQUE INDEX IF NOT EXISTS idx_mcp_tokens_hash ON mcp_api_tokens(token_hash)
     `);
 
+    // MCP write actions waiting for a human approval in the LogviewR UI (indirect prompt injection guard)
+    database.exec(`
+        CREATE TABLE IF NOT EXISTS mcp_pending_actions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tool_name TEXT NOT NULL,
+            params_json TEXT NOT NULL,
+            actor TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending',
+            created_at INTEGER NOT NULL DEFAULT (strftime('%s','now')),
+            expires_at INTEGER NOT NULL,
+            decided_at INTEGER,
+            decided_by TEXT,
+            result_message TEXT
+        )
+    `);
+    database.exec(`
+        CREATE INDEX IF NOT EXISTS idx_mcp_pending_status ON mcp_pending_actions(status, created_at)
+    `);
+
     // Log sources table (configuration for log sources: Apache, Nginx, System, etc.)
     database.exec(`
         CREATE TABLE IF NOT EXISTS log_sources (

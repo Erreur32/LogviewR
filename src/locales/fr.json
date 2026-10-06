@@ -433,7 +433,8 @@
       "overview": "Vue d'ensemble",
       "tokens": "Jetons d'accès",
       "audit": "Audit",
-      "threats": "Menaces actives"
+      "threats": "Menaces actives",
+      "approvals": "Approbations"
     },
     "overview": {
       "enabledLabel": "Serveur MCP activé",
@@ -459,10 +460,20 @@
       "httpStatusEnabled": "Activé",
       "httpStatusDisabled": "Désactivé",
       "httpAllowlistLabel": "Liste blanche d'IPs",
-      "httpAllowlistDesc": "IPs ou plages CIDR autorisées à atteindre /mcp, séparées par des virgules. Laisser vide autorise toute IP (déconseillé au-delà de localhost).",
+      "httpAllowlistDesc": "IPs ou plages CIDR autorisées à atteindre /mcp, séparées par des virgules. Laissé vide, seules les adresses locales et privées (127.0.0.0/8, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, fc00::/7) sont acceptées. Pour un accès depuis Internet, ajoutez explicitement les IPs voulues.",
       "httpAllowlistPlaceholder": "ex : 192.168.1.10, 10.0.0.0/24",
       "httpAllowlistSave": "Enregistrer",
-      "httpAllowlistWarning": "Le transport HTTP est activé sans liste blanche d'IPs configurée : toute IP peut tenter de s'authentifier. Restreignez l'accès ci-dessus ou via la variable MCP_HTTP_ALLOWED_IPS."
+      "httpAllowlistWarning": "Aucune liste blanche configurée : /mcp n'accepte que les réseaux locaux et privés (LAN, loopback). Ajoutez des IPs explicites si un client distant doit s'y connecter.",
+      "writeTitle": "Actions d'écriture (fail2ban)",
+      "writeEnabledLabel": "Autoriser les actions d'écriture",
+      "writeEnabledDesc": "Autorise les agents MCP à bannir/débannir des IPs et à démarrer/arrêter des jails. Désactivé par défaut. En stdio, le client doit aussi définir LOGVIEWR_MCP_SCOPE=read_write, en HTTP le jeton doit avoir la portée lecture/écriture.",
+      "approvalModeLabel": "Validation humaine",
+      "approvalModeDesc": "Actions mises en attente dans l'onglet Approbations : rien n'est exécuté tant qu'un administrateur ne les a pas approuvées ici.",
+      "approvalModeWeakening": "Actions affaiblissantes (débannir, arrêter une jail), recommandé",
+      "approvalModeAll": "Toutes les actions d'écriture",
+      "approvalModeNone": "Aucune (confirm:true de l'agent suffit)",
+      "promptInjectionNote": "Les logs contiennent du texte écrit par des attaquants (User-Agent, URLs, whois). Un agent qui les lit peut être manipulé par injection de prompt indirecte, et le paramètre confirm:true est rempli par l'agent lui-même. La validation humaine est la seule protection fiable pour les actions sensibles.",
+      "approvalNoneWarning": "Écriture activée sans validation humaine : une ligne de log piégée pourrait amener l'agent à débannir une IP ou arrêter une jail. Déconseillé."
     },
     "tokens": {
       "createTitle": "Créer un jeton d'accès",
@@ -511,7 +522,12 @@
       "columnResult": "Résultat",
       "columnParams": "Paramètres",
       "empty": "Aucune action enregistrée",
-      "loadMore": "Charger plus"
+      "loadMore": "Charger plus",
+      "resultRejectedWriteDisabled": "Écriture désactivée",
+      "resultRejectedGuardrail": "Bloqué par garde-fou",
+      "resultRejectedPendingLimit": "File d'attente pleine",
+      "resultRejectedByAdmin": "Refusé par un admin",
+      "resultPendingApproval": "En attente de validation"
     },
     "threats": {
       "title": "Menaces actives détectées",
@@ -520,6 +536,32 @@
       "ipsLabel": "IPs",
       "jailsLabel": "Jails",
       "orgLabel": "Organisation"
+    },
+    "approvals": {
+      "pendingTitle": "Actions en attente de validation",
+      "intro": "Ces actions ont été demandées par un agent MCP. Vérifiez qu'elles correspondent bien à une demande de votre part : un agent peut avoir été manipulé par du contenu de logs. L'approbation exécute exactement les paramètres affichés, après une nouvelle vérification des garde-fous. Sans décision, une demande expire au bout de 30 minutes.",
+      "empty": "Aucune action en attente",
+      "approve": "Approuver",
+      "reject": "Refuser",
+      "jail": "Jail",
+      "reason": "Motif",
+      "reasonUntrusted": "fourni par l'agent, non fiable",
+      "weakeningWarning": "Cette action réduit la protection : vérifiez que vous en êtes bien à l'origine.",
+      "expiresAt": "expire à {{time}}",
+      "approveSuccess": "Action approuvée et exécutée",
+      "rejectSuccess": "Action refusée",
+      "decisionError": "Impossible d'appliquer la décision",
+      "historyTitle": "Historique des décisions",
+      "historyEmpty": "Aucune décision pour le moment",
+      "decidedBy": "par {{user}}",
+      "status": {
+        "pending": "En attente",
+        "executing": "En cours",
+        "executed": "Exécutée",
+        "failed": "Échec",
+        "rejected": "Refusée",
+        "expired": "Expirée"
+      }
     }
   },
   "exporter": {

@@ -8,6 +8,7 @@
 import * as dns from 'node:dns';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { isIP } from 'node:net';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
@@ -83,6 +84,8 @@ const WHOIS_FIELDS: Array<{ key: keyof WhoisInfo; re: RegExp; extract: (line: st
 ];
 
 export async function runWhois(ip: string): Promise<WhoisInfo | null> {
+    // Only a literal IP may reach the whois argv: blocks "-h host" style option injection.
+    if (isIP(ip) === 0) return null;
     try {
         const { stdout } = await execFileAsync('whois', [ip], { timeout: 6000 });
         const info: WhoisInfo = { org: '', country: '', asn: '', netname: '', cidr: '' };
@@ -141,9 +144,11 @@ export function checkKnownProvider(ip: string): KnownProvider | null {
 // ── Geo lookup (freeipapi.com - HTTPS, no key) ───────────────────────────────
 
 export async function fetchGeo(ip: string): Promise<GeoInfo | null> {
+    // A literal IP only: anything else would be interpolated into the request path.
+    if (isIP(ip) === 0) return null;
     try {
         const r = await globalThis.fetch(
-            `https://free.freeipapi.com/api/json/${ip}`,
+            `https://free.freeipapi.com/api/json/${encodeURIComponent(ip)}`,
             { signal: AbortSignal.timeout(5000) }
         );
         const data = await r.json() as Record<string, unknown>;

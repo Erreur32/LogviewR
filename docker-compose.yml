@@ -52,6 +52,9 @@ services:
       #   HTTP transport's IP allowlist, merged with the allowlist set in Settings → MCP.
       #   Only read if MCP_HTTP_ALLOWED_IPS is set here, has no effect on its own, the
       #   HTTP transport itself is still off by default (mcp_http_enabled, from the UI).
+      #   With no allowlist at all, /mcp only accepts loopback and private LAN ranges.
+      # MCP_HTTP_ALLOWED_ORIGINS: https://agent.example.lan  # only for browser-based MCP
+      #   clients: any request carrying an Origin not listed here is rejected (DNS rebinding).
       # MCP_TRUSTED_PROXY_IPS: 10.0.0.5  # only needed if your reverse proxy for /mcp runs
       #   on a DIFFERENT machine than this container (loopback is trusted by default,
       #   which covers the common case of a proxy on the same host / network_mode: host).

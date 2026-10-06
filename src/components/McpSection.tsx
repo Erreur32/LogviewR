@@ -2,7 +2,8 @@
  * MCP Section
  *
  * Admin panel for LogviewR's MCP (Model Context Protocol) server: enable
- * toggle, derived status/heartbeat, audit trail viewer, active threats.
+ * toggle, write-action policy, human approval queue, derived status/heartbeat,
+ * audit trail viewer, active threats.
  *
  * The MCP process itself is a separate stdio process launched by the user's
  * MCP client (Claude Code/Desktop) — this panel can only flip the
@@ -12,12 +13,13 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Bot, Loader2, RefreshCw, CheckCircle, XCircle, AlertTriangle, Info, ShieldAlert, BookOpen, Key, Copy, Trash2, Globe } from 'lucide-react';
+import { Bot, Loader2, RefreshCw, CheckCircle, XCircle, AlertTriangle, Info, ShieldAlert, BookOpen, Key, Copy, Trash2, Globe, PenLine } from 'lucide-react';
 import { Section, SettingRow } from './SettingsSection';
 import { api } from '../api/client';
 import { useNotificationStore } from '../stores/notificationStore';
+import { McpApprovalsTab } from './McpApprovalsTab';
 
-type McpSubTab = 'overview' | 'audit' | 'threats' | 'tokens';
+type McpSubTab = 'overview' | 'approvals' | 'audit' | 'threats' | 'tokens';
 
 interface McpStatus {
     enabled: boolean;
@@ -26,6 +28,14 @@ interface McpStatus {
     success: number;
     error: number;
     rejectedUnconfirmed: number;
+    pendingCount: number;
+}
+
+type McpApprovalMode = 'weakening' | 'all' | 'none';
+
+interface McpWriteConfig {
+    writeEnabled: boolean;
+    approvalMode: McpApprovalMode;
 }
 
 interface McpAuditEntry {
@@ -74,6 +84,11 @@ const RESULT_BADGE: Record<string, { color: string; labelKey: string }> = {
     rejected_disabled: { color: 'bg-gray-500/15 text-gray-400 border-gray-700/40', labelKey: 'mcp.audit.resultRejectedDisabled' },
     rejected_rate_limited: { color: 'bg-orange-500/15 text-orange-400 border-orange-700/40', labelKey: 'mcp.audit.resultRejectedRateLimited' },
     rejected_insufficient_scope: { color: 'bg-pink-500/15 text-pink-400 border-pink-700/40', labelKey: 'mcp.audit.resultRejectedInsufficientScope' },
+    rejected_write_disabled: { color: 'bg-gray-500/15 text-gray-400 border-gray-700/40', labelKey: 'mcp.audit.resultRejectedWriteDisabled' },
+    rejected_guardrail: { color: 'bg-red-500/15 text-red-300 border-red-700/40', labelKey: 'mcp.audit.resultRejectedGuardrail' },
+    rejected_pending_limit: { color: 'bg-orange-500/15 text-orange-400 border-orange-700/40', labelKey: 'mcp.audit.resultRejectedPendingLimit' },
+    rejected_by_admin: { color: 'bg-gray-500/15 text-gray-300 border-gray-700/40', labelKey: 'mcp.audit.resultRejectedByAdmin' },
+    pending_approval: { color: 'bg-amber-500/15 text-amber-300 border-amber-700/40', labelKey: 'mcp.audit.resultPendingApproval' },
     dry_run: { color: 'bg-cyan-500/15 text-cyan-400 border-cyan-700/40', labelKey: 'mcp.audit.resultDryRun' },
 };
 
@@ -99,6 +114,8 @@ const OverviewTab: React.FC = () => {
     const [httpConfig, setHttpConfig] = useState<McpHttpConfig | null>(null);
     const [httpSaving, setHttpSaving] = useState(false);
     const [allowlistDraft, setAllowlistDraft] = useState('');
+    const [writeConfig, setWriteConfig] = useState<McpWriteConfig | null>(null);
+    const [writeSaving, setWriteSaving] = useState(false);
 
     const loadStatus = useCallback(async () => {
         try {
@@ -123,7 +140,33 @@ const OverviewTab: React.FC = () => {
         }
     }, [addAction, t]);
 
-    useEffect(() => { loadStatus(); loadHttpConfig(); }, [loadStatus, loadHttpConfig]);
+    const loadWriteConfig = useCallback(async () => {
+        try {
+            const res = await api.get<McpWriteConfig>('/api/mcp/write-config');
+            if (res.success && res.result) setWriteConfig(res.result);
+        } catch {
+            addAction(t('mcp.loadError'), false);
+        }
+    }, [addAction, t]);
+
+    useEffect(() => { loadStatus(); loadHttpConfig(); loadWriteConfig(); }, [loadStatus, loadHttpConfig, loadWriteConfig]);
+
+    const saveWriteConfig = async (patch: Partial<McpWriteConfig>) => {
+        setWriteSaving(true);
+        try {
+            const res = await api.post<McpWriteConfig>('/api/mcp/write-config', patch);
+            if (res.success && res.result) {
+                setWriteConfig(res.result);
+                addAction(t('mcp.saveSuccess'), true);
+            } else {
+                addAction(t('mcp.saveError'), false);
+            }
+        } catch {
+            addAction(t('mcp.saveError'), false);
+        } finally {
+            setWriteSaving(false);
+        }
+    };
 
     const toggleEnabled = async () => {
         if (!status) return;
@@ -249,6 +292,70 @@ const OverviewTab: React.FC = () => {
                                 <p className="text-xs text-gray-400 whitespace-pre-line">{t('mcp.overview.enableGuideSteps')}</p>
                                 <p className="text-xs text-gray-500 italic">{t('mcp.overview.enableGuideDocLink')}</p>
                             </div>
+                        </div>
+                    </div>
+                )}
+            </Section>
+
+            <Section title={t('mcp.overview.writeTitle')} icon={PenLine} iconColor="amber">
+                <div className="space-y-4">
+                    <SettingRow
+                        label={t('mcp.overview.writeEnabledLabel')}
+                        description={t('mcp.overview.writeEnabledDesc')}
+                    >
+                        <div className="flex items-center gap-3">
+                            <button
+                                type="button"
+                                disabled={writeSaving || !writeConfig}
+                                onClick={() => writeConfig && saveWriteConfig({ writeEnabled: !writeConfig.writeEnabled })}
+                                className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none disabled:opacity-50 ${
+                                    writeConfig?.writeEnabled ? 'bg-amber-500' : 'bg-gray-700'
+                                }`}
+                            >
+                                <span
+                                    className={`inline-block h-5 w-5 transform rounded-full bg-gray-100 shadow transition duration-200 ${
+                                        writeConfig?.writeEnabled ? 'translate-x-5' : 'translate-x-0'
+                                    }`}
+                                />
+                            </button>
+                            <span className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded-full font-medium ${
+                                writeConfig?.writeEnabled ? 'bg-amber-500/15 text-amber-400' : 'bg-gray-700/40 text-gray-500'
+                            }`}>
+                                {writeConfig?.writeEnabled ? <CheckCircle size={11} /> : <XCircle size={11} />}
+                                {writeConfig?.writeEnabled ? t('mcp.overview.statusEnabled') : t('mcp.overview.statusDisabled')}
+                            </span>
+                        </div>
+                    </SettingRow>
+
+                    <SettingRow
+                        label={t('mcp.overview.approvalModeLabel')}
+                        description={t('mcp.overview.approvalModeDesc')}
+                    >
+                        <select
+                            value={writeConfig?.approvalMode ?? 'weakening'}
+                            disabled={writeSaving || !writeConfig}
+                            onChange={(e) => saveWriteConfig({ approvalMode: e.target.value as McpApprovalMode })}
+                            className="px-3 py-1.5 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-xs focus:outline-none focus:border-amber-500 disabled:opacity-50"
+                        >
+                            <option value="weakening">{t('mcp.overview.approvalModeWeakening')}</option>
+                            <option value="all">{t('mcp.overview.approvalModeAll')}</option>
+                            <option value="none">{t('mcp.overview.approvalModeNone')}</option>
+                        </select>
+                    </SettingRow>
+                </div>
+
+                <div className="mt-4 p-3 bg-amber-900/10 border border-amber-700/30 rounded-lg">
+                    <div className="flex items-start gap-2">
+                        <AlertTriangle size={14} className="text-amber-400 mt-0.5 flex-shrink-0" />
+                        <p className="text-xs text-gray-400">{t('mcp.overview.promptInjectionNote')}</p>
+                    </div>
+                </div>
+
+                {writeConfig?.writeEnabled && writeConfig.approvalMode === 'none' && (
+                    <div className="mt-4 p-3 bg-red-900/10 border border-red-700/30 rounded-lg">
+                        <div className="flex items-start gap-2">
+                            <ShieldAlert size={14} className="text-red-400 mt-0.5 flex-shrink-0" />
+                            <p className="text-xs text-gray-400">{t('mcp.overview.approvalNoneWarning')}</p>
                         </div>
                     </div>
                 )}
@@ -767,9 +874,20 @@ const ThreatsTab: React.FC = () => {
 export const McpSection: React.FC = () => {
     const { t } = useTranslation();
     const [subTab, setSubTab] = useState<McpSubTab>('overview');
+    const [pendingCount, setPendingCount] = useState(0);
+
+    // Badge stays accurate on every sub-tab, not only while the Approvals tab is mounted.
+    const loadPendingCount = useCallback(async () => {
+        try {
+            const res = await api.get<McpStatus>('/api/mcp/status');
+            if (res.success && res.result) setPendingCount(res.result.pendingCount);
+        } catch { /* badge is best-effort */ }
+    }, []);
+    useEffect(() => { loadPendingCount(); }, [loadPendingCount, subTab]);
 
     const tabs: { id: McpSubTab; label: string }[] = [
         { id: 'overview', label: t('mcp.subTabs.overview') },
+        { id: 'approvals', label: t('mcp.subTabs.approvals') },
         { id: 'tokens', label: t('mcp.subTabs.tokens') },
         { id: 'audit', label: t('mcp.subTabs.audit') },
         { id: 'threats', label: t('mcp.subTabs.threats') },
@@ -789,11 +907,17 @@ export const McpSection: React.FC = () => {
                         }`}
                     >
                         {tab.label}
+                        {tab.id === 'approvals' && pendingCount > 0 && (
+                            <span className="min-w-[18px] px-1.5 py-0.5 rounded-full bg-amber-500 text-black text-[10px] font-bold leading-none">
+                                {pendingCount}
+                            </span>
+                        )}
                     </button>
                 ))}
             </div>
 
             {subTab === 'overview' && <OverviewTab />}
+            {subTab === 'approvals' && <McpApprovalsTab onCountChange={setPendingCount} />}
             {subTab === 'tokens' && <TokensTab />}
             {subTab === 'audit' && <AuditTab />}
             {subTab === 'threats' && <ThreatsTab />}

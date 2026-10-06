@@ -10,7 +10,7 @@ import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { searchAllLogs } from '../../services/logSearchService.js';
 import { LogSourceRepository } from '../../database/models/LogSource.js';
-import { jsonResult, withMcpGuard } from '../mcpConfig.js';
+import { jsonResult, untrustedJsonResult, withMcpGuard } from '../mcpConfig.js';
 
 export function registerLogSearchTools(server: McpServer): void {
     server.registerTool(
@@ -39,7 +39,7 @@ export function registerLogSearchTools(server: McpServer): void {
         },
         withMcpGuard(async ({ query, pluginIds, caseSensitive, useRegex, maxResults }) => {
             const result = await searchAllLogs({ query, pluginIds, caseSensitive, useRegex, maxResults });
-            return jsonResult(result);
+            return untrustedJsonResult(result);
         })
     );
 }
