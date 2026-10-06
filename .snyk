@@ -1,0 +1,13 @@
+# Snyk (https://snyk.io) policy file
+version: v1.25.0
+ignore:
+  SNYK-JS-ZOD-20510278:
+    - '*':
+        reason: >-
+          No fixed zod version exists yet (all versions affected, published 2026-10-05).
+          Mitigated: LogviewR's only zod array schema (log_search.pluginIds) is bounded,
+          request bodies are capped at 10mb. Expires so the alert comes back if zod
+          ships no fix; remove this entry once a fixed version is available.
+        expires: 2026-11-05T00:00:00.000Z
+        created: 2026-10-06T00:00:00.000Z
+patch: {}
