@@ -1,0 +1,14 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    # 0 = no routine version-update PRs, Dependabot security-update PRs still open
+    # and still honor the ignore rules below.
+    open-pull-requests-limit: 0
+    ignore:
+      # Tailwind v4 changes the PostCSS integration (@tailwindcss/postcss) and the
+      # config format, it is a migration, not a bump: it broke the Docker build in PR #30.
+      - dependency-name: tailwindcss
+        update-types: ["version-update:semver-major"]
