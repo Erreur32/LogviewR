@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `buildServer.ts`: one McpServer factory for stdio and HTTP, with server `instructions` warning that log content is untrusted. `log_search`, `f2b_lookup_ip` and `f2b_get_active_threats` prefix their JSON with an untrusted-data notice. IP params validated as IP literals in the tool schemas.
 - `httpAuth.ts`: any `Origin` header must be listed in `MCP_HTTP_ALLOWED_ORIGINS` (an Origin/Host comparison would not stop rebinding) and default private-range allowlist (`MCP_DEFAULT_PRIVATE_RANGES`) when none is configured.
 - `ipLookupService.ts`: `runWhois`/`fetchGeo` refuse non-IP input (blocks `whois` option injection and request-path injection), path segment URL-encoded.
+- `log_search.pluginIds` bounded (max 20 entries of 64 chars), mitigation for SNYK-JS-ZOD-20510278 (zod array validation without limit, all versions affected, no fix released yet).
 - `/api/mcp/*` admin rate limiter now keyed on `resolveClientIp()` instead of the spoofable default `req.ip`.
 - Tests: `auditGate.test.ts` rewritten (scope default, write kill switch, guardrails, approval queue, expiry, reject-once, claim-once), `httpAuth.test.ts` +4 (private-range default, foreign Origin, rebinding with matching Host, allowed Origin).
 - `Docs/MCP_SERVER.md`: new "Prompt injection and write actions" section, gate order, Approvals tab, troubleshooting.

@@ -31,7 +31,8 @@ export function registerLogSearchTools(server: McpServer): void {
             description: 'Search across configured log sources for a text query or regex. Mirrors the web UI\'s "search all logs" feature.',
             inputSchema: {
                 query: z.string().min(1),
-                pluginIds: z.array(z.string()).optional(),
+                // Bounded: zod reports one issue per failing element with no cap (SNYK-JS-ZOD-20510278).
+                pluginIds: z.array(z.string().max(64)).max(20).optional(),
                 caseSensitive: z.boolean().optional(),
                 useRegex: z.boolean().optional(),
                 maxResults: z.number().int().positive().max(500).optional(),
