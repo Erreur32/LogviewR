@@ -1,7 +1,7 @@
 {
   "name": "logviewr",
   "private": true,
-  "version": "0.15.0",
+  "version": "0.15.1",
   "type": "module",
   "scripts": {
     "predev": "lsof -ti:3005 2>/dev/null | xargs -r kill -9; lsof -ti:5175 2>/dev/null | xargs -r kill -9; true",
@@ -76,6 +76,6 @@
     "shell-quote": ">=1.9.0",
     "browserslist": ">=4.28.7",
     "qs": ">=6.16.0",
-    "postcss-selector-parser": ">=6.1.4 <7"
+    "postcss-selector-parser": ">=7.1.6"
   }
 }
