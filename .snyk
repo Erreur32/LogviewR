@@ -19,4 +19,12 @@ ignore:
           remove this entry once the SDK is bumped.
         expires: 2026-11-12T00:00:00.000Z
         created: 2026-10-12T00:00:00.000Z
+  SNYK-ALPINE324-ZLIB-20541555:
+    - '*':
+        reason: >-
+          zlib 1.3.2-r0 from the Alpine runtime packages (sudo, fail2ban/python3), fixed in
+          1.3.2-r1. Temporary ignore to ship v0.15.2, real fix is an apk upgrade of zlib in
+          the Dockerfile runtime stage: remove this entry with that change.
+        expires: 2026-10-26T00:00:00.000Z
+        created: 2026-10-12T00:00:00.000Z
 patch: {}
