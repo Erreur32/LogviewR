@@ -45,7 +45,7 @@ describe('McpApiTokenRepository', () => {
         const nowSeconds = Math.floor(Date.now() / 1000);
 
         const defaultExpiry = McpApiTokenRepository.create({ name: 'default-expiry', scope: 'read', createdBy: 'admin' });
-        const defaultDays = (defaultExpiry.expiresAt / 1000 - nowSeconds) / 86400;
+        const defaultDays = (defaultExpiry.expiresAt! / 1000 - nowSeconds) / 86400;
         assert.ok(Math.abs(defaultDays - 90) < 1);
 
         const clamped = McpApiTokenRepository.create({
@@ -54,7 +54,7 @@ describe('McpApiTokenRepository', () => {
             createdBy: 'admin',
             expiresInDays: 5000,
         });
-        const clampedDays = (clamped.expiresAt / 1000 - nowSeconds) / 86400;
+        const clampedDays = (clamped.expiresAt! / 1000 - nowSeconds) / 86400;
         assert.ok(Math.abs(clampedDays - 365) < 1);
     });
 
@@ -91,6 +91,15 @@ describe('McpApiTokenRepository', () => {
         const created = McpApiTokenRepository.create({ name: 'revoke-twice', scope: 'read', createdBy: 'admin' });
         assert.equal(McpApiTokenRepository.revoke(created.id), true);
         assert.equal(McpApiTokenRepository.revoke(created.id), false);
+    });
+
+    it('neverExpires stores no expiry and the token stays valid', () => {
+        const created = McpApiTokenRepository.create({ name: 'forever', scope: 'read', createdBy: 'admin', neverExpires: true });
+        assert.equal(created.expiresAt, null);
+
+        const row = getDatabase().prepare('SELECT expires_at FROM mcp_api_tokens WHERE id = ?').get(created.id) as any;
+        assert.equal(row.expires_at, 0);
+        assert.equal(McpApiTokenRepository.verifyToken(created.token)?.id, created.id);
     });
 
     it('verifyToken rejects an expired token', () => {

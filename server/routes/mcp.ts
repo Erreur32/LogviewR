@@ -34,6 +34,7 @@ import { resolveClientIp } from '../utils/clientIp.js';
 import { McpActionAuditRepository, type McpAuditResult } from '../database/models/McpActionAudit.js';
 import { McpApiTokenRepository, MCP_TOKEN_MAX_EXPIRY_DAYS, type McpTokenScope } from '../database/models/McpApiToken.js';
 import { attackCorrelationService } from '../services/attackCorrelationService.js';
+import { logger } from '../utils/logger.js';
 
 const router = Router();
 
@@ -177,31 +178,39 @@ router.get('/tokens', asyncHandler(async (_req: AuthenticatedRequest, res) => {
 }));
 
 // POST /api/mcp/tokens
+// Validation and DB failures answer 200 + { ok: false, error } so the UI can show the real reason
+// (the API client drops result.error on 4xx/5xx responses).
 router.post('/tokens', asyncHandler(async (req: AuthenticatedRequest, res) => {
     const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
     const scope: McpTokenScope = req.body?.scope === 'read_write' ? 'read_write' : 'read';
+    const neverExpires = req.body?.neverExpires === true;
     const expiresInDays = Number.isFinite(req.body?.expiresInDays) ? Number(req.body.expiresInDays) : undefined;
 
     if (!name) {
-        res.status(400).json({ success: true, result: { ok: false, error: 'Token name is required.' } });
+        res.json({ success: true, result: { ok: false, error: 'Token name is required.' } });
         return;
     }
-    if (expiresInDays !== undefined && (expiresInDays < 1 || expiresInDays > MCP_TOKEN_MAX_EXPIRY_DAYS)) {
-        res.status(400).json({
+    if (!neverExpires && expiresInDays !== undefined && (expiresInDays < 1 || expiresInDays > MCP_TOKEN_MAX_EXPIRY_DAYS)) {
+        res.json({
             success: true,
             result: { ok: false, error: `expiresInDays must be between 1 and ${MCP_TOKEN_MAX_EXPIRY_DAYS}.` },
         });
         return;
     }
 
-    const created = McpApiTokenRepository.create({
-        name,
-        scope,
-        createdBy: req.user?.username || 'unknown-admin',
-        expiresInDays,
-    });
-
-    res.json({ success: true, result: { token: created } });
+    try {
+        const created = McpApiTokenRepository.create({
+            name,
+            scope,
+            createdBy: req.user?.username || 'unknown-admin',
+            expiresInDays,
+            neverExpires,
+        });
+        res.json({ success: true, result: { ok: true, token: created } });
+    } catch (error) {
+        logger.error('MCP', 'Failed to create API token:', error);
+        res.json({ success: true, result: { ok: false, error: error instanceof Error ? error.message : String(error) } });
+    }
 }));
 
 // DELETE /api/mcp/tokens/:id

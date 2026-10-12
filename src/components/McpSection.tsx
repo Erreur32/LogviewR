@@ -67,7 +67,7 @@ interface McpApiTokenRecord {
     scope: McpTokenScope;
     createdBy: string;
     createdAt: number;
-    expiresAt: number;
+    expiresAt: number | null;
     lastUsedAt: number | null;
     revokedAt: number | null;
 }
@@ -590,6 +590,8 @@ const TokensTab: React.FC = () => {
     const [name, setName] = useState('');
     const [scope, setScope] = useState<McpTokenScope>('read');
     const [expiresInDays, setExpiresInDays] = useState(90);
+    const [neverExpires, setNeverExpires] = useState(false);
+    const [createError, setCreateError] = useState<string | null>(null);
     const [newToken, setNewToken] = useState<string | null>(null);
     const [copied, setCopied] = useState(false);
 
@@ -610,22 +612,28 @@ const TokensTab: React.FC = () => {
     const createToken = async () => {
         if (!name.trim()) return;
         setCreating(true);
+        setCreateError(null);
+        const fail = (detail: string) => {
+            setCreateError(detail);
+            addAction(`${t('mcp.tokens.createError')}: ${detail}`, false);
+        };
         try {
-            const res = await api.post<{ token: McpApiTokenRecord & { token: string } }>('/api/mcp/tokens', {
+            const res = await api.post<{ ok: boolean; error?: string; token?: McpApiTokenRecord & { token: string } }>('/api/mcp/tokens', {
                 name: name.trim(),
                 scope,
                 expiresInDays,
+                neverExpires,
             });
-            if (res.success && res.result) {
+            if (res.success && res.result?.ok && res.result.token) {
                 setNewToken(res.result.token.token);
                 setName('');
                 addAction(t('mcp.tokens.createSuccess'), true);
                 loadTokens();
             } else {
-                addAction(t('mcp.tokens.createError'), false);
+                fail(res.result?.error || res.error?.message || t('mcp.tokens.createErrorUnknown'));
             }
-        } catch {
-            addAction(t('mcp.tokens.createError'), false);
+        } catch (err) {
+            fail(err instanceof Error ? err.message : String(err));
         } finally {
             setCreating(false);
         }
@@ -705,10 +713,20 @@ const TokensTab: React.FC = () => {
                                 min={1}
                                 max={365}
                                 value={expiresInDays}
+                                disabled={neverExpires}
                                 onChange={(e) => setExpiresInDays(Number.parseInt(e.target.value, 10) || 90)}
-                                className="w-24 px-3 py-1.5 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-xs focus:outline-none focus:border-violet-500"
+                                className="w-24 px-3 py-1.5 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-xs focus:outline-none focus:border-violet-500 disabled:opacity-40"
                             />
-                            <span className="text-xs text-gray-500">{t('mcp.tokens.expiryLabel')}</span>
+                            <span className={`text-xs text-gray-500 ${neverExpires ? 'opacity-40' : ''}`}>{t('mcp.tokens.expiryLabel')}</span>
+                            <label className="flex items-center gap-1.5 text-xs text-gray-400 cursor-pointer select-none">
+                                <input
+                                    type="checkbox"
+                                    checked={neverExpires}
+                                    onChange={(e) => setNeverExpires(e.target.checked)}
+                                    className="accent-violet-500"
+                                />
+                                {t('mcp.tokens.neverExpiresLabel')}
+                            </label>
                             <button
                                 onClick={createToken}
                                 disabled={creating || !name.trim()}
@@ -719,6 +737,12 @@ const TokensTab: React.FC = () => {
                             </button>
                         </div>
                         <p className="text-xs text-gray-500">{t('mcp.tokens.expiryDesc')}</p>
+                        {neverExpires && (
+                            <p className="text-xs text-amber-400">{t('mcp.tokens.neverExpiresWarning')}</p>
+                        )}
+                        {createError && (
+                            <p className="text-xs text-red-400">{t('mcp.tokens.createError')}: {createError}</p>
+                        )}
                     </div>
                 )}
             </Section>
@@ -737,7 +761,7 @@ const TokensTab: React.FC = () => {
                     <div className="space-y-2">
                         {tokens.map((tok) => {
                             const isRevoked = tok.revokedAt !== null;
-                            const isExpired = !isRevoked && tok.expiresAt < Date.now();
+                            const isExpired = !isRevoked && tok.expiresAt !== null && tok.expiresAt < Date.now();
                             return (
                                 <div key={tok.id} className="p-3 bg-[#1a1a1a] rounded-lg border border-gray-800 flex items-center justify-between gap-2 flex-wrap">
                                     <div>
@@ -763,7 +787,7 @@ const TokensTab: React.FC = () => {
                                             )}
                                         </div>
                                         <div className="text-xs text-gray-500 mt-1">
-                                            {t('mcp.tokens.columnExpires')}: {formatDate(tok.expiresAt)}
+                                            {t('mcp.tokens.columnExpires')}: {tok.expiresAt === null ? t('mcp.tokens.neverExpiresValue') : formatDate(tok.expiresAt)}
                                             {' · '}
                                             {t('mcp.tokens.columnLastUsed')}: {tok.lastUsedAt ? formatDate(tok.lastUsedAt) : t('mcp.tokens.lastUsedNever')}
                                         </div>

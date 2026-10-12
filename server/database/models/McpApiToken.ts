@@ -20,7 +20,8 @@ export interface McpApiTokenRecord {
     scope: McpTokenScope;
     createdBy: string;
     createdAt: number;
-    expiresAt: number;
+    /** null = never expires (stored as expires_at = 0, the column is NOT NULL). */
+    expiresAt: number | null;
     lastUsedAt: number | null;
     revokedAt: number | null;
 }
@@ -29,8 +30,10 @@ export interface CreateMcpApiTokenInput {
     name: string;
     scope: McpTokenScope;
     createdBy: string;
-    /** Clamped to [1, MAX_EXPIRY_DAYS]. Defaults to DEFAULT_EXPIRY_DAYS. No unlimited tokens. */
+    /** Clamped to [1, MAX_EXPIRY_DAYS]. Defaults to DEFAULT_EXPIRY_DAYS. Ignored when neverExpires is set. */
     expiresInDays?: number;
+    /** Explicit admin opt-in for a token without expiry (revocation remains the only way to disable it). */
+    neverExpires?: boolean;
 }
 
 export interface CreatedMcpApiToken extends McpApiTokenRecord {
@@ -60,7 +63,7 @@ function mapRow(row: any): McpApiTokenRecord {
         scope: row.scope,
         createdBy: row.created_by,
         createdAt: row.created_at * 1000,
-        expiresAt: row.expires_at * 1000,
+        expiresAt: row.expires_at ? row.expires_at * 1000 : null,
         lastUsedAt: row.last_used_at ? row.last_used_at * 1000 : null,
         revokedAt: row.revoked_at ? row.revoked_at * 1000 : null,
     };
@@ -78,7 +81,7 @@ export class McpApiTokenRepository {
             Math.max(input.expiresInDays ?? MCP_TOKEN_DEFAULT_EXPIRY_DAYS, 1),
             MCP_TOKEN_MAX_EXPIRY_DAYS
         );
-        const expiresAt = Math.floor(Date.now() / 1000) + days * 86400;
+        const expiresAt = input.neverExpires ? 0 : Math.floor(Date.now() / 1000) + days * 86400;
 
         const stmt = db.prepare(`
             INSERT INTO mcp_api_tokens (name, token_hash, token_prefix, scope, created_by, expires_at)
