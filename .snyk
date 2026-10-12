@@ -10,4 +10,13 @@ ignore:
           ships no fix; remove this entry once a fixed version is available.
         expires: 2026-11-05T00:00:00.000Z
         created: 2026-10-06T00:00:00.000Z
+  SNYK-JS-MODELCONTEXTPROTOCOLSDK-20579853:
+    - '*':
+        reason: >-
+          CVE-2026-104850, client-side OAuth flow only (fetchToken issuer check).
+          LogviewR only uses the SDK server side (stdio + HTTP transports), no
+          @modelcontextprotocol/sdk/client import, so not reachable. Fixed in 1.31.0:
+          remove this entry once the SDK is bumped.
+        expires: 2026-11-12T00:00:00.000Z
+        created: 2026-10-12T00:00:00.000Z
 patch: {}
