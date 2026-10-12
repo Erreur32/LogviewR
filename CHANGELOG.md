@@ -5,6 +5,20 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.3] - 2026-10-12
+
+### For users
+
+- Security update of the Docker image and dependencies: `zlib` (out-of-bounds write, Alpine runtime packages) and the MCP SDK (credential leak in the client OAuth flow, not used by LogviewR). No behavior change.
+
+### For developers
+
+- `Dockerfile` runtime stage: `apk upgrade --no-cache zlib` in the same layer as the package install, brings `zlib` 1.3.2-r1 (SNYK-ALPINE324-ZLIB-20541555) until the `node:22-alpine` base image ships it.
+- `@modelcontextprotocol/sdk` 1.30.0 → 1.32.1 (CVE-2026-104850, SNYK-JS-MODELCONTEXTPROTOCOLSDK-20579853, client OAuth `fetchToken` issuer check). LogviewR only uses the server side, MCP stdio smoke test OK (initialize + 13 tools).
+- Security: `shell-quote` 1.10.0 → 1.12.0 (GHSA-pqg4-j6r4-53mv, critical, command injection in `quote()`), dev-only via `concurrently` (bumped to 9.2.5). The `overrides` entry is raised from `>=1.9.0` to `>=1.11.0` so the vulnerable range can't come back.
+- `.snyk`: removed the temporary ignores for the zlib and MCP SDK advisories added in v0.15.2. Only the zod ignore remains (no fixed version yet, expires 2026-11-05).
+- Known, not fixed here: the `braces`/`micromatch`/`chokidar`/`fast-glob` advisories from `tailwindcss` 3 (build-time only, Tailwind v4 migration).
+
 ## [0.15.2] - 2026-10-12
 
 ### For users

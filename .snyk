@@ -10,21 +10,4 @@ ignore:
           ships no fix; remove this entry once a fixed version is available.
         expires: 2026-11-05T00:00:00.000Z
         created: 2026-10-06T00:00:00.000Z
-  SNYK-JS-MODELCONTEXTPROTOCOLSDK-20579853:
-    - '*':
-        reason: >-
-          CVE-2026-104850, client-side OAuth flow only (fetchToken issuer check).
-          LogviewR only uses the SDK server side (stdio + HTTP transports), no
-          @modelcontextprotocol/sdk/client import, so not reachable. Fixed in 1.31.0:
-          remove this entry once the SDK is bumped.
-        expires: 2026-11-12T00:00:00.000Z
-        created: 2026-10-12T00:00:00.000Z
-  SNYK-ALPINE324-ZLIB-20541555:
-    - '*':
-        reason: >-
-          zlib 1.3.2-r0 from the Alpine runtime packages (sudo, fail2ban/python3), fixed in
-          1.3.2-r1. Temporary ignore to ship v0.15.2, real fix is an apk upgrade of zlib in
-          the Dockerfile runtime stage: remove this entry with that change.
-        expires: 2026-10-26T00:00:00.000Z
-        created: 2026-10-12T00:00:00.000Z
 patch: {}

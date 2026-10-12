@@ -39,7 +39,9 @@ WORKDIR /app
 # nftables   : lecture des règles nftables (onglet NFTables — nécessite cap_add: NET_ADMIN)
 # tzdata     : nécessaire pour que TZ=Europe/Paris (etc.) soit honoré ; sans ça Alpine ne connaît qu'UTC
 #              et les timestamps des logs (écrits en heure locale par Apache/Nginx) sont décalés
-RUN apk add --no-cache su-exec iptables ipset nftables sudo fail2ban tzdata
+# apk upgrade zlib : security fix not yet in the node:22-alpine base layer (1.3.2-r1, SNYK-ALPINE324-ZLIB-20541555)
+RUN apk add --no-cache su-exec iptables ipset nftables sudo fail2ban tzdata \
+    && apk upgrade --no-cache zlib
 # Allow the node user to run network tools as root (needed when app runs as non-root
 # but the host kernel's nf_tables backend requires UID 0 even with NET_ADMIN cap).
 RUN echo "node ALL=(root) NOPASSWD: /usr/sbin/iptables, /usr/sbin/iptables-save, /usr/sbin/iptables-restore, /usr/sbin/ipset, /usr/sbin/nft" \
