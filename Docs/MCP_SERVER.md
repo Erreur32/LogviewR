@@ -82,7 +82,7 @@ From **Settings → MCP → Vue d'ensemble**:
 2. Add the IP(s) of your remote agent to the **allowlist** field (comma-separated, single IPs or CIDR ranges, e.g. `192.168.1.50, 10.0.0.0/24`). Leaving it empty only accepts loopback and private LAN ranges (`127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `::1`, `fc00::/7`, `fe80::/10`): access from the internet always requires an explicit entry (an entry such as `0.0.0.0/0` opens it to everyone, do not do that without a strong reason).
 
 From **Settings → MCP → Jetons d'accès**:
-1. Enter a name (e.g. `opencode-dev-server`), pick a **scope** (`Lecture seule` for read-only tools, `Lecture/écriture` to also allow banning/unbanning IPs and starting/stopping jails), and an expiry in days (90 by default, 365 maximum, no unlimited tokens).
+1. Enter a name (e.g. `opencode-dev-server`), pick a **scope** (`Lecture seule` for read-only tools, `Lecture/écriture` to also allow banning/unbanning IPs and starting/stopping jails), and an expiry in days (90 by default, 365 maximum), or check `Illimité` for a token that never expires (only a manual revocation disables it).
 2. Click **Créer le jeton**. The raw token (`lvr_mcp_...`) is shown **exactly once**, copy it now, LogviewR only ever stores a SHA-256 hash of it afterwards.
 3. Revoke a token any time from the same tab, it takes effect on its very next use.
 

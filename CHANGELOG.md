@@ -5,6 +5,20 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.2] - 2026-10-12
+
+### For users
+
+- Settings → MCP → Jetons d'accès: when token creation fails, the actual reason is now shown (in the toast and in red under the form) instead of a generic "Erreur lors de la création du jeton".
+- New "Illimité" checkbox when creating an MCP access token: the token never expires and only a manual revocation disables it. Off by default, with a warning when checked. Unlimited tokens show "Expire le : jamais" in the list.
+
+### For developers
+
+- `POST /api/mcp/tokens`: validation errors now answer `200` + `{ success: true, result: { ok: false, error } }` (they used to be `400`, whose `result.error` the API client drops), and a database failure during creation is caught, logged and returned the same way. Success now returns `result.ok: true`.
+- `McpApiTokenRepository.create()`: new `neverExpires` option, stored as `expires_at = 0` (column stays `NOT NULL`, no migration). `verifyToken()` already treated `0` as no expiry. `McpApiTokenRecord.expiresAt` is now `number | null`.
+- Test: unlimited token stored with `expires_at = 0` and still verifies.
+- `Docs/MCP_SERVER.md`: token creation step mentions the unlimited option.
+
 ## [0.15.1] - 2026-10-06
 
 ### For developers
