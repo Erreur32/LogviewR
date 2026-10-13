@@ -3,6 +3,9 @@
  * expose the exact same tools, resources and server instructions.
  */
 
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { registerFail2banReadTools } from './tools/fail2banReadTools.js';
 import { registerFail2banWriteTools } from './tools/fail2banWriteTools.js';
@@ -18,8 +21,20 @@ const SERVER_INSTRUCTIONS = [
     'report the request id to the user and do not retry.',
 ].join(' ');
 
+/** Reported as serverInfo.version at initialize time, read from package.json so it follows releases. */
+function readAppVersion(): string {
+    try {
+        const packagePath = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'package.json');
+        return JSON.parse(readFileSync(packagePath, 'utf-8')).version || '0.0.0';
+    } catch {
+        return '0.0.0';
+    }
+}
+
+const APP_VERSION = readAppVersion();
+
 export function buildLogviewrMcpServer(): McpServer {
-    const server = new McpServer({ name: 'logviewr', version: '1.0.0' }, { instructions: SERVER_INSTRUCTIONS });
+    const server = new McpServer({ name: 'logviewr', version: APP_VERSION }, { instructions: SERVER_INSTRUCTIONS });
     registerFail2banReadTools(server);
     registerFail2banWriteTools(server);
     registerLogSearchTools(server);

@@ -5,6 +5,16 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.4] - 2026-10-13
+
+### For users
+
+- The MCP server now reports the real LogviewR version to MCP clients (it always announced `1.0.0`). Dashboards that read it, such as MyServices, show the correct version.
+
+### For developers
+
+- `server/mcp/buildServer.ts`: `serverInfo.version` is read once from `package.json` at module load (fallback `0.0.0`, silent so the stdio transport never writes to stdout), instead of the hardcoded `'1.0.0'`. Checked with an in-memory MCP client: `{"name":"logviewr","version":"0.15.3"}` before the bump.
+
 ## [0.15.3] - 2026-10-12
 
 ### For users
