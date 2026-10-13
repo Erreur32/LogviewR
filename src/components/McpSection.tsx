@@ -632,31 +632,20 @@ const TokensTab: React.FC = () => {
         }
     };
 
-    const revokeToken = async (id: number) => {
+    // Revoke an active token, or permanently delete an already revoked one.
+    const removeToken = async (id: number, permanent: boolean) => {
+        const keys = permanent
+            ? { ok: 'mcp.tokens.deleteSuccess', ko: 'mcp.tokens.deleteError' }
+            : { ok: 'mcp.tokens.revokeSuccess', ko: 'mcp.tokens.revokeError' };
         try {
-            const res = await api.delete<{ revoked: boolean }>(`/api/mcp/tokens/${id}`);
-            if (res.success) {
-                addAction(t('mcp.tokens.revokeSuccess'), true);
-                loadTokens();
-            } else {
-                addAction(t('mcp.tokens.revokeError'), false);
-            }
+            const res = await api.delete<{ ok?: boolean; revoked?: boolean }>(
+                permanent ? `/api/mcp/tokens/${id}/permanent` : `/api/mcp/tokens/${id}`
+            );
+            const done = res.success && (permanent ? res.result?.ok : true);
+            addAction(t(done ? keys.ok : keys.ko), !!done);
+            if (done) loadTokens();
         } catch {
-            addAction(t('mcp.tokens.revokeError'), false);
-        }
-    };
-
-    const deleteToken = async (id: number) => {
-        try {
-            const res = await api.delete<{ ok: boolean }>(`/api/mcp/tokens/${id}/permanent`);
-            if (res.success && res.result?.ok) {
-                addAction(t('mcp.tokens.deleteSuccess'), true);
-                loadTokens();
-            } else {
-                addAction(t('mcp.tokens.deleteError'), false);
-            }
-        } catch {
-            addAction(t('mcp.tokens.deleteError'), false);
+            addAction(t(keys.ko), false);
         }
     };
 
@@ -808,7 +797,7 @@ const TokensTab: React.FC = () => {
                                         </div>
                                     </div>
                                     <button
-                                        onClick={() => (isRevoked ? deleteToken(tok.id) : revokeToken(tok.id))}
+                                        onClick={() => removeToken(tok.id, isRevoked)}
                                         className="flex items-center gap-1.5 px-3 py-1.5 bg-red-900/20 hover:bg-red-900/40 text-red-400 text-xs rounded-lg transition-colors border border-red-800/40"
                                     >
                                         <Trash2 size={12} />
