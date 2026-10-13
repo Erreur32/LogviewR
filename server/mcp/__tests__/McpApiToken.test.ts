@@ -1,5 +1,5 @@
 /**
- * Tests for the MCP HTTP bearer token repository (create, hash, expiry, revocation, scope).
+ * Tests for the MCP HTTP bearer token repository (create, hash, expiry, revocation, deletion, scope).
  *
  * Uses Node.js built-in test runner (node:test + node:assert), in-memory SQLite.
  */
@@ -91,6 +91,17 @@ describe('McpApiTokenRepository', () => {
         const created = McpApiTokenRepository.create({ name: 'revoke-twice', scope: 'read', createdBy: 'admin' });
         assert.equal(McpApiTokenRepository.revoke(created.id), true);
         assert.equal(McpApiTokenRepository.revoke(created.id), false);
+    });
+
+    it('deleteRevoked refuses an active token and removes a revoked one', () => {
+        const created = McpApiTokenRepository.create({ name: 'delete-me', scope: 'read', createdBy: 'admin' });
+        assert.equal(McpApiTokenRepository.deleteRevoked(created.id), false);
+        assert.equal(McpApiTokenRepository.list().length, 1);
+
+        McpApiTokenRepository.revoke(created.id);
+        assert.equal(McpApiTokenRepository.deleteRevoked(created.id), true);
+        assert.equal(McpApiTokenRepository.list().length, 0);
+        assert.equal(McpApiTokenRepository.deleteRevoked(created.id), false);
     });
 
     it('neverExpires stores no expiry and the token stays valid', () => {

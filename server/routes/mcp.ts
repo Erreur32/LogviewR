@@ -33,7 +33,6 @@ import { approvePendingAction, rejectPendingAction } from '../mcp/pendingApprova
 import { resolveClientIp } from '../utils/clientIp.js';
 import { McpActionAuditRepository, type McpAuditResult } from '../database/models/McpActionAudit.js';
 import { McpApiTokenRepository, MCP_TOKEN_MAX_EXPIRY_DAYS, type McpTokenScope } from '../database/models/McpApiToken.js';
-import { attackCorrelationService } from '../services/attackCorrelationService.js';
 import { logger } from '../utils/logger.js';
 
 const router = Router();
@@ -135,13 +134,6 @@ router.get('/audit', asyncHandler(async (req: AuthenticatedRequest, res) => {
     res.json({ success: true, result: { entries, total, limit, offset } });
 }));
 
-// GET /api/mcp/threats
-router.get('/threats', asyncHandler(async (req: AuthenticatedRequest, res) => {
-    const windowHours = Number.parseFloat(req.query.windowHours as string) || 6;
-    const clusters = await attackCorrelationService.getActiveThreats(windowHours);
-    res.json({ success: true, result: { windowHours, clusters } });
-}));
-
 // GET /api/mcp/http-config
 router.get('/http-config', asyncHandler(async (_req: AuthenticatedRequest, res) => {
     res.json({
@@ -222,6 +214,18 @@ router.delete('/tokens/:id', asyncHandler(async (req: AuthenticatedRequest, res)
     }
     const revoked = McpApiTokenRepository.revoke(id);
     res.json({ success: true, result: { revoked } });
+}));
+
+// DELETE /api/mcp/tokens/:id/permanent
+// Removes the row of an already revoked token (an active one must be revoked first).
+router.delete('/tokens/:id/permanent', asyncHandler(async (req: AuthenticatedRequest, res) => {
+    const id = Number.parseInt(req.params.id, 10);
+    if (Number.isNaN(id)) {
+        res.json({ success: true, result: { ok: false, error: 'Invalid token id.' } });
+        return;
+    }
+    const deleted = McpApiTokenRepository.deleteRevoked(id);
+    res.json({ success: true, result: { ok: deleted, error: deleted ? undefined : 'Token not found or not revoked.' } });
 }));
 
 export default router;

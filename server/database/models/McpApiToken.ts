@@ -111,6 +111,14 @@ export class McpApiTokenRepository {
         return result.changes > 0;
     }
 
+    /** Permanently deletes a token, only once it has been revoked, so an active token can't be removed by mistake. */
+    static deleteRevoked(id: number): boolean {
+        const db = getDatabase();
+        const result = db.prepare('DELETE FROM mcp_api_tokens WHERE id = ? AND revoked_at IS NOT NULL').run(id);
+        checkpointWAL();
+        return result.changes > 0;
+    }
+
     static touchLastUsed(id: number): void {
         try {
             const db = getDatabase();
