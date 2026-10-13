@@ -5,6 +5,21 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.5] - 2026-10-13
+
+### For users
+
+- Settings → MCP → Jetons d'accès: a revoked token now shows a "Supprimer" button that removes it for good. Active tokens still have to be revoked first.
+- The secret of a newly created MCP token is masked by default, an eye button shows or hides it. "Copier" works in both states. Existing tokens cannot be shown again (only a hash is stored).
+- Settings → MCP: the "Menaces actives" sub-tab is removed. Agents still get the same detection through the `f2b_get_active_threats` tool and the `logviewr://mcp/threats/{windowHours}` resource.
+
+### For developers
+
+- `McpApiTokenRepository.deleteRevoked(id)` + `DELETE /api/mcp/tokens/:id/permanent`: deletes only rows with `revoked_at` set, answers `{ ok: false, error }` otherwise.
+- Removed `GET /api/mcp/threats` (only used by the removed sub-tab) and the `mcp.threats` / `mcp.subTabs.threats` i18n keys.
+- `McpSection.tsx`: revoke and delete share one `removeToken(id, permanent)` handler.
+- Test: `deleteRevoked` refuses an active token and removes a revoked one. `Docs/MCP_SERVER.md` updated.
+
 ## [0.15.4] - 2026-10-13
 
 ### For users

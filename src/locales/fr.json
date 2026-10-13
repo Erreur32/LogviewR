@@ -425,7 +425,7 @@
   },
   "mcp": {
     "title": "Serveur MCP",
-    "description": "Pilotez le serveur MCP (Model Context Protocol) de LogviewR : activation, statut, journal d'audit et menaces actives détectées.",
+    "description": "Pilotez le serveur MCP (Model Context Protocol) de LogviewR : activation, statut, jetons d'accès et journal d'audit.",
     "saveSuccess": "Configuration MCP sauvegardée avec succès",
     "saveError": "Erreur lors de la sauvegarde de la configuration MCP",
     "loadError": "Erreur lors du chargement du statut MCP",
@@ -433,7 +433,6 @@
       "overview": "Vue d'ensemble",
       "tokens": "Jetons d'accès",
       "audit": "Audit",
-      "threats": "Menaces actives",
       "approvals": "Approbations"
     },
     "overview": {
@@ -503,7 +502,12 @@
       "revokeSuccess": "Jeton révoqué",
       "revokeError": "Erreur lors de la révocation du jeton",
       "revoked": "Révoqué",
-      "expired": "Expiré"
+      "expired": "Expiré",
+      "deleteButton": "Supprimer",
+      "deleteSuccess": "Jeton supprimé définitivement",
+      "deleteError": "Erreur lors de la suppression du jeton",
+      "showToken": "Afficher le jeton",
+      "hideToken": "Masquer le jeton"
     },
     "audit": {
       "title": "Journal d'audit des actions MCP",
@@ -532,14 +536,6 @@
       "resultRejectedPendingLimit": "File d'attente pleine",
       "resultRejectedByAdmin": "Refusé par un admin",
       "resultPendingApproval": "En attente de validation"
-    },
-    "threats": {
-      "title": "Menaces actives détectées",
-      "windowLabel": "Fenêtre d'analyse",
-      "empty": "Aucune menace active détectée sur cette période",
-      "ipsLabel": "IPs",
-      "jailsLabel": "Jails",
-      "orgLabel": "Organisation"
     },
     "approvals": {
       "pendingTitle": "Actions en attente de validation",

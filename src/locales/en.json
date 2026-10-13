@@ -425,7 +425,7 @@
   },
   "mcp": {
     "title": "MCP server",
-    "description": "Control LogviewR's MCP (Model Context Protocol) server: enable/disable, status, audit log, and detected active threats.",
+    "description": "Control LogviewR's MCP (Model Context Protocol) server: enable/disable, status, access tokens and audit log.",
     "saveSuccess": "MCP configuration saved successfully",
     "saveError": "Error saving MCP configuration",
     "loadError": "Error loading MCP status",
@@ -433,7 +433,6 @@
       "overview": "Overview",
       "tokens": "Access tokens",
       "audit": "Audit",
-      "threats": "Active threats",
       "approvals": "Approvals"
     },
     "overview": {
@@ -503,7 +502,12 @@
       "revokeSuccess": "Token revoked",
       "revokeError": "Error revoking token",
       "revoked": "Revoked",
-      "expired": "Expired"
+      "expired": "Expired",
+      "deleteButton": "Delete",
+      "deleteSuccess": "Token permanently deleted",
+      "deleteError": "Error while deleting the token",
+      "showToken": "Show token",
+      "hideToken": "Hide token"
     },
     "audit": {
       "title": "MCP action audit log",
@@ -532,14 +536,6 @@
       "resultRejectedPendingLimit": "Approval queue full",
       "resultRejectedByAdmin": "Rejected by admin",
       "resultPendingApproval": "Awaiting approval"
-    },
-    "threats": {
-      "title": "Detected active threats",
-      "windowLabel": "Analysis window",
-      "empty": "No active threats detected in this window",
-      "ipsLabel": "IPs",
-      "jailsLabel": "Jails",
-      "orgLabel": "Organization"
     },
     "approvals": {
       "pendingTitle": "Actions awaiting approval",

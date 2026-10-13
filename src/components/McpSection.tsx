@@ -3,7 +3,7 @@
  *
  * Admin panel for LogviewR's MCP (Model Context Protocol) server: enable
  * toggle, write-action policy, human approval queue, derived status/heartbeat,
- * audit trail viewer, active threats.
+ * audit trail viewer, API tokens.
  *
  * The MCP process itself is a separate stdio process launched by the user's
  * MCP client (Claude Code/Desktop) — this panel can only flip the
@@ -13,13 +13,13 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Bot, Loader2, RefreshCw, CheckCircle, XCircle, AlertTriangle, Info, ShieldAlert, BookOpen, Key, Copy, Trash2, Globe, PenLine } from 'lucide-react';
+import { Bot, Loader2, RefreshCw, CheckCircle, XCircle, AlertTriangle, Info, ShieldAlert, BookOpen, Key, Copy, Eye, EyeOff, Trash2, Globe, PenLine } from 'lucide-react';
 import { Section, SettingRow } from './SettingsSection';
 import { api } from '../api/client';
 import { useNotificationStore } from '../stores/notificationStore';
 import { McpApprovalsTab } from './McpApprovalsTab';
 
-type McpSubTab = 'overview' | 'approvals' | 'audit' | 'threats' | 'tokens';
+type McpSubTab = 'overview' | 'approvals' | 'audit' | 'tokens';
 
 interface McpStatus {
     enabled: boolean;
@@ -47,15 +47,6 @@ interface McpAuditEntry {
     result: string;
     errorMessage?: string | null;
     createdAt: number;
-}
-
-interface McpThreatCluster {
-    type: string;
-    ips: string[];
-    jails: string[];
-    org?: string;
-    severity?: string;
-    [key: string]: unknown;
 }
 
 type McpTokenScope = 'read' | 'read_write';
@@ -594,6 +585,7 @@ const TokensTab: React.FC = () => {
     const [createError, setCreateError] = useState<string | null>(null);
     const [newToken, setNewToken] = useState<string | null>(null);
     const [copied, setCopied] = useState(false);
+    const [tokenVisible, setTokenVisible] = useState(false);
 
     const loadTokens = useCallback(async () => {
         setLoading(true);
@@ -626,6 +618,7 @@ const TokensTab: React.FC = () => {
             });
             if (res.success && res.result?.ok && res.result.token) {
                 setNewToken(res.result.token.token);
+                setTokenVisible(false);
                 setName('');
                 addAction(t('mcp.tokens.createSuccess'), true);
                 loadTokens();
@@ -639,17 +632,20 @@ const TokensTab: React.FC = () => {
         }
     };
 
-    const revokeToken = async (id: number) => {
+    // Revoke an active token, or permanently delete an already revoked one.
+    const removeToken = async (id: number, permanent: boolean) => {
+        const keys = permanent
+            ? { ok: 'mcp.tokens.deleteSuccess', ko: 'mcp.tokens.deleteError' }
+            : { ok: 'mcp.tokens.revokeSuccess', ko: 'mcp.tokens.revokeError' };
         try {
-            const res = await api.delete<{ revoked: boolean }>(`/api/mcp/tokens/${id}`);
-            if (res.success) {
-                addAction(t('mcp.tokens.revokeSuccess'), true);
-                loadTokens();
-            } else {
-                addAction(t('mcp.tokens.revokeError'), false);
-            }
+            const res = await api.delete<{ ok?: boolean; revoked?: boolean }>(
+                permanent ? `/api/mcp/tokens/${id}/permanent` : `/api/mcp/tokens/${id}`
+            );
+            const done = res.success && (permanent ? res.result?.ok : true);
+            addAction(t(done ? keys.ok : keys.ko), !!done);
+            if (done) loadTokens();
         } catch {
-            addAction(t('mcp.tokens.revokeError'), false);
+            addAction(t(keys.ko), false);
         }
     };
 
@@ -673,8 +669,16 @@ const TokensTab: React.FC = () => {
                         <p className="text-xs text-gray-400">{t('mcp.tokens.newTokenWarning')}</p>
                         <div className="flex items-center gap-2">
                             <code className="flex-1 px-3 py-2 bg-[#0d1117] border border-gray-700 rounded-lg text-xs text-emerald-300 font-mono break-all">
-                                {newToken}
+                                {tokenVisible ? newToken : '•'.repeat(newToken.length)}
                             </code>
+                            <button
+                                onClick={() => setTokenVisible((v) => !v)}
+                                title={tokenVisible ? t('mcp.tokens.hideToken') : t('mcp.tokens.showToken')}
+                                aria-label={tokenVisible ? t('mcp.tokens.hideToken') : t('mcp.tokens.showToken')}
+                                className="flex items-center px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white text-xs rounded-lg transition-colors"
+                            >
+                                {tokenVisible ? <EyeOff size={12} /> : <Eye size={12} />}
+                            </button>
                             <button
                                 onClick={copyToken}
                                 className="flex items-center gap-1.5 px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white text-xs rounded-lg transition-colors whitespace-nowrap"
@@ -792,15 +796,13 @@ const TokensTab: React.FC = () => {
                                             {t('mcp.tokens.columnLastUsed')}: {tok.lastUsedAt ? formatDate(tok.lastUsedAt) : t('mcp.tokens.lastUsedNever')}
                                         </div>
                                     </div>
-                                    {!isRevoked && (
-                                        <button
-                                            onClick={() => revokeToken(tok.id)}
-                                            className="flex items-center gap-1.5 px-3 py-1.5 bg-red-900/20 hover:bg-red-900/40 text-red-400 text-xs rounded-lg transition-colors border border-red-800/40"
-                                        >
-                                            <Trash2 size={12} />
-                                            {t('mcp.tokens.revokeButton')}
-                                        </button>
-                                    )}
+                                    <button
+                                        onClick={() => removeToken(tok.id, isRevoked)}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-red-900/20 hover:bg-red-900/40 text-red-400 text-xs rounded-lg transition-colors border border-red-800/40"
+                                    >
+                                        <Trash2 size={12} />
+                                        {isRevoked ? t('mcp.tokens.deleteButton') : t('mcp.tokens.revokeButton')}
+                                    </button>
                                 </div>
                             );
                         })}
@@ -808,90 +810,6 @@ const TokensTab: React.FC = () => {
                 )}
             </Section>
         </div>
-    );
-};
-
-const ThreatsTab: React.FC = () => {
-    const { t } = useTranslation();
-    const { addAction } = useNotificationStore();
-    const [clusters, setClusters] = useState<McpThreatCluster[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [windowHours, setWindowHours] = useState(6);
-
-    const loadThreats = useCallback(async () => {
-        setLoading(true);
-        try {
-            const res = await api.get<{ clusters: McpThreatCluster[] }>(`/api/mcp/threats?windowHours=${windowHours}`);
-            if (res.success && res.result) setClusters(res.result.clusters);
-        } catch {
-            addAction(t('mcp.loadError'), false);
-        } finally {
-            setLoading(false);
-        }
-    }, [windowHours, addAction, t]);
-
-    useEffect(() => { loadThreats(); }, [loadThreats]);
-
-    return (
-        <Section title={t('mcp.threats.title')} icon={ShieldAlert} iconColor="red">
-            <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-400">{t('mcp.threats.windowLabel')}</span>
-                    <select
-                        value={windowHours}
-                        onChange={(e) => setWindowHours(Number.parseInt(e.target.value, 10) || 6)}
-                        className="px-3 py-1.5 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-xs focus:outline-none focus:border-red-500"
-                    >
-                        {[1, 6, 12, 24, 48].map((h) => (
-                            <option key={h} value={h}>{h}h</option>
-                        ))}
-                    </select>
-                    <button
-                        onClick={loadThreats}
-                        disabled={loading}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-xs rounded-lg transition-colors disabled:opacity-50 ml-auto"
-                    >
-                        <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
-                        <span>{t('security.refresh')}</span>
-                    </button>
-                </div>
-
-                {loading ? (
-                    <div className="flex items-center justify-center py-12">
-                        <Loader2 size={24} className="text-gray-400 animate-spin" />
-                    </div>
-                ) : clusters.length === 0 ? (
-                    <div className="text-center py-8 text-gray-500">
-                        <CheckCircle size={28} className="text-green-400 mx-auto mb-2" />
-                        <p className="text-sm">{t('mcp.threats.empty')}</p>
-                    </div>
-                ) : (
-                    <div className="space-y-2 max-h-[500px] overflow-y-auto">
-                        {clusters.map((cluster, idx) => (
-                            <div key={idx} className="p-3 bg-red-950/20 rounded-lg border border-red-800/40">
-                                <div className="flex items-center gap-2 mb-1">
-                                    <AlertTriangle size={14} className="text-red-400" />
-                                    <span className="text-sm font-medium text-red-300">{cluster.type}</span>
-                                    {cluster.org && (
-                                        <span className="text-xs px-2 py-0.5 bg-red-900/30 text-red-400 rounded">
-                                            {cluster.org}
-                                        </span>
-                                    )}
-                                </div>
-                                <div className="text-xs text-gray-400">
-                                    {t('mcp.threats.ipsLabel')}: {cluster.ips.join(', ')}
-                                </div>
-                                {cluster.jails.length > 0 && (
-                                    <div className="text-xs text-gray-500 mt-0.5">
-                                        {t('mcp.threats.jailsLabel')}: {cluster.jails.join(', ')}
-                                    </div>
-                                )}
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </div>
-        </Section>
     );
 };
 
@@ -914,7 +832,6 @@ export const McpSection: React.FC = () => {
         { id: 'approvals', label: t('mcp.subTabs.approvals') },
         { id: 'tokens', label: t('mcp.subTabs.tokens') },
         { id: 'audit', label: t('mcp.subTabs.audit') },
-        { id: 'threats', label: t('mcp.subTabs.threats') },
     ];
 
     return (
@@ -944,7 +861,6 @@ export const McpSection: React.FC = () => {
             {subTab === 'approvals' && <McpApprovalsTab onCountChange={setPendingCount} />}
             {subTab === 'tokens' && <TokensTab />}
             {subTab === 'audit' && <AuditTab />}
-            {subTab === 'threats' && <ThreatsTab />}
         </div>
     );
 };
