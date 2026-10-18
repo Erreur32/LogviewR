@@ -5,6 +5,17 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.0] - 2026-10-18
+
+### For users
+
+- New read-only MCP tool `log_list_files`: lists log files with their size, largest first. Optional filters: one plugin, minimum size, result limit (default 20, max 100).
+
+### For developers
+
+- `server/services/logFileListService.ts`: scan + compressed-file filter extracted from `GET /api/log-viewer/plugins/:pluginId/files`, now shared with the route (same sizes, no content read).
+- `server/mcp/tools/logFileTools.ts`: `log_list_files`, behind `withMcpGuard` like the other read tools. Tests in `server/mcp/__tests__/logFileTools.test.ts` (sort, limit, minSizeBytes, unknown plugin, merge). `Docs/MCP_SERVER.md` updated.
+
 ## [0.15.5] - 2026-10-13
 
 ### For users

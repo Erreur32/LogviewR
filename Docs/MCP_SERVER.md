@@ -189,7 +189,7 @@ Toggling **"Serveur MCP activé"** off in **Settings → MCP → Vue d'ensemble*
 | 4 write tools (`f2b_ban_ip`, `f2b_unban_ip`, `f2b_jail_start`, `f2b_jail_stop`) | via `runGatedAction` |
 | `mcp_pending_status` | via `withMcpGuard` |
 | 6 read tools (`f2b_list_jails`, `f2b_jail_status`, `f2b_get_metrics`, `f2b_get_ban_history`, `f2b_lookup_ip`, `f2b_get_active_threats`) | via `withMcpGuard` |
-| 2 log-search tools (`log_search`, `log_list_sources`) | via `withMcpGuard` |
+| 3 log tools (`log_search`, `log_list_sources`, `log_list_files`) | via `withMcpGuard` |
 | 2 MCP resources (`logviewr://mcp/audit/recent`, `logviewr://mcp/threats/{windowHours}`) | via `assertMcpEnabled()` |
 | Entire `/mcp` HTTP endpoint | via `requireMcpToken`, rejects before any tool runs |
 
@@ -211,6 +211,7 @@ To disable **only** the HTTP transport while leaving stdio and the local admin p
 | `f2b_get_active_threats` | Currently active threat clusters (IP escalation / ASN campaigns). | `windowHours?` (max 168, default 6) |
 | `log_list_sources` | List configured log sources (plugin IDs, paths) — use to discover valid `pluginIds` before `log_search`. | — |
 | `log_search` | Search across configured log sources — mirrors the web UI's "search all logs". | `query: string`, `pluginIds?`, `caseSensitive?`, `useRegex?`, `maxResults?` (max 500) |
+| `log_list_files` | List log files with their size, largest first (same source as `GET /api/log-viewer/plugins/:pluginId/files`, file contents are not read). Without `pluginId`, merges all enabled plugins. Returns `{ pluginId, path, type, size (bytes), modified (ISO 8601) }[]`. Unknown plugin: error. | `pluginId?`, `minSizeBytes?`, `limit?` (default 20, max 100) |
 
 `log_search`, `f2b_lookup_ip` and `f2b_get_active_threats` return their JSON prefixed by an **untrusted data notice** (a separate text block), since log lines, User-Agents, URLs, reverse DNS and whois fields are written by third parties.
 

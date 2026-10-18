@@ -29,6 +29,7 @@ import { getHybridAnalytics } from '../services/logAnalyticsHybridService.js';
 import { getErrorSummaryWithMeta, getErrorSummaryProgress, invalidateErrorSummaryCache, analyzeSingleFile } from '../services/errorSummaryService.js';
 import { getErrorAnalysisConfig } from '../config/errorAnalysisConfig.js';
 import { searchAllLogs } from '../services/logSearchService.js';
+import { getConfiguredBasePath, listPluginLogFiles } from '../services/logFileListService.js';
 
 const router = Router();
 /**
@@ -118,12 +119,7 @@ function getEffectiveBasePath(
         validatePathSafe(p);
         return p;
     }
-    const pluginConfig = PluginConfigRepository.findByPluginId(pluginId);
-    const configured = pluginConfig?.settings?.basePath;
-    if (configured && typeof configured === 'string' && configured.trim()) {
-        return configured.trim();
-    }
-    return plugin.getDefaultBasePath();
+    return getConfiguredBasePath(pluginId, plugin);
 }
 
 /**
@@ -149,43 +145,24 @@ router.get('/plugins/:pluginId/files', async (req, res) => {
             return res.status(400).json({ error: `Plugin ${pluginId} does not implement LogSourcePlugin` });
         }
 
-        // Get readCompressed setting from plugin configuration
-        const pluginConfig = PluginConfigRepository.findByPluginId(pluginId);
-        const readCompressed = (pluginConfig?.settings?.readCompressed as boolean) ?? false;
-
         // Use base path from query, then from saved plugin config, then plugin default
         const actualBasePath = getEffectiveBasePath(pluginId, plugin, basePath as string);
-        const actualPatterns = patterns 
-            ? (Array.isArray(patterns) ? patterns as string[] : [patterns as string])
-            : plugin.getDefaultFilePatterns();
-
-        // Scan for log files
-        const allFiles = await plugin.scanLogFiles(actualBasePath, actualPatterns);
-
-        // Helper function to check if a file is compressed
-        const isCompressedFile = (path: string): boolean => {
-            return /\.(gz|bz2|xz)$/i.test(path);
-        };
-
-        // If quick mode, only process non-compressed files for fast response
-        // If readCompressed is disabled, exclude .gz files anyway
-        let files: typeof allFiles;
-        if (quick === 'true') {
-            // Quick mode: only non-compressed files
-            files = allFiles.filter(file => !isCompressedFile(file.path));
-        } else if (!readCompressed) {
-            // Normal mode but readCompressed disabled: exclude .gz files
-            files = allFiles.filter(file => !isCompressedFile(file.path));
-        } else {
-            // Normal mode with readCompressed enabled: include all files
-            files = allFiles;
+        let requestedPatterns: string[] | undefined;
+        if (patterns) {
+            requestedPatterns = Array.isArray(patterns) ? patterns as string[] : [patterns as string];
         }
+
+        const listing = await listPluginLogFiles(pluginId, plugin, {
+            basePath: actualBasePath,
+            patterns: requestedPatterns,
+            quick: quick === 'true'
+        });
 
         res.json({
             pluginId,
-            basePath: actualBasePath,
-            patterns: actualPatterns,
-            files: files.map(file => ({
+            basePath: listing.basePath,
+            patterns: listing.patterns,
+            files: listing.files.map(file => ({
                 path: file.path,
                 type: file.type,
                 size: file.size,
