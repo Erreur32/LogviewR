@@ -5,6 +5,16 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.2] - 2026-10-22
+
+### For users
+
+- Security: the Docker image is rebuilt on Node.js 22.23.4, which fixes CVE-2026-111497 (out-of-bounds write in the Brotli decoder, reachable through `fetch()` and the Express 5 JSON body parser). No functional change. Pull the new image and recreate the container to get the fix.
+
+### For developers
+
+- No code change. `Dockerfile` still uses `node:22-alpine` (builder and runtime), which now resolves to 22.23.4; this release only triggers a fresh image build. `.nvmrc` (`22`) and CI `node-version-file` do not pin a vulnerable patch version, and `package.json` has no `engines` field.
+
 ## [0.16.1] - 2026-10-22
 
 ### For users
