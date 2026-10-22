@@ -5,6 +5,19 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.1] - 2026-10-22
+
+### For users
+
+- Settings → Plugins: every change in the plugin editor is now saved automatically, including the base path, the access/error log patterns and the excluded IPs (they used to wait for the "Sauvegarder" button). A status line shows when changes are being saved, saved, or not saved. Regexes still have their own "Sauvegarder" button.
+- The "Sauvegarder" button only appears while a change is waiting to be saved or after a failed save. A pending change is also saved when the panel is closed.
+
+### For developers
+
+- `PluginOptionsPanel.tsx`: the five copied debounce/save blocks are replaced by `scheduleSave()` + `saveNow()` + `buildSettings()`. The latest form, log files and exclude filters are read from refs, so a debounced save never sends stale state. Excluded IPs are always sent as an array (the old toggle auto-save sent the raw string). `enabled` is no longer sent with settings saves, the server keeps the current value.
+- The form is initialized once per plugin, so the store refresh after an auto-save no longer overwrites what is being typed.
+- New i18n keys `pluginConfig.autoSaving`, `autoSaved`, `autoSaveError`, `autoSaveHint`.
+
 ## [0.16.0] - 2026-10-18
 
 ### For users

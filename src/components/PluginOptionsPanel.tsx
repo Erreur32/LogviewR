@@ -189,9 +189,14 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
         excludedIps: ''
     });
 
-    // Initialize form with plugin settings or defaults
+    // Initialize form with plugin settings or defaults, once per plugin: afterwards the form is
+    // the source of truth, so the store refresh after an auto-save never overwrites what is being typed
+    const initializedForRef = useRef<string | null>(null);
     useEffect(() => {
-        if (plugin && plugin.settings) {
+        if (!plugin || initializedForRef.current === pluginId) return;
+        initializedForRef.current = pluginId;
+        savedBasePathRef.current = String(plugin.settings?.basePath ?? '');
+        if (plugin.settings) {
             if (isLogSourcePlugin) {
                 const defaults = getDefaultValues();
                 const excludedIpsRaw = plugin.settings.excludedIps;
@@ -540,48 +545,35 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
         }
     };
 
-    // Auto-save helper with debounce
-    const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-    
-    // Ref to store latest formData for autoSave callback
+    // Auto-save: every config change is persisted after a short debounce.
+    // Regexes are the exception, they keep their own explicit "Sauvegarder" button.
+    const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
+    const autoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    // Bumped on every scheduled save, so a save finishing during new edits doesn't report "saved"
+    const editVersionRef = useRef(0);
+    const savedBasePathRef = useRef<string>('');
+    const saveNowRef = useRef<(() => Promise<boolean>) | null>(null);
+
+    // Refs hold the latest values so the debounced save never sends stale state
     const formDataRef = useRef(formData);
+    const logFilesRef = useRef(logFiles);
+    const excludeFiltersRef = useRef(excludeFilters);
     useEffect(() => {
         formDataRef.current = formData;
-    }, [formData]);
+        logFilesRef.current = logFiles;
+        excludeFiltersRef.current = excludeFilters;
+    }, [formData, logFiles, excludeFilters]);
 
-    const autoSave = async (skipValidation: boolean = false) => {
-        // Clear existing timeout
-        if (autoSaveTimeoutRef.current) {
-            clearTimeout(autoSaveTimeoutRef.current);
-        }
-        
-        // Set new timeout for debounce (500ms)
-        autoSaveTimeoutRef.current = setTimeout(async () => {
-            try {
-                // Use ref to get latest formData values (avoids closure issues)
-                const currentFormData = formDataRef.current;
-                
-                // Skip validation for auto-save (only validate on manual test)
-                const settings = { ...currentFormData };
-                if (isLogSourcePlugin) {
-                    (settings as any).logFiles = logFiles;
-                    // Save exclude filters
-                    const hasFilters = excludeFilters.files?.length || excludeFilters.directories?.length || excludeFilters.paths?.length;
-                    if (hasFilters) {
-                        (settings as any).excludeFilters = excludeFilters;
-                    }
-                }
-                
-                await updatePluginConfig(pluginId, {
-                    enabled: plugin?.enabled ?? false,
-                    settings
-                });
-                // Force refresh to update component state
-                await fetchPlugins(true);
-            } catch (error) {
-                console.error('Auto-save failed:', error);
-            }
-        }, 500);
+    // Flush a pending save when the panel closes
+    useEffect(() => () => {
+        if (autoSaveTimeoutRef.current) void saveNowRef.current?.();
+    }, []);
+
+    const scheduleSave = (delay = 500) => {
+        if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current);
+        editVersionRef.current += 1;
+        setSaveStatus('pending');
+        autoSaveTimeoutRef.current = setTimeout(() => { void saveNowRef.current?.(); }, delay);
     };
 
     // NPM SQLite detection
@@ -647,8 +639,8 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
 
                 addAction(
                     fail2banUpdated
-                        ? 'NPM détecté — basePath + fail2ban.npmDataPath mis à jour. Pensez à sauvegarder la config NPM.'
-                        : 'NPM détecté — basePath mis à jour. Pensez à sauvegarder la config NPM.',
+                        ? 'NPM détecté — basePath + fail2ban.npmDataPath mis à jour.'
+                        : 'NPM détecté — basePath mis à jour.',
                     true,
                 );
             } else if (result) {
@@ -661,31 +653,9 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
         finally { setNpmLayoutDetecting(false); }
     };
 
-    // Helper to auto-save exclude filters
-    const autoSaveExcludeFilters = async (newFilters: typeof excludeFilters) => {
-        if (autoSaveTimeoutRef.current) {
-            clearTimeout(autoSaveTimeoutRef.current);
-        }
-        autoSaveTimeoutRef.current = setTimeout(async () => {
-            try {
-                const settings = { ...formData } as Record<string, unknown>;
-                if (pluginId === 'nginx' || pluginId === 'apache' || pluginId === 'npm') {
-                    const raw = String(formData.excludedIps ?? '').trim();
-                    settings.excludedIps = raw ? raw.split(/[\n,;]+/).map((s: string) => s.trim()).filter(Boolean) : [];
-                }
-                if (isLogSourcePlugin) {
-                    (settings as any).logFiles = logFiles;
-                    (settings as any).excludeFilters = newFilters;
-                }
-                await updatePluginConfig(pluginId, {
-                    enabled: plugin?.enabled ?? false,
-                    settings
-                });
-                await fetchPlugins();
-            } catch (error) {
-                console.error('Auto-save exclude filters failed:', error);
-            }
-        }, 500);
+    const autoSaveExcludeFilters = (newFilters: typeof excludeFilters) => {
+        excludeFiltersRef.current = newFilters;
+        scheduleSave();
     };
 
     const addLogFile = async (file: { path: string; type: string; enabled: boolean }, elementRef?: HTMLElement | null) => {
@@ -698,33 +668,8 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
         // Show notification
         showInlineNotification(t('pluginOptions.fileAdded', { name: file.path.split('/').pop() }), elementRef);
         
-        // Auto-save with new logFiles
-        if (autoSaveTimeoutRef.current) {
-            clearTimeout(autoSaveTimeoutRef.current);
-        }
-        autoSaveTimeoutRef.current = setTimeout(async () => {
-            try {
-                const settings = { ...formData } as Record<string, unknown>;
-                if (pluginId === 'nginx' || pluginId === 'apache' || pluginId === 'npm') {
-                    const raw = String(formData.excludedIps ?? '').trim();
-                    settings.excludedIps = raw ? raw.split(/[\n,;]+/).map((s: string) => s.trim()).filter(Boolean) : [];
-                }
-                if (isLogSourcePlugin) {
-                    (settings as any).logFiles = newLogFiles;
-                    const hasFilters = excludeFilters.files?.length || excludeFilters.directories?.length || excludeFilters.paths?.length;
-                    if (hasFilters) {
-                        (settings as any).excludeFilters = excludeFilters;
-                    }
-                }
-                await updatePluginConfig(pluginId, {
-                    enabled: plugin?.enabled ?? false,
-                    settings
-                });
-                await fetchPlugins();
-            } catch (error) {
-                console.error('Auto-save failed:', error);
-            }
-        }, 500);
+        logFilesRef.current = newLogFiles;
+        scheduleSave();
     };
 
     const removeLogFile = async (path: string, elementRef?: HTMLElement | null) => {
@@ -734,33 +679,8 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
         // Show notification
         showInlineNotification(t('pluginOptions.fileRemoved', { name: path.split('/').pop() }), elementRef);
         
-        // Auto-save with new logFiles
-        if (autoSaveTimeoutRef.current) {
-            clearTimeout(autoSaveTimeoutRef.current);
-        }
-        autoSaveTimeoutRef.current = setTimeout(async () => {
-            try {
-                const settings = { ...formData } as Record<string, unknown>;
-                if (pluginId === 'nginx' || pluginId === 'apache' || pluginId === 'npm') {
-                    const raw = String(formData.excludedIps ?? '').trim();
-                    settings.excludedIps = raw ? raw.split(/[\n,;]+/).map((s: string) => s.trim()).filter(Boolean) : [];
-                }
-                if (isLogSourcePlugin) {
-                    (settings as any).logFiles = newLogFiles;
-                    const hasFilters = excludeFilters.files?.length || excludeFilters.directories?.length || excludeFilters.paths?.length;
-                    if (hasFilters) {
-                        (settings as any).excludeFilters = excludeFilters;
-                    }
-                }
-                await updatePluginConfig(pluginId, {
-                    enabled: plugin?.enabled ?? false,
-                    settings
-                });
-                await fetchPlugins();
-            } catch (error) {
-                console.error('Auto-save failed:', error);
-            }
-        }, 500);
+        logFilesRef.current = newLogFiles;
+        scheduleSave();
     };
 
     const toggleLogFile = async (path: string, elementRef?: HTMLElement | null) => {
@@ -775,33 +695,8 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
         const fileName = path.split('/').pop() || path;
         showInlineNotification(newEnabled ? t('pluginOptions.fileEnabled', { name: fileName }) : t('pluginOptions.fileDisabled', { name: fileName }), elementRef);
         
-        // Auto-save with new logFiles
-        if (autoSaveTimeoutRef.current) {
-            clearTimeout(autoSaveTimeoutRef.current);
-        }
-        autoSaveTimeoutRef.current = setTimeout(async () => {
-            try {
-                const settings = { ...formData } as Record<string, unknown>;
-                if (pluginId === 'nginx' || pluginId === 'apache' || pluginId === 'npm') {
-                    const raw = String(formData.excludedIps ?? '').trim();
-                    settings.excludedIps = raw ? raw.split(/[\n,;]+/).map((s: string) => s.trim()).filter(Boolean) : [];
-                }
-                if (isLogSourcePlugin) {
-                    (settings as any).logFiles = newLogFiles;
-                    const hasFilters = excludeFilters.files?.length || excludeFilters.directories?.length || excludeFilters.paths?.length;
-                    if (hasFilters) {
-                        (settings as any).excludeFilters = excludeFilters;
-                    }
-                }
-                await updatePluginConfig(pluginId, {
-                    enabled: plugin?.enabled ?? false,
-                    settings
-                });
-                await fetchPlugins();
-            } catch (error) {
-                console.error('Auto-save failed:', error);
-            }
-        }, 500);
+        logFilesRef.current = newLogFiles;
+        scheduleSave();
     };
 
     const addFromDefault = (file: { path: string; type: string; enabled: boolean }, elementRef?: HTMLElement | null) => {
@@ -847,116 +742,107 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
         }, 2000);
     };
 
-    const handleInputChange = async (field: string, value: string | number | boolean, elementRef?: HTMLElement | null) => {
-        // Update form data first
+    const handleInputChange = (field: string, value: string | number | boolean, elementRef?: HTMLElement | null) => {
         setFormData(prev => ({ ...prev, [field]: value }));
         setTestResult(null);
-        
-        // Auto-save logic:
-        // - readCompressed: Auto-save (toggle)
-        // - maxLines: Auto-save (toggle or number input)
-        // - basePath, accessLogPattern, errorLogPattern: NO auto-save (wait for "Enregistrer" or "Valider")
-        // - logFiles (add/remove/toggle): Auto-save via their own functions
-        // - excludeFilters: Auto-save via autoSaveExcludeFilters
-        
+        // fail2ban persists its own settings (Fail2banPathConfig)
+        if (pluginId === 'fail2ban') return;
+
         if (field === 'readCompressed' || field === 'maxLines') {
-            // Auto-save for toggles and number inputs
+            scheduleSave();
             const fieldLabels: Record<string, string> = {
                 maxLines: t('pluginOptions.maxLinesLabel'),
                 readCompressed: t('pluginOptions.readCompressedLabel')
             };
-            
-            // Use updated formData in autoSave
-            await autoSave();
-            const fieldLabel = fieldLabels[field] || field;
-            showInlineNotification(`${fieldLabel} ${t('pluginOptions.saved')}`, elementRef);
+            showInlineNotification(`${fieldLabels[field]} ${t('pluginOptions.saved')}`, elementRef);
+        } else {
+            // Text fields: longer debounce so the save happens once typing pauses
+            scheduleSave(1000);
         }
-        // For basePath, accessLogPattern, errorLogPattern: no auto-save, wait for manual save
     };
 
-    const validateForm = (): { valid: boolean; error?: string } => {
+    const validateForm = (data: Record<string, string | number | boolean> = formData): { valid: boolean; error?: string } => {
         if (isLogSourcePlugin) {
-            if (!formData.basePath || typeof formData.basePath !== 'string' || !formData.basePath.trim()) {
+            if (!data.basePath || typeof data.basePath !== 'string' || !data.basePath.trim()) {
                 return { valid: false, error: t('pluginConfig.basePathRequired') };
             }
-            
+
             if (pluginId === 'nginx' || pluginId === 'apache') {
-                if (!formData.accessLogPattern || typeof formData.accessLogPattern !== 'string' || !formData.accessLogPattern.trim()) {
+                if (!data.accessLogPattern || typeof data.accessLogPattern !== 'string' || !data.accessLogPattern.trim()) {
                     return { valid: false, error: t('pluginConfig.accessPatternRequired') };
                 }
-                if (!formData.errorLogPattern || typeof formData.errorLogPattern !== 'string' || !formData.errorLogPattern.trim()) {
+                if (!data.errorLogPattern || typeof data.errorLogPattern !== 'string' || !data.errorLogPattern.trim()) {
                     return { valid: false, error: t('pluginConfig.errorPatternRequired') };
                 }
             } else if (pluginId === 'npm') {
-                if (!formData.accessLogPattern || typeof formData.accessLogPattern !== 'string' || !formData.accessLogPattern.trim()) {
+                if (!data.accessLogPattern || typeof data.accessLogPattern !== 'string' || !data.accessLogPattern.trim()) {
                     return { valid: false, error: t('pluginConfig.accessPatternRequired') };
                 }
             }
-            
-            if (typeof formData.maxLines !== 'number' || formData.maxLines < 0) {
+
+            if (typeof data.maxLines !== 'number' || data.maxLines < 0) {
                 return { valid: false, error: t('pluginConfig.maxLinesInvalid') };
             }
-            
-            return { valid: true };
         }
         return { valid: true };
     };
 
-    const handleSave = async () => {
-        const validation = validateForm();
+    const buildSettings = (data: Record<string, string | number | boolean>): Record<string, unknown> => {
+        const settings: Record<string, unknown> = { ...data };
+        if (pluginId === 'nginx' || pluginId === 'apache' || pluginId === 'npm') {
+            const raw = String(data.excludedIps ?? '').trim();
+            settings.excludedIps = raw ? raw.split(/[\n,;]+/).map((s: string) => s.trim()).filter(Boolean) : [];
+        }
+        if (isLogSourcePlugin) {
+            settings.logFiles = logFilesRef.current;
+            const filters = excludeFiltersRef.current;
+            if (filters.files?.length || filters.directories?.length || filters.paths?.length) {
+                settings.excludeFilters = filters;
+            }
+        }
+        return settings;
+    };
+
+    // Saves the current form right away (used by the debounce timer and the manual button)
+    const saveNow = async (): Promise<boolean> => {
+        if (autoSaveTimeoutRef.current) {
+            clearTimeout(autoSaveTimeoutRef.current);
+            autoSaveTimeoutRef.current = null;
+        }
+        const current = formDataRef.current;
+        const validation = validateForm(current);
         if (!validation.valid) {
-            setTestResult({
-                success: false,
-                message: validation.error || t('pluginConfig.fillRequired')
-            });
-            return;
+            setSaveStatus('error');
+            setTestResult({ success: false, message: validation.error || t('pluginConfig.fillRequired') });
+            return false;
         }
 
-        try {
-            const settings = { ...formData } as Record<string, unknown>;
-            if (pluginId === 'nginx' || pluginId === 'apache' || pluginId === 'npm') {
-                const raw = String(formData.excludedIps ?? '').trim();
-                settings.excludedIps = raw ? raw.split(/[\n,;]+/).map((s: string) => s.trim()).filter(Boolean) : [];
-            }
-            if (isLogSourcePlugin) {
-                (settings as any).logFiles = logFiles;
-                const hasFilters = excludeFilters.files?.length || excludeFilters.directories?.length || excludeFilters.paths?.length;
-                if (hasFilters) {
-                    (settings as any).excludeFilters = excludeFilters;
-                }
-            }
-            
-            await updatePluginConfig(pluginId, {
-                enabled: plugin?.enabled ?? false,
-                settings
-            });
-            // Force refresh plugins to update the component
-            await fetchPlugins(true);
-            
-            // Reload detected files after saving basePath
-            if (isLogSourcePlugin && formData.basePath) {
-                loadDetectedFiles(true);
-            }
-            
-            // Reload log files for host-system plugin after save
-            if (pluginId === 'host-system') {
-                // The useEffect will automatically reload logFiles when plugin.settings.logFiles changes
-                // But we can also explicitly reload if needed
-            }
-            
-            showInlineNotification('Configuration enregistrée avec succès');
-            setTestResult({
-                success: true,
-                message: 'Configuration enregistrée avec succès'
-            });
-            addAction(`${pluginId} — configuration sauvegardée`, true);
-        } catch (error) {
-            console.error('Failed to save configuration:', error);
-            setTestResult({
-                success: false,
-                message: 'Erreur lors de l\'enregistrement de la configuration'
-            });
+        const version = editVersionRef.current;
+        setSaveStatus('saving');
+        // `enabled` is omitted on purpose: the server keeps the current value
+        const ok = await updatePluginConfig(pluginId, { settings: buildSettings(current) });
+        if (!ok) {
+            setSaveStatus('error');
+            setTestResult({ success: false, message: 'Erreur lors de l\'enregistrement de la configuration' });
             addAction(`${pluginId} — erreur de sauvegarde`, false);
+            return false;
+        }
+        if (editVersionRef.current === version) setSaveStatus('saved');
+
+        // Reload detected files when the base path changed
+        const basePath = String(current.basePath ?? '');
+        if (isLogSourcePlugin && basePath && basePath !== savedBasePathRef.current) {
+            savedBasePathRef.current = basePath;
+            loadDetectedFiles(true);
+        }
+        return true;
+    };
+    saveNowRef.current = saveNow;
+
+    const handleSave = async () => {
+        if (await saveNow()) {
+            showInlineNotification('Configuration enregistrée avec succès');
+            addAction(`${pluginId} — configuration sauvegardée`, true);
         }
     };
 
@@ -1139,12 +1025,6 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                                                     <div className="flex items-center gap-1.5 text-amber-400 mt-1">
                                                         <AlertCircle size={10} />
                                                         <span className="font-sans">{npmLayoutDetect.message}</span>
-                                                    </div>
-                                                )}
-                                                {npmLayoutDetect.found && (
-                                                    <div className="flex items-center gap-1.5 text-amber-300 mt-1 font-sans">
-                                                        <AlertCircle size={10} />
-                                                        <span>N'oubliez pas de sauvegarder la config NPM.</span>
                                                     </div>
                                                 )}
                                             </div>
@@ -2350,6 +2230,10 @@ export const PluginOptionsPanel: React.FC<PluginOptionsPanelProps> = ({ pluginId
                 <div className="flex flex-col items-center gap-3 pt-6 border-t border-gray-800">
                     <div className="flex items-center justify-center gap-3">
                         {pluginId !== 'fail2ban' && (
+                            <AutoSaveStatus status={saveStatus} />
+                        )}
+                        {/* Manual save only while a change is waiting (debounce) or failed */}
+                        {pluginId !== 'fail2ban' && (saveStatus === 'pending' || saveStatus === 'error') && (
                             <button
                                 type="button"
                                 onClick={handleSave}
@@ -2460,6 +2344,37 @@ interface F2bCheckResult {
         dropin:  F2bCheck;
     };
 }
+
+type SaveStatus = 'idle' | 'pending' | 'saving' | 'saved' | 'error';
+
+const AutoSaveStatus: React.FC<{ status: SaveStatus }> = ({ status }) => {
+    const { t } = useTranslation();
+    if (status === 'saving' || status === 'pending') {
+        return (
+            <span className="flex items-center gap-1.5 text-sm text-gray-400">
+                <RefreshCw size={14} className="animate-spin" />
+                {t('pluginConfig.autoSaving')}
+            </span>
+        );
+    }
+    if (status === 'saved') {
+        return (
+            <span className="flex items-center gap-1.5 text-sm text-green-400">
+                <CheckCircle size={14} />
+                {t('pluginConfig.autoSaved')}
+            </span>
+        );
+    }
+    if (status === 'error') {
+        return (
+            <span className="flex items-center gap-1.5 text-sm text-red-400">
+                <XCircle size={14} />
+                {t('pluginConfig.autoSaveError')}
+            </span>
+        );
+    }
+    return <span className="text-xs text-gray-500">{t('pluginConfig.autoSaveHint')}</span>;
+};
 
 interface Fail2banConfigPanelProps {
     sqliteDbPath: string;
