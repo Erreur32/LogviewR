@@ -5,6 +5,18 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.3] - 2026-10-23
+
+### For users
+
+- Security: `zod` is updated to 4.6.7, which fixes SNYK-JS-ZOD-20510278 (unbounded memory allocation when parsing a very large array). `ip-address` is updated to 10.7.4 (GHSA-rxp7-6hxx-x8q5, quadratic-time zone identifier matching). `body-parser` is updated to 2.4.0, which fixes SNYK-JS-BODYPARSER-21431495 (a compressed request body with trailing bytes could crash the server process). No functional change. Pull the new image and recreate the container to get the fixes.
+
+### For developers
+
+- `vite` 6.4.3 → 6.4.5 (dev server only, not shipped in the image): fixes the Dependabot alerts on custom middleware cross-origin script execution, `server.fs.allow` bypass and the bundled `launch-editor` issues.
+- `overrides.ip-address` raised to `>=10.7.4`.
+- `.snyk`: the temporary zod ignore is removed, a fixed version now exists.
+
 ## [0.16.2] - 2026-10-22
 
 ### For users
