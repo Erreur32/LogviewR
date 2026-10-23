@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### For users
 
-- Security: `zod` is updated to 4.6.7, which fixes SNYK-JS-ZOD-20510278 (unbounded memory allocation when parsing a very large array). `ip-address` is updated to 10.7.4 (GHSA-rxp7-6hxx-x8q5, quadratic-time zone identifier matching). No functional change. Pull the new image and recreate the container to get the fixes.
+- Security: `zod` is updated to 4.6.7, which fixes SNYK-JS-ZOD-20510278 (unbounded memory allocation when parsing a very large array). `ip-address` is updated to 10.7.4 (GHSA-rxp7-6hxx-x8q5, quadratic-time zone identifier matching). `body-parser` is updated to 2.4.0, which fixes SNYK-JS-BODYPARSER-21431495 (a compressed request body with trailing bytes could crash the server process). No functional change. Pull the new image and recreate the container to get the fixes.
 
 ### For developers
 
