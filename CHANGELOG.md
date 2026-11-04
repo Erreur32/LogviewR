@@ -5,6 +5,17 @@ All notable changes to LogviewR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.4] - 2026-11-04
+
+### For users
+
+- Security: `fast-uri` is updated to 3.1.9 (dependency of the MCP SDK through `ajv`), which fixes four URI parsing and normalization advisories: scheme spoofing through percent-encoded schemes (GHSA-w74x-v6f9-j3xg, CVE-2026-110306), host confusion during domain canonicalization (GHSA-wjr9-j795-jxcr), incorrect relative-reference normalization (GHSA-xhq7-xmqj-769h, CVE-2026-110095) and scheme injection in suffix references (GHSA-333x-w4r6-6crp, CVE-2026-110725). `@hono/node-server` is updated to 2.1.6 (GHSA-rmxm-3fg6-px4f, `serveStatic` path decoded twice; LogviewR does not use `serveStatic`). No functional change. Pull the new image and recreate the container to get the fixes.
+
+### For developers
+
+- Dependabot PR #44 (fast-uri) merged, `@hono/node-server` bumped with `npm audit fix` (lockfile only).
+- Still reported by `npm audit` (moderate, install-time only): `minimatch`/`glob`/`rimraf` pulled by `bcrypt` 5 through `@mapbox/node-pre-gyp`. The fix needs `bcrypt` 6 (major), left for a separate change.
+
 ## [0.16.3] - 2026-10-23
 
 ### For users
